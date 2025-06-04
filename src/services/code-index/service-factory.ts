@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { OpenAiEmbedder } from "./embedders/openai"
 import { CodeIndexOllamaEmbedder } from "./embedders/ollama"
+import { OpenAICompatibleEmbedder } from "./embedders/openai-compatible"
 import { EmbedderProvider, getDefaultModelId, getModelDimension } from "../../shared/embeddingModels"
 import { QdrantVectorStore } from "./vector-store/qdrant-client"
 import { codeParser, DirectoryScanner, FileWatcher } from "./processors"
@@ -43,6 +44,15 @@ export class CodeIndexServiceFactory {
 				...config.ollamaOptions,
 				ollamaModelId: config.modelId,
 			})
+		} else if (provider === "openai-compatible") {
+			if (!config.openAiCompatibleOptions?.baseUrl || !config.openAiCompatibleOptions?.apiKey) {
+				throw new Error("OpenAI Compatible configuration missing for embedder creation")
+			}
+			return new OpenAICompatibleEmbedder(
+				config.openAiCompatibleOptions.baseUrl,
+				config.openAiCompatibleOptions.apiKey,
+				config.modelId,
+			)
 		}
 
 		throw new Error(`Invalid embedder type configured: ${config.embedderProvider}`)
@@ -59,12 +69,27 @@ export class CodeIndexServiceFactory {
 		// Use the embedding model ID from config, not the chat model IDs
 		const modelId = config.modelId ?? defaultModel
 
-		const vectorSize = getModelDimension(provider, modelId)
+		let vectorSize: number | undefined
+
+		if (provider === "openai-compatible") {
+			if (config.openAiCompatibleOptions?.modelDimension && config.openAiCompatibleOptions.modelDimension > 0) {
+				vectorSize = config.openAiCompatibleOptions.modelDimension
+			} else {
+				// Fallback if not provided or invalid in openAiCompatibleOptions
+				vectorSize = getModelDimension(provider, modelId)
+			}
+		} else {
+			vectorSize = getModelDimension(provider, modelId)
+		}
 
 		if (vectorSize === undefined) {
-			throw new Error(
-				`Could not determine vector dimension for model '${modelId}'. Check model profiles or config.`,
-			)
+			let errorMessage = `Could not determine vector dimension for model '${modelId}' with provider '${provider}'. `
+			if (provider === "openai-compatible") {
+				errorMessage += `Please ensure the 'Embedding Dimension' is correctly set in the OpenAI-Compatible provider settings.`
+			} else {
+				errorMessage += `Check model profiles or configuration.`
+			}
+			throw new Error(errorMessage)
 		}
 
 		if (!config.qdrantUrl) {

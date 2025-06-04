@@ -15,6 +15,7 @@ export class CodeIndexConfigManager {
 	private modelId?: string
 	private openAiOptions?: ApiHandlerOptions
 	private ollamaOptions?: ApiHandlerOptions
+	private openAiCompatibleOptions?: { baseUrl: string; apiKey: string; modelDimension?: number }
 	private qdrantUrl?: string = "http://localhost:6333"
 	private qdrantApiKey?: string
 	private searchMinScore?: number
@@ -49,6 +50,11 @@ export class CodeIndexConfigManager {
 
 		const openAiKey = this.contextProxy?.getSecret("codeIndexOpenAiKey") ?? ""
 		const qdrantApiKey = this.contextProxy?.getSecret("codeIndexQdrantApiKey") ?? ""
+		const openAiCompatibleBaseUrl = this.contextProxy?.getGlobalState("codebaseIndexOpenAiCompatibleBaseUrl") ?? ""
+		const openAiCompatibleApiKey = this.contextProxy?.getSecret("codebaseIndexOpenAiCompatibleApiKey") ?? ""
+		const openAiCompatibleModelDimension = this.contextProxy?.getGlobalState(
+			"codebaseIndexOpenAiCompatibleModelDimension",
+		) as number | undefined
 
 		// Update instance variables with configuration
 		this.isEnabled = codebaseIndexEnabled || false
@@ -57,12 +63,29 @@ export class CodeIndexConfigManager {
 		this.openAiOptions = { openAiNativeApiKey: openAiKey }
 		this.searchMinScore = SEARCH_MIN_SCORE
 
-		this.embedderProvider = codebaseIndexEmbedderProvider === "ollama" ? "ollama" : "openai"
+		// Set embedder provider with support for openai-compatible
+		if (codebaseIndexEmbedderProvider === "ollama") {
+			this.embedderProvider = "ollama"
+		} else if (codebaseIndexEmbedderProvider === "openai-compatible") {
+			this.embedderProvider = "openai-compatible"
+		} else {
+			this.embedderProvider = "openai"
+		}
+
 		this.modelId = codebaseIndexEmbedderModelId || undefined
 
 		this.ollamaOptions = {
 			ollamaBaseUrl: codebaseIndexEmbedderBaseUrl,
 		}
+
+		this.openAiCompatibleOptions =
+			openAiCompatibleBaseUrl && openAiCompatibleApiKey
+				? {
+						baseUrl: openAiCompatibleBaseUrl,
+						apiKey: openAiCompatibleApiKey,
+						modelDimension: openAiCompatibleModelDimension,
+					}
+				: undefined
 	}
 
 	/**
@@ -77,6 +100,7 @@ export class CodeIndexConfigManager {
 			modelId?: string
 			openAiOptions?: ApiHandlerOptions
 			ollamaOptions?: ApiHandlerOptions
+			openAiCompatibleOptions?: { baseUrl: string; apiKey: string }
 			qdrantUrl?: string
 			qdrantApiKey?: string
 			searchMinScore?: number
@@ -91,6 +115,9 @@ export class CodeIndexConfigManager {
 			modelId: this.modelId,
 			openAiKey: this.openAiOptions?.openAiNativeApiKey ?? "",
 			ollamaBaseUrl: this.ollamaOptions?.ollamaBaseUrl ?? "",
+			openAiCompatibleBaseUrl: this.openAiCompatibleOptions?.baseUrl ?? "",
+			openAiCompatibleApiKey: this.openAiCompatibleOptions?.apiKey ?? "",
+			openAiCompatibleModelDimension: this.openAiCompatibleOptions?.modelDimension,
 			qdrantUrl: this.qdrantUrl ?? "",
 			qdrantApiKey: this.qdrantApiKey ?? "",
 		}
@@ -109,6 +136,7 @@ export class CodeIndexConfigManager {
 				modelId: this.modelId,
 				openAiOptions: this.openAiOptions,
 				ollamaOptions: this.ollamaOptions,
+				openAiCompatibleOptions: this.openAiCompatibleOptions,
 				qdrantUrl: this.qdrantUrl,
 				qdrantApiKey: this.qdrantApiKey,
 				searchMinScore: this.searchMinScore,
@@ -132,6 +160,11 @@ export class CodeIndexConfigManager {
 			const qdrantUrl = this.qdrantUrl
 			const isConfigured = !!(ollamaBaseUrl && qdrantUrl)
 			return isConfigured
+		} else if (this.embedderProvider === "openai-compatible") {
+			const baseUrl = this.openAiCompatibleOptions?.baseUrl
+			const apiKey = this.openAiCompatibleOptions?.apiKey
+			const qdrantUrl = this.qdrantUrl
+			return !!(baseUrl && apiKey && qdrantUrl)
 		}
 		return false // Should not happen if embedderProvider is always set correctly
 	}
@@ -149,6 +182,9 @@ export class CodeIndexConfigManager {
 		const prevModelId = prev?.modelId ?? undefined
 		const prevOpenAiKey = prev?.openAiKey ?? ""
 		const prevOllamaBaseUrl = prev?.ollamaBaseUrl ?? ""
+		const prevOpenAiCompatibleBaseUrl = prev?.openAiCompatibleBaseUrl ?? ""
+		const prevOpenAiCompatibleApiKey = prev?.openAiCompatibleApiKey ?? ""
+		const prevOpenAiCompatibleModelDimension = prev?.openAiCompatibleModelDimension
 		const prevQdrantUrl = prev?.qdrantUrl ?? ""
 		const prevQdrantApiKey = prev?.qdrantApiKey ?? ""
 
@@ -189,6 +225,19 @@ export class CodeIndexConfigManager {
 			if (this.embedderProvider === "ollama") {
 				const currentOllamaBaseUrl = this.ollamaOptions?.ollamaBaseUrl ?? ""
 				if (prevOllamaBaseUrl !== currentOllamaBaseUrl) {
+					return true
+				}
+			}
+
+			if (this.embedderProvider === "openai-compatible") {
+				const currentOpenAiCompatibleBaseUrl = this.openAiCompatibleOptions?.baseUrl ?? ""
+				const currentOpenAiCompatibleApiKey = this.openAiCompatibleOptions?.apiKey ?? ""
+				const currentOpenAiCompatibleModelDimension = this.openAiCompatibleOptions?.modelDimension
+				if (
+					prevOpenAiCompatibleBaseUrl !== currentOpenAiCompatibleBaseUrl ||
+					prevOpenAiCompatibleApiKey !== currentOpenAiCompatibleApiKey ||
+					prevOpenAiCompatibleModelDimension !== currentOpenAiCompatibleModelDimension
+				) {
 					return true
 				}
 			}
@@ -242,6 +291,7 @@ export class CodeIndexConfigManager {
 			modelId: this.modelId,
 			openAiOptions: this.openAiOptions,
 			ollamaOptions: this.ollamaOptions,
+			openAiCompatibleOptions: this.openAiCompatibleOptions,
 			qdrantUrl: this.qdrantUrl,
 			qdrantApiKey: this.qdrantApiKey,
 			searchMinScore: this.searchMinScore,

@@ -3,11 +3,13 @@ import { CodeIndexConfigManager } from "../config-manager"
 import { CacheManager } from "../cache-manager"
 import { OpenAiEmbedder } from "../embedders/openai"
 import { CodeIndexOllamaEmbedder } from "../embedders/ollama"
+import { OpenAICompatibleEmbedder } from "../embedders/openai-compatible"
 import { QdrantVectorStore } from "../vector-store/qdrant-client"
 
 // Mock the embedders and vector store
 jest.mock("../embedders/openai")
 jest.mock("../embedders/ollama")
+jest.mock("../embedders/openai-compatible")
 jest.mock("../vector-store/qdrant-client")
 
 // Mock the embedding models module
@@ -18,6 +20,7 @@ jest.mock("../../../shared/embeddingModels", () => ({
 
 const MockedOpenAiEmbedder = OpenAiEmbedder as jest.MockedClass<typeof OpenAiEmbedder>
 const MockedCodeIndexOllamaEmbedder = CodeIndexOllamaEmbedder as jest.MockedClass<typeof CodeIndexOllamaEmbedder>
+const MockedOpenAICompatibleEmbedder = OpenAICompatibleEmbedder as jest.MockedClass<typeof OpenAICompatibleEmbedder>
 const MockedQdrantVectorStore = QdrantVectorStore as jest.MockedClass<typeof QdrantVectorStore>
 
 // Import the mocked functions
@@ -159,6 +162,104 @@ describe("CodeIndexServiceFactory", () => {
 			expect(() => factory.createEmbedder()).toThrow("Ollama configuration missing for embedder creation")
 		})
 
+		it("should pass model ID to OpenAI Compatible embedder when using OpenAI Compatible provider", () => {
+			// Arrange
+			const testModelId = "text-embedding-3-large"
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-api-key",
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act
+			factory.createEmbedder()
+
+			// Assert
+			expect(MockedOpenAICompatibleEmbedder).toHaveBeenCalledWith(
+				"https://api.example.com/v1",
+				"test-api-key",
+				testModelId,
+			)
+		})
+
+		it("should handle undefined model ID for OpenAI Compatible embedder", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: undefined,
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-api-key",
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act
+			factory.createEmbedder()
+
+			// Assert
+			expect(MockedOpenAICompatibleEmbedder).toHaveBeenCalledWith(
+				"https://api.example.com/v1",
+				"test-api-key",
+				undefined,
+			)
+		})
+
+		it("should throw error when OpenAI Compatible base URL is missing", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: "text-embedding-3-large",
+				openAiCompatibleOptions: {
+					baseUrl: undefined,
+					apiKey: "test-api-key",
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act & Assert
+			expect(() => factory.createEmbedder()).toThrow(
+				"OpenAI Compatible configuration missing for embedder creation",
+			)
+		})
+
+		it("should throw error when OpenAI Compatible API key is missing", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: "text-embedding-3-large",
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: undefined,
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act & Assert
+			expect(() => factory.createEmbedder()).toThrow(
+				"OpenAI Compatible configuration missing for embedder creation",
+			)
+		})
+
+		it("should throw error when OpenAI Compatible options are missing", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: "text-embedding-3-large",
+				openAiCompatibleOptions: undefined,
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act & Assert
+			expect(() => factory.createEmbedder()).toThrow(
+				"OpenAI Compatible configuration missing for embedder creation",
+			)
+		})
+
 		it("should throw error for invalid embedder provider", () => {
 			// Arrange
 			const testConfig = {
@@ -228,6 +329,132 @@ describe("CodeIndexServiceFactory", () => {
 			)
 		})
 
+		it("should use config.modelId for OpenAI Compatible provider", () => {
+			// Arrange
+			const testModelId = "text-embedding-3-large"
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(3072)
+
+			// Act
+			factory.createVectorStore()
+
+			// Assert
+			expect(mockGetModelDimension).toHaveBeenCalledWith("openai-compatible", testModelId)
+			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
+				"/test/workspace",
+				"http://localhost:6333",
+				3072,
+				"test-key",
+			)
+		})
+
+		it("should prioritize manual modelDimension over getModelDimension for OpenAI Compatible provider", () => {
+			// Arrange
+			const testModelId = "custom-model"
+			const manualDimension = 1024
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				openAiCompatibleOptions: {
+					modelDimension: manualDimension,
+				},
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(768) // This should be ignored
+
+			// Act
+			factory.createVectorStore()
+
+			// Assert
+			expect(mockGetModelDimension).not.toHaveBeenCalled()
+			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
+				"/test/workspace",
+				"http://localhost:6333",
+				manualDimension,
+				"test-key",
+			)
+		})
+
+		it("should fall back to getModelDimension when manual modelDimension is not set for OpenAI Compatible", () => {
+			// Arrange
+			const testModelId = "custom-model"
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-key",
+				},
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(768)
+
+			// Act
+			factory.createVectorStore()
+
+			// Assert
+			expect(mockGetModelDimension).toHaveBeenCalledWith("openai-compatible", testModelId)
+			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
+				"/test/workspace",
+				"http://localhost:6333",
+				768,
+				"test-key",
+			)
+		})
+
+		it("should throw error when manual modelDimension is invalid for OpenAI Compatible", () => {
+			// Arrange
+			const testModelId = "custom-model"
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				openAiCompatibleOptions: {
+					modelDimension: 0, // Invalid dimension
+				},
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(undefined)
+
+			// Act & Assert
+			expect(() => factory.createVectorStore()).toThrow(
+				"Could not determine vector dimension for model 'custom-model' with provider 'openai-compatible'. Please ensure the 'Embedding Dimension' is correctly set in the OpenAI-Compatible provider settings.",
+			)
+		})
+
+		it("should throw error when both manual dimension and getModelDimension fail for OpenAI Compatible", () => {
+			// Arrange
+			const testModelId = "unknown-model"
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-key",
+				},
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(undefined)
+
+			// Act & Assert
+			expect(() => factory.createVectorStore()).toThrow(
+				"Could not determine vector dimension for model 'unknown-model' with provider 'openai-compatible'. Please ensure the 'Embedding Dimension' is correctly set in the OpenAI-Compatible provider settings.",
+			)
+		})
+
 		it("should use default model when config.modelId is undefined", () => {
 			// Arrange
 			const testConfig = {
@@ -265,7 +492,7 @@ describe("CodeIndexServiceFactory", () => {
 
 			// Act & Assert
 			expect(() => factory.createVectorStore()).toThrow(
-				"Could not determine vector dimension for model 'unknown-model'. Check model profiles or config.",
+				"Could not determine vector dimension for model 'unknown-model' with provider 'openai'. Check model profiles or configuration.",
 			)
 		})
 

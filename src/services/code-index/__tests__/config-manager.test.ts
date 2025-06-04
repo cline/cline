@@ -74,6 +74,163 @@ describe("CodeIndexConfigManager", () => {
 			})
 		})
 
+		it("should load OpenAI Compatible configuration from globalState and secrets", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai-compatible",
+				codebaseIndexEmbedderBaseUrl: "",
+				codebaseIndexEmbedderModelId: "text-embedding-3-large",
+			}
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") return mockGlobalState
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexQdrantApiKey") return "test-qdrant-key"
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-openai-compatible-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig).toEqual({
+				isEnabled: true,
+				isConfigured: true,
+				embedderProvider: "openai-compatible",
+				modelId: "text-embedding-3-large",
+				openAiOptions: { openAiNativeApiKey: "" },
+				ollamaOptions: { ollamaBaseUrl: "" },
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-openai-compatible-key",
+				},
+				qdrantUrl: "http://qdrant.local",
+				qdrantApiKey: "test-qdrant-key",
+				searchMinScore: 0.4,
+			})
+		})
+
+		it("should load OpenAI Compatible configuration with modelDimension from globalState", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai-compatible",
+				codebaseIndexEmbedderBaseUrl: "",
+				codebaseIndexEmbedderModelId: "custom-model",
+			}
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") return mockGlobalState
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexQdrantApiKey") return "test-qdrant-key"
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-openai-compatible-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig).toEqual({
+				isEnabled: true,
+				isConfigured: true,
+				embedderProvider: "openai-compatible",
+				modelId: "custom-model",
+				openAiOptions: { openAiNativeApiKey: "" },
+				ollamaOptions: { ollamaBaseUrl: "" },
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-openai-compatible-key",
+					modelDimension: 1024,
+				},
+				qdrantUrl: "http://qdrant.local",
+				qdrantApiKey: "test-qdrant-key",
+				searchMinScore: 0.4,
+			})
+		})
+
+		it("should handle missing modelDimension for OpenAI Compatible configuration", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai-compatible",
+				codebaseIndexEmbedderBaseUrl: "",
+				codebaseIndexEmbedderModelId: "custom-model",
+			}
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") return mockGlobalState
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				if (key === "codebaseIndexOpenAiCompatibleModelDimension") return undefined
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexQdrantApiKey") return "test-qdrant-key"
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-openai-compatible-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig).toEqual({
+				isEnabled: true,
+				isConfigured: true,
+				embedderProvider: "openai-compatible",
+				modelId: "custom-model",
+				openAiOptions: { openAiNativeApiKey: "" },
+				ollamaOptions: { ollamaBaseUrl: "" },
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-openai-compatible-key",
+				},
+				qdrantUrl: "http://qdrant.local",
+				qdrantApiKey: "test-qdrant-key",
+				searchMinScore: 0.4,
+			})
+		})
+
+		it("should handle invalid modelDimension type for OpenAI Compatible configuration", async () => {
+			const mockGlobalState = {
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: "openai-compatible",
+				codebaseIndexEmbedderBaseUrl: "",
+				codebaseIndexEmbedderModelId: "custom-model",
+			}
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") return mockGlobalState
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				if (key === "codebaseIndexOpenAiCompatibleModelDimension") return "invalid-dimension"
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codeIndexQdrantApiKey") return "test-qdrant-key"
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-openai-compatible-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig).toEqual({
+				isEnabled: true,
+				isConfigured: true,
+				embedderProvider: "openai-compatible",
+				modelId: "custom-model",
+				openAiOptions: { openAiNativeApiKey: "" },
+				ollamaOptions: { ollamaBaseUrl: "" },
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-openai-compatible-key",
+					modelDimension: "invalid-dimension",
+				},
+				qdrantUrl: "http://qdrant.local",
+				qdrantApiKey: "test-qdrant-key",
+				searchMinScore: 0.4,
+			})
+		})
+
 		it("should detect restart requirement when provider changes", async () => {
 			// Initial state - properly configured
 			mockContextProxy.getGlobalState.mockReturnValue({
@@ -270,6 +427,241 @@ describe("CodeIndexConfigManager", () => {
 				expect(result.requiresRestart).toBe(true)
 			})
 
+			it("should handle OpenAI Compatible configuration changes", async () => {
+				// Initial state
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://old-api.example.com/v1"
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "old-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Change OpenAI Compatible base URL
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://new-api.example.com/v1"
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should handle OpenAI Compatible API key changes", async () => {
+				// Initial state
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "old-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Change OpenAI Compatible API key
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "new-api-key"
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should handle OpenAI Compatible modelDimension changes", async () => {
+				// Initial state with modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Change modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 2048
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should not require restart when modelDimension remains the same", async () => {
+				// Initial state with modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Keep modelDimension the same, change unrelated setting
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+							codebaseIndexSearchMinScore: 0.5, // Changed unrelated setting
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(false)
+			})
+
+			it("should require restart when modelDimension is added", async () => {
+				// Initial state without modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return undefined
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Add modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
+			it("should require restart when modelDimension is removed", async () => {
+				// Initial state with modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return 1024
+					return undefined
+				})
+				mockContextProxy.getSecret.mockImplementation((key: string) => {
+					if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+					return undefined
+				})
+
+				await configManager.loadConfiguration()
+
+				// Remove modelDimension
+				mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+					if (key === "codebaseIndexConfig") {
+						return {
+							codebaseIndexEnabled: true,
+							codebaseIndexQdrantUrl: "http://qdrant.local",
+							codebaseIndexEmbedderProvider: "openai-compatible",
+							codebaseIndexEmbedderModelId: "custom-model",
+						}
+					}
+					if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+					if (key === "codebaseIndexOpenAiCompatibleModelDimension") return undefined
+					return undefined
+				})
+
+				const result = await configManager.loadConfiguration()
+				expect(result.requiresRestart).toBe(true)
+			})
+
 			it("should not require restart when disabled remains disabled", async () => {
 				// Initial state - disabled but configured
 				mockContextProxy.getGlobalState.mockReturnValue({
@@ -446,6 +838,69 @@ describe("CodeIndexConfigManager", () => {
 
 			await configManager.loadConfiguration()
 			expect(configManager.isFeatureConfigured).toBe(true)
+		})
+
+		it("should validate OpenAI Compatible configuration correctly", async () => {
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") {
+					return {
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai-compatible",
+					}
+				}
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+			expect(configManager.isFeatureConfigured).toBe(true)
+		})
+
+		it("should return false when OpenAI Compatible base URL is missing", async () => {
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") {
+					return {
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai-compatible",
+					}
+				}
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return ""
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+			expect(configManager.isFeatureConfigured).toBe(false)
+		})
+
+		it("should return false when OpenAI Compatible API key is missing", async () => {
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") {
+					return {
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai-compatible",
+					}
+				}
+				if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexOpenAiCompatibleApiKey") return ""
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+			expect(configManager.isFeatureConfigured).toBe(false)
 		})
 
 		it("should return false when required values are missing", async () => {
