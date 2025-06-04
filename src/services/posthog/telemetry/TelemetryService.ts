@@ -39,7 +39,7 @@ type TelemetryCategoryFeatureFlagMap = {
 class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
-		["checkpoints", true],
+		["checkpoints", false],
 		["browser", true],
 	])
 
@@ -730,6 +730,7 @@ class TelemetryService {
 	/**
 	 * Initializes the feature flag cache on extension startup
 	 * Fetches all mapped feature flags from PostHog and caches the results
+	 * Uses a global 5-second timeout for all flags to prevent startup delays
 	 * If PostHog is unreachable, assumes all remote flags are disabled (false)
 	 */
 	public async initializeTelemetryFeatureFlagCache(): Promise<void> {
@@ -737,50 +738,38 @@ class TelemetryService {
 			return
 		}
 
-		console.log("TelemetryService: Initializing feature flag cache...")
-
 		const mappedCategories = Object.keys(this.categoryFeatureFlagMap) as TelemetryCategory[]
-
 		if (mappedCategories.length === 0) {
 			this.featureFlagCacheInitialized = true
 			return
 		}
 
 		const flagChecks = mappedCategories.map(async (category) => {
-			const featureFlagKey = this.categoryFeatureFlagMap[category]!
-			const flagName = FEATURE_FLAGS[featureFlagKey]
-
+			const flagName = FEATURE_FLAGS[this.categoryFeatureFlagMap[category]!]
 			try {
-				const timeoutPromise = new Promise<boolean>((_, reject) => {
-					setTimeout(() => reject(new Error("Timeout")), 5000)
-				})
-
-				const flagCheckPromise = featureFlagsService.isFeatureFlagEnabled(flagName)
-				const isEnabled = await Promise.race([flagCheckPromise, timeoutPromise])
-
+				const isEnabled = await featureFlagsService.isFeatureFlagEnabled(flagName)
 				this.featureFlagCache.set(category, isEnabled)
-				console.log(`TelemetryService: Feature flag ${flagName} for category ${category}: ${isEnabled}`)
-
 				return { category, success: true, enabled: isEnabled }
 			} catch (error) {
 				this.featureFlagCache.set(category, false)
-				console.warn(
-					`TelemetryService: Failed to fetch feature flag ${flagName} for category ${category}, assuming disabled:`,
-					error,
-				)
-
 				return { category, success: false, enabled: false }
 			}
 		})
 
 		try {
-			const results = await Promise.all(flagChecks)
+			const results = await Promise.race([
+				Promise.all(flagChecks),
+				new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error("Global timeout: Feature flag initialization exceeded 5 seconds")), 5000),
+				),
+			])
 			const successCount = results.filter((r) => r.success).length
-			console.log(
-				`TelemetryService: Feature flag cache initialized. ${successCount}/${results.length} flags fetched successfully.`,
-			)
 		} catch (error) {
-			console.error("TelemetryService: Unexpected error during feature flag cache initialization:", error)
+			mappedCategories.forEach((category) => {
+				if (!this.featureFlagCache.has(category)) {
+					this.featureFlagCache.set(category, false)
+				}
+			})
 		}
 
 		this.featureFlagCacheInitialized = true
