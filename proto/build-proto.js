@@ -6,15 +6,52 @@ import { fileURLToPath } from "url"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
+import os from "os"
 
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
-const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
+
+// Check for Apple Silicon compatibility
+function checkAppleSiliconCompatibility() {
+	// Only run check on macOS
+	if (process.platform !== "darwin") {
+		return
+	}
+
+	// Check if running on Apple Silicon
+	const cpuArchitecture = os.arch()
+	if (cpuArchitecture === "arm64") {
+		try {
+			// Check if Rosetta is installed
+			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
+
+			if (rosettaCheck === "NOT_INSTALLED") {
+				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
+				console.log(
+					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
+				)
+				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
+				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
+				console.log(chalk.red("Aborting build process."))
+				process.exit(1)
+			} else {
+				console.log(chalk.green("Rosetta 2 is installed. Continuing with build."))
+			}
+		} catch (error) {
+			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
+		}
+	}
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+
+const isWindows = process.platform === "win32"
+const tsProtoPlugin = isWindows
+	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
+	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 // List of gRPC services
 // To add a new service, simply add it to this map and run this script
@@ -30,12 +67,16 @@ const serviceNameMap = {
 	web: "cline.WebService",
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
+	ui: "cline.UiService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
+
+	// Check for Apple Silicon compatibility before proceeding
+	checkAppleSiliconCompatibility()
 
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
@@ -55,7 +96,7 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, realpath: true })
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [

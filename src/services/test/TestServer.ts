@@ -18,6 +18,7 @@ import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
+import { AskResponseRequest } from "@/shared/proto/task"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -616,11 +617,13 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 
 	// Send the response message
 	try {
-		await TaskServiceClient.askResponse({
-			responseType,
-			text: responseText,
-			images: responseImages,
-		})
+		await TaskServiceClient.askResponse(
+			AskResponseRequest.create({
+				responseType,
+				text: responseText,
+				images: responseImages,
+			}),
+		)
 		Logger.log(`Auto-responded to ${askType} with ${responseType}`)
 	} catch (error) {
 		Logger.log(`Error sending askResponse: ${error}`)
