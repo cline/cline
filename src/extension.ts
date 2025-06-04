@@ -12,6 +12,7 @@ import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
 import { Controller } from "./core/controller"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
+import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
@@ -92,19 +93,27 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
-			const openChat = async (instance?: WebviewProvider) => {
+			console.log("[DEBUG] plusButtonClicked", webview)
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+
+			const openChat = async (instance: WebviewProvider) => {
 				await instance?.controller.clearTask()
 				await instance?.controller.postStateToWebview()
-				await instance?.controller.postMessageToWebview({
-					type: "action",
-					action: "chatButtonClicked",
-				})
+				await sendChatButtonClickedEvent(instance.controller.id)
 			}
-			const isSidebar = !webview
+
 			if (isSidebar) {
-				openChat(WebviewProvider.getSidebarInstance())
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance) {
+					openChat(sidebarInstance)
+					// Send event to the sidebar instance
+				}
 			} else {
-				WebviewProvider.getTabInstances().forEach(openChat)
+				const tabInstances = WebviewProvider.getTabInstances()
+				for (const instance of tabInstances) {
+					openChat(instance)
+				}
 			}
 		}),
 	)
