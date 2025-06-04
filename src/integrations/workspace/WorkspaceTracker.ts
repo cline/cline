@@ -168,6 +168,7 @@ class WorkspaceTracker {
 			this.resetTimer = null
 		}
 		this.disposables.forEach((d) => d.dispose())
+		this.disposables = [] // Clear the array
 	}
 }
 
