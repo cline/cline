@@ -35,7 +35,7 @@ export interface ExtensionMessage {
 		| "theme"
 		| "workspaceUpdated"
 		| "invoke"
-		| "partialMessage"
+		| "messageUpdated"
 		| "mcpServers"
 		| "enhancedPrompt"
 		| "commitSearchResults"
@@ -92,7 +92,7 @@ export interface ExtensionMessage {
 		isActive: boolean
 		path?: string
 	}>
-	partialMessage?: ClineMessage
+	clineMessage?: ClineMessage
 	routerModels?: RouterModels
 	openAiModels?: string[]
 	ollamaModels?: string[]

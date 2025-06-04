@@ -340,17 +340,17 @@ export class Task extends EventEmitter<ClineEvents> {
 		await this.saveClineMessages()
 	}
 
-	private async updateClineMessage(partialMessage: ClineMessage) {
+	private async updateClineMessage(message: ClineMessage) {
 		const provider = this.providerRef.deref()
-		await provider?.postMessageToWebview({ type: "partialMessage", partialMessage })
-		this.emit("message", { action: "updated", message: partialMessage })
+		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
+		this.emit("message", { action: "updated", message })
 
-		const shouldCaptureMessage = partialMessage.partial !== true && CloudService.isEnabled()
+		const shouldCaptureMessage = message.partial !== true && CloudService.isEnabled()
 
 		if (shouldCaptureMessage) {
 			CloudService.instance.captureEvent({
 				event: TelemetryEventName.TASK_MESSAGE,
-				properties: { taskId: this.taskId, message: partialMessage },
+				properties: { taskId: this.taskId, message },
 			})
 		}
 	}
