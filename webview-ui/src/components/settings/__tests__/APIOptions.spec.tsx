@@ -7,7 +7,7 @@ import { ApiConfiguration } from "@shared/api"
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...(typeof actual === "object" && actual !== null ? actual : {}),
+		...(actual || {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
