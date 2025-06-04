@@ -236,6 +236,14 @@ export class Controller {
 						})
 					}
 				})
+				this.readMakehubModels().then((makehubModels) => {
+					if (makehubModels) {
+						this.postMessageToWebview({
+							type: "makehubModels",
+							makehubModels,
+						})
+					}
+				})
 				// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 				// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 				// (see normalizeApiConfiguration > openrouter)
@@ -261,6 +269,41 @@ export class Controller {
 								response.models[apiConfiguration.openRouterModelId],
 							)
 							await this.postStateToWebview()
+						}
+					}
+				})
+				handleModelsServiceRequest(this, "refreshMakehubModels", EmptyRequest.create()).then(async (response) => {
+					if (response && response.models) {
+						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+						if (apiConfiguration.makehubModelId && response.models[apiConfiguration.makehubModelId]) {
+							await updateGlobalState(
+								this.context,
+								"makehubModelInfo",
+								response.models[apiConfiguration.makehubModelId],
+							)
+							// After successfully refreshing and potentially updating the selected model's info,
+							// re-read the full list from cache and send it to the webview.
+							this.readMakehubModels().then((makehubModels) => {
+								if (makehubModels) {
+									this.postMessageToWebview({
+										type: "makehubModels",
+										makehubModels,
+									})
+								}
+							})
+							await this.postStateToWebview()
+						} else if (response && response.models && Object.keys(response.models).length > 0) {
+							// If no specific makehub model is selected, or the selected one is no longer available,
+							// or if we just want to ensure the webview has the latest full list after any refresh.
+							this.readMakehubModels().then((makehubModels) => {
+								if (makehubModels) {
+									this.postMessageToWebview({
+										type: "makehubModels",
+										makehubModels,
+									})
+								}
+							})
 						}
 					}
 				})
@@ -895,6 +938,22 @@ export class Controller {
 		if (fileExists) {
 			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	// Read MakeHub models from disk cache
+	async readMakehubModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const makehubModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.makehubModels)
+		const fileExists = await fileExistsAtPath(makehubModelsFilePath)
+		if (fileExists) {
+			try {
+				const fileContents = await fs.readFile(makehubModelsFilePath, "utf8")
+				return JSON.parse(fileContents)
+			} catch (error) {
+				console.error("Error reading cached MakeHub models from Controller:", error)
+				return undefined
+			}
 		}
 		return undefined
 	}

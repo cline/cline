@@ -20,6 +20,8 @@ service ModelsService {
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns MakeHub models
+  rpc refreshMakehubModels(EmptyRequest) returns (MakehubCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -52,6 +54,26 @@ message OpenRouterModelInfo {
 message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
 }
+
+// For MakehubCompatibleModelInfo structure in MakehubModels
+message MakehubModelInfo {
+  int32 max_tokens = 1;
+  int32 context_window = 2;
+  bool supports_images = 3;
+  bool supports_prompt_cache = 4;
+  double input_price = 5;
+  double output_price = 6;
+  double cache_writes_price = 7;
+  double cache_reads_price = 8;
+  string description = 9;
+  string display_name = 10;
+}
+
+// Shared response message for MakeHub model information
+message MakehubCompatibleModelInfo {
+  map<string, MakehubModelInfo> models = 1;
+}
+
 
 // Request for fetching OpenAI models
 message OpenAiModelsRequest {

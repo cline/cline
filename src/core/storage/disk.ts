@@ -20,6 +20,7 @@ export const GlobalFileNames = {
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
+	makehubModels: "makehub_models.json",
 }
 
 export async function getDocumentsPath(): Promise<string> {
