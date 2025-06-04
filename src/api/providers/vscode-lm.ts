@@ -243,6 +243,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			"claude-sonnet-4": 80000, // min(80K, 80K+16K) = 80K
 			"claude-opus-4": 80000, // min(80K, 80K+16K) = 80K
 			"claude-3.7-sonnet": 106384, // min(200K, 90K+16K) = 106K
+			"claude-3.7-sonnet-thought": 106384, // min(200K, 90K+16K) = 106K
 		}
 
 		return claudeLimits[family] || 80000 // Conservative fallback
