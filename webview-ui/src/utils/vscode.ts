@@ -41,11 +41,11 @@ class VSCodeAPIWrapper {
 			this.vsCodeApi.postMessage(message)
 		} else if (window.__is_standalone__) {
 			if (!window.standalonePostMessage) {
-				console.warn("Standalone event handler not found.")
+				console.warn("Standalone postMessage not found.")
 				return
 			}
 			const json = JSON.stringify(message)
-			console.log("Standalone event handler: " + json.slice(0, 200))
+			console.log("Standalone postMessage: " + json.slice(0, 200))
 			window.standalonePostMessage(json)
 		} else {
 			console.log("postMessage fallback: ", message)
