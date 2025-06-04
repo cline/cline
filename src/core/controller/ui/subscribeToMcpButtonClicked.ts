@@ -14,7 +14,7 @@ const mcpButtonClickedSubscriptions = new Map<StreamingResponseHandler, WebviewP
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToMcpButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	request: WebviewProviderTypeRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
@@ -41,7 +41,7 @@ export async function subscribeToMcpButtonClicked(
  * @param webviewType The type of webview that triggered the event (SIDEBAR or TAB)
  */
 export async function sendMcpButtonClickedEvent(webviewType?: WebviewProviderType): Promise<void> {
-	const event: Empty = {}
+	const event: Empty = Empty.create({})
 
 	// Process all subscriptions, filtering based on the source
 	const promises = Array.from(mcpButtonClickedSubscriptions.entries()).map(async ([responseStream, providerType]) => {
