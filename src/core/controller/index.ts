@@ -264,6 +264,13 @@ export class Controller {
 						}
 					}
 				})
+
+				// Initialize telemetry service with user's current setting
+				this.getStateToPostToWebview().then((state) => {
+					const { telemetrySetting } = state
+					const isOptedIn = telemetrySetting !== "disabled"
+					telemetryService.updateTelemetryState(isOptedIn)
+				})
 				break
 			case "newTask":
 				// Code that should run in response to the hello message command
