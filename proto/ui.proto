@@ -34,4 +34,7 @@ service UiService {
   
   // Subscribe to history button click events
   rpc subscribeToHistoryButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  
+  // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
+  rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
 }
