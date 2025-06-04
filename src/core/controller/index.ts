@@ -393,6 +393,10 @@ export class Controller {
 					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
 				}
 
+				if (typeof message.mcpRichDisplayEnabled === "boolean") {
+					await updateGlobalState(this.context, "mcpRichDisplayEnabled", message.mcpRichDisplayEnabled)
+				}
+
 				// chat settings (including preferredLanguage and openAIReasoningEffort)
 				if (message.chatSettings) {
 					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
@@ -1165,6 +1169,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -1204,6 +1209,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,

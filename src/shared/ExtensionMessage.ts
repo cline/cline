@@ -107,6 +107,7 @@ export interface ExtensionState {
 	currentTaskItem?: HistoryItem
 	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
+	mcpRichDisplayEnabled: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform

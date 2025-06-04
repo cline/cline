@@ -92,5 +92,6 @@ export type GlobalStateKey =
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
 	| "isNewUser"
+	| "mcpRichDisplayEnabled"
 
 export type LocalStateKey = "localClineRulesToggles"

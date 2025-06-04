@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
@@ -112,10 +113,15 @@ interface UrlMatch {
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const [isLoading, setIsLoading] = useState(true)
+	const { mcpRichDisplayEnabled } = useExtensionState()
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
-		// Get saved preference from localStorage, default to 'rich'
+		// First check localStorage for session preference
 		const savedMode = localStorage.getItem("mcpDisplayMode")
-		return savedMode === "plain" ? "plain" : "rich"
+		if (savedMode) {
+			return savedMode === "plain" ? "plain" : "rich"
+		}
+		// If no localStorage value, use the global setting
+		return mcpRichDisplayEnabled ? "rich" : "plain"
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
@@ -267,7 +273,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			processingCanceled = true
 			console.log("Cleaning up URL processing")
 		}
-	}, [responseText, displayMode, forceUpdateCounter])
+	}, [responseText, displayMode, forceUpdateCounter, mcpRichDisplayEnabled])
 
 	// Function to render content based on display mode
 	const renderContent = () => {
