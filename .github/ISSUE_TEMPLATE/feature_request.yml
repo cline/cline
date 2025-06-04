@@ -5,72 +5,190 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Thank you for proposing a detailed feature for Roo Code!**
+        **Thank you for proposing a feature for Roo Code!**
+        
+        This template is for specific, actionable proposals following our [Issue-First Approach](https://github.com/RooCodeInc/Roo-Code/blob/main/CONTRIBUTING.md).
+        
+        **Quality over speed:** We prefer detailed, clear proposals over quick ones. Vague proposals often get closed or require multiple rounds of clarification, which wastes everyone's time.
+        
+        **Before submitting:**
+        - Search existing [Issues](https://github.com/RooCodeInc/Roo-Code/issues) and [Discussions](https://github.com/RooCodeInc/Roo-Code/discussions) to avoid duplicates
+        - For general ideas, use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests) first, or use the #collaboration-board channel in our [Discord](https://discord.gg/roocode)
+        - Join [Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`) for guidance
+        
+        **Review process:** A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until approved and assigned.** We're a small team with limited resources, so every code addition needs careful consideration. We're always happy to receive clear, actionable proposals though!
 
-        This template is for submitting specific, actionable proposals that you or others intend to implement after discussion and approval. It's a key part of our [Issue-First Approach](https://github.com/RooCodeInc/Roo-Code/blob/main/CONTRIBUTING.md).
+  - type: markdown
+    attributes:
+      value: |
+        ## ❌ Common mistakes that lead to proposal rejection:
+        - **Vague problem descriptions:** "UI is bad" -> Should be: "Submit button is invisible on dark theme"
+        - **Solution without context:** "Add feature X" -> Should explain the problem first, then the solution
+        - **Missing user impact:** "This would be cool" -> Should explain who benefits and how
+        - **No acceptance criteria:** How do we know when it's done? What does success look like?
 
-        - **For general ideas or less defined suggestions**, please use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first.
-        - **Before submitting**, please search existing [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues) and [Discussions](https://github.com/RooCodeInc/Roo-Code/discussions) to avoid duplicates.
+        If you're unsure how a good proposal should look like, you can check out our [Roadmap](https://github.com/orgs/RooCodeInc/projects/1/views/1?query=sort%3Aupdated-desc+is%3Aopen&filterQuery=is%3Aissue%2Copen%2Cclosed+label%3A%22feature+request%22+status%3A%22Issue+%5BUnassigned%5D%22%2C%22Issue+%5BIn+Progress%5D%22) where we have a list of all open feature requests that are ready to be implemented or currently being worked on.
 
-        For guidance or to discuss your idea, join the [Roo Code Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`).
-
-        A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until this proposal is approved and assigned.**
   - type: textarea
     id: problem-description
     attributes:
-      label: What problem does this proposed feature solve?
-      description: Clearly describe the problem, use case, or opportunity this feature addresses. Why is this change needed?
-      placeholder: e.g., "Users currently cannot..." or "It would be beneficial if..."
+      label: What specific problem does this solve?
+      description: |
+        **Be concrete and detailed.** Explain the problem from a user's perspective.
+        
+        ✅ **Good examples (specific, clear impact):**
+        - "When running large tasks, users wait 5+ minutes because tasks execute sequentially instead of in parallel, blocking productivity"
+        - "AI can only read one file per request, forcing users to make multiple requests for multi-file projects, increasing wait time from 30s to 5+ minutes"
+        - "Dark theme users can't see the submit button because it uses white text on light grey background"
+        
+        ❌ **Poor examples (vague, unclear impact):**
+        - "The UI looks weird" -> What specifically looks weird? On which screen? What's the impact?
+        - "System prompt is not good" -> What's wrong with it? What behaviour does it cause? What should it do instead?
+        - "Performance could be better" -> Where? How slow is it currently? What's the user impact?
+        
+        **Your problem description should answer:**
+        - Who is affected? (all users, specific user types, etc.)
+        - When does this happen? (specific scenarios/steps)
+        - What's the current behaviour vs expected behaviour?
+        - What's the impact? (time wasted, errors caused, etc.)
+      placeholder: Be specific about the problem, who it affects, and the impact. Avoid generic statements like "it's slow" or "it's confusing."
     validations:
       required: true
 
   - type: textarea
     id: proposed-solution
     attributes:
-      label: Describe the proposed solution in detail
-      description: Provide a clear and comprehensive description of the feature or enhancement. How should it work? What are the key functionalities?
-      placeholder: Include details on user interaction, expected behavior, and potential impact.
+      label: How should this be solved?
+      description: |
+        **Describe your solution in detail.** Explain not just what to build, but how it should work.
+        
+        ✅ **Good examples:**
+        - "Add parallel task execution: Allow up to 3 tasks to run simultaneously with a queue system for additional tasks. Show progress for each active task in the UI."
+        - "Enable multi-file AI processing: Modify the request handler to accept multiple files in a single request and process them together, reducing round trips."
+        - "Fix button contrast: Change submit button to use primary colour on dark theme (white text on blue background) instead of current grey."
+        
+        ❌ **Poor examples:**
+        - "Make it faster" -> How? What specific changes?
+        - "Improve the UI" -> Which part? What specific improvements?
+        - "Fix the prompt" -> What should the new prompt do differently?
+        
+        **Your solution should explain:**
+        - What exactly will change?
+        - How will users interact with it?
+        - What will the new behaviour look like?
+      placeholder: Describe the specific changes and how they will work. Include user interaction details if relevant.
     validations:
       required: true
 
   - type: textarea
-    id: technical-details
+    id: acceptance-criteria
     attributes:
-      label: Technical considerations or implementation details (optional)
-      description: If you have thoughts on how this could be implemented, or specific technical aspects to consider, please share them.
-      placeholder: e.g., "This might involve changes to X component..." or "We should consider Y library..."
+      label: How will we know it works? (Acceptance Criteria)
+      description: |
+        **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
+        
+        **Format suggestion:**
+        ```
+        Given [context/situation]
+        When [user action]
+        Then [expected result]
+        And [additional expectations]
+        But [what should NOT happen]
+        ```
+        
+        **Example:**
+        ```
+        Given I have 5 large tasks to run
+        When I start all of them
+        Then they execute in parallel (max 3 at once, can be configured)
+        And I see progress for each active task
+        And queued tasks show "waiting" status
+        But the UI doesn't freeze or become unresponsive
+        ```
+      placeholder: |
+        Define specific, testable criteria. What should users be able to do? What should happen? What should NOT happen?
+        Use the Given/When/Then format above or your own clear structure.
+    validations:
+      required: true
 
   - type: textarea
-    id: alternatives-considered
+    id: estimated-effort
     attributes:
-      label: Describe alternatives considered (if any)
-      description: What other ways could this problem be solved or this functionality be achieved? Why is your proposed solution preferred?
-      placeholder: Briefly outline any alternative approaches and why they were not chosen.
+      label: Estimated effort and complexity
+      description: |
+        **Help us understand the scope.** This helps with planning and prioritisation.
+        
+        **Please include:**
+        - **Size estimate:** XS/Small/Medium/Large/XL (or hours/days if you prefer)
+        - **Reasoning:** What makes it this size? Which parts are complex?
+        - **Main challenges:** What's the trickiest bit to implement?
+        - **Dependencies:** Does this require other changes or external libraries?
+        
+        **Example:**
+        ```
+        Size: Large (2-3 weeks)
+        Reasoning: Touches task execution engine, UI components, and state management
+        Main challenges: Preventing memory leaks with parallel execution and managing shared resources
+        Dependencies: Might need to add a new dependency for the new feature
+        ```
+      placeholder: |
+        Size: [your estimate]
+        Reasoning: [why this size?]
+        Main challenges: [what's tricky?]
+        Dependencies: [what else is needed?]
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-considerations
+    attributes:
+      label: Technical considerations (optional but helpful)
+      description: |
+        Share technical insights that could help planning:
+        - Implementation approach or architecture changes
+        - Performance implications
+        - Compatibility concerns
+        - Systems that might be affected
+        - Potential blockers you can foresee
+      placeholder: e.g., "Will need to refactor task manager", "Could impact memory usage on large files", "Requires a large portion of code to be rewritten"
+
+  - type: textarea
+    id: trade-offs-and-risks
+    attributes:
+      label: Trade-offs and risks (optional)
+      description: |
+        What could go wrong or what alternatives did you consider?
+        - Alternative approaches and why you chose this one
+        - Potential negative impacts (performance, UX, etc.)
+        - Breaking changes or migration concerns
+        - Edge cases that need careful handling
+      placeholder: 'e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"'
 
   - type: textarea
     id: additional-context
     attributes:
-      label: Additional Context & Mockups
-      description: Add any other context, mockups, screenshots, or links that help illustrate the proposal.
+      label: Additional context (optional)
+      description: Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Proposal Checklist
-      description: Please confirm the following before submitting.
+      label: Proposal checklist
       options:
-        - label: I have searched existing Issues and Discussions to ensure this proposal is not a duplicate.
+        - label: I've searched existing Issues and Discussions for duplicates
           required: true
-        - label: This proposal is for a specific, actionable change intended for implementation (not a general idea).
+        - label: This is a specific, actionable proposal with clear problem and solution
           required: true
-        - label: I understand that this proposal requires review and approval before any development work begins.
+        - label: I've included concrete acceptance criteria
+          required: true
+        - label: I understand this needs approval before implementation begins
           required: true
 
   - type: checkboxes
     id: willingness-to-contribute
     attributes:
-      label: Are you interested in implementing this feature if approved?
-      description: (This is optional and does not affect the proposal's consideration)
+      label: Interested in implementing this?
+      description: Optional - doesn't affect proposal consideration
       options:
-        - label: Yes, I would like to contribute to implementing this feature.
+        - label: Yes, I'd like to help implement this feature
           required: false
