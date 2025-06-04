@@ -85,7 +85,7 @@ ${getToolDescriptionsForMode(
 	settings,
 )}
 
-${getToolUseGuidelinesSection()}
+${getToolUseGuidelinesSection(codeIndexManager)}
 
 ${mcpServersSection}
 
@@ -93,11 +93,11 @@ ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy
 
 ${modesSection}
 
-${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy)}
+${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, codeIndexManager)}
 
 ${getSystemInfoSection(cwd)}
 
-${getObjectiveSection()}
+${getObjectiveSection(codeIndexManager)}
 
 ${await addCustomInstructions(baseInstructions, globalCustomInstructions || "", cwd, mode, { language: language ?? formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
 
