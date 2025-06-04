@@ -56,6 +56,7 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -243,10 +244,7 @@ export class Controller {
 
 				getGlobalState(this.context, "mcpMarketplaceCatalog").then((mcpMarketplaceCatalog) => {
 					if (mcpMarketplaceCatalog) {
-						this.postMessageToWebview({
-							type: "mcpMarketplaceCatalog",
-							mcpMarketplaceCatalog: mcpMarketplaceCatalog as McpMarketplaceCatalog,
-						})
+						sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog as McpMarketplaceCatalog)
 					}
 				})
 				this.silentlyRefreshMcpMarketplace()
@@ -741,10 +739,6 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					error: errorMessage,
-				})
 				vscode.window.showErrorMessage(errorMessage)
 			}
 			return undefined
@@ -790,10 +784,7 @@ export class Controller {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
 			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace:", error)
@@ -821,27 +812,17 @@ export class Controller {
 				| McpMarketplaceCatalog
 				| undefined
 			if (!forceRefresh && cachedCatalog?.items) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: cachedCatalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(cachedCatalog)
 				return
 			}
 
 			const catalog = await this.fetchMcpMarketplaceFromApi(false)
 			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			await this.postMessageToWebview({
-				type: "mcpMarketplaceCatalog",
-				error: errorMessage,
-			})
 			vscode.window.showErrorMessage(errorMessage)
 		}
 	}

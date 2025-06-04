@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, ModelsServiceClient, UiServiceClient } from "../services/grpc-client"
+import { StateServiceClient, ModelsServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -252,12 +252,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
-			case "mcpMarketplaceCatalog": {
-				if (message.mcpMarketplaceCatalog) {
-					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
-				}
-				break
-			}
 		}
 	}, [])
 
@@ -268,6 +262,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -397,6 +392,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to MCP marketplace catalog updates
+		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
+			onResponse: (catalog) => {
+				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
+				setMcpMarketplaceCatalog(catalog)
+			},
+			onError: (error) => {
+				console.error("Error in MCP marketplace catalog subscription:", error)
+			},
+			onComplete: () => {
+				console.log("MCP marketplace catalog subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -417,6 +426,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (chatButtonUnsubscribeRef.current) {
 				chatButtonUnsubscribeRef.current()
 				chatButtonUnsubscribeRef.current = null
+			}
+			if (mcpMarketplaceUnsubscribeRef.current) {
+				mcpMarketplaceUnsubscribeRef.current()
+				mcpMarketplaceUnsubscribeRef.current = null
 			}
 		}
 	}, [])
