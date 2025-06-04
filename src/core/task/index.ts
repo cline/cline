@@ -432,6 +432,20 @@ export class Task {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						console.debug("Task.restoreCheckpoint - Failed to restore checkpoint:", {
+							taskId: this.taskId,
+							messageTs,
+							restoreType,
+							checkpointHash: message.lastCheckpointHash,
+							error:
+								error instanceof Error
+									? {
+											message: error.message,
+											stack: error.stack,
+											name: error.name,
+										}
+									: error,
+						})
 						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -440,6 +454,21 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						console.debug("Task.restoreCheckpoint - Failed to restore offset checkpoint:", {
+							taskId: this.taskId,
+							messageTs,
+							restoreType,
+							offset,
+							checkpointHash: lastMessageWithHash.lastCheckpointHash,
+							error:
+								error instanceof Error
+									? {
+											message: error.message,
+											stack: error.stack,
+											name: error.name,
+										}
+									: error,
+						})
 						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -4320,6 +4349,19 @@ export class Task {
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				console.debug("Task.recursivelyMakeClineRequests - Failed to initialize checkpoint tracker:", {
+					taskId: this.taskId,
+					isFirstRequest,
+					enableCheckpoints: this.enableCheckpoints,
+					error:
+						error instanceof Error
+							? {
+									message: error.message,
+									stack: error.stack,
+									name: error.name,
+								}
+							: error,
+				})
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
 			}

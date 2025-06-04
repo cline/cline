@@ -5,6 +5,9 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
+import type { CheckpointAction } from "@shared/TelemetryActionTypes"
+import { featureFlagsService } from "../feature-flags/FeatureFlagsService"
+import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -29,12 +32,23 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
+type TelemetryCategoryFeatureFlagMap = {
+	[Category in TelemetryCategory]?: keyof typeof FEATURE_FLAGS
+}
+
 class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
-		["checkpoints", false], // Checkpoints telemetry disabled
-		["browser", true], // Browser telemetry enabled
+		["checkpoints", true],
+		["browser", true],
 	])
+
+	private readonly categoryFeatureFlagMap: TelemetryCategoryFeatureFlagMap = {
+		checkpoints: "CHECKPOINTS_TELEMETRY",
+	}
+
+	private featureFlagCache: Map<TelemetryCategory, boolean> = new Map()
+	private featureFlagCacheInitialized: boolean = false
 
 	// Stores events when collect=true
 	private collectedTasks: CollectedTasks[] = []
@@ -412,12 +426,7 @@ class TelemetryService {
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(
-		taskId: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
-		durationMs?: number,
-		collect: boolean = false,
-	) {
+	public captureCheckpointUsage(taskId: string, action: CheckpointAction, durationMs?: number, collect: boolean = false) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
@@ -719,12 +728,77 @@ class TelemetryService {
 	}
 
 	/**
+	 * Initializes the feature flag cache on extension startup
+	 * Fetches all mapped feature flags from PostHog and caches the results
+	 * If PostHog is unreachable, assumes all remote flags are disabled (false)
+	 */
+	public async initializeTelemetryFeatureFlagCache(): Promise<void> {
+		if (this.featureFlagCacheInitialized) {
+			return
+		}
+
+		console.log("TelemetryService: Initializing feature flag cache...")
+
+		const mappedCategories = Object.keys(this.categoryFeatureFlagMap) as TelemetryCategory[]
+
+		if (mappedCategories.length === 0) {
+			this.featureFlagCacheInitialized = true
+			return
+		}
+
+		const flagChecks = mappedCategories.map(async (category) => {
+			const featureFlagKey = this.categoryFeatureFlagMap[category]!
+			const flagName = FEATURE_FLAGS[featureFlagKey]
+
+			try {
+				const timeoutPromise = new Promise<boolean>((_, reject) => {
+					setTimeout(() => reject(new Error("Timeout")), 5000)
+				})
+
+				const flagCheckPromise = featureFlagsService.isFeatureFlagEnabled(flagName)
+				const isEnabled = await Promise.race([flagCheckPromise, timeoutPromise])
+
+				this.featureFlagCache.set(category, isEnabled)
+				console.log(`TelemetryService: Feature flag ${flagName} for category ${category}: ${isEnabled}`)
+
+				return { category, success: true, enabled: isEnabled }
+			} catch (error) {
+				this.featureFlagCache.set(category, false)
+				console.warn(
+					`TelemetryService: Failed to fetch feature flag ${flagName} for category ${category}, assuming disabled:`,
+					error,
+				)
+
+				return { category, success: false, enabled: false }
+			}
+		})
+
+		try {
+			const results = await Promise.all(flagChecks)
+			const successCount = results.filter((r) => r.success).length
+			console.log(
+				`TelemetryService: Feature flag cache initialized. ${successCount}/${results.length} flags fetched successfully.`,
+			)
+		} catch (error) {
+			console.error("TelemetryService: Unexpected error during feature flag cache initialization:", error)
+		}
+
+		this.featureFlagCacheInitialized = true
+	}
+
+	/**
 	 * Checks if a specific telemetry category is enabled
 	 * @param category The telemetry category to check
 	 * @returns Boolean indicating whether the specified telemetry category is enabled
 	 */
 	public isCategoryEnabled(category: TelemetryCategory): boolean {
-		// Default to true if category has not been explicitly configured
+		// Check if this category has a remote feature flag mapping
+		const featureFlagKey = this.categoryFeatureFlagMap[category]
+
+		if (featureFlagKey && this.featureFlagCache.has(category)) {
+			// Use cached remote feature flag result
+			return this.featureFlagCache.get(category)!
+		}
 		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
 

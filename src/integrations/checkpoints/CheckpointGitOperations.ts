@@ -62,6 +62,13 @@ export class GitOperations {
 			const git = simpleGit(path.dirname(gitPath))
 			const worktree = await git.getConfig("core.worktree")
 			if (worktree.value !== cwd) {
+				console.debug("GitOperations.initShadowGit - Worktree config mismatch:", {
+					taskId,
+					expectedCwd: cwd,
+					actualWorktree: worktree.value,
+					gitPath,
+				})
+				telemetryService.captureCheckpointUsage(taskId, "worktree_config_failed")
 				throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
 			}
 			console.warn(`Using existing shadow git at ${gitPath}`)
@@ -78,7 +85,25 @@ export class GitOperations {
 		console.warn(`Creating new shadow git in ${checkpointsDir}`)
 
 		const git = simpleGit(checkpointsDir)
-		await git.init()
+		try {
+			await git.init()
+		} catch (error) {
+			console.debug("GitOperations.initShadowGit - Failed to initialize git:", {
+				taskId,
+				gitPath,
+				checkpointsDir,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
+			telemetryService.captureCheckpointUsage(taskId, "init_failed")
+			throw error
+		}
 
 		// Configure repo with git settings
 		await git.addConfig("core.worktree", cwd)
@@ -88,16 +113,58 @@ export class GitOperations {
 
 		// Set up LFS patterns
 		const lfsPatterns = await getLfsPatterns(cwd)
-		await writeExcludesFile(gitPath, lfsPatterns)
+		try {
+			await writeExcludesFile(gitPath, lfsPatterns)
+		} catch (error) {
+			console.debug("GitOperations.initShadowGit - Failed to write exclude file:", {
+				taskId,
+				gitPath,
+				lfsPatternCount: lfsPatterns.length,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
+			telemetryService.captureCheckpointUsage(taskId, "exclude_file_failed")
+		}
 
 		const addFilesResult = await this.addCheckpointFiles(git)
 		if (!addFilesResult.success) {
+			console.debug("GitOperations.initShadowGit - Failed to add checkpoint files:", {
+				taskId,
+				gitPath,
+				cwd,
+				checkpointsDir,
+			})
+			telemetryService.captureCheckpointUsage(taskId, "add_files_failed")
 			console.error("Failed to add at least one file(s) to checkpoints shadow git")
 			throw new Error("Failed to add at least one file(s) to checkpoints shadow git")
 		}
 
 		// Initial commit only on first repo creation
-		await git.commit("initial commit", { "--allow-empty": null })
+		try {
+			await git.commit("initial commit", { "--allow-empty": null })
+		} catch (error) {
+			console.debug("GitOperations.initShadowGit - Failed to create initial commit:", {
+				taskId,
+				gitPath,
+				cwd,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
+			telemetryService.captureCheckpointUsage(taskId, "commit_failed")
+			throw error
+		}
 
 		const durationMs = Math.round(performance.now() - startTime)
 		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
@@ -122,6 +189,17 @@ export class GitOperations {
 			const worktree = await git.getConfig("core.worktree")
 			return worktree.value || undefined
 		} catch (error) {
+			console.debug("GitOperations.getShadowGitConfigWorkTree failed:", {
+				gitPath,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
 			console.error("Failed to get shadow git config worktree:", error)
 			return undefined
 		}
@@ -163,6 +241,20 @@ export class GitOperations {
 				await fs.rename(fullPath, newPath)
 				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
+				console.debug(`GitOperations.renameNestedGitRepos failed:`, {
+					operation: disable ? "disable" : "enable",
+					gitPath,
+					fullPath,
+					newPath,
+					error:
+						error instanceof Error
+							? {
+									message: error.message,
+									stack: error.stack,
+									name: error.name,
+								}
+							: error,
+				})
 				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
@@ -203,9 +295,29 @@ export class GitOperations {
 				console.debug(`Checkpoint add operation completed in ${durationMs}ms`)
 				return { success: true }
 			} catch (error) {
+				console.debug("GitOperations.addCheckpointFiles - git add failed:", {
+					error:
+						error instanceof Error
+							? {
+									message: error.message,
+									stack: error.stack,
+									name: error.name,
+								}
+							: error,
+				})
 				return { success: false }
 			}
 		} catch (error) {
+			console.debug("GitOperations.addCheckpointFiles - renameNestedGitRepos failed:", {
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
 			return { success: false }
 		} finally {
 			await this.renameNestedGitRepos(false)

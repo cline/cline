@@ -2,6 +2,7 @@ import { mkdir, access, constants } from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import os from "os"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
@@ -20,10 +21,32 @@ import os from "os"
  */
 export async function getShadowGitPath(globalStoragePath: string, taskId: string, cwdHash: string): Promise<string> {
 	if (!globalStoragePath) {
+		console.debug("getShadowGitPath failed - invalid global storage path:", {
+			globalStoragePath,
+			taskId,
+			cwdHash,
+		})
 		throw new Error("Global storage uri is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-	await mkdir(checkpointsDir, { recursive: true })
+	try {
+		await mkdir(checkpointsDir, { recursive: true })
+	} catch (error) {
+		console.debug("getShadowGitPath - Failed to create checkpoints directory:", {
+			checkpointsDir,
+			taskId,
+			cwdHash,
+			error:
+				error instanceof Error
+					? {
+							message: error.message,
+							stack: error.stack,
+							name: error.name,
+						}
+					: error,
+		})
+		telemetryService.captureCheckpointUsage(taskId, "directory_creation_failed")
+	}
 	const gitPath = path.join(checkpointsDir, ".git")
 	return gitPath
 }
@@ -54,6 +77,17 @@ export async function getWorkingDirectory(): Promise<string> {
 	try {
 		await access(cwd, constants.R_OK)
 	} catch (error) {
+		console.debug("getWorkingDirectory - Cannot access workspace directory:", {
+			cwd,
+			error:
+				error instanceof Error
+					? {
+							message: error.message,
+							stack: error.stack,
+							name: error.name,
+						}
+					: error,
+		})
 		throw new Error(
 			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
 		)
@@ -86,6 +120,7 @@ export async function getWorkingDirectory(): Promise<string> {
  */
 export function hashWorkingDir(workingDir: string): string {
 	if (!workingDir) {
+		console.debug("hashWorkingDir failed - empty working directory path")
 		throw new Error("Working directory path cannot be empty")
 	}
 	let hash = 0

@@ -112,6 +112,18 @@ class CheckpointTracker {
 			try {
 				await simpleGit().version()
 			} catch (error) {
+				console.debug("CheckpointTracker.create - Git not installed:", {
+					taskId,
+					error:
+						error instanceof Error
+							? {
+									message: error.message,
+									stack: error.stack,
+									name: error.name,
+								}
+							: error,
+				})
+				telemetryService.captureCheckpointUsage(taskId, "git_not_installed")
 				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
 			}
 
@@ -129,7 +141,20 @@ class CheckpointTracker {
 
 			return newTracker
 		} catch (error) {
-			console.error("Failed to create CheckpointTracker:", error)
+			console.debug("CheckpointTracker.create failed:", {
+				taskId,
+				globalStoragePath,
+				enableCheckpointsSetting,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
+			telemetryService.captureCheckpointUsage(taskId, "tracker_creation_failed")
 			throw error
 		}
 	}
@@ -189,10 +214,20 @@ class CheckpointTracker {
 
 			return commitHash
 		} catch (error) {
-			console.error("Failed to create checkpoint:", {
+			console.debug("CheckpointTracker.commit failed:", {
 				taskId: this.taskId,
-				error,
+				globalStoragePath: this.globalStoragePath,
+				cwdHash: this.cwdHash,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
 			})
+			telemetryService.captureCheckpointUsage(this.taskId, "commit_failed")
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
@@ -254,14 +289,33 @@ class CheckpointTracker {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
-		const git = simpleGit(path.dirname(gitPath))
-		console.debug(`Using shadow git at: ${gitPath}`)
-		await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
-		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
+		try {
+			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const git = simpleGit(path.dirname(gitPath))
+			console.debug(`Using shadow git at: ${gitPath}`)
+			await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
+			console.debug(`Successfully reset to checkpoint: ${commitHash}`)
 
-		const durationMs = Math.round(performance.now() - startTime)
-		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
+			const durationMs = Math.round(performance.now() - startTime)
+			telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
+		} catch (error) {
+			console.debug("CheckpointTracker.resetHead failed:", {
+				taskId: this.taskId,
+				commitHash,
+				cleanedCommitHash: this.cleanCommitHash(commitHash),
+				globalStoragePath: this.globalStoragePath,
+				cwdHash: this.cwdHash,
+				error:
+					error instanceof Error
+						? {
+								message: error.message,
+								stack: error.stack,
+								name: error.name,
+							}
+						: error,
+			})
+			telemetryService.captureCheckpointUsage(this.taskId, "restore_failed")
+		}
 	}
 
 	/**

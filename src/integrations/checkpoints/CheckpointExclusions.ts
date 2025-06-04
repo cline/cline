@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import { join } from "path"
 import { fileExistsAtPath } from "@utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 
 /**
  * CheckpointExclusions Module
@@ -295,10 +296,42 @@ function getLogFilePatterns(): string[] {
  */
 export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
 	const excludesPath = join(gitPath, "info", "exclude")
-	await fs.mkdir(join(gitPath, "info"), { recursive: true })
+	try {
+		await fs.mkdir(join(gitPath, "info"), { recursive: true })
+	} catch (error) {
+		console.debug("writeExcludesFile - Failed to create info directory:", {
+			gitPath,
+			infoPath: join(gitPath, "info"),
+			error:
+				error instanceof Error
+					? {
+							message: error.message,
+							stack: error.stack,
+							name: error.name,
+						}
+					: error,
+		})
+		throw error
+	}
 
 	const patterns = getDefaultExclusions(lfsPatterns)
-	await fs.writeFile(excludesPath, patterns.join("\n"))
+	try {
+		await fs.writeFile(excludesPath, patterns.join("\n"))
+	} catch (error) {
+		console.debug("writeExcludesFile - Failed to write exclude file:", {
+			excludesPath,
+			patternCount: patterns.length,
+			error:
+				error instanceof Error
+					? {
+							message: error.message,
+							stack: error.stack,
+							name: error.name,
+						}
+					: error,
+		})
+		throw error
+	}
 }
 
 /**
@@ -319,6 +352,18 @@ export const getLfsPatterns = async (workspacePath: string): Promise<string[]> =
 				.map((line) => line.split(" ")[0].trim())
 		}
 	} catch (error) {
+		console.debug("getLfsPatterns - Failed to read .gitattributes:", {
+			workspacePath,
+			attributesPath: join(workspacePath, ".gitattributes"),
+			error:
+				error instanceof Error
+					? {
+							message: error.message,
+							stack: error.stack,
+							name: error.name,
+						}
+					: error,
+		})
 		console.warn("Failed to read .gitattributes:", error)
 	}
 	return []
