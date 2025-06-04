@@ -163,6 +163,7 @@ function getClaudeUIContextWindow(family: string): number | null {
 		"claude-sonnet-4": 80000,
 		"claude-opus-4": 80000,
 		"claude-3.7-sonnet": 106384,
+		"claude-3.7-sonnet-thought": 106384,
 	}
 	return limits[family] || null
 }
