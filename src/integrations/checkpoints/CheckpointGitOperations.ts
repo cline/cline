@@ -130,6 +130,7 @@ export class GitOperations {
 						: error,
 			})
 			telemetryService.captureCheckpointUsage(taskId, "exclude_file_failed")
+			throw error("Failed to write exclude file for shadow git repository")
 		}
 
 		const addFilesResult = await this.addCheckpointFiles(git)
@@ -141,7 +142,7 @@ export class GitOperations {
 				checkpointsDir,
 			})
 			telemetryService.captureCheckpointUsage(taskId, "add_files_failed")
-			console.error("Failed to add at least one file(s) to checkpoints shadow git")
+			//console.error("Failed to add at least one file(s) to checkpoints shadow git")
 			throw new Error("Failed to add at least one file(s) to checkpoints shadow git")
 		}
 
@@ -163,7 +164,7 @@ export class GitOperations {
 						: error,
 			})
 			telemetryService.captureCheckpointUsage(taskId, "commit_failed")
-			throw error
+			throw error("Failed to create initial commit in shadow git repository")
 		}
 
 		const durationMs = Math.round(performance.now() - startTime)
@@ -200,7 +201,7 @@ export class GitOperations {
 							}
 						: error,
 			})
-			console.error("Failed to get shadow git config worktree:", error)
+			//console.error("Failed to get shadow git config worktree:", error)
 			return undefined
 		}
 	}
@@ -255,7 +256,7 @@ export class GitOperations {
 								}
 							: error,
 				})
-				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				//console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
 	}
