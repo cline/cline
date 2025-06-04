@@ -2,6 +2,7 @@ import { Controller } from ".."
 import { Empty, EmptyRequest } from "../../../shared/proto/common"
 import { resetExtensionState } from "../../../core/storage/state"
 import * as vscode from "vscode"
+import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Resets the extension state to its defaults
@@ -22,10 +23,7 @@ export async function resetState(controller: Controller, request: EmptyRequest):
 		vscode.window.showInformationMessage("State reset")
 		await controller.postStateToWebview()
 
-		await controller.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
+		await sendChatButtonClickedEvent(controller.id)
 
 		return Empty.create()
 	} catch (error) {
