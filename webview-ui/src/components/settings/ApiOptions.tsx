@@ -113,7 +113,7 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 
 const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
 	anthropic: ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-	vertex: ["claude-3-7-sonnet-20250219", "claude-sonnet-4@20250514", "claude-opus-4@20250514"],
+	vertex: ["claude-3-7-sonnet@20250219", "claude-sonnet-4@20250514", "claude-opus-4@20250514"],
 	qwen: [
 		"qwen3-235b-a22b",
 		"qwen3-32b",
