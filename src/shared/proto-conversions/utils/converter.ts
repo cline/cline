@@ -97,6 +97,8 @@ export function createConverter<TSource, TTarget>(options: ConversionOptions<TSo
 
 /**
  * Creates a converter function that stringifies specified fields for proto serialization
+ * This is useful for fields that need to be stored as JSON strings in proto messages.
+ * TODO - Where this is used, we should consider a pure proto conversion -canvrno
  *
  * @param jsonFields Fields that need to be stringified
  * @returns A function that prepares an object for proto serialization

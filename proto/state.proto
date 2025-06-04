@@ -81,7 +81,6 @@ message UpdateSettingsRequest {
 }
 
 // API Configuration message with nested provider-specific configurations
-
 message ApiConfiguration {
   string api_provider = 1;   // Sets the provider of the API, e.g., "openai", "anthropic", "ollama", etc.
   optional string api_model_id = 2;   // Sets the model ID for providers that do not have a provider-specific model ID field
@@ -120,7 +119,6 @@ message ApiConfiguration {
 }
 
 // Provider-specific configuration messages
-
 message AnthropicConfig {
   optional string api_key = 1;
   optional string base_url = 2;

@@ -2,22 +2,22 @@ import { PROVIDER_FIELD_MAPPINGS } from "./provider-field-mappings"
 
 // Extract provider-specific secret keys from the mappings
 type ProviderSecretKeys = {
-	[K in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[K] extends {
-		secrets: infer S
+	[ProviderName in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[ProviderName] extends {
+		secrets: infer SecretsConfig
 	}
-		? S extends Record<string, infer V>
-			? V
+		? SecretsConfig extends Record<string, infer SecretKey>
+			? SecretKey
 			: never
 		: never
 }[keyof typeof PROVIDER_FIELD_MAPPINGS]
 
 // Extract provider-specific global state keys from the mappings
 type ProviderGlobalStateKeys = {
-	[K in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[K] extends {
-		globalState: infer G
+	[ProviderName in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[ProviderName] extends {
+		globalState: infer GlobalStateConfig
 	}
-		? G extends Record<string, infer V>
-			? V
+		? GlobalStateConfig extends Record<string, infer GlobalStateKey>
+			? GlobalStateKey
 			: never
 		: never
 }[keyof typeof PROVIDER_FIELD_MAPPINGS]

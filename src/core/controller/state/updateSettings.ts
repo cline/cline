@@ -16,7 +16,7 @@ import {
  * @returns Empty response
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
-	console.log("[DEBUG] updateSettings called with request:", request)
+	//console.log("[DEBUG] updateSettings called with request:", request)
 
 	// API configuration
 	if (request.apiConfiguration) {
@@ -63,16 +63,16 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	// Favorited model IDs
 	if (request.favoritedModelIds && request.favoritedModelIds.length > 0) {
 		await updateGlobalState(controller.context, "favoritedModelIds", request.favoritedModelIds)
-		console.log("[DEBUG] Saving favoritedModelIds:", request.favoritedModelIds)
+		//console.log("[DEBUG] Saving favoritedModelIds:", request.favoritedModelIds)
 	}
 
 	// Request timeout - Used by Ollama provider
 	if (typeof request.requestTimeoutMs === "number") {
-		console.log("[DEBUG] Saving requestTimeoutMs:", request.requestTimeoutMs)
+		//console.log("[DEBUG] Saving requestTimeoutMs:", request.requestTimeoutMs)
 		await updateGlobalState(controller.context, "requestTimeoutMs", request.requestTimeoutMs)
-		console.log("[DEBUG] Updated requestTimeoutMs in global state")
+		//console.log("[DEBUG] Updated requestTimeoutMs in global state")
 	} else {
-		console.log("[DEBUG] No requestTimeoutMs in request or not a number type")
+		//console.log("[DEBUG] No requestTimeoutMs in request or not a number type")
 	}
 
 	// After settings are updated, post state to webview
