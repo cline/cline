@@ -1,5 +1,6 @@
 import { WebviewMessage } from "@shared/WebviewMessage"
 import type { WebviewApi } from "vscode-webview"
+const { IS_DEV } = process.env
 
 /**
  * A utility wrapper around the acquireVsCodeApi() function, which enables
@@ -10,6 +11,13 @@ import type { WebviewApi } from "vscode-webview"
  * dev server by using native web browser features that mock the functionality
  * enabled by acquireVsCodeApi.
  */
+declare global {
+	interface Window {
+		__is_standalone__?: boolean
+		standaloneEventHandler?: (event: any) => void
+	}
+}
+
 class VSCodeAPIWrapper {
 	private readonly vsCodeApi: WebviewApi<unknown> | undefined
 
@@ -32,8 +40,16 @@ class VSCodeAPIWrapper {
 	public postMessage(message: WebviewMessage) {
 		if (this.vsCodeApi) {
 			this.vsCodeApi.postMessage(message)
+		} else if (window.__is_standalone__) {
+			if (!window.standaloneEventHandler) {
+				console.warn("Standalone event handler not found.")
+				return
+			}
+			const json = JSON.stringify(message)
+			console.log("Standalone event handler: " + json.slice(0, 200))
+			window.standaloneEventHandler(json)
 		} else {
-			console.log(message)
+			console.log("postMessage fallback: ", message)
 		}
 	}
 

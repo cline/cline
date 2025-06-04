@@ -14,7 +14,7 @@ const activeSubscriptions = new Map<string, StreamingResponseHandler>()
  */
 export async function subscribeToAccountButtonClicked(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {
@@ -46,7 +46,7 @@ export async function sendAccountButtonClickedEvent(controllerId: string): Promi
 	}
 
 	try {
-		const event: Empty = {}
+		const event: Empty = Empty.create({})
 		await responseStream(event, false)
 	} catch (error) {
 		console.error(`Error sending account button clicked event to controller ${controllerId}:`, error)
