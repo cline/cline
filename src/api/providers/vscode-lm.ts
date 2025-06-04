@@ -262,8 +262,8 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		// For Claude models, use character-to-token ratio instead of VSCode LM's inaccurate counting
 		if (this.isClaudeModel()) {
 			const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
-			// Use 3.5 character-to-token ratio for Claude models
-			return Math.ceil(textContent.length / 3.5)
+			// Use 4 character-to-token ratio for Claude models
+			return Math.ceil(textContent.length / 4)
 		}
 
 		// Check for required dependencies for non-Claude models
