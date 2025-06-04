@@ -483,7 +483,7 @@ export function convertDomainApiConfigurationToProtoApiConfiguration(domainConfi
 
 	// VSCode
 	if (domainConfig.vscodelm) {
-		protoConfig.vscode = {
+		protoConfig.vscodelm = {
 			modelSelector: domainConfig.vscodelm.modelSelector ? JSON.stringify(domainConfig.vscodelm.modelSelector) : undefined,
 		}
 	}
