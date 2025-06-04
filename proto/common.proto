@@ -63,3 +63,8 @@ message StringArrays {
   repeated string values1 = 1;
   repeated string values2 = 2;
 }
+
+message KeyValuePair {
+  string key = 1;
+  string value = 2;
+}
