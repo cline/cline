@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
-import { useDebounceEffect } from "@src/utils/useDebounceEffect"
 import styled from "styled-components"
+import { useDebounceEffect } from "@src/utils/useDebounceEffect"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useCopyToClipboard } from "@src/utils/clipboard"
 import CodeBlock from "./CodeBlock"
+
+// Removed previous attempts at static imports for individual diagram types
+// as the paths were incorrect for Mermaid v11.4.1 and caused errors.
+// The primary strategy will now rely on Vite's bundling configuration.
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
