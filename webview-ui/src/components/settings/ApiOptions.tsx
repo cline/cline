@@ -116,6 +116,23 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	)
 }
 
+const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
+	anthropic: ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+	vertex: ["claude-3-7-sonnet@20250219", "claude-sonnet-4@20250514", "claude-opus-4@20250514"],
+	qwen: [
+		"qwen3-235b-a22b",
+		"qwen3-32b",
+		"qwen3-30b-a3b",
+		"qwen3-14b",
+		"qwen3-8b",
+		"qwen3-4b",
+		"qwen3-1.7b",
+		"qwen3-0.6b",
+		"qwen-plus-latest",
+		"qwen-turbo-latest",
+	],
+}
+
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
 const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
@@ -2178,25 +2195,13 @@ const ApiOptions = ({
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
-						{selectedProvider === "anthropic" &&
-							(selectedModelId === "claude-3-7-sonnet-20250219" ||
-								selectedModelId === "claude-sonnet-4-20250514" ||
-								selectedModelId === "claude-opus-4-20250514") && (
-								<ThinkingBudgetSlider
-									apiConfiguration={apiConfiguration}
-									setApiConfiguration={setApiConfiguration}
-								/>
-							)}
-
-						{selectedProvider === "vertex" &&
-							(selectedModelId === "claude-3-7-sonnet@20250219" ||
-								selectedModelId === "claude-sonnet-4@20250514" ||
-								selectedModelId === "claude-opus-4@20250514") && (
-								<ThinkingBudgetSlider
-									apiConfiguration={apiConfiguration}
-									setApiConfiguration={setApiConfiguration}
-								/>
-							)}
+						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
+							<ThinkingBudgetSlider
+								apiConfiguration={apiConfiguration}
+								setApiConfiguration={setApiConfiguration}
+								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+							/>
+						)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
 							<>
