@@ -32,15 +32,21 @@ const RooTips = ({ cycle = false }: RooTipsProps) => {
 	useEffect(() => {
 		if (!cycle) return
 
+		let timeoutId: NodeJS.Timeout | undefined = undefined
 		const intervalId = setInterval(() => {
 			setIsFading(true) // Start fade out
-			setTimeout(() => {
+			timeoutId = setTimeout(() => {
 				setCurrentTipIndex((prevIndex) => (prevIndex + 1) % tips.length)
 				setIsFading(false) // Start fade in
 			}, 1000) // Fade duration
 		}, 11000) // 10s display + 1s fade
 
-		return () => clearInterval(intervalId) // Cleanup on unmount
+		return () => {
+			clearInterval(intervalId)
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
+		}
 	}, [cycle])
 
 	const currentTip = tips[currentTipIndex]
