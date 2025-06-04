@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.17.9]
+
+-   Aligning Cline to work with Claude 4 model family (Experimental)
+-   Add task timeline scrolling feature
+-   Add support for uploading CSV and XLSX files for data analysis and processing
+-   Add stable Grok-3 models to xAI provider (grok-3, grok-3-fast, grok-3-mini, grok-3-mini-fast) and update default model from grok-3-beta to grok-3 (Thanks @PeterDaveHello!)
+-   Add new models to Vertex AI provider
+-   Add new model to Nebius AI Studio
+-   Remove hard-coded temperature from LM Studio API requests and add support for reasoning_content in LM Studio responses
+-   Display delay information when retrying API calls for better user feedback
+-   Fix AWS Bedrock credential caching issue where externally updated credentials (e.g., by AWS Identity Manager) were not detected, requiring extension restart (Thanks @DaveFres!)
+-   Fix search tool overloading conversation with massive outputs by setting maximum byte limit for responses
+-   Fix checkpoints functionality
+-   Fix token counting for xAI provider
+-   Fix Ollama provider issues
+-   Fix window title display for Windows users
+-   Improve chat box UI
+
 ## [3.17.8]
 
 -   Fix bug where terminal would get stuck and output "capture failure"

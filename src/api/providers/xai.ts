@@ -5,6 +5,7 @@ import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels 
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { withRetry } from "../retry"
 
 export class XAIHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -18,6 +19,7 @@ export class XAIHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.getModel().id
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini

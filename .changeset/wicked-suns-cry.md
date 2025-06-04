@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Fix for checkpoints
+Telemetry fix

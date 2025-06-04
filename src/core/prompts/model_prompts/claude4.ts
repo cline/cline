@@ -108,20 +108,6 @@ Search and replace blocks here
 </diff> 
 </replace_in_file>
 
-
-## search_files
-Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
-Parameters:
-- path: (required) The path of the directory to search in (relative to the current working directory ${cwd.toPosix()}). This directory will be recursively searched.
-- regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
-- file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
-Usage:
-<search_files>
-<path>Directory path here</path>
-<regex>Your regex pattern here</regex>
-<file_pattern>file pattern here (optional)</file_pattern>
-</search_files>
-
 ## list_files
 Description: Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.
 Parameters:
@@ -180,6 +166,23 @@ Usage:
         : ""
 }
 
+## web_fetch
+Description: Fetches content from a specified URL and processes into markdown
+- Takes a URL as input
+- Fetches the URL content, converts HTML to markdown
+- Use this tool when you need to retrieve and analyze web content
+- IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.
+- The URL must be a fully-formed valid URL
+- HTTP URLs will be automatically upgraded to HTTPS
+- This tool is read-only and does not modify any files
+Parameters:
+- url: (required) The URL to fetch content from
+Usage:
+<web_fetch>
+<url>https://example.com/docs</url>
+</web_fetch>
+
+
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
@@ -208,6 +211,19 @@ Usage:
 <server_name>server name here</server_name>
 <uri>resource URI here</uri>
 </access_mcp_resource>
+
+## search_files
+Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context. IMPORTANT NOTE: Use this tool sparingly, and opt to explore the codebase using the \`list_files\` and \`read_file\` tools instead.
+Parameters:
+- path: (required) The path of the directory to search in (relative to the current working directory ${cwd.toPosix()}). This directory will be recursively searched.
+- regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
+- file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
+Usage:
+<search_files>
+<path>Directory path here</path>
+<regex>Your regex pattern here</regex>
+<file_pattern>file pattern here (optional)</file_pattern>
+</search_files>
 
 ## ask_followup_question
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
@@ -252,7 +268,7 @@ Usage:
 </new_task>
 
 ## plan_mode_respond
-Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
+Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution. IMPORTANT NOTE: You should NOT ask for permission to read files or explore the repo. Just do that proactively. This tool should only be used when you've already gathered enough information to make a plan, or if you have a question for the user.
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)
 Usage:
@@ -577,6 +593,15 @@ CAPABILITIES
 }
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
 - You can use LaTeX syntax in your responses to render mathematical expressions
+
+====
+
+If the user asks for help or wants to give feedback inform them of the following: 
+- To give feedback, users should report the issue using the /reportbug slash command in the chat. 
+
+When the user directly asks about Cline (eg 'can Cline do...', 'does Cline have...') or asks in second person (eg 'are you able...', 'can you do...'), first use the web_fetch tool to gather information to answer the question from Cline docs at https://docs.cline.bot.
+  - The available sub-pages are \`getting-started\` (Intro for new coders, installing Cline and dev essentials), \`model-selection\` (Model Selection Guide, Custom Model Configs, Bedrock, Vertex, Codestral, LM Studio, Ollama), \`features\` (Auto approve, Checkpoints, Cline rules, Drag & Drop, Plan & Act, Workflows, etc), \`task-management\` (Task and Context Management in Cline), \`prompt-engineering\` (Improving your prompting skills, Prompt Engineering Guide), \`cline-tools\` (Cline Tools Reference Guide, New Task Tool, Remote Browser Support, Slash Commands), \`mcp\` (MCP Overview, Adding/Configuring Servers, Transport Mechanisms, MCP Dev Protocol), \`enterprise\` (Cloud provider integration, Security concerns, Custom instructions), \`more-info\` (Telemetry and other reference content)
+  - Example: https://docs.cline.bot/features/auto-approve
 
 ====
 
