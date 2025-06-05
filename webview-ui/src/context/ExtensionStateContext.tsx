@@ -18,7 +18,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -232,12 +232,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
-			case "mcpMarketplaceCatalog": {
-				if (message.mcpMarketplaceCatalog) {
-					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
-				}
-				break
-			}
 		}
 	}, [])
 
@@ -251,6 +245,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
+	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -436,6 +431,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Subscribe to MCP marketplace catalog updates
+		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
+			onResponse: (catalog) => {
+				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
+				setMcpMarketplaceCatalog(catalog)
+			},
+			onError: (error) => {
+				console.error("Error in MCP marketplace catalog subscription:", error)
+			},
+			onComplete: () => {
+				console.log("MCP marketplace catalog subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -483,6 +492,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (partialMessageUnsubscribeRef.current) {
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
+			}
+			if (mcpMarketplaceUnsubscribeRef.current) {
+				mcpMarketplaceUnsubscribeRef.current()
+				mcpMarketplaceUnsubscribeRef.current = null
 			}
 		}
 	}, [])

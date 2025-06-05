@@ -26,7 +26,6 @@ export interface ExtensionMessage {
 		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
-		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
