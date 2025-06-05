@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.17.11]
+
+-   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
+
 ## [3.17.10]
 
 -   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
