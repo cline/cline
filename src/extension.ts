@@ -16,10 +16,12 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { v4 as uuidv4 } from "uuid"
 import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -168,20 +170,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openSettings = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "settingsButtonClicked",
-					})
-				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openSettings(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openSettings)
-				}
-			})
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			sendSettingsButtonClickedEvent(webviewType)
 		}),
 	)
 
@@ -199,20 +191,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openAccount = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "accountButtonClicked",
-					})
+			console.log("[DEBUG] accountButtonClicked", webview)
+
+			const isSidebar = !webview
+			if (isSidebar) {
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance) {
+					// Send event to sidebar controller
+					sendAccountButtonClickedEvent(sidebarInstance.controller.id)
 				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openAccount(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openAccount)
+			} else {
+				// Send to all tab instances
+				const tabInstances = WebviewProvider.getTabInstances()
+				for (const instance of tabInstances) {
+					sendAccountButtonClickedEvent(instance.controller.id)
 				}
-			})
+			}
 		}),
 	)
 

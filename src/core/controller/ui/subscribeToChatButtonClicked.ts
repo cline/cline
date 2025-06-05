@@ -15,7 +15,7 @@ const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHa
  */
 export async function subscribeToChatButtonClicked(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {
@@ -50,7 +50,7 @@ export async function sendChatButtonClickedEvent(controllerId: string): Promise<
 	}
 
 	try {
-		const event: Empty = {}
+		const event: Empty = Empty.create({})
 		await responseStream(
 			event,
 			false, // Not the last message

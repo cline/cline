@@ -20,13 +20,11 @@ export interface ExtensionMessage {
 		| "ollamaModels"
 		| "lmStudioModels"
 		| "workspaceUpdated"
-		| "partialMessage"
 		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
-		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
@@ -37,7 +35,7 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?: "settingsButtonClicked" | "didBecomeVisible" | "accountLogoutClicked" | "accountButtonClicked" | "focusChatInput"
+	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
@@ -45,7 +43,6 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
-	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
@@ -113,6 +110,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
+	terminalReuseEnabled?: boolean
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

@@ -36,9 +36,9 @@ export async function subscribeToTheme(
 	const theme = await getTheme()
 	if (theme) {
 		try {
-			const themeEvent: String = {
+			const themeEvent = String.create({
 				value: JSON.stringify(theme),
-			}
+			})
 			await responseStream(
 				themeEvent,
 				false, // Not the last message
@@ -58,9 +58,9 @@ export async function sendThemeEvent(themeJson: string): Promise<void> {
 	// Send the event to all active subscribers
 	const promises = Array.from(activeThemeSubscriptions).map(async (responseStream) => {
 		try {
-			const event: String = {
+			const event = String.create({
 				value: themeJson,
-			}
+			})
 			await responseStream(
 				event,
 				false, // Not the last message
