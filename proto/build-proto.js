@@ -249,7 +249,13 @@ import { registerMethod } from "./index"\n`
 		// Import implementations directly
 		for (const file of implementationFiles) {
 			const baseName = path.basename(file, ".ts")
-			methodsContent += `import { ${baseName} } from "./${baseName}"\n`
+			let importedName = baseName
+			if (baseName === "incrementalStateUpdate") {
+				importedName = "sendIncrementalStateUpdate"
+			} else if (baseName === "messageWindowManager") {
+				importedName = "MessageWindowManager"
+			}
+			methodsContent += `import { ${importedName} } from "./${baseName}"\n`
 		}
 
 		// Add streaming methods information
@@ -270,12 +276,25 @@ export function registerAllMethods(): void {
 		// Add registration statements
 		for (const file of implementationFiles) {
 			const baseName = path.basename(file, ".ts")
+			let handlerName = baseName
+			if (baseName === "incrementalStateUpdate") {
+				handlerName = "sendIncrementalStateUpdate"
+			} else if (baseName === "messageWindowManager") {
+				handlerName = "MessageWindowManager"
+			}
+
+			// Skip registration for sendIncrementalStateUpdate and MessageWindowManager as they are not direct gRPC methods
+			if (baseName === "incrementalStateUpdate" || baseName === "messageWindowManager") {
+				methodsContent += `\t// Skipping registration for ${handlerName} as it's not a direct gRPC method or is a class.\n`
+				continue
+			}
+
 			const isStreaming = streamingMethods.some((m) => m.name === baseName)
 
 			if (isStreaming) {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName}, { isStreaming: true })\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${handlerName}, { isStreaming: true })\n`
 			} else {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName})\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${handlerName})\n`
 			}
 		}
 

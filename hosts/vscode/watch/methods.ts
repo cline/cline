@@ -6,7 +6,9 @@ import { registerMethod } from "./index"
 import { subscribeToFile } from "./subscribeToFile"
 
 // Streaming methods for this service
-export const streamingMethods = ["subscribeToFile"]
+export const streamingMethods = [
+  "subscribeToFile"
+]
 
 // Register all watch service methods
 export function registerAllMethods(): void {

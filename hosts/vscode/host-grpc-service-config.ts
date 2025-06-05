@@ -9,25 +9,20 @@ import { handleWatchServiceRequest, handleWatchServiceStreamingRequest } from ".
  * Configuration for a host service handler
  */
 export interface HostServiceHandlerConfig {
-	requestHandler: (method: string, message: any) => Promise<any>
-	streamingHandler: (
-		method: string,
-		message: any,
-		responseStream: StreamingResponseHandler,
-		requestId?: string,
-	) => Promise<void>
+  requestHandler: (method: string, message: any) => Promise<any>;
+  streamingHandler: (method: string, message: any, responseStream: StreamingResponseHandler, requestId?: string) => Promise<void>;
 }
 
 /**
  * Map of host service names to their handler configurations
  */
 export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {
-	"host.UriService": {
-		requestHandler: handleUriServiceRequest,
-		streamingHandler: handleUriServiceStreamingRequest,
-	},
-	"host.WatchService": {
-		requestHandler: handleWatchServiceRequest,
-		streamingHandler: handleWatchServiceStreamingRequest,
-	},
-}
+  "host.UriService": {
+    requestHandler: handleUriServiceRequest,
+    streamingHandler: handleUriServiceStreamingRequest
+  },
+  "host.WatchService": {
+    requestHandler: handleWatchServiceRequest,
+    streamingHandler: handleWatchServiceStreamingRequest
+  }
+};

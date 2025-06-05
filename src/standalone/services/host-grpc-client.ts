@@ -8,4 +8,7 @@ import { WatchServiceDefinition } from "@shared/proto/host/watch"
 const UriServiceClient = createGrpcClient(UriServiceDefinition)
 const WatchServiceClient = createGrpcClient(WatchServiceDefinition)
 
-export { UriServiceClient, WatchServiceClient }
+export {
+	UriServiceClient,
+	WatchServiceClient
+}

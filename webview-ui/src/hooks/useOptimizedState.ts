@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo } from "react"
+import React, { useCallback, useRef, useMemo, useState, useEffect } from "react"
 import { ClineMessage } from "../../../src/shared/ExtensionMessage"
 
 /**
@@ -40,10 +40,10 @@ export function useOptimizedMessages(messages: ClineMessage[]) {
  * Debounced state update hook
  */
 export function useDebouncedUpdate<T>(value: T, delay: number = 100): T {
-	const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
+	const [debouncedValue, setDebouncedValue] = useState<T>(value)
 	const timeoutRef = useRef<NodeJS.Timeout>()
 
-	React.useEffect(() => {
+	useEffect(() => {
 		if (timeoutRef.current) {
 			clearTimeout(timeoutRef.current)
 		}
@@ -120,15 +120,18 @@ export function useShallowCompare<T extends Record<string, any>>(obj: T): T {
  * Memory usage monitor hook
  */
 export function useMemoryMonitor(threshold: number = 100) {
-	const [memoryWarning, setMemoryWarning] = React.useState(false)
+	const [memoryWarning, setMemoryWarning] = useState(false)
 
-	React.useEffect(() => {
+	useEffect(() => {
+		// @ts-expect-error - performance.memory is a Chrome-specific API
 		if (!performance.memory) {
 			return
 		}
 
 		const checkMemory = () => {
+			// @ts-expect-error - performance.memory is a Chrome-specific API
 			const usedMemoryMB = performance.memory.usedJSHeapSize / (1024 * 1024)
+			// @ts-expect-error - performance.memory is a Chrome-specific API
 			const limitMB = performance.memory.jsHeapSizeLimit / (1024 * 1024)
 			const percentUsed = (usedMemoryMB / limitMB) * 100
 
