@@ -65,6 +65,7 @@ import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
+import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -113,6 +114,23 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 			Balance: {formattedBalance}
 		</VSCodeLink>
 	)
+}
+
+const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
+	anthropic: ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+	vertex: ["claude-3-7-sonnet@20250219", "claude-sonnet-4@20250514", "claude-opus-4@20250514"],
+	qwen: [
+		"qwen3-235b-a22b",
+		"qwen3-32b",
+		"qwen3-30b-a3b",
+		"qwen3-14b",
+		"qwen3-8b",
+		"qwen3-4b",
+		"qwen3-1.7b",
+		"qwen3-0.6b",
+		"qwen-plus-latest",
+		"qwen-turbo-latest",
+	],
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -1845,13 +1863,37 @@ const ApiOptions = ({
 						placeholder={"Default: http://localhost:11434"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.ollamaModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("ollamaModelId")}
-						placeholder={"e.g. llama3.1"}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
+
+					{/* Model selection - use filterable picker */}
+					<label htmlFor="ollama-model-selection">
+						<span style={{ fontWeight: 500 }}>Model</span>
+					</label>
+					<OllamaModelPicker
+						ollamaModels={ollamaModels}
+						selectedModelId={apiConfiguration?.ollamaModelId || ""}
+						onModelChange={(modelId) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								ollamaModelId: modelId,
+							})
+						}}
+						placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
+					/>
+
+					{/* Show status message based on model availability */}
+					{ollamaModels.length === 0 && (
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "3px",
+								color: "var(--vscode-descriptionForeground)",
+								fontStyle: "italic",
+							}}>
+							Unable to fetch models from Ollama server. Please ensure Ollama is running and accessible, or enter
+							the model ID manually above.
+						</p>
+					)}
+
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
 						style={{ width: "100%" }}
@@ -1859,29 +1901,6 @@ const ApiOptions = ({
 						placeholder={"e.g. 32768"}>
 						<span style={{ fontWeight: 500 }}>Model Context Window</span>
 					</VSCodeTextField>
-					{ollamaModels.length > 0 && (
-						<VSCodeRadioGroup
-							value={
-								ollamaModels.includes(apiConfiguration?.ollamaModelId || "")
-									? apiConfiguration?.ollamaModelId
-									: ""
-							}
-							onChange={(e) => {
-								const value = (e.target as HTMLInputElement)?.value
-								// need to check value first since radio group returns empty string sometimes
-								if (value) {
-									handleInputChange("ollamaModelId")({
-										target: { value },
-									})
-								}
-							}}>
-							{ollamaModels.map((model) => (
-								<VSCodeRadio key={model} value={model} checked={apiConfiguration?.ollamaModelId === model}>
-									{model}
-								</VSCodeRadio>
-							))}
-						</VSCodeRadioGroup>
-					)}
 					<p
 						style={{
 							fontSize: "12px",
@@ -1889,12 +1908,12 @@ const ApiOptions = ({
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						Ollama allows you to run models locally on your computer. For instructions on how to get started, see
-						their
+						their{" "}
 						<VSCodeLink
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
-						</VSCodeLink>
+						</VSCodeLink>{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
 							models. Less capable models may not work as expected.)
@@ -2176,25 +2195,13 @@ const ApiOptions = ({
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
-						{selectedProvider === "anthropic" &&
-							(selectedModelId === "claude-3-7-sonnet-20250219" ||
-								selectedModelId === "claude-sonnet-4-20250514" ||
-								selectedModelId === "claude-opus-4-20250514") && (
-								<ThinkingBudgetSlider
-									apiConfiguration={apiConfiguration}
-									setApiConfiguration={setApiConfiguration}
-								/>
-							)}
-
-						{selectedProvider === "vertex" &&
-							(selectedModelId === "claude-3-7-sonnet@20250219" ||
-								selectedModelId === "claude-sonnet-4@20250514" ||
-								selectedModelId === "claude-opus-4@20250514") && (
-								<ThinkingBudgetSlider
-									apiConfiguration={apiConfiguration}
-									setApiConfiguration={setApiConfiguration}
-								/>
-							)}
+						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
+							<ThinkingBudgetSlider
+								apiConfiguration={apiConfiguration}
+								setApiConfiguration={setApiConfiguration}
+								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+							/>
+						)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
 							<>

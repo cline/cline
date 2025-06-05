@@ -38,13 +38,7 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
-		| "accountLogoutClicked"
-		| "accountButtonClicked"
-		| "focusChatInput"
+	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]

@@ -1,3 +1,10 @@
+const SEARCH_BLOCK_START = "------- SEARCH"
+const SEARCH_BLOCK_END = "======="
+const REPLACE_BLOCK_END = "+++++++ REPLACE"
+
+const SEARCH_BLOCK_CHAR = "-"
+const REPLACE_BLOCK_CHAR = "+"
+
 /**
  * Attempts a line-trimmed fallback match for the given search content in the original content.
  * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
@@ -150,11 +157,11 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
  *
  * The diff format is a custom structure that uses three markers to define changes:
  *
- *   <<<<<<< SEARCH
+ *   ------- SEARCH
  *   [Exact content to find in the original file]
  *   =======
  *   [Content to replace with]
- *   >>>>>>> REPLACE
+ *   +++++++ REPLACE
  *
  * Behavior and Assumptions:
  * 1. The file is processed chunk-by-chunk. Each chunk of `diffContent` may contain
@@ -243,23 +250,23 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
-		lastLine !== "<<<<<<< SEARCH" &&
-		lastLine !== "=======" &&
-		lastLine !== ">>>>>>> REPLACE"
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		lastLine !== SEARCH_BLOCK_START &&
+		lastLine !== SEARCH_BLOCK_END &&
+		lastLine !== REPLACE_BLOCK_END
 	) {
 		lines.pop()
 	}
 
 	for (const line of lines) {
-		if (line === "<<<<<<< SEARCH") {
+		if (line === SEARCH_BLOCK_START) {
 			inSearch = true
 			currentSearchContent = ""
 			currentReplaceContent = ""
 			continue
 		}
 
-		if (line === "=======") {
+		if (line === SEARCH_BLOCK_END) {
 			inSearch = false
 			inReplace = true
 
@@ -320,7 +327,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			continue
 		}
 
-		if (line === ">>>>>>> REPLACE") {
+		if (line === REPLACE_BLOCK_END) {
 			// Finished one replace block
 
 			// // Remove the artificially added linebreak in the last line of the REPLACE block
@@ -480,7 +487,7 @@ class NewFileContentConstructor {
 		pendingNonStandardLineLimit: number,
 	): number {
 		let removeLineCount = 0
-		if (line === "<<<<<<< SEARCH") {
+		if (line === SEARCH_BLOCK_START) {
 			removeLineCount = this.trimPendingNonStandardTrailingEmptyLines(pendingNonStandardLineLimit)
 			if (removeLineCount > 0) {
 				pendingNonStandardLineLimit = pendingNonStandardLineLimit - removeLineCount
@@ -490,7 +497,7 @@ class NewFileContentConstructor {
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
 			}
 			this.activateSearchState()
-		} else if (line === "=======") {
+		} else if (line === SEARCH_BLOCK_END) {
 			// 校验非标内容
 			if (!this.isSearchingActive()) {
 				this.tryFixSearchBlock(pendingNonStandardLineLimit)
@@ -498,7 +505,7 @@ class NewFileContentConstructor {
 			}
 			this.activateReplaceState()
 			this.beforeReplace()
-		} else if (line === ">>>>>>> REPLACE") {
+		} else if (line === REPLACE_BLOCK_END) {
 			if (!this.isReplacingActive()) {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
@@ -606,11 +613,11 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error("Invalid SEARCH/REPLACE block structure - no lines available to process")
 		}
-		let searchTagRegexp = /^[<]{3,} SEARCH$/
+		let searchTagRegexp = /^[-]{3,} SEARCH$/
 		const searchTagIndex = this.findLastMatchingLineIndex(searchTagRegexp, lineLimit)
 		if (searchTagIndex !== -1) {
 			let fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
-			fixLines[0] = "<<<<<<< SEARCH"
+			fixLines[0] = SEARCH_BLOCK_START
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, searchTagIndex)
 			}
@@ -638,7 +645,7 @@ class NewFileContentConstructor {
 			// 	removeLineCount += this.tryFixSearchBlock(replaceBeginTagIndex)
 			// }
 			let fixLines = this.pendingNonStandardLines.slice(replaceBeginTagIndex - removeLineCount, lineLimit - removeLineCount)
-			fixLines[0] = "======="
+			fixLines[0] = SEARCH_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceBeginTagIndex - removeLineCount)
 			}
@@ -657,7 +664,7 @@ class NewFileContentConstructor {
 			throw new Error()
 		}
 
-		let replaceEndTagRegexp = /^[>]{3,} REPLACE$/
+		let replaceEndTagRegexp = /^[+]{3,} REPLACE$/
 		const replaceEndTagIndex = this.findLastMatchingLineIndex(replaceEndTagRegexp, lineLimit)
 		const likeReplaceEndTag = replaceEndTagIndex === lineLimit - 1
 		if (likeReplaceEndTag) {
@@ -666,7 +673,7 @@ class NewFileContentConstructor {
 			// 	removeLineCount += this.tryFixReplaceBlock(replaceEndTagIndex)
 			// }
 			let fixLines = this.pendingNonStandardLines.slice(replaceEndTagIndex - removeLineCount, lineLimit - removeLineCount)
-			fixLines[fixLines.length - 1] = ">>>>>>> REPLACE"
+			fixLines[fixLines.length - 1] = REPLACE_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceEndTagIndex - removeLineCount)
 			}
@@ -706,10 +713,10 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
-		lastLine !== "<<<<<<< SEARCH" &&
-		lastLine !== "=======" &&
-		lastLine !== ">>>>>>> REPLACE"
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		lastLine !== SEARCH_BLOCK_START &&
+		lastLine !== SEARCH_BLOCK_END &&
+		lastLine !== REPLACE_BLOCK_END
 	) {
 		lines.pop()
 	}

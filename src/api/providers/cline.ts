@@ -6,6 +6,7 @@ import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
+import { withRetry } from "../retry"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -25,6 +26,7 @@ export class ClineHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined
 

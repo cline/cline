@@ -194,20 +194,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "action": {
-				switch (message.action!) {
-					case "historyButtonClicked":
-						navigateToHistory()
-						break
-					case "accountButtonClicked":
-						navigateToAccount()
-						break
-					case "chatButtonClicked":
-						navigateToChat()
-						break
-				}
-				break
-			}
 			case "theme": {
 				if (message.text) {
 					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
@@ -272,10 +258,17 @@ export const ExtensionStateContextProvider: React.FC<{
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Determine the webview provider type
+		const webviewType =
+			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -349,7 +342,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
 			WebviewProviderTypeRequest.create({
-				providerType: currentProviderType,
+				providerType: webviewType,
 			}),
 			{
 				onResponse: () => {
@@ -364,6 +357,39 @@ export const ExtensionStateContextProvider: React.FC<{
 				},
 			},
 		)
+
+		// Set up history button clicked subscription with webview type
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: webviewType,
+			}),
+			{
+				onResponse: () => {
+					// When history button is clicked, navigate to history view
+					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					navigateToHistory()
+				},
+				onError: (error) => {
+					console.error("Error in history button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("History button clicked subscription completed")
+				},
+			},
+		)
+
+		// Subscribe to chat button clicked events with webview type
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When chat button is clicked, navigate to chat
+				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+				navigateToChat()
+			},
+			onError: (error) => {
+				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
 
 		// Set up settings button clicked subscription
 		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
@@ -387,6 +413,21 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
+		// Set up account button clicked subscription
+		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
+			onResponse: () => {
+				// When account button is clicked, navigate to account view
+				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+				navigateToAccount()
+			},
+			onError: (error) => {
+				console.error("Error in account button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Account button clicked subscription completed")
+			},
+		})
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -396,6 +437,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (mcpButtonUnsubscribeRef.current) {
 				mcpButtonUnsubscribeRef.current()
 				mcpButtonUnsubscribeRef.current = null
+			}
+			if (historyButtonClickedSubscriptionRef.current) {
+				historyButtonClickedSubscriptionRef.current()
+				historyButtonClickedSubscriptionRef.current = null
+			}
+			if (chatButtonUnsubscribeRef.current) {
+				chatButtonUnsubscribeRef.current()
+				chatButtonUnsubscribeRef.current = null
+			}
+			if (accountButtonClickedSubscriptionRef.current) {
+				accountButtonClickedSubscriptionRef.current()
+				accountButtonClickedSubscriptionRef.current = null
 			}
 			if (settingsButtonClickedSubscriptionRef.current) {
 				settingsButtonClickedSubscriptionRef.current()

@@ -49,7 +49,7 @@ export async function sendSettingsButtonClickedEvent(webviewType?: WebviewProvid
 		}
 
 		try {
-			const event: Empty = {}
+			const event = Empty.create({})
 			await responseStream(event, false) // Not the last message
 		} catch (error) {
 			console.error(`Error sending settings button clicked event to ${WebviewProviderType[providerType]}:`, error)
