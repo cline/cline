@@ -1,9 +1,14 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { findLastIndex } from "@shared/array"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -12,13 +17,10 @@ import {
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
-import { findLastIndex } from "@shared/array"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -50,6 +52,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
+	setTerminalReuseEnabled: (value: boolean) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -60,6 +63,9 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+
+	// Refresh functions
+	refreshOpenRouterModels: () => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -85,6 +91,9 @@ const ExtensionStateContext = createContext<ExtensionStateContextType | undefine
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
+	// Get the current webview provider type
+	const currentProviderType =
+		window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
@@ -167,6 +176,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
+		terminalReuseEnabled: true, // default to enabled for backward compatibility
 		isNewUser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -187,26 +197,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "action": {
-				switch (message.action!) {
-					case "mcpButtonClicked":
-						navigateToMcp(message.tab)
-						break
-					case "settingsButtonClicked":
-						navigateToSettings()
-						break
-					case "historyButtonClicked":
-						navigateToHistory()
-						break
-					case "accountButtonClicked":
-						navigateToAccount()
-						break
-					case "chatButtonClicked":
-						navigateToChat()
-						break
-				}
-				break
-			}
 			case "theme": {
 				if (message.text) {
 					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
@@ -217,21 +207,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				setFilePaths(message.filePaths ?? [])
 				break
 			}
-			case "partialMessage": {
-				const partialMessage = message.partialMessage!
-				setState((prevState) => {
-					// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-					const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-					if (lastIndex !== -1) {
-						const newClineMessages = [...prevState.clineMessages]
-						newClineMessages[lastIndex] = partialMessage
-						return { ...prevState, clineMessages: newClineMessages }
-					}
-					return prevState
-				})
-				break
-			}
-
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
@@ -257,105 +232,283 @@ export const ExtensionStateContextProvider: React.FC<{
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
-			case "mcpMarketplaceCatalog": {
-				if (message.mcpMarketplaceCatalog) {
-					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
-				}
-				break
-			}
 		}
 	}, [])
 
 	useEvent("message", handleMessage)
 
-	// Reference to store the state subscription cancellation function
+	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
+	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 
-	// Subscribe to state updates using the new gRPC streaming API
+	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Determine the webview provider type
+		const webviewType =
+			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 		// Set up state subscription
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
-			{},
-			{
-				onResponse: (response) => {
-					if (response.stateJson) {
-						try {
-							const stateData = JSON.parse(response.stateJson) as ExtensionState
-							console.log("[DEBUG] parsed state JSON, updating state")
-							setState((prevState) => {
-								// Versioning logic for autoApprovalSettings
-								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-								const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-								const shouldUpdateAutoApproval = incomingVersion > currentVersion
+		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				if (response.stateJson) {
+					try {
+						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						console.log("[DEBUG] parsed state JSON, updating state")
+						setState((prevState) => {
+							// Versioning logic for autoApprovalSettings
+							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
-								const newState = {
-									...stateData,
-									autoApprovalSettings: shouldUpdateAutoApproval
-										? stateData.autoApprovalSettings
-										: prevState.autoApprovalSettings,
-								}
+							const newState = {
+								...stateData,
+								autoApprovalSettings: shouldUpdateAutoApproval
+									? stateData.autoApprovalSettings
+									: prevState.autoApprovalSettings,
+							}
 
-								// Update welcome screen state based on API configuration
-								const config = stateData.apiConfiguration
-								const hasKey = config
-									? [
-											config.apiKey,
-											config.openRouterApiKey,
-											config.awsRegion,
-											config.vertexProjectId,
-											config.openAiApiKey,
-											config.ollamaModelId,
-											config.lmStudioModelId,
-											config.liteLlmApiKey,
-											config.geminiApiKey,
-											config.openAiNativeApiKey,
-											config.deepSeekApiKey,
-											config.requestyApiKey,
-											config.togetherApiKey,
-											config.qwenApiKey,
-											config.doubaoApiKey,
-											config.mistralApiKey,
-											config.vsCodeLmModelSelector,
-											config.clineApiKey,
-											config.asksageApiKey,
-											config.xaiApiKey,
-											config.sambanovaApiKey,
-										].some((key) => key !== undefined)
-									: false
+							// Update welcome screen state based on API configuration
+							const config = stateData.apiConfiguration
+							const hasKey = config
+								? [
+										config.apiKey,
+										config.openRouterApiKey,
+										config.awsRegion,
+										config.vertexProjectId,
+										config.openAiApiKey,
+										config.ollamaModelId,
+										config.lmStudioModelId,
+										config.liteLlmApiKey,
+										config.geminiApiKey,
+										config.openAiNativeApiKey,
+										config.deepSeekApiKey,
+										config.requestyApiKey,
+										config.togetherApiKey,
+										config.qwenApiKey,
+										config.doubaoApiKey,
+										config.mistralApiKey,
+										config.vsCodeLmModelSelector,
+										config.clineApiKey,
+										config.asksageApiKey,
+										config.xaiApiKey,
+										config.sambanovaApiKey,
+									].some((key) => key !== undefined)
+								: false
 
-								setShowWelcome(!hasKey)
-								setDidHydrateState(true)
+							setShowWelcome(!hasKey)
+							setDidHydrateState(true)
 
-								console.log("[DEBUG] returning new state in ESC")
+							console.log("[DEBUG] returning new state in ESC")
 
-								return newState
-							})
-						} catch (error) {
-							console.error("Error parsing state JSON:", error)
-							console.log("[DEBUG] ERR getting state", error)
-						}
+							return newState
+						})
+					} catch (error) {
+						console.error("Error parsing state JSON:", error)
+						console.log("[DEBUG] ERR getting state", error)
 					}
-					console.log('[DEBUG] ended "got subscribed state"')
+				}
+				console.log('[DEBUG] ended "got subscribed state"')
+			},
+			onError: (error) => {
+				console.error("Error in state subscription:", error)
+			},
+			onComplete: () => {
+				console.log("State subscription completed")
+			},
+		})
+
+		// Subscribe to MCP button clicked events with webview type
+		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: webviewType,
+			}),
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
+					navigateToMcp()
 				},
 				onError: (error) => {
-					console.error("Error in state subscription:", error)
+					console.error("Error in mcpButtonClicked subscription:", error)
 				},
 				onComplete: () => {
-					console.log("State subscription completed")
+					console.log("mcpButtonClicked subscription completed")
 				},
 			},
 		)
 
+		// Set up history button clicked subscription with webview type
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: webviewType,
+			}),
+			{
+				onResponse: () => {
+					// When history button is clicked, navigate to history view
+					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					navigateToHistory()
+				},
+				onError: (error) => {
+					console.error("Error in history button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("History button clicked subscription completed")
+				},
+			},
+		)
+
+		// Subscribe to chat button clicked events with webview type
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When chat button is clicked, navigate to chat
+				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+				navigateToChat()
+			},
+			onError: (error) => {
+				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		// Set up settings button clicked subscription
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: currentProviderType,
+			}),
+			{
+				onResponse: () => {
+					// When settings button is clicked, navigate to settings
+					navigateToSettings()
+				},
+				onError: (error) => {
+					console.error("Error in settings button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("Settings button clicked subscription completed")
+				},
+			},
+		)
+
+		// Subscribe to partial message events
+		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
+			onResponse: (protoMessage) => {
+				try {
+					console.log("[PARTIAL] Received partialMessage event from gRPC stream")
+
+					// Validate critical fields
+					if (!protoMessage.ts || protoMessage.ts <= 0) {
+						console.error("Invalid timestamp in partial message:", protoMessage)
+						return
+					}
+
+					const partialMessage = convertProtoToClineMessage(protoMessage)
+					console.log("[PARTIAL] Partial message:", partialMessage)
+					console.log("\n")
+					setState((prevState) => {
+						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
+						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
+						if (lastIndex !== -1) {
+							const newClineMessages = [...prevState.clineMessages]
+							newClineMessages[lastIndex] = partialMessage
+							return { ...prevState, clineMessages: newClineMessages }
+						}
+						return prevState
+					})
+				} catch (error) {
+					console.error("Failed to process partial message:", error, protoMessage)
+				}
+			},
+			onError: (error) => {
+				console.error("Error in partialMessage subscription:", error)
+			},
+			onComplete: () => {
+				console.log("[DEBUG] partialMessage subscription completed")
+			},
+		})
+
+		// Subscribe to MCP marketplace catalog updates
+		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
+			onResponse: (catalog) => {
+				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
+				setMcpMarketplaceCatalog(catalog)
+			},
+			onError: (error) => {
+				console.error("Error in MCP marketplace catalog subscription:", error)
+			},
+			onComplete: () => {
+				console.log("MCP marketplace catalog subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
-		// Clean up subscription when component unmounts
+		// Set up account button clicked subscription
+		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
+			onResponse: () => {
+				// When account button is clicked, navigate to account view
+				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+				navigateToAccount()
+			},
+			onError: (error) => {
+				console.error("Error in account button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Account button clicked subscription completed")
+			},
+		})
+
+		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
 			}
+			if (mcpButtonUnsubscribeRef.current) {
+				mcpButtonUnsubscribeRef.current()
+				mcpButtonUnsubscribeRef.current = null
+			}
+			if (historyButtonClickedSubscriptionRef.current) {
+				historyButtonClickedSubscriptionRef.current()
+				historyButtonClickedSubscriptionRef.current = null
+			}
+			if (chatButtonUnsubscribeRef.current) {
+				chatButtonUnsubscribeRef.current()
+				chatButtonUnsubscribeRef.current = null
+			}
+			if (accountButtonClickedSubscriptionRef.current) {
+				accountButtonClickedSubscriptionRef.current()
+				accountButtonClickedSubscriptionRef.current = null
+			}
+			if (settingsButtonClickedSubscriptionRef.current) {
+				settingsButtonClickedSubscriptionRef.current()
+				settingsButtonClickedSubscriptionRef.current = null
+			}
+			if (partialMessageUnsubscribeRef.current) {
+				partialMessageUnsubscribeRef.current()
+				partialMessageUnsubscribeRef.current = null
+			}
+			if (mcpMarketplaceUnsubscribeRef.current) {
+				mcpMarketplaceUnsubscribeRef.current()
+				mcpMarketplaceUnsubscribeRef.current = null
+			}
 		}
+	}, [])
+
+	const refreshOpenRouterModels = useCallback(() => {
+		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
+			.then((res) => {
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...res.models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
@@ -437,6 +590,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shellIntegrationTimeout: value,
 			})),
+		setTerminalReuseEnabled: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				terminalReuseEnabled: value,
+			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
@@ -489,6 +647,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
+		refreshOpenRouterModels,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

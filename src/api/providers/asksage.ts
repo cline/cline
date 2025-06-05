@@ -9,6 +9,7 @@ import {
 	askSageDefaultURL,
 } from "@shared/api"
 import { ApiStream } from "../transform/stream"
+import { withRetry } from "../retry"
 
 type AskSageRequest = {
 	system_prompt: string
@@ -45,6 +46,7 @@ export class AskSageHandler implements ApiHandler {
 		}
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
 			const model = this.getModel()
