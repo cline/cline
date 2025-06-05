@@ -235,7 +235,7 @@ export class TerminalManager {
 			return matchingTerminal
 		}
 
-		// If no matching terminal exists and terminal reuse is enabled, try to find any non-busy terminal
+		// If no non-busy terminal in the current working dir exists and terminal reuse is enabled, try to find any non-busy terminal regardless of CWD
 		if (this.terminalReuseEnabled) {
 			const availableTerminal = terminals.find((t) => !t.busy)
 			if (availableTerminal) {
