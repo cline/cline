@@ -3,7 +3,7 @@ import { memo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TelemetrySettingEnum } from "@shared/proto/state"
+import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -55,9 +55,11 @@ const TelemetryBanner = () => {
 
 	const handleClose = async () => {
 		try {
-			await StateServiceClient.updateTelemetrySetting({
-				setting: TelemetrySettingEnum.ENABLED,
-			})
+			await StateServiceClient.updateTelemetrySetting(
+				TelemetrySettingRequest.create({
+					setting: TelemetrySettingEnum.ENABLED,
+				}),
+			)
 		} catch (error) {
 			console.error("Error updating telemetry setting:", error)
 		}
