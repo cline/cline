@@ -294,7 +294,7 @@ export class GeminiHandler implements ApiHandler {
 			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
-		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
+		//
 		return totalCost
 	}
 

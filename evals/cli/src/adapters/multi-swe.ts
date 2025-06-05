@@ -15,13 +15,10 @@ export class MultiSWEAdapter implements BenchmarkAdapter {
 	 * Set up the Multi-SWE-Bench benchmark repository (dummy implementation)
 	 */
 	async setup(): Promise<void> {
-		console.log("Multi-SWE-Bench dummy setup completed")
-
 		// Create repositories directory if it doesn't exist
 		const repoDir = path.join(EVALS_DIR, "repositories", "multi-swe")
 		if (!fs.existsSync(repoDir)) {
 			fs.mkdirSync(repoDir, { recursive: true })
-			console.log(`Created dummy Multi-SWE-Bench directory at ${repoDir}`)
 		}
 	}
 
@@ -107,10 +104,7 @@ export class MultiSWEAdapter implements BenchmarkAdapter {
 
 				// TypeScript frontend
 				fs.mkdirSync(path.join(taskDir, "frontend"), { recursive: true })
-				fs.writeFileSync(
-					path.join(taskDir, "frontend", "app.ts"),
-					`// TODO: Implement TypeScript frontend\nconsole.log('Frontend starting...');\n`,
-				)
+				fs.writeFileSync(path.join(taskDir, "frontend", "app.ts"), `// TODO: Implement TypeScript frontend\n;\n`)
 
 				// Rust processing service
 				fs.mkdirSync(path.join(taskDir, "processor"), { recursive: true })
@@ -149,10 +143,7 @@ export class MultiSWEAdapter implements BenchmarkAdapter {
 
 				// Node.js service
 				fs.mkdirSync(path.join(taskDir, "service-node"), { recursive: true })
-				fs.writeFileSync(
-					path.join(taskDir, "service-node", "server.js"),
-					`// TODO: Implement Node.js service\nconsole.log('Node.js service starting...');\n`,
-				)
+				fs.writeFileSync(path.join(taskDir, "service-node", "server.js"), `// TODO: Implement Node.js service\n;\n`)
 
 				// Java service
 				fs.mkdirSync(path.join(taskDir, "service-java"), { recursive: true })

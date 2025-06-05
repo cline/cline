@@ -11,8 +11,6 @@ export async function sendTaskToServer(task: string, apiKey?: string): Promise<a
 	const SERVER_URL = "http://localhost:9876/task"
 
 	try {
-		console.log(chalk.blue(`Sending task to server: ${task.substring(0, 100)}${task.length > 100 ? "..." : ""}`))
-
 		const response = await fetch(SERVER_URL, {
 			method: "POST",
 			headers: {

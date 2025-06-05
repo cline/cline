@@ -12,7 +12,6 @@ export function createEvalsEnvFile(directory: string): boolean {
 
 	// Check if the file already exists
 	if (fs.existsSync(evalsEnvPath)) {
-		console.log(chalk.yellow(`evals.env file already exists at ${evalsEnvPath}`))
 		return false
 	}
 
@@ -27,7 +26,7 @@ export function createEvalsEnvFile(directory: string): boolean {
 # Delete this file to deactivate test mode.
 `
 		fs.writeFileSync(evalsEnvPath, content)
-		console.log(chalk.green(`Created evals.env file at ${evalsEnvPath}`))
+
 		return true
 	} catch (error) {
 		console.error(chalk.red(`Error creating evals.env file: ${error}`))
@@ -45,14 +44,13 @@ export function removeEvalsEnvFile(directory: string): boolean {
 
 	// Check if the file exists
 	if (!fs.existsSync(evalsEnvPath)) {
-		console.log(chalk.yellow(`No evals.env file found at ${evalsEnvPath}`))
 		return false
 	}
 
 	// Remove the file
 	try {
 		fs.unlinkSync(evalsEnvPath)
-		console.log(chalk.green(`Removed evals.env file from ${evalsEnvPath}`))
+
 		return true
 	} catch (error) {
 		console.error(chalk.red(`Error removing evals.env file: ${error}`))
@@ -70,9 +68,7 @@ export function checkEvalsEnvFile(directory: string): boolean {
 	const exists = fs.existsSync(evalsEnvPath)
 
 	if (exists) {
-		console.log(chalk.green(`evals.env file found at ${evalsEnvPath}`))
 	} else {
-		console.log(chalk.yellow(`No evals.env file found at ${evalsEnvPath}`))
 	}
 
 	return exists

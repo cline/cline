@@ -17,8 +17,6 @@ interface SetupOptions {
 export async function setupHandler(options: SetupOptions): Promise<void> {
 	const benchmarks = options.benchmarks.split(",")
 
-	console.log(chalk.blue(`Setting up benchmarks: ${benchmarks.join(", ")}`))
-
 	// Create directories
 	const evalsDir = path.resolve(__dirname, "../../../")
 	const reposDir = path.join(evalsDir, "repositories")
@@ -63,8 +61,6 @@ export async function setupHandler(options: SetupOptions): Promise<void> {
 				throw error
 			}
 		}
-
-		console.log(chalk.green("Setup complete"))
 	} catch (error) {
 		console.error(chalk.red(`Setup failed: ${(error as Error).message}`))
 		throw error

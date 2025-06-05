@@ -68,7 +68,7 @@ class DiagnosticsMonitor {
 			diagnostics.some((d) => d.severity === vscode.DiagnosticSeverity.Error)
 		)
 		if (hasErrors) {
-			console.log("Existing errors detected, extending timeout", currentDiagnostics)
+			
 			timeout = 10_000
 		}
 

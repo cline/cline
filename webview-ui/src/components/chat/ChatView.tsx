@@ -461,7 +461,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 
 			if (hasContent) {
-				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
 					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
 				} else if (clineAsk) {
@@ -738,9 +737,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			onError: (error) => {
 				console.error("Error in addToInput subscription:", error)
 			},
-			onComplete: () => {
-				console.log("addToInput subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		return cleanup

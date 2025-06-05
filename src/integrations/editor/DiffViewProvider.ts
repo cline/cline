@@ -321,9 +321,7 @@ export class DiffViewProvider {
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
-				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 			}
-			console.log(`File ${absolutePath} has been deleted.`)
 		} else {
 			// revert document
 			const edit = new vscode.WorkspaceEdit()
@@ -335,7 +333,7 @@ export class DiffViewProvider {
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
-			console.log(`File ${absolutePath} has been reverted to its original content.`)
+
 			if (this.documentWasOpen) {
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,

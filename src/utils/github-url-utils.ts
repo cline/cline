@@ -77,12 +77,10 @@ export function createGitHubIssueUrl(baseUrl: string, params: Map<string, string
  */
 export async function openUrlInBrowser(url: string): Promise<void> {
 	// For debugging
-	console.log(`Opening URL: ${url}`)
 
 	// Always copy to clipboard as a fallback
 	try {
 		await vscode.env.clipboard.writeText(url)
-		console.log("URL copied to clipboard as backup")
 	} catch (error) {
 		console.error(`Failed to copy URL to clipboard: ${error}`)
 	}
@@ -90,7 +88,6 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 	// Try to open the URL using platform-specific commands
 	try {
 		const platform = os.platform()
-		console.log(`Detected platform: ${platform}`)
 
 		// Use promisify for better async error handling
 		const execPromise = util.promisify(cp.exec)
@@ -100,14 +97,14 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 			// Windows - try multiple approaches
 			try {
 				await execPromise(`start "" "${url}"`)
-				console.log("Opened URL with Windows 'start' command")
+
 				return
 			} catch (winError) {
 				console.error(`Error with Windows 'start' command: ${winError}`)
 
 				try {
 					await execPromise(`powershell.exe -Command "Start-Process '${url}'"`)
-					console.log("Opened URL with PowerShell command")
+
 					return
 				} catch (psError) {
 					console.error(`Error with PowerShell command: ${psError}`)
@@ -117,7 +114,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 		} else if (platform === "darwin") {
 			// macOS
 			await execPromise(`open "${url}"`)
-			console.log("Opened URL with macOS 'open' command")
+
 			return
 		} else {
 			// Linux and others - try multiple commands
@@ -126,7 +123,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 			for (const cmd of linuxCommands) {
 				try {
 					await execPromise(`${cmd} "${url}"`)
-					console.log(`Opened URL with '${cmd}' command`)
+
 					return
 				} catch (cmdError) {
 					console.error(`Error with '${cmd}' command: ${cmdError}`)
@@ -146,7 +143,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 		try {
 			// The 'true' parameter might help preserve some encodings, but this is not guaranteed
 			await vscode.env.openExternal(vscode.Uri.parse(url, true))
-			console.log("Opened URL with vscode.env.openExternal (note: URL encoding may be affected)")
+
 			return
 		} catch (vscodeError) {
 			console.error(`Error with vscode.env.openExternal: ${vscodeError}`)

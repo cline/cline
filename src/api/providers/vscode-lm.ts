@@ -119,7 +119,7 @@ declare module "vscode" {
  * const systemPrompt = "You are a helpful assistant";
  * const messages = [{ role: "user", content: "Hello!" }];
  * for await (const chunk of handler.createMessage(systemPrompt, messages)) {
- *   console.log(chunk);
+ *   ;
  * }
  * ```
  */

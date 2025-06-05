@@ -319,7 +319,6 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								}
 							}}
 							onError={(e) => {
-								console.log(`Image could not be loaded: ${data.image}`)
 								// Hide the broken image
 								;(e.target as HTMLImageElement).style.display = "none"
 							}}

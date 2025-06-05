@@ -161,7 +161,6 @@ export class GitOperations {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
 				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}

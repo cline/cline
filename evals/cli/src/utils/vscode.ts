@@ -31,7 +31,7 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 	if (!vsixPath) {
 		try {
 			// Build the VSIX (no longer need to set IS_TEST=true as we'll use evals.env file)
-			console.log("Building VSIX...")
+
 			const clineRoot = path.resolve(process.cwd(), "..", "..")
 			await execa("npx", ["vsce", "package"], {
 				cwd: clineRoot,
@@ -58,14 +58,10 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 
 				// Use the most recent VSIX
 				vsixPath = vsixFilesWithStats[0].path
-				console.log(`Using most recent VSIX: ${vsixPath} (modified ${vsixFilesWithStats[0].mtime.toISOString()})`)
 
 				// Log all found VSIX files for debugging
 				if (vsixFiles.length > 1) {
-					console.log(`Found ${vsixFiles.length} VSIX files:`)
-					vsixFilesWithStats.forEach((f) => {
-						console.log(`  - ${f.file} (modified ${f.mtime.toISOString()})`)
-					})
+					vsixFilesWithStats.forEach((f) => {})
 				}
 			} else {
 				console.warn("Could not find generated VSIX file")
@@ -78,15 +74,13 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 	// Create a temporary user data directory for this VS Code instance
 	const tempUserDataDir = path.join(os.tmpdir(), `vscode-cline-eval-${Date.now()}`)
 	fs.mkdirSync(tempUserDataDir, { recursive: true })
-	console.log(`Created temporary user data directory: ${tempUserDataDir}`)
 
 	// Create a temporary extensions directory to ensure no other extensions are loaded
 	const tempExtensionsDir = path.join(os.tmpdir(), `vscode-cline-eval-ext-${Date.now()}`)
 	fs.mkdirSync(tempExtensionsDir, { recursive: true })
-	console.log(`Created temporary extensions directory: ${tempExtensionsDir}`)
 
 	// Create evals.env file in the workspace to trigger test mode
-	console.log(`Creating evals.env file in workspace: ${workspacePath}`)
+
 	const evalsEnvPath = path.join(workspacePath, "evals.env")
 	fs.writeFileSync(
 		evalsEnvPath,
@@ -138,7 +132,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		"extensions.autoUpdate": false,
 	}
 	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
-	console.log(`Created settings.json to disable workspace trust and auto-open Cline`)
 
 	// Create keybindings.json to automatically open Cline on startup
 	const keybindingsPath = path.join(settingsDir, "keybindings.json")
@@ -155,7 +148,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		},
 	]
 	fs.writeFileSync(keybindingsPath, JSON.stringify(keybindings, null, 2))
-	console.log(`Created keybindings.json to help with Cline activation`)
 
 	// Build the command arguments with custom user data directory
 	const args = [
@@ -195,7 +187,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		}, 5000);
 	`
 	fs.writeFileSync(startupScriptPath, startupScript)
-	console.log(`Created startup script to activate Cline`)
 
 	// If a VSIX is provided, install it
 	if (vsixPath) {
@@ -206,11 +197,11 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 	}
 
 	// Install required extensions
-	console.log("Installing required VSCode extensions...")
+
 	await installRequiredExtensions(tempExtensionsDir)
 
 	// Configure extension settings
-	console.log("Configuring extension settings...")
+
 	configureExtensionSettings(tempUserDataDir)
 
 	// Execute the command
@@ -219,13 +210,13 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		// The VSIX will be installed in the isolated environment if provided in the args
 
 		// Launch VS Code
-		console.log("Launching VS Code...")
+
 		await execa("code", args, {
 			stdio: "inherit",
 		})
 
 		// Wait longer for VSCode to initialize and extension to load
-		console.log("Waiting for VS Code to initialize...")
+
 		await new Promise((resolve) => setTimeout(resolve, 30000))
 
 		// Create a JavaScript file that will be loaded as a VS Code extension
@@ -264,7 +255,7 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			 * @param {vscode.ExtensionContext} context
 			 */
 			function activate(context) {
-				console.log('Cline Activator is now active!');
+				;
 				
 				// Register the command to activate Cline
 				let disposable = vscode.commands.registerCommand('cline-activator.activate', async function () {
@@ -277,33 +268,33 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 						}
 						
 						if (!extension.isActive) {
-							console.log('Activating Cline extension...');
+							;
 							await extension.activate();
 						}
 						
 						// Show the Cline sidebar
-						console.log('Opening Cline sidebar...');
+						;
 						await vscode.commands.executeCommand('workbench.view.extension.saoudrizwan.claude-dev-ActivityBar');
 						
 						// Wait a moment for the sidebar to initialize
 						await new Promise(resolve => setTimeout(resolve, 2000));
 						
 						// Also open Cline in a tab as a fallback
-						console.log('Opening Cline in a tab...');
+						;
 						await vscode.commands.executeCommand('cline.openInNewTab');
 						
 						// Wait a moment for the tab to initialize
 						await new Promise(resolve => setTimeout(resolve, 2000));
 						
 						// Create the test server if it doesn't exist
-						console.log('Creating test server...');
+						;
 						
 						// Get the visible webview instance
 						const clineRootPath = '${path.resolve(process.cwd(), "..", "..")}';
 						const visibleWebview = require(path.join(clineRootPath, 'src', 'core', 'webview')).WebviewProvider.getVisibleInstance();
 						if (visibleWebview) {
 							require(path.join(clineRootPath, 'src', 'services', 'test', 'TestServer')).createTestServer(visibleWebview);
-							console.log('Test server created successfully');
+							;
 						} else {
 							console.error('No visible webview instance found');
 						}
@@ -328,7 +319,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			}
 		`
 		fs.writeFileSync(extensionJsPath, extensionJs)
-		console.log(`Created Cline Activator extension`)
 
 		// Try multiple approaches to activate the extension
 		let serverStarted = false
@@ -343,11 +333,9 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			vscode.commands.executeCommand('cline-activator.activate');
 		`
 		fs.writeFileSync(activationScriptPath, activationScript)
-		console.log(`Created activation script to run in VS Code`)
 
 		// Execute the activation script
 		try {
-			console.log("Executing activation script to start Cline and test server...")
 			await execa(
 				"code",
 				[
@@ -366,7 +354,7 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			)
 
 			// Wait for the test server to start
-			console.log("Waiting for test server to start...")
+
 			for (let i = 0; i < 30; i++) {
 				try {
 					// Try to connect to the test server
@@ -378,7 +366,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 					})
 
 					if (response.status === 204) {
-						console.log("Test server is running!")
 						serverStarted = true
 						break
 					}
@@ -393,7 +380,6 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 
 		if (!serverStarted) {
 			console.warn("Test server did not start after multiple attempts")
-			console.log("You may need to manually open the Cline extension in VS Code")
 		}
 
 		// Store the resources for this workspace
@@ -417,18 +403,14 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
  * @param workspacePath The workspace path to clean up resources for
  */
 export async function cleanupVSCode(workspacePath: string): Promise<void> {
-	console.log(`Cleaning up VS Code resources for workspace: ${workspacePath}`)
-
 	// Get the resources for this workspace
 	const resources = workspaceResources.get(workspacePath)
 	if (!resources) {
-		console.log(`No resources found for workspace: ${workspacePath}`)
 		return
 	}
 
 	// Try to shut down the test server
 	try {
-		console.log("Shutting down test server...")
 		await fetch("http://localhost:9876/shutdown", {
 			method: "POST",
 			headers: {
@@ -443,8 +425,6 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 
 	// Try to gracefully close VS Code instead of killing it
 	try {
-		console.log("Attempting to gracefully close VS Code...")
-
 		// Create a settings file that will disable the crash reporter and the exit confirmation dialog
 		const settingsDir = path.join(resources.tempUserDataDir, "User")
 		const settingsPath = path.join(settingsDir, "settings.json")
@@ -505,7 +485,6 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 						const pid = parseInt(parts[1])
 
 						if (pid && !isNaN(pid)) {
-							console.log(`Sending SIGTERM to VS Code process with PID: ${pid}`)
 							try {
 								// Use SIGTERM instead of SIGKILL for a graceful shutdown
 								process.kill(pid, "SIGTERM")
@@ -545,8 +524,6 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 
 		// If VS Code is still running, use forceful termination as a last resort
 		if (vsCodeStillRunning) {
-			console.log("Graceful shutdown failed, falling back to forceful termination...")
-
 			if (process.platform === "win32") {
 				try {
 					await execa("taskkill", ["/IM", "code.exe", "/F"])
@@ -564,7 +541,6 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 							const pid = parseInt(parts[1])
 
 							if (pid && !isNaN(pid)) {
-								console.log(`Forcefully killing VS Code process with PID: ${pid}`)
 								try {
 									process.kill(pid, "SIGKILL")
 								} catch (killError) {
@@ -584,14 +560,12 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 
 	// Clean up temporary directories and evals.env file
 	try {
-		console.log(`Removing temporary user data directory: ${resources.tempUserDataDir}`)
 		fs.rmSync(resources.tempUserDataDir, { recursive: true, force: true })
 	} catch (error) {
 		console.warn(`Error removing temporary user data directory: ${error}`)
 	}
 
 	try {
-		console.log(`Removing temporary extensions directory: ${resources.tempExtensionsDir}`)
 		fs.rmSync(resources.tempExtensionsDir, { recursive: true, force: true })
 	} catch (error) {
 		console.warn(`Error removing temporary extensions directory: ${error}`)
@@ -601,7 +575,6 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 	try {
 		const evalsEnvPath = path.join(workspacePath, "evals.env")
 		if (fs.existsSync(evalsEnvPath)) {
-			console.log(`Removing evals.env file: ${evalsEnvPath}`)
 			fs.unlinkSync(evalsEnvPath)
 		}
 	} catch (error) {
@@ -610,6 +583,4 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 
 	// Remove from the global map
 	workspaceResources.delete(workspacePath)
-
-	console.log("Cleanup completed")
 }

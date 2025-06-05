@@ -20,7 +20,6 @@ export async function subscribeToMcpButtonClicked(
 	requestId?: string,
 ): Promise<void> {
 	const providerType = request.providerType
-	console.log(`[DEBUG] set up mcpButtonClicked subscription for ${WebviewProviderType[providerType]} webview`)
 
 	// Store the subscription with its provider type
 	mcpButtonClickedSubscriptions.set(responseStream, providerType)

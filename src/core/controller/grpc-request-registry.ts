@@ -54,7 +54,6 @@ export class GrpcRequestRegistry {
 			timestamp: new Date(),
 			responseStream,
 		})
-		console.log(`[DEBUG] Registered request: ${requestId}`)
 	}
 
 	/**
@@ -67,7 +66,6 @@ export class GrpcRequestRegistry {
 		if (requestInfo) {
 			try {
 				requestInfo.cleanup()
-				console.log(`[DEBUG] Cleaned up request: ${requestId}`)
 			} catch (error) {
 				console.error(`Error cleaning up request ${requestId}:`, error)
 			}

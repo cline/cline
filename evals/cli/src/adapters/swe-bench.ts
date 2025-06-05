@@ -15,13 +15,10 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 	 * Set up the SWE-Bench benchmark repository (dummy implementation)
 	 */
 	async setup(): Promise<void> {
-		console.log("SWE-Bench dummy setup completed")
-
 		// Create repositories directory if it doesn't exist
 		const repoDir = path.join(EVALS_DIR, "repositories", "swe-bench")
 		if (!fs.existsSync(repoDir)) {
 			fs.mkdirSync(repoDir, { recursive: true })
-			console.log(`Created dummy SWE-Bench directory at ${repoDir}`)
 		}
 	}
 

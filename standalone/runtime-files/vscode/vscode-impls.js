@@ -1,39 +1,29 @@
-console.log("Loading stub impls...")
-
 const { createStub } = require("./stub-utils")
 const open = require("open").default
 
 vscode.window = {
 	showInformationMessage: (...args) => {
-		console.log("Stubbed showInformationMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showWarningMessage: (...args) => {
-		console.log("Stubbed showWarningMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showErrorMessage: (...args) => {
-		console.log("Stubbed showErrorMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showInputBox: async (options) => {
-		console.log("Stubbed showInputBox:", options)
 		return ""
 	},
 	showOpenDialog: async (options) => {
-		console.log("Stubbed showOpenDialog:", options)
 		return []
 	},
 	showSaveDialog: async (options) => {
-		console.log("Stubbed showSaveDialog:", options)
 		return undefined
 	},
 	showTextDocument: async (...args) => {
-		console.log("Stubbed showTextDocument:", ...args)
 		return {}
 	},
 	createOutputChannel: (name) => {
-		console.log("Stubbed createOutputChannel:", name)
 		return {
 			appendLine: console.log,
 			show: () => {},
@@ -41,7 +31,6 @@ vscode.window = {
 		}
 	},
 	createTerminal: (...args) => {
-		console.log("Stubbed createTerminal:", ...args)
 		return {
 			sendText: console.log,
 			show: () => {},
@@ -55,7 +44,6 @@ vscode.window = {
 		close: async () => {},
 	},
 	withProgress: async (_options, task) => {
-		console.log("Stubbed withProgress")
 		return task({ report: () => {} })
 	},
 	registerUriHandler: () => ({ dispose: () => {} }),
@@ -63,7 +51,6 @@ vscode.window = {
 	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
 	createTextEditorDecorationType: () => ({ dispose: () => {} }),
 	createWebviewPanel: (...args) => {
-		console.log("Stubbed createWebviewPanel:", ...args)
 		return {
 			webview: {},
 			reveal: () => {},
@@ -141,9 +128,7 @@ vscode.Uri = {
 
 vscode.env.openExternal = async (uri) => {
 	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
-	console.log("Opening browser:", url)
+
 	await open(url)
 	return true
 }
-
-console.log("Finished loading stub impls...")

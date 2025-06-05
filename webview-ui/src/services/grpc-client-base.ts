@@ -126,7 +126,6 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 							request_id: requestId,
 						},
 					})
-					console.log(`[DEBUG] Sent cancellation for request: ${requestId}`)
 				}
 			}) as any
 		} else {

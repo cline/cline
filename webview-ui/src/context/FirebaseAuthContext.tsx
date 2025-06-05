@@ -64,7 +64,6 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		async (token: string) => {
 			try {
 				await signInWithCustomToken(auth, token)
-				console.log("Successfully signed in with custom token")
 			} catch (error) {
 				console.error("Error signing in with custom token:", error)
 				throw error
@@ -93,7 +92,6 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 	const handleSignOut = useCallback(async () => {
 		try {
 			await signOut(auth)
-			console.log("Successfully signed out of Firebase")
 		} catch (error) {
 			console.error("Error signing out of Firebase:", error)
 			throw error

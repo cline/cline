@@ -259,7 +259,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
+
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -304,23 +304,17 @@ export const ExtensionStateContextProvider: React.FC<{
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
 
-							console.log("[DEBUG] returning new state in ESC")
-
 							return newState
 						})
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
 					}
 				}
-				console.log('[DEBUG] ended "got subscribed state"')
 			},
 			onError: (error) => {
 				console.error("Error in state subscription:", error)
 			},
-			onComplete: () => {
-				console.log("State subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Subscribe to MCP button clicked events with webview type
@@ -330,15 +324,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			}),
 			{
 				onResponse: () => {
-					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
 					navigateToMcp()
 				},
 				onError: (error) => {
 					console.error("Error in mcpButtonClicked subscription:", error)
 				},
-				onComplete: () => {
-					console.log("mcpButtonClicked subscription completed")
-				},
+				onComplete: () => {},
 			},
 		)
 
@@ -350,15 +341,13 @@ export const ExtensionStateContextProvider: React.FC<{
 			{
 				onResponse: () => {
 					// When history button is clicked, navigate to history view
-					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+
 					navigateToHistory()
 				},
 				onError: (error) => {
 					console.error("Error in history button clicked subscription:", error)
 				},
-				onComplete: () => {
-					console.log("History button clicked subscription completed")
-				},
+				onComplete: () => {},
 			},
 		)
 
@@ -366,7 +355,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
 			onResponse: () => {
 				// When chat button is clicked, navigate to chat
-				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+
 				navigateToChat()
 			},
 			onError: (error) => {
@@ -388,9 +377,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				onError: (error) => {
 					console.error("Error in settings button clicked subscription:", error)
 				},
-				onComplete: () => {
-					console.log("Settings button clicked subscription completed")
-				},
+				onComplete: () => {},
 			},
 		)
 
@@ -398,8 +385,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage) => {
 				try {
-					console.log("[PARTIAL] Received partialMessage event from gRPC stream")
-
 					// Validate critical fields
 					if (!protoMessage.ts || protoMessage.ts <= 0) {
 						console.error("Invalid timestamp in partial message:", protoMessage)
@@ -407,8 +392,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					console.log("[PARTIAL] Partial message:", partialMessage)
-					console.log("\n")
+
 					setState((prevState) => {
 						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
 						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
@@ -426,23 +410,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			onError: (error) => {
 				console.error("Error in partialMessage subscription:", error)
 			},
-			onComplete: () => {
-				console.log("[DEBUG] partialMessage subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Subscribe to MCP marketplace catalog updates
 		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
 			onResponse: (catalog) => {
-				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
 				setMcpMarketplaceCatalog(catalog)
 			},
 			onError: (error) => {
 				console.error("Error in MCP marketplace catalog subscription:", error)
 			},
-			onComplete: () => {
-				console.log("MCP marketplace catalog subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Still send the webviewDidLaunch message for other initialization
@@ -452,15 +431,13 @@ export const ExtensionStateContextProvider: React.FC<{
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
 				// When account button is clicked, navigate to account view
-				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+
 				navigateToAccount()
 			},
 			onError: (error) => {
 				console.error("Error in account button clicked subscription:", error)
 			},
-			onComplete: () => {
-				console.log("Account button clicked subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Clean up subscriptions when component unmounts

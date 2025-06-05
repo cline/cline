@@ -52,7 +52,7 @@ grpcRuleTester.run("no-grpc-client-object-literals", grpcRule, {
 		{
 			code: `
                 function processData(data) {
-                    console.log(data);
+                    ;
                 }
                 
                 processData({

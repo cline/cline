@@ -11,7 +11,7 @@ const SOURCE_DIR = "standalone/runtime-files"
 await cp(SOURCE_DIR, BUILD_DIR, { recursive: true })
 
 // Run npm install in the distribution directory
-console.log("Running npm install in distribution directory...")
+
 const cwd = process.cwd()
 process.chdir(BUILD_DIR)
 try {
@@ -38,9 +38,7 @@ const zipPath = path.join(BUILD_DIR, "standalone.zip")
 const output = fs.createWriteStream(zipPath)
 const archive = archiver("zip", { zlib: { level: 9 } })
 
-output.on("close", () => {
-	console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
-})
+output.on("close", () => {})
 
 archive.on("error", (err) => {
 	throw err

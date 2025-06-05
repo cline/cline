@@ -17,7 +17,6 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
 			if (taskIndex === -1) {
-				console.log(`[toggleTaskFavorite] Task not found in history array!`)
 			} else {
 				// Create a new array instead of modifying in place to ensure state change
 				const updatedHistory = [...history]

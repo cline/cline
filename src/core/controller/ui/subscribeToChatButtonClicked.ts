@@ -20,7 +20,6 @@ export async function subscribeToChatButtonClicked(
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id
-	console.log(`[DEBUG] set up chatButtonClicked subscription for controller ${controllerId}`)
 
 	// Add this subscription to the active subscriptions with the controller ID
 	activeChatButtonClickedSubscriptions.set(controllerId, responseStream)
@@ -45,7 +44,6 @@ export async function sendChatButtonClickedEvent(controllerId: string): Promise<
 	const responseStream = activeChatButtonClickedSubscriptions.get(controllerId)
 
 	if (!responseStream) {
-		console.log(`[DEBUG] No active subscription for controller ${controllerId}`)
 		return
 	}
 

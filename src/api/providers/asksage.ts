@@ -36,7 +36,6 @@ export class AskSageHandler implements ApiHandler {
 	private apiKey: string
 
 	constructor(options: ApiHandlerOptions) {
-		console.log("init api url", options.asksageApiUrl, askSageDefaultURL)
 		this.options = options
 		this.apiKey = options.asksageApiKey || ""
 		this.apiUrl = options.asksageApiUrl || askSageDefaultURL

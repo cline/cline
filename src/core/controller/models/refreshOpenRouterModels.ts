@@ -118,7 +118,6 @@ export async function refreshOpenRouterModels(
 			console.error("Invalid response from OpenRouter API")
 		}
 		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		console.log("OpenRouter models fetched and saved", models)
 	} catch (error) {
 		console.error("Error fetching OpenRouter models:", error)
 

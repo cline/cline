@@ -186,7 +186,6 @@ export class BrowserSession {
 		this.isConnectedToRemote = false
 
 		if (this.browserSettings.remoteBrowserEnabled) {
-			console.log(`launch browser called -- remote host mode (non-headless)`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
@@ -216,7 +215,6 @@ export class BrowserSession {
 				await this.launchLocalBrowser()
 			}
 		} else {
-			console.log(`launch browser called -- local mode (headless)`)
 			await this.launchLocalBrowser()
 		}
 
@@ -260,9 +258,7 @@ export class BrowserSession {
 					console.info(`Auto-discovered Chrome at ${discoveredHost}`)
 					remoteBrowserHost = discoveredHost
 				}
-			} catch (error) {
-				console.log(`Auto-discovery failed: ${error}`)
-			}
+			} catch (error) {}
 		}
 
 		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
@@ -277,8 +273,6 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.log(`Failed to connect using cached endpoint: ${error}`)
-
 				// Capture error telemetry
 				if (this.taskId) {
 					telemetryService.captureBrowserError(
@@ -329,8 +323,6 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.log(`Failed to connect to remote browser: ${error}`)
-
 				// Capture error telemetry
 				if (this.taskId) {
 					telemetryService.captureBrowserError(
@@ -359,9 +351,7 @@ export class BrowserSession {
 		// First try chrome-launcher's killAll to handle instances it launched
 		try {
 			await chromeLauncher.killAll()
-		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
-		}
+		} catch (err: unknown) {}
 
 		// Then kill other Chrome instances using platform-specific commands
 		try {

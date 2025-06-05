@@ -134,11 +134,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 		// If switching to plain mode, cancel any ongoing processing
 		if (newMode === "plain") {
-			console.log("Switching to plain mode - cancelling URL processing")
 			setUrlMatches([]) // Clear any existing matches when switching to plain mode
 		} else {
 			// If switching to rich mode, the useEffect will re-run and fetch data
-			console.log("Switching to rich mode - will start URL processing")
 		}
 	}, [displayMode])
 
@@ -155,7 +153,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		let processingCanceled = false
 
 		const processResponse = async () => {
-			console.log("Processing MCP response for URL extraction")
 			setIsLoading(true)
 			setError(null)
 
@@ -173,13 +170,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 					// Skip invalid URLs
 					if (!isUrl(url)) {
-						console.log("Skipping invalid URL:", url)
 						continue
 					}
 
 					// Skip localhost URLs to prevent security issues
 					if (isLocalhostUrl(url)) {
-						console.log("Skipping localhost URL:", url)
 						continue
 					}
 
@@ -194,8 +189,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					urlCount++
 				}
 
-				console.log(`Found ${matches.length} URLs in text, will check if they are images`)
-
 				// Set matches immediately so UI can start rendering with loading states
 				setUrlMatches(matches.sort((a, b) => a.index - b.index))
 
@@ -204,20 +197,16 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 				// Process image checks in the background - one at a time to avoid network flooding
 				const processImageChecks = async () => {
-					console.log(`Starting sequential URL processing for ${matches.length} URLs`)
-
 					for (let i = 0; i < matches.length; i++) {
 						// Skip already processed URLs (from extension check)
 						if (matches[i].isProcessed) continue
 
 						// Check if processing has been canceled (switched to plain mode)
 						if (processingCanceled) {
-							console.log("URL processing canceled - display mode changed to plain")
 							return
 						}
 
 						const match = matches[i]
-						console.log(`Processing URL ${i + 1} of ${matches.length}: ${match.url}`)
 
 						try {
 							// Process each URL individually
@@ -234,7 +223,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							// Create a new array to ensure React detects the state change
 							setUrlMatches([...matches])
 						} catch (err) {
-							console.log(`URL check error: ${match.url}`, err)
 							match.isProcessed = true
 
 							// Update state even on error
@@ -248,8 +236,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							await new Promise((resolve) => setTimeout(resolve, 100))
 						}
 					}
-
-					console.log(`URL processing complete. Found ${matches.filter((m) => m.isImage).length} image URLs`)
 				}
 
 				// Start the background processing
@@ -265,7 +251,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		// Cleanup function to cancel processing if component unmounts or dependencies change
 		return () => {
 			processingCanceled = true
-			console.log("Cleaning up URL processing")
 		}
 	}, [responseText, displayMode, forceUpdateCounter])
 
@@ -328,7 +313,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							</div>,
 						)
 						embedCount++
-						// console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
+						// ;
 					} else if (match.isProcessed) {
 						// For non-image URLs or URLs we haven't processed yet, show link preview
 						try {
@@ -343,10 +328,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								)
 
 								embedCount++
-								// console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
+								// ;
 							}
 						} catch (e) {
-							console.log("Link preview could not be created")
 							// Show error message for failed link preview
 							segments.push(
 								<div
@@ -399,7 +383,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			</ResponseContainer>
 		)
 	} catch (error) {
-		console.log("Error rendering MCP response - falling back to plain text")
 		return (
 			<ResponseContainer>
 				<ResponseHeader>

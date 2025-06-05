@@ -39,7 +39,7 @@ const terminalManager = new TerminalManager(context);
 const process = terminalManager.runCommand('npm install', '/path/to/project');
 
 process.on('line', (line) => {
-	console.log(line);
+	;
 });
 
 // To wait for the process to complete naturally:
@@ -50,7 +50,7 @@ process.continue();
 
 // Later, if you need to get the unretrieved output:
 const unretrievedOutput = terminalManager.getUnretrievedOutput(terminalId);
-console.log('Unretrieved output:', unretrievedOutput);
+;
 
 Resources:
 - https://github.com/microsoft/vscode/issues/226655
@@ -164,7 +164,6 @@ export class TerminalManager {
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
 		process.once("no_shell_integration", () => {
-			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 			this.terminalIds.delete(terminalInfo.id)
@@ -204,7 +203,6 @@ export class TerminalManager {
 					)
 				})
 				.finally(() => {
-					console.log(`[TerminalManager Test] Proceeding with command execution for terminal ${terminalInfo.id}.`)
 					const existingProcess = this.processes.get(terminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false

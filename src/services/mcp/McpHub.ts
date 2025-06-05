@@ -123,7 +123,7 @@ export class McpHub {
 		const settingsPath = await this.getMcpSettingsFilePath()
 
 		// Subscribe to file changes using the gRPC WatchService
-		console.log("[DEBUG] subscribing to mcp file changes")
+
 		const cancelSubscription = WatchServiceClient.subscribeToFile(
 			SubscribeToFileRequest.create({
 				metadata: Metadata.create({}),
@@ -152,9 +152,7 @@ export class McpHub {
 				onError: (error) => {
 					console.error("Error watching MCP settings file:", error)
 				},
-				onComplete: () => {
-					console.log("[DEBUG] MCP settings file watch completed")
-				},
+				onComplete: () => {},
 			},
 		)
 
@@ -235,7 +233,6 @@ export class McpHub {
 							const isInfoLog = /INFO/i.test(output)
 
 							if (isInfoLog) {
-								console.log(`Server "${name}" info:`, output)
 							} else {
 								console.error(`Server "${name}" stderr:`, output)
 								const connection = this.findConnection(name, source)
@@ -420,7 +417,6 @@ export class McpHub {
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.deleteConnection(name)
-				console.log(`Deleted MCP server: ${name}`)
 			}
 		}
 
@@ -446,7 +442,6 @@ export class McpHub {
 					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "rpc")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
@@ -467,7 +462,6 @@ export class McpHub {
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.deleteConnection(name)
-				console.log(`Deleted MCP server: ${name}`)
 			}
 		}
 
@@ -493,7 +487,6 @@ export class McpHub {
 					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "internal")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
@@ -515,7 +508,6 @@ export class McpHub {
 			})
 
 			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
 				this.restartConnection(name)
 			})
 

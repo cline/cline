@@ -20,15 +20,12 @@ export async function subscribeToAddToInput(
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {
-	console.log("[DEBUG] set up addToInput subscription")
-
 	// Add this subscription to the active subscriptions
 	activeAddToInputSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeAddToInputSubscriptions.delete(responseStream)
-		console.log("[DEBUG] Cleaned up addToInput subscription")
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -52,7 +49,6 @@ export async function sendAddToInputEvent(text: string): Promise<void> {
 				event,
 				false, // Not the last message
 			)
-			console.log("[DEBUG] sending addToInput event", text.length, "chars")
 		} catch (error) {
 			console.error("Error sending addToInput event:", error)
 			// Remove the subscription if there was an error

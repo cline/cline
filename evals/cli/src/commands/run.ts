@@ -25,15 +25,10 @@ export async function runHandler(options: RunOptions): Promise<void> {
 	const model = options.model
 	const count = options.count || Infinity
 
-	console.log(chalk.blue(`Running evaluations for model: ${model}`))
-	console.log(chalk.blue(`Benchmarks: ${benchmarks.join(", ")}`))
-
 	// Create a run for each benchmark
 	for (const benchmark of benchmarks) {
 		const runId = uuidv4()
 		const db = new ResultsDatabase()
-
-		console.log(chalk.green(`\nStarting run for benchmark: ${benchmark}`))
 
 		// Create run in database
 		db.createRun(runId, model, benchmark)
@@ -50,13 +45,9 @@ export async function runHandler(options: RunOptions): Promise<void> {
 			// Limit number of tasks if specified
 			const tasksToRun = tasks.slice(0, count)
 
-			console.log(chalk.blue(`Running ${tasksToRun.length} tasks...`))
-
 			// Run each task
 			for (let i = 0; i < tasksToRun.length; i++) {
 				const task = tasksToRun[i]
-
-				console.log(chalk.cyan(`\nTask ${i + 1}/${tasksToRun.length}: ${task.name}`))
 
 				// Prepare task
 				const prepareSpinner = ora("Preparing task...").start()
@@ -64,7 +55,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				prepareSpinner.succeed("Task prepared")
 
 				// Spawn VSCode
-				console.log("Spawning VSCode...")
+
 				await spawnVSCode(preparedTask.workspacePath)
 
 				// Send task to server
@@ -91,8 +82,6 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					const storeSpinner = ora("Storing result...").start()
 					await storeTaskResult(runId, preparedTask, result, verification)
 					storeSpinner.succeed("Result stored")
-
-					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
 
 					// Clean up VS Code and temporary files
 					const cleanupSpinner = ora("Cleaning up...").start()
@@ -121,13 +110,9 @@ export async function runHandler(options: RunOptions): Promise<void> {
 
 			// Mark run as complete
 			db.completeRun(runId)
-
-			console.log(chalk.green(`\nRun complete for benchmark: ${benchmark}`))
 		} catch (error: any) {
 			console.error(chalk.red(`Error running benchmark ${benchmark}: ${error.message}`))
 			console.error(error.stack)
 		}
 	}
-
-	console.log(chalk.green("\nAll evaluations complete"))
 }

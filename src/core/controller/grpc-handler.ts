@@ -201,7 +201,6 @@ export async function handleGrpcRequestCancel(
 			},
 		})
 	} else {
-		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
 }
 

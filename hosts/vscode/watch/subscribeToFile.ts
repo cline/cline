@@ -28,11 +28,9 @@ export async function subscribeToFile(
 	requestId?: string,
 ): Promise<void> {
 	const filePath = request.path
-	console.log(`[DEBUG] Setting up file subscription for ${filePath}`)
 
 	try {
 		// We don't send an initial event to avoid triggering handlers immediately
-		console.log(`[DEBUG] Now watching file: ${filePath}`)
 
 		// Set up or reuse file watcher
 		if (!fileWatchers.has(filePath)) {
@@ -42,7 +40,6 @@ export async function subscribeToFile(
 				if (eventType === "change") {
 					try {
 						const content = await fs.readFile(filePath, "utf8")
-						console.log(`[DEBUG] File changed: ${filePath}`)
 
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
@@ -86,7 +83,6 @@ export async function subscribeToFile(
 						await fs.access(filePath)
 						// File exists, so it was created or renamed
 						const content = await fs.readFile(filePath, "utf8")
-						console.log(`[DEBUG] File created/renamed: ${filePath}`)
 
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
@@ -122,7 +118,6 @@ export async function subscribeToFile(
 						}
 					} catch (error) {
 						// File doesn't exist, so it was deleted
-						console.log(`[DEBUG] File deleted: ${filePath}`)
 
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
@@ -179,7 +174,6 @@ export async function subscribeToFile(
 
 		// Register cleanup when the connection is closed
 		const cleanup = () => {
-			console.log(`[DEBUG] Cleaning up file subscription for ${filePath}`)
 			const watcherInfo = fileWatchers.get(filePath)
 			if (watcherInfo) {
 				watcherInfo.subscribers.delete(responseStream)
@@ -220,6 +214,5 @@ function cleanupWatcher(filePath: string): void {
 	if (watcherInfo) {
 		watcherInfo.watcher.close()
 		fileWatchers.delete(filePath)
-		console.log(`[DEBUG] Removed file watcher for ${filePath}`)
 	}
 }

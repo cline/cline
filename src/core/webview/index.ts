@@ -87,7 +87,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
-		//console.log("registering listener")
+		//
 
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840

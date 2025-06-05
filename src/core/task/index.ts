@@ -530,7 +530,6 @@ export class Task {
 			return
 		}
 
-		console.log("presentMultifileDiff", messageTs)
 		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs)
 		const message = this.clineMessages[messageIndex]
 		if (!message) {
@@ -1748,7 +1747,6 @@ export class Task {
 					)
 				}
 
-				console.log("first chunk failed, waiting 1 second before retrying")
 				await setTimeoutPromise(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
@@ -1828,7 +1826,7 @@ export class Task {
 
 				const onError = (error: Error) => {
 					console.error("StreamingJsonReplacer error:", error)
-					console.log("Failed StreamingJsonReplacer update:")
+
 					// Handle error: push tool result, cleanup
 					this.userMessageContent.push({
 						type: "text",
@@ -1920,7 +1918,7 @@ export class Task {
 
 			// Get final list of replacements
 			const allReplacements = this.streamingJsonReplacer.getSuccessfullyParsedItems()
-			// console.log(`Total replacements applied: ${allReplacements.length}`)
+			//
 
 			// Cleanup
 			this.streamingJsonReplacer = undefined
@@ -1950,7 +1948,7 @@ export class Task {
 			if (this.didCompleteReadingStream) {
 				this.userMessageContentReady = true
 			}
-			// console.log("no more content blocks to stream! this shouldn't happen?")
+			//
 			this.presentAssistantMessageLocked = false
 			return
 			//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
@@ -2178,7 +2176,6 @@ export class Task {
 
 				const handleError = async (action: string, error: Error, isClaude4ModelFamily: boolean = false) => {
 					if (this.abandoned) {
-						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 						return
 					}
 					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
@@ -2268,7 +2265,6 @@ export class Task {
 								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
 								// Going through claude family of models
 								if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
-									console.log("[EDIT] Streaming JSON replacement")
 									const streamingResult = await this.handleStreamingJsonReplacement(
 										block,
 										relPath,
@@ -4417,7 +4413,7 @@ export class Task {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					console.log("updating partial message", lastMessage)
+
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 
@@ -4519,7 +4515,6 @@ export class Task {
 					}
 
 					if (this.abort) {
-						console.log("aborting stream...")
 						if (!this.abandoned) {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")

@@ -20,7 +20,6 @@ export async function subscribeToSettingsButtonClicked(
 	requestId?: string,
 ): Promise<void> {
 	const providerType = request.providerType
-	console.log(`[DEBUG] set up settings button subscription for ${WebviewProviderType[providerType]} webview`)
 
 	// Store the subscription with its provider type
 	subscriptions.set(responseStream, providerType)

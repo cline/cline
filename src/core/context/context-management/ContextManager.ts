@@ -255,7 +255,7 @@ export class ContextManager {
 
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
-		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		// OLD NOTE: if you try to  snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
 	}
 

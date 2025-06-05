@@ -169,9 +169,7 @@ async function parseFile(
 
 			lastLine = endLine
 		})
-	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
-	}
+	} catch (error) {}
 
 	if (formattedOutput.length > 0) {
 		return `|----\n${formattedOutput}|----\n`

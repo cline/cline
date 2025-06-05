@@ -27,9 +27,8 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		;(async () => {
 			try {
-				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
 				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
-				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
+
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,

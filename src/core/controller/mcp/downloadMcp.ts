@@ -42,8 +42,6 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 			throw new Error("Invalid response from MCP marketplace API")
 		}
 
-		console.log("[downloadMcp] Response from download API", { response })
-
 		const mcpDetails = response.data
 
 		// Validate required fields

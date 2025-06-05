@@ -95,7 +95,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
-			console.log("[DEBUG] plusButtonClicked", webview)
 			// Pass the webview type to the event sender
 			const isSidebar = !webview
 
@@ -122,7 +121,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
-			console.log("[DEBUG] mcpButtonClicked", webview)
 			// Pass the webview type to the event sender
 			const isSidebar = !webview
 			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
@@ -179,7 +177,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", async (webview: any) => {
-			console.log("[DEBUG] historyButtonClicked", webview)
 			// Pass the webview type to the event sender
 			const isSidebar = !webview
 			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
@@ -191,8 +188,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
-			console.log("[DEBUG] accountButtonClicked", webview)
-
 			const isSidebar = !webview
 			if (isSidebar) {
 				const sidebarInstance = WebviewProvider.getSidebarInstance()

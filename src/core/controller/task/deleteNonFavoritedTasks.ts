@@ -27,8 +27,6 @@ export async function deleteNonFavoritedTasks(
 		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
 		const deletedCount = taskHistory.length - favoritedTasks.length
 
-		console.log(`[deleteNonFavoritedTasks] Found ${favoritedTasks.length} favorited tasks to preserve`)
-
 		// Update global state
 		if (favoritedTasks.length > 0) {
 			await updateGlobalState(controller.context, "taskHistory", favoritedTasks)

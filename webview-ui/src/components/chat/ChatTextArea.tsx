@@ -982,9 +982,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
 				StateServiceClient.getLatestState(EmptyRequest.create())
-					.then(() => {
-						console.log("State refreshed")
-					})
+					.then(() => {})
 					.catch((error) => {
 						console.error("Error refreshing state:", error)
 					})

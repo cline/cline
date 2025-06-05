@@ -113,9 +113,7 @@ const server = new Server({ name: "remote-server", version: "1.0.0" })
 // Use SSE transport
 const transport = new SSEServerTransport(server)
 app.use("/mcp", transport.requestHandler())
-app.listen(3000, () => {
-	console.log("MCP server listening on port 3000")
-})
+app.listen(3000, () => {})
 ```
 
 ## Local vs. Hosted: Deployment Aspects

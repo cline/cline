@@ -53,10 +53,6 @@ const checkGitHubAuth = async () => {
 		execSync("gh auth status", { stdio: "ignore" })
 		return true
 	} catch (err) {
-		console.log("\nGitHub authentication required.")
-		console.log("\nPlease run the following command in your terminal to authenticate:")
-		console.log("\n  gh auth login\n")
-		console.log("After authenticating, run this script again.")
 		return false
 	}
 }
@@ -89,19 +85,14 @@ const openUrl = (url) => {
 				execSync(`xdg-open "${url}"`)
 				break
 			default:
-				console.log("\nPlease open this URL in your browser:")
-				console.log(url)
 		}
-	} catch (err) {
-		console.log("\nFailed to open URL automatically. Please open this URL in your browser:")
-		console.log(url)
-	}
+	} catch (err) {}
 }
 
 const submitIssue = async (issueTitle, systemInfo) => {
 	try {
 		const issueUrl = createIssueUrl(systemInfo, issueTitle)
-		console.log("\nOpening GitHub issue creation page in your browser...")
+
 		openUrl(issueUrl)
 	} catch (err) {
 		console.error("\nFailed to create issue URL:", err.message)
@@ -111,12 +102,10 @@ const submitIssue = async (issueTitle, systemInfo) => {
 async function main() {
 	const consent = await ask("Do you consent to collect system data and submit a GitHub issue? (y/n): ")
 	if (consent.trim().toLowerCase() !== "y") {
-		console.log("\nAborted.")
 		rl.close()
 		return
 	}
 
-	console.log("Collecting system data...")
 	const systemInfo = collectSystemInfo()
 
 	const isAuthenticated = await checkGitHubAuth()

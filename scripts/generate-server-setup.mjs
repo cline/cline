@@ -77,5 +77,3 @@ ${handlerSetup}
 `
 // Write output file
 fs.writeFileSync(OUT_FILE, output)
-
-console.log(`Generated service handlers in ${OUT_FILE}.`)

@@ -18,8 +18,6 @@ export async function accountLoginClicked(controller: Controller, _: EmptyReques
 	await storeSecret(controller.context, "authNonce", nonce)
 
 	// Open browser for authentication with state param
-	console.log("Login button clicked in account page")
-	console.log("Opening auth page with state param")
 
 	const uriScheme = vscode.env.uriScheme
 

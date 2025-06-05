@@ -16,11 +16,10 @@ export const safeCreateUrl = (url: string): URL | null => {
 			try {
 				return new URL(`https://${url}`)
 			} catch (e) {
-				console.log(`Invalid URL: ${url}`)
 				return null
 			}
 		}
-		console.log(`Invalid URL: ${url}`)
+
 		return null
 	}
 }
@@ -90,7 +89,6 @@ export const normalizeRelativeUrl = (relativeUrl: string, baseUrl: string): stri
 			return `${baseUrlObj.protocol}//${baseUrlObj.host}${basePath}${relativeUrl}`
 		}
 	} catch (error) {
-		console.log(`Error normalizing relative URL: ${error}`)
 		return relativeUrl // Return original on error
 	}
 }
@@ -108,7 +106,6 @@ export const formatUrlForOpening = (url: string): string => {
 		return urlObj.href
 	}
 
-	console.log(`Invalid URL format: ${url}`)
 	// Return a safe fallback that won't crash
 	return "about:blank"
 }
@@ -125,12 +122,10 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 	// Convert HTTP to HTTPS for security in the network request only
 	if (secureUrl.startsWith("http://")) {
 		secureUrl = secureUrl.replace("http://", "https://")
-		console.log(`Using HTTPS version for image check: ${secureUrl}`)
 	}
 
 	// Validate URL before proceeding
 	if (!isUrl(url)) {
-		console.log("Invalid URL format:", url)
 		return false
 	}
 
@@ -140,7 +135,6 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 			// Use the gRPC client with timeout
 			const timeoutPromise = new Promise<boolean>((resolve) => {
 				setTimeout(() => {
-					console.log("Hit timeout waiting for checkIsImageUrl")
 					resolve(false)
 				}, 3000)
 			})
@@ -156,7 +150,6 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 			// Race between the service call and the timeout
 			return Promise.race([servicePromise, timeoutPromise])
 		} catch (error) {
-			console.log("Error checking if URL is an image:", url)
 			// Return false to indicate it's not an image
 			return false
 		}
@@ -165,6 +158,6 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 	// Don't fall back to extension check for other URLs
 	// Only data URLs (handled above) are guaranteed to be images
 	// For all other URLs, we need proper content type verification
-	console.log(`URL protocol not supported for image check: ${url}`)
+
 	return false
 }

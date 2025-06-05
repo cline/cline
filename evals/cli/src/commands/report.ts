@@ -24,8 +24,6 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 		// Get all runs
 		const runs = db.getRuns()
 
-		console.log(chalk.blue(`Found ${runs.length} evaluation runs`))
-
 		if (runs.length === 0) {
 			spinner.fail("No evaluation runs found")
 			return

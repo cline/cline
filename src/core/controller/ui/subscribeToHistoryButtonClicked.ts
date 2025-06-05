@@ -21,7 +21,6 @@ export async function subscribeToHistoryButtonClicked(
 ): Promise<void> {
 	// Extract the provider type from the request
 	const providerType = request.providerType
-	console.log(`[DEBUG] set up history button subscription for ${WebviewProviderType[providerType]} webview`)
 
 	// Add this subscription to the active subscriptions with its provider type
 	activeHistoryButtonClickedSubscriptions.set(responseStream, providerType)

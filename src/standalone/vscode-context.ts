@@ -50,6 +50,4 @@ const extensionContext: ExtensionContext = {
 	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
 }
 
-console.log("Finished loading vscode context...")
-
 export { extensionContext, outputChannel, postMessage }

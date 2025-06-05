@@ -41,7 +41,6 @@ export async function sendAccountButtonClickedEvent(controllerId: string): Promi
 	const responseStream = activeSubscriptions.get(controllerId)
 
 	if (!responseStream) {
-		console.log(`No active subscription for controller ${controllerId}`)
 		return
 	}
 

@@ -40,7 +40,6 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 				})
 				models[model.id] = modelInfo
 			}
-			console.log("Requesty models fetched", models)
 
 			controller.postMessageToWebview({
 				type: "requestyModels",

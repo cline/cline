@@ -22,8 +22,6 @@ export const REQUIRED_EXTENSIONS = [
  * @returns Promise that resolves when all extensions are installed
  */
 export async function installRequiredExtensions(extensionsDir: string): Promise<void> {
-	console.log("Installing required VSCode extensions...")
-
 	// Create the extensions directory if it doesn't exist
 	if (!fs.existsSync(extensionsDir)) {
 		fs.mkdirSync(extensionsDir, { recursive: true })
@@ -32,16 +30,12 @@ export async function installRequiredExtensions(extensionsDir: string): Promise<
 	// Install each extension
 	for (const extension of REQUIRED_EXTENSIONS) {
 		try {
-			console.log(`Installing extension: ${extension}...`)
 			await execa("code", ["--extensions-dir", extensionsDir, "--install-extension", extension, "--force"])
-			console.log(`✅ Extension ${extension} installed successfully`)
 		} catch (error: any) {
 			console.warn(`⚠️ Failed to install extension ${extension}: ${error.message}`)
 			// Continue with other extensions even if one fails
 		}
 	}
-
-	console.log("✅ All required extensions installed")
 }
 
 /**
@@ -127,5 +121,4 @@ export function configureExtensionSettings(userDataDir: string): void {
 
 	// Write updated settings
 	fs.writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2))
-	console.log("✅ Extension settings configured")
 }

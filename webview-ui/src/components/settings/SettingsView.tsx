@@ -167,7 +167,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			// 	type: "telemetrySetting",
 			// 	text: telemetrySetting,
 			// })
-			// console.log("handleSubmit", withoutDone)
+			//
 			// vscode.postMessage({
 			// 	type: "separateModeSetting",
 			// 	text: separateModeSetting,
@@ -329,7 +329,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					if (message.grpc_response?.message?.action === "scrollToSettings") {
 						const tabId = message.grpc_response?.message?.value
 						if (tabId) {
-							console.log("Opening settings tab from GRPC response:", tabId)
 							// Check if the value corresponds to a valid tab ID
 							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
@@ -391,16 +390,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Enhanced tab change handler with debugging
 	const handleTabChange = useCallback(
 		(tabId: string) => {
-			console.log("Tab change requested:", tabId, "Current:", activeTab)
 			setActiveTab(tabId)
 		},
 		[activeTab],
 	)
 
 	// Debug tab changes
-	useEffect(() => {
-		console.log("Active tab changed to:", activeTab)
-	}, [activeTab])
+	useEffect(() => {}, [activeTab])
 
 	// Track whether we're in compact mode
 	const [isCompactMode, setIsCompactMode] = useState(false)
@@ -462,7 +458,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									data-testid={`tab-${tab.id}`}
 									data-value={tab.id}
 									onClick={() => {
-										console.log("Compact tab clicked:", tab.id)
 										handleTabChange(tab.id)
 									}}>
 									<div className={cn("flex items-center gap-2", isCompactMode && "justify-center")}>

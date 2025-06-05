@@ -15,13 +15,10 @@ export class SWELancerAdapter implements BenchmarkAdapter {
 	 * Set up the SWELancer benchmark repository (dummy implementation)
 	 */
 	async setup(): Promise<void> {
-		console.log("SWELancer dummy setup completed")
-
 		// Create repositories directory if it doesn't exist
 		const repoDir = path.join(EVALS_DIR, "repositories", "swelancer")
 		if (!fs.existsSync(repoDir)) {
 			fs.mkdirSync(repoDir, { recursive: true })
-			console.log(`Created dummy SWELancer directory at ${repoDir}`)
 		}
 	}
 
@@ -102,10 +99,7 @@ export class SWELancerAdapter implements BenchmarkAdapter {
 					`<!DOCTYPE html>\n<html>\n<head>\n  <title>Landing Page</title>\n</head>\n<body>\n  <!-- TODO: Implement landing page -->\n</body>\n</html>`,
 				)
 			} else if (task.id === "swelancer-task-2") {
-				fs.writeFileSync(
-					path.join(taskDir, "server.js"),
-					`// TODO: Implement REST API\nconsole.log('Server starting...');`,
-				)
+				fs.writeFileSync(path.join(taskDir, "server.js"), `// TODO: Implement REST API\n;`)
 			} else if (task.id === "swelancer-task-3") {
 				fs.writeFileSync(
 					path.join(taskDir, "styles.css"),

@@ -16,7 +16,6 @@ describe("OllamaHandler", () => {
 			await axios.get("http://localhost:11434/api/version", { timeout: 2000 })
 			ollamaAvailable = true
 		} catch (error) {
-			console.log("Ollama server not available, skipping tests")
 			ollamaAvailable = false
 		}
 	})

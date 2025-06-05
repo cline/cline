@@ -96,7 +96,7 @@ class ContextManager {
 
 		const [start, end] = deletedRange
 		// the range is inclusive - both start and end indices and everything in between will be removed from the final result.
-		// NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		// NOTE: if you try to  snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return [...messages.slice(0, start), ...messages.slice(end + 1)]
 	}
 }
