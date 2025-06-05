@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   c6e7b52: Migrate settingsButtonClicked to protobus
+
 ## [3.17.10]
 
 -   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
