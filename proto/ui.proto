@@ -238,6 +238,12 @@ service UiService {
   // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
   rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
   
+  // Subscribe to account button click events
+  rpc subscribeToAccountButtonClicked(EmptyRequest) returns (stream Empty);
+  
+  // Subscribe to settings button clicked events
+  rpc subscribeToSettingsButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
 }

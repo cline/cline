@@ -126,6 +126,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		shellIntegrationTimeout,
+		setShellIntegrationTimeout,
+		terminalReuseEnabled,
+		setTerminalReuseEnabled,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -138,6 +142,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -178,6 +184,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
+			shellIntegrationTimeout,
+			terminalReuseEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -200,7 +208,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
+			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -211,6 +221,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	])
 
 	// Handle cancel button click
@@ -240,6 +252,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							? originalState.current.mcpMarketplaceEnabled
 							: false,
 					)
+				}
+				// Reset terminal settings
+				if (typeof setShellIntegrationTimeout === "function") {
+					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalReuseEnabled === "function") {
+					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
 				}
 				// Close settings view
 				onDone()
