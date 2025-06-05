@@ -45,23 +45,15 @@ const FeatureSettingsSection = () => {
 				</p>
 			</div>
 			<div style={{ marginTop: 10 }}>
-				<label
-					htmlFor="mcp-panel-state-dropdown"
-					className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
-					MCP Response Display Mode
-				</label>
-				<VSCodeDropdown
-					id="mcp-panel-state-dropdown"
-					currentValue={mcpDefaultPanelState}
+				<VSCodeCheckbox
+					checked={mcpDefaultPanelState === "collapsed"}
 					onChange={(e: any) => {
-						const newValue = e.target.currentValue as "expanded" | "collapsed"
-						setMcpDefaultPanelState(newValue)
-					}}
-					className="w-full">
-					<VSCodeOption value="expanded">Expanded</VSCodeOption>
-					<VSCodeOption value="collapsed">Collapsed</VSCodeOption>
-				</VSCodeDropdown>
-				<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						const checked = e.target.checked === true
+						setMcpDefaultPanelState(checked ? "collapsed" : "expanded")
+					}}>
+					Collapse MCP Responses
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Sets the default display mode for MCP response panels
 				</p>
 			</div>
