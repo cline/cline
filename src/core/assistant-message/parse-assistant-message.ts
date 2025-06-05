@@ -1,4 +1,13 @@
-import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "." // Assuming types are defined in index.ts or a similar file
+import {
+	AssistantMessageContent,
+	TextContent,
+	ToolUse,
+	ToolParamName,
+	toolParamNames,
+	toolUseNames,
+	ToolUseName,
+	ThinkingContent,
+} from "." // Assuming types are defined in index.ts or a similar file
 
 /**
  * @description **Version 1**
@@ -270,6 +279,8 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	let currentToolUse: ToolUse | undefined = undefined
 	let currentParamValueStart = 0 // Index *after* the opening tag of the current param
 	let currentParamName: ToolParamName | undefined = undefined
+	let currentThinkingStart = 0
+	let currentThinkingContent: ThinkingContent | undefined = undefined
 
 	// Precompute tags for faster lookups
 	const toolUseOpenTags = new Map<string, ToolUseName>()
@@ -280,10 +291,30 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	for (const name of toolParamNames) {
 		toolParamOpenTags.set(`<${name}>`, name)
 	}
-
+	const thinkingOpenTag = "<thinking>"
+	const thinkingCloseTag = "</thinking>"
 	const len = assistantMessage.length
 	for (let i = 0; i < len; i++) {
 		const currentCharIndex = i
+
+		if (currentThinkingContent) {
+			if (
+				currentCharIndex >= thinkingCloseTag.length - 1 &&
+				assistantMessage.startsWith(thinkingCloseTag, currentCharIndex - thinkingCloseTag.length + 1)
+			) {
+				// End of thinking content found
+				currentThinkingContent.content = assistantMessage
+					.slice(currentThinkingStart, currentCharIndex - thinkingCloseTag.length + 1)
+					.trim()
+				currentThinkingContent.partial = false // Mark as complete
+				contentBlocks.push(currentThinkingContent)
+				currentThinkingContent = undefined // Reset state
+				currentThinkingStart = currentCharIndex + 1 // Potential text starts after this tag
+				continue // Move to next char
+			} else {
+				continue // Still inside thinking content, move to next char
+			}
+		}
 
 		// --- State: Parsing a Tool Parameter ---
 		if (currentToolUse && currentParamName) {
@@ -373,6 +404,41 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 
 		// --- State: Parsing Text / Looking for Tool Start ---
 		if (!currentToolUse) {
+			if (
+				currentCharIndex >= thinkingOpenTag.length - 1 &&
+				assistantMessage.startsWith(thinkingOpenTag, currentCharIndex - thinkingOpenTag.length + 1)
+			) {
+				if (currentTextContent) {
+					// Finalize the current text content before starting thinking
+					currentTextContent.content = assistantMessage
+						.slice(currentTextContentStart, currentCharIndex - thinkingOpenTag.length + 1)
+						.trim()
+					currentTextContent.partial = false // Ended because thinking started
+					if (currentTextContent.content.length > 0) {
+						contentBlocks.push(currentTextContent)
+					}
+					currentTextContent = undefined // Reset state
+				} else {
+					// Check for any text before the thinking tag
+					const potentialText = assistantMessage
+						.slice(currentTextContentStart, currentCharIndex - thinkingOpenTag.length + 1)
+						.trim()
+					if (potentialText.length > 0) {
+						contentBlocks.push({
+							type: "text",
+							content: potentialText,
+							partial: false, // Ended because thinking started
+						})
+					}
+					currentThinkingContent = {
+						type: "thinking",
+						content: "", // Will be filled later
+						partial: true, // Assume partial until closing tag is found}
+					}
+					currentThinkingStart = currentCharIndex + 1 // Thinking content starts after the opening tag
+					continue // Move to next char
+				}
+			}
 			// Check if starting a new tool use
 			let startedNewTool = false
 			for (const [tag, toolName] of toolUseOpenTags.entries()) {
@@ -458,6 +524,13 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	if (currentToolUse) {
 		// Tool use is partial because the loop finished before its closing tag
 		contentBlocks.push(currentToolUse)
+	} else if (currentThinkingContent) {
+		currentThinkingContent.content = assistantMessage
+			.slice(currentThinkingStart) // From thinking start to end of string
+			.trim()
+		if (currentThinkingContent.content.length > 0) {
+			contentBlocks.push(currentThinkingContent)
+		}
 	}
 	// Finalize any trailing text content
 	// Only possible if a tool use wasn't open at the very end

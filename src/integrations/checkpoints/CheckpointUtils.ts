@@ -45,18 +45,34 @@ export async function getShadowGitPath(globalStoragePath: string, taskId: string
  * @throws Error if no workspace is detected, if in a protected directory, or if no read access
  */
 export async function getWorkingDirectory(): Promise<string> {
+	// First try to get the workspace folder
 	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-	if (!cwd) {
-		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
-	}
 
-	// Check if directory exists and we have read permissions
-	try {
-		await access(cwd, constants.R_OK)
-	} catch (error) {
-		throw new Error(
-			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
-		)
+	// If we have a workspace folder, validate it
+	if (cwd) {
+		// Check if directory exists and we have read permissions
+		try {
+			await access(cwd, constants.R_OK)
+		} catch (error) {
+			throw new Error(
+				`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	} else {
+		// No workspace folder found, but we don't want to break the checkpoints feature
+		// Instead, use a fallback directory (user's temp directory)
+		const tempDir = path.join(os.tmpdir(), "cline-checkpoints")
+
+		// Create the directory if it doesn't exist
+		try {
+			await mkdir(tempDir, { recursive: true })
+			console.log(`No workspace detected. Using temporary directory for checkpoints: ${tempDir}`)
+			return tempDir
+		} catch (error) {
+			throw new Error(
+				`Failed to create temporary directory for checkpoints. Error: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	const homedir = os.homedir()

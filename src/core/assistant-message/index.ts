@@ -1,9 +1,15 @@
-export type AssistantMessageContent = TextContent | ToolUse
+export type AssistantMessageContent = TextContent | ToolUse | ThinkingContent
 
 export { parseAssistantMessageV1, parseAssistantMessageV2, parseAssistantMessageV3 } from "./parse-assistant-message"
 
 export interface TextContent {
 	type: "text"
+	content: string
+	partial: boolean
+}
+
+export interface ThinkingContent {
+	type: "thinking"
 	content: string
 	partial: boolean
 }

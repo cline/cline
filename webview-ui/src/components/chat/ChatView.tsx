@@ -37,6 +37,7 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
 import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
+import { randomFill } from "crypto"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -271,6 +272,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
+						case "ask_question":
+							setEnableButtons(true)
+							setPrimaryButtonText("Proceed")
+							break
 						case "plan_mode_respond":
 							setSendingDisabled(isPartial)
 							setEnableButtons(false)
@@ -496,6 +501,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "use_mcp_server":
 				case "resume_task":
 				case "mistake_limit_reached":
+				case "ask_question":
 				case "auto_approval_max_req_reached":
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						await TaskServiceClient.askResponse(
