@@ -92,6 +92,7 @@ export type GlobalStateKey =
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
 	| "mcpDefaultPanelState"
+	| "terminalReuseEnabled"
 	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"

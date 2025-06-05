@@ -126,6 +126,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		shellIntegrationTimeout,
+		setShellIntegrationTimeout,
+		terminalReuseEnabled,
+		setTerminalReuseEnabled,
 		mcpDefaultPanelState,
 		setMcpDefaultPanelState,
 		setApiConfiguration,
@@ -141,6 +145,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		mcpMarketplaceEnabled,
 		mcpDefaultPanelState,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -181,6 +187,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
+			shellIntegrationTimeout,
+			terminalReuseEnabled,
 			mcpDefaultPanelState,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
@@ -205,7 +213,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
 			mcpDefaultPanelState !== originalState.current.mcpDefaultPanelState ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
+			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -217,6 +227,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		mcpMarketplaceEnabled,
 		mcpDefaultPanelState,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	])
 
 	// Handle cancel button click
@@ -246,6 +258,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							? originalState.current.mcpMarketplaceEnabled
 							: false,
 					)
+				}
+				// Reset terminal settings
+				if (typeof setShellIntegrationTimeout === "function") {
+					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalReuseEnabled === "function") {
+					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
 				}
 				if (typeof setMcpDefaultPanelState === "function") {
 					setMcpDefaultPanelState(originalState.current.mcpDefaultPanelState || "expanded")

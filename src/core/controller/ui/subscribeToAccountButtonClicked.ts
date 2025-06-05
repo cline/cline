@@ -14,7 +14,7 @@ const activeSubscriptions = new Map<string, StreamingResponseHandler>()
  */
 export async function subscribeToAccountButtonClicked(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {
