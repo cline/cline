@@ -32,12 +32,11 @@ function main() {
 	const host = "127.0.0.1:50051"
 	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
 		if (err) {
-			log(`Error: Failed to bind to ${host}, port may be unavailable ${err.message}`)
+			log(`Error: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
 			process.exit(1)
-		} else {
-			server.start()
-			log(`gRPC server listening on ${host}`)
 		}
+		server.start()
+		log(`gRPC server listening on ${host}`)
 	})
 }
 

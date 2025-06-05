@@ -20,7 +20,6 @@ export interface ExtensionMessage {
 		| "ollamaModels"
 		| "lmStudioModels"
 		| "workspaceUpdated"
-		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
 		| "mcpServers"
@@ -43,7 +42,6 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
-	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]

@@ -249,4 +249,7 @@ service UiService {
   
   // Subscribe to theme change events
   rpc subscribeToTheme(EmptyRequest) returns (stream String);
+  
+  // Initialize webview when it launches
+  rpc initializeWebview(EmptyRequest) returns (Empty);
 }
