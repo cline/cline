@@ -1,5 +1,22 @@
 # Roo Code Changelog
 
+## [3.19.4] - 2025-06-05
+
+- Add Gemini Pro 06-05 model support (thanks @daniel-lxs and @shariqriazz!)
+- Fix reading PDF, DOCX, and IPYNB files in read_file tool (thanks @samhvw8!)
+- Fix multiple memory leaks in ChatView component (thanks @kiwina!)
+- Fix WorkspaceTracker resource leaks by disposing FileSystemWatcher (thanks @kiwina!)
+- Fix RooTips setTimeout cleanup to prevent state updates on unmounted components (thanks @kiwina!)
+- Fix FileSystemWatcher leak in RooIgnoreController (thanks @kiwina!)
+- Fix clipboard memory leak by clearing setTimeout in useCopyToClipboard (thanks @kiwina!)
+- Fix ClineProvider instance cleanup (thanks @xyOz-dev!)
+- Enforce codebase_search as primary tool for code understanding tasks (thanks @hannesrudolph!)
+- Improve Docker setup for evals
+- Move evals into pnpm workspace, switch from SQLite to Postgres
+- Refactor MCP to use getDefaultEnvironment for stdio client transport (thanks @samhvw8!)
+- Get rid of "partial" component in names referencing not necessarily partial messages (thanks @wkordalski!)
+- Improve feature request template (thanks @elianiva!)
+
 ## [3.19.3] - 2025-06-02
 
 - Fix SSE MCP Invocation - Fixed SSE connection issue in McpHub.ts by ensuring transport.start override only applies to stdio transports, allowing SSE and streamable-http transports to retain their original start methods (thanks @taylorwilsdon!)
