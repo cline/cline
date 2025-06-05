@@ -72,6 +72,8 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
@@ -741,10 +743,8 @@ export class Task {
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({
-						type: "partialMessage",
-						partialMessage: lastMessage,
-					})
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
 					// this is a new partial message, so add it with partial state
@@ -785,10 +785,8 @@ export class Task {
 					lastMessage.partial = false
 					await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({
-						type: "partialMessage",
-						partialMessage: lastMessage,
-					})
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
 					this.askResponse = undefined
@@ -864,7 +862,8 @@ export class Task {
 					lastMessage.images = images
 					lastMessage.files = files
 					lastMessage.partial = partial
-					await this.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
@@ -894,7 +893,8 @@ export class Task {
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage }) // more performant than an entire postStateToWebview
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()

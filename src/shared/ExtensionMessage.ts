@@ -21,7 +21,6 @@ export interface ExtensionMessage {
 		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
-		| "partialMessage"
 		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
@@ -46,7 +45,6 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
-	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
