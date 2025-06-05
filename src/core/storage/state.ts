@@ -165,6 +165,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		enableCheckpointsSettingRaw,
 		mcpMarketplaceEnabledRaw,
 		globalWorkflowToggles,
+		terminalReuseEnabled,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -255,7 +256,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
-		fetch,
+		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -390,6 +391,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSetting,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
+		terminalReuseEnabled: terminalReuseEnabled ?? true,
 		globalWorkflowToggles: globalWorkflowToggles || {},
 	}
 }
