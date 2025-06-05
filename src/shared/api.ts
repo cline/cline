@@ -719,6 +719,16 @@ export const geminiModels = {
 			},
 		],
 	},
+	"gemini-2.5-flash-preview-05-20:thinking": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 3.5,
+		cacheReadsPrice: 0.0375,
+		cacheWritesPrice: 1.0,
+	},
 	"gemini-2.5-flash-preview-05-20": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -726,10 +736,6 @@ export const geminiModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
-		thinkingConfig: {
-			maxBudget: 24576,
-			outputPrice: 3.5,
-		},
 	},
 	"gemini-2.5-flash-preview-04-17": {
 		maxTokens: 65536,
