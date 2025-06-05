@@ -57,6 +57,8 @@ import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { sendOpenRouterModelsEvent } from "./models/subscribeToOpenRouterModels"
+import { convertModelInfoRecordToOpenRouterCompatibleModelInfo } from "@shared/proto-conversions/models/openrouter-models-conversion"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -233,10 +235,8 @@ export class Controller {
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
 					if (openRouterModels) {
-						this.postMessageToWebview({
-							type: "openRouterModels",
-							openRouterModels,
-						})
+						const protoCompatibleModels = convertModelInfoRecordToOpenRouterCompatibleModelInfo(openRouterModels)
+						sendOpenRouterModelsEvent(protoCompatibleModels)
 					}
 				})
 				// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
