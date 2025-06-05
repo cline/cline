@@ -47,6 +47,10 @@ export function useButtonState(messages: ClineMessage[], chatState: ChatState) {
 							setSendingDisabled(isPartial)
 							setEnableButtons(false)
 							break
+						case "ask_question":
+							setEnableButtons(true)
+							setPrimaryButtonText("Proceed")
+							break
 						case "plan_mode_respond":
 							setSendingDisabled(isPartial)
 							setEnableButtons(false)
