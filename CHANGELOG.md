@@ -9,7 +9,6 @@
 -   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
 -   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
 -   Fix settings dialog applying changes even when cancel button is clicked
--   Fix telemetry service issues
 
 ## [3.17.9]
 
