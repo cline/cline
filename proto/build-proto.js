@@ -57,11 +57,9 @@ async function main() {
 
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-	const HOST_TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto", "host")
 
 	// Create output directories if they don't exist
 	await fs.mkdir(TS_OUT_DIR, { recursive: true })
-	await fs.mkdir(HOST_TS_OUT_DIR, { recursive: true })
 
 	// Clean up existing generated files
 	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
@@ -98,12 +96,10 @@ async function main() {
 
 	const descriptorOutDir = path.join(ROOT_DIR, "dist-standalone", "proto")
 	await fs.mkdir(descriptorOutDir, { recursive: true })
-
 	const descriptorFile = path.join(descriptorOutDir, "descriptor_set.pb")
 	const descriptorProtocCommand = [
 		protoc,
 		`--proto_path="${SCRIPT_DIR}"`,
-		`--proto_path="${path.join(SCRIPT_DIR, "host")}"`,
 		`--descriptor_set_out="${descriptorFile}"`,
 		"--include_imports",
 		...protoFiles,
