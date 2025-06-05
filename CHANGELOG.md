@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.17.10]
+
+-   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
+-   Add new AskSage models: Claude 4 Sonnet, Claude 4 Opus, GPT 4.1, Gemini 2.5 Pro (Thanks @swhite24!)
+-   Add VSCode walkthrough to help new users get started with Cline
+-   Add support for streamable MCP servers
+-   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
+-   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
+-   Fix settings dialog applying changes even when cancel button is clicked
+
 ## [3.17.9]
 
 -   Aligning Cline to work with Claude 4 model family (Experimental)
