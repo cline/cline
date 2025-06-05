@@ -60,16 +60,26 @@ export const OPEN_ROUTER_COMPUTER_USE_MODELS = new Set([
 	"anthropic/claude-opus-4",
 ])
 
-export const OPEN_ROUTER_REASONING_BUDGET_MODELS = new Set([
-	"anthropic/claude-3.7-sonnet:beta",
+// When we first launched these models we didn't have support for
+// enabling/disabling the reasoning budget for hybrid models. Now that we
+// do support this we should give users the option to enable/disable it
+// whenever possible. However these particular (virtual) model ids with the
+// `:thinking` suffix always require the reasoning budget to be enabled, so
+// for backwards compatibility we should still require it.
+// We should *not* be adding new models to this set.
+export const OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:thinking",
-	"anthropic/claude-opus-4",
-	"anthropic/claude-sonnet-4",
-	"google/gemini-2.5-flash-preview-05-20",
 	"google/gemini-2.5-flash-preview-05-20:thinking",
 ])
 
-export const OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS = new Set([
+export const OPEN_ROUTER_REASONING_BUDGET_MODELS = new Set([
+	"anthropic/claude-3.7-sonnet:beta",
+	"anthropic/claude-opus-4",
+	"anthropic/claude-sonnet-4",
+	"google/gemini-2.5-pro-preview",
+	"google/gemini-2.5-flash-preview-05-20",
+	// Also include the models that require the reasoning budget to be enabled
+	// even though `OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS` takes precedence.
 	"anthropic/claude-3.7-sonnet:thinking",
 	"google/gemini-2.5-flash-preview-05-20:thinking",
 ])

@@ -2,6 +2,8 @@ import { type ModelInfo, type VertexModelId, vertexDefaultModelId, vertexModels 
 
 import type { ApiHandlerOptions } from "../../shared/api"
 
+import { getModelParams } from "../transform/model-params"
+
 import { GeminiHandler } from "./gemini"
 import { SingleCompletionHandler } from "../index"
 
@@ -11,31 +13,15 @@ export class VertexHandler extends GeminiHandler implements SingleCompletionHand
 	}
 
 	override getModel() {
-		let id = this.options.apiModelId ?? vertexDefaultModelId
-		let info: ModelInfo = vertexModels[id as VertexModelId]
+		const modelId = this.options.apiModelId
+		let id = modelId && modelId in vertexModels ? (modelId as VertexModelId) : vertexDefaultModelId
+		const info: ModelInfo = vertexModels[id]
+		const params = getModelParams({ format: "gemini", modelId: id, model: info, settings: this.options })
 
-		if (id?.endsWith(":thinking")) {
-			id = id.slice(0, -":thinking".length) as VertexModelId
-
-			if (vertexModels[id as VertexModelId]) {
-				info = vertexModels[id as VertexModelId]
-
-				return {
-					id,
-					info,
-					thinkingConfig: this.options.modelMaxThinkingTokens
-						? { thinkingBudget: this.options.modelMaxThinkingTokens }
-						: undefined,
-					maxOutputTokens: this.options.modelMaxTokens ?? info.maxTokens ?? undefined,
-				}
-			}
-		}
-
-		if (!info) {
-			id = vertexDefaultModelId
-			info = vertexModels[vertexDefaultModelId]
-		}
-
-		return { id, info }
+		// The `:thinking` suffix indicates that the model is a "Hybrid"
+		// reasoning model and that reasoning is required to be enabled.
+		// The actual model ID honored by Gemini's API does not have this
+		// suffix.
+		return { id: id.endsWith(":thinking") ? id.replace(":thinking", "") : id, info, ...params }
 	}
 }

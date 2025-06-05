@@ -14,6 +14,7 @@ import { safeJsonParse } from "../../shared/safeJsonParse"
 
 import { convertAnthropicContentToGemini, convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import type { ApiStream } from "../transform/stream"
+import { getModelParams } from "../transform/model-params"
 
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { BaseProvider } from "./base-provider"
@@ -62,7 +63,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		const { id: model, thinkingConfig, maxOutputTokens, info } = this.getModel()
+		const { id: model, info, reasoning: thinkingConfig, maxTokens } = this.getModel()
 
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
@@ -70,7 +71,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			systemInstruction,
 			httpOptions: this.options.googleGeminiBaseUrl ? { baseUrl: this.options.googleGeminiBaseUrl } : undefined,
 			thinkingConfig,
-			maxOutputTokens,
+			maxOutputTokens: this.options.modelMaxTokens ?? maxTokens ?? undefined,
 			temperature: this.options.modelTemperature ?? 0,
 		}
 
@@ -81,7 +82,28 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
 		for await (const chunk of result) {
-			if (chunk.text) {
+			// Process candidates and their parts to separate thoughts from content
+			if (chunk.candidates && chunk.candidates.length > 0) {
+				const candidate = chunk.candidates[0]
+				if (candidate.content && candidate.content.parts) {
+					for (const part of candidate.content.parts) {
+						if (part.thought) {
+							// This is a thinking/reasoning part
+							if (part.text) {
+								yield { type: "reasoning", text: part.text }
+							}
+						} else {
+							// This is regular content
+							if (part.text) {
+								yield { type: "text", text: part.text }
+							}
+						}
+					}
+				}
+			}
+
+			// Fallback to the original text property if no candidates structure
+			else if (chunk.text) {
 				yield { type: "text", text: chunk.text }
 			}
 
@@ -108,32 +130,16 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 	}
 
 	override getModel() {
-		let id = this.options.apiModelId ?? geminiDefaultModelId
-		let info: ModelInfo = geminiModels[id as GeminiModelId]
+		const modelId = this.options.apiModelId
+		let id = modelId && modelId in geminiModels ? (modelId as GeminiModelId) : geminiDefaultModelId
+		const info: ModelInfo = geminiModels[id]
+		const params = getModelParams({ format: "gemini", modelId: id, model: info, settings: this.options })
 
-		if (id?.endsWith(":thinking")) {
-			id = id.slice(0, -":thinking".length)
-
-			if (geminiModels[id as GeminiModelId]) {
-				info = geminiModels[id as GeminiModelId]
-
-				return {
-					id,
-					info,
-					thinkingConfig: this.options.modelMaxThinkingTokens
-						? { thinkingBudget: this.options.modelMaxThinkingTokens }
-						: undefined,
-					maxOutputTokens: this.options.modelMaxTokens ?? info.maxTokens ?? undefined,
-				}
-			}
-		}
-
-		if (!info) {
-			id = geminiDefaultModelId
-			info = geminiModels[geminiDefaultModelId]
-		}
-
-		return { id, info }
+		// The `:thinking` suffix indicates that the model is a "Hybrid"
+		// reasoning model and that reasoning is required to be enabled.
+		// The actual model ID honored by Gemini's API does not have this
+		// suffix.
+		return { id: id.endsWith(":thinking") ? id.replace(":thinking", "") : id, info, ...params }
 	}
 
 	async completePrompt(prompt: string): Promise<string> {

@@ -74,6 +74,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		let { id: modelId, maxTokens, temperature, topP, reasoning } = model
 
+		// OpenRouter sends reasoning tokens by default for Gemini 2.5 Pro
+		// Preview even if you don't request them. This is not the default for
+		// other providers (including Gemini), so we need to explicitly disable
+		// i We should generalize this using the logic in `getModelParams`, but
+		// this is easier for now.
+		if (modelId === "google/gemini-2.5-pro-preview" && typeof reasoning === "undefined") {
+			reasoning = { exclude: true }
+		}
+
 		// Convert Anthropic messages to OpenAI format.
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
