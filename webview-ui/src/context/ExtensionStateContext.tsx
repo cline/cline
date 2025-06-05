@@ -20,7 +20,9 @@ import {
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
+import { convertOpenRouterCompatibleModelInfoToModelInfoRecord } from "../../../src/shared/proto-conversions/models/openrouter-models-conversion"
 import { vscode } from "../utils/vscode"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -201,14 +203,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				setFilePaths(message.filePaths ?? [])
 				break
 			}
-			case "openRouterModels": {
-				const updatedModels = message.openRouterModels ?? {}
-				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					...updatedModels,
-				})
-				break
-			}
 			case "openAiModels": {
 				const updatedModels = message.openAiModels ?? []
 				setOpenAiModels(updatedModels)
@@ -241,6 +235,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const themeSubscriptionRef = useRef<(() => void) | null>(null)
+	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -461,6 +456,23 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Subscribe to OpenRouter models updates
+		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
+			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...models,
+				})
+			},
+			onError: (error) => {
+				console.error("Error in OpenRouter models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("OpenRouter models subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -517,15 +529,20 @@ export const ExtensionStateContextProvider: React.FC<{
 				themeSubscriptionRef.current()
 				themeSubscriptionRef.current = null
 			}
+			if (openRouterModelsUnsubscribeRef.current) {
+				openRouterModelsUnsubscribeRef.current()
+				openRouterModelsUnsubscribeRef.current = null
+			}
 		}
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
-			.then((res) => {
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					...res.models,
+					...models,
 				})
 			})
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
