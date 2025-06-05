@@ -3,7 +3,14 @@ import * as crypto from "node:crypto"
 
 import ipc from "node-ipc"
 
-import { type IpcClientEvents, type IpcMessage, IpcOrigin, IpcMessageType, ipcMessageSchema } from "@roo-code/types"
+import {
+	type TaskCommand,
+	type IpcClientEvents,
+	type IpcMessage,
+	IpcOrigin,
+	IpcMessageType,
+	ipcMessageSchema,
+} from "@roo-code/types"
 
 export class IpcClient extends EventEmitter<IpcClientEvents> {
 	private readonly _socketPath: string
@@ -78,6 +85,17 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
 
 	private log(...args: unknown[]) {
 		this._log(...args)
+	}
+
+	public sendCommand(command: TaskCommand) {
+		const message: IpcMessage = {
+			type: IpcMessageType.TaskCommand,
+			origin: IpcOrigin.Client,
+			clientId: this._clientId!,
+			data: command,
+		}
+
+		this.sendMessage(message)
 	}
 
 	public sendMessage(message: IpcMessage) {

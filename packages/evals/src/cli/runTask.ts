@@ -6,11 +6,10 @@ import pWaitFor from "p-wait-for"
 import { execa } from "execa"
 
 import {
-	RooCodeEventName,
-	IpcOrigin,
-	IpcMessageType,
-	TaskCommandName,
 	type TaskEvent,
+	TaskCommandName,
+	RooCodeEventName,
+	IpcMessageType,
 	EVALS_SETTINGS,
 	EVALS_TIMEOUT,
 } from "@roo-code/types"
@@ -27,49 +26,38 @@ type RunTaskOptions = {
 	publish: (taskEvent: TaskEvent) => Promise<void>
 }
 
-export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{ success: boolean }> => {
-	const { language, exercise } = task
+export const runTask = async ({ run, task, publish }: RunTaskOptions) => {
 	const tag = getTag("runTask", { run, task })
+	const log = (message: string, ...args: unknown[]) => console.log(`[${Date.now()} | ${tag}] ${message}`, ...args)
+	const logError = (message: string, ...args: unknown[]) =>
+		console.error(`[${Date.now()} | ${tag}] ${message}`, ...args)
 
+	const { language, exercise } = task
 	const prompt = fs.readFileSync(path.resolve(exercisesPath, `prompts/${language}.md`), "utf-8")
 	const workspacePath = path.resolve(exercisesPath, language, exercise)
-	const taskSocketPath = path.resolve(os.tmpdir(), `evals-${run.id}-${task.id}.sock`)
-
-	// Inject foot gun system prompt if present.
-	if (process.env.FOOTGUN_SYSTEM_PROMPT) {
-		const rooDir = path.join(workspacePath, ".roo")
-
-		if (!fs.existsSync(rooDir)) {
-			fs.mkdirSync(rooDir, { recursive: true })
-		}
-
-		fs.writeFileSync(path.join(rooDir, "system-prompt-code"), process.env.FOOTGUN_SYSTEM_PROMPT)
-	}
-
-	console.log(`[${Date.now()} | ${tag}] Opening new VS Code window at ${workspacePath}`)
-
+	const ipcSocketPath = path.resolve(os.tmpdir(), `evals-${run.id}-${task.id}.sock`)
+	const env = { ROO_CODE_IPC_SOCKET_PATH: ipcSocketPath }
 	const controller = new AbortController()
 	const cancelSignal = controller.signal
+	const containerized = isDockerContainer()
 
-	const codeCommand = isDockerContainer()
-		? `xvfb-run --auto-servernum --server-num=1 code --wait --log trace --disable-workspace-trust --disable-gpu --disable-lcd-text --no-sandbox --user-data-dir /roo/.vscode --password-store="basic"`
-		: `code --disable-workspace-trust`
+	const codeCommand = containerized
+		? `xvfb-run --auto-servernum --server-num=1 code --wait --log trace --disable-workspace-trust --disable-gpu --disable-lcd-text --no-sandbox --user-data-dir /roo/.vscode --password-store="basic" -n ${workspacePath}`
+		: `code --disable-workspace-trust -n ${workspacePath}`
 
-	console.log(`[${Date.now()} | ${tag}] ${codeCommand}`)
+	log(codeCommand)
 
-	// Sleep for a random amount of time between 5 and 10 seconds.
-	await new Promise((resolve) => setTimeout(resolve, Math.random() * 5_000 + 5_000))
+	// Sleep for a random amount of time between 5 and 10 seconds, unless we're
+	// running in a container, in which case there are no issues with flooding
+	// VSCode with new windows.
+	if (!containerized) {
+		await new Promise((resolve) => setTimeout(resolve, Math.random() * 5_000 + 5_000))
+	}
 
-	const subprocess = execa({
-		env: {
-			ROO_CODE_IPC_SOCKET_PATH: taskSocketPath,
-		},
-		shell: "/bin/bash",
-		cancelSignal,
-	})`${codeCommand} -n ${workspacePath}`
+	const subprocess = execa({ env, shell: "/bin/bash", cancelSignal })`${codeCommand}`
 
-	// If debugging:
-	subprocess.stdout.pipe(process.stdout)
+	// If debugging, add `--verbose` to `command` and uncomment the following line.
+	// subprocess.stdout.pipe(process.stdout)
 
 	// Give VSCode some time to spawn before connecting to its unix socket.
 	await new Promise((resolve) => setTimeout(resolve, 3_000))
@@ -78,25 +66,19 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{
 
 	while (true) {
 		try {
-			console.log(`[${Date.now()} | ${tag}] connecting to ${taskSocketPath}`)
-			client = new IpcClient(taskSocketPath)
+			client = new IpcClient(ipcSocketPath)
 			await pWaitFor(() => client!.isReady, { interval: 250, timeout: 1_000 })
 			break
 		} catch (_error) {
-			if (client) {
-				client.disconnect()
-			}
-
+			client?.disconnect()
 			attempts--
 
 			if (attempts <= 0) {
-				console.error(`[${Date.now()} | ${tag}] unable to connect`)
-				return { success: false }
+				logError(`unable to connect to IPC socket -> ${ipcSocketPath}`)
+				return
 			}
 		}
 	}
-
-	console.log(`[${Date.now()} | ${tag}] connected to ${taskSocketPath}`)
 
 	let taskStartedAt = Date.now()
 	let taskFinishedAt: number | undefined
@@ -106,18 +88,24 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{
 
 	const ignoreEvents: Record<"broadcast" | "log", RooCodeEventName[]> = {
 		broadcast: [RooCodeEventName.Message],
-		log: [RooCodeEventName.TaskTokenUsageUpdated], // [RooCodeEventName.Message, RooCodeEventName.TaskAskResponded],
+		log: [RooCodeEventName.TaskTokenUsageUpdated, RooCodeEventName.TaskAskResponded],
 	}
 
 	client.on(IpcMessageType.TaskEvent, async (taskEvent) => {
 		const { eventName, payload } = taskEvent
 
+		// Publish all events except for these to Redis.
 		if (!ignoreEvents.broadcast.includes(eventName)) {
 			await publish({ ...taskEvent, taskId: task.id })
 		}
 
-		if (!ignoreEvents.log.includes(eventName)) {
-			console.log(`[${Date.now()} | ${tag}] ${eventName} ->`, payload)
+		// Log all events except for these.
+		// For message events we only log non-partial messages.
+		if (
+			!ignoreEvents.log.includes(eventName) &&
+			(eventName !== RooCodeEventName.Message || payload[0].message.partial !== true)
+		) {
+			log(`${eventName} ->`, payload)
 		}
 
 		if (eventName === RooCodeEventName.TaskStarted) {
@@ -177,54 +165,32 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{
 	})
 
 	client.on(IpcMessageType.Disconnect, async () => {
-		console.log(`[${Date.now()} | ${tag}] disconnect`)
+		log(`disconnected from IPC socket -> ${ipcSocketPath}`)
 		isClientDisconnected = true
 	})
 
-	if (client.isReady) {
-		const configuration = {
-			...EVALS_SETTINGS,
-			...run.settings,
-			openRouterApiKey: process.env.OPENROUTER_API_KEY,
-		}
-
-		client.sendMessage({
-			type: IpcMessageType.TaskCommand,
-			origin: IpcOrigin.Client,
-			clientId: client.clientId!,
-			data: {
-				commandName: TaskCommandName.StartNewTask,
-				data: {
-					configuration,
-					text: prompt,
-					newTab: true,
-				},
+	client.sendCommand({
+		commandName: TaskCommandName.StartNewTask,
+		data: {
+			configuration: {
+				...EVALS_SETTINGS,
+				...run.settings,
+				openRouterApiKey: process.env.OPENROUTER_API_KEY,
 			},
-		})
-	} else {
-		console.error(`[${Date.now()} | ${tag}] unable to connect`)
-		client.disconnect()
-		taskFinishedAt = Date.now()
-		isClientDisconnected = true
-	}
+			text: prompt,
+			newTab: true,
+		},
+	})
 
 	try {
 		await pWaitFor(() => !!taskFinishedAt || isClientDisconnected, { interval: 1_000, timeout: EVALS_TIMEOUT })
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	} catch (error) {
-		console.log(`[${Date.now()} | ${tag}] time limit reached`)
+	} catch (_error) {
+		logError("time limit reached")
 
-		// Cancel the task.
 		if (rooTaskId && !isClientDisconnected) {
-			client.sendMessage({
-				type: IpcMessageType.TaskCommand,
-				origin: IpcOrigin.Client,
-				clientId: client.clientId!,
-				data: { commandName: TaskCommandName.CancelTask, data: rooTaskId },
-			})
-
-			// Allow some time for the task to cancel.
-			await new Promise((resolve) => setTimeout(resolve, 5_000))
+			log("cancelling task")
+			client.sendCommand({ commandName: TaskCommandName.CancelTask, data: rooTaskId })
+			await new Promise((resolve) => setTimeout(resolve, 5_000)) // Allow some time for the task to cancel.
 		}
 
 		await updateTask(task.id, { finishedAt: new Date() })
@@ -232,15 +198,9 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{
 
 	if (!isClientDisconnected) {
 		if (rooTaskId) {
-			client.sendMessage({
-				type: IpcMessageType.TaskCommand,
-				origin: IpcOrigin.Client,
-				clientId: client.clientId!,
-				data: { commandName: TaskCommandName.CloseTask, data: rooTaskId },
-			})
-
-			// Allow some time for the window to close.
-			await new Promise((resolve) => setTimeout(resolve, 2_000))
+			log("closing task")
+			client.sendCommand({ commandName: TaskCommandName.CloseTask, data: rooTaskId })
+			await new Promise((resolve) => setTimeout(resolve, 2_000)) // Allow some time for the window to close.
 		}
 
 		client.disconnect()
@@ -248,6 +208,4 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions): Promise<{
 
 	controller.abort()
 	await subprocess
-
-	return { success: !!taskFinishedAt }
 }

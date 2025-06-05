@@ -25,7 +25,7 @@ export const processTask = async (taskId: number) => {
 		await runTask({ run, task, publish })
 
 		console.log(`[${Date.now()} | ${tag}] testing task ${task.id} (${task.language}/${task.exercise})...`)
-		const passed = await runUnitTest({ task })
+		const passed = await runUnitTest({ run, task })
 
 		console.log(`[${Date.now()} | ${tag}] task ${task.id} (${task.language}/${task.exercise}) -> ${passed}`)
 		await updateTask(task.id, { passed })
