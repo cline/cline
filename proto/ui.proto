@@ -246,4 +246,7 @@ service UiService {
   
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
+  
+  // Subscribe to theme change events
+  rpc subscribeToTheme(EmptyRequest) returns (stream String);
 }
