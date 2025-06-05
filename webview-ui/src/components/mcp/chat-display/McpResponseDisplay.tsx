@@ -420,10 +420,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
 						Response
 					</div>
-					{isExpanded && (
+					<div style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
 						<ToggleSwitch onClick={(e) => e.stopPropagation()}>
-							{" "}
-							{/* Prevent header click when toggling mode */}
 							<span className="toggle-label">{displayMode === "rich" ? "Rich Display" : "Plain Text"}</span>
 							<div
 								className={`toggle-container ${displayMode === "rich" ? "active" : ""}`}
@@ -431,7 +429,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								<div className="toggle-handle"></div>
 							</div>
 						</ToggleSwitch>
-					)}
+					</div>
 				</ResponseHeader>
 
 				{isExpanded && <div className="response-content">{renderContent()}</div>}
