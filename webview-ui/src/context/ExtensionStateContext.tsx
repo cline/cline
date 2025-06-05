@@ -459,7 +459,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				const models = convertOpenRouterCompatibleModelInfoToModelInfoRecord(response)
+				const models = response.models
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -539,7 +539,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = convertOpenRouterCompatibleModelInfoToModelInfoRecord(response)
+				const models = response.models
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
