@@ -18,6 +18,206 @@ message WebviewProviderTypeRequest {
   WebviewProviderType providerType = 2;
 }
 
+// Enum for ClineMessage type
+enum ClineMessageType {
+  ASK = 0;
+  SAY = 1;
+}
+
+// Enum for ClineAsk types
+enum ClineAsk {
+  FOLLOWUP = 0;
+  PLAN_MODE_RESPOND = 1;
+  COMMAND = 2;
+  COMMAND_OUTPUT = 3;
+  COMPLETION_RESULT = 4;
+  TOOL = 5;
+  API_REQ_FAILED = 6;
+  RESUME_TASK = 7;
+  RESUME_COMPLETED_TASK = 8;
+  MISTAKE_LIMIT_REACHED = 9;
+  AUTO_APPROVAL_MAX_REQ_REACHED = 10;
+  BROWSER_ACTION_LAUNCH = 11;
+  USE_MCP_SERVER = 12;
+  NEW_TASK = 13;
+  CONDENSE = 14;
+  REPORT_BUG = 15;
+}
+
+// Enum for ClineSay types
+enum ClineSay {
+  TASK = 0;
+  ERROR = 1;
+  API_REQ_STARTED = 2;
+  API_REQ_FINISHED = 3;
+  TEXT = 4;
+  REASONING = 5;
+  COMPLETION_RESULT_SAY = 6;
+  USER_FEEDBACK = 7;
+  USER_FEEDBACK_DIFF = 8;
+  API_REQ_RETRIED = 9;
+  COMMAND_SAY = 10;
+  COMMAND_OUTPUT_SAY = 11;
+  TOOL_SAY = 12;
+  SHELL_INTEGRATION_WARNING = 13;
+  BROWSER_ACTION_LAUNCH_SAY = 14;
+  BROWSER_ACTION = 15;
+  BROWSER_ACTION_RESULT = 16;
+  MCP_SERVER_REQUEST_STARTED = 17;
+  MCP_SERVER_RESPONSE = 18;
+  USE_MCP_SERVER_SAY = 19;
+  DIFF_ERROR = 20;
+  DELETED_API_REQS = 21;
+  CLINEIGNORE_ERROR = 22;
+  CHECKPOINT_CREATED = 23;
+  LOAD_MCP_DOCUMENTATION = 24;
+  INFO = 25;
+}
+
+// Enum for ClineSayTool tool types
+enum ClineSayToolType {
+  EDITED_EXISTING_FILE = 0;
+  NEW_FILE_CREATED = 1;
+  READ_FILE = 2;
+  LIST_FILES_TOP_LEVEL = 3;
+  LIST_FILES_RECURSIVE = 4;
+  LIST_CODE_DEFINITION_NAMES = 5;
+  SEARCH_FILES = 6;
+  WEB_FETCH = 7;
+}
+
+// Enum for browser actions
+enum BrowserAction {
+  LAUNCH = 0;
+  CLICK = 1;
+  TYPE = 2;
+  SCROLL_DOWN = 3;
+  SCROLL_UP = 4;
+  CLOSE = 5;
+}
+
+// Enum for MCP server request types
+enum McpServerRequestType {
+  USE_MCP_TOOL = 0;
+  ACCESS_MCP_RESOURCE = 1;
+}
+
+// Enum for API request cancel reasons
+enum ClineApiReqCancelReason {
+  STREAMING_FAILED = 0;
+  USER_CANCELLED = 1;
+  RETRIES_EXHAUSTED = 2;
+}
+
+// Message for conversation history deleted range
+message ConversationHistoryDeletedRange {
+  int32 start_index = 1;
+  int32 end_index = 2;
+}
+
+// Message for ClineSayTool
+message ClineSayTool {
+  ClineSayToolType tool = 1;
+  string path = 2;
+  string diff = 3;
+  string content = 4;
+  string regex = 5;
+  string file_pattern = 6;
+  bool operation_is_located_in_workspace = 7;
+}
+
+// Message for ClineSayBrowserAction
+message ClineSayBrowserAction {
+  BrowserAction action = 1;
+  string coordinate = 2;
+  string text = 3;
+}
+
+// Message for BrowserActionResult
+message BrowserActionResult {
+  string screenshot = 1;
+  string logs = 2;
+  string current_url = 3;
+  string current_mouse_position = 4;
+}
+
+// Message for ClineAskUseMcpServer
+message ClineAskUseMcpServer {
+  string server_name = 1;
+  McpServerRequestType type = 2;
+  string tool_name = 3;
+  string arguments = 4;
+  string uri = 5;
+}
+
+// Message for ClinePlanModeResponse
+message ClinePlanModeResponse {
+  string response = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for ClineAskQuestion
+message ClineAskQuestion {
+  string question = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for ClineAskNewTask
+message ClineAskNewTask {
+  string context = 1;
+}
+
+// Message for API request retry status
+message ApiReqRetryStatus {
+  int32 attempt = 1;
+  int32 max_attempts = 2;
+  int32 delay_sec = 3;
+  string error_snippet = 4;
+}
+
+// Message for ClineApiReqInfo
+message ClineApiReqInfo {
+  string request = 1;
+  int32 tokens_in = 2;
+  int32 tokens_out = 3;
+  int32 cache_writes = 4;
+  int32 cache_reads = 5;
+  double cost = 6;
+  ClineApiReqCancelReason cancel_reason = 7;
+  string streaming_failed_message = 8;
+  ApiReqRetryStatus retry_status = 9;
+}
+
+// Main ClineMessage type
+message ClineMessage {
+  int64 ts = 1;
+  ClineMessageType type = 2;
+  ClineAsk ask = 3;
+  ClineSay say = 4;
+  string text = 5;
+  string reasoning = 6;
+  repeated string images = 7;
+  repeated string files = 8;
+  bool partial = 9;
+  string last_checkpoint_hash = 10;
+  bool is_checkpoint_checked_out = 11;
+  bool is_operation_outside_workspace = 12;
+  int32 conversation_history_index = 13;
+  ConversationHistoryDeletedRange conversation_history_deleted_range = 14;
+  
+  // Additional fields for specific ask/say types
+  ClineSayTool say_tool = 15;
+  ClineSayBrowserAction say_browser_action = 16;
+  BrowserActionResult browser_action_result = 17;
+  ClineAskUseMcpServer ask_use_mcp_server = 18;
+  ClinePlanModeResponse plan_mode_response = 19;
+  ClineAskQuestion ask_question = 20;
+  ClineAskNewTask ask_new_task = 21;
+  ClineApiReqInfo api_req_info = 22;
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -43,4 +243,7 @@ service UiService {
   
   // Subscribe to settings button clicked events
   rpc subscribeToSettingsButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  
+  // Subscribe to partial message updates (streaming Cline messages as they're built)
+  rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
 }

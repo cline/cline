@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useEvent } from "react-use"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
@@ -206,21 +207,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				setFilePaths(message.filePaths ?? [])
 				break
 			}
-			case "partialMessage": {
-				const partialMessage = message.partialMessage!
-				setState((prevState) => {
-					// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-					const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-					if (lastIndex !== -1) {
-						const newClineMessages = [...prevState.clineMessages]
-						newClineMessages[lastIndex] = partialMessage
-						return { ...prevState, clineMessages: newClineMessages }
-					}
-					return prevState
-				})
-				break
-			}
-
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
@@ -264,6 +250,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -412,6 +399,43 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		// Subscribe to partial message events
+		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
+			onResponse: (protoMessage) => {
+				try {
+					console.log("[PARTIAL] Received partialMessage event from gRPC stream")
+
+					// Validate critical fields
+					if (!protoMessage.ts || protoMessage.ts <= 0) {
+						console.error("Invalid timestamp in partial message:", protoMessage)
+						return
+					}
+
+					const partialMessage = convertProtoToClineMessage(protoMessage)
+					console.log("[PARTIAL] Partial message:", partialMessage)
+					console.log("\n")
+					setState((prevState) => {
+						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
+						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
+						if (lastIndex !== -1) {
+							const newClineMessages = [...prevState.clineMessages]
+							newClineMessages[lastIndex] = partialMessage
+							return { ...prevState, clineMessages: newClineMessages }
+						}
+						return prevState
+					})
+				} catch (error) {
+					console.error("Failed to process partial message:", error, protoMessage)
+				}
+			},
+			onError: (error) => {
+				console.error("Error in partialMessage subscription:", error)
+			},
+			onComplete: () => {
+				console.log("[DEBUG] partialMessage subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -455,6 +479,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (settingsButtonClickedSubscriptionRef.current) {
 				settingsButtonClickedSubscriptionRef.current()
 				settingsButtonClickedSubscriptionRef.current = null
+			}
+			if (partialMessageUnsubscribeRef.current) {
+				partialMessageUnsubscribeRef.current()
+				partialMessageUnsubscribeRef.current = null
 			}
 		}
 	}, [])
