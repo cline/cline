@@ -9,8 +9,8 @@ const FeatureSettingsSection = () => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
-		mcpDefaultPanelState,
-		setMcpDefaultPanelState,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		chatSettings,
 		setChatSettings,
 	} = useExtensionState()
@@ -46,10 +46,10 @@ const FeatureSettingsSection = () => {
 			</div>
 			<div style={{ marginTop: 10 }}>
 				<VSCodeCheckbox
-					checked={mcpDefaultPanelState === "collapsed"}
+					checked={mcpResponsesCollapsed}
 					onChange={(e: any) => {
 						const checked = e.target.checked === true
-						setMcpDefaultPanelState(checked ? "collapsed" : "expanded")
+						setMcpResponsesCollapsed(checked)
 					}}>
 					Collapse MCP Responses
 				</VSCodeCheckbox>

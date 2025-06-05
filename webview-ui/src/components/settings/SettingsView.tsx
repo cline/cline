@@ -130,8 +130,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setShellIntegrationTimeout,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
-		mcpDefaultPanelState,
-		setMcpDefaultPanelState,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -143,7 +143,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
-		mcpDefaultPanelState,
+		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
@@ -189,7 +189,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpMarketplaceEnabled,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
-			mcpDefaultPanelState,
+			mcpResponsesCollapsed,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -212,7 +212,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
-			mcpDefaultPanelState !== originalState.current.mcpDefaultPanelState ||
+			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
@@ -225,7 +225,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
-		mcpDefaultPanelState,
+		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
@@ -266,8 +266,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
 				}
-				if (typeof setMcpDefaultPanelState === "function") {
-					setMcpDefaultPanelState(originalState.current.mcpDefaultPanelState || "expanded")
+				if (typeof setMcpResponsesCollapsed === "function") {
+					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
 				}
 				// Close settings view
 				onDone()
@@ -286,7 +286,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
-		setMcpDefaultPanelState,
+		setMcpResponsesCollapsed,
 	])
 
 	// Handle confirmation dialog actions

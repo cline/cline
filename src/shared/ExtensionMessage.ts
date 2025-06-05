@@ -126,7 +126,7 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
-	mcpDefaultPanelState: "collapsed" | "expanded"
+	mcpResponsesCollapsed?: boolean
 }
 
 export interface ClineMessage {

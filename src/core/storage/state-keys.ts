@@ -91,7 +91,7 @@ export type GlobalStateKey =
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
-	| "mcpDefaultPanelState"
+	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
 	| "isNewUser"
 

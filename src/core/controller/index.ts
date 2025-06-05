@@ -393,8 +393,8 @@ export class Controller {
 					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
 				}
 
-				if (message.mcpDefaultPanelState) {
-					await updateGlobalState(this.context, "mcpDefaultPanelState", message.mcpDefaultPanelState)
+				if (typeof message.mcpResponsesCollapsed === "boolean") {
+					await updateGlobalState(this.context, "mcpResponsesCollapsed", message.mcpResponsesCollapsed)
 				}
 
 				// chat settings (including preferredLanguage and openAIReasoningEffort)
@@ -1169,7 +1169,7 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			isNewUser,
-			mcpDefaultPanelState,
+			mcpResponsesCollapsed,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1215,7 +1215,7 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			isNewUser,
-			mcpDefaultPanelState,
+			mcpResponsesCollapsed,
 		}
 	}
 

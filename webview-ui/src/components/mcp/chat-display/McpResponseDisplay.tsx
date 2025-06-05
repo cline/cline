@@ -117,8 +117,8 @@ interface UrlMatch {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
-	const { mcpDefaultPanelState } = useExtensionState() // Get setting from context
-	const [isExpanded, setIsExpanded] = useState(mcpDefaultPanelState === "expanded") // Initialize with context setting
+	const { mcpResponsesCollapsed } = useExtensionState() // Get setting from context
+	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
 		// Get saved preference from localStorage, default to 'rich'
@@ -152,9 +152,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		setIsExpanded((prev) => !prev)
 	}, [])
 
-	// Effect to update isExpanded if mcpDefaultPanelState changes from context
+	// Effect to update isExpanded if mcpResponsesCollapsed changes from context
 	useEffect(() => {
-		setIsExpanded(mcpDefaultPanelState === "expanded")
+		setIsExpanded(!mcpResponsesCollapsed)
 	}, [])
 
 	// Find all URLs in the text and determine if they're images
