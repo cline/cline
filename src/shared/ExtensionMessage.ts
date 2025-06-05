@@ -114,6 +114,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
+	terminalReuseEnabled?: boolean
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

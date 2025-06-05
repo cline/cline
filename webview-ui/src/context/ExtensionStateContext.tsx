@@ -51,6 +51,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
+	setTerminalReuseEnabled: (value: boolean) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -171,6 +172,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
+		terminalReuseEnabled: true, // default to enabled for backward compatibility
 		isNewUser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -527,6 +529,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				shellIntegrationTimeout: value,
+			})),
+		setTerminalReuseEnabled: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				terminalReuseEnabled: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),

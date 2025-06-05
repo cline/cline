@@ -199,6 +199,7 @@ export class Task {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
+		terminalReuseEnabled: boolean,
 		enableCheckpointsSetting: boolean,
 		customInstructions?: string,
 		task?: string,
@@ -218,6 +219,7 @@ export class Task {
 		// Initialization moved to startTask/resumeTaskFromHistory
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
+		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
