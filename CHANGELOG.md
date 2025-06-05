@@ -2,14 +2,9 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   01a9ab0: add all qwen3 models support and add thinking mode options
 -   00901e0: Ollama: Use a filterable dropdown instead of radio selection
 -   0a3d0e3: Migrate chatButtonClicked to Protobus
-
-### Patch Changes
-
 -   b811db8: Added setting to disable aggressive terminal reuse that affected users can use to circumvent task lockout bugs. Also fixed settings applying changes even when cancel button is clicked.
 -   8cbf25c: adding support for streamable mcp server
 -   47899ac: Adding WalkThrough for Cline
