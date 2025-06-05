@@ -155,7 +155,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	// Effect to update isExpanded if mcpDefaultPanelState changes from context
 	useEffect(() => {
 		setIsExpanded(mcpDefaultPanelState === "expanded")
-	}, [mcpDefaultPanelState])
+	}, [])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
