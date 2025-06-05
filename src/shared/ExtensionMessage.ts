@@ -23,6 +23,7 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
+		| "makehubModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "mcpDownloadDetails"
@@ -46,6 +47,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
+	makehubModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
@@ -125,6 +127,7 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	makehubPerfRatio?: number
 }
 
 export interface ClineMessage {

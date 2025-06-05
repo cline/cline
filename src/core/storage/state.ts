@@ -162,6 +162,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		globalClineRulesToggles,
 		requestTimeoutMs,
 		shellIntegrationTimeout,
+		makehubApiKey,
+		makehubModelId,
+		makehubModelInfo,
+		makehubPerfRatio,
 		enableCheckpointsSettingRaw,
 		mcpMarketplaceEnabledRaw,
 		globalWorkflowToggles,
@@ -253,6 +257,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
 		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
+		getSecret(context, "makehubApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "makehubModelId") as Promise<string | undefined>,
+		getGlobalState(context, "makehubModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "makehubPerfRatio") as Promise<number | undefined>,
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
@@ -364,6 +372,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			nebiusApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
+			makehubApiKey,
+			makehubModelId,
+			makehubModelInfo,
+			makehubPerfRatio,
 		},
 		isNewUser: isNewUser ?? true,
 		lastShownAnnouncementId,
@@ -522,6 +534,10 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await storeSecret(context, "makehubApiKey", apiConfiguration.makehubApiKey)
+	await updateGlobalState(context, "makehubModelId", apiConfiguration.makehubModelId)
+	await updateGlobalState(context, "makehubModelInfo", apiConfiguration.makehubModelInfo)
+	await updateGlobalState(context, "makehubPerfRatio", apiConfiguration.makehubPerfRatio)
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {
@@ -551,6 +567,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"sambanovaApiKey",
 		"cerebrasApiKey",
 		"nebiusApiKey",
+		"makehubApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
