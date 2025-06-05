@@ -91,12 +91,12 @@ export const TerminalSettingsSection: React.FC = () => {
 					<VSCodeCheckbox
 						checked={terminalReuseEnabled ?? true}
 						onChange={(event) => handleTerminalReuseChange(event as Event)}>
-						Enable terminal reuse across directories
+						Enable aggressive terminal reuse
 					</VSCodeCheckbox>
 				</div>
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: 0 }}>
-					When enabled, Cline will reuse existing terminal windows by changing directories with 'cd' commands. Disable
-					this if you experience issues with terminal state or directory changes.
+					When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable
+					this if you experience issues with task lockout after a terminal command.
 				</p>
 			</div>
 		</div>
