@@ -2,8 +2,6 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   c6e7b52: Migrate settingsButtonClicked to protobus
 
 ## [3.17.10]
