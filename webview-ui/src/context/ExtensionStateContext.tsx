@@ -50,6 +50,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
+	setMcpRichDisplayEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
@@ -164,6 +165,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
+		mcpRichDisplayEnabled: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
@@ -517,6 +519,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
+		setMcpRichDisplayEnabled: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				mcpRichDisplayEnabled: value,
+			})),
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
@@ -546,6 +553,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 				enableCheckpointsSetting: state.enableCheckpointsSetting,
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
 			})
 		},
 		setGlobalClineRulesToggles: (toggles) =>

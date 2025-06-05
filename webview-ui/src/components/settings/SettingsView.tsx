@@ -126,6 +126,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		setMcpRichDisplayEnabled,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -137,6 +139,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		chatSettings,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -178,6 +181,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -200,6 +204,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
+			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
 
 		setHasUnsavedChanges(hasChanges)
@@ -210,6 +215,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		chatSettings,
 	])
 
@@ -241,6 +247,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				if (typeof setMcpRichDisplayEnabled === "function") {
+					setMcpRichDisplayEnabled(
+						typeof originalState.current.mcpRichDisplayEnabled === "boolean"
+							? originalState.current.mcpRichDisplayEnabled
+							: true,
+					)
+				}
 				// Close settings view
 				onDone()
 			}
@@ -258,6 +271,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpRichDisplayEnabled,
 	])
 
 	// Handle confirmation dialog actions

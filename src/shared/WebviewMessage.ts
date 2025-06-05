@@ -55,6 +55,7 @@ export interface WebviewMessage {
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
+	mcpRichDisplayEnabled?: boolean
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
