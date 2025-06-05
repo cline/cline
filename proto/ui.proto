@@ -40,4 +40,7 @@ service UiService {
   
   // Subscribe to account button click events
   rpc subscribeToAccountButtonClicked(EmptyRequest) returns (stream Empty);
+  
+  // Subscribe to settings button clicked events
+  rpc subscribeToSettingsButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
 }

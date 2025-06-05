@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, ModelsServiceClient, UiServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -18,6 +17,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -90,6 +90,9 @@ const ExtensionStateContext = createContext<ExtensionStateContextType | undefine
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
+	// Get the current webview provider type
+	const currentProviderType =
+		window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
@@ -193,14 +196,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "action": {
-				switch (message.action!) {
-					case "settingsButtonClicked":
-						navigateToSettings()
-						break
-				}
-				break
-			}
 			case "theme": {
 				if (message.text) {
 					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
@@ -268,6 +263,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -397,6 +393,25 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Set up settings button clicked subscription
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: currentProviderType,
+			}),
+			{
+				onResponse: () => {
+					// When settings button is clicked, navigate to settings
+					navigateToSettings()
+				},
+				onError: (error) => {
+					console.error("Error in settings button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("Settings button clicked subscription completed")
+				},
+			},
+		)
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -436,6 +451,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (accountButtonClickedSubscriptionRef.current) {
 				accountButtonClickedSubscriptionRef.current()
 				accountButtonClickedSubscriptionRef.current = null
+			}
+			if (settingsButtonClickedSubscriptionRef.current) {
+				settingsButtonClickedSubscriptionRef.current()
+				settingsButtonClickedSubscriptionRef.current = null
 			}
 		}
 	}, [])
