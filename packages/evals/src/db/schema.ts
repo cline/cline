@@ -117,4 +117,4 @@ export type UpdateToolError = Partial<Omit<ToolError, "id" | "createdAt">>
  * schema
  */
 
-export const schema = { runs, runsRelations, tasks, tasksRelations, taskMetrics }
+export const schema = { runs, runsRelations, tasks, tasksRelations, taskMetrics, toolErrors, toolErrorsRelations }

@@ -1,8 +1,6 @@
 "use server"
 
 import { spawn } from "child_process"
-import path from "path"
-import os from "os"
 import fs from "fs"
 
 import { revalidatePath } from "next/cache"
@@ -12,7 +10,6 @@ import {
 	type ExerciseLanguage,
 	exerciseLanguages,
 	createRun as _createRun,
-	updateRun as _updateRun,
 	deleteRun as _deleteRun,
 	createTask,
 } from "@roo-code/evals"
@@ -21,10 +18,11 @@ import { CreateRun } from "@/lib/schemas"
 
 import { getExercisesForLanguage } from "./exercises"
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function createRun({ suite, exercises = [], systemPrompt, ...values }: CreateRun) {
 	const run = await _createRun({
 		...values,
-		socketPath: path.join(os.tmpdir(), `roo-code-evals-${crypto.randomUUID()}.sock`),
+		socketPath: "", // TODO: Get rid of this.
 	})
 
 	if (suite === "partial") {
@@ -50,20 +48,40 @@ export async function createRun({ suite, exercises = [], systemPrompt, ...values
 	revalidatePath("/runs")
 
 	try {
-		const logFile = fs.openSync(`/tmp/roo-code-evals-${run.id}.log`, "a")
+		const isRunningInDocker = fs.existsSync("/.dockerenv")
 
-		const env: NodeJS.ProcessEnv = systemPrompt
-			? { ...process.env, FOOTGUN_SYSTEM_PROMPT: systemPrompt }
-			: process.env
+		const dockerArgs = [
+			`--name evals-controller-${run.id}`,
+			"--rm",
+			"--network evals_default",
+			"-v /var/run/docker.sock:/var/run/docker.sock",
+			"-e HOST_EXECUTION_METHOD=docker",
+		]
 
-		const childProcess = spawn("pnpm", ["--filter", "@roo-code/evals", "cli", run.id.toString()], {
+		const cliCommand = `pnpm --filter @roo-code/evals cli --runId ${run.id}`
+
+		const command = isRunningInDocker
+			? `docker run ${dockerArgs.join(" ")} evals-runner sh -c "${cliCommand}"`
+			: cliCommand
+
+		console.log("spawn ->", command)
+
+		const childProcess = spawn("sh", ["-c", command], {
 			detached: true,
-			stdio: ["ignore", logFile, logFile],
-			env,
+			stdio: ["ignore", "pipe", "pipe"],
 		})
 
+		const logStream = fs.createWriteStream("/tmp/roo-code-evals.log", { flags: "a" })
+
+		if (childProcess.stdout) {
+			childProcess.stdout.pipe(logStream)
+		}
+
+		if (childProcess.stderr) {
+			childProcess.stderr.pipe(logStream)
+		}
+
 		childProcess.unref()
-		await _updateRun(run.id, { pid: childProcess.pid })
 	} catch (error) {
 		console.error(error)
 	}

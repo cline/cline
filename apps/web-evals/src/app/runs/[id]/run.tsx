@@ -48,7 +48,7 @@ export function Run({ run }: { run: Run }) {
 						<div>{run.model}</div>
 						{run.description && <div className="text-sm text-muted-foreground">{run.description}</div>}
 					</div>
-					{!run.taskMetricsId && <ConnectionStatus status={status} pid={run.pid} />}
+					{!run.taskMetricsId && <ConnectionStatus status={status} runId={run.id} />}
 				</div>
 				{!tasks ? (
 					<LoaderCircle className="size-4 animate-spin" />

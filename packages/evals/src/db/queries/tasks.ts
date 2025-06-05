@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 
 import type { ExerciseLanguage } from "../../exercises/index.js"
 
@@ -58,4 +58,8 @@ export const getTask = async ({ runId, language, exercise }: GetTask) =>
 	})
 
 export const getTasks = async (runId: number) =>
-	db.query.tasks.findMany({ where: eq(tasks.runId, runId), with: { taskMetrics: true } })
+	db.query.tasks.findMany({
+		where: eq(tasks.runId, runId),
+		with: { taskMetrics: true },
+		orderBy: asc(tasks.id),
+	})

@@ -48,7 +48,7 @@ export const globalSettingsSchema = z.object({
 	allowedMaxRequests: z.number().nullish(),
 	autoCondenseContext: z.boolean().optional(),
 	autoCondenseContextPercent: z.number().optional(),
- 	maxConcurrentFileReads: z.number().optional(),
+	maxConcurrentFileReads: z.number().optional(),
 
 	browserToolEnabled: z.boolean().optional(),
 	browserViewportSize: z.string().optional(),
@@ -264,3 +264,75 @@ export const GLOBAL_STATE_KEYS = [...GLOBAL_SETTINGS_KEYS, ...PROVIDER_SETTINGS_
 
 export const isGlobalStateKey = (key: string): key is Keys<GlobalState> =>
 	GLOBAL_STATE_KEYS.includes(key as Keys<GlobalState>)
+
+/**
+ * Evals
+ */
+
+// Default settings when running evals (unless overridden).
+export const EVALS_SETTINGS: RooCodeSettings = {
+	apiProvider: "openrouter",
+	openRouterUseMiddleOutTransform: false,
+
+	lastShownAnnouncementId: "may-29-2025-3-19",
+
+	pinnedApiConfigs: {},
+
+	autoApprovalEnabled: true,
+	alwaysAllowReadOnly: true,
+	alwaysAllowReadOnlyOutsideWorkspace: false,
+	alwaysAllowWrite: true,
+	alwaysAllowWriteOutsideWorkspace: false,
+	writeDelayMs: 1000,
+	alwaysAllowBrowser: true,
+	alwaysApproveResubmit: true,
+	requestDelaySeconds: 10,
+	alwaysAllowMcp: true,
+	alwaysAllowModeSwitch: true,
+	alwaysAllowSubtasks: true,
+	alwaysAllowExecute: true,
+	allowedCommands: ["*"],
+
+	browserToolEnabled: false,
+	browserViewportSize: "900x600",
+	screenshotQuality: 75,
+	remoteBrowserEnabled: false,
+
+	ttsEnabled: false,
+	ttsSpeed: 1,
+	soundEnabled: false,
+	soundVolume: 0.5,
+
+	terminalOutputLineLimit: 500,
+	terminalShellIntegrationTimeout: 30000,
+	terminalCommandDelay: 0,
+	terminalPowershellCounter: false,
+	terminalZshOhMy: true,
+	terminalZshClearEolMark: true,
+	terminalZshP10k: false,
+	terminalZdotdir: true,
+	terminalCompressProgressBar: true,
+	terminalShellIntegrationDisabled: true,
+
+	diffEnabled: true,
+	fuzzyMatchThreshold: 1,
+
+	enableCheckpoints: false,
+
+	rateLimitSeconds: 0,
+	maxOpenTabsContext: 20,
+	maxWorkspaceFiles: 200,
+	showRooIgnoredFiles: true,
+	maxReadFileLine: -1, // -1 to enable full file reading.
+
+	language: "en",
+	telemetrySetting: "enabled",
+
+	mcpEnabled: false,
+
+	mode: "code",
+
+	customModes: [],
+}
+
+export const EVALS_TIMEOUT = 5 * 60 * 1_000

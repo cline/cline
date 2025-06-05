@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server"
 
+import { taskEventSchema } from "@roo-code/types"
 import { findRun } from "@roo-code/evals"
-import { IpcClient } from "@roo-code/ipc"
-import { IpcMessageType } from "@roo-code/types"
 
 import { SSEStream } from "@/lib/server/sse-stream"
+import { redisClient } from "@/lib/server/redis"
 
 export const dynamic = "force-dynamic"
 
@@ -13,26 +13,58 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 	const requestId = crypto.randomUUID()
 	const stream = new SSEStream()
 	const run = await findRun(Number(id))
-	const client = new IpcClient(run.socketPath, () => {})
+	const redis = await redisClient()
 
-	const write = async (data: string | object) => {
-		// console.log(`[stream#${requestId}] write`, data)
-		const success = await stream.write(data)
+	let isStreamClosed = false
+	const channelName = `evals:${run.id}`
 
-		if (!success) {
-			client.disconnect()
+	const onMessage = async (data: string) => {
+		if (isStreamClosed || stream.isClosed) {
+			return
+		}
+
+		try {
+			const taskEvent = taskEventSchema.parse(JSON.parse(data))
+			// console.log(`[stream#${requestId}] task event -> ${taskEvent.eventName}`)
+			const writeSuccess = await stream.write(JSON.stringify(taskEvent))
+
+			if (!writeSuccess) {
+				await disconnect()
+			}
+		} catch (_error) {
+			console.error(`[stream#${requestId}] invalid task event:`, data)
 		}
 	}
 
-	console.log(`[stream#${requestId}] connect`)
-	client.on(IpcMessageType.Connect, () => write("connect"))
-	client.on(IpcMessageType.Disconnect, () => write("disconnect"))
-	client.on(IpcMessageType.TaskEvent, write)
+	const disconnect = async () => {
+		if (isStreamClosed) {
+			return
+		}
+
+		isStreamClosed = true
+
+		try {
+			await redis.unsubscribe(channelName)
+			console.log(`[stream#${requestId}] unsubscribed from ${channelName}`)
+		} catch (error) {
+			console.error(`[stream#${requestId}] error unsubscribing:`, error)
+		}
+
+		try {
+			await stream.close()
+		} catch (error) {
+			console.error(`[stream#${requestId}] error closing stream:`, error)
+		}
+	}
+
+	await redis.subscribe(channelName, onMessage)
 
 	request.signal.addEventListener("abort", () => {
 		console.log(`[stream#${requestId}] abort`)
-		client.disconnect()
-		stream.close().catch(() => {})
+
+		disconnect().catch((error) => {
+			console.error(`[stream#${requestId}] cleanup error:`, error)
+		})
 	})
 
 	return stream.getResponse()

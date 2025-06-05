@@ -12,14 +12,16 @@
 		"cli": "dotenvx run -f .env.development .env.local -- tsx src/cli/index.ts",
 		"drizzle-kit": "dotenvx run -f .env.development -- tsx node_modules/drizzle-kit/bin.cjs",
 		"drizzle-kit:test": "dotenvx run -f .env.test -- tsx node_modules/drizzle-kit/bin.cjs",
-		"db:start": "docker compose up -d",
-		"db:stop": "docker compose down",
 		"db:generate": "pnpm drizzle-kit generate",
 		"db:migrate": "pnpm drizzle-kit migrate",
 		"db:push": "pnpm drizzle-kit push",
 		"db:check": "pnpm drizzle-kit check",
 		"db:test:push": "pnpm drizzle-kit:test push",
-		"db:test:check": "pnpm drizzle-kit:test check"
+		"db:test:check": "pnpm drizzle-kit:test check",
+		"db:start": "docker compose up -d db",
+		"db:stop": "docker compose down db",
+		"redis:start": "docker compose up -d redis",
+		"redis:stop": "docker compose down redis"
 	},
 	"dependencies": {
 		"@roo-code/ipc": "workspace:^",
@@ -30,9 +32,11 @@
 		"execa": "^9.6.0",
 		"node-ipc": "^12.0.0",
 		"p-map": "^7.0.3",
+		"p-queue": "^8.1.0",
 		"p-wait-for": "^5.0.2",
 		"postgres": "^3.4.7",
 		"ps-tree": "^1.2.0",
+		"redis": "^5.5.5",
 		"zod": "^3.24.2"
 	},
 	"devDependencies": {

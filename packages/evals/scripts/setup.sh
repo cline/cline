@@ -1,21 +1,5 @@
 #!/bin/bash
 
-menu() {
-  echo -e "\n📋 Which eval types would you like to support?\n"
-
-  for i in ${!options[@]}; do
-    printf " %d) %-6s [%s]" $((i + 1)) "${options[i]}" "${choices[i]:- }"
-
-    if [[ $i == 0 ]]; then
-      printf " (required)"
-    fi
-
-    printf "\n"
-  done
-
-  echo -e " q) quit\n"
-}
-
 has_asdf_plugin() {
   local plugin="$1"
   case "$plugin" in
@@ -26,52 +10,106 @@ has_asdf_plugin() {
 
 build_extension() {
   echo "🔨 Building the Roo Code extension..."
-  cd ..
-  mkdir -p bin
-  pnpm build -- --out ../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
-  code --install-extension bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
+  pnpm -w vsix -- --out ../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
+  code --install-extension ../../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
   cd evals
+}
+
+check_docker_services() {
+  echo "🐳 Checking Docker services..."
+
+  if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is not installed. Please install Docker Desktop and try again."
+    exit 1
+  fi
+
+  if ! docker info &> /dev/null; then
+    echo "❌ Docker is not running. Please start Docker Desktop and try again."
+    exit 1
+  fi
+
+  if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose is not available. Please ensure Docker Desktop is properly installed."
+    exit 1
+  fi
+  
+  local services_to_start=()
+
+  if ! nc -z localhost 5432 2>/dev/null; then
+    echo "📦 PostgreSQL not running on port 5432"
+    services_to_start+=("db")
+  else
+    echo "✅ PostgreSQL is running"
+  fi
+
+  if ! nc -z localhost 6379 2>/dev/null; then
+    echo "📦 Redis not running on port 6379"
+    services_to_start+=("redis")
+  else
+    echo "✅ Redis is running"
+  fi
+
+  if [ ${#services_to_start[@]} -gt 0 ]; then
+    echo "🚀 Starting Docker services: ${services_to_start[*]}"
+
+    echo "🧹 Cleaning up stale Docker state..."
+    docker compose down --remove-orphans &>/dev/null || true
+    docker network prune -f &>/dev/null || true
+
+    if docker compose --profile server up -d "${services_to_start[@]}"; then
+      echo "✅ Docker services started successfully"
+
+      echo "⏳ Waiting for services to be ready..."
+      local timeout=30
+      local elapsed=0
+      local all_ready=false
+
+      while [ $elapsed -lt $timeout ]; do
+        all_ready=true
+
+        for service in "${services_to_start[@]}"; do
+          if [[ "$service" == "db" ]] && ! nc -z localhost 5432 2>/dev/null; then
+            all_ready=false
+            break
+          elif [[ "$service" == "redis" ]] && ! nc -z localhost 6379 2>/dev/null; then
+            all_ready=false
+            break
+          fi
+        done
+
+        if [ "$all_ready" = true ]; then
+          echo "✅ All services are ready"
+          break
+        fi
+
+        sleep 1
+        elapsed=$((elapsed + 1))
+
+        if [ $((elapsed % 5)) -eq 0 ]; then
+          echo "   Still waiting... (${elapsed}s/${timeout}s)"
+        fi
+      done
+
+      if [ "$all_ready" = false ]; then
+        echo "❌ Timeout: Services failed to start within ${timeout} seconds"
+        echo "   Please check Docker logs: docker compose logs"
+        exit 1
+      fi
+    else
+      echo "❌ Failed to start Docker services even after cleanup. Please check your docker-compose.yml file."
+      exit 1
+    fi
+  else
+    echo "✅ All required Docker services are already running"
+  fi
 }
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "⚠️ Only macOS is currently supported."
+  echo "The Roo Code evals system can also be run with Docker on any platform."
+  echo "See https://github.com/RooCodeInc/Roo-Code/blob/main/packages/evals/README.md for instructions."
   exit 1
 fi
-
-options=("nodejs" "python" "golang" "rust" "java")
-binaries=("node" "python" "go" "rustc" "javac")
-
-for i in "${!options[@]}"; do
-  choices[i]="*"
-done
-
-prompt="Type 1-5 to select, 'q' to quit, ⏎ to continue: "
-
-while menu && read -rp "$prompt" num && [[ "$num" ]]; do
-  [[ "$num" == "q" ]] && exit 0
-
-  [[ "$num" != *[![:digit:]]* ]] &&
-    ((num > 1 && num <= ${#options[@]})) ||
-    {
-      continue
-    }
-
-  ((num--))
-  [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="*"
-done
-
-empty=true
-
-for i in ${!options[@]}; do
-  [[ "${choices[i]}" ]] && {
-    empty=false
-    break
-  }
-done
-
-[[ "$empty" == true ]] && exit 0
-
-printf "\n"
 
 if ! command -v brew &>/dev/null; then
   if [[ -f "/opt/homebrew/bin/brew" ]]; then
@@ -159,9 +197,10 @@ else
   echo "✅ gh is installed ($GH_VERSION)"
 fi
 
-for i in "${!options[@]}"; do
-  [[ "${choices[i]}" ]] || continue
+options=("nodejs" "python" "golang" "rust" "java")
+binaries=("node" "python" "go" "rustc" "javac")
 
+for i in "${!options[@]}"; do
   plugin="${options[$i]}"
   binary="${binaries[$i]}"
 
@@ -282,7 +321,6 @@ fi
 
 # To reset VSCode:
 # rm -rvf ~/.vscode && rm -rvf ~/Library/Application\ Support/Code
-
 echo -n "🔌 Installing Visual Studio Code extensions... "
 code --install-extension golang.go &>/dev/null || exit 1
 code --install-extension dbaeumer.vscode-eslint&>/dev/null || exit 1
@@ -296,20 +334,14 @@ fi
 
 echo "✅ Done"
 
-if [[ ! -d "../../evals" ]]; then
+if [[ ! -d "../../../evals" ]]; then
   echo -n "🔗 Cloning evals repository... "
-
-  if gh auth status &>/dev/null; then
-    gh repo clone cte/evals ../../evals || exit 1
-  else
-    git clone https://github.com/cte/evals.git ../../evals || exit 1
-  fi
-
+  git clone https://github.com/RooCodeInc/Roo-Code-Evals.git evals ../../../evals || exit 1
   echo "✅ Done"
 else
   echo -n "🔄 Updating evals repository... "
 
-  (cd ../../evals && \
+  (cd ../../../evals && \
     git checkout -f &>/dev/null && \
     git clean -f -d &>/dev/null && \
     git checkout main &>/dev/null && \
@@ -321,6 +353,9 @@ fi
 if [[ ! -s .env.local ]]; then
   touch .env.local || exit 1
 fi
+
+# Check and start Docker services before database operations
+check_docker_services
 
 echo -n "🗄️ Syncing Roo Code evals database... "
 pnpm --filter @roo-code/evals db:push --force &>/dev/null || exit 1

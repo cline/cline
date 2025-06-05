@@ -9,12 +9,13 @@ import fuzzysort from "fuzzysort"
 import { toast } from "sonner"
 import { X, Rocket, Check, ChevronsUpDown, SlidersHorizontal, Book, CircleCheck } from "lucide-react"
 
-import { globalSettingsSchema, providerSettingsSchema } from "@roo-code/types"
+import { globalSettingsSchema, providerSettingsSchema, EVALS_SETTINGS, getModelId } from "@roo-code/types"
 
 import { createRun } from "@/lib/server/runs"
 import {
 	createRunSchema as formSchema,
 	type CreateRun as FormValues,
+	MODEL_DEFAULT,
 	CONCURRENCY_MIN,
 	CONCURRENCY_MAX,
 	CONCURRENCY_DEFAULT,
@@ -51,26 +52,25 @@ import {
 	DialogFooter,
 } from "@/components/ui"
 
-import { rooCodeDefaults } from "./defaults"
 import { SettingsDiff } from "./settings-diff"
 
 export function NewRun() {
 	const router = useRouter()
 
 	const [mode, setMode] = useState<"openrouter" | "settings">("openrouter")
-
 	const [modelSearchValue, setModelSearchValue] = useState("")
 	const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
+
 	const modelSearchResultsRef = useRef<Map<string, number>>(new Map())
 	const modelSearchValueRef = useRef("")
-	const models = useOpenRouterModels()
 
+	const models = useOpenRouterModels()
 	const exercises = useExercises()
 
 	const form = useForm<FormValues>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			model: "",
+			model: MODEL_DEFAULT,
 			description: "",
 			suite: "full",
 			exercises: [],
@@ -96,14 +96,7 @@ export function NewRun() {
 		async (values: FormValues) => {
 			try {
 				if (mode === "openrouter") {
-					const openRouterModel = models.data?.find(({ id }) => id === model)
-
-					if (!openRouterModel) {
-						throw new Error("Model not found.")
-					}
-
-					const openRouterModelId = openRouterModel.id
-					values.settings = { ...(values.settings || {}), openRouterModelId }
+					values.settings = { ...(values.settings || {}), openRouterModelId: model }
 				}
 
 				const { id } = await createRun({ ...values, systemPrompt })
@@ -112,7 +105,7 @@ export function NewRun() {
 				toast.error(e instanceof Error ? e.message : "An unknown error occurred.")
 			}
 		},
-		[mode, model, models.data, router, systemPrompt],
+		[mode, model, router, systemPrompt],
 	)
 
 	const onFilterModels = useCallback(
@@ -167,55 +160,8 @@ export function NewRun() {
 
 				const providerSettings = providerProfiles.apiConfigs[providerProfiles.currentApiConfigName] ?? {}
 
-				const {
-					apiProvider,
-					apiModelId,
-					openRouterModelId,
-					glamaModelId,
-					requestyModelId,
-					unboundModelId,
-					ollamaModelId,
-					lmStudioModelId,
-					openAiModelId,
-				} = providerSettings
-
-				switch (apiProvider) {
-					case "anthropic":
-					case "bedrock":
-					case "deepseek":
-					case "gemini":
-					case "mistral":
-					case "openai-native":
-					case "xai":
-					case "vertex":
-						setValue("model", apiModelId ?? "")
-						break
-					case "openrouter":
-						setValue("model", openRouterModelId ?? "")
-						break
-					case "glama":
-						setValue("model", glamaModelId ?? "")
-						break
-					case "requesty":
-						setValue("model", requestyModelId ?? "")
-						break
-					case "unbound":
-						setValue("model", unboundModelId ?? "")
-						break
-					case "openai":
-						setValue("model", openAiModelId ?? "")
-						break
-					case "ollama":
-						setValue("model", ollamaModelId ?? "")
-						break
-					case "lmstudio":
-						setValue("model", lmStudioModelId ?? "")
-						break
-					default:
-						throw new Error(`Unsupported API provider: ${apiProvider}`)
-				}
-
-				setValue("settings", { ...rooCodeDefaults, ...providerSettings, ...globalSettings })
+				setValue("model", getModelId(providerSettings) ?? "")
+				setValue("settings", { ...EVALS_SETTINGS, ...providerSettings, ...globalSettings })
 				setMode("settings")
 
 				event.target.value = ""
@@ -316,7 +262,7 @@ export function NewRun() {
 												settings.
 											</div>
 										</div>
-										<SettingsDiff defaultSettings={rooCodeDefaults} customSettings={settings} />
+										<SettingsDiff defaultSettings={EVALS_SETTINGS} customSettings={settings} />
 									</>
 								</ScrollArea>
 							)}

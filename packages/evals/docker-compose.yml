@@ -1,13 +1,78 @@
+# Build the web and runner images:
+# docker compose build web runner
+#
+# Start all "server" services (db, redis, web):
+# docker compose --profile server up
+#
+# Start a shell in the runner container:
+# docker compose run --rm runner bash
+#
+# Or using the docker cli:
+# docker run -it --rm --network evals_default evals-runner bash
+#
+# To enable docker execution, run:
+# docker run -it --rm --network evals_default -v /var/run/docker.sock:/var/run/docker.sock -e HOST_EXECUTION_METHOD=docker evals-runner bash
+
 services:
-  postgres:
-    container_name: postgres-evals
-    image: postgres:15.4
-    ports:
-      - 5432:5432
-    volumes:
-      - ./.docker/postgres:/var/lib/postgresql/data
-      - ./.docker/scripts/postgres:/docker-entrypoint-initdb.d
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DATABASES=evals_development,evals_test
+    db:
+        container_name: evals-db
+        image: postgres:15.4
+        ports:
+            - 5432:5432
+        volumes:
+            - ./.docker/postgres:/var/lib/postgresql/data
+            - ./.docker/scripts/postgres:/docker-entrypoint-initdb.d
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=password
+            - POSTGRES_DATABASES=evals_development,evals_test
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d evals_development"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        profiles:
+            - server
+
+    redis:
+        container_name: evals-redis
+        image: redis:7-alpine
+        ports:
+            - "6379:6379"
+        volumes:
+            - ./.docker/redis:/data
+        command: redis-server --appendonly yes
+        profiles:
+            - server
+
+    web:
+        container_name: evals-web
+        build:
+            context: ../../
+            dockerfile: packages/evals/Dockerfile.web
+        ports:
+            - "3000:3000"
+        environment:
+            - HOST_EXECUTION_METHOD=docker
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        depends_on:
+            db:
+                condition: service_healthy
+        profiles:
+            - server
+
+    runner:
+        container_name: evals-runner
+        build:
+            context: ../../
+            dockerfile: packages/evals/Dockerfile.runner
+        environment:
+            - HOST_EXECUTION_METHOD=docker
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        stdin_open: true
+        tty: true
+        profiles:
+            - runner

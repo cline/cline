@@ -1,0 +1,62 @@
+FROM node:20-slim AS base
+
+# Install pnpm
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+RUN npm install -g npm@latest
+RUN npm install -g npm-run-all
+
+# Install system packages
+RUN apt update && apt install -y curl git vim jq postgresql-client
+
+# Install Docker cli
+RUN apt install -y apt-transport-https ca-certificates gnupg lsb-release
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+RUN apt update && apt install -y docker-ce-cli
+
+WORKDIR /roo
+
+# Copy evals
+RUN git clone https://github.com/RooCodeInc/Roo-Code-Evals.git evals
+
+WORKDIR /roo/repo
+
+# Install npm packages
+RUN mkdir -p \
+  scripts \
+  apps/web-evals \
+  packages/config-eslint \
+  packages/config-typescript \
+  packages/evals \
+  packages/ipc \
+  packages/types
+
+COPY ./package.json                            ./
+COPY ./pnpm-lock.yaml                          ./
+COPY ./pnpm-workspace.yaml                     ./
+COPY ./scripts/bootstrap.mjs                   ./scripts/
+COPY ./apps/web-evals/package.json             ./apps/web-evals/
+COPY ./packages/config-eslint/package.json     ./packages/config-eslint/
+COPY ./packages/config-typescript/package.json ./packages/config-typescript/
+COPY ./packages/evals/package.json             ./packages/evals/
+COPY ./packages/ipc/package.json               ./packages/ipc/
+COPY ./packages/types/package.json             ./packages/types/
+
+RUN pnpm install
+
+# Copy source code
+COPY . ./
+
+# Build the web-evals app
+RUN pnpm --filter @roo-code/web-evals build
+
+# Copy entrypoint script
+COPY packages/evals/.docker/entrypoints/web.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV DATABASE_URL=postgresql://postgres:password@db:5432/evals_development
+ENV REDIS_URL=redis://redis:6379
+EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

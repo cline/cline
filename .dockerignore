@@ -1,18 +1,91 @@
-# Build artifacts
+# git
+.git
+
+# build artifacts
 bin/
-!bin/roo-code-latest.vsix
 dist/
 **/dist/
 out/
 **/out/
+src/webview-ui/
 
-# Dependencies
+# dependencies
 node_modules/
 **/node_modules/
 
-# Test and development files
+# testing
 coverage/
 **/.vscode-test/
+**/mock/
 
+# devtools
 knip.json
 .husky/
+
+# monorepo
+.turbo/
+**/.turbo/
+
+# next.js
+**/.next/
+.vercel
+
+# Ignore common development files
+node_modules
+.git
+.gitignore
+.dockerignore
+.env*
+.vscode
+.idea
+
+# Ignore build artifacts
+dist
+build
+*.log
+*.tmp
+.cache
+coverage
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore test files
+__tests__
+*.test.js
+*.spec.js
+*.test.ts
+*.spec.ts
+
+# Ignore development config files
+.eslintrc*
+.prettierrc*
+jest.config*
+
+# Ignore most directories except what we need for the build
+apps/
+evals/
+webview-ui/node_modules
+src/node_modules
+
+# Keep essential files for the build
+!README.md
+!CHANGELOG.md
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!scripts/bootstrap.mjs
+!apps/web-evals/
+!src/
+!webview-ui/
+!packages/evals/.docker/entrypoints/runner.sh
+!packages/build/
+!packages/cloud/
+!packages/config-eslint/
+!packages/config-typescript/
+!packages/evals/
+!packages/ipc/
+!packages/telemetry/
+!packages/types/
+!locales/

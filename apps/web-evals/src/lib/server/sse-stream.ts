@@ -2,6 +2,7 @@ export class SSEStream {
 	private readonly _stream: TransformStream
 	private readonly _writer: WritableStreamDefaultWriter
 	private readonly _encoder: TextEncoder
+	private _isClosed: boolean = false
 
 	constructor() {
 		this._stream = new TransformStream()
@@ -9,20 +10,40 @@ export class SSEStream {
 		this._encoder = new TextEncoder()
 	}
 
-	public async write(data: string | object) {
+	public async write(data: string | object): Promise<boolean> {
+		if (this._isClosed) {
+			return false
+		}
+
 		try {
 			const buffer = typeof data === "object" ? JSON.stringify(data) : data
 			await this._writer.write(this._encoder.encode(`data: ${buffer}\n\n`))
 			return true
 		} catch (error) {
 			console.error("[SSEStream#write]", error)
+			this._isClosed = true
 			this.close().catch(() => {})
 			return false
 		}
 	}
 
-	public close() {
-		return this._writer.close()
+	public async close(): Promise<void> {
+		if (this._isClosed) {
+			return
+		}
+
+		this._isClosed = true
+
+		try {
+			await this._writer.close()
+		} catch (error) {
+			// Writer might already be closed, ignore the error.
+			console.debug("[SSEStream#close] Writer already closed:", error)
+		}
+	}
+
+	public get isClosed(): boolean {
+		return this._isClosed
 	}
 
 	public getResponse() {
@@ -31,6 +52,8 @@ export class SSEStream {
 				"Content-Type": "text/event-stream",
 				Connection: "keep-alive",
 				"Cache-Control": "no-cache, no-transform",
+				"Access-Control-Allow-Origin": "*",
+				"Access-Control-Allow-Headers": "Cache-Control",
 			},
 		})
 	}

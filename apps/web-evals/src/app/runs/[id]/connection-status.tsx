@@ -1,29 +1,17 @@
 "use client"
 
-import { useCallback } from "react"
-import { Skull } from "lucide-react"
-
-import { killProcessTree } from "@/lib/server/processes"
-import { EventSourceStatus } from "@/hooks/use-event-source"
-import { useProcessList } from "@/hooks/use-process-tree"
+import type { EventSourceStatus } from "@/hooks/use-event-source"
+import { useRunners } from "@/hooks/use-runners"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui"
 
 type ConnectionStatusProps = {
 	status: EventSourceStatus
-	pid: number | null
+	runId: number
 }
 
 export const ConnectionStatus = (connectionStatus: ConnectionStatusProps) => {
-	const { data: pids, isLoading } = useProcessList(connectionStatus.pid)
-	const status = isLoading ? "loading" : pids === null ? "dead" : connectionStatus.status
-
-	const onKill = useCallback(async () => {
-		if (connectionStatus.pid) {
-			await killProcessTree(connectionStatus.pid)
-			window.location.reload()
-		}
-	}, [connectionStatus.pid])
+	const { data: runners, isLoading } = useRunners(connectionStatus.runId)
+	const status = isLoading ? "loading" : runners === null ? "dead" : connectionStatus.status
 
 	return (
 		<div>
@@ -52,16 +40,9 @@ export const ConnectionStatus = (connectionStatus: ConnectionStatusProps) => {
 				</div>
 			</div>
 			<div className="flex items-center gap-2">
-				<div>PIDs:</div>
-				<div className="font-mono text-sm">{connectionStatus.pid}</div>
-				{status === "connected" && (
-					<>
-						<div className="font-mono text-sm text-muted-foreground">{pids?.join(" ")}</div>
-						<Button variant="ghost" size="sm" onClick={onKill}>
-							Kill
-							<Skull />
-						</Button>
-					</>
+				<div>Runners:</div>
+				{runners && runners.length > 0 && (
+					<div className="font-mono text-sm text-muted-foreground">{runners?.join(", ")}</div>
 				)}
 			</div>
 		</div>

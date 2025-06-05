@@ -114,7 +114,16 @@ export const deleteRun = async (runId: number) => {
 		columns: { id: true, taskMetricsId: true },
 	})
 
+	await db.delete(schema.toolErrors).where(
+		inArray(
+			schema.toolErrors.taskId,
+			tasks.map(({ id }) => id),
+		),
+	)
+
 	await db.delete(schema.tasks).where(eq(schema.tasks.runId, runId))
+
+	await db.delete(schema.toolErrors).where(eq(schema.toolErrors.runId, runId))
 	await db.delete(schema.runs).where(eq(schema.runs.id, runId))
 
 	const taskMetricsIds = tasks
