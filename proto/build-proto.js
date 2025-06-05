@@ -12,38 +12,6 @@ import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
-// Check for Apple Silicon compatibility
-function checkAppleSiliconCompatibility() {
-	// Only run check on macOS
-	if (process.platform !== "darwin") {
-		return
-	}
-
-	// Check if running on Apple Silicon
-	const cpuArchitecture = os.arch()
-	if (cpuArchitecture === "arm64") {
-		try {
-			// Check if Rosetta is installed
-			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
-
-			if (rosettaCheck === "NOT_INSTALLED") {
-				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
-				console.log(
-					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
-				)
-				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
-				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
-				console.log(chalk.red("Aborting build process."))
-				process.exit(1)
-			} else {
-				console.log(chalk.green("Rosetta 2 is installed. Continuing with build."))
-			}
-		} catch (error) {
-			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
-		}
-	}
-}
-
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
@@ -89,11 +57,9 @@ async function main() {
 
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-	const HOST_TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto", "host")
 
 	// Create output directories if they don't exist
 	await fs.mkdir(TS_OUT_DIR, { recursive: true })
-	await fs.mkdir(HOST_TS_OUT_DIR, { recursive: true })
 
 	// Clean up existing generated files
 	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
@@ -105,9 +71,9 @@ async function main() {
 	// Check for missing proto files for services in serviceNameMap
 	await ensureProtoFilesExist()
 
-	// Process main proto files
+	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, realpath: true })
+	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR, realpath: true })
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [
@@ -115,6 +81,8 @@ async function main() {
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
 		`--ts_proto_out="${TS_OUT_DIR}"`,
+		"--ts_proto_opt=exportCommonSymbols=false",
+		"--ts_proto_opt=outputIndex=true",
 		"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
 		...protoFiles,
 	].join(" ")
@@ -126,42 +94,15 @@ async function main() {
 		process.exit(1)
 	}
 
-	// Process host proto files
-	console.log(chalk.cyan("Processing host proto files from"), path.join(SCRIPT_DIR, "host"))
-	const hostProtoFiles = await globby("*.proto", { cwd: path.join(SCRIPT_DIR, "host"), absolute: true })
-
-	if (hostProtoFiles.length > 0) {
-		// Build the protoc command for host proto files
-		const hostTsProtocCommand = [
-			protoc,
-			`--proto_path="${SCRIPT_DIR}"`,
-			`--proto_path="${path.join(SCRIPT_DIR, "host")}"`,
-			`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
-			`--ts_proto_out="${TS_OUT_DIR}"`,
-			"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
-			...hostProtoFiles,
-		].join(" ")
-		try {
-			console.log(chalk.cyan(`Generating TypeScript code for host proto files:\n${hostProtoFiles.join("\n")}...`))
-			execSync(hostTsProtocCommand, { stdio: "inherit" })
-		} catch (error) {
-			console.error(chalk.red("Error generating TypeScript for host proto files:"), error)
-			process.exit(1)
-		}
-	}
-
 	const descriptorOutDir = path.join(ROOT_DIR, "dist-standalone", "proto")
 	await fs.mkdir(descriptorOutDir, { recursive: true })
-
 	const descriptorFile = path.join(descriptorOutDir, "descriptor_set.pb")
-	const allProtoFiles = [...protoFiles, ...hostProtoFiles]
 	const descriptorProtocCommand = [
 		protoc,
 		`--proto_path="${SCRIPT_DIR}"`,
-		`--proto_path="${path.join(SCRIPT_DIR, "host")}"`,
 		`--descriptor_set_out="${descriptorFile}"`,
 		"--include_imports",
-		...allProtoFiles,
+		...protoFiles,
 	].join(" ")
 	try {
 		console.log(chalk.cyan("Generating descriptor set..."))
@@ -700,6 +641,36 @@ export {
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
 	console.log(chalk.green(`Generated host gRPC client at ${configPath}`))
+}
+
+// Check for Apple Silicon compatibility
+function checkAppleSiliconCompatibility() {
+	// Only run check on macOS
+	if (process.platform !== "darwin") {
+		return
+	}
+
+	// Check if running on Apple Silicon
+	const cpuArchitecture = os.arch()
+	if (cpuArchitecture === "arm64") {
+		try {
+			// Check if Rosetta is installed
+			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
+
+			if (rosettaCheck === "NOT_INSTALLED") {
+				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
+				console.log(
+					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
+				)
+				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
+				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
+				console.log(chalk.red("Aborting build process."))
+				process.exit(1)
+			}
+		} catch (error) {
+			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
+		}
+	}
 }
 
 // Run the main function
