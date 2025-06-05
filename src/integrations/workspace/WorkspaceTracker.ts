@@ -97,7 +97,7 @@ class WorkspaceTracker {
 		}
 		this.postMessageToWebview({
 			type: "workspaceUpdated",
-			filePaths: [...Array.from(this.activeFiles), ...Array.from(this.filePaths)].map((file) => {
+			filePaths: Array.from(new Set([...this.activeFiles, ...this.filePaths])).map((file) => {
 				const relativePath = path.relative(cwd, file).toPosix()
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			}),
