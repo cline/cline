@@ -197,12 +197,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "theme": {
-				if (message.text) {
-					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
-				}
-				break
-			}
 			case "workspaceUpdated": {
 				setFilePaths(message.filePaths ?? [])
 				break
@@ -246,6 +240,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
+	const themeSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -445,6 +440,27 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Subscribe to theme changes
+		themeSubscriptionRef.current = UiServiceClient.subscribeToTheme(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				if (response.value) {
+					try {
+						const themeData = JSON.parse(response.value)
+						setTheme(convertTextMateToHljs(themeData))
+						console.log("[DEBUG] Received theme update from gRPC stream")
+					} catch (error) {
+						console.error("Error parsing theme data:", error)
+					}
+				}
+			},
+			onError: (error) => {
+				console.error("Error in theme subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Theme subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -496,6 +512,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (mcpMarketplaceUnsubscribeRef.current) {
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
+			}
+			if (themeSubscriptionRef.current) {
+				themeSubscriptionRef.current()
+				themeSubscriptionRef.current = null
 			}
 		}
 	}, [])

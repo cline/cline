@@ -19,7 +19,6 @@ export interface ExtensionMessage {
 		| "selectedImages"
 		| "ollamaModels"
 		| "lmStudioModels"
-		| "theme"
 		| "workspaceUpdated"
 		| "openRouterModels"
 		| "openAiModels"

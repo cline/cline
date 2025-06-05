@@ -224,12 +224,6 @@ export class Controller {
 			case "webviewDidLaunch":
 				this.postStateToWebview()
 				this.workspaceTracker?.populateFilePaths() // don't await
-				getTheme().then((theme) =>
-					this.postMessageToWebview({
-						type: "theme",
-						text: JSON.stringify(theme),
-					}),
-				)
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
 					if (openRouterModels) {
