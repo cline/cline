@@ -13,7 +13,6 @@ export interface WebviewMessage {
 		| "reportBug"
 		| "requestVsCodeLmModels"
 		| "authStateChanged"
-		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
