@@ -10,9 +10,10 @@ import {
 } from "@vscode/webview-ui-toolkit/react"
 import { McpMarketplaceItem } from "@shared/mcp"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
+import { McpServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 const McpMarketplaceView = () => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [isLoading, setIsLoading] = useState(true)
@@ -92,7 +93,21 @@ const McpMarketplaceView = () => {
 			setIsLoading(true)
 		}
 		setError(null)
-		vscode.postMessage({ type: "fetchMcpMarketplace", bool: forceRefresh })
+		
+		McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
+			.then((catalog) => {
+				// The catalog will be automatically updated via the subscription system
+				// so we just need to handle the loading states here
+				setIsLoading(false)
+				setIsRefreshing(false)
+				setError(null)
+			})
+			.catch((error) => {
+				console.error("Failed to refresh MCP marketplace:", error)
+				setError(error instanceof Error ? error.message : "Failed to refresh MCP marketplace")
+				setIsLoading(false)
+				setIsRefreshing(false)
+			})
 	}
 
 	if (isLoading || isRefreshing) {
