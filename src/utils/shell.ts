@@ -182,7 +182,7 @@ function getShellFromEnv(): string | null {
 // 4) Terminal Profile Interface and Utilities
 // -----------------------------------------------------
 
-import { TerminalProfile } from '../shared/terminal_types';
+import { TerminalProfile } from "../shared/terminal_types"
 
 /** Gets available terminal profiles for the current platform */
 export function getAvailableTerminalProfiles(): TerminalProfile[] {
@@ -190,8 +190,8 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 		{
 			id: "default",
 			name: "Default",
-			description: "Use VSCode's default terminal configuration"
-		}
+			description: "Use VSCode's default terminal configuration",
+		},
 	]
 
 	if (process.platform === "win32") {
@@ -201,26 +201,26 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 				id: "powershell-7",
 				name: "PowerShell 7",
 				path: SHELL_PATHS.POWERSHELL_7,
-				description: "PowerShell 7 (pwsh.exe)"
+				description: "PowerShell 7 (pwsh.exe)",
 			},
 			{
 				id: "powershell-legacy",
 				name: "Windows PowerShell",
 				path: SHELL_PATHS.POWERSHELL_LEGACY,
-				description: "Windows PowerShell 5.x"
+				description: "Windows PowerShell 5.x",
 			},
 			{
 				id: "cmd",
 				name: "Command Prompt",
 				path: SHELL_PATHS.CMD,
-				description: "Command Prompt (cmd.exe)"
+				description: "Command Prompt (cmd.exe)",
 			},
 			{
 				id: "wsl-bash",
 				name: "WSL Bash",
 				path: SHELL_PATHS.WSL_BASH,
-				description: "Windows Subsystem for Linux Bash"
-			}
+				description: "Windows Subsystem for Linux Bash",
+			},
 		)
 	} else if (process.platform === "darwin") {
 		// macOS terminal profiles
@@ -229,14 +229,14 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 				id: "zsh",
 				name: "zsh",
 				path: SHELL_PATHS.ZSH,
-				description: "Z shell (default on macOS)"
+				description: "Z shell (default on macOS)",
 			},
 			{
 				id: "bash",
 				name: "bash",
 				path: SHELL_PATHS.BASH,
-				description: "Bourne Again Shell"
-			}
+				description: "Bourne Again Shell",
+			},
 		)
 	} else if (process.platform === "linux") {
 		// Linux terminal profiles
@@ -245,20 +245,20 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 				id: "bash",
 				name: "bash",
 				path: SHELL_PATHS.BASH,
-				description: "Bourne Again Shell (default on most Linux)"
+				description: "Bourne Again Shell (default on most Linux)",
 			},
 			{
 				id: "zsh",
 				name: "zsh",
 				path: SHELL_PATHS.ZSH,
-				description: "Z shell"
+				description: "Z shell",
 			},
 			{
 				id: "dash",
 				name: "dash",
 				path: SHELL_PATHS.DASH,
-				description: "Debian Almquist Shell"
-			}
+				description: "Debian Almquist Shell",
+			},
 		)
 	}
 
@@ -274,8 +274,8 @@ export function getShellForProfile(profileId: string): string {
 
 	// Find the profile
 	const profiles = getAvailableTerminalProfiles()
-	const profile = profiles.find(p => p.id === profileId)
-	
+	const profile = profiles.find((p) => p.id === profileId)
+
 	if (profile?.path) {
 		return profile.path
 	}

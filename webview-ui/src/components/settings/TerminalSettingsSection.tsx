@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "../../services/grpc-client" 
+import { StateServiceClient } from "../../services/grpc-client"
 import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
 import { TerminalProfile } from "../../../../src/shared/terminal_types"
 
@@ -14,7 +14,7 @@ export const TerminalSettingsSection: React.FC = () => {
 		defaultTerminalProfile,
 		setDefaultTerminalProfile,
 		availableTerminalProfiles,
-		platform, 
+		platform,
 	} = useExtensionState()
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
@@ -33,7 +33,7 @@ export const TerminalSettingsSection: React.FC = () => {
 		}
 
 		setInputError(null)
-		const timeout = Math.round(seconds * 1000) 
+		const timeout = Math.round(seconds * 1000)
 
 		setShellIntegrationTimeout(timeout)
 
@@ -60,21 +60,19 @@ export const TerminalSettingsSection: React.FC = () => {
 		const target = event.target as HTMLInputElement
 		const checked = target.checked
 		setTerminalReuseEnabled(checked)
-		StateServiceClient.updateTerminalReuseEnabled({ value: checked } as any) 
-			.catch((error) => {
-				console.error("Failed to update terminal reuse enabled:", error)
-			})
+		StateServiceClient.updateTerminalReuseEnabled({ value: checked } as any).catch((error) => {
+			console.error("Failed to update terminal reuse enabled:", error)
+		})
 	}
 
 	// Usamos any para evitar conflictos de tipo entre Event y FormEvent
 	const handleDefaultTerminalProfileChange = (event: any) => {
-		const target = event.target as HTMLSelectElement 
+		const target = event.target as HTMLSelectElement
 		const profileId = target.value
 		setDefaultTerminalProfile(profileId)
-		StateServiceClient.updateDefaultTerminalProfile({ value: profileId } as StringRequest)
-			.catch((error) => {
-				console.error("Failed to update default terminal profile:", error)
-			})
+		StateServiceClient.updateDefaultTerminalProfile({ value: profileId } as StringRequest).catch((error) => {
+			console.error("Failed to update default terminal profile:", error)
+		})
 	}
 
 	const profilesToShow = availableTerminalProfiles

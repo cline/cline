@@ -179,9 +179,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWindsurfRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
-		shellIntegrationTimeout: 4000, 
-		terminalReuseEnabled: true, 
-		defaultTerminalProfile: "default", 
+		shellIntegrationTimeout: 4000,
+		terminalReuseEnabled: true,
+		defaultTerminalProfile: "default",
 		isNewUser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -192,7 +192,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
-	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([]) 
+	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
@@ -216,7 +216,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, 
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 					...updatedModels,
 				})
 				break
@@ -239,8 +239,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				break
 			}
 			// Add case to handle availableTerminalProfiles message
-			case "availableTerminalProfiles": { // This type needs to be added to ExtensionMessage
-				if (message.text) { // Assuming profiles are sent as a JSON string in message.text
+			case "availableTerminalProfiles": {
+				// This type needs to be added to ExtensionMessage
+				if (message.text) {
+					// Assuming profiles are sent as a JSON string in message.text
 					try {
 						const profiles = JSON.parse(message.text) as TerminalProfile[]
 						setAvailableTerminalProfiles(profiles)
@@ -531,7 +533,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
 			.then((res) => {
 				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, 
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 					...res.models,
 				})
 			})
@@ -550,7 +552,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
-		availableTerminalProfiles, 
+		availableTerminalProfiles,
 		showMcp,
 		mcpTab,
 		showSettings,
@@ -623,7 +625,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				terminalReuseEnabled: value,
 			})),
-		setDefaultTerminalProfile: (value) => 
+		setDefaultTerminalProfile: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				defaultTerminalProfile: value,
