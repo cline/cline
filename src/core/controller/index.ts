@@ -139,6 +139,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
@@ -174,6 +175,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
+			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			customInstructions,
 			task,
@@ -347,6 +349,13 @@ export class Controller {
 
 				if (typeof message.terminalReuseEnabled === "boolean") {
 					await updateGlobalState(this.context, "terminalReuseEnabled", message.terminalReuseEnabled)
+				}
+
+				if (typeof message.defaultTerminalProfile === "string") {
+					await updateGlobalState(this.context, "defaultTerminalProfile", message.defaultTerminalProfile)
+					if (this.task) {
+						this.task.terminalManager.setDefaultTerminalProfile(message.defaultTerminalProfile)
+					}
 				}
 
 				// after settings are updated, post state to webview
@@ -1103,6 +1112,7 @@ export class Controller {
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
 		} = await getAllExtensionState(this.context)
@@ -1149,6 +1159,7 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
 		}

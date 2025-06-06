@@ -130,6 +130,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setShellIntegrationTimeout,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
+		defaultTerminalProfile,
+		setDefaultTerminalProfile,
 		mcpResponsesCollapsed,
 		setMcpResponsesCollapsed,
 		setApiConfiguration,
@@ -147,6 +149,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		defaultTerminalProfile,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -189,6 +192,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpMarketplaceEnabled,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			mcpResponsesCollapsed,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
@@ -215,7 +219,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
-			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
+			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -229,6 +234,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		defaultTerminalProfile,
 	])
 
 	// Handle cancel button click
@@ -265,6 +271,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				}
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+				}
+				if (typeof setDefaultTerminalProfile === "function") {
+					setDefaultTerminalProfile(originalState.current.defaultTerminalProfile ?? "default")
 				}
 				if (typeof setMcpResponsesCollapsed === "function") {
 					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)

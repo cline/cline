@@ -32,6 +32,7 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "fileSearchResults"
+		| "availableTerminalProfiles"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
@@ -109,6 +110,7 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
+	defaultTerminalProfile?: string
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

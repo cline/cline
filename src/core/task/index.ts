@@ -138,7 +138,7 @@ export class Task {
 	readonly taskId: string
 	private taskIsFavorited?: boolean
 	api: ApiHandler
-	private terminalManager: TerminalManager
+	terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -202,6 +202,7 @@ export class Task {
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
+		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		customInstructions?: string,
 		task?: string,
@@ -222,6 +223,7 @@ export class Task {
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
+		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
