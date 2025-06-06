@@ -5,8 +5,8 @@ import * as path from "path"
 interface TestCase {
 	test_id: string // unique id
 	messages: any[] // array of messages with 'role' & 'text'
-	fileContents: string // file contents for editing
-	original_file_path: string // file we attempted to edit
+	file_contents: string // file contents for editing
+	file_path: string // file we attempted to edit
 }
 
 interface TestConfig {
@@ -62,8 +62,8 @@ class NodeTestRunner {
 			systemPrompt: testCase.messages[0], // testConfig.system_prompt, // @@@@@@@@@@@@@@@@@@ need to change this
 			messages: testCase.messages.slice(1), // @@@@@@@@@@@@@@@ need to change this
 			modelId: testConfig.model_id,
-			originalFile: testCase.fileContents,
-			originalFilePath: testCase.original_file_path,
+			originalFile: testCase.file_contents,
+			originalFilePath: testCase.file_path,
 			parsingFunction: testConfig.parsing_function,
 			diffEditFunction: testConfig.diff_edit_function,
 		}
