@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { EmptyRequest } from "@shared/proto/common"
+import { UpdateSettingsRequest } from "@shared/proto/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -650,22 +651,38 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
-		setChatSettings: (value) => {
+		setChatSettings: async (value) => {
 			setState((prevState) => ({
 				...prevState,
 				chatSettings: value,
 			}))
-			vscode.postMessage({
-				type: "updateSettings",
-				chatSettings: value,
-				apiConfiguration: state.apiConfiguration,
-				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: state.telemetrySetting,
-				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-				enableCheckpointsSetting: state.enableCheckpointsSetting,
-				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-			})
+
+			try {
+				// Import the conversion functions
+				const { convertApiConfigurationToProtoApiConfiguration } = await import(
+					"@shared/proto-conversions/state/settings-conversion"
+				)
+				const { convertChatSettingsToProtoChatSettings } = await import(
+					"@shared/proto-conversions/state/chat-settings-conversion"
+				)
+
+				await StateServiceClient.updateSettings(
+					UpdateSettingsRequest.create({
+						chatSettings: convertChatSettingsToProtoChatSettings(value),
+						apiConfiguration: state.apiConfiguration
+							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
+							: undefined,
+						customInstructionsSetting: state.customInstructions,
+						telemetrySetting: state.telemetrySetting,
+						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+						enableCheckpointsSetting: state.enableCheckpointsSetting,
+						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to update chat settings:", error)
+			}
 		},
 		setGlobalClineRulesToggles: (toggles) =>
 			setState((prevState) => ({

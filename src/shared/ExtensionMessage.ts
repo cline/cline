@@ -22,7 +22,6 @@ export interface ExtensionMessage {
 		| "mcpServers"
 		| "relinquishControl"
 		| "mcpDownloadDetails"
-		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
