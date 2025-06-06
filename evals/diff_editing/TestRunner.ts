@@ -13,6 +13,8 @@ interface TestConfig {
 	model_id: string // model to use to run the diff edit evals
 	system_prompt: string // system prompt to use here
 	number_of_runs: number // specifies the number of times to run each eval example
+	parsing_function: string // parsing function to use
+	diff_edit_function: string // diff edit function to use
 }
 
 type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] }
@@ -62,6 +64,8 @@ class NodeTestRunner {
 			modelId: testConfig.model_id,
 			originalFile: testCase.fileContents,
 			originalFilePath: testCase.original_file_path,
+			parsingFunction: testConfig.parsing_function,
+			diffEditFunction: testConfig.diff_edit_function,
 		}
 
 		return await runSingleEvaluation(input)

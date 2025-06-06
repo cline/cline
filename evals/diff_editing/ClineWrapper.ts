@@ -1,9 +1,31 @@
 import { OpenRouterHandler } from "../../src/api/providers/openrouter"
 import { ApiHandlerOptions } from "../../src/shared/api"
 
-import { parseAssistantMessageV2, AssistantMessageContent, ToolUseName, ToolParamName } from "../../src/core/assistant-message"
+import {
+	parseAssistantMessageV1,
+	parseAssistantMessageV2,
+	parseAssistantMessageV3,
+	AssistantMessageContent,
+	ToolUseName,
+	ToolParamName,
+} from "../../src/core/assistant-message"
+import { constructNewFileContentV2 } from "../../src/core/assistant-message/diff"
 
-import { constructNewFileContentV2 as constructNewFileContent } from "../../src/core/assistant-message/diff"
+type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
+type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
+
+const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
+	parseAssistantMessageV1: parseAssistantMessageV1,
+	parseAssistantMessageV2: parseAssistantMessageV2,
+	parseAssistantMessageV3: parseAssistantMessageV3,
+}
+
+const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
+	constructNewFileContentV2: constructNewFileContentV2,
+}
+
+// constructNewFileContent
+// parseAssistantMessage
 
 interface ExtractedToolCall {
 	name: ToolUseName
@@ -17,6 +39,8 @@ export interface TestInput {
 	modelId: string
 	originalFile: string
 	originalFilePath: string
+	parsingFunction: string
+	diffEditFunction: string
 }
 
 export interface TestResult {
@@ -101,12 +125,32 @@ async function processStream(handler: OpenRouterHandler, systemPrompt: string, m
 export async function runSingleEvaluation(input: TestInput): Promise<TestResult> {
 	try {
 		// Extract parameters
-		const { apiKey, systemPrompt, messages, modelId, originalFile, originalFilePath } = input
+		const { apiKey, systemPrompt, messages, modelId, originalFile, originalFilePath, parsingFunction, diffEditFunction } =
+			input
 
-		if (!apiKey || !messages || !modelId || !systemPrompt || !originalFile || !originalFilePath) {
+		if (
+			!apiKey ||
+			!messages ||
+			!modelId ||
+			!systemPrompt ||
+			!originalFile ||
+			!originalFilePath ||
+			!parsingFunction ||
+			!diffEditFunction
+		) {
 			return {
 				success: false,
 				error: "missing_required_parameters",
+			}
+		}
+
+		const parseAssistantMessage = parsingFunctions[parsingFunction]
+		const constructNewFileContent = diffEditingFunctions[diffEditFunction]
+
+		if (!parseAssistantMessage || !constructNewFileContent) {
+			return {
+				success: false,
+				error: "invalid_functions",
 			}
 		}
 
@@ -139,7 +183,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		}
 
 		// process the assistant message into its constituent tool calls & text blocks
-		const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessageV2(result.assistantMessage)
+		const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessage(result.assistantMessage)
 
 		const detectedToolCalls: ExtractedToolCall[] = []
 
