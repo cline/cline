@@ -57,6 +57,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTerminalReuseEnabled: (value: boolean) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
+	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -204,19 +205,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				setFilePaths(message.filePaths ?? [])
 				break
 			}
-			case "openAiModels": {
-				const updatedModels = message.openAiModels ?? []
-				setOpenAiModels(updatedModels)
-				break
-			}
-			case "requestyModels": {
-				const updatedModels = message.requestyModels ?? {}
-				setRequestyModels({
-					[requestyDefaultModelId]: requestyDefaultModelInfo,
-					...updatedModels,
-				})
-				break
-			}
+
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
 				break
@@ -647,6 +636,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				terminalReuseEnabled: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
