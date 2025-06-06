@@ -17,6 +17,8 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
+		| "workspaceUpdated"
+		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "mcpDownloadDetails"
