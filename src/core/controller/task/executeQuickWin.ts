@@ -7,17 +7,17 @@ import type { Controller } from "../index"
  * @param controller The controller instance
  * @param request The execute quick win request
  * @returns Empty response
- * 
+ *
  * @example
  * // Usage from webview:
  * import { TaskServiceClient } from "@/services/grpc-client"
  * import { ExecuteQuickWinRequest } from "@shared/proto/task"
- * 
+ *
  * const request: ExecuteQuickWinRequest = {
  *   command: "npm install",
  *   title: "Install dependencies"
  * }
- * 
+ *
  * TaskServiceClient.executeQuickWin(request)
  *   .then(() => console.log("Quick win executed successfully"))
  *   .catch(error => console.error("Failed to execute quick win:", error))
