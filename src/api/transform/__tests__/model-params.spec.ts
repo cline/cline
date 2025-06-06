@@ -1,8 +1,12 @@
-// npx jest src/api/transform/__tests__/model-params.test.ts
+// npx vitest run api/transform/__tests__/model-params.spec.ts
 
 import { type ModelInfo, ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 
 import { getModelParams } from "../model-params"
+import {
+	DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
+	DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
+} from "../../../shared/api"
 
 describe("getModelParams", () => {
 	const baseModel: ModelInfo = {
@@ -188,16 +192,15 @@ describe("getModelParams", () => {
 		it("should handle requiredReasoningBudget models correctly", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 2000,
 				requiredReasoningBudget: true,
 			}
 
-			expect(getModelParams({ ...anthropicParams, settings: {}, model })).toEqual({
+			expect(getModelParams({ ...anthropicParams, settings: { modelMaxTokens: 2000 }, model })).toEqual({
 				format: anthropicParams.format,
 				maxTokens: 2000,
 				temperature: 1.0, // Thinking models require temperature 1.0.
 				reasoningEffort: undefined,
-				reasoningBudget: 1600, // 80% of 2000,
+				reasoningBudget: 0.8 * 2000,
 				reasoning: {
 					type: "enabled",
 					budget_tokens: 1600,
@@ -208,13 +211,12 @@ describe("getModelParams", () => {
 		it("should handle supportsReasoningBudget with enableReasoningEffort setting", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 2000,
 				supportsReasoningBudget: true,
 			}
 
 			const result = getModelParams({
 				...anthropicParams,
-				settings: { enableReasoningEffort: true },
+				settings: { enableReasoningEffort: true, modelMaxTokens: 2000 },
 				model,
 			})
 
@@ -266,11 +268,16 @@ describe("getModelParams", () => {
 		it("should honor customMaxThinkingTokens for reasoning budget models", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 4000,
 				requiredReasoningBudget: true,
 			}
 
-			expect(getModelParams({ ...anthropicParams, settings: { modelMaxThinkingTokens: 1500 }, model })).toEqual({
+			expect(
+				getModelParams({
+					...anthropicParams,
+					settings: { modelMaxTokens: 4000, modelMaxThinkingTokens: 1500 },
+					model,
+				}),
+			).toEqual({
 				format: anthropicParams.format,
 				maxTokens: 4000,
 				temperature: 1.0,
@@ -302,11 +309,16 @@ describe("getModelParams", () => {
 		it("should clamp thinking budget to at least 1024 tokens", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 2000,
 				requiredReasoningBudget: true,
 			}
 
-			expect(getModelParams({ ...anthropicParams, settings: { modelMaxThinkingTokens: 500 }, model })).toEqual({
+			expect(
+				getModelParams({
+					...anthropicParams,
+					settings: { modelMaxTokens: 2000, modelMaxThinkingTokens: 500 },
+					model,
+				}),
+			).toEqual({
 				format: anthropicParams.format,
 				maxTokens: 2000,
 				temperature: 1.0,
@@ -322,16 +334,21 @@ describe("getModelParams", () => {
 		it("should clamp thinking budget to at most 80% of max tokens", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 4000,
 				requiredReasoningBudget: true,
 			}
 
-			expect(getModelParams({ ...anthropicParams, settings: { modelMaxThinkingTokens: 5000 }, model })).toEqual({
+			expect(
+				getModelParams({
+					...anthropicParams,
+					settings: { modelMaxTokens: 4000, modelMaxThinkingTokens: 5000 },
+					model,
+				}),
+			).toEqual({
 				format: anthropicParams.format,
 				maxTokens: 4000,
 				temperature: 1.0,
 				reasoningEffort: undefined,
-				reasoningBudget: 3200, // 80% of 4000
+				reasoningBudget: 0.8 * 4000,
 				reasoning: {
 					type: "enabled",
 					budget_tokens: 3200,
@@ -339,7 +356,7 @@ describe("getModelParams", () => {
 			})
 		})
 
-		it("should use ANTHROPIC_DEFAULT_MAX_TOKENS when no maxTokens is provided for reasoning budget models", () => {
+		it("should use DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS when no maxTokens is provided for reasoning budget models", () => {
 			const model: ModelInfo = {
 				...baseModel,
 				requiredReasoningBudget: true,
@@ -347,13 +364,13 @@ describe("getModelParams", () => {
 
 			expect(getModelParams({ ...anthropicParams, settings: {}, model })).toEqual({
 				format: anthropicParams.format,
-				maxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+				maxTokens: DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
 				temperature: 1.0,
 				reasoningEffort: undefined,
-				reasoningBudget: Math.floor(ANTHROPIC_DEFAULT_MAX_TOKENS * 0.8),
+				reasoningBudget: DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
 				reasoning: {
 					type: "enabled",
-					budget_tokens: Math.floor(ANTHROPIC_DEFAULT_MAX_TOKENS * 0.8),
+					budget_tokens: DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
 				},
 			})
 		})
@@ -539,9 +556,8 @@ describe("getModelParams", () => {
 				model,
 			})
 
-			// Should keep model's maxTokens when using reasoning
-			expect(result.maxTokens).toBe(8000)
-			expect(result.reasoningBudget).toBe(6400) // 80% of 8000
+			expect(result.maxTokens).toBe(16384) // Default value.
+			expect(result.reasoningBudget).toBe(8192) // Default value.
 		})
 	})
 
@@ -549,7 +565,6 @@ describe("getModelParams", () => {
 		it("should handle model with both reasoning capabilities but only one enabled", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 4000,
 				supportsReasoningBudget: true,
 				supportsReasoningEffort: true,
 				reasoningEffort: "medium",
@@ -558,7 +573,7 @@ describe("getModelParams", () => {
 			// Only reasoning budget should be used (takes precedence)
 			const result = getModelParams({
 				...anthropicParams,
-				settings: { enableReasoningEffort: true },
+				settings: { enableReasoningEffort: true, modelMaxTokens: 4000 },
 				model,
 			})
 
@@ -585,18 +600,17 @@ describe("getModelParams", () => {
 		it("should handle very small maxTokens for reasoning budget models", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 1000, // Less than minimum reasoning budget
 				requiredReasoningBudget: true,
 			}
 
 			const result = getModelParams({
 				...anthropicParams,
-				settings: {},
+				settings: { modelMaxTokens: 1000 }, // Less than minimum reasoning budget.
 				model,
 			})
 
 			expect(result.maxTokens).toBe(1000)
-			expect(result.reasoningBudget).toBe(1024) // Clamped to minimum
+			expect(result.reasoningBudget).toBe(1024) // Clamped to minimum.
 		})
 
 		it("should handle undefined settings", () => {
@@ -694,13 +708,12 @@ describe("getModelParams", () => {
 		it("should return correct reasoning format for openrouter with reasoning budget", () => {
 			const model: ModelInfo = {
 				...baseModel,
-				maxTokens: 4000,
 				requiredReasoningBudget: true,
 			}
 
 			const result = getModelParams({
 				...openrouterParams,
-				settings: {},
+				settings: { modelMaxTokens: 4000 },
 				model,
 			})
 

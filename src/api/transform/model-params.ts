@@ -1,6 +1,11 @@
 import { type ModelInfo, type ProviderSettings, ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 
-import { shouldUseReasoningBudget, shouldUseReasoningEffort } from "../../shared/api"
+import {
+	DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
+	DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
+	shouldUseReasoningBudget,
+	shouldUseReasoningEffort,
+} from "../../shared/api"
 
 import {
 	type AnthropicReasoningParams,
@@ -77,13 +82,21 @@ export function getModelParams({
 	let reasoningEffort: ModelParams["reasoningEffort"] = undefined
 
 	if (shouldUseReasoningBudget({ model, settings })) {
-		// "Hybrid" reasoning models use the `reasoningBudget` parameter.
-		maxTokens = customMaxTokens ?? maxTokens
+		// If `customMaxTokens` is not specified use the default.
+		maxTokens = customMaxTokens ?? DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS
 
-		// Clamp the thinking budget to be at most 80% of max tokens and at
-		// least 1024 tokens.
-		const maxBudgetTokens = Math.floor((maxTokens || ANTHROPIC_DEFAULT_MAX_TOKENS) * 0.8)
-		reasoningBudget = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
+		// If `customMaxThinkingTokens` is not specified use the default.
+		reasoningBudget = customMaxThinkingTokens ?? DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS
+
+		// Reasoning cannot exceed 80% of the `maxTokens` value.
+		if (reasoningBudget > Math.floor(maxTokens * 0.8)) {
+			reasoningBudget = Math.floor(maxTokens * 0.8)
+		}
+
+		// Reasoning cannot be less than 1024 tokens.
+		if (reasoningBudget < 1024) {
+			reasoningBudget = 1024
+		}
 
 		// Let's assume that "Hybrid" reasoning models require a temperature of
 		// 1.0 since Anthropic does.
