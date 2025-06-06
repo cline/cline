@@ -270,28 +270,28 @@ export const ExtensionStateContextProvider: React.FC<{
 							const config = stateData.apiConfiguration
 							const hasKey = config
 								? [
-									config.apiKey,
-									config.openRouterApiKey,
-									config.awsRegion,
-									config.vertexProjectId,
-									config.openAiApiKey,
-									config.ollamaModelId,
-									config.lmStudioModelId,
-									config.liteLlmApiKey,
-									config.geminiApiKey,
-									config.openAiNativeApiKey,
-									config.deepSeekApiKey,
-									config.requestyApiKey,
-									config.togetherApiKey,
-									config.qwenApiKey,
-									config.doubaoApiKey,
-									config.mistralApiKey,
-									config.vsCodeLmModelSelector,
-									config.clineApiKey,
-									config.asksageApiKey,
-									config.xaiApiKey,
-									config.sambanovaApiKey,
-								].some((key) => key !== undefined)
+										config.apiKey,
+										config.openRouterApiKey,
+										config.awsRegion,
+										config.vertexProjectId,
+										config.openAiApiKey,
+										config.ollamaModelId,
+										config.lmStudioModelId,
+										config.liteLlmApiKey,
+										config.geminiApiKey,
+										config.openAiNativeApiKey,
+										config.deepSeekApiKey,
+										config.requestyApiKey,
+										config.togetherApiKey,
+										config.qwenApiKey,
+										config.doubaoApiKey,
+										config.mistralApiKey,
+										config.vsCodeLmModelSelector,
+										config.clineApiKey,
+										config.asksageApiKey,
+										config.xaiApiKey,
+										config.sambanovaApiKey,
+									].some((key) => key !== undefined)
 								: false
 
 							setShowWelcome(!hasKey)
@@ -365,7 +365,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			onError: (error) => {
 				console.error("Error in chat button subscription:", error)
 			},
-			onComplete: () => { },
+			onComplete: () => {},
 		})
 
 		// Set up settings button clicked subscription

@@ -9,7 +9,17 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck, FlaskConical, GitCommitIcon, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	GitCommitIcon,
+	Info,
+	LucideIcon,
+	Settings,
+	SquareMousePointer,
+	SquareTerminal,
+	Webhook,
+} from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -89,14 +99,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
 	// Only show in dev mode
 	...(IS_DEV
 		? [
-			{
-				id: "debug",
-				name: "Debug",
-				tooltipText: "Debug Tools",
-				headerText: "Debug",
-				icon: FlaskConical,
-			},
-		]
+				{
+					id: "debug",
+					name: "Debug",
+					tooltipText: "Debug Tools",
+					headerText: "Debug",
+					icon: FlaskConical,
+				},
+			]
 		: []),
 	{
 		id: "about",
