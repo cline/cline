@@ -47,6 +47,14 @@ body:
           placeholder: "e.g., Windows 11, macOS Sonoma, Ubuntu 22.04"
       validations:
           required: true
+    - type: textarea
+      id: system-info
+      attributes:
+          label: System Info
+          description: What system information is relevant to the issue?
+          placeholder: "e.g., CPU: Intel Core i7-11700K, GPU: NVIDIA GeForce RTX 3070, RAM: 32GB DDR4"
+      validations:
+          required: true
     - type: input
       id: cline-version
       attributes:

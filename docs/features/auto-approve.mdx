@@ -1,0 +1,59 @@
+The Auto Approve menu lets you set fine-grained permissions on what you allow Cline to do in an automated way.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/auto-approve.png" alt="Auto Approve" />
+</Frame>
+
+## How it works
+
+By default, Cline will ask for your permission before calling any tool, including reading or writing files.
+
+If you want to allow Cline to do something without asking, you can set the Auto Approve permission for that tool.
+
+## Permission Options
+
+-   **Read project files**
+
+    -   Allows Cline to read files within your current workspace without asking
+    -   **Read all files**
+        -   Extends read permission to files outside your workspace (system files, config files, etc.)
+
+-   **Edit project files**
+
+    -   Allows Cline to modify files within your current workspace without confirmation
+    -   **Edit all files**
+        -   Extends modification permission to files outside your workspace
+
+-   **Execute safe commands**
+
+    -   Allows execution of terminal commands that the model deems non-destructive
+    -   **Execute all commands**
+        -   Permits execution of any terminal command without asking
+
+-   **Use the browser**
+
+    -   Allows Cline to use the browser tool to fetch web content
+
+-   **Use MCP servers**
+
+    -   Permits connection to and usage of MCP servers for extended functionality
+
+-   **Maximum requests**
+    -   Sets the number of consecutive automated actions Cline can take before requiring your input
+
+## Best Practices
+
+Personally, I like to keep auto-editing disabled because it gives me a chance to review changes every step of the way.
+
+For most serious development workflows, I recommend starting with:
+
+-   Auto-approving read access to project files
+-   Setting a reasonable maximum request limit (10-20)
+
+This gives Cline enough freedom to explore your codebase without constant interruptions, while still requiring permission for edits or potentially destructive actions.
+
+As you build more trust in Cline's capabilities with your specific projects, you can gradually increase the permissions to match your comfort level.
+
+Remember that you can always adjust these settings as your needs change - tighten permissions for critical production work, or loosen them when prototyping and exploring.
+
+You can even use the quick "star" actions to quickly toggle your auto-approved selections on and off as you go.

@@ -17,21 +17,23 @@ export interface AutoApprovalSettings {
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
+	favorites: string[] // IDs of actions favorited by the user for quick access
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: false,
+	enabled: true,
 	actions: {
-		readFiles: false,
+		readFiles: true,
 		readFilesExternally: false,
 		editFiles: false,
 		editFilesExternally: false,
-		executeSafeCommands: false,
+		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,
 		useMcp: false,
 	},
 	maxRequests: 20,
 	enableNotifications: false,
+	favorites: ["enableAutoApprove", "readFiles", "editFiles"],
 }

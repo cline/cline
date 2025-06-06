@@ -1,4 +1,5 @@
-import type { ToggleMcpServerRequest, McpServers } from "../../../shared/proto/mcp"
+import type { ToggleMcpServerRequest } from "../../../shared/proto/mcp"
+import { McpServers } from "../../../shared/proto/mcp"
 import type { Controller } from "../index"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 
@@ -15,7 +16,7 @@ export async function toggleMcpServer(controller: Controller, request: ToggleMcp
 		// Convert from McpServer[] to ProtoMcpServer[] ensuring all required fields are set
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to toggle MCP server ${request.serverName}:`, error)
 		throw error

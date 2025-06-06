@@ -27,7 +27,8 @@
 			"@integrations/*": ["src/integrations/*"],
 			"@services/*": ["src/services/*"],
 			"@shared/*": ["src/shared/*"],
-			"@utils/*": ["src/utils/*"]
+			"@utils/*": ["src/utils/*"],
+			"@packages/*": ["src/packages/*"]
 		}
 	},
 	"include": ["src/**/*", "scripts/**/*"],

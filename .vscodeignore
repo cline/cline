@@ -37,6 +37,10 @@ docs/**
 !node_modules/@vscode/codicons/dist/codicon.css
 !node_modules/@vscode/codicons/dist/codicon.ttf
 
+# Include KaTeX CSS and fonts for LaTeX rendering
+!webview-ui/node_modules/katex/dist/katex.min.css
+!webview-ui/node_modules/katex/dist/fonts/**
+
 # Include default themes JSON files used in getTheme
 !src/integrations/theme/default-themes/**
 

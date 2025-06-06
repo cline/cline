@@ -86,16 +86,34 @@ const OS_GENERATED_FILES = [
  * Recursively reads a directory and returns an array of absolute file paths.
  *
  * @param directoryPath - The path to the directory to read.
+ * @param excludedPaths - Nested array of paths to ignore.
  * @returns A promise that resolves to an array of absolute file paths.
  * @throws Error if the directory cannot be read.
  */
-export const readDirectory = async (directoryPath: string) => {
+export const readDirectory = async (directoryPath: string, excludedPaths: string[][] = []) => {
 	try {
 		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
 			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
 			.then((entries) => entries.filter((entry) => entry.isFile()))
 			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+			.then((filePaths) =>
+				filePaths.filter((filePath) => {
+					if (excludedPaths.length === 0) {
+						return true
+					}
+
+					for (const excludedPathList of excludedPaths) {
+						const pathToSearchFor = path.sep + excludedPathList.join(path.sep) + path.sep
+						if (filePath.includes(pathToSearchFor)) {
+							return false
+						}
+					}
+
+					return true
+				}),
+			)
+
 		return filePaths
 	} catch {
 		throw new Error(`Error reading directory at ${directoryPath}`)

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/browser"
 import * as vscode from "vscode"
-import { telemetryService } from "@services/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import * as pkg from "../../../package.json"
 
 let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")

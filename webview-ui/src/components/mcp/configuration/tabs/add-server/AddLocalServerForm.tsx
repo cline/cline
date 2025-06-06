@@ -1,7 +1,8 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "@/utils/vscode"
-import styled from "styled-components"
 import { LINKS } from "@/constants"
+import { McpServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import styled from "styled-components"
 
 type AddLocalServerFormProps = {
 	onServerAdded: () => void
@@ -22,7 +23,9 @@ const AddLocalServerForm = ({ onServerAdded }: AddLocalServerFormProps) => {
 				appearance="primary"
 				style={{ width: "100%", marginBottom: "5px", marginTop: 8 }}
 				onClick={() => {
-					vscode.postMessage({ type: "openMcpSettings" })
+					McpServiceClient.openMcpSettings(EmptyRequest.create({})).catch((error) => {
+						console.error("Error opening MCP settings:", error)
+					})
 				}}>
 				Open cline_mcp_settings.json
 			</VSCodeButton>

@@ -11,55 +11,55 @@ describe("constructNewFileContent", () => {
 		{
 			name: "empty file",
 			original: "",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 =======
 new content
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "new content\n",
 			isFinal: true,
 		},
 		{
 			name: "full file replacement",
 			original: "old content",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 =======
 new content
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "new content\n",
 			isFinal: true,
 		},
 		{
 			name: "exact match replacement",
 			original: "line1\nline2\nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "line-trimmed match replacement",
 			original: "line1\n line2 \nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "block anchor match replacement",
 			original: "line1\nstart\nmiddle\nend\nline5",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 start
 middle
 end
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline5",
 			isFinal: true,
 		},
@@ -67,11 +67,11 @@ replaced
 			name: "incremental processing",
 			original: "line1\nline2\nline3",
 			diff: [
-				`<<<<<<< SEARCH
+				`------- SEARCH
 line2
 =======`,
 				"replaced\n",
-				">>>>>>> REPLACE",
+				"+++++++ REPLACE",
 			].join("\n"),
 			expected: "line1\nreplaced\n\nline3",
 			isFinal: true,
@@ -79,60 +79,60 @@ line2
 		{
 			name: "final chunk with remaining content",
 			original: "line1\nline2\nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "multiple ordered replacements",
 			original: "First\nSecond\nThird\nFourth",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 First
 =======
 1st
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 Third
 =======
 3rd
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "1st\nSecond\n3rd\nFourth",
 			isFinal: true,
 		},
 		{
 			name: "replace then delete",
 			original: "line1\nline2\nline3\nline4",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 line4
 =======
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3\n",
 			isFinal: true,
 		},
 		{
 			name: "delete then replace",
 			original: "line1\nline2\nline3\nline4",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line1
 =======
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 line3
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line2\nreplaced\nline4",
 			isFinal: true,
 		},
@@ -155,11 +155,11 @@ replaced
 
 	it("should throw error when no match found", async () => {
 		const original = "line1\nline2\nline3"
-		const diff = `<<<<<<< SEARCH
+		const diff = `------- SEARCH
 non-existent
 =======
 replaced
->>>>>>> REPLACE`
++++++++ REPLACE`
 
 		try {
 			await cnfc(diff, original, true)

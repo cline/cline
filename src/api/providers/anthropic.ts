@@ -24,13 +24,15 @@ export class AnthropicHandler implements ApiHandler {
 		const modelId = model.id
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn = (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0 ? true : false
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
+			case "claude-sonnet-4-20250514":
 			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
+			case "claude-opus-4-20250514":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/*
@@ -96,6 +98,8 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
+							case "claude-sonnet-4-20250514":
+							case "claude-opus-4-20250514":
 							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
@@ -129,7 +133,7 @@ export class AnthropicHandler implements ApiHandler {
 		}
 
 		for await (const chunk of stream) {
-			switch (chunk.type) {
+			switch (chunk?.type) {
 				case "message_start":
 					// tells us cache reads/writes/input/output
 					const usage = chunk.message.usage

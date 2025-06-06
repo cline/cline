@@ -4,6 +4,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "compile-standalone",
+			"type": "npm",
+			"script": "compile-standalone",
+			"group": "build",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
 			"label": "npm: protos",
 			"type": "npm",
 			"script": "protos",
@@ -22,7 +32,7 @@
 			"label": "watch",
 			"dependsOn": ["npm: protos", "npm: build:webview", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild"],
 			"presentation": {
-				"reveal": "never"
+				"reveal": "always"
 			},
 			"group": {
 				"kind": "build",
@@ -39,7 +49,7 @@
 				"npm: watch:esbuild:test"
 			],
 			"presentation": {
-				"reveal": "never"
+				"reveal": "always"
 			},
 			"group": "build"
 		},
@@ -53,8 +63,7 @@
 			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -69,10 +78,10 @@
 			"problemMatcher": [],
 			"isBackground": true,
 			"label": "npm: build:webview:test",
+			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -104,10 +113,10 @@
 			],
 			"isBackground": true,
 			"label": "npm: dev:webview",
+			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -125,8 +134,7 @@
 			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -144,8 +152,7 @@
 			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -161,10 +168,10 @@
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"label": "npm: watch:tsc",
+			"dependsOn": ["npm: protos"],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			}
 		},
 		{
@@ -172,8 +179,9 @@
 			"script": "watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
+			"dependsOn": ["npm: protos"],
 			"presentation": {
-				"reveal": "never",
+				"reveal": "always",
 				"group": "watchers"
 			},
 			"group": "build"
@@ -187,6 +195,12 @@
 			"label": "stop",
 			"command": "echo ${input:terminate}",
 			"type": "shell"
+		},
+		{
+			"label": "clean-sandbox",
+			"type": "shell",
+			"dependsOn": ["watch"],
+			"command": "rm -rf .vscode-dev"
 		}
 	],
 	"inputs": [

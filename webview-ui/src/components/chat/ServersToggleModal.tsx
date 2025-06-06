@@ -8,7 +8,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import Tooltip from "@/components/common/Tooltip"
 
 const ServersToggleModal: React.FC = () => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, navigateToMcp } = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -42,7 +42,7 @@ const ServersToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage MCP Servers">
+				<Tooltip tipText="Manage MCP Servers" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
 						aria-label="MCP Servers"
@@ -81,11 +81,8 @@ const ServersToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {
-								vscode.postMessage({
-									type: "showMcpView",
-									tab: "installed",
-								})
 								setIsVisible(false)
+								navigateToMcp("installed")
 							}}>
 							<span className="codicon codicon-gear text-[10px]"></span>
 						</VSCodeButton>

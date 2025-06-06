@@ -66,8 +66,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.o3MiniReasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
 				})
+
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
 					if (delta?.content) {

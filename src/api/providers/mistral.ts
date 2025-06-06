@@ -19,13 +19,23 @@ export class MistralHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const stream = await this.client.chat.stream({
-			model: this.getModel().id,
-			// max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: 0,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
-			stream: true,
-		})
+		const stream = await this.client.chat
+			.stream({
+				model: this.getModel().id,
+				// max_completion_tokens: this.getModel().info.maxTokens,
+				temperature: 0,
+				messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
+				stream: true,
+			})
+			.catch((err) => {
+				// The Mistal SDK uses statusCode instead of status
+				// However, if they introduce status for something, I don't want to override it
+				if ("statusCode" in err && !("status" in err)) {
+					err.status = err.statusCode
+				}
+
+				throw err
+			})
 
 		for await (const chunk of stream) {
 			const delta = chunk.data.choices[0]?.delta

@@ -34,18 +34,20 @@ If you're planning to work on a bigger feature, please create a [feature request
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
 
-    - `libatk1.0-0`
+    - `dbus`
+    - `libasound2`
     - `libatk-bridge2.0-0`
-    - `libxkbfile1`
+    - `libatk1.0-0`
+    - `libdrm2`
+    - `libgbm1`
+    - `libgtk-3-0`
+    - `libnss3`
     - `libx11-xcb1`
     - `libxcomposite1`
     - `libxdamage1`
     - `libxfixes3`
+    - `libxkbfile1`
     - `libxrandr2`
-    - `libgbm1`
-    - `libdrm2`
-    - `libgtk-3-0`
-    - `dbus`
     - `xvfb`
 
     These libraries provide necessary GUI components and system services for the test environment.
@@ -54,9 +56,21 @@ If you're planning to work on a bigger feature, please create a [feature request
     ```bash
     sudo apt update
     sudo apt install -y \
-      libatk1.0-0 libatk-bridge2.0-0 libxkbfile1 libx11-xcb1 \
-      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
-      libdrm2 libgtk-3-0 dbus xvfb
+      dbus \
+      libasound2 \
+      libatk-bridge2.0-0 \
+      libatk1.0-0 \
+      libdrm2 \
+      libgbm1 \
+      libgtk-3-0 \
+      libnss3 \
+      libx11-xcb1 \
+      libxcomposite1 \
+      libxdamage1 \
+      libxfixes3 \
+      libxkbfile1 \
+      libxrandr2 \
+      xvfb
     ```
 
     - Run `npm run test:ci` to run tests locally

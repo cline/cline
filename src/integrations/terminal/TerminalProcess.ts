@@ -1,6 +1,7 @@
 import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
+import { Logger } from "@services/logging/Logger"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -34,6 +35,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+
 			for await (let data of stream) {
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {

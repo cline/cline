@@ -1,3 +1,4 @@
+import { EmptyRequest } from "@shared/proto/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
@@ -6,10 +7,10 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { requestyDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { ModelsServiceClient } from "../../services/grpc-client"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 export interface RequestyModelPickerProps {
@@ -43,7 +44,9 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 	}, [apiConfiguration])
 
 	useMount(() => {
-		vscode.postMessage({ type: "refreshRequestyModels" })
+		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({})).catch((err) => {
+			console.error("Failed to refresh Requesty models:", err)
+		})
 	})
 
 	useEffect(() => {

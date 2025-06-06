@@ -6,6 +6,10 @@ export default defineConfig({
 	mocha: {
 		ui: "bdd",
 		timeout: 20000, // Maximum time (in ms) that a test can run before failing
+		/** Set up alias path resolution during tests
+		 * @See {@link file://./test-setup.js}
+		 */
+		require: ["./test-setup.js"],
 	},
 	workspaceFolder: "test-workspace",
 	version: "stable",

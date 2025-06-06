@@ -76,8 +76,8 @@ export const ClineAccountView = () => {
 	}
 
 	const handleLogout = () => {
-		// First notify extension to clear API keys and state
-		vscode.postMessage({ type: "accountLogoutClicked" })
+		// Use gRPC client to notify extension to clear API keys and state
+		AccountServiceClient.accountLogoutClicked(EmptyRequest.create()).catch((err) => console.error("Failed to logout:", err))
 		// Then sign out of Firebase
 		handleSignOut()
 	}

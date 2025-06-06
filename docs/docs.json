@@ -1,0 +1,191 @@
+{
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "linden",
+	"name": "Cline",
+	"description": "AI-powered coding assistant for VSCode",
+	"colors": {
+		"primary": "#9D4EDD",
+		"light": "#F0E6FF",
+		"dark": "#000000"
+	},
+	"logo": {
+		"light": "/assets/robot_panel_light.png",
+		"dark": "/assets/robot_panel_dark.png"
+	},
+	"favicon": {
+		"light": "/assets/robot_panel_light.png",
+		"dark": "/assets/robot_panel_dark.png"
+	},
+	"background": {
+		"color": {
+			"light": "#F0E6FF",
+			"dark": "#000000"
+		},
+		"decoration": "gradient"
+	},
+	"styling": {
+		"eyebrows": "breadcrumbs",
+		"codeblocks": "system"
+	},
+	"appearance": {
+		"default": "system",
+		"strict": false
+	},
+	"fonts": {
+		"family": "Roboto",
+		"weight": 400
+	},
+	"navbar": {
+		"links": [
+			{
+				"label": "GitHub",
+				"href": "https://github.com/cline/cline"
+			},
+			{
+				"label": "Discord",
+				"href": "https://discord.gg/cline"
+			}
+		],
+		"primary": {
+			"type": "button",
+			"label": "Install Cline",
+			"href": "https://cline.bot/install?utm_source=website&utm_medium=header"
+		}
+	},
+	"navigation": {
+		"groups": [
+			{
+				"group": "Getting Started",
+				"pages": [
+					"getting-started/for-new-coders",
+					"getting-started/installing-cline",
+					"getting-started/installing-dev-essentials",
+					"getting-started/model-selection-guide",
+					"getting-started/our-favorite-tech-stack",
+					"getting-started/task-management",
+					"getting-started/understanding-context-management",
+					"getting-started/what-is-cline"
+				]
+			},
+			{
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+			},
+			{
+				"group": "Features",
+				"pages": [
+					"features/auto-approve",
+					"features/checkpoints",
+					"features/cline-rules",
+					"features/drag-and-drop",
+					"features/plan-and-act",
+					"features/slash-commands/workflows",
+					"features/editing-messages",
+					{
+						"group": "@ Mentions",
+						"pages": [
+							"features/at-mentions/overview",
+							"features/at-mentions/file-mentions",
+							"features/at-mentions/terminal-mentions",
+							"features/at-mentions/problem-mentions",
+							"features/at-mentions/git-mentions",
+							"features/at-mentions/url-mentions"
+						]
+					},
+					{
+						"group": "Slash Commands",
+						"pages": [
+							"features/slash-commands/new-task",
+							"features/slash-commands/new-rule",
+							"features/slash-commands/smol",
+							"features/slash-commands/report-bug"
+						]
+					},
+					{
+						"group": "Commands & Shortcuts",
+						"pages": [
+							"features/commands-and-shortcuts/overview",
+							"features/commands-and-shortcuts/code-commands",
+							"features/commands-and-shortcuts/terminal-integration",
+							"features/commands-and-shortcuts/git-integration",
+							"features/commands-and-shortcuts/keyboard-shortcuts"
+						]
+					}
+				]
+			},
+			{
+				"group": "Exploring Cline's Tools",
+				"pages": [
+					"exploring-clines-tools/cline-tools-guide",
+					"exploring-clines-tools/new-task-tool",
+					"exploring-clines-tools/remote-browser-support"
+				]
+			},
+			{
+				"group": "Enterprise Solutions",
+				"pages": [
+					"enterprise-solutions/cloud-provider-integration",
+					"enterprise-solutions/custom-instructions",
+					"enterprise-solutions/mcp-servers",
+					"enterprise-solutions/security-concerns"
+				]
+			},
+			{
+				"group": "MCP Servers",
+				"pages": [
+					"mcp/mcp-overview",
+					"mcp/adding-mcp-servers-from-github",
+					"mcp/configuring-mcp-servers",
+					"mcp/connecting-to-a-remote-server",
+					"mcp/mcp-marketplace",
+					"mcp/mcp-server-development-protocol",
+					"mcp/mcp-transport-mechanisms"
+				]
+			},
+			{
+				"group": "Provider Configuration",
+				"pages": [
+					"provider-config/anthropic",
+					"provider-config/aws-bedrock-with-credentials-authentication",
+					"provider-config/aws-bedrock-with-profile-authentication",
+					"provider-config/gcp-vertex-ai",
+					"provider-config/litellm-and-cline-using-codestral",
+					"provider-config/vscode-language-model-api",
+					"provider-config/xai-grok",
+					"provider-config/mistral-ai",
+					"provider-config/deepseek",
+					"provider-config/ollama",
+					"provider-config/openai",
+					"provider-config/openai-compatible",
+					"provider-config/openrouter",
+					"provider-config/requesty"
+				]
+			},
+			{
+				"group": "Running Models Locally",
+				"pages": [
+					"running-models-locally/read-me-first",
+					"running-models-locally/lm-studio",
+					"running-models-locally/ollama"
+				]
+			},
+			{
+				"group": "More Info",
+				"pages": ["more-info/telemetry"]
+			}
+		]
+	},
+	"footer": {
+		"socials": {
+			"x": "https://x.com/cline",
+			"github": "https://github.com/cline/cline",
+			"discord": "https://discord.gg/cline"
+		}
+	},
+	"search": {
+		"prompt": "Search Cline documentation..."
+	},
+	"contextual": {
+		"options": ["copy"]
+	}
+}

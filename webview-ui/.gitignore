@@ -13,6 +13,7 @@ dist-ssr
 build
 *.local
 coverage
+.vite-port
 
 # Environment
 .env

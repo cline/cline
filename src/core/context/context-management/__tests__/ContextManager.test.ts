@@ -34,24 +34,24 @@ describe("ContextManager", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
-			expect(result).to.deep.equal([1, 4])
+			expect(result).to.deep.equal([2, 5])
 		})
 
 		it("first truncation with quarter keep", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "quarter")
 
-			expect(result).to.deep.equal([1, 6])
+			expect(result).to.deep.equal([2, 7])
 		})
 
 		it("sequential truncation with half keep", () => {
 			const messages = createMessages(21)
 			const firstRange = contextManager.getNextTruncationRange(messages, undefined, "half")
-			expect(firstRange).to.deep.equal([1, 10])
+			expect(firstRange).to.deep.equal([2, 9])
 
 			// Pass the previous range for sequential truncation
 			const secondRange = contextManager.getNextTruncationRange(messages, firstRange, "half")
-			expect(secondRange).to.deep.equal([1, 14])
+			expect(secondRange).to.deep.equal([2, 13])
 		})
 
 		it("sequential truncation with quarter keep", () => {
@@ -60,7 +60,7 @@ describe("ContextManager", () => {
 
 			const secondRange = contextManager.getNextTruncationRange(messages, firstRange, "quarter")
 
-			expect(secondRange[0]).to.equal(1)
+			expect(secondRange[0]).to.equal(2)
 			expect(secondRange[1]).to.be.greaterThan(firstRange[1])
 		})
 
@@ -68,20 +68,20 @@ describe("ContextManager", () => {
 			const messages = createMessages(14)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
-			// Check if the message at the end of range is a user message
+			// Check if the message at the end of range is an assistant message
 			const lastRemovedMessage = messages[result[1]]
-			expect(lastRemovedMessage.role).to.equal("user")
+			expect(lastRemovedMessage.role).to.equal("assistant")
 
-			// Check if the next message after the range is an assistant message
+			// Check if the next message after the range is a user message
 			const nextMessage = messages[result[1] + 1]
-			expect(nextMessage.role).to.equal("assistant")
+			expect(nextMessage.role).to.equal("user")
 		})
 
 		it("handles small message arrays", () => {
 			const messages = createMessages(3)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
-			expect(result).to.deep.equal([1, 0])
+			expect(result).to.deep.equal([2, 1])
 		})
 
 		it("preserves the message structure when truncating", () => {
@@ -120,9 +120,10 @@ describe("ContextManager", () => {
 			const range: [number, number] = [1, 3]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
-			expect(result).to.have.lengthOf(2)
+			expect(result).to.have.lengthOf(3)
 			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[4])
+			expect(result[1]).to.deep.equal(messages[1])
+			expect(result[2]).to.deep.equal(messages[4])
 		})
 
 		it("works with a range that starts at the first message after task", () => {
@@ -131,20 +132,21 @@ describe("ContextManager", () => {
 			const range: [number, number] = [1, 2]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
-			expect(result).to.have.lengthOf(2)
+			expect(result).to.have.lengthOf(3)
 			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[3])
+			expect(result[1]).to.deep.equal(messages[1])
+			expect(result[2]).to.deep.equal(messages[3])
 		})
 
 		it("correctly handles removing a range while preserving alternation pattern", () => {
 			const messages = createMessages(5)
 
-			const range: [number, number] = [1, 2]
+			const range: [number, number] = [2, 3]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
 			expect(result).to.have.lengthOf(3)
 			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[3])
+			expect(result[1]).to.deep.equal(messages[1])
 			expect(result[2]).to.deep.equal(messages[4])
 
 			expect(result[0].role).to.equal("user")
