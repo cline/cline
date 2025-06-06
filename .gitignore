@@ -43,3 +43,4 @@ logs
 .idea/
 .qodo/
 .vercel
+.roo/mcp.json
