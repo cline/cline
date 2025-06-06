@@ -1,4 +1,5 @@
 import { getContextWindowInfo } from "./context-window-utils"
+import { AUTO_SUMMARIZATION_PROMPT } from "@core/prompts/autoSummarizationPrompt"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
 import { fileExistsAtPath } from "@utils/fs"
@@ -115,62 +116,29 @@ export class ContextManager {
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
-	) {
+	): Promise<{
+		conversationHistoryDeletedRange: [number, number] | undefined
+		updatedConversationHistoryDeletedRange: boolean
+		truncatedConversationHistory: Anthropic.Messages.MessageParam[]
+		summary?: string
+	}> {
 		let updatedConversationHistoryDeletedRange = false
+		let summary: string | undefined
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const timestamp = previousRequest.ts
+			if (previousRequest?.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				const { maxAllowedSize } = getContextWindowInfo(api)
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
-					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
-
-					// we later check how many chars we trim to determine if we should still truncate history
-					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
-						apiConversationHistory,
-						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
-						timestamp,
-					)
-
-					let needToTruncate = true
-					if (anyContextUpdates) {
-						// determine whether we've saved enough chars to not truncate
-						const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							uniqueFileReadIndices,
-						)
-						if (charactersSavedPercentage >= 0.3) {
-							needToTruncate = false
-						}
-					}
-
-					if (needToTruncate) {
-						// go ahead with truncation
-						anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
-
-						// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-						conversationHistoryDeletedRange = this.getNextTruncationRange(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							keep,
-						)
-
-						updatedConversationHistoryDeletedRange = true
-					}
-
-					// if we alter the context history, save the updated version to disk
-					if (anyContextUpdates) {
-						await this.saveContextHistory(taskDirectory)
-					}
+					const { newHistory, summaryText } = await this._summarizeAndReplaceHistory(apiConversationHistory, api)
+					apiConversationHistory = newHistory
+					summary = summaryText
+					updatedConversationHistoryDeletedRange = true // This will signal to the task to save the new history range
 				}
 			}
 		}
@@ -184,6 +152,7 @@ export class ContextManager {
 			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
 			updatedConversationHistoryDeletedRange: updatedConversationHistoryDeletedRange,
 			truncatedConversationHistory: truncatedConversationHistory,
+			summary,
 		}
 	}
 
@@ -847,5 +816,40 @@ export class ContextManager {
 		const percentCharactersSaved = totalCharacters === 0 ? 0 : totalCharactersSaved / totalCharacters
 
 		return percentCharactersSaved
+	}
+
+	private async _summarizeAndReplaceHistory(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		api: ApiHandler,
+	): Promise<{ newHistory: Anthropic.Messages.MessageParam[]; summaryText: string }> {
+		const systemPrompt = "You are a summarization expert." // A simple system prompt for the summarization task.
+		const userMessage: Anthropic.MessageParam = {
+			role: "user",
+			content: AUTO_SUMMARIZATION_PROMPT,
+		}
+
+		const conversationToSummarize = [...apiConversationHistory, userMessage]
+
+		const stream = api.createMessage(systemPrompt, conversationToSummarize)
+		let fullResponse = ""
+		for await (const chunk of stream) {
+			if (chunk.type === "text") {
+				fullResponse += chunk.text
+			}
+		}
+
+		const summaryMatch = fullResponse.match(/<summary>([\s\S]*?)<\/summary>/)
+		const summaryText = summaryMatch ? summaryMatch[1].trim() : "Could not extract summary."
+
+		const firstMessage = apiConversationHistory[0]
+
+		const summaryAssistantMessage: Anthropic.MessageParam = {
+			role: "assistant",
+			content: `This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n${summaryText}.\n\nPlease continue the conversation from where we left it off without asking the user any further questions. Continue with the last task that you were asked to work on.`,
+		}
+
+		const newHistory: Anthropic.Messages.MessageParam[] = [firstMessage, summaryAssistantMessage]
+
+		return { newHistory, summaryText }
 	}
 }

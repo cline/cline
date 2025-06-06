@@ -36,6 +36,7 @@ import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
+import AutoCompactSummary from "./AutoCompactSummary"
 
 interface CopyButtonProps {
 	textToCopy: string | undefined
@@ -70,7 +71,7 @@ const StyledContainer = styled.div`
 	}
 `
 
-const WithCopyButton = React.forwardRef<HTMLDivElement, WithCopyButtonProps>(
+export const WithCopyButton = React.forwardRef<HTMLDivElement, WithCopyButtonProps>(
 	({ children, textToCopy, style, onMouseUp, ...props }, ref) => {
 		const [copied, setCopied] = useState(false)
 
@@ -1334,6 +1335,8 @@ export const ChatRowContent = ({
 							)}
 						</>
 					)
+				case "auto_compact_summary":
+					return <AutoCompactSummary summary={message.text || ""} />
 				case "shell_integration_warning":
 					return (
 						<>

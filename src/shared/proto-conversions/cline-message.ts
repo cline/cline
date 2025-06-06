@@ -96,6 +96,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		checkpoint_created: ClineSay.CHECKPOINT_CREATED,
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
+		auto_compact_summary: ClineSay.AUTO_COMPACT_SUMMARY,
 	}
 
 	const result = mapping[say]
@@ -139,6 +140,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.CHECKPOINT_CREATED]: "checkpoint_created",
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
+		[ClineSay.AUTO_COMPACT_SUMMARY]: "auto_compact_summary",
 	}
 
 	return mapping[say]

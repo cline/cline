@@ -1700,6 +1700,13 @@ export class Task {
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 		)
 
+		if (contextManagementMetadata.summary) {
+			await this.say("auto_compact_summary", contextManagementMetadata.summary)
+			await this.saveCheckpoint()
+			this.apiConversationHistory = contextManagementMetadata.truncatedConversationHistory
+			await this.overwriteApiConversationHistory(this.apiConversationHistory)
+		}
+
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
 			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
 			await this.saveClineMessagesAndUpdateHistory() // saves task history item which we use to keep track of conversation history deleted range
