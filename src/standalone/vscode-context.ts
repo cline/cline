@@ -1,202 +1,53 @@
-// @ts-nocheck
-import * as vscode from "vscode"
-import * as fs from "fs"
-import * as path from "path"
+import { URI } from "vscode-uri"
 
-import open from "open"
-import { log } from "./utils"
+import path from "path"
+import type { Extension, ExtensionContext } from "vscode"
+import { ExtensionKind, ExtensionMode } from "vscode"
+import { outputChannel, postMessage } from "./vscode-context-stubs"
+import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 const DATA_DIR = process.env.DATA_DIR ?? "."
+const EXTENSION_DIR = process.env.EXTENSION_DIR ?? "."
+const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-function stubUri(path: string): vscode.Uri {
-	console.log(`Using file path: ${path}`)
-	return {
-		fsPath: path,
-		scheme: "",
-		authority: "",
-		path: "",
-		query: "",
-		fragment: "",
-		with: function (change: {
-			scheme?: string
-			authority?: string
-			path?: string
-			query?: string
-			fragment?: string
-		}): vscode.Uri {
-			return stubUri(path)
-		},
-		toString: function (skipEncoding?: boolean): string {
-			return path
-		},
-		toJSON: function () {
-			return {}
-		},
-	}
+const extension: Extension<void> = {
+	id: "saoudrizwan.claude-dev",
+	isActive: true,
+	extensionPath: EXTENSION_DIR,
+	extensionUri: URI.file(EXTENSION_DIR),
+	packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
+	exports: undefined, // There are no API exports in the standalone version.
+	activate: async () => {},
+	extensionKind: ExtensionKind.UI,
 }
 
-function createMemento(): vscode.Memento {
-	const store = {}
-	return {
-		keys: function (): readonly string[] {
-			return Object.keys(store)
-		},
-		get: function <T>(key: string): T | undefined {
-			return key in store ? store[key] : undefined
-		},
-		update: function (key: string, value: any): Thenable<void> {
-			store[key] = value
-			return Promise.resolve()
-		},
-	}
-}
+const extensionContext: ExtensionContext = {
+	extension: extension,
+	extensionMode: EXTENSION_MODE,
 
-class SecretStore {
-	// A simple key-value store for secrets backed by a JSON file. This is not secure, and it is not thread-safe.
-	private data = new Map<string, string>()
-	private filePath: string
+	// Set up KV stores.
+	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+	secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
-	constructor() {
-		this.filePath = path.join(DATA_DIR, "secrets.json")
-		this.load()
-	}
+	// Set up URIs.
+	storageUri: URI.file(DATA_DIR),
+	storagePath: DATA_DIR, // Deprecated, not used in cline.
+	globalStorageUri: URI.file(DATA_DIR),
+	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
 
-	private load(): void {
-		if (fs.existsSync(this.filePath)) {
-			const data = JSON.parse(fs.readFileSync(this.filePath, "utf-8"))
-			Object.entries(data).forEach(([k, v]) => {
-				if (typeof v === "string") {
-					this.data.set(k, v)
-				}
-			})
-		}
-	}
+	logUri: URI.file(DATA_DIR),
+	logPath: DATA_DIR, // Deprecated, not used in cline.
 
-	private save(): void {
-		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2))
-	}
+	extensionUri: URI.file(EXTENSION_DIR),
+	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
+	asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
 
-	get(key: string): string | undefined {
-		return this.data.get(key)
-	}
+	subscriptions: [], // These need to be destroyed when the extension is deactivated.
 
-	store(key: string, value: string): void {
-		this.data.set(key, value)
-		this.save()
-	}
+	environmentVariableCollection: new EnvironmentVariableCollection(),
 
-	delete(key: string): void {
-		this.data.delete(key)
-		this.save()
-	}
-}
-
-const extensionContext: vscode.ExtensionContext = {
-	extensionPath: "/tmp/vscode/extension",
-	extensionUri: stubUri("/tmp/vscode/extension"),
-
-	globalStoragePath: "/tmp/vscode/global",
-	globalStorageUri: stubUri("/tmp/vscode/global"),
-
-	storagePath: "/tmp/vscode/storage",
-	storageUri: stubUri("/tmp/vscode/storage"),
-
-	logPath: "/tmp/vscode/log",
-	logUri: stubUri("/tmp/vscode/log"),
-
-	globalState: createMemento(),
-	workspaceState: createMemento(),
-	storageState: createMemento(),
-
-	environmentVariableCollection: {
-		getScoped: function (scope: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
-			return {
-				persistent: false,
-				description: undefined,
-				replace: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-				append: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-				prepend: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-				get: function (variable: string): vscode.EnvironmentVariableMutator | undefined {
-					return undefined
-				},
-				forEach: function (
-					callback: (
-						variable: string,
-						mutator: vscode.EnvironmentVariableMutator,
-						collection: vscode.EnvironmentVariableCollection,
-					) => any,
-					thisArg?: any,
-				): void {},
-				delete: function (variable: string): void {},
-				clear: function (): void {},
-				[Symbol.iterator]: function (): Iterator<
-					[variable: string, mutator: vscode.EnvironmentVariableMutator],
-					any,
-					any
-				> {
-					throw new Error("environmentVariableCollection.getScoped.Iterator not implemented")
-				},
-			}
-		},
-		persistent: false,
-		description: undefined,
-		replace: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-		append: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-		prepend: function (variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions): void {},
-		get: function (variable: string): vscode.EnvironmentVariableMutator | undefined {
-			return undefined
-		},
-		forEach: function (
-			callback: (
-				variable: string,
-				mutator: vscode.EnvironmentVariableMutator,
-				collection: vscode.EnvironmentVariableCollection,
-			) => any,
-			thisArg?: any,
-		): void {
-			throw new Error("environmentVariableCollection.forEach not implemented")
-		},
-		delete: function (variable: string): void {},
-		clear: function (): void {},
-		[Symbol.iterator]: function (): Iterator<[variable: string, mutator: vscode.EnvironmentVariableMutator], any, any> {
-			throw new Error("environmentVariableCollection.Iterator not implemented")
-		},
-	},
-
-	extensionMode: 1, // Development
-
-	extension: {
-		id: "saoudrizwan.claude-dev",
-		isActive: true,
-		extensionPath: "/tmp/vscode/extension",
-		extensionUri: stubUri("/tmp/vscode/extension"),
-		packageJSON: {},
-		exports: {},
-		activate: async () => {},
-		extensionKind: vscode.ExtensionKind.UI,
-	},
-
-	subscriptions: [],
-
-	asAbsolutePath: (relPath) => `/tmp/vscode/extension/${relPath}`,
-}
-
-extensionContext.secrets = new SecretStore()
-
-const outputChannel: vscode.OutputChannel = {
-	append: (text) => process.stdout.write(text),
-	appendLine: (line) => console.log(line),
-	clear: () => {},
-	show: () => {},
-	hide: () => {},
-	dispose: () => {},
-	name: "",
-	replace: function (value: string): void {},
-}
-
-function postMessage(message: ExtensionMessage): Promise<boolean> {
-	log("postMessage called:", message)
-	return Promise.resolve(true)
+	// TODO(sjf): Workspace state needs to be per project/workspace.
+	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
 }
 
 console.log("Finished loading vscode context...")

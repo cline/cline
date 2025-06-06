@@ -126,6 +126,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		shellIntegrationTimeout,
+		setShellIntegrationTimeout,
+		terminalReuseEnabled,
+		setTerminalReuseEnabled,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -137,7 +143,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpResponsesCollapsed,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -178,6 +187,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
+			shellIntegrationTimeout,
+			terminalReuseEnabled,
+			mcpResponsesCollapsed,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -200,7 +212,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
+			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -210,7 +225,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpResponsesCollapsed,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	])
 
 	// Handle cancel button click
@@ -241,6 +259,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				// Reset terminal settings
+				if (typeof setShellIntegrationTimeout === "function") {
+					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalReuseEnabled === "function") {
+					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+				}
+				if (typeof setMcpResponsesCollapsed === "function") {
+					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
+				}
 				// Close settings view
 				onDone()
 			}
@@ -258,6 +286,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpResponsesCollapsed,
 	])
 
 	// Handle confirmation dialog actions

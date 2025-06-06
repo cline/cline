@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.17.11]
+
+-   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
+
+## [3.17.10]
+
+-   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
+-   Add new AskSage models: Claude 4 Sonnet, Claude 4 Opus, GPT 4.1, Gemini 2.5 Pro (Thanks @swhite24!)
+-   Add VSCode walkthrough to help new users get started with Cline
+-   Add support for streamable MCP servers
+-   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
+-   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
+-   Fix settings dialog applying changes even when cancel button is clicked
+
+## [3.17.9]
+
+-   Aligning Cline to work with Claude 4 model family (Experimental)
+-   Add task timeline scrolling feature
+-   Add support for uploading CSV and XLSX files for data analysis and processing
+-   Add stable Grok-3 models to xAI provider (grok-3, grok-3-fast, grok-3-mini, grok-3-mini-fast) and update default model from grok-3-beta to grok-3 (Thanks @PeterDaveHello!)
+-   Add new models to Vertex AI provider
+-   Add new model to Nebius AI Studio
+-   Remove hard-coded temperature from LM Studio API requests and add support for reasoning_content in LM Studio responses
+-   Display delay information when retrying API calls for better user feedback
+-   Fix AWS Bedrock credential caching issue where externally updated credentials (e.g., by AWS Identity Manager) were not detected, requiring extension restart (Thanks @DaveFres!)
+-   Fix search tool overloading conversation with massive outputs by setting maximum byte limit for responses
+-   Fix checkpoints functionality
+-   Fix token counting for xAI provider
+-   Fix Ollama provider issues
+-   Fix window title display for Windows users
+-   Improve chat box UI
+
 ## [3.17.8]
 
 -   Fix bug where terminal would get stuck and output "capture failure"
