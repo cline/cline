@@ -1,22 +1,16 @@
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
-import { v4 as uuidv4 } from "uuid"
-import fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
+import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
@@ -24,7 +18,13 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
-import { extractCommitMessage } from "@integrations/git/commit-message-generator"
+import axios from "axios"
+import fs from "fs/promises"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import { v4 as uuidv4 } from "uuid"
+import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
@@ -37,11 +37,11 @@ import {
 	updateWorkspaceState,
 } from "../storage/state"
 import { Task } from "../task"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { sendStateUpdate } from "./state/subscribeToState"
-import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
+import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { sendStateUpdateForController } from "./state/subscribeToState"
+import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -1012,7 +1012,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		await sendStateUpdateForController(this.id, state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
