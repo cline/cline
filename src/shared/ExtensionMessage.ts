@@ -17,11 +17,7 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
 		| "workspaceUpdated"
-		| "openAiModels"
-		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "mcpDownloadDetails"
@@ -43,7 +39,6 @@ export interface ExtensionMessage {
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	openAiModels?: string[]
-	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
