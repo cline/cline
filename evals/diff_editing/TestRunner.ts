@@ -1,4 +1,5 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
+import { basicSystemPrompt } from "./prompts/basicSystemPrompt"
 import * as fs from "fs"
 import * as path from "path"
 
@@ -7,14 +8,43 @@ interface TestCase {
 	messages: any[] // array of messages with 'role' & 'text'
 	file_contents: string // file contents for editing
 	file_path: string // file we attempted to edit
+	system_prompt_details: SystemPromptDetails // all user-specific info to construct a system prompt
 }
 
 interface TestConfig {
 	model_id: string // model to use to run the diff edit evals
-	system_prompt: string // system prompt to use here
+	system_prompt_name: string // system prompt to use here
 	number_of_runs: number // specifies the number of times to run each eval example
 	parsing_function: string // parsing function to use
 	diff_edit_function: string // diff edit function to use
+}
+
+export interface SystemPromptDetails {
+	mcp_string: string
+	cwd_value: string
+	browser_use: boolean
+	width: number
+	height: number
+	os_value: string
+	shell_value: string
+	home_value: string
+	user_custom_instructions: string
+}
+
+type ConstructSystemPromptFn = (
+	cwdFormatted: string,
+	supportsBrowserUse: boolean,
+	browserWidth: number,
+	browserHeight: number,
+	os: string,
+	shell: string,
+	homeFormatted: string,
+	mcpHubString: string,
+	userCustomInstructions: string,
+) => string
+
+const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
+	basicSystemPrompt: basicSystemPrompt,
 }
 
 type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] }
@@ -27,6 +57,30 @@ class NodeTestRunner {
 		if (!this.apiKey) {
 			throw new Error("OPENROUTER_API_KEY environment variable not set")
 		}
+	}
+
+	/**
+	 * Generate the system prompt on the fly
+	 */
+	constructSystemPrompt(systemPromptDetails: SystemPromptDetails, systemPromptName: string) {
+		const systemPromptGenerator = systemPromptGeneratorLookup[systemPromptName]
+
+		const { cwd_value, browser_use, width, height, os_value, shell_value, home_value, mcp_string, user_custom_instructions } =
+			systemPromptDetails
+
+		const systemPrompt = systemPromptGenerator(
+			cwd_value,
+			browser_use,
+			width,
+			height,
+			os_value,
+			shell_value,
+			home_value,
+			mcp_string,
+			user_custom_instructions,
+		)
+
+		return systemPrompt
 	}
 
 	/**
@@ -57,10 +111,13 @@ class NodeTestRunner {
 	 * Run a single test example
 	 */
 	async runSingleTest(testCase: TestCase, testConfig: TestConfig): Promise<TestResult> {
+		const customSystemPrompt = this.constructSystemPrompt(testCase.system_prompt_details, testConfig.system_prompt_name)
+
+		// messages don't include system prompt and are everything up to the first replace_in_file tool call which results in a diff edit error
 		const input: TestInput = {
 			apiKey: this.apiKey,
-			systemPrompt: testCase.messages[0], // testConfig.system_prompt, // @@@@@@@@@@@@@@@@@@ need to change this
-			messages: testCase.messages.slice(1), // @@@@@@@@@@@@@@@ need to change this
+			systemPrompt: customSystemPrompt,
+			messages: testCase.messages,
 			modelId: testConfig.model_id,
 			originalFile: testCase.file_contents,
 			originalFilePath: testCase.file_path,
