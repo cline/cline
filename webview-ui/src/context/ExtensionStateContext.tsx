@@ -20,7 +20,6 @@ import {
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { convertOpenRouterCompatibleModelInfoToModelInfoRecord } from "../../../src/shared/proto-conversions/models/openrouter-models-conversion"
 import { vscode } from "../utils/vscode"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 

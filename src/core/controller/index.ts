@@ -260,15 +260,6 @@ export class Controller {
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
 				await this.initTask(message.text, message.images, message.files)
 				break
-			case "apiConfiguration":
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-				await this.postStateToWebview()
-				break
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
