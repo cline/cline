@@ -92,6 +92,7 @@ export type GlobalStateKey =
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
 	| "terminalReuseEnabled"
+	| "defaultTerminalProfile"
 	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"

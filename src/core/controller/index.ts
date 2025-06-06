@@ -153,6 +153,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
@@ -188,7 +189,8 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
-			enableCheckpointsSetting ?? true,
+			defaultTerminalProfile ?? "default", // This is the new parameter
+			enableCheckpointsSetting ?? true, // This was the extra parameter, now it's correct
 			customInstructions,
 			task,
 			images,
@@ -230,6 +232,13 @@ export class Controller {
 						text: JSON.stringify(theme),
 					}),
 				)
+				// Send available terminal profiles
+				const { getAvailableTerminalProfiles } = require("../../utils/shell") // Corrected path for require
+				const availableTerminalProfiles = getAvailableTerminalProfiles()
+				this.postMessageToWebview({
+					type: "availableTerminalProfiles", // This type needs to be in ExtensionMessage
+					text: JSON.stringify(availableTerminalProfiles),
+				})
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
 					if (openRouterModels) {
@@ -408,6 +417,13 @@ export class Controller {
 
 				if (typeof message.terminalReuseEnabled === "boolean") {
 					await updateGlobalState(this.context, "terminalReuseEnabled", message.terminalReuseEnabled)
+				}
+
+				if (typeof message.defaultTerminalProfile === "string") {
+					await updateGlobalState(this.context, "defaultTerminalProfile", message.defaultTerminalProfile)
+					if (this.task) {
+						this.task.terminalManager.setDefaultTerminalProfile(message.defaultTerminalProfile)
+					}
 				}
 
 				// after settings are updated, post state to webview
@@ -1164,6 +1180,7 @@ export class Controller {
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 		} = await getAllExtensionState(this.context)
 
@@ -1209,6 +1226,7 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 		}
 	}

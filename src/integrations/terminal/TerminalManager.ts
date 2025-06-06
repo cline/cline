@@ -1,6 +1,7 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
+import { getShellForProfile } from "@utils/shell"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
 
@@ -95,6 +96,7 @@ export class TerminalManager {
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout: number = 4000
 	private terminalReuseEnabled: boolean = true
+	private defaultTerminalProfile: string = "default"
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -275,8 +277,9 @@ export class TerminalManager {
 			}
 		}
 
-		// If all terminals are busy, create a new one
-		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
+		// If all terminals are busy, create a new one with the configured shell
+		const shellPath = this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, shellPath)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
 	}
@@ -317,5 +320,9 @@ export class TerminalManager {
 
 	setTerminalReuseEnabled(enabled: boolean): void {
 		this.terminalReuseEnabled = enabled
+	}
+
+	setDefaultTerminalProfile(profileId: string): void {
+		this.defaultTerminalProfile = profileId
 	}
 }

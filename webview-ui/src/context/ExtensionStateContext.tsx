@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import { TerminalProfile } from "../../../src/shared/terminal_types" // Added import
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
@@ -33,6 +34,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
+	availableTerminalProfiles: TerminalProfile[]
 
 	// View state
 	showMcp: boolean
@@ -53,6 +55,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
+	setDefaultTerminalProfile: (value: string) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -63,6 +66,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setAvailableTerminalProfiles: (profiles: TerminalProfile[]) => void // Setter for profiles
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -175,8 +179,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWindsurfRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
-		shellIntegrationTimeout: 4000, // default timeout for shell integration
-		terminalReuseEnabled: true, // default to enabled for backward compatibility
+		shellIntegrationTimeout: 4000, 
+		terminalReuseEnabled: true, 
+		defaultTerminalProfile: "default", 
 		isNewUser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -187,6 +192,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
+	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([]) 
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
@@ -210,7 +216,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, 
 					...updatedModels,
 				})
 				break
@@ -230,6 +236,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
+				break
+			}
+			// Add case to handle availableTerminalProfiles message
+			case "availableTerminalProfiles": { // This type needs to be added to ExtensionMessage
+				if (message.text) { // Assuming profiles are sent as a JSON string in message.text
+					try {
+						const profiles = JSON.parse(message.text) as TerminalProfile[]
+						setAvailableTerminalProfiles(profiles)
+					} catch (error) {
+						console.error("Error parsing available terminal profiles:", error)
+					}
+				}
 				break
 			}
 		}
@@ -463,6 +481,15 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Fetch available terminal profiles on launch
+		StateServiceClient.getAvailableTerminalProfiles(EmptyRequest.create({}))
+			.then((response) => {
+				setAvailableTerminalProfiles(response.profiles)
+			})
+			.catch((error) => {
+				console.error("Failed to fetch available terminal profiles:", error)
+			})
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -504,7 +531,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
 			.then((res) => {
 				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, 
 					...res.models,
 				})
 			})
@@ -523,6 +550,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
+		availableTerminalProfiles, 
 		showMcp,
 		mcpTab,
 		showSettings,
@@ -595,8 +623,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				terminalReuseEnabled: value,
 			})),
+		setDefaultTerminalProfile: (value) => 
+			setState((prevState) => ({
+				...prevState,
+				defaultTerminalProfile: value,
+			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
+		setAvailableTerminalProfiles,
 		setShowMcp,
 		closeMcpView,
 		setChatSettings: (value) => {

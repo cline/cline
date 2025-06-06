@@ -1,12 +1,22 @@
-import React, { useState } from "react"
-import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import React, { useState, useEffect } from "react"
+import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { Int64, Int64Request } from "@shared/proto/common"
+import { StateServiceClient } from "../../services/grpc-client" 
+import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
+import { TerminalProfile } from "../../../../src/shared/terminal_types"
 
 export const TerminalSettingsSection: React.FC = () => {
-	const { shellIntegrationTimeout, setShellIntegrationTimeout, terminalReuseEnabled, setTerminalReuseEnabled } =
-		useExtensionState()
+	const {
+		shellIntegrationTimeout,
+		setShellIntegrationTimeout,
+		terminalReuseEnabled,
+		setTerminalReuseEnabled,
+		defaultTerminalProfile,
+		setDefaultTerminalProfile,
+		availableTerminalProfiles,
+		platform, 
+	} = useExtensionState()
+
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
 
@@ -23,12 +33,10 @@ export const TerminalSettingsSection: React.FC = () => {
 		}
 
 		setInputError(null)
-		const timeout = Math.round(seconds * 1000) // Convert to milliseconds
+		const timeout = Math.round(seconds * 1000) 
 
-		// Update local state
 		setShellIntegrationTimeout(timeout)
 
-		// Send to extension using gRPC
 		StateServiceClient.updateTerminalConnectionTimeout({
 			value: timeout,
 		} as Int64Request)
@@ -42,7 +50,6 @@ export const TerminalSettingsSection: React.FC = () => {
 	}
 
 	const handleInputBlur = () => {
-		// If there was an error, reset the input to the current valid value
 		if (inputError) {
 			setInputValue((shellIntegrationTimeout / 1000).toString())
 			setInputError(null)
@@ -52,16 +59,48 @@ export const TerminalSettingsSection: React.FC = () => {
 	const handleTerminalReuseChange = (event: Event) => {
 		const target = event.target as HTMLInputElement
 		const checked = target.checked
-
-		// Update local state
 		setTerminalReuseEnabled(checked)
-
-		// TODO: Send to extension using gRPC when the backend is ready
-		// For now, we'll just update the local state
+		StateServiceClient.updateTerminalReuseEnabled({ value: checked } as any) 
+			.catch((error) => {
+				console.error("Failed to update terminal reuse enabled:", error)
+			})
 	}
+
+	// Usamos any para evitar conflictos de tipo entre Event y FormEvent
+	const handleDefaultTerminalProfileChange = (event: any) => {
+		const target = event.target as HTMLSelectElement 
+		const profileId = target.value
+		setDefaultTerminalProfile(profileId)
+		StateServiceClient.updateDefaultTerminalProfile({ value: profileId } as StringRequest)
+			.catch((error) => {
+				console.error("Failed to update default terminal profile:", error)
+			})
+	}
+
+	const profilesToShow = availableTerminalProfiles
 
 	return (
 		<div id="terminal-settings-section" style={{ marginBottom: 20 }}>
+			<div style={{ marginBottom: 15 }}>
+				<label htmlFor="default-terminal-profile" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+					Default Terminal Profile
+				</label>
+				<VSCodeDropdown
+					id="default-terminal-profile"
+					value={defaultTerminalProfile || "default"}
+					onChange={handleDefaultTerminalProfileChange}
+					style={{ width: "100%" }}>
+					{profilesToShow.map((profile) => (
+						<VSCodeOption key={profile.id} value={profile.id} title={profile.description}>
+							{profile.name}
+						</VSCodeOption>
+					))}
+				</VSCodeDropdown>
+				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
+					Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+				</p>
+			</div>
+
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
