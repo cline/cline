@@ -417,7 +417,10 @@ export class AwsBedrockHandler implements ApiHandler {
 				const blockTypes = new Map<number, "reasoning" | "text">()
 
 				for await (const chunk of response.stream) {
-					// Handle thinking response in additionalModelResponseFields
+					// Debug logging to see actual response structure
+					console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+
+					// Handle thinking response in additionalModelResponseFields (LangChain format)
 					const metadata = chunk.metadata as ExtendedMetadata | undefined
 					if (metadata?.additionalModelResponseFields?.thinkingResponse) {
 						const thinkingResponse = metadata.additionalModelResponseFields.thinkingResponse
@@ -456,6 +459,32 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 					}
 
+					// Handle content block start - check if Bedrock uses Anthropic SDK format
+					if (chunk.contentBlockStart) {
+						const blockStart = chunk.contentBlockStart as any
+						const blockIndex = chunk.contentBlockStart.contentBlockIndex
+
+						// Check for thinking block in various possible formats
+						if (
+							blockStart.start?.type === "thinking" ||
+							blockStart.contentBlock?.type === "thinking" ||
+							blockStart.type === "thinking"
+						) {
+							if (blockIndex !== undefined) {
+								blockTypes.set(blockIndex, "reasoning")
+								// Initialize content if provided
+								const initialContent =
+									blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
+								if (initialContent) {
+									yield {
+										type: "reasoning",
+										reasoning: initialContent,
+									}
+								}
+							}
+						}
+					}
+
 					// Handle content block delta - accumulate content by block index
 					if (chunk.contentBlockDelta) {
 						const blockIndex = chunk.contentBlockDelta.contentBlockIndex
@@ -466,15 +495,44 @@ export class AwsBedrockHandler implements ApiHandler {
 								contentBuffers[blockIndex] = ""
 							}
 
-							// Handle text content
-							if (chunk.contentBlockDelta.delta?.text) {
+							// Check if this is a thinking block
+							const blockType = blockTypes.get(blockIndex)
+							const delta = chunk.contentBlockDelta.delta as any
+
+							// Handle thinking delta (Anthropic SDK format)
+							if (delta?.type === "thinking_delta" || delta?.thinking) {
+								const thinkingContent = delta.thinking || delta.text || ""
+								if (thinkingContent) {
+									yield {
+										type: "reasoning",
+										reasoning: thinkingContent,
+									}
+								}
+							} else if (delta?.reasoningContent?.text) {
+								// Handle reasoning content (Bedrock format)
+								const reasoningText = delta.reasoningContent.text
+								if (reasoningText) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningText,
+									}
+								}
+							} else if (chunk.contentBlockDelta.delta?.text) {
+								// Handle regular text content
 								const textContent = chunk.contentBlockDelta.delta.text
 								contentBuffers[blockIndex] += textContent
 
-								// Stream text immediately
-								yield {
-									type: "text",
-									text: textContent,
+								// Stream based on block type
+								if (blockType === "reasoning") {
+									yield {
+										type: "reasoning",
+										reasoning: textContent,
+									}
+								} else {
+									yield {
+										type: "text",
+										text: textContent,
+									}
 								}
 							}
 						}
