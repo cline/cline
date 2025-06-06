@@ -81,15 +81,10 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 			}
 
 			if (currentBatch.length > 0) {
-				try {
-					const batchResult = await this._embedBatchWithRetries(currentBatch, modelToUse)
-					allEmbeddings.push(...batchResult.embeddings)
-					usage.promptTokens += batchResult.usage.promptTokens
-					usage.totalTokens += batchResult.usage.totalTokens
-				} catch (error) {
-					console.error("Failed to process batch:", error)
-					throw new Error("Failed to create embeddings: batch processing error")
-				}
+				const batchResult = await this._embedBatchWithRetries(currentBatch, modelToUse)
+				allEmbeddings.push(...batchResult.embeddings)
+				usage.promptTokens += batchResult.usage.promptTokens
+				usage.totalTokens += batchResult.usage.totalTokens
 			}
 		}
 

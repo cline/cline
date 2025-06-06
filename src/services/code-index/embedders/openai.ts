@@ -22,7 +22,7 @@ export class OpenAiEmbedder extends OpenAiNativeHandler implements IEmbedder {
 	 */
 	constructor(options: ApiHandlerOptions & { openAiEmbeddingModelId?: string }) {
 		super(options)
-		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
+		const apiKey = this.options.openAiNativeApiKey || ""
 		this.embeddingsClient = new OpenAI({ apiKey })
 		this.defaultModelId = options.openAiEmbeddingModelId || "text-embedding-3-small"
 	}
@@ -71,15 +71,10 @@ export class OpenAiEmbedder extends OpenAiNativeHandler implements IEmbedder {
 			}
 
 			if (currentBatch.length > 0) {
-				try {
-					const batchResult = await this._embedBatchWithRetries(currentBatch, modelToUse)
-					allEmbeddings.push(...batchResult.embeddings)
-					usage.promptTokens += batchResult.usage.promptTokens
-					usage.totalTokens += batchResult.usage.totalTokens
-				} catch (error) {
-					console.error("Failed to process batch:", error)
-					throw new Error("Failed to create embeddings: batch processing error")
-				}
+				const batchResult = await this._embedBatchWithRetries(currentBatch, modelToUse)
+				allEmbeddings.push(...batchResult.embeddings)
+				usage.promptTokens += batchResult.usage.promptTokens
+				usage.totalTokens += batchResult.usage.totalTokens
 			}
 		}
 
@@ -116,8 +111,29 @@ export class OpenAiEmbedder extends OpenAiNativeHandler implements IEmbedder {
 
 				if (isRateLimitError && hasMoreAttempts) {
 					const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempts)
+					console.warn(`Rate limit hit, retrying in ${delayMs}ms (attempt ${attempts + 1}/${MAX_RETRIES})`)
 					await new Promise((resolve) => setTimeout(resolve, delayMs))
 					continue
+				}
+
+				// Log the error for debugging
+				console.error(`OpenAI embedder error (attempt ${attempts + 1}/${MAX_RETRIES}):`, error)
+
+				if (!hasMoreAttempts) {
+					// Provide more context in the error message
+					const errorMessage = error?.message || error?.toString() || "Unknown error"
+					const statusCode = error?.status || error?.response?.status
+					if (statusCode === 401) {
+						throw new Error(
+							`Failed to create embeddings: Authentication failed. Please check your OpenAI API key.`,
+						)
+					} else if (statusCode) {
+						throw new Error(
+							`Failed to create embeddings after ${MAX_RETRIES} attempts: HTTP ${statusCode} - ${errorMessage}`,
+						)
+					} else {
+						throw new Error(`Failed to create embeddings after ${MAX_RETRIES} attempts: ${errorMessage}`)
+					}
 				}
 
 				throw error
