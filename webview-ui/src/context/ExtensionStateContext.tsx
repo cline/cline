@@ -6,6 +6,7 @@ import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-mess
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DEFAULT_GIT_SETTINGS, GitSettings } from "@shared/GitSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
@@ -56,6 +57,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
 	setChatSettings: (value: ChatSettings) => void
+	setGitSettings: (value: GitSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -166,6 +168,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		gitSettings: DEFAULT_GIT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		distinctId: "",
@@ -696,6 +699,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				globalWorkflowToggles: toggles,
+			})),
+		setGitSettings: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				gitSettings: value,
 			})),
 		setMcpTab,
 		setTotalTasksSize,

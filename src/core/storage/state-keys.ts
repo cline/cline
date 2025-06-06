@@ -59,6 +59,7 @@ export type GlobalStateKey =
 	| "globalWorkflowToggles"
 	| "browserSettings"
 	| "chatSettings"
+	| "gitSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"

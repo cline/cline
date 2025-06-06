@@ -9,7 +9,17 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	GitCommitIcon,
+	Info,
+	LucideIcon,
+	Settings,
+	SquareMousePointer,
+	SquareTerminal,
+	Webhook,
+} from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -21,6 +31,8 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import GitSettingsSection from "./GitSettingsSection"
+
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -76,6 +88,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Terminal Settings",
 		headerText: "Terminal Settings",
 		icon: SquareTerminal,
+	},
+	{
+		id: "git",
+		name: "Git",
+		tooltipText: "Git Settings",
+		headerText: "Git Settings",
+		icon: GitCommitIcon,
 	},
 	// Only show in dev mode
 	...(IS_DEV
@@ -309,7 +328,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	so trying to use useEffect with a dependency array of only one value for example will use any 
 	other variables' old values. In most cases you don't want this, and should opt to use react-use 
 	hooks.
-    
+	  
 		// uses someVar and anotherVar
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [someVar])
@@ -668,6 +687,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									{renderSectionHeader("terminal")}
 									<Section>
 										<TerminalSettingsSection />
+									</Section>
+								</div>
+							)}
+
+							{/* Git Settings Tab */}
+							{activeTab === "git" && (
+								<div>
+									{renderSectionHeader("git")}
+									<Section>
+										<GitSettingsSection />
 									</Section>
 								</div>
 							)}

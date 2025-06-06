@@ -1,6 +1,7 @@
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { GitSettings } from "./GitSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
@@ -34,6 +35,7 @@ export interface WebviewMessage {
 	number?: number
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
+	gitSettings?: GitSettings
 	chatContent?: ChatContent
 	mcpId?: string
 	timeout?: number
