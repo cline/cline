@@ -18,6 +18,7 @@ export interface ExtensionMessage {
 		| "state"
 		| "selectedImages"
 		| "workspaceUpdated"
+		| "openAiModels"
 		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
