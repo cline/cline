@@ -22,6 +22,7 @@ import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/share
 import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -53,6 +54,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
+	setMcpResponsesCollapsed: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
 	setDefaultTerminalProfile: (value: string) => void
@@ -183,6 +185,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalReuseEnabled: true,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
+		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -203,22 +206,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "theme": {
-				if (message.text) {
-					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
-				}
-				break
-			}
 			case "workspaceUpdated": {
 				setFilePaths(message.filePaths ?? [])
-				break
-			}
-			case "openRouterModels": {
-				const updatedModels = message.openRouterModels ?? {}
-				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-					...updatedModels,
-				})
 				break
 			}
 			case "openAiModels": {
@@ -266,6 +255,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
+	const themeSubscriptionRef = useRef<(() => void) | null>(null)
+	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -465,8 +456,53 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Still send the webviewDidLaunch message for other initialization
-		vscode.postMessage({ type: "webviewDidLaunch" })
+		// Subscribe to theme changes
+		themeSubscriptionRef.current = UiServiceClient.subscribeToTheme(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				if (response.value) {
+					try {
+						const themeData = JSON.parse(response.value)
+						setTheme(convertTextMateToHljs(themeData))
+						console.log("[DEBUG] Received theme update from gRPC stream")
+					} catch (error) {
+						console.error("Error parsing theme data:", error)
+					}
+				}
+			},
+			onError: (error) => {
+				console.error("Error in theme subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Theme subscription completed")
+			},
+		})
+
+		// Subscribe to OpenRouter models updates
+		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
+			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
+				const models = response.models
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...models,
+				})
+			},
+			onError: (error) => {
+				console.error("Error in OpenRouter models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("OpenRouter models subscription completed")
+			},
+		})
+
+		// Initialize webview using gRPC
+		UiServiceClient.initializeWebview(EmptyRequest.create({}))
+			.then(() => {
+				console.log("[DEBUG] Webview initialization completed via gRPC")
+			})
+			.catch((error) => {
+				console.error("Failed to initialize webview via gRPC:", error)
+			})
 
 		// Set up account button clicked subscription
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
@@ -526,15 +562,24 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
 			}
+			if (themeSubscriptionRef.current) {
+				themeSubscriptionRef.current()
+				themeSubscriptionRef.current = null
+			}
+			if (openRouterModelsUnsubscribeRef.current) {
+				openRouterModelsUnsubscribeRef.current()
+				openRouterModelsUnsubscribeRef.current = null
+			}
 		}
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
-			.then((res) => {
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
 				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-					...res.models,
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...models,
 				})
 			})
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
@@ -609,6 +654,12 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
+		setMcpResponsesCollapsed: (value) => {
+			setState((prevState) => ({
+				...prevState,
+				mcpResponsesCollapsed: value,
+			}))
+		},
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
@@ -649,6 +700,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 				enableCheckpointsSetting: state.enableCheckpointsSetting,
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 			})
 		},
 		setGlobalClineRulesToggles: (toggles) =>
