@@ -10,12 +10,13 @@ import { useRunStatus } from "@/hooks/use-run-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 
 import { TaskStatus } from "./task-status"
-import { ConnectionStatus } from "./connection-status"
+import { RunStatus } from "./run-status"
 
 type TaskMetrics = Pick<_TaskMetrics, "tokensIn" | "tokensOut" | "tokensContext" | "duration" | "cost">
 
 export function Run({ run }: { run: Run }) {
-	const { tasks, status, tokenUsage, usageUpdatedAt } = useRunStatus(run)
+	const runStatus = useRunStatus(run)
+	const { tasks, tokenUsage, usageUpdatedAt } = runStatus
 
 	const taskMetrics: Record<number, TaskMetrics> = useMemo(() => {
 		const metrics: Record<number, TaskMetrics> = {}
@@ -45,10 +46,10 @@ export function Run({ run }: { run: Run }) {
 			<div>
 				<div className="mb-2">
 					<div>
-						<div>{run.model}</div>
+						<div className="font-mono">{run.model}</div>
 						{run.description && <div className="text-sm text-muted-foreground">{run.description}</div>}
 					</div>
-					{!run.taskMetricsId && <ConnectionStatus status={status} runId={run.id} />}
+					{!run.taskMetricsId && <RunStatus runStatus={runStatus} />}
 				</div>
 				{!tasks ? (
 					<LoaderCircle className="size-4 animate-spin" />

@@ -7,7 +7,7 @@ import { Ellipsis, Rocket } from "lucide-react"
 
 import type { Run, TaskMetrics } from "@roo-code/evals"
 
-import { deleteRun } from "@/lib/server/runs"
+import { deleteRun } from "@/actions/runs"
 import { formatCurrency, formatDuration, formatTokens, formatToolUsageSuccessRate } from "@/lib/formatters"
 import {
 	Button,

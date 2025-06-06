@@ -1,6 +1,6 @@
 "use server"
 
-import { redisClient } from "./redis"
+import { redisClient } from "@/lib/server/redis"
 
 export const getRunners = async (runId: number) => {
 	const redis = await redisClient()

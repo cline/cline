@@ -36,9 +36,8 @@ export class SSEStream {
 
 		try {
 			await this._writer.close()
-		} catch (error) {
+		} catch (_error) {
 			// Writer might already be closed, ignore the error.
-			console.debug("[SSEStream#close] Writer already closed:", error)
 		}
 	}
 

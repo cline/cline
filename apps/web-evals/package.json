@@ -5,7 +5,7 @@
 	"scripts": {
 		"lint": "next lint",
 		"check-types": "tsc -b",
-		"dev": "scripts/check-services.sh && next dev --turbopack",
+		"dev": "scripts/check-services.sh && next dev",
 		"format": "prettier --write src",
 		"build": "next build",
 		"start": "next start"

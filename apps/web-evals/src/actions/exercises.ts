@@ -6,7 +6,9 @@ import { fileURLToPath } from "url"
 
 import { type ExerciseLanguage, exerciseLanguages } from "@roo-code/evals"
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url)) // <repo>/apps/web-evals/src/actions
+
+const EXERCISES_BASE_PATH = path.resolve(__dirname, "../../../../../evals")
 
 export const listDirectories = async (relativePath: string) => {
 	try {
@@ -18,9 +20,6 @@ export const listDirectories = async (relativePath: string) => {
 		return []
 	}
 }
-
-// __dirname = <repo>/evals/apps/web/src/lib/server
-const EXERCISES_BASE_PATH = path.resolve(__dirname, "../../../../../../evals")
 
 export const getExercises = async () => {
 	const result = await Promise.all(
