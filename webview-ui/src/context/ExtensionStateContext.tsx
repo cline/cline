@@ -52,6 +52,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
+	setMcpResponsesCollapsed: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
 	setChatSettings: (value: ChatSettings) => void
@@ -179,6 +180,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		terminalReuseEnabled: true, // default to enabled for backward compatibility
 		isNewUser: false,
+		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -458,6 +460,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
 				const models = response.models
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
@@ -472,8 +475,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Still send the webviewDidLaunch message for other initialization
-		vscode.postMessage({ type: "webviewDidLaunch" })
+		// Initialize webview using gRPC
+		UiServiceClient.initializeWebview(EmptyRequest.create({}))
+			.then(() => {
+				console.log("[DEBUG] Webview initialization completed via gRPC")
+			})
+			.catch((error) => {
+				console.error("Failed to initialize webview via gRPC:", error)
+			})
 
 		// Set up account button clicked subscription
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
@@ -615,6 +624,12 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
+		setMcpResponsesCollapsed: (value) => {
+			setState((prevState) => ({
+				...prevState,
+				mcpResponsesCollapsed: value,
+			}))
+		},
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
@@ -649,6 +664,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 				enableCheckpointsSetting: state.enableCheckpointsSetting,
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 			})
 		},
 		setGlobalClineRulesToggles: (toggles) =>

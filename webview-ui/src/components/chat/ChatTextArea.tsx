@@ -10,6 +10,7 @@ import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/se
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
+	getContextMenuOptionIndex,
 	insertMention,
 	insertMentionDirectly,
 	removeMention,
@@ -61,6 +62,9 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
 		img.src = dataUrl
 	})
 }
+
+// Set to "File" option by default
+const DEFAULT_CONTEXT_MENU_OPTION = getContextMenuOptionIndex(ContextMenuOptionType.File)
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -532,7 +536,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (event.key === "Escape") {
 						// event.preventDefault()
 						setSelectedType(null)
-						setSelectedMenuIndex(3) // File by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 						return
 					}
 
@@ -772,7 +776,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								})
 						}, 200) // 200ms debounce
 					} else {
-						setSelectedMenuIndex(3) // Set to "File" option by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 					}
 				} else {
 					setSearchQuery("")

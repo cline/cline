@@ -123,6 +123,7 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	mcpResponsesCollapsed?: boolean
 }
 
 export interface ClineMessage {

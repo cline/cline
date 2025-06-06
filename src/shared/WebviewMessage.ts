@@ -8,7 +8,6 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "webviewDidLaunch"
 		| "newTask"
 		| "condense"
 		| "reportBug"
@@ -52,6 +51,7 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
+	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	mentionsRequestId?: string
