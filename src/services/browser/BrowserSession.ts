@@ -4,6 +4,7 @@ import * as path from "path"
 import { exec, spawn } from "child_process"
 import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
 import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
+import sharp from "sharp"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
@@ -500,6 +501,18 @@ export class BrowserSession {
 				type: "png",
 			})
 			screenshot = `data:image/png;base64,${screenshotBase64}`
+		}
+
+		if (this.browserSettings.grayscaleEnabled && screenshotBase64) {
+			try {
+				const buf = Buffer.from(`${screenshotBase64}`, "base64")
+				const grayBuf = await sharp(buf).grayscale().webp().toBuffer()
+
+				screenshot = `data:image/webp;base64,${grayBuf.toString("base64")}`
+			} catch (e) {
+				console.info("grayscale conversion error", e)
+				logs.push(`[Error] Error converting browser screenshot to grayscale`)
+			}
 		}
 
 		if (!screenshotBase64) {

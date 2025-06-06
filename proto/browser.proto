@@ -43,6 +43,7 @@ message BrowserSettings {
   optional bool remote_browser_enabled = 3;
   optional string chrome_executable_path = 4;
   optional bool disable_tool_use = 5;
+  optional bool grayscale_enabled = 6;
 }
 
 message UpdateBrowserSettingsRequest {
@@ -52,4 +53,5 @@ message UpdateBrowserSettingsRequest {
   optional bool remote_browser_enabled = 4;
   optional string chrome_executable_path = 5;
   optional bool disable_tool_use = 6;
+  optional bool grayscale_enabled = 7;
 }
