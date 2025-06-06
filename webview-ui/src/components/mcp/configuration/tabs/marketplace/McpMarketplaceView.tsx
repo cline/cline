@@ -93,7 +93,7 @@ const McpMarketplaceView = () => {
 			setIsLoading(true)
 		}
 		setError(null)
-		
+
 		McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
 			.then((catalog) => {
 				// The catalog will be automatically updated via the subscription system
