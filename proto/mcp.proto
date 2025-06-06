@@ -15,6 +15,10 @@ service McpService {
   rpc deleteMcpServer(StringRequest) returns (McpServers);
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
   rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
+  rpc openMcpSettings(EmptyRequest) returns (Empty);
+  
+  // Subscribe to MCP marketplace catalog updates
+  rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
 }
 
 message ToggleMcpServerRequest {

@@ -14,8 +14,7 @@ const FeatureSettingsSection = () => {
 	} = useExtensionState()
 
 	return (
-		<div style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Feature Settings</h3>
+		<div style={{ marginBottom: 20 }}>
 			<div>
 				<VSCodeCheckbox
 					checked={enableCheckpointsSetting}

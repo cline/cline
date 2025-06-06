@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { GitSettings } from "./GitSettings"
@@ -15,39 +14,28 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "didShowAnnouncement"
-		| "openInBrowser"
-		| "showChatView"
-		| "openMcpSettings"
-		| "autoApprovalSettings"
-		| "togglePlanActMode"
-		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "showAccountViewClicked"
 		| "authStateChanged"
-		| "authCallback"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
-		| "optionsResponse"
-		| "requestTotalTasksSize"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"
+		| "executeQuickWin"
 
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	gitSettings?: GitSettings
@@ -64,8 +52,6 @@ export interface WebviewMessage {
 	// For auth
 	user?: UserInfo | null
 	customToken?: string
-	// For openInBrowser
-	url?: string
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
@@ -92,8 +78,11 @@ export interface WebviewMessage {
 	enabled?: boolean
 	filename?: string
 
+	payload?: { command: string; title: string }
+
 	offset?: number
 	shellIntegrationTimeout?: number
+	terminalReuseEnabled?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
