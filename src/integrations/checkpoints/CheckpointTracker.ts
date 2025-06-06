@@ -124,7 +124,7 @@ class CheckpointTracker {
 							: error,
 				})
 				telemetryService.captureCheckpointUsage(taskId, "git_not_installed")
-				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
+				throw new Error("Git must be installed to use checkpoints.")
 			}
 
 			const workingDir = await getWorkingDirectory()
@@ -155,7 +155,7 @@ class CheckpointTracker {
 						: error,
 			})
 			telemetryService.captureCheckpointUsage(taskId, "tracker_creation_failed")
-			throw error
+			throw new Error("Checkpoint tracker creation failed")
 		}
 	}
 
