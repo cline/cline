@@ -1,27 +1,27 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import * as vscode from "vscode"
-import pWaitFor from "p-wait-for"
-import { Logger } from "./services/logging/Logger"
-import { createClineAPI } from "./exports"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
-import assert from "node:assert"
-import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
-import { WebviewProvider } from "./core/webview"
-import { Controller } from "./core/controller"
-import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
-import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
-import { ErrorService } from "./services/error/ErrorService"
-import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
-import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
-import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
-import { v4 as uuidv4 } from "uuid"
 import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
-import { WebviewProviderType } from "./shared/webview/types"
-import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import assert from "node:assert"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pWaitFor from "p-wait-for"
+import { v4 as uuidv4 } from "uuid"
+import * as vscode from "vscode"
+import { Controller } from "./core/controller"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
+import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
+import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
+import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
+import { WebviewProvider } from "./core/webview"
+import { createClineAPI } from "./exports"
+import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { ErrorService } from "./services/error/ErrorService"
+import { Logger } from "./services/logging/Logger"
+import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { WebviewProviderType } from "./shared/webview/types"
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -137,15 +137,27 @@ export async function activate(context: vscode.ExtensionContext) {
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabWebview = new WebviewProvider(context, outputChannel, WebviewProviderType.TAB)
-		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
-		// Check if there are any visible text editors, otherwise open a new group to the right
-		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
-		if (!hasVisibleEditors) {
-			await vscode.commands.executeCommand("workbench.action.newGroupRight")
+		// Check if there are existing Cline tab instances
+		const existingTabInstances = WebviewProvider.getTabInstances()
+
+		let targetCol: vscode.ViewColumn
+
+		if (existingTabInstances.length > 0) {
+			// If Cline tabs already exist, use the same column as the existing ones
+			const existingPanel = existingTabInstances[0].view as vscode.WebviewPanel
+			targetCol = existingPanel.viewColumn || vscode.ViewColumn.Two
+		} else {
+			// This is the first Cline tab - create it in a new group
+			const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+			const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
+
+			// Check if there are any visible text editors, otherwise open a new group to the right
+			if (!hasVisibleEditors) {
+				await vscode.commands.executeCommand("workbench.action.newGroupRight")
+			}
+			targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 		}
-		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
 		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
 			enableScripts: true,
