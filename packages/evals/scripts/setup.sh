@@ -336,7 +336,7 @@ echo "✅ Done"
 
 if [[ ! -d "../../../evals" ]]; then
   echo -n "🔗 Cloning evals repository... "
-  git clone https://github.com/RooCodeInc/Roo-Code-Evals.git evals ../../../evals || exit 1
+  git clone https://github.com/RooCodeInc/Roo-Code-Evals.git ../../../evals || exit 1
   echo "✅ Done"
 else
   echo -n "🔄 Updating evals repository... "

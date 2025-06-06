@@ -21,7 +21,8 @@
 		"clean": "turbo clean --log-order grouped --output-logs new-only && rimraf dist out bin .vite-port .turbo",
 		"changeset:version": "cp CHANGELOG.md src/CHANGELOG.md && changeset version && cp -vf src/CHANGELOG.md .",
 		"knip": "knip --include files",
-		"update-contributors": "node scripts/update-contributors.js"
+		"update-contributors": "node scripts/update-contributors.js",
+		"evals": "docker compose -f packages/evals/docker-compose.yml --profile server --profile runner up --build --scale runner=0"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.10",
