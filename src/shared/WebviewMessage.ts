@@ -9,8 +9,6 @@ import { McpViewTab } from "./mcp"
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
-		| "webviewDidLaunch"
-		| "newTask"
 		| "condense"
 		| "reportBug"
 		| "requestVsCodeLmModels"
@@ -19,10 +17,8 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
-		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"
@@ -53,6 +49,7 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
+	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	mentionsRequestId?: string
