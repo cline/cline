@@ -1968,7 +1968,7 @@ const ApiOptions = ({
 						type="password"
 						onInput={handleInputChange("gabaiApiKey")}
 						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Gab.AI API Key</span>
+						<span style={{ fontWeight: 500 }}>GabAI API Key</span>
 					</VSCodeTextField>
 					<p
 						style={{
