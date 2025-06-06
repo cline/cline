@@ -20,6 +20,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "nebiusApiKey"
+	| "gabaiApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
 

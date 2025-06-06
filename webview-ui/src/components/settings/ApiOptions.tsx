@@ -20,6 +20,8 @@ import {
 	deepSeekModels,
 	doubaoDefaultModelId,
 	doubaoModels,
+	gabAIDefaultModelId,
+	gabAIModels,
 	geminiDefaultModelId,
 	geminiModels,
 	internationalQwenDefaultModelId,
@@ -358,6 +360,7 @@ const ApiOptions = ({
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="gabai">GabAI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1957,6 +1960,37 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "gabai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.gabaiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("gabaiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Gab.AI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.gabaiApiKey && (
+							<VSCodeLink
+								href="https://gab.ai/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a GabAI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -2193,6 +2227,7 @@ const ApiOptions = ({
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
+							{selectedProvider === "gabai" && createDropdown(gabAIModels)}
 						</DropdownContainer>
 
 						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
@@ -2617,6 +2652,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "gabai":
+			return getProviderData(gabAIModels, gabAIDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

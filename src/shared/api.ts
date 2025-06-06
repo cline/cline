@@ -25,6 +25,7 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 	| "cerebras"
+	| "gabai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -91,6 +92,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	gabaiApiKey?: string
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
@@ -2400,4 +2402,51 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
+// GabAI Models
+// https://gab.ai/
+export type GabAIModelId = keyof typeof gabAIModels
+export const gabAIDefaultModelId: GabAIModelId = "claude-sonnet"
+export const gabAIModels = {
+	"gpt-4o": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-4-1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"claude-sonnet": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2-flash": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2-5-pro": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 }

@@ -157,6 +157,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
+		gabaiApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 		globalClineRulesToggles,
@@ -249,6 +250,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
+		getSecret(context, "gabaiApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
@@ -365,6 +367,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			cerebrasApiKey,
 			nebiusApiKey,
+			gabaiApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -462,6 +465,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
+		gabaiApiKey,
 		favoritedModelIds,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
@@ -524,6 +528,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
+	await storeSecret(context, "gabaiApiKey", gabaiApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 }
@@ -555,6 +560,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"sambanovaApiKey",
 		"cerebrasApiKey",
 		"nebiusApiKey",
+		"gabaiApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
