@@ -16,6 +16,25 @@ import {
 // Import proper AWS SDK types
 import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
+// Extend AWS SDK types to include additionalModelResponseFields
+interface ExtendedMetadata {
+	usage?: {
+		inputTokens?: number
+		outputTokens?: number
+		cacheReadInputTokens?: number
+		cacheWriteInputTokens?: number
+	}
+	additionalModelResponseFields?: {
+		thinkingResponse?: {
+			reasoning?: Array<{
+				type: string
+				text?: string
+				signature?: string
+			}>
+		}
+	}
+}
+
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -396,10 +415,24 @@ export class AwsBedrockHandler implements ApiHandler {
 				// Buffer content by contentBlockIndex to handle multi-block responses correctly
 				const contentBuffers: Record<number, string> = {}
 				const blockTypes = new Map<number, "reasoning" | "text">()
-				let isStreamingThinking = false
-				let currentThinkingContent = ""
 
 				for await (const chunk of response.stream) {
+					// Handle thinking response in additionalModelResponseFields
+					const metadata = chunk.metadata as ExtendedMetadata | undefined
+					if (metadata?.additionalModelResponseFields?.thinkingResponse) {
+						const thinkingResponse = metadata.additionalModelResponseFields.thinkingResponse
+						if (thinkingResponse.reasoning && Array.isArray(thinkingResponse.reasoning)) {
+							for (const reasoningBlock of thinkingResponse.reasoning) {
+								if (reasoningBlock.type === "text" && reasoningBlock.text) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningBlock.text,
+									}
+								}
+							}
+						}
+					}
+
 					// Handle metadata events with token usage information
 					if (chunk.metadata?.usage) {
 						const inputTokens = chunk.metadata.usage.inputTokens || 0
@@ -433,101 +466,15 @@ export class AwsBedrockHandler implements ApiHandler {
 								contentBuffers[blockIndex] = ""
 							}
 
-							// Accumulate content in buffer based on type
-							if (chunk.contentBlockDelta.delta?.reasoningContent) {
-								// Mark this block as reasoning regardless of whether it contains text or signature
-								blockTypes.set(blockIndex, "reasoning")
-
-								// If it contains text, append it to the buffer and stream it immediately
-								if (chunk.contentBlockDelta.delta.reasoningContent.text) {
-									const reasoningText = chunk.contentBlockDelta.delta.reasoningContent.text
-									contentBuffers[blockIndex] += reasoningText
-
-									// Stream thinking content immediately
-									yield {
-										type: "reasoning",
-										reasoning: reasoningText,
-									}
-								}
-
-								// If it contains signature, we don't need to add it to the text content
-								// but we should make sure the block is still identified as reasoning
-								if (chunk.contentBlockDelta.delta.reasoningContent.signature) {
-									console.debug(`Received reasoning signature for block ${blockIndex}`)
-								}
-							} else if (chunk.contentBlockDelta.delta?.text) {
+							// Handle text content
+							if (chunk.contentBlockDelta.delta?.text) {
 								const textContent = chunk.contentBlockDelta.delta.text
+								contentBuffers[blockIndex] += textContent
 
-								// Check if this text contains thinking tags
-								if (textContent.includes("<thinking>") || isStreamingThinking) {
-									// Start streaming thinking content
-									if (textContent.includes("<thinking>")) {
-										isStreamingThinking = true
-										const startIndex = textContent.indexOf("<thinking>")
-										const beforeThinking = textContent.substring(0, startIndex)
-
-										// Emit any text before <thinking>
-										if (beforeThinking.trim()) {
-											contentBuffers[blockIndex] += beforeThinking
-											yield {
-												type: "text",
-												text: beforeThinking,
-											}
-										}
-
-										currentThinkingContent = textContent.substring(startIndex + "<thinking>".length)
-									} else {
-										currentThinkingContent += textContent
-									}
-
-									// Check if thinking ends in this chunk
-									if (currentThinkingContent.includes("</thinking>")) {
-										const endIndex = currentThinkingContent.indexOf("</thinking>")
-										const thinkingContent = currentThinkingContent.substring(0, endIndex)
-										const afterThinking = currentThinkingContent.substring(endIndex + "</thinking>".length)
-
-										// Stream the remaining thinking content
-										if (thinkingContent) {
-											yield {
-												type: "reasoning",
-												reasoning: thinkingContent,
-											}
-										}
-
-										// Reset thinking state
-										isStreamingThinking = false
-										currentThinkingContent = ""
-
-										// Handle any remaining text after </thinking>
-										if (afterThinking) {
-											contentBuffers[blockIndex] += afterThinking
-											yield {
-												type: "text",
-												text: afterThinking,
-											}
-										}
-									} else {
-										// Still inside thinking, stream it
-										yield {
-											type: "reasoning",
-											reasoning: textContent,
-										}
-									}
-								} else {
-									// Regular text content
-									contentBuffers[blockIndex] += textContent
-
-									// Don't determine block type yet - wait until we have the complete block
-									if (!blockTypes.has(blockIndex)) {
-										// Temporarily mark as unknown
-										blockTypes.set(blockIndex, "text")
-									}
-
-									// Stream text immediately if not in thinking mode
-									yield {
-										type: "text",
-										text: textContent,
-									}
+								// Stream text immediately
+								yield {
+									type: "text",
+									text: textContent,
 								}
 							}
 						}
@@ -608,12 +555,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Gets inference configuration for different model types
 	 */
 	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
-		const baseConfig = {
-			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
-			temperature: 0,
-		}
-
-		// Anthropic-specific reasoning configuration
+		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
 			const baseModelId =
@@ -622,18 +564,15 @@ export class AwsBedrockHandler implements ApiHandler {
 			const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
 
 			return {
-				...baseConfig,
-				temperature: reasoningOn ? undefined : 0,
-				...(reasoningOn && {
-					thinking: {
-						enabled: true,
-						maxThinkingTokens: budget_tokens,
-					},
-				}),
+				maxTokens: modelInfo.maxTokens || 8192,
+				temperature: reasoningOn ? 1 : 0,
 			}
 		}
 
-		return baseConfig
+		return {
+			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
+			temperature: 0,
+		}
 	}
 
 	/**
@@ -672,12 +611,28 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Prepare system message with caching support
 		const systemMessages = this.prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
 
+		// Get thinking configuration
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const baseModelId =
+			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
+			this.getModel().id
+		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+
 		// Prepare request for Anthropic model using Converse API
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			// Add thinking configuration as per LangChain documentation
+			additionalModelRequestFields: reasoningOn
+				? {
+						thinking: {
+							type: "enabled",
+							budget_tokens: budget_tokens,
+						},
+					}
+				: undefined,
 		})
 
 		// Execute the streaming request using unified handler
