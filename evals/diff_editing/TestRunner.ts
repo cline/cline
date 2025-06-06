@@ -1,11 +1,27 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt"
+import { formatResponse } from "../../src/core/prompts/responses"
+import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
 
+interface InputMessage {
+	role: "user" | "assistant"
+	text: string
+	images?: string[]
+}
+
+interface ProcessedTestCase {
+	test_id: string
+	messages: Anthropic.Messages.MessageParam[] // This is the key change
+	file_contents: string
+	file_path: string
+	system_prompt_details: SystemPromptDetails
+}
+
 interface TestCase {
 	test_id: string // unique id
-	messages: any[] // array of messages with 'role' & 'text'
+	messages: InputMessage[] // array of messages with 'role' & 'text'
 	file_contents: string // file contents for editing
 	file_path: string // file we attempted to edit
 	system_prompt_details: SystemPromptDetails // all user-specific info to construct a system prompt
@@ -60,6 +76,31 @@ class NodeTestRunner {
 	}
 
 	/**
+	 * convert our messages array into a properly formatted Anthropic messages array
+	 */
+	transformMessages(messages: InputMessage[]): Anthropic.Messages.MessageParam[] {
+		return messages.map((msg) => {
+			// Use TextBlockParam here for constructing the input message
+			const content: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+
+			if (msg.text) {
+				// This object now correctly matches the TextBlockParam type
+				content.push({ type: "text", text: msg.text })
+			}
+
+			if (msg.images && Array.isArray(msg.images)) {
+				const imageBlocks = formatResponse.imageBlocks(msg.images)
+				content.push(...imageBlocks)
+			}
+
+			return {
+				role: msg.role,
+				content: content,
+			}
+		})
+	}
+
+	/**
 	 * Generate the system prompt on the fly
 	 */
 	constructSystemPrompt(systemPromptDetails: SystemPromptDetails, systemPromptName: string) {
@@ -110,7 +151,7 @@ class NodeTestRunner {
 	/**
 	 * Run a single test example
 	 */
-	async runSingleTest(testCase: TestCase, testConfig: TestConfig): Promise<TestResult> {
+	async runSingleTest(testCase: ProcessedTestCase, testConfig: TestConfig): Promise<TestResult> {
 		const customSystemPrompt = this.constructSystemPrompt(testCase.system_prompt_details, testConfig.system_prompt_name)
 
 		// messages don't include system prompt and are everything up to the first replace_in_file tool call which results in a diff edit error
@@ -131,7 +172,7 @@ class NodeTestRunner {
 	/**
 	 * Runs all the text examples synchonously
 	 */
-	async runAllTests(testCases: TestCase[], testConfig: TestConfig): Promise<TestResultSet> {
+	async runAllTests(testCases: ProcessedTestCase[], testConfig: TestConfig): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 
 		for (const testCase of testCases) {
@@ -150,7 +191,7 @@ class NodeTestRunner {
 	 * Runs all of the text examples asynchronously, with concurrency limit
 	 */
 	async runAllTestsParallel(
-		testCases: TestCase[],
+		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
 		maxConcurrency: number = 10,
 	): Promise<TestResultSet> {
@@ -222,7 +263,6 @@ class NodeTestRunner {
 	}
 }
 
-// Main execution
 async function main() {
 	const args = process.argv.slice(2)
 	const paths = args.filter((arg) => !arg.startsWith("--"))
@@ -240,13 +280,18 @@ async function main() {
 		const testCases = await runner.loadTestCases(testDir)
 		const testConfig = await runner.loadTestConfig(configPath)
 
+		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
+			...tc,
+			messages: runner.transformMessages(tc.messages),
+		}))
+
 		console.log(`-Loaded ${testCases.length} test cases.`)
 		console.log(`-Executing ${testConfig.number_of_runs} run(s) per test case.`)
 		console.log("Starting tests...\n")
 
 		const results = runParallel
-			? await runner.runAllTestsParallel(testCases, testConfig)
-			: await runner.runAllTests(testCases, testConfig)
+			? await runner.runAllTestsParallel(processedTestCases, testConfig)
+			: await runner.runAllTests(processedTestCases, testConfig)
 
 		runner.printSummary(results)
 

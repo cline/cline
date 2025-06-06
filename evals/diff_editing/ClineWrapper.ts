@@ -1,5 +1,6 @@
 import { OpenRouterHandler } from "../../src/api/providers/openrouter"
 import { ApiHandlerOptions } from "../../src/shared/api"
+import { Anthropic } from "@anthropic-ai/sdk"
 
 import {
 	parseAssistantMessageV1,
@@ -24,9 +25,6 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	constructNewFileContentV2: constructNewFileContentV2,
 }
 
-// constructNewFileContent
-// parseAssistantMessage
-
 interface ExtractedToolCall {
 	name: ToolUseName
 	input: Partial<Record<ToolParamName, string>>
@@ -35,7 +33,7 @@ interface ExtractedToolCall {
 export interface TestInput {
 	apiKey: string
 	systemPrompt: string
-	messages: any[]
+	messages: Anthropic.Messages.MessageParam[]
 	modelId: string
 	originalFile: string
 	originalFilePath: string
@@ -68,7 +66,11 @@ interface StreamResult {
 /**
  * Process the stream and return full response
  */
-async function processStream(handler: OpenRouterHandler, systemPrompt: string, messages: any[]): Promise<StreamResult> {
+async function processStream(
+	handler: OpenRouterHandler,
+	systemPrompt: string,
+	messages: Anthropic.Messages.MessageParam[],
+): Promise<StreamResult> {
 	const stream = handler.createMessage(systemPrompt, messages)
 
 	let assistantMessage = ""
