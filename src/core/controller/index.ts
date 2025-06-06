@@ -292,14 +292,6 @@ export class Controller {
 				this.mcpHub?.sendLatestMcpServers()
 				break
 			}
-			// telemetry
-			case "telemetrySetting": {
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-				await this.postStateToWebview()
-				break
-			}
 			case "updateSettings": {
 				// api config
 				if (message.apiConfiguration) {
@@ -311,11 +303,6 @@ export class Controller {
 
 				// custom instructions
 				await this.updateCustomInstructions(message.customInstructionsSetting)
-
-				// telemetry setting
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
 
 				// plan act setting
 				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)

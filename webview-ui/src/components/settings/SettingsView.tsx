@@ -12,15 +12,17 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscod
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import { TelemetrySettingEnum } from "@shared/proto/state"
+import FeatureSettingsSection from "./FeatureSettingsSection"
+import BrowserSettingsSection from "./BrowserSettingsSection"
+import TerminalSettingsSection from "./TerminalSettingsSection"
+import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import ApiOptions from "./ApiOptions"
-import BrowserSettingsSection from "./BrowserSettingsSection"
-import FeatureSettingsSection from "./FeatureSettingsSection"
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./TerminalSettingsSection"
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -184,7 +186,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			type: "updateSettings",
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
-			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
 			shellIntegrationTimeout,
@@ -711,14 +712,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					)
 				})()}
 			</div>
-
-			{/* Unsaved Changes Dialog */}
-			<UnsavedChangesDialog
-				open={isUnsavedChangesDialogOpen}
-				onOpenChange={setIsUnsavedChangesDialogOpen}
-				onConfirm={handleConfirmDiscard}
-				onCancel={handleCancelDiscard}
-			/>
 		</Tab>
 	)
 }
