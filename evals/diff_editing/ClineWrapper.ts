@@ -7,8 +7,8 @@ import {
 	parseAssistantMessageV2,
 	parseAssistantMessageV3,
 	AssistantMessageContent,
-} from "../../src/core/assistant-message"
-import { constructNewFileContentV2 } from "../../src/core/assistant-message/diff"
+} from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
+import { constructNewFileContentV2 } from "./diff-apply/diff-06-06-25" // "../../src/core/assistant-message/diff"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>

@@ -1,10 +1,11 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
-import { basicSystemPrompt } from "./prompts/basicSystemPrompt"
-import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt"
+import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
+import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
 import { formatResponse } from "./helpers"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
+import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
 
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
@@ -82,14 +83,6 @@ class NodeTestRunner {
 		const testCasesArray: TestCase[] = Object.values(testCasesDict)
 
 		return testCasesArray
-	}
-
-	/**
-	 * Load our test config
-	 */
-	async loadTestConfig(configPath: string): Promise<TestConfig> {
-		const configData = JSON.parse(fs.readFileSync(configPath, "utf8"))
-		return configData
 	}
 
 	/**
@@ -212,23 +205,39 @@ class NodeTestRunner {
 }
 
 async function main() {
-	const args = process.argv.slice(2)
-	const paths = args.filter((arg) => !arg.startsWith("--"))
-	const runParallel = args.includes("--parallel")
+	const program = new Command()
 
-	if (paths.length < 3) {
-		console.log("Usage: npx tsx TestRunner.ts [test_path] [config_path] [output_path] [--parallel]")
-		process.exit(1)
+	program
+		.name("TestRunner")
+		.description("Run evaluation tests for diff editing")
+		.version("1.0.0")
+		.argument("<test_path>", "Path to the test cases JSON file")
+		.argument("<output_path>", "Directory to save the results")
+		.option("--model-id <model_id>", "The model ID to use for the test")
+		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
+		.option("--number-of-runs <number>", "Number of times to run each test case", 1)
+		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
+		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+		.option("--parallel", "Run tests in parallel", false)
+
+	program.parse(process.argv)
+
+	const [testPath, outputPath] = program.args
+	const options = program.opts()
+
+	const testConfig: TestConfig = {
+		model_id: options.modelId,
+		system_prompt_name: options.systemPromptName,
+		number_of_runs: parseInt(options.numberOfRuns, 10),
+		parsing_function: options.parsingFunction,
+		diff_edit_function: options.diffEditFunction,
 	}
-
-	const [testPath, configPath, outputPath] = paths
 
 	try {
 		const startTime = Date.now()
 
 		const runner = new NodeTestRunner()
 		const testCases = await runner.loadTestCases(testPath)
-		const testConfig = await runner.loadTestConfig(configPath)
 
 		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
 			...tc,
@@ -239,7 +248,7 @@ async function main() {
 		console.log(`-Executing ${testConfig.number_of_runs} run(s) per test case.`)
 		console.log("Starting tests...\n")
 
-		const results = runParallel
+		const results = options.parallel
 			? await runner.runAllTestsParallel(processedTestCases, testConfig)
 			: await runner.runAllTests(processedTestCases, testConfig)
 
