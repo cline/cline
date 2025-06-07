@@ -5,6 +5,24 @@ const REPLACE_BLOCK_END = "+++++++ REPLACE"
 const SEARCH_BLOCK_CHAR = "-"
 const REPLACE_BLOCK_CHAR = "+"
 
+// Replace the exact string constants with flexible regex patterns
+const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH$/
+const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
+const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE$/
+
+// Helper functions to check if a line matches the flexible patterns
+function isSearchBlockStart(line: string): boolean {
+	return SEARCH_BLOCK_START_REGEX.test(line)
+}
+
+function isSearchBlockEnd(line: string): boolean {
+	return SEARCH_BLOCK_END_REGEX.test(line)
+}
+
+function isReplaceBlockEnd(line: string): boolean {
+	return REPLACE_BLOCK_END_REGEX.test(line)
+}
+
 /**
  * Attempts a line-trimmed fallback match for the given search content in the original content.
  * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
@@ -252,22 +270,22 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	if (
 		lines.length > 0 &&
 		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
-		lastLine !== SEARCH_BLOCK_START &&
-		lastLine !== SEARCH_BLOCK_END &&
-		lastLine !== REPLACE_BLOCK_END
+		!isSearchBlockStart(lastLine) &&
+		!isSearchBlockEnd(lastLine) &&
+		!isReplaceBlockEnd(lastLine)
 	) {
 		lines.pop()
 	}
 
 	for (const line of lines) {
-		if (line === SEARCH_BLOCK_START) {
+		if (isSearchBlockStart(line)) {
 			inSearch = true
 			currentSearchContent = ""
 			currentReplaceContent = ""
 			continue
 		}
 
-		if (line === SEARCH_BLOCK_END) {
+		if (isSearchBlockEnd(line)) {
 			inSearch = false
 			inReplace = true
 
@@ -346,7 +364,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			continue
 		}
 
-		if (line === REPLACE_BLOCK_END) {
+		if (isReplaceBlockEnd(line)) {
 			// Finished one replace block
 
 			// Store this replacement
