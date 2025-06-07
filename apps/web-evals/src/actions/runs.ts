@@ -52,9 +52,10 @@ export async function createRun({ suite, exercises = [], systemPrompt, ...values
 
 		const dockerArgs = [
 			`--name evals-controller-${run.id}`,
-			"--rm",
+			// "--rm",
 			"--network evals_default",
 			"-v /var/run/docker.sock:/var/run/docker.sock",
+			"-v /tmp/evals:/var/log/evals",
 			"-e HOST_EXECUTION_METHOD=docker",
 		]
 

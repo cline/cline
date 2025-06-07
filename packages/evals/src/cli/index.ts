@@ -32,7 +32,7 @@ const main = async () => {
 					if (runId !== -1) {
 						await runEvals(runId)
 					} else {
-						await processTask(taskId)
+						await processTask({ taskId })
 					}
 				} catch (error) {
 					console.error(error)

@@ -72,6 +72,7 @@ services:
             - HOST_EXECUTION_METHOD=docker
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - /tmp/evals:/var/log/evals
         stdin_open: true
         tty: true
         profiles:
