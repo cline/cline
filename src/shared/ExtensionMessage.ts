@@ -20,7 +20,6 @@ export interface ExtensionMessage {
 		| "openAiModels"
 		| "requestyModels"
 		| "mcpServers"
-		| "relinquishControl"
 		| "mcpDownloadDetails"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
