@@ -55,6 +55,9 @@ service FileService {
 
   // Opens a task's conversation history file on disk
   rpc openTaskHistory(StringRequest) returns (Empty);
+  
+  // Toggles a workflow on or off
+  rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
   // Subscribe to workspace file updates
   rpc subscribeToWorkspaceUpdates(EmptyRequest) returns (stream StringArray);
@@ -163,4 +166,12 @@ message ToggleCursorRuleRequest {
   Metadata metadata = 1;
   string rule_path = 2;   // Path to the rule file
   bool enabled = 3;       // Whether to enable or disable the rule
+}
+
+// Request to toggle a workflow on or off
+message ToggleWorkflowRequest {
+  Metadata metadata = 1;
+  string workflow_path = 2;
+  bool enabled = 3;
+  bool is_global = 4;
 }

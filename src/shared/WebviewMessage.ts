@@ -18,7 +18,6 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleWorkflow"
 
 	text?: string
 	disabled?: boolean
