@@ -1,9 +1,9 @@
-import { constructNewFileContent as cnfc2 } from "./diff"
+import { constructNewFileContent as cnfc } from "./diff"
 import { describe, it } from "mocha"
 import { expect } from "chai"
 
-async function cnfc(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	return cnfc2(diffContent, originalContent, isFinal, "v1")
+async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+	return cnfc(diffContent, originalContent, isFinal, "v2")
 }
 
 describe("Diff Format Edge Cases", () => {
@@ -17,8 +17,9 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("new content\n")
-		expect(result2).to.equal("before\nnew content\nafter")
+		const expectedResult = "before\nnew content\nafter"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle SEARCH prefix symbols - more than 7", async () => {
@@ -31,8 +32,9 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("new content\n")
-		expect(result2).to.equal("before\nnew content\nafter")
+		const expectedResult = "before\nnew content\nafter"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle SEARCH - less than 7 and REPLACE = less than 7", async () => {
@@ -45,8 +47,9 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("r")
-		expect(result2).to.equal("before\nnew content\nafter")
+		const expectedResult = "before\nnew content\nafter"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle SEARCH - less than 7 and REPLACE = more than 7", async () => {
@@ -59,7 +62,7 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("r")
+		expect(result1).to.equal("before\nnew content\nafter")
 		expect(result2).to.equal("before\nnew content\nafter")
 	})
 
@@ -73,8 +76,9 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("r")
-		expect(result2).to.equal("before\nnew content\nafter")
+		const expectedResult = "before\nnew content\nafter"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle SEARCH - more than 7 and REPLACE = less than 7", async () => {
@@ -87,8 +91,9 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("r")
-		expect(result2).to.equal("before\nnew content\nafter")
+		const expectedResult = "before\nnew content\nafter"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle consecutive SEARCH-REPLACE with second block SEARCH - less than 7", async () => {
@@ -106,8 +111,9 @@ second new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("before\nfirst new content\nsecond new content\n")
-		expect(result2).to.equal("before\nfirst new content\nafter\nsecond new content\nend")
+		const expectedResult = "before\nfirst new content\nafter\nsecond new content\nend"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 
 	it("should handle consecutive SEARCH-REPLACE with second block SEARCH - less than 7 and REPLACE = less than 7", async () => {
@@ -125,7 +131,8 @@ second new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("before\nfirst new content\nd")
-		expect(result2).to.equal("before\nfirst new content\nafter\nsecond new content\nend")
+		const expectedResult = "before\nfirst new content\nafter\nsecond new content\nend"
+		expect(result1).to.equal(expectedResult)
+		expect(result2).to.equal(expectedResult)
 	})
 })
