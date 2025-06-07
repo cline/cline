@@ -7,8 +7,6 @@ import {
 	parseAssistantMessageV2,
 	parseAssistantMessageV3,
 	AssistantMessageContent,
-	ToolUseName,
-	ToolParamName,
 } from "../../src/core/assistant-message"
 import { constructNewFileContentV2 } from "../../src/core/assistant-message/diff"
 
@@ -25,31 +23,8 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	constructNewFileContentV2: constructNewFileContentV2,
 }
 
-interface ExtractedToolCall {
-	name: ToolUseName
-	input: Partial<Record<ToolParamName, string>>
-}
-
-export interface TestInput {
-	apiKey: string
-	systemPrompt: string
-	messages: Anthropic.Messages.MessageParam[]
-	modelId: string
-	originalFile: string
-	originalFilePath: string
-	parsingFunction: string
-	diffEditFunction: string
-}
-
-export interface TestResult {
-	success: boolean
-	result?: any
-	diffEdit?: string
-	toolCalls?: ExtractedToolCall[]
-	diffEditSuccess?: boolean
-	error?: string
-	errorString?: string
-}
+import { TestInput, TestResult, ExtractedToolCall } from "./types"
+export { TestInput, TestResult, ExtractedToolCall }
 
 interface StreamResult {
 	assistantMessage: string

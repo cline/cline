@@ -4,60 +4,7 @@ import { formatResponse } from "../../src/core/prompts/responses"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
-
-interface InputMessage {
-	role: "user" | "assistant"
-	text: string
-	images?: string[]
-}
-
-interface ProcessedTestCase {
-	test_id: string
-	messages: Anthropic.Messages.MessageParam[] // This is the key change
-	file_contents: string
-	file_path: string
-	system_prompt_details: SystemPromptDetails
-}
-
-interface TestCase {
-	test_id: string // unique id
-	messages: InputMessage[] // array of messages with 'role' & 'text'
-	file_contents: string // file contents for editing
-	file_path: string // file we attempted to edit
-	system_prompt_details: SystemPromptDetails // all user-specific info to construct a system prompt
-}
-
-interface TestConfig {
-	model_id: string // model to use to run the diff edit evals
-	system_prompt_name: string // system prompt to use here
-	number_of_runs: number // specifies the number of times to run each eval example
-	parsing_function: string // parsing function to use
-	diff_edit_function: string // diff edit function to use
-}
-
-export interface SystemPromptDetails {
-	mcp_string: string
-	cwd_value: string
-	browser_use: boolean
-	width: number
-	height: number
-	os_value: string
-	shell_value: string
-	home_value: string
-	user_custom_instructions: string
-}
-
-type ConstructSystemPromptFn = (
-	cwdFormatted: string,
-	supportsBrowserUse: boolean,
-	browserWidth: number,
-	browserHeight: number,
-	os: string,
-	shell: string,
-	homeFormatted: string,
-	mcpHubString: string,
-	userCustomInstructions: string,
-) => string
+import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
 
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
 	basicSystemPrompt: basicSystemPrompt,
