@@ -1,6 +1,6 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt"
-import { formatResponse } from "../../src/core/prompts/responses"
+import { formatResponse } from "./helpers"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
