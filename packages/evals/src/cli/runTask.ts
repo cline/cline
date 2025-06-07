@@ -20,6 +20,13 @@ import { exercisesPath } from "../exercises/index.js"
 
 import { getTag, isDockerContainer } from "./utils.js"
 
+class SubprocessTimeoutError extends Error {
+	constructor(timeout: number) {
+		super(`Subprocess timeout after ${timeout}ms`)
+		this.name = "SubprocessTimeoutError"
+	}
+}
+
 type RunTaskOptions = {
 	run: Run
 	task: Task
@@ -196,7 +203,9 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions) => {
 		await updateTask(task.id, { finishedAt: new Date() })
 	}
 
-	if (!isClientDisconnected) {
+	if (isClientDisconnected) {
+		logError("client disconnected before task finished")
+	} else {
 		if (rooTaskId) {
 			log("closing task")
 			client.sendCommand({ commandName: TaskCommandName.CloseTask, data: rooTaskId })
@@ -206,6 +215,36 @@ export const runTask = async ({ run, task, publish }: RunTaskOptions) => {
 		client.disconnect()
 	}
 
+	log("waiting for subprocess to finish")
 	controller.abort()
-	await subprocess
+
+	// Wait for subprocess to finish gracefully, with a timeout.
+	const SUBPROCESS_TIMEOUT = 10_000
+
+	try {
+		await Promise.race([
+			subprocess,
+			new Promise((_, reject) =>
+				setTimeout(() => reject(new SubprocessTimeoutError(SUBPROCESS_TIMEOUT)), SUBPROCESS_TIMEOUT),
+			),
+		])
+
+		log("subprocess finished gracefully")
+	} catch (error) {
+		if (error instanceof SubprocessTimeoutError) {
+			logError("subprocess did not finish within timeout, force killing")
+
+			try {
+				if (subprocess.kill("SIGKILL")) {
+					log("SIGKILL sent to subprocess")
+				} else {
+					logError("failed to send SIGKILL to subprocess")
+				}
+			} catch (killError) {
+				logError("subprocess.kill(SIGKILL) failed:", killError)
+			}
+		} else {
+			throw error
+		}
+	}
 }
