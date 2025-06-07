@@ -89,6 +89,7 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
+	geminiEnableThoughts?: boolean
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
 	requestTimeoutMs?: number
