@@ -27,7 +27,11 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		systemPromptCacheOnly: boolean = false,
+	): ApiStream {
 		this.lastGenerationId = undefined
 
 		const stream = await createOpenRouterStream(
@@ -35,6 +39,7 @@ export class OpenRouterHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
+			systemPromptCacheOnly,
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,

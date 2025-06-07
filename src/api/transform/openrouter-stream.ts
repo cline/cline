@@ -9,6 +9,7 @@ export async function createOpenRouterStream(
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
+	systemPromptCacheOnly: boolean,
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
@@ -55,23 +56,25 @@ export async function createOpenRouterStream(
 			}
 			// Add cache_control to the last two user messages
 			// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
-			const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
-			lastTwoUserMessages.forEach((msg) => {
-				if (typeof msg.content === "string") {
-					msg.content = [{ type: "text", text: msg.content }]
-				}
-				if (Array.isArray(msg.content)) {
-					// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
-					let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
-
-					if (!lastTextPart) {
-						lastTextPart = { type: "text", text: "..." }
-						msg.content.push(lastTextPart)
+			if (!systemPromptCacheOnly) {
+				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
+				lastTwoUserMessages.forEach((msg) => {
+					if (typeof msg.content === "string") {
+						msg.content = [{ type: "text", text: msg.content }]
 					}
-					// @ts-ignore-next-line
-					lastTextPart["cache_control"] = { type: "ephemeral" }
-				}
-			})
+					if (Array.isArray(msg.content)) {
+						// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
+						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+						if (!lastTextPart) {
+							lastTextPart = { type: "text", text: "..." }
+							msg.content.push(lastTextPart)
+						}
+						// @ts-ignore-next-line
+						lastTextPart["cache_control"] = { type: "ephemeral" }
+					}
+				})
+			}
 			break
 		default:
 			break
@@ -133,7 +136,7 @@ export async function createOpenRouterStream(
 	}
 
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-	let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
+	let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache || systemPromptCacheOnly
 	// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
 	if (model.id === "deepseek/deepseek-chat") {
 		shouldApplyMiddleOutTransform = true
