@@ -211,15 +211,15 @@ async function main() {
 	const runParallel = args.includes("--parallel")
 
 	if (paths.length < 3) {
-		console.log("Usage: npx tsx TestRunner.ts [test_directory] [config_path] [output_path] [--parallel]")
+		console.log("Usage: npx tsx TestRunner.ts [test_path] [config_path] [output_path] [--parallel]")
 		process.exit(1)
 	}
 
-	const [testDir, configPath, outputPath] = paths
+	const [testPath, configPath, outputPath] = paths
 
 	try {
 		const runner = new NodeTestRunner()
-		const testCases = await runner.loadTestCases(testDir)
+		const testCases = await runner.loadTestCases(testPath)
 		const testConfig = await runner.loadTestConfig(configPath)
 
 		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
