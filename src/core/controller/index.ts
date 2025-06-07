@@ -69,7 +69,7 @@ export class Controller {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
-		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
+		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
@@ -221,89 +221,13 @@ export class Controller {
 				await this.fetchMcpMarketplace(message.bool)
 				break
 			}
-			case "toggleWorkflow": {
-				const { workflowPath, enabled, isGlobal } = message
-				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const globalWorkflowToggles =
-							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
-						globalWorkflowToggles[workflowPath] = enabled
-						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
-						await this.postStateToWebview()
-					} else {
-						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-						toggles[workflowPath] = enabled
-						await updateWorkspaceState(this.context, "workflowToggles", toggles)
-						await this.postStateToWebview()
-					}
-				}
-				break
-			}
-			case "fetchLatestMcpServersFromHub": {
-				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
+
 			// telemetry
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
 				}
 				await this.postStateToWebview()
-				break
-			}
-			case "updateSettings": {
-				// api config
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-
-				// custom instructions
-				await this.updateCustomInstructions(message.customInstructionsSetting)
-
-				// telemetry setting
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-
-				// plan act setting
-				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
-
-				if (typeof message.enableCheckpointsSetting === "boolean") {
-					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
-				}
-
-				if (typeof message.mcpMarketplaceEnabled === "boolean") {
-					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
-				}
-
-				if (typeof message.mcpResponsesCollapsed === "boolean") {
-					await updateGlobalState(this.context, "mcpResponsesCollapsed", message.mcpResponsesCollapsed)
-				}
-
-				// chat settings (including preferredLanguage and openAIReasoningEffort)
-				if (message.chatSettings) {
-					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
-					if (this.task) {
-						this.task.chatSettings = message.chatSettings
-					}
-				}
-
-				// terminal settings
-				if (typeof message.shellIntegrationTimeout === "number") {
-					await updateGlobalState(this.context, "shellIntegrationTimeout", message.shellIntegrationTimeout)
-				}
-
-				if (typeof message.terminalReuseEnabled === "boolean") {
-					await updateGlobalState(this.context, "terminalReuseEnabled", message.terminalReuseEnabled)
-				}
-
-				// after settings are updated, post state to webview
-				await this.postStateToWebview()
-
-				await this.postMessageToWebview({ type: "didUpdateSettings" })
 				break
 			}
 			case "clearAllTaskHistory": {
@@ -337,13 +261,6 @@ export class Controller {
 				}
 				break
 			}
-			case "executeQuickWin":
-				if (message.payload) {
-					const { command, title } = message.payload
-					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
-					await this.initTask(title)
-				}
-				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)

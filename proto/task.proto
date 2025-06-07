@@ -33,6 +33,8 @@ service TaskService {
   rpc taskFeedback(StringRequest) returns (Empty);
   // Shows task completion changes diff in a view
   rpc taskCompletionViewChanges(Int64Request) returns (Empty);
+  // Executes a quick win task with command and title
+  rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -106,4 +108,11 @@ message AskResponseRequest {
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;
+}
+
+// Request for executing a quick win task
+message ExecuteQuickWinRequest {
+  Metadata metadata = 1;
+  string command = 2;
+  string title = 3;
 }
