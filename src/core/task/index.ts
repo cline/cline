@@ -73,6 +73,7 @@ import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
@@ -165,6 +166,7 @@ export class Task {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
+	private initTaskPromise?: Promise<void>
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
@@ -296,9 +298,9 @@ export class Task {
 
 		// Continue with task initialization
 		if (historyItem) {
-			this.resumeTaskFromHistory()
+			this.initTaskPromise = this.resumeTaskFromHistory()
 		} else if (task || images || files) {
-			this.startTask(task, images, files)
+			this.initTaskPromise = this.startTask(task, images, files)
 		}
 
 		// initialize telemetry
@@ -387,6 +389,10 @@ export class Task {
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
 		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
@@ -512,17 +518,21 @@ export class Task {
 
 			await this.saveClineMessagesAndUpdateHistory()
 
-			await this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 
 			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		const relinquishButton = () => {
-			this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 		}
 		if (!this.enableCheckpoints) {
 			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
@@ -650,6 +660,10 @@ export class Task {
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		if (!this.enableCheckpoints) {
 			return false
 		}
@@ -1200,6 +1214,10 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		if (!this.enableCheckpoints) {
 			// If checkpoints are disabled, do nothing.
 			return

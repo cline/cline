@@ -40,7 +40,7 @@ const CodeAccordian = ({
 
 	const numberOfEdits = useMemo(() => {
 		if (code) {
-			return (code.match(/\+{7} REPLACE/g) || []).length || undefined
+			return (code.match(/[-]{3,} SEARCH/g) || []).length || undefined
 		}
 		return undefined
 	}, [code])

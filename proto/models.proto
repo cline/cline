@@ -20,6 +20,8 @@ service ModelsService {
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Subscribe to OpenRouter models updates
+  rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -35,17 +37,42 @@ message VsCodeLmModel {
   string id = 4;
 }
 
+// Price tier for tiered pricing models
+message PriceTier {
+  int32 token_limit = 1;  // Upper limit (inclusive) of input tokens for this price
+  double price = 2;       // Price per million tokens for this tier
+}
+
+// Thinking configuration for models that support thinking/reasoning
+message ThinkingConfig {
+  optional int32 max_budget = 1;                    // Max allowed thinking budget tokens
+  optional double output_price = 2;                 // Output price per million tokens when budget > 0
+  repeated PriceTier output_price_tiers = 3;        // Optional: Tiered output price when budget > 0
+}
+
+// Model tier for tiered pricing structures
+message ModelTier {
+  int32 context_window = 1;
+  optional double input_price = 2;
+  optional double output_price = 3;
+  optional double cache_writes_price = 4;
+  optional double cache_reads_price = 5;
+}
+
 // For OpenRouterCompatibleModelInfo structure in OpenRouterModels
 message OpenRouterModelInfo {
-  int32 max_tokens = 1;
-  int32 context_window = 2;
-  bool supports_images = 3;
+  optional int32 max_tokens = 1;
+  optional int32 context_window = 2;
+  optional bool supports_images = 3;
   bool supports_prompt_cache = 4;
-  double input_price = 5;
-  double output_price = 6;
-  double cache_writes_price = 7;
-  double cache_reads_price = 8;
-  string description = 9;
+  optional double input_price = 5;
+  optional double output_price = 6;
+  optional double cache_writes_price = 7;
+  optional double cache_reads_price = 8;
+  optional string description = 9;
+  optional ThinkingConfig thinking_config = 10;
+  optional bool supports_global_endpoint = 11;
+  repeated ModelTier tiers = 12;
 }
 
 // Shared response message for model information
