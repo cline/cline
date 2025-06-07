@@ -137,7 +137,7 @@ class NodeTestRunner {
 	async runAllTestsParallel(
 		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
-		maxConcurrency: number = 10,
+		maxConcurrency: number = 20,
 	): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 		testCases.forEach((tc) => {

@@ -105,19 +105,26 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		const { apiKey, systemPrompt, messages, modelId, originalFile, originalFilePath, parsingFunction, diffEditFunction } =
 			input
 
-		if (
-			!apiKey ||
-			!messages ||
-			!modelId ||
-			!systemPrompt ||
-			!originalFile ||
-			!originalFilePath ||
-			!parsingFunction ||
-			!diffEditFunction
-		) {
+		const requiredParams = {
+			apiKey,
+			systemPrompt,
+			messages,
+			modelId,
+			originalFile,
+			originalFilePath,
+			parsingFunction,
+			diffEditFunction,
+		}
+
+		const missingParams = Object.entries(requiredParams)
+			.filter(([, value]) => !value)
+			.map(([key]) => key)
+
+		if (missingParams.length > 0) {
 			return {
 				success: false,
 				error: "missing_required_parameters",
+				errorString: `Missing required parameters: ${missingParams.join(", ")}`,
 			}
 		}
 
