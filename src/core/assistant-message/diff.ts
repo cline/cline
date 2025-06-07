@@ -407,6 +407,32 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 
 	// If this is the final chunk, we need to apply all replacements and build the final result
 	if (isFinal) {
+		// Handle the case where we're still in replace mode when processing ends
+		// and this is the final chunk - treat it as if we encountered the REPLACE marker
+		if (inReplace && searchMatchIndex !== -1) {
+			// Store this replacement
+			replacements.push({
+				start: searchMatchIndex,
+				end: searchEndIndex,
+				content: currentReplaceContent,
+			})
+
+			// If this was an in-order replacement, advance lastProcessedIndex
+			if (!pendingOutOfOrderReplacement) {
+				lastProcessedIndex = searchEndIndex
+			}
+
+			// Reset state
+			inSearch = false
+			inReplace = false
+			currentSearchContent = ""
+			currentReplaceContent = ""
+			searchMatchIndex = -1
+			searchEndIndex = -1
+			pendingOutOfOrderReplacement = false
+		}
+		// end of handling missing replace marker
+
 		// Sort replacements by start position
 		replacements.sort((a, b) => a.start - b.start)
 

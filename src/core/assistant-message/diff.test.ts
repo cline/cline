@@ -175,6 +175,55 @@ replaced
 			expect(err).to.be.an("error")
 		}
 	})
+
+	it("should handle missing final REPLACE marker when isFinal is true", async () => {
+		const original = "line1\nline2\nline3"
+		const diff = `------- SEARCH
+line2
+=======
+replaced`
+		// Note: missing +++++++ REPLACE marker
+
+		const result1 = await cnfc(diff, original, true) // isFinal = true
+
+		// Should still work and replace line2 with "replaced"
+		const expected = "line1\nreplaced\nline3"
+
+		expect(result1).to.equal(expected)
+	})
+
+	it("should handle missing final REPLACE marker with multiple lines of replacement", async () => {
+		const original = "function test() {\n\tconst a = 1;\n\treturn a;\n}"
+		const diff = `------- SEARCH
+	const a = 1;
+	return a;
+=======
+	const a = 42;
+	console.log('updated');
+	return a;`
+		// Note: missing +++++++ REPLACE marker
+
+		const result1 = await cnfc(diff, original, true) // isFinal = true
+		const expected = "function test() {\n\tconst a = 42;\n\tconsole.log('updated');\n\treturn a;\n}"
+
+		expect(result1).to.equal(expected)
+	})
+
+	// 	it("should NOT process incomplete replacement when isFinal is false", async () => {
+	// 		const original = "line1\nline2\nline3"
+	// 		const diff = `------- SEARCH
+	// line2
+	// =======
+	// replaced`
+	// 		// Note: missing +++++++ REPLACE marker AND isFinal = false
+
+	// 		const result1 = await cnfc(diff, original, false) // isFinal = false
+
+	// 		// Should not make any changes since the block is incomplete
+	// 		const expected = "line1\nline2\nline3"
+
+	// 		expect(result1).to.equal(expected)
+	// 	})
 })
 
 // Test cases for out-of-order search/replace blocks
