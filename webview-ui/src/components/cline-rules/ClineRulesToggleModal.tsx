@@ -341,9 +341,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<div className="text-sm font-normal mb-2">Global Workflows</div>
 								<RulesToggleList
 									rules={globalWorkflows}
-									toggleRule={(rulePath, enabled) => {
-										return toggleWorkflow(true, rulePath, enabled)
-									}}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
 									listGap="small"
 									isGlobal={true}
 									ruleType={"workflow"}
@@ -357,9 +355,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 								<RulesToggleList
 									rules={localWorkflows}
-									toggleRule={(rulePath, enabled) => {
-										return toggleWorkflow(false, rulePath, enabled)
-									}}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
 									listGap="small"
 									isGlobal={false}
 									ruleType={"workflow"}
