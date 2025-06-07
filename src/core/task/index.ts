@@ -165,6 +165,7 @@ export class Task {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
+	private initTaskPromise?: Promise<void>
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
@@ -296,9 +297,9 @@ export class Task {
 
 		// Continue with task initialization
 		if (historyItem) {
-			this.resumeTaskFromHistory()
+			this.initTaskPromise = this.resumeTaskFromHistory()
 		} else if (task || images || files) {
-			this.startTask(task, images, files)
+			this.initTaskPromise = this.startTask(task, images, files)
 		}
 
 		// initialize telemetry
@@ -387,6 +388,10 @@ export class Task {
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
 		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
@@ -521,6 +526,10 @@ export class Task {
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		const relinquishButton = () => {
 			this.postMessageToWebview({ type: "relinquishControl" })
 		}
@@ -650,6 +659,10 @@ export class Task {
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		if (!this.enableCheckpoints) {
 			return false
 		}
@@ -1200,6 +1213,10 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
+		if (this.initTaskPromise && !this.isInitialized) {
+			await this.initTaskPromise
+		}
+
 		if (!this.enableCheckpoints) {
 			// If checkpoints are disabled, do nothing.
 			return
