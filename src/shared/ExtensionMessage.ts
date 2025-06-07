@@ -19,7 +19,6 @@ export interface ExtensionMessage {
 		| "selectedImages"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
 		| "mcpDownloadDetails"
 		| "userCreditsBalance"
 		| "userCreditsUsage"

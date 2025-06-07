@@ -10,6 +10,8 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
+import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import chokidar, { FSWatcher } from "chokidar"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import deepEqual from "fast-deep-equal"
@@ -606,9 +608,13 @@ export class McpHub {
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
-		await this.postMessageToWebview({
-			type: "mcpServers",
-			mcpServers: this.getSortedMcpServers(serverOrder),
+
+		// Get sorted servers
+		const sortedServers = this.getSortedMcpServers(serverOrder)
+
+		// Send update using gRPC stream
+		await sendMcpServersUpdate({
+			mcpServers: convertMcpServersToProtoMcpServers(sortedServers),
 		})
 	}
 
