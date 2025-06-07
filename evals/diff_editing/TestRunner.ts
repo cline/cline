@@ -167,6 +167,10 @@ class NodeTestRunner {
 					results[result.test_id].push(result)
 				}
 			}
+
+			const batchNumber = i / maxConcurrency + 1
+			const totalBatches = Math.ceil(allRuns.length / maxConcurrency)
+			console.log(`-Completed batch ${batchNumber} of ${totalBatches}...`)
 		}
 
 		return results
@@ -218,6 +222,8 @@ async function main() {
 	const [testPath, configPath, outputPath] = paths
 
 	try {
+		const startTime = Date.now()
+
 		const runner = new NodeTestRunner()
 		const testCases = await runner.loadTestCases(testPath)
 		const testConfig = await runner.loadTestConfig(configPath)
@@ -236,6 +242,10 @@ async function main() {
 			: await runner.runAllTests(processedTestCases, testConfig)
 
 		runner.printSummary(results)
+
+		const endTime = Date.now()
+		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
+		console.log(`\n-Total execution time: ${durationSeconds} seconds`)
 
 		// Ensure output directory exists
 		if (!fs.existsSync(outputPath)) {
