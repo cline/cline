@@ -255,24 +255,6 @@ export class Controller {
 
 			// 	break
 			// }
-			case "toggleWorkflow": {
-				const { workflowPath, enabled, isGlobal } = message
-				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const globalWorkflowToggles =
-							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
-						globalWorkflowToggles[workflowPath] = enabled
-						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
-						await this.postStateToWebview()
-					} else {
-						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-						toggles[workflowPath] = enabled
-						await updateWorkspaceState(this.context, "workflowToggles", toggles)
-						await this.postStateToWebview()
-					}
-				}
-				break
-			}
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
 				break
