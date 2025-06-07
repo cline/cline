@@ -11,7 +11,6 @@ export interface WebviewMessage {
 		| "apiConfiguration"
 		| "requestVsCodeLmModels"
 		| "authStateChanged"
-		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "telemetrySetting"
 		| "clearAllTaskHistory"
