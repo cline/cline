@@ -10,6 +10,7 @@ import {
 	ToggleClineRuleRequest,
 	ToggleCursorRuleRequest,
 	ToggleWindsurfRuleRequest,
+	ToggleWorkflowRequest,
 } from "@shared/proto/file"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
@@ -138,10 +139,12 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleWindsurfRule = (rulePath: string, enabled: boolean) => {
-		FileServiceClient.toggleWindsurfRule({
-			rulePath,
-			enabled,
-		} as ToggleWindsurfRuleRequest)
+		FileServiceClient.toggleWindsurfRule(
+			ToggleWindsurfRuleRequest.create({
+				rulePath,
+				enabled,
+			} as ToggleWindsurfRuleRequest),
+		)
 			.then((response: ClineRulesToggles) => {
 				if (response.toggles) {
 					setLocalWindsurfRulesToggles(response.toggles)
@@ -152,15 +155,21 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
-		FileServiceClient.toggleWorkflow({
-			workflowPath,
-			enabled,
-			isGlobal,
-		})
+	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
+		FileServiceClient.toggleWorkflow(
+			ToggleWorkflowRequest.create({
+				workflowPath,
+				enabled,
+				isGlobal,
+			}),
+		)
 			.then((response) => {
 				if (response.toggles) {
-					setLocalWorkflowsToggles(response.toggles)
+					if (isGlobal) {
+						setGlobalWorkflowToggles(response.toggles)
+					} else {
+						setLocalWorkflowToggles(response.toggles)
+					}
 				}
 			})
 			.catch((err: Error) => {
@@ -332,7 +341,9 @@ const ClineRulesToggleModal: React.FC = () => {
 								<div className="text-sm font-normal mb-2">Global Workflows</div>
 								<RulesToggleList
 									rules={globalWorkflows}
-									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
+									toggleRule={(rulePath, enabled) => {
+										return toggleWorkflow(true, rulePath, enabled)
+									}}
 									listGap="small"
 									isGlobal={true}
 									ruleType={"workflow"}
@@ -346,7 +357,9 @@ const ClineRulesToggleModal: React.FC = () => {
 								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 								<RulesToggleList
 									rules={localWorkflows}
-									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
+									toggleRule={(rulePath, enabled) => {
+										return toggleWorkflow(false, rulePath, enabled)
+									}}
 									listGap="small"
 									isGlobal={false}
 									ruleType={"workflow"}

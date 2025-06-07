@@ -170,4 +170,5 @@ message ToggleWorkflowRequest {
   Metadata metadata = 1;
   string workflow_path = 2;
   bool enabled = 3;
+  bool is_global = 4;
 }
