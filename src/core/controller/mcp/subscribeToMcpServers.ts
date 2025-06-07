@@ -38,9 +38,9 @@ export async function subscribeToMcpServers(
 		const mcpServers = controller.mcpHub.getServers()
 		if (mcpServers.length > 0) {
 			try {
-				const protoServers: McpServers = {
+				const protoServers = McpServers.create({
 					mcpServers: convertMcpServersToProtoMcpServers(mcpServers),
-				}
+				})
 				await responseStream(
 					protoServers,
 					false, // Not the last message

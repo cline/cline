@@ -19,6 +19,9 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
+import { WatchServiceClient } from "../../standalone/services/host-grpc-client"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { Metadata } from "../../shared/proto/common"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -120,22 +123,45 @@ export class McpHub {
 
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
-		this.disposables.push(
-			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const settings = await this.readAndValidateMcpSettingsFile()
-					if (settings) {
-						try {
-							vscode.window.showInformationMessage("Updating MCP servers...")
-							await this.updateServerConnections(settings.mcpServers)
-							vscode.window.showInformationMessage("MCP servers updated")
-						} catch (error) {
-							console.error("Failed to process MCP settings change:", error)
+
+		// Subscribe to file changes using the gRPC WatchService
+		console.log("[DEBUG] subscribing to mcp file changes")
+		const cancelSubscription = WatchServiceClient.subscribeToFile(
+			SubscribeToFileRequest.create({
+				metadata: Metadata.create({}),
+				path: settingsPath,
+			}),
+			{
+				onResponse: async (response) => {
+					console.log(
+						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
+					)
+
+					// Only process the file if it was changed (not created or deleted)
+					if (response.type === FileChangeEvent_ChangeType.CHANGED) {
+						const settings = await this.readAndValidateMcpSettingsFile()
+						if (settings) {
+							try {
+								vscode.window.showInformationMessage("Updating MCP servers...")
+								await this.updateServerConnections(settings.mcpServers)
+								vscode.window.showInformationMessage("MCP servers updated")
+							} catch (error) {
+								console.error("Failed to process MCP settings change:", error)
+							}
 						}
 					}
-				}
-			}),
+				},
+				onError: (error) => {
+					console.error("Error watching MCP settings file:", error)
+				},
+				onComplete: () => {
+					console.log("[DEBUG] MCP settings file watch completed")
+				},
+			},
 		)
+
+		// Add the cancellation function to disposables
+		this.disposables.push({ dispose: cancelSubscription })
 	}
 
 	private async initializeMcpServers(): Promise<void> {
@@ -594,6 +620,17 @@ export class McpHub {
 
 	async sendLatestMcpServers() {
 		await this.notifyWebviewOfServerChanges()
+	}
+
+	async getLatestMcpServersRPC(): Promise<McpServer[]> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			// Return empty array if settings can't be read or validated
+			return []
+		}
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
 	}
 
 	// Using server

@@ -10,6 +10,7 @@ import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
+	getContextMenuOptionIndex,
 	insertMention,
 	insertMentionDirectly,
 	removeMention,
@@ -59,6 +60,9 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
 		img.src = dataUrl
 	})
 }
+
+// Set to "File" option by default
+const DEFAULT_CONTEXT_MENU_OPTION = getContextMenuOptionIndex(ContextMenuOptionType.File)
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -341,22 +345,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [selectedType, searchQuery])
 
-		const handleMessage = useCallback((event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "fileSearchResults": {
-					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
-					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
-						setFileSearchResults(message.results || [])
-						setSearchLoading(false)
-					}
-					break
-				}
-			}
-		}, [])
-
-		useEvent("message", handleMessage)
-
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
@@ -530,7 +518,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (event.key === "Escape") {
 						// event.preventDefault()
 						setSelectedType(null)
-						setSelectedMenuIndex(3) // File by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 						return
 					}
 
@@ -770,7 +758,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								})
 						}, 200) // 200ms debounce
 					} else {
-						setSelectedMenuIndex(3) // Set to "File" option by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 					}
 				} else {
 					setSearchQuery("")

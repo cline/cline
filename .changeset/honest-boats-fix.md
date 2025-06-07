@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Telemetry fix
+Spring cleaning

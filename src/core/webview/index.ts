@@ -8,6 +8,7 @@ import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
 import { WebviewProviderType } from "@/shared/webview/types"
+import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -139,11 +140,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			vscode.workspace.onDidChangeConfiguration(
 				async (e) => {
 					if (e && e.affectsConfiguration("workbench.colorTheme")) {
-						// Sends latest theme name to webview
-						await this.controller.postMessageToWebview({
-							type: "theme",
-							text: JSON.stringify(await getTheme()),
-						})
+						// Send theme update via gRPC subscription
+						const theme = await getTheme()
+						if (theme) {
+							await sendThemeEvent(JSON.stringify(theme))
+						}
 					}
 					if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 						// Update state when marketplace tab setting changes
