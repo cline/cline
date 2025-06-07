@@ -19,6 +19,7 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
+		| "toggleWorkflow"
 
 	text?: string
 	disabled?: boolean
@@ -68,8 +69,6 @@ export interface WebviewMessage {
 	workflowPath?: string
 	enabled?: boolean
 	filename?: string
-
-	payload?: { command: string; title: string }
 
 	offset?: number
 	shellIntegrationTimeout?: number

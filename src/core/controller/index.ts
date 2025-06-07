@@ -68,7 +68,7 @@ export class Controller {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
-		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
+		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
@@ -298,13 +298,6 @@ export class Controller {
 				}
 				break
 			}
-			case "executeQuickWin":
-				if (message.payload) {
-					const { command, title } = message.payload
-					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
-					await this.initTask(title)
-				}
-				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
