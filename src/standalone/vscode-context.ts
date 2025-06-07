@@ -1,13 +1,22 @@
 import { URI } from "vscode-uri"
 
 import path from "path"
+import { mkdirSync } from "fs"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { outputChannel, postMessage } from "./vscode-context-stubs"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
+import { log } from "./utils"
 
-const DATA_DIR = process.env.DATA_DIR ?? "."
-const EXTENSION_DIR = process.env.EXTENSION_DIR ?? "."
+if (!process.env.CLINE_DIR) {
+	console.warn("Environment variable CLINE_DIR was not set.")
+	process.exit(1)
+}
+const DATA_DIR = path.join(process.env.CLINE_DIR, "data")
+mkdirSync(DATA_DIR, { recursive: true })
+log("Using settings dir:", DATA_DIR)
+
+const EXTENSION_DIR = path.join(process.env.CLINE_DIR, "core")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {

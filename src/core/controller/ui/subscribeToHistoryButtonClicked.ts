@@ -14,7 +14,7 @@ const activeHistoryButtonClickedSubscriptions = new Map<StreamingResponseHandler
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToHistoryButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	request: WebviewProviderTypeRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,

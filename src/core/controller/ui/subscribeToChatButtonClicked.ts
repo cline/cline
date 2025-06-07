@@ -15,7 +15,7 @@ const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHa
  */
 export async function subscribeToChatButtonClicked(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {

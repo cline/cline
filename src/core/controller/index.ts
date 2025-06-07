@@ -1,24 +1,17 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
-
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
-import { handleModelsServiceRequest } from "./models"
-import { EmptyRequest } from "@shared/proto/common"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
-import { fetchOpenGraphData } from "@integrations/misc/link-preview"
-import { handleFileServiceRequest } from "./file"
-import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
-import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
@@ -26,39 +19,29 @@ import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
+import { McpMarketplaceCatalog } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
-import { getTotalTasksSize } from "@utils/storage"
-import {
-	ensureMcpServersDirectoryExists,
-	ensureSettingsDirectoryExists,
-	GlobalFileNames,
-	ensureWorkflowsDirectoryExists,
-} from "../storage/disk"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
 	getSecret,
 	getWorkspaceState,
-	resetExtensionState,
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
 	updateWorkspaceState,
 } from "../storage/state"
-import { Task, cwd } from "../task"
+import { Task } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
-import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
-import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
-import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
-import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -151,6 +134,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			terminalReuseEnabled,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
@@ -185,6 +169,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			terminalReuseEnabled ?? true,
 			enableCheckpointsSetting ?? true,
 			customInstructions,
 			task,
@@ -217,64 +202,6 @@ export class Controller {
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
-				break
-			case "webviewDidLaunch":
-				this.postStateToWebview()
-				this.workspaceTracker?.populateFilePaths() // don't await
-				getTheme().then((theme) =>
-					this.postMessageToWebview({
-						type: "theme",
-						text: JSON.stringify(theme),
-					}),
-				)
-				// post last cached models in case the call to endpoint fails
-				this.readOpenRouterModels().then((openRouterModels) => {
-					if (openRouterModels) {
-						this.postMessageToWebview({
-							type: "openRouterModels",
-							openRouterModels,
-						})
-					}
-				})
-				// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
-				// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
-				// (see normalizeApiConfiguration > openrouter)
-				// Prefetch marketplace and OpenRouter models
-
-				getGlobalState(this.context, "mcpMarketplaceCatalog").then((mcpMarketplaceCatalog) => {
-					if (mcpMarketplaceCatalog) {
-						this.postMessageToWebview({
-							type: "mcpMarketplaceCatalog",
-							mcpMarketplaceCatalog: mcpMarketplaceCatalog as McpMarketplaceCatalog,
-						})
-					}
-				})
-				this.silentlyRefreshMcpMarketplace()
-				handleModelsServiceRequest(this, "refreshOpenRouterModels", EmptyRequest.create()).then(async (response) => {
-					if (response && response.models) {
-						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-						const { apiConfiguration } = await getAllExtensionState(this.context)
-						if (apiConfiguration.openRouterModelId && response.models[apiConfiguration.openRouterModelId]) {
-							await updateGlobalState(
-								this.context,
-								"openRouterModelInfo",
-								response.models[apiConfiguration.openRouterModelId],
-							)
-							await this.postStateToWebview()
-						}
-					}
-				})
-				break
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
-
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images, message.files)
 				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
@@ -358,48 +285,6 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			}
-			case "updateSettings": {
-				// api config
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-
-				// custom instructions
-				await this.updateCustomInstructions(message.customInstructionsSetting)
-
-				// telemetry setting
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-
-				// plan act setting
-				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
-
-				if (typeof message.enableCheckpointsSetting === "boolean") {
-					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
-				}
-
-				if (typeof message.mcpMarketplaceEnabled === "boolean") {
-					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
-				}
-
-				// chat settings (including preferredLanguage and openAIReasoningEffort)
-				if (message.chatSettings) {
-					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
-					if (this.task) {
-						this.task.chatSettings = message.chatSettings
-					}
-				}
-
-				// after settings are updated, post state to webview
-				await this.postStateToWebview()
-
-				await this.postMessageToWebview({ type: "didUpdateSettings" })
-				break
-			}
 			case "clearAllTaskHistory": {
 				const answer = await vscode.window.showWarningMessage(
 					"What would you like to delete?",
@@ -431,13 +316,6 @@ export class Controller {
 				}
 				break
 			}
-			case "executeQuickWin":
-				if (message.payload) {
-					const { command, title } = message.payload
-					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
-					await this.initTask(title)
-				}
-				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
@@ -741,10 +619,6 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					error: errorMessage,
-				})
 				vscode.window.showErrorMessage(errorMessage)
 			}
 			return undefined
@@ -790,10 +664,7 @@ export class Controller {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
 			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace:", error)
@@ -821,27 +692,17 @@ export class Controller {
 				| McpMarketplaceCatalog
 				| undefined
 			if (!forceRefresh && cachedCatalog?.items) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: cachedCatalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(cachedCatalog)
 				return
 			}
 
 			const catalog = await this.fetchMcpMarketplaceFromApi(false)
 			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
+				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			await this.postMessageToWebview({
-				type: "mcpMarketplaceCatalog",
-				error: errorMessage,
-			})
 			vscode.window.showErrorMessage(errorMessage)
 		}
 	}
@@ -1164,7 +1025,9 @@ export class Controller {
 			globalClineRulesToggles,
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
+			terminalReuseEnabled,
 			isNewUser,
+			mcpResponsesCollapsed,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1208,7 +1071,9 @@ export class Controller {
 			localWorkflowToggles: localWorkflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
+			terminalReuseEnabled,
 			isNewUser,
+			mcpResponsesCollapsed,
 		}
 	}
 

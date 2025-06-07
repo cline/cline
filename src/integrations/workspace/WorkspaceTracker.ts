@@ -10,6 +10,14 @@ class WorkspaceTracker {
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 
+	private get activeFiles() {
+		return new Set(
+			vscode.window.tabGroups.activeTabGroup.tabs
+				.filter((tab) => tab.input instanceof vscode.TabInputText)
+				.map((tab) => (tab.input as vscode.TabInputText).uri.fsPath),
+		)
+	}
+
 	constructor() {
 		this.registerListeners()
 	}
@@ -34,6 +42,9 @@ class WorkspaceTracker {
 
 		// Listen for file renaming
 		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
+
+		// Listen for tab groups changes
+		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(this.workspaceDidUpdate.bind(this)))
 
 		/*
 		 An event that is emitted when a workspace folder is added or removed.
@@ -83,7 +94,7 @@ class WorkspaceTracker {
 		if (!cwd) {
 			return
 		}
-		const filePaths = Array.from(this.filePaths).map((file) => {
+		const filePaths = Array.from(new Set([...this.activeFiles, ...this.filePaths])).map((file) => {
 			const relativePath = path.relative(cwd, file).toPosix()
 			return file.endsWith("/") ? relativePath + "/" : relativePath
 		})

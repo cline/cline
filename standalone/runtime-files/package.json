@@ -1,5 +1,5 @@
 {
-	"name": "Cline standalone",
+	"name": "cline-standalone",
 	"version": "1.0.0",
 	"main": "standalone.js",
 	"dependencies": {

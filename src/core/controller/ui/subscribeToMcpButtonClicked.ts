@@ -14,7 +14,7 @@ const mcpButtonClickedSubscriptions = new Map<StreamingResponseHandler, WebviewP
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToMcpButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	request: WebviewProviderTypeRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
