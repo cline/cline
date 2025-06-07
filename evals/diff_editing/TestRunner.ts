@@ -1,5 +1,6 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt"
+import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt"
 import { formatResponse } from "./helpers"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
@@ -8,6 +9,7 @@ import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDeta
 
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
 	basicSystemPrompt: basicSystemPrompt,
+	claude4SystemPrompt: claude4SystemPrompt,
 }
 
 type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] }
