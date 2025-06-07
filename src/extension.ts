@@ -93,6 +93,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	telemetryService.captureExtensionActivated(installId)
 
+	telemetryService.initializeTelemetryFeatureFlagCache().catch((error) => {
+		Logger.log("Failed to initialize feature flag cache: " + error)
+	})
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
 			console.log("[DEBUG] plusButtonClicked", webview)
