@@ -13,13 +13,11 @@ export interface WebviewMessage {
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
-		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleWorkflow"
 
 	text?: string
 	disabled?: boolean

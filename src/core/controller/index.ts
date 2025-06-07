@@ -255,10 +255,7 @@ export class Controller {
 
 			// 	break
 			// }
-			case "fetchLatestMcpServersFromHub": {
-				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
+
 			// telemetry
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {

@@ -19,6 +19,7 @@ service McpService {
   
   // Subscribe to MCP marketplace catalog updates
   rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
+  rpc getLatestMcpServers(Empty) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {

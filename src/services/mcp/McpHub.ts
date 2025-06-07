@@ -616,6 +616,17 @@ export class McpHub {
 		await this.notifyWebviewOfServerChanges()
 	}
 
+	async getLatestMcpServersRPC(): Promise<McpServer[]> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			// Return empty array if settings can't be read or validated
+			return []
+		}
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
+	}
+
 	// Using server
 
 	// Public methods for server management
