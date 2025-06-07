@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.17.8",
+	"version": "3.17.11",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -46,6 +46,58 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"walkthroughs": [
+			{
+				"id": "ClineWalkthrough",
+				"title": "Meet Cline, your new coding partner",
+				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"steps": [
+					{
+						"id": "welcome",
+						"title": "Start with a Goal, Not Just a Prompt",
+						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"media": {
+							"markdown": "walkthrough/step1.md"
+						}
+					},
+					{
+						"id": "learn",
+						"title": "Let Cline Learn Your Codebase",
+						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"media": {
+							"markdown": "walkthrough/step2.md"
+						}
+					},
+					{
+						"id": "advanced-features",
+						"title": "Always Use the Best AI Models",
+						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"media": {
+							"markdown": "walkthrough/step3.md"
+						}
+					},
+					{
+						"id": "mcp",
+						"title": "Extend with Powerful Tools (MCP)",
+						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"media": {
+							"markdown": "walkthrough/step4.md"
+						}
+					},
+					{
+						"id": "getting-started",
+						"title": "You're Always in Control",
+						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"media": {
+							"markdown": "walkthrough/step5.md"
+						},
+						"content": {
+							"path": "walkthrough/step5.md"
+						}
+					}
+				]
+			}
+		],
 		"viewsContainers": {
 			"activitybar": [
 				{
@@ -142,6 +194,11 @@
 			{
 				"command": "cline.improveCode",
 				"title": "Improve with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.openWalkthrough",
+				"title": "Open Walkthrough",
 				"category": "Cline"
 			}
 		],
@@ -343,7 +400,7 @@
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.821.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
@@ -395,12 +452,14 @@
 		"posthog-node": "^4.8.1",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
+		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
 		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
+		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
 	}

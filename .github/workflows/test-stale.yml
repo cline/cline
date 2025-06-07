@@ -1,0 +1,32 @@
+name: Test Stale Issues Workflow
+on:
+    workflow_dispatch:
+        inputs:
+            days-before-stale:
+                description: "Days before an issue becomes stale"
+                required: true
+                default: "1"
+            days-before-close:
+                description: "Days before a stale issue is closed"
+                required: true
+                default: "1"
+
+jobs:
+    test-stale:
+        runs-on: ubuntu-latest
+        permissions:
+            issues: write
+            pull-requests: write
+        steps:
+            - uses: actions/stale@28ca103
+              with:
+                  days-before-issue-stale: ${{ github.event.inputs.days-before-stale }}
+                  days-before-issue-close: ${{ github.event.inputs.days-before-close }}
+                  stale-issue-label: "stale"
+                  stale-issue-message: "This issue is stale because it has been open for ${{ github.event.inputs.days-before-stale }} days with no activity."
+                  close-issue-message: "This issue was closed because it has been inactive for ${{ github.event.inputs.days-before-close }} days since being marked as stale."
+                  days-before-pr-stale: -1
+                  days-before-pr-close: -1
+                  exempt-issue-labels: "pinned,security"
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+                  debug-only: true

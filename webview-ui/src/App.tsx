@@ -9,6 +9,7 @@ import { UiServiceClient } from "./services/grpc-client"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
 import { Boolean, EmptyRequest } from "@shared/proto/common"
+import { WebviewProviderType } from "@shared/webview/types"
 
 const AppContent = () => {
 	const {
