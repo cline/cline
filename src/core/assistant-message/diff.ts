@@ -211,7 +211,7 @@ export async function constructNewFileContent(
 	diffContent: string,
 	originalContent: string,
 	isFinal: boolean,
-	version: "v1" | "v2" = "v2",
+	version: "v1" | "v2" = "v1",
 ): Promise<string> {
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
@@ -228,9 +228,6 @@ const constructNewFileContentVersionMapping: Record<
 	v2: constructNewFileContentV2,
 } as const
 
-/**
- * @deprecated
- */
 async function constructNewFileContentV1(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	let result = ""
 	let lastProcessedIndex = 0
@@ -242,6 +239,10 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
+
+	// Track all replacements to handle out-of-order edits
+	let replacements: Array<{ start: number; end: number; content: string }> = []
+	let pendingOutOfOrderReplacement = false
 
 	let lines = diffContent.split("\n")
 
@@ -314,31 +315,51 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {
-							throw new Error(
-								`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file or was searched out of order in the provided blocks.`,
-							)
+							// Last resort: search the entire file from the beginning
+							const fullFileIndex = originalContent.indexOf(currentSearchContent, 0)
+							if (fullFileIndex !== -1) {
+								// Found in the file - could be out of order
+								searchMatchIndex = fullFileIndex
+								searchEndIndex = fullFileIndex + currentSearchContent.length
+								if (searchMatchIndex < lastProcessedIndex) {
+									pendingOutOfOrderReplacement = true
+								}
+							} else {
+								throw new Error(
+									`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+								)
+							}
 						}
 					}
 				}
 			}
 
-			// Output everything up to the match location
-			result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
+			// Check if this is an out-of-order replacement
+			if (searchMatchIndex < lastProcessedIndex) {
+				pendingOutOfOrderReplacement = true
+			}
+
+			// For in-order replacements, output everything up to the match location
+			if (!pendingOutOfOrderReplacement) {
+				result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
+			}
 			continue
 		}
 
 		if (line === REPLACE_BLOCK_END) {
 			// Finished one replace block
 
-			// // Remove the artificially added linebreak in the last line of the REPLACE block
-			// if (result.endsWith("\r\n")) {
-			// 	result = result.slice(0, -2)
-			// } else if (result.endsWith("\n")) {
-			// 	result = result.slice(0, -1)
-			// }
+			// Store this replacement
+			replacements.push({
+				start: searchMatchIndex,
+				end: searchEndIndex,
+				content: currentReplaceContent,
+			})
 
-			// Advance lastProcessedIndex to after the matched section
-			lastProcessedIndex = searchEndIndex
+			// If this was an in-order replacement, advance lastProcessedIndex
+			if (!pendingOutOfOrderReplacement) {
+				lastProcessedIndex = searchEndIndex
+			}
 
 			// Reset for next block
 			inSearch = false
@@ -347,6 +368,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			currentReplaceContent = ""
 			searchMatchIndex = -1
 			searchEndIndex = -1
+			pendingOutOfOrderReplacement = false
 			continue
 		}
 
@@ -358,16 +380,33 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {
 			currentReplaceContent += line + "\n"
-			// Output replacement lines immediately if we know the insertion point
-			if (searchMatchIndex !== -1) {
+			// Only output replacement lines immediately for in-order replacements
+			if (searchMatchIndex !== -1 && !pendingOutOfOrderReplacement) {
 				result += line + "\n"
 			}
 		}
 	}
 
-	// If this is the final chunk, append any remaining original content
-	if (isFinal && lastProcessedIndex < originalContent.length) {
-		result += originalContent.slice(lastProcessedIndex)
+	// If this is the final chunk, we need to apply all replacements and build the final result
+	if (isFinal) {
+		// Sort replacements by start position
+		replacements.sort((a, b) => a.start - b.start)
+
+		// Rebuild the entire result by applying all replacements
+		result = ""
+		let currentPos = 0
+
+		for (const replacement of replacements) {
+			// Add original content up to this replacement
+			result += originalContent.slice(currentPos, replacement.start)
+			// Add the replacement content
+			result += replacement.content
+			// Move position to after the replaced section
+			currentPos = replacement.end
+		}
+
+		// Add any remaining original content
+		result += originalContent.slice(currentPos)
 	}
 
 	return result
