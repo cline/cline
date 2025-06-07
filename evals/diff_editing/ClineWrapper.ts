@@ -8,7 +8,8 @@ import {
 	parseAssistantMessageV3,
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
-import { constructNewFileContentV2 } from "./diff-apply/diff-06-06-25" // "../../src/core/assistant-message/diff"
+import { constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
+import { constructNewFileContentV2 as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
@@ -21,6 +22,7 @@ const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
 
 const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	constructNewFileContentV2: constructNewFileContentV2,
+	constructNewFileContentV3: constructNewFileContentV3, // position invariant diff
 }
 
 import { TestInput, TestResult, ExtractedToolCall } from "./types"
