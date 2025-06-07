@@ -1,6 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import {
+	StateServiceClient,
+	ModelsServiceClient,
+	UiServiceClient,
+	FileServiceClient,
+	McpServiceClient,
+} from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import { UpdateSettingsRequest } from "@shared/proto/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -18,7 +26,6 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient, UiServiceClient, McpServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
@@ -86,6 +93,9 @@ interface ExtensionStateContextType extends ExtensionState {
 	hideAccount: () => void
 	hideAnnouncement: () => void
 	closeMcpView: () => void
+
+	// Event callbacks
+	onRelinquishControl: (callback: () => void) => () => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -200,10 +210,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "workspaceUpdated": {
-				setFilePaths(message.filePaths ?? [])
-				break
-			}
 			case "openAiModels": {
 				const updatedModels = message.openAiModels ?? []
 				setOpenAiModels(updatedModels)
@@ -237,6 +243,19 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const themeSubscriptionRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
+	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
+	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
+
+	// Add ref for callbacks
+	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
+
+	// Create hook function
+	const onRelinquishControl = useCallback((callback: () => void) => {
+		relinquishControlCallbacks.current.add(callback)
+		return () => {
+			relinquishControlCallbacks.current.delete(callback)
+		}
+	}, [])
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -362,6 +381,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onError: (error) => {
 				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		// Subscribe to workspace file updates
+		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				console.log("[DEBUG] Received workspace update event from gRPC stream")
+				setFilePaths(response.values || [])
+			},
+			onError: (error) => {
+				console.error("Error in workspace updates subscription:", error)
 			},
 			onComplete: () => {},
 		})
@@ -499,6 +530,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Subscribe to relinquish control events
+		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
+			onResponse: () => {
+				// Call all registered callbacks
+				relinquishControlCallbacks.current.forEach((callback) => callback())
+			},
+			onError: (error) => {
+				console.error("Error in relinquishControl subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -540,6 +583,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (openRouterModelsUnsubscribeRef.current) {
 				openRouterModelsUnsubscribeRef.current()
 				openRouterModelsUnsubscribeRef.current = null
+			}
+			if (workspaceUpdatesUnsubscribeRef.current) {
+				workspaceUpdatesUnsubscribeRef.current()
+				workspaceUpdatesUnsubscribeRef.current = null
+			}
+			if (relinquishControlUnsubscribeRef.current) {
+				relinquishControlUnsubscribeRef.current()
+				relinquishControlUnsubscribeRef.current = null
 			}
 		}
 	}, [])
@@ -650,22 +701,38 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
-		setChatSettings: (value) => {
+		setChatSettings: async (value) => {
 			setState((prevState) => ({
 				...prevState,
 				chatSettings: value,
 			}))
-			vscode.postMessage({
-				type: "updateSettings",
-				chatSettings: value,
-				apiConfiguration: state.apiConfiguration,
-				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: state.telemetrySetting,
-				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-				enableCheckpointsSetting: state.enableCheckpointsSetting,
-				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-			})
+
+			try {
+				// Import the conversion functions
+				const { convertApiConfigurationToProtoApiConfiguration } = await import(
+					"@shared/proto-conversions/state/settings-conversion"
+				)
+				const { convertChatSettingsToProtoChatSettings } = await import(
+					"@shared/proto-conversions/state/chat-settings-conversion"
+				)
+
+				await StateServiceClient.updateSettings(
+					UpdateSettingsRequest.create({
+						chatSettings: convertChatSettingsToProtoChatSettings(value),
+						apiConfiguration: state.apiConfiguration
+							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
+							: undefined,
+						customInstructionsSetting: state.customInstructions,
+						telemetrySetting: state.telemetrySetting,
+						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+						enableCheckpointsSetting: state.enableCheckpointsSetting,
+						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to update chat settings:", error)
+			}
 		},
 		setGlobalClineRulesToggles: (toggles) =>
 			setState((prevState) => ({
@@ -700,6 +767,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		onRelinquishControl,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
