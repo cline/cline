@@ -158,6 +158,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		cerebrasApiKey,
 		nebiusApiKey,
 		planActSeparateModelsSettingRaw,
+		openAiConfigs,
 		favoritedModelIds,
 		globalClineRulesToggles,
 		requestTimeoutMs,
@@ -250,6 +251,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
+		getGlobalState(context, "openAiConfigs") as Promise<any[] | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
@@ -297,6 +299,15 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
 		// persist so next time state is retrieved it's set to the correct value.
 		await updateGlobalState(context, "planActSeparateModelsSetting", planActSeparateModelsSetting)
+	}
+
+	let openAiSelectedConfigIndex: number | undefined
+	if (planActSeparateModelsSetting) {
+		const mode = chatSettings?.mode
+		const key = mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
+		openAiSelectedConfigIndex = (await getGlobalState(context, key)) as number | undefined
+	} else {
+		openAiSelectedConfigIndex = (await getGlobalState(context, "openAiSelectedConfigIndex")) as number | undefined
 	}
 
 	return {
@@ -365,6 +376,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			cerebrasApiKey,
 			nebiusApiKey,
+			openAiConfigs,
+			openAiSelectedConfigIndex,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -462,6 +475,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
+		openAiConfigs,
 		favoritedModelIds,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
@@ -526,6 +540,15 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await updateGlobalState(context, "openAiConfigs", openAiConfigs)
+	const planActSeparate = (await getGlobalState(context, "planActSeparateModelsSetting")) as boolean
+	if (planActSeparate) {
+		const chatSettings = (await getGlobalState(context, "chatSettings")) as ChatSettings
+		const key = chatSettings?.mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
+		await updateGlobalState(context, key, apiConfiguration.openAiSelectedConfigIndex)
+	} else {
+		await updateGlobalState(context, "openAiSelectedConfigIndex", apiConfiguration.openAiSelectedConfigIndex)
+	}
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {
