@@ -74,17 +74,12 @@ class NodeTestRunner {
 	/**
 	 * Loads our test cases, json files which contain messages, file path & contents for what we expect to be edited
 	 */
-	async loadTestCases(testDir: string): Promise<TestCase[]> {
-		const testFiles = fs.readdirSync(testDir).filter((f) => f.endsWith(".json"))
-		const testCases: TestCase[] = []
+	async loadTestCases(testFilePath: string): Promise<TestCase[]> {
+		const fileContent = fs.readFileSync(testFilePath, "utf8")
+		const testCasesDict: { [test_id: string]: TestCase } = JSON.parse(fileContent)
+		const testCasesArray: TestCase[] = Object.values(testCasesDict)
 
-		for (const file of testFiles) {
-			const filePath = path.join(testDir, file)
-			const testData = JSON.parse(fs.readFileSync(filePath, "utf8"))
-			testCases.push(testData)
-		}
-
-		return testCases
+		return testCasesArray
 	}
 
 	/**
@@ -216,7 +211,7 @@ async function main() {
 	const runParallel = args.includes("--parallel")
 
 	if (paths.length < 3) {
-		console.log("Usage: npx tsx test_runner.ts [test_directory] [config_path] [output_path] [--parallel]")
+		console.log("Usage: npx tsx TestRunner.ts [test_directory] [config_path] [output_path] [--parallel]")
 		process.exit(1)
 	}
 
