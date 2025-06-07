@@ -134,6 +134,9 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	top_p?: number
+	frequency_penalty?: number
+	presence_penalty?: number
 	isR1FormatRequired?: boolean
 }
 
@@ -713,6 +716,9 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+	top_p: 0,
+	frequency_penalty: 0,
+	presence_penalty: 0,
 }
 
 // Gemini

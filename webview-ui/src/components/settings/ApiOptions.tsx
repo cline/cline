@@ -1355,6 +1355,7 @@ const ApiOptions = ({
 											? apiConfiguration.openAiModelInfo.temperature.toString()
 											: openAiModelInfoSaneDefaults.temperature?.toString()
 									}
+									style={{ flex: 1 }}
 									onInput={(input: any) => {
 										const modelInfo = apiConfiguration?.openAiModelInfo
 											? apiConfiguration.openAiModelInfo
@@ -1378,6 +1379,101 @@ const ApiOptions = ({
 										})
 									}}>
 									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiModelInfo?.top_p
+											? apiConfiguration.openAiModelInfo.top_p.toString()
+											: openAiModelInfoSaneDefaults.top_p?.toString()
+									}
+									style={{ flex: 1 }}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.top_p =
+											value === ""
+												? openAiModelInfoSaneDefaults.top_p
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Top P</span>
+								</VSCodeTextField>
+							</div>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiModelInfo?.frequency_penalty
+											? apiConfiguration.openAiModelInfo.frequency_penalty.toString()
+											: openAiModelInfoSaneDefaults.frequency_penalty?.toString()
+									}
+									style={{ flex: 1 }}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.frequency_penalty =
+											value === ""
+												? openAiModelInfoSaneDefaults.frequency_penalty
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Frequency Penalty</span>
+								</VSCodeTextField>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiModelInfo?.presence_penalty
+											? apiConfiguration.openAiModelInfo.presence_penalty.toString()
+											: openAiModelInfoSaneDefaults.presence_penalty?.toString()
+									}
+									style={{ flex: 1 }}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.presence_penalty =
+											value === ""
+												? openAiModelInfoSaneDefaults.presence_penalty
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Presence Penalty</span>
 								</VSCodeTextField>
 							</div>
 						</>
