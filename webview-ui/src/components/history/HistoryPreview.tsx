@@ -51,7 +51,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			</div>
 
 			{isExpanded && (
-				<div className="px-5 space-y-2">
+				<div className="px-5 space-y-3">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
 						<>
 							{taskHistory
