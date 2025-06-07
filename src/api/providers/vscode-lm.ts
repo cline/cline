@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { calculateApiCostAnthropic } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
-import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import * as vscode from "vscode"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 import { withRetry } from "../retry"
 
@@ -233,8 +233,41 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
+	private isClaudeModel(): boolean {
+		return this.client?.family?.startsWith("claude") || false
+	}
+
+	private getClaudeContextWindow(family: string): number {
+		const claudeLimits: Record<string, number> = {
+			"claude-3.5-sonnet": 90000, // min(90K, 90K+8K) = 90K
+			"claude-sonnet-4": 80000, // min(80K, 80K+16K) = 80K
+			"claude-opus-4": 80000, // min(80K, 80K+16K) = 80K
+			"claude-3.7-sonnet": 106384, // min(200K, 90K+16K) = 106K
+			"claude-3.7-sonnet-thought": 106384, // min(200K, 90K+16K) = 106K
+		}
+
+		return claudeLimits[family] || 80000 // Conservative fallback
+	}
+
+	private extractTextFromMessage(message: vscode.LanguageModelChatMessage): string {
+		if (Array.isArray(message.content)) {
+			return message.content
+				.filter((part) => part instanceof vscode.LanguageModelTextPart)
+				.map((part) => (part as vscode.LanguageModelTextPart).value)
+				.join("")
+		}
+		return ""
+	}
+
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
-		// Check for required dependencies
+		// For Claude models, use character-to-token ratio instead of VSCode LM's inaccurate counting
+		if (this.isClaudeModel()) {
+			const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
+			// Use 4 character-to-token ratio for Claude models
+			return Math.ceil(textContent.length / 4)
+		}
+
+		// Check for required dependencies for non-Claude models
 		if (!this.client) {
 			console.warn("Cline <Language Model API>: No client available for token counting")
 			return 0
@@ -300,15 +333,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private async calculateTotalInputTokens(
-		systemPrompt: string,
-		vsCodeLmMessages: vscode.LanguageModelChatMessage[],
-	): Promise<number> {
-		const systemTokens: number = await this.countTokens(systemPrompt)
-
+	private async calculateTotalInputTokens(vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {
 		const messageTokens: number[] = await Promise.all(vsCodeLmMessages.map((msg) => this.countTokens(msg)))
 
-		return systemTokens + messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
+		return messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
 	}
 
 	private ensureCleanState(): void {
@@ -430,7 +458,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		this.currentRequestCancellation = new vscode.CancellationTokenSource()
 
 		// Calculate input tokens before starting the stream
-		const totalInputTokens: number = await this.calculateTotalInputTokens(systemPrompt, vsCodeLmMessages)
+		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
 		let accumulatedText: string = ""
@@ -578,6 +606,23 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			const modelParts = [this.client.vendor, this.client.family, this.client.version].filter(Boolean)
 
 			const modelId = this.client.id || modelParts.join(SELECTOR_SEPARATOR)
+
+			// Special handling for Claude models
+			if (this.isClaudeModel()) {
+				const contextWindow = this.getClaudeContextWindow(this.client.family)
+
+				const modelInfo: ModelInfo = {
+					maxTokens: -1,
+					contextWindow: contextWindow,
+					supportsImages: true, // Claude models support images
+					supportsPromptCache: true,
+					inputPrice: 0,
+					outputPrice: 0,
+					description: `Claude via VSCode LM: ${this.client.family} (Context: ${contextWindow.toLocaleString()} tokens, Token counting optimized for Claude)`,
+				}
+
+				return { id: modelId, info: modelInfo }
+			}
 
 			// Build model info with conservative defaults for missing values
 			const modelInfo: ModelInfo = {
