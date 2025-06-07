@@ -1,4 +1,4 @@
-import { execa } from "execa"
+import execa from "execa"
 import chalk from "chalk"
 import path from "path"
 
@@ -9,6 +9,7 @@ interface RunDiffEvalOptions {
 	parsingFunction: string
 	diffEditFunction: string
 	parallel: boolean
+	verbose: boolean
 	testPath: string
 	outputPath: string
 }
@@ -37,6 +38,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	if (options.parallel) {
 		args.push("--parallel")
+	}
+
+	if (options.verbose) {
+		args.push("--verbose")
 	}
 
 	try {

@@ -90,6 +90,7 @@ program
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 	.option("--parallel", "Run tests in parallel", false)
+	.option("-v, --verbose", "Enable verbose logging", false)
 	.action(async (testPath, outputPath, options) => {
 		try {
 			// We need to combine the positional arguments and the options into a single object
