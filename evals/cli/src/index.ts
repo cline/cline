@@ -5,6 +5,7 @@ import { setupHandler } from "./commands/setup"
 import { runHandler } from "./commands/run"
 import { reportHandler } from "./commands/report"
 import { evalsEnvHandler } from "./commands/evals-env"
+import { runDiffEvalHandler } from "./commands/runDiffEval"
 
 // Create the CLI program
 const program = new Command()
@@ -73,6 +74,35 @@ program
 			await evalsEnvHandler({ action, ...options })
 		} catch (error) {
 			console.error(chalk.red(`Error managing evals.env file: ${error instanceof Error ? error.message : String(error)}`))
+			process.exit(1)
+		}
+	})
+
+// Run-diff-eval command
+program
+	.command("run-diff-eval")
+	.description("Run the diff editing evaluation suite")
+	.argument("<test_path>", "Path to the test cases JSON file")
+	.argument("<output_path>", "Directory to save the results")
+	.option("--model-id <model_id>", "The model ID to use for the test")
+	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
+	.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
+	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
+	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+	.option("--parallel", "Run tests in parallel", false)
+	.action(async (testPath, outputPath, options) => {
+		try {
+			// We need to combine the positional arguments and the options into a single object
+			const fullOptions = {
+				testPath,
+				outputPath,
+				...options,
+				// Ensure numberOfRuns is a number, as commander might pass it as a string
+				numberOfRuns: parseInt(options.numberOfRuns, 10),
+			}
+			await runDiffEvalHandler(fullOptions)
+		} catch (error) {
+			console.error(chalk.red(`Error during diff eval run: ${error instanceof Error ? error.message : String(error)}`))
 			process.exit(1)
 		}
 	})
