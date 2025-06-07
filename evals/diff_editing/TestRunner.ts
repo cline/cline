@@ -8,6 +8,12 @@ import * as path from "path"
 import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
 
+function log(isVerbose: boolean, message: string) {
+	if (isVerbose) {
+		console.log(message)
+	}
+}
+
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
 	basicSystemPrompt: basicSystemPrompt,
 	claude4SystemPrompt: claude4SystemPrompt,
@@ -109,13 +115,13 @@ class NodeTestRunner {
 	/**
 	 * Runs all the text examples synchonously
 	 */
-	async runAllTests(testCases: ProcessedTestCase[], testConfig: TestConfig): Promise<TestResultSet> {
+	async runAllTests(testCases: ProcessedTestCase[], testConfig: TestConfig, isVerbose: boolean): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 
 		for (const testCase of testCases) {
 			results[testCase.test_id] = []
 
-			console.log(`-Running test: ${testCase.test_id}`)
+			log(isVerbose, `-Running test: ${testCase.test_id}`)
 			for (let i = 0; i < testConfig.number_of_runs; i++) {
 				const result = await this.runSingleTest(testCase, testConfig)
 				results[testCase.test_id].push(result)
@@ -130,6 +136,7 @@ class NodeTestRunner {
 	async runAllTestsParallel(
 		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
+		isVerbose: boolean,
 		maxConcurrency: number = 20,
 	): Promise<TestResultSet> {
 		const results: TestResultSet = {}
@@ -165,7 +172,7 @@ class NodeTestRunner {
 
 			const batchNumber = i / maxConcurrency + 1
 			const totalBatches = Math.ceil(allRuns.length / maxConcurrency)
-			console.log(`-Completed batch ${batchNumber} of ${totalBatches}...`)
+			log(isVerbose, `-Completed batch ${batchNumber} of ${totalBatches}...`)
 		}
 
 		return results
@@ -174,12 +181,12 @@ class NodeTestRunner {
 	/**
 	 * Print output of the tests
 	 */
-	printSummary(results: TestResultSet) {
+	printSummary(results: TestResultSet, isVerbose: boolean) {
 		let totalRuns = 0
 		let totalPasses = 0
 		const testCaseIds = Object.keys(results)
 
-		console.log("\n=== TEST SUMMARY ===")
+		log(isVerbose, "\n=== TEST SUMMARY ===")
 
 		for (const testId of testCaseIds) {
 			const testResults = results[testId]
@@ -189,18 +196,18 @@ class NodeTestRunner {
 			totalRuns += runCount
 			totalPasses += passedCount
 
-			console.log(`\n--- Test Case: ${testId} ---`)
-			console.log(`  Runs: ${runCount}`)
-			console.log(`  Passed: ${passedCount}`)
-			console.log(`  Success Rate: ${runCount > 0 ? ((passedCount / runCount) * 100).toFixed(1) : "N/A"}%`)
+			log(isVerbose, `\n--- Test Case: ${testId} ---`)
+			log(isVerbose, `  Runs: ${runCount}`)
+			log(isVerbose, `  Passed: ${passedCount}`)
+			log(isVerbose, `  Success Rate: ${runCount > 0 ? ((passedCount / runCount) * 100).toFixed(1) : "N/A"}%`)
 		}
 
-		console.log("\n\n=== OVERALL SUMMARY ===")
-		console.log(`Total Test Cases: ${testCaseIds.length}`)
-		console.log(`Total Runs Executed: ${totalRuns}`)
-		console.log(`Overall Passed: ${totalPasses}`)
-		console.log(`Overall Failed: ${totalRuns - totalPasses}`)
-		console.log(`Overall Success Rate: ${totalRuns > 0 ? ((totalPasses / totalRuns) * 100).toFixed(1) : "N/A"}%`)
+		log(isVerbose, "\n\n=== OVERALL SUMMARY ===")
+		log(isVerbose, `Total Test Cases: ${testCaseIds.length}`)
+		log(isVerbose, `Total Runs Executed: ${totalRuns}`)
+		log(isVerbose, `Overall Passed: ${totalPasses}`)
+		log(isVerbose, `Overall Failed: ${totalRuns - totalPasses}`)
+		log(isVerbose, `Overall Success Rate: ${totalRuns > 0 ? ((totalPasses / totalRuns) * 100).toFixed(1) : "N/A"}%`)
 	}
 }
 
@@ -215,15 +222,17 @@ async function main() {
 		.argument("<output_path>", "Directory to save the results")
 		.option("--model-id <model_id>", "The model ID to use for the test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
-		.option("--number-of-runs <number>", "Number of times to run each test case", 1)
+		.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 		.option("--parallel", "Run tests in parallel", false)
+		.option("-v, --verbose", "Enable verbose logging", false)
 
 	program.parse(process.argv)
 
 	const [testPath, outputPath] = program.args
 	const options = program.opts()
+	const isVerbose = options.verbose
 
 	const testConfig: TestConfig = {
 		model_id: options.modelId,
@@ -244,19 +253,19 @@ async function main() {
 			messages: runner.transformMessages(tc.messages),
 		}))
 
-		console.log(`-Loaded ${testCases.length} test cases.`)
-		console.log(`-Executing ${testConfig.number_of_runs} run(s) per test case.`)
-		console.log("Starting tests...\n")
+		log(isVerbose, `-Loaded ${testCases.length} test cases.`)
+		log(isVerbose, `-Executing ${testConfig.number_of_runs} run(s) per test case.`)
+		log(isVerbose, "Starting tests...\n")
 
 		const results = options.parallel
-			? await runner.runAllTestsParallel(processedTestCases, testConfig)
-			: await runner.runAllTests(processedTestCases, testConfig)
+			? await runner.runAllTestsParallel(processedTestCases, testConfig, isVerbose)
+			: await runner.runAllTests(processedTestCases, testConfig, isVerbose)
 
-		runner.printSummary(results)
+		runner.printSummary(results, isVerbose)
 
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
-		console.log(`\n-Total execution time: ${durationSeconds} seconds`)
+		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
 
 		// Ensure output directory exists
 		if (!fs.existsSync(outputPath)) {
