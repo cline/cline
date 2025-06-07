@@ -184,6 +184,10 @@ class NodeTestRunner {
 	printSummary(results: TestResultSet, isVerbose: boolean) {
 		let totalRuns = 0
 		let totalPasses = 0
+		let totalInputTokens = 0
+		let totalOutputTokens = 0
+		let totalCost = 0
+		let runsWithUsageData = 0
 		const testCaseIds = Object.keys(results)
 
 		log(isVerbose, "\n=== TEST SUMMARY ===")
@@ -195,6 +199,16 @@ class NodeTestRunner {
 
 			totalRuns += runCount
 			totalPasses += passedCount
+
+			// Accumulate token and cost data
+			for (const result of testResults) {
+				if (result.streamResult?.usage) {
+					totalInputTokens += result.streamResult.usage.inputTokens
+					totalOutputTokens += result.streamResult.usage.outputTokens
+					totalCost += result.streamResult.usage.totalCost
+					runsWithUsageData++
+				}
+			}
 
 			log(isVerbose, `\n--- Test Case: ${testId} ---`)
 			log(isVerbose, `  Runs: ${runCount}`)
@@ -208,6 +222,29 @@ class NodeTestRunner {
 		log(isVerbose, `Overall Passed: ${totalPasses}`)
 		log(isVerbose, `Overall Failed: ${totalRuns - totalPasses}`)
 		log(isVerbose, `Overall Success Rate: ${totalRuns > 0 ? ((totalPasses / totalRuns) * 100).toFixed(1) : "N/A"}%`)
+
+		log(isVerbose, "\n\n=== TOKEN & COST ANALYSIS ===")
+		if (runsWithUsageData > 0) {
+			log(isVerbose, `Total Input Tokens: ${totalInputTokens.toLocaleString()}`)
+			log(isVerbose, `Total Output Tokens: ${totalOutputTokens.toLocaleString()}`)
+			log(isVerbose, `Total Cost: $${totalCost.toFixed(6)}`)
+			log(isVerbose, "---")
+			log(
+				isVerbose,
+				`Avg Input Tokens / Run: ${(totalInputTokens / runsWithUsageData).toLocaleString(undefined, {
+					maximumFractionDigits: 0,
+				})}`,
+			)
+			log(
+				isVerbose,
+				`Avg Output Tokens / Run: ${(totalOutputTokens / runsWithUsageData).toLocaleString(undefined, {
+					maximumFractionDigits: 0,
+				})}`,
+			)
+			log(isVerbose, `Avg Cost / Run: $${(totalCost / runsWithUsageData).toFixed(6)}`)
+		} else {
+			log(isVerbose, "No usage data available to analyze.")
+		}
 	}
 }
 

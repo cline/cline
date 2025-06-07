@@ -155,9 +155,9 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		const openRouterHandler = new OpenRouterHandler(options)
 
 		// Get the output of streaming output of this llm call
-		let result: StreamResult
+		let streamResult: StreamResult
 		try {
-			result = await processStream(openRouterHandler, systemPrompt, messages)
+			streamResult = await processStream(openRouterHandler, systemPrompt, messages)
 		} catch (error: any) {
 			return {
 				success: false,
@@ -167,7 +167,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		}
 
 		// process the assistant message into its constituent tool calls & text blocks
-		const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessage(result.assistantMessage)
+		const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessage(streamResult.assistantMessage)
 
 		const detectedToolCalls: ExtractedToolCall[] = []
 
@@ -184,6 +184,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		if (detectedToolCalls.length === 0) {
 			return {
 				success: false,
+				streamResult: streamResult,
 				toolCalls: detectedToolCalls,
 				error: "no_tool_calls",
 			}
@@ -193,6 +194,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		if (detectedToolCalls.length > 1) {
 			return {
 				success: false,
+				streamResult: streamResult,
 				toolCalls: detectedToolCalls,
 				error: "multi_tool_calls",
 			}
@@ -202,6 +204,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		if (detectedToolCalls[0].name !== "replace_in_file") {
 			return {
 				success: false,
+				streamResult: streamResult,
 				toolCalls: detectedToolCalls,
 				error: "wrong_tool_call",
 			}
@@ -214,6 +217,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		if (!diffToolPath || !diffToolContent) {
 			return {
 				success: false,
+				streamResult: streamResult,
 				toolCalls: detectedToolCalls,
 				error: "tool_call_params_undefined",
 			}
@@ -223,6 +227,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		if (diffToolPath !== originalFilePath) {
 			return {
 				success: false,
+				streamResult: streamResult,
 				toolCalls: detectedToolCalls,
 				error: "wrong_file_edited",
 			}
@@ -238,7 +243,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 
 		return {
 			success: true,
-			result: result,
+			streamResult: streamResult,
 			toolCalls: detectedToolCalls,
 			diffEdit: diffToolContent,
 			diffEditSuccess: diffSuccess,
