@@ -252,4 +252,7 @@ service UiService {
   
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
+  
+  // Subscribe to relinquish control events
+  rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
 }

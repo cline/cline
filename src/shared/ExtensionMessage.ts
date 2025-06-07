@@ -20,7 +20,6 @@ export interface ExtensionMessage {
 		| "workspaceUpdated"
 		| "requestyModels"
 		| "mcpServers"
-		| "relinquishControl"
 		| "mcpDownloadDetails"
 		| "didUpdateSettings"
 		| "userCreditsBalance"
