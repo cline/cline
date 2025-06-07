@@ -135,6 +135,8 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+	isReasoningModelFamily?: boolean
+	reasoningEffort?: "low" | "medium" | "high"
 }
 
 // Anthropic
@@ -713,6 +715,8 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+	isReasoningModelFamily: false,
+	reasoningEffort: undefined,
 }
 
 // Gemini
