@@ -153,6 +153,7 @@ export const BrowserSettingsSection: React.FC = () => {
 					remoteBrowserHost: browserSettings.remoteBrowserHost,
 					chromeExecutablePath: browserSettings.chromeExecutablePath,
 					disableToolUse: browserSettings.disableToolUse,
+					grayscaleEnabled: browserSettings.grayscaleEnabled,
 				}),
 			)
 				.then((response) => {
@@ -179,6 +180,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
 				chromeExecutablePath: browserSettings.chromeExecutablePath,
 				disableToolUse: browserSettings.disableToolUse,
+				grayscaleEnabled: browserSettings.grayscaleEnabled,
 			}),
 		)
 			.then((response) => {
@@ -203,6 +205,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserHost: host,
 				chromeExecutablePath: browserSettings.chromeExecutablePath,
 				disableToolUse: browserSettings.disableToolUse,
+				grayscaleEnabled: browserSettings.grayscaleEnabled,
 			}),
 		)
 			.then((response) => {
@@ -228,6 +231,7 @@ export const BrowserSettingsSection: React.FC = () => {
 					remoteBrowserHost: browserSettings.remoteBrowserHost,
 					chromeExecutablePath: newPath,
 					disableToolUse: browserSettings.disableToolUse,
+					grayscaleEnabled: browserSettings.grayscaleEnabled,
 				}),
 			)
 				.then((response) => {
@@ -254,6 +258,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				chromeExecutablePath: path,
 				disableToolUse: browserSettings.disableToolUse,
+				grayscaleEnabled: browserSettings.grayscaleEnabled,
 			}),
 		)
 			.then((response) => {
@@ -325,6 +330,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				chromeExecutablePath: browserSettings.chromeExecutablePath,
 				disableToolUse: disabled,
+				grayscaleEnabled: browserSettings.grayscaleEnabled,
 			}),
 		)
 			.then((response) => {
@@ -334,6 +340,31 @@ export const BrowserSettingsSection: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error updating disableToolUse setting:", error)
+			})
+	}
+
+	const updateGrayscaleEnabled = (enabled: boolean) => {
+		BrowserServiceClient.updateBrowserSettings(
+			UpdateBrowserSettingsRequest.create({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				chromeExecutablePath: browserSettings.chromeExecutablePath,
+				disableToolUse: browserSettings.disableToolUse,
+				grayscaleEnabled: enabled,
+			}),
+		)
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update grayscale setting")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating grayscale setting:", error)
 			})
 	}
 
@@ -414,6 +445,22 @@ export const BrowserSettingsSection: React.FC = () => {
 							margin: 0,
 						}}>
 						Set the size of the browser viewport for screenshots and interactions.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 15 }}>
+					<VSCodeCheckbox
+						checked={browserSettings.grayscaleEnabled || false}
+						onChange={(e) => updateGrayscaleEnabled((e.target as HTMLInputElement).checked)}>
+						Enable grayscale mode
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							color: "var(--vscode-descriptionForeground)",
+							margin: "4px 0 0 0px",
+						}}>
+						Display browser screenshots in grayscale. Saves tokens.
 					</p>
 				</div>
 

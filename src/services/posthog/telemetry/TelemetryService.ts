@@ -527,6 +527,7 @@ class TelemetryService {
 					viewport: browserSettings.viewport,
 					isRemote: !!browserSettings.remoteBrowserEnabled,
 					remoteBrowserHost: browserSettings.remoteBrowserHost,
+					grayscaleEnabled: browserSettings.grayscaleEnabled,
 					timestamp: new Date().toISOString(),
 				},
 			},

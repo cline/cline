@@ -25,6 +25,8 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 				height: request.viewport?.height || mergedWithDefaults.viewport.height,
 			},
 			// Explicitly handle optional boolean and string fields from the request
+			grayscaleEnabled:
+				request.grayscaleEnabled === undefined ? mergedWithDefaults.grayscaleEnabled : request.grayscaleEnabled,
 			remoteBrowserEnabled:
 				request.remoteBrowserEnabled === undefined
 					? mergedWithDefaults.remoteBrowserEnabled

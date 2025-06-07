@@ -10,6 +10,7 @@ export interface BrowserSettings {
 	remoteBrowserEnabled?: boolean
 	chromeExecutablePath?: string
 	disableToolUse?: boolean
+	grayscaleEnabled?: boolean
 }
 
 export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
@@ -22,6 +23,7 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 	chromeExecutablePath: "", // Changed from undefined to empty string
 	// chromeType: "chromium",
 	disableToolUse: false,
+	grayscaleEnabled: false,
 }
 
 export const BROWSER_VIEWPORT_PRESETS = {
