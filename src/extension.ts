@@ -310,7 +310,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			const filePath = editor.document.uri.fsPath
 			const languageId = editor.document.languageId
 
-			const visibleWebview = WebviewProvider.getVisibleInstance()
+			let visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				// Ensure the sidebar view is visible
+				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await setTimeoutPromise(100) // Give UI time to update
+				visibleWebview = WebviewProvider.getSidebarInstance()
+			}
+
 			await visibleWebview?.controller.addSelectedCodeToChat(
 				selectedText,
 				filePath,
@@ -360,8 +367,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 				*/
 
-				// Send to sidebar provider
-				const visibleWebview = WebviewProvider.getVisibleInstance()
+				let visibleWebview = WebviewProvider.getVisibleInstance()
+				if (!visibleWebview) {
+					// Ensure the sidebar view is visible
+					await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+					await setTimeoutPromise(100) // Give UI time to update
+					visibleWebview = WebviewProvider.getSidebarInstance()
+				}
 				await visibleWebview?.controller.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
 			} catch (error) {
 				// Ensure clipboard is restored even if an error occurs
