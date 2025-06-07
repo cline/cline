@@ -39,7 +39,7 @@ const output = fs.createWriteStream(zipPath)
 const archive = archiver("zip", { zlib: { level: 9 } })
 
 output.on("close", () => {
-	console.log(`Created ${zipPath} (${archive.pointer()} bytes)`)
+	console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
 })
 
 archive.on("error", (err) => {

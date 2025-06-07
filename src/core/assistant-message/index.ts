@@ -1,6 +1,6 @@
 export type AssistantMessageContent = TextContent | ToolUse
 
-export { parseAssistantMessageV1, parseAssistantMessageV2 } from "./parse-assistant-message"
+export { parseAssistantMessageV1, parseAssistantMessageV2, parseAssistantMessageV3 } from "./parse-assistant-message"
 
 export interface TextContent {
 	type: "text"
@@ -27,6 +27,7 @@ export const toolUseNames = [
 	"condense",
 	"report_bug",
 	"new_rule",
+	"web_fetch",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)

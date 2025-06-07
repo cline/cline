@@ -1,44 +1,47 @@
+import { MAX_IMAGES_AND_FILES_PER_MESSAGE } from "@/components/chat/ChatView"
+import ContextMenu from "@/components/chat/ContextMenu"
+import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import Tooltip from "@/components/common/Tooltip"
+import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import {
+	ContextMenuOptionType,
+	getContextMenuOptions,
+	getContextMenuOptionIndex,
+	insertMention,
+	insertMentionDirectly,
+	removeMention,
+	SearchResult,
+	shouldShowContextMenu,
+} from "@/utils/context-mentions"
+import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import {
+	getMatchingSlashCommands,
+	insertSlashCommand,
+	removeSlashCommand,
+	shouldShowSlashCommandsMenu,
+	SlashCommand,
+	slashCommandDeleteRegex,
+	validateSlashCommand,
+} from "@/utils/slash-commands"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import { ChatSettings } from "@shared/ChatSettings"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import {
-	ContextMenuOptionType,
-	getContextMenuOptions,
-	insertMention,
-	insertMentionDirectly,
-	removeMention,
-	shouldShowContextMenu,
-	SearchResult,
-} from "@/utils/context-mentions"
-import {
-	SlashCommand,
-	slashCommandDeleteRegex,
-	shouldShowSlashCommandsMenu,
-	getMatchingSlashCommands,
-	insertSlashCommand,
-	removeSlashCommand,
-	validateSlashCommand,
-} from "@/utils/slash-commands"
-import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
-import { validateApiConfiguration, validateModelId } from "@/utils/validate"
-import { vscode } from "@/utils/vscode"
-import { EmptyRequest } from "@shared/proto/common"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import Thumbnails from "@/components/common/Thumbnails"
-import Tooltip from "@/components/common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
-import ContextMenu from "@/components/chat/ContextMenu"
-import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
-import { ChatSettings } from "@shared/ChatSettings"
-import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import ServersToggleModal from "./ServersToggleModal"
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -58,17 +61,22 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
 	})
 }
 
+// Set to "File" option by default
+const DEFAULT_CONTEXT_MENU_OPTION = getContextMenuOptionIndex(ContextMenuOptionType.File)
+
 interface ChatTextAreaProps {
 	inputValue: string
 	activeQuote: string | null
 	setInputValue: (value: string) => void
 	sendingDisabled: boolean
 	placeholderText: string
+	selectedFiles: string[]
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
+	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
 	onSend: () => void
-	onSelectImages: () => void
-	shouldDisableImages: boolean
+	onSelectFilesAndImages: () => void
+	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -249,17 +257,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setInputValue,
 			sendingDisabled,
 			placeholderText,
+			selectedFiles,
 			selectedImages,
 			setSelectedImages,
+			setSelectedFiles,
 			onSend,
-			onSelectImages,
-			shouldDisableImages,
+			onSelectFilesAndImages,
+			shouldDisableFilesAndImages,
 			onHeightChange,
 			onFocusChange,
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, workflowToggles } = useExtensionState()
+		const {
+			filePaths,
+			chatSettings,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -307,7 +325,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
 			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
-				FileServiceClient.searchCommits({ value: searchQuery || "" })
+				FileServiceClient.searchCommits(StringRequest.create({ value: searchQuery || "" }))
 					.then((response) => {
 						if (response.commits) {
 							const commits: GitCommit[] = response.commits.map(
@@ -326,22 +344,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					})
 			}
 		}, [selectedType, searchQuery])
-
-		const handleMessage = useCallback((event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "fileSearchResults": {
-					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
-					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
-						setFileSearchResults(message.results || [])
-						setSearchLoading(false)
-					}
-					break
-				}
-			}
-		}, [])
-
-		useEvent("message", handleMessage)
 
 		const queryItems = useMemo(() => {
 			return [
@@ -483,7 +485,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
 							// Get commands with workflow toggles
-							const allCommands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+							const allCommands = getMatchingSlashCommands(
+								slashCommandsQuery,
+								localWorkflowToggles,
+								globalWorkflowToggles,
+							)
 
 							if (allCommands.length === 0) {
 								return prevIndex
@@ -501,7 +507,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+						const commands = getMatchingSlashCommands(slashCommandsQuery, localWorkflowToggles, globalWorkflowToggles)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -512,7 +518,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (event.key === "Escape") {
 						// event.preventDefault()
 						setSelectedType(null)
-						setSelectedMenuIndex(3) // File by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 						return
 					}
 
@@ -735,10 +741,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							FileServiceClient.searchFiles({
-								query: query,
-								mentionsRequestId: query,
-							})
+							FileServiceClient.searchFiles(
+								FileSearchRequest.create({
+									query: query,
+									mentionsRequestId: query,
+								}),
+							)
 								.then((results) => {
 									setFileSearchResults(results.results || [])
 									setSearchLoading(false)
@@ -750,7 +758,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								})
 						}, 200) // 200ms debounce
 					} else {
-						setSelectedMenuIndex(3) // Set to "File" option by default
+						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 					}
 				} else {
 					setSearchQuery("")
@@ -823,7 +831,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableImages && imageItems.length > 0) {
+				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -860,13 +868,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+						const filesAndImagesLength = selectedImages.length + selectedFiles.length
+						const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+						if (availableSlots > 0) {
+							const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+							setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+						}
 					} else {
 						console.warn("No valid images were processed")
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
+			[
+				shouldDisableFilesAndImages,
+				setSelectedImages,
+				selectedImages,
+				selectedFiles,
+				cursorPosition,
+				setInputValue,
+				inputValue,
+				showDimensionErrorMessage,
+			],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -874,10 +897,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [])
 
 		useEffect(() => {
-			if (selectedImages.length === 0) {
+			if (selectedImages.length === 0 && selectedFiles.length === 0) {
 				setThumbnailsHeight(0)
 			}
-		}, [selectedImages])
+		}, [selectedImages, selectedFiles])
 
 		const handleMenuMouseDown = useCallback(() => {
 			setIsMouseDownOnMenu(true)
@@ -904,7 +927,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// extract and validate the exact command text
 				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText, workflowToggles)
+				const isValidCommand = validateSlashCommand(commandText, localWorkflowToggles, globalWorkflowToggles)
 
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
@@ -917,7 +940,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [workflowToggles])
+		}, [localWorkflowToggles, globalWorkflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -965,22 +988,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(() => {
-				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-				StateServiceClient.togglePlanActMode({
-					chatSettings: {
-						mode: newMode,
-					},
-					chatContent: {
-						message: inputValue.trim() ? inputValue : undefined,
-						images: selectedImages.length > 0 ? selectedImages : undefined,
-					},
-				})
+				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				StateServiceClient.togglePlanActMode(
+					TogglePlanActModeRequest.create({
+						chatSettings: {
+							mode: newMode,
+							preferredLanguage: chatSettings.preferredLanguage,
+							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+						},
+						chatContent: {
+							message: inputValue.trim() ? inputValue : undefined,
+							images: selectedImages.length > 0 ? selectedImages : undefined,
+							files: selectedFiles.length > 0 ? selectedFiles : undefined,
+						},
+					}),
+				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1068,6 +1096,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
+					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:
@@ -1229,7 +1258,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				setIntendedCursorPosition(initialCursorPos)
 
-				FileServiceClient.getRelativePaths({ uris: validUris })
+				FileServiceClient.getRelativePaths(RelativePathsRequest.create({ uris: validUris }))
 					.then((response) => {
 						if (response.paths.length > 0) {
 							setPendingInsertions((prev) => [...prev, ...response.paths])
@@ -1256,7 +1285,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) {
+			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
 
@@ -1264,7 +1293,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 
 			if (dataUrls.length > 0) {
-				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+				const filesAndImagesLength = selectedImages.length + selectedFiles.length
+				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+				if (availableSlots > 0) {
+					const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+					setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+				}
 			} else {
 				console.warn("No valid images were processed")
 			}
@@ -1384,7 +1419,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontWeight: "bold",
 									fontSize: "12px",
 								}}>
-								Only image files are supported
+								Files other than images are currently disabled
 							</span>
 						</div>
 					)}
@@ -1396,7 +1431,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 								onMouseDown={handleMenuMouseDown}
 								query={slashCommandsQuery}
-								workflowToggles={workflowToggles}
+								localWorkflowToggles={localWorkflowToggles}
+								globalWorkflowToggles={globalWorkflowToggles}
 							/>
 						</div>
 					)}
@@ -1450,12 +1486,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderRight: 0,
 							borderTop: 0,
 							borderColor: "transparent",
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-							padding: "9px 28px 3px 9px",
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
+							padding: "9px 28px 9px 9px",
 						}}
 					/>
 					<DynamicTextArea
 						data-testid="chat-input"
+						minRows={3}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1507,13 +1544,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							borderColor: "transparent",
 							// borderRight: "54px solid transparent",
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 3px 9px",
+							padding: "9px 28px 9px 9px",
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1527,10 +1564,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
-					{selectedImages.length > 0 && (
+					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
+						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
+							Type @ for context, / for slash commands & workflows
+						</div>
+					)}
+					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							images={selectedImages}
+							files={selectedFiles}
 							setImages={setSelectedImages}
+							setFiles={setSelectedFiles}
 							onHeightChange={handleThumbnailsHeightChange}
 							style={{
 								position: "absolute",
@@ -1547,9 +1591,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							position: "absolute",
 							right: 23,
 							display: "flex",
-							alignItems: "flex-center",
+							alignItems: "flex-end",
 							height: textAreaBaseHeight || 31,
 							bottom: 9.5, // should be 10 but doesn't look good on mac
+							paddingBottom: "8px",
 							zIndex: 2,
 						}}>
 						<div
@@ -1620,21 +1665,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</VSCodeButton>
 							</Tooltip>
 
-							<Tooltip tipText="Add Images">
+							<Tooltip tipText="Add Files & Images">
 								<VSCodeButton
-									data-testid="images-button"
+									data-testid="files-button"
 									appearance="icon"
-									aria-label="Add Images"
-									disabled={shouldDisableImages}
+									aria-label="Add Files & Images"
+									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
-										if (!shouldDisableImages) {
-											onSelectImages()
+										if (!shouldDisableFilesAndImages) {
+											onSelectFilesAndImages()
 										}
 									}}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>
 										<span
-											className="codicon codicon-device-camera flex items-center"
+											className="codicon codicon-add flex items-center"
 											style={{ fontSize: "14px", marginBottom: -3 }}
 										/>
 									</ButtonContainer>

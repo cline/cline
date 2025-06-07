@@ -1,16 +1,17 @@
+import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
+import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
+import { CheckpointControls } from "@/components/common/CheckpointControls"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient } from "@/services/grpc-client"
+import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
+import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import { StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
-import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
-import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient } from "@/services/grpc-client"
-import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -404,8 +405,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							alt="Browser screenshot"
 							style={imgScreenshotStyle}
 							onClick={() =>
-								FileServiceClient.openImage({ value: displayState.screenshot }).catch((err) =>
-									console.error("Failed to open image:", err),
+								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
+									(err) => console.error("Failed to open image:", err),
 								)
 							}
 						/>

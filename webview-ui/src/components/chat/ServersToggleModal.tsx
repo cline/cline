@@ -9,6 +9,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import Tooltip from "@/components/common/Tooltip"
 import { McpServers } from "@shared/proto/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { EmptyRequest } from "@shared/proto/common"
 
 const ServersToggleModal: React.FC = () => {
 	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
@@ -38,7 +39,7 @@ const ServersToggleModal: React.FC = () => {
 
 	useEffect(() => {
 		if (isVisible) {
-			McpServiceClient.getLatestMcpServers({})
+			McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
 				.then((response: McpServers) => {
 					if (response.mcpServers) {
 						const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)

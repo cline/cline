@@ -1,13 +1,14 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
+import { McpViewTab } from "@shared/mcp"
+import { EmptyRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { McpServiceClient } from "@/services/grpc-client"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
-import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 import InstalledServersView from "./tabs/installed/InstalledServersView"
-import { McpViewTab } from "@shared/mcp"
+import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { McpServers } from "@shared/proto/mcp"
 
@@ -36,7 +37,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 
 	useEffect(() => {
 		if (mcpMarketplaceEnabled) {
-			McpServiceClient.refreshMcpMarketplace({})
+			McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
 				.then((response) => {
 					setMcpMarketplaceCatalog(response)
 				})
@@ -44,7 +45,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					console.error("Error refreshing MCP marketplace:", error)
 				})
 
-			McpServiceClient.getLatestMcpServers({})
+			McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
 				.then((response: McpServers) => {
 					if (response.mcpServers) {
 						const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)

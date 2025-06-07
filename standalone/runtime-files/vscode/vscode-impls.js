@@ -53,6 +53,7 @@ vscode.window = {
 	tabGroups: {
 		all: [],
 		close: async () => {},
+		onDidChangeTabs: createStub("vscode.env.tabGroups.onDidChangeTabs"),
 	},
 	withProgress: async (_options, task) => {
 		console.log("Stubbed withProgress")

@@ -1,5 +1,5 @@
 import type { Empty } from "@shared/proto/common"
-import type { McpServers } from "@shared/proto/mcp"
+import { McpServers } from "@shared/proto/mcp"
 import type { Controller } from "../index"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 
@@ -17,7 +17,7 @@ export async function getLatestMcpServers(controller: Controller, _request: Empt
 		// Convert to proto format
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error("Error fetching latest MCP servers:", error)
 		throw error

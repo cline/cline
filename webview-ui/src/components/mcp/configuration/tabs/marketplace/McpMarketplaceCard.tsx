@@ -1,8 +1,9 @@
-import { useCallback, useState, useRef, useMemo } from "react"
-import styled from "styled-components"
-import { McpMarketplaceItem, McpServer } from "@shared/mcp"
-import { useEvent } from "react-use"
 import { McpServiceClient } from "@/services/grpc-client"
+import { McpMarketplaceItem, McpServer } from "@shared/mcp"
+import { StringRequest } from "@shared/proto/common"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { useEvent } from "react-use"
+import styled from "styled-components"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -113,7 +114,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
 										try {
-											await McpServiceClient.downloadMcp({ value: item.mcpId })
+											await McpServiceClient.downloadMcp(StringRequest.create({ value: item.mcpId }))
 										} catch (error) {
 											setIsDownloading(false)
 											console.error("Failed to download MCP:", error)
