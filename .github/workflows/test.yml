@@ -32,11 +32,11 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  
+
             - name: Get npm cache directory
               id: npm-cache-dir
               shell: bash
-              run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}                  
+              run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
             # Setup Python for coverage script
             - name: Setup Python
@@ -54,10 +54,10 @@ jobs:
             - uses: actions/cache@v4
               id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
               with:
-                path: ${{ steps.npm-cache-dir.outputs.dir }}
-                key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-                restore-keys: |
-                  ${{ runner.os }}-node-
+                  path: ${{ steps.npm-cache-dir.outputs.dir }}
+                  key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-node-
 
             - name: Install root dependencies
               if: steps.npm-cache.outputs.cache-hit != 'true'
