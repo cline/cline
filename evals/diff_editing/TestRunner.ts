@@ -189,6 +189,8 @@ class NodeTestRunner {
 		let totalOutputTokens = 0
 		let totalCost = 0
 		let runsWithUsageData = 0
+		let totalDiffEditSuccesses = 0
+		let totalRunsWithToolCalls = 0
 		const testCaseIds = Object.keys(results)
 
 		log(isVerbose, "\n=== TEST SUMMARY ===")
@@ -200,6 +202,11 @@ class NodeTestRunner {
 
 			totalRuns += runCount
 			totalPasses += passedCount
+
+			const runsWithToolCalls = testResults.filter((r) => r.success === true).length
+			const diffEditSuccesses = passedCount
+			totalRunsWithToolCalls += runsWithToolCalls
+			totalDiffEditSuccesses += diffEditSuccesses
 
 			// Accumulate token and cost data
 			for (const result of testResults) {
@@ -223,6 +230,16 @@ class NodeTestRunner {
 		log(isVerbose, `Overall Passed: ${totalPasses}`)
 		log(isVerbose, `Overall Failed: ${totalRuns - totalPasses}`)
 		log(isVerbose, `Overall Success Rate: ${totalRuns > 0 ? ((totalPasses / totalRuns) * 100).toFixed(1) : "N/A"}%`)
+
+		log(isVerbose, "\n\n=== OVERALL DIFF EDIT SUCCESS RATE ===")
+		if (totalRunsWithToolCalls > 0) {
+			const diffSuccessRate = (totalDiffEditSuccesses / totalRunsWithToolCalls) * 100
+			log(isVerbose, `Total Runs with Successful Tool Calls: ${totalRunsWithToolCalls}`)
+			log(isVerbose, `Total Runs with Successful Diff Edits: ${totalDiffEditSuccesses}`)
+			log(isVerbose, `Diff Edit Success Rate: ${diffSuccessRate.toFixed(1)}%`)
+		} else {
+			log(isVerbose, "No successful tool calls to analyze for diff edit success.")
+		}
 
 		log(isVerbose, "\n\n=== TOKEN & COST ANALYSIS ===")
 		if (runsWithUsageData > 0) {
