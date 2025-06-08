@@ -21,8 +21,10 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		if (apiKey) {
 			headers["Authorization"] = `Bearer ${apiKey}`
 		}
+		// Use URL constructor to properly join base URL and path
+		const url = new URL("/v1/model/info", baseUrl).href
 		// Added timeout to prevent indefinite hanging
-		const response = await axios.get(`${baseUrl}/v1/model/info`, { headers, timeout: 5000 })
+		const response = await axios.get(url, { headers, timeout: 5000 })
 		const models: ModelRecord = {}
 
 		const computerModels = Array.from(LITELLM_COMPUTER_USE_MODELS)

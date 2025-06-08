@@ -12,6 +12,26 @@ describe("getLiteLLMModels", () => {
 		jest.clearAllMocks()
 	})
 
+	it("handles base URLs with trailing slashes correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+			},
+			timeout: 5000,
+		})
+	})
+
 	it("successfully fetches and formats LiteLLM models", async () => {
 		const mockResponse = {
 			data: {
