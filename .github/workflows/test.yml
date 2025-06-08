@@ -32,6 +32,11 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
+                  
+            - name: Get npm cache directory
+              id: npm-cache-dir
+              shell: bash
+              run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}                  
 
             # Setup Python for coverage script
             - name: Setup Python
@@ -45,29 +50,21 @@ jobs:
                   pip install requests
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              if: runner.os != 'Windows'
-              uses: actions/cache@v4
-              id: root-cache
+            # - name: Cache root dependencies
+            - uses: actions/cache@v4
+              id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              if: runner.os != 'Windows'
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                path: ${{ steps.npm-cache-dir.outputs.dir }}
+                key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+                restore-keys: |
+                  ${{ runner.os }}-node-
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
+              if: steps.npm-cache.outputs.cache-hit != 'true'
               run: npm ci
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
+              if: steps.npm-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Set up NPM on Windows
@@ -171,7 +168,6 @@ jobs:
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
-              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: root-cache
               with:
@@ -180,7 +176,6 @@ jobs:
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
-              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: webview-cache
               with:
