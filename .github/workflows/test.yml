@@ -46,6 +46,7 @@ jobs:
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
+              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: root-cache
               with:
@@ -54,6 +55,7 @@ jobs:
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
+              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: webview-cache
               with:
@@ -169,6 +171,7 @@ jobs:
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
+              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: root-cache
               with:
@@ -177,6 +180,7 @@ jobs:
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
+              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: webview-cache
               with:
