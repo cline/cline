@@ -47,10 +47,10 @@ jobs:
                   pip install requests
 
             - name: Install root dependencies
-              run: npm ci
+              run: npm ci --verbose
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --verbose
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
