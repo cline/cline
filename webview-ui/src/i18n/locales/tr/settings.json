@@ -492,6 +492,10 @@
 		"CONCURRENT_FILE_READS": {
 			"name": "Eşzamanlı dosya okumayı etkinleştir",
 			"description": "Etkinleştirildiğinde, Roo tek bir istekte birden fazla dosya okuyabilir (en fazla 15 dosya). Devre dışı bırakıldığında, Roo dosyaları birer birer okumalıdır. Daha az yetenekli modellerle çalışırken veya dosya erişimi üzerinde daha fazla kontrol istediğinizde devre dışı bırakmak yardımcı olabilir."
+		},
+		"DISABLE_COMPLETION_COMMAND": {
+			"name": "attempt_completion'da komut yürütmeyi devre dışı bırak",
+			"description": "Etkinleştirildiğinde, attempt_completion aracı komutları yürütmez. Bu, görev tamamlandığında komut yürütmenin kullanımdan kaldırılmasına hazırlanmak için deneysel bir özelliktir."
 		}
 	},
 	"promptCaching": {

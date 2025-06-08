@@ -97,7 +97,7 @@ ${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, codeIndexMana
 
 ${getSystemInfoSection(cwd)}
 
-${getObjectiveSection(codeIndexManager)}
+${getObjectiveSection(codeIndexManager, experiments)}
 
 ${await addCustomInstructions(baseInstructions, globalCustomInstructions || "", cwd, mode, { language: language ?? formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
 

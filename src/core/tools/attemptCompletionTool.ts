@@ -15,6 +15,7 @@ import {
 } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { type ExecuteCommandOptions, executeCommand } from "./executeCommandTool"
+import { EXPERIMENT_IDS, experiments, experimentDefault } from "../../shared/experiments"
 
 export async function attemptCompletionTool(
 	cline: Task,
@@ -68,7 +69,15 @@ export async function attemptCompletionTool(
 
 			let commandResult: ToolResponse | undefined
 
-			if (command) {
+			// Check if command execution is disabled via experiment
+			const state = await cline.providerRef.deref()?.getState()
+			const experimentsConfig = state?.experiments ?? experimentDefault
+			const isCommandDisabled = experiments.isEnabled(
+				experimentsConfig,
+				EXPERIMENT_IDS.DISABLE_COMPLETION_COMMAND,
+			)
+
+			if (command && !isCommandDisabled) {
 				if (lastMessage && lastMessage.ask !== "command") {
 					// Haven't sent a command message yet so first send completion_result then command.
 					await cline.say("completion_result", result, undefined, false)

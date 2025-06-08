@@ -10,4 +10,5 @@ export type ToolArgs = {
 	toolOptions?: any
 	partialReadsEnabled?: boolean
 	settings?: Record<string, any>
+	experiments?: Record<string, boolean>
 }

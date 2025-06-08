@@ -492,6 +492,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Use experimental multi block diff tool",
 			"description": "When enabled, Roo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
+		},
+		"DISABLE_COMPLETION_COMMAND": {
+			"name": "Disable command execution in attempt_completion",
+			"description": "When enabled, the attempt_completion tool will not execute commands. This is an experimental feature to prepare for deprecating command execution in task completion."
 		}
 	},
 	"promptCaching": {

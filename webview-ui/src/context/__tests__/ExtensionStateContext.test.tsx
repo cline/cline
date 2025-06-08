@@ -224,6 +224,7 @@ describe("mergeExtensionState", () => {
 				powerSteering: true,
 				autoCondenseContext: true,
 				concurrentFileReads: true,
+				disableCompletionCommand: false,
 			} as Record<ExperimentId, boolean>,
 		}
 
@@ -238,6 +239,7 @@ describe("mergeExtensionState", () => {
 			powerSteering: true,
 			autoCondenseContext: true,
 			concurrentFileReads: true,
+			disableCompletionCommand: false,
 		})
 	})
 })

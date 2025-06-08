@@ -19,6 +19,7 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				concurrentFileReads: false,
+				disableCompletionCommand: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -27,6 +28,7 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: true,
 				concurrentFileReads: false,
+				disableCompletionCommand: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(true)
 		})
@@ -35,6 +37,7 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				concurrentFileReads: false,
+				disableCompletionCommand: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})

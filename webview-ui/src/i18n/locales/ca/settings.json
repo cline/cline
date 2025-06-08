@@ -492,6 +492,10 @@
 		"CONCURRENT_FILE_READS": {
 			"name": "Habilitar lectura concurrent de fitxers",
 			"description": "Quan està habilitat, Roo pot llegir múltiples fitxers en una sola sol·licitud (fins a 15 fitxers). Quan està deshabilitat, Roo ha de llegir fitxers un per un. Deshabilitar-ho pot ajudar quan es treballa amb models menys capaços o quan voleu més control sobre l'accés als fitxers."
+		},
+		"DISABLE_COMPLETION_COMMAND": {
+			"name": "Desactivar l'execució de comandes a attempt_completion",
+			"description": "Quan està activat, l'eina attempt_completion no executarà comandes. Aquesta és una característica experimental per preparar la futura eliminació de l'execució de comandes en la finalització de tasques."
 		}
 	},
 	"promptCaching": {

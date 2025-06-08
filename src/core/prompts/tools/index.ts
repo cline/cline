@@ -35,7 +35,7 @@ const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined>
 	list_code_definition_names: (args) => getListCodeDefinitionNamesDescription(args),
 	browser_action: (args) => getBrowserActionDescription(args),
 	ask_followup_question: () => getAskFollowupQuestionDescription(),
-	attempt_completion: () => getAttemptCompletionDescription(),
+	attempt_completion: (args) => getAttemptCompletionDescription(args),
 	use_mcp_tool: (args) => getUseMcpToolDescription(args),
 	access_mcp_resource: (args) => getAccessMcpResourceDescription(args),
 	codebase_search: () => getCodebaseSearchDescription(),
@@ -69,6 +69,7 @@ export function getToolDescriptionsForMode(
 		mcpHub,
 		partialReadsEnabled,
 		settings,
+		experiments,
 	}
 
 	const tools = new Set<string>()

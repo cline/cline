@@ -492,6 +492,10 @@
 		"CONCURRENT_FILE_READS": {
 			"name": "Abilita lettura simultanea dei file",
 			"description": "Quando abilitato, Roo può leggere più file in una singola richiesta (fino a 15 file). Quando disabilitato, Roo deve leggere i file uno alla volta. Disabilitarlo può aiutare quando si lavora con modelli meno capaci o quando si desidera maggiore controllo sull'accesso ai file."
+		},
+		"DISABLE_COMPLETION_COMMAND": {
+			"name": "Disabilita l'esecuzione dei comandi in attempt_completion",
+			"description": "Se abilitato, lo strumento attempt_completion non eseguirà comandi. Questa è una funzionalità sperimentale per preparare la futura deprecazione dell'esecuzione dei comandi al completamento dell'attività."
 		}
 	},
 	"promptCaching": {
