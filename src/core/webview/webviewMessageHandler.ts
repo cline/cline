@@ -505,7 +505,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 
 				await openFile(mcpPath)
 			} catch (error) {
-				vscode.window.showErrorMessage(t("common:errors.create_mcp_json", { error: `${error}` }))
+				vscode.window.showErrorMessage(t("mcp:errors.create_json", { error: `${error}` }))
 			}
 
 			break
@@ -578,6 +578,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await updateGlobalState("enableMcpServerCreation", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
+		case "refreshAllMcpServers": {
+			const mcpHub = provider.getMcpHub()
+			if (mcpHub) {
+				await mcpHub.refreshAllConnections()
+			}
+			break
+		}
 		// playSound handler removed - now handled directly in the webview
 		case "soundEnabled":
 			const soundEnabled = message.bool ?? true

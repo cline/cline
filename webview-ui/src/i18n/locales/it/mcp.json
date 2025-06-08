@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "Nessuno strumento trovato",
 		"noResources": "Nessuna risorsa trovata",
-		"noLogs": "Nessun log trovato",
 		"noErrors": "Nessun errore trovato"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "Riprovo...",
 		"retryConnection": "Riprova connessione"
-	}
+	},
+	"refreshMCP": "Aggiorna server MCP"
 }

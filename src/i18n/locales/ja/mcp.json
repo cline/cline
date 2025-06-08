@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "MCP設定のJSONフォーマットが無効です。設定が正しいJSONフォーマットに従っていることを確認してください。",
+		"invalid_settings_syntax": "MCP設定のJSONフォーマットが無効です。設定ファイルの構文エラーを確認してください。",
+		"invalid_settings_validation": "MCP設定フォーマットが無効です：{{errorMessages}}",
+
+		"create_json": ".roo/mcp.jsonの作成または開くことに失敗しました：{{error}}",
+		"failed_update_project": "プロジェクトMCPサーバーの更新に失敗しました"
+	},
+	"info": {
+		"server_restarting": "MCPサーバー{{serverName}}を再起動中...",
+		"server_connected": "MCPサーバー{{serverName}}が接続されました",
+		"server_deleted": "MCPサーバーが削除されました：{{serverName}}",
+		"server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
+		"global_servers_active": "アクティブなグローバルMCPサーバー: {{mcpServers}}",
+		"project_servers_active": "アクティブなプロジェクトMCPサーバー: {{mcpServers}}",
+		"already_refreshing": "MCPサーバーはすでに更新中です。",
+		"refreshing_all": "すべてのMCPサーバーを更新しています...",
+		"all_refreshed": "すべてのMCPサーバーが更新されました。",
+		"project_config_deleted": "プロジェクトMCP設定ファイルが削除されました。すべてのプロジェクトMCPサーバーが切断されました。"
+	}
+}

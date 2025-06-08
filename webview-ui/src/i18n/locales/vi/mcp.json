@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "Không tìm thấy công cụ",
 		"noResources": "Không tìm thấy tài nguyên",
-		"noLogs": "Không tìm thấy nhật ký",
 		"noErrors": "Không tìm thấy lỗi"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "Đang thử lại...",
 		"retryConnection": "Thử kết nối lại"
-	}
+	},
+	"refreshMCP": "Làm mới Máy chủ MCP"
 }

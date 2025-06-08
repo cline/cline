@@ -119,10 +119,17 @@ const McpView = ({ onDone }: McpViewProps) => {
 						)}
 
 						{/* Edit Settings Buttons */}
-						<div style={{ marginTop: "10px", width: "100%", display: "flex", gap: "10px" }}>
+						<div
+							style={{
+								marginTop: "10px",
+								width: "100%",
+								display: "flex",
+								flexWrap: "wrap",
+								gap: "10px",
+							}}>
 							<Button
 								variant="secondary"
-								style={{ flex: 1 }}
+								style={{ flex: "1 1 auto", minWidth: "120px" }}
 								onClick={() => {
 									vscode.postMessage({ type: "openMcpSettings" })
 								}}>
@@ -131,12 +138,21 @@ const McpView = ({ onDone }: McpViewProps) => {
 							</Button>
 							<Button
 								variant="secondary"
-								style={{ flex: 1 }}
+								style={{ flex: "1 1 auto", minWidth: "120px" }}
 								onClick={() => {
 									vscode.postMessage({ type: "openProjectMcpSettings" })
 								}}>
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
 								{t("mcp:editProjectMCP")}
+							</Button>
+							<Button
+								variant="secondary"
+								style={{ flex: "1 1 auto", minWidth: "120px" }}
+								onClick={() => {
+									vscode.postMessage({ type: "refreshAllMcpServers" })
+								}}>
+								<span className="codicon codicon-refresh" style={{ marginRight: "6px" }}></span>
+								{t("mcp:refreshMCP")}
 							</Button>
 						</div>
 						<div

@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "Неверный формат JSON настроек MCP. Пожалуйста, убедитесь, что ваши настройки соответствуют правильному формату JSON.",
+		"invalid_settings_syntax": "Неверный формат JSON настроек MCP. Пожалуйста, проверьте ваш файл настроек на наличие синтаксических ошибок.",
+		"invalid_settings_validation": "Неверный формат настроек MCP: {{errorMessages}}",
+
+		"create_json": "Не удалось создать или открыть .roo/mcp.json: {{error}}",
+		"failed_update_project": "Не удалось обновить серверы проекта MCP"
+	},
+	"info": {
+		"server_restarting": "Перезапуск сервера MCP {{serverName}}...",
+		"server_connected": "Сервер MCP {{serverName}} подключен",
+		"server_deleted": "Удален сервер MCP: {{serverName}}",
+		"server_not_found": "Сервер \"{{serverName}}\" не найден в конфигурации",
+		"global_servers_active": "Активные глобальные MCP серверы: {{mcpServers}}",
+		"project_servers_active": "Активные MCP серверы проекта: {{mcpServers}}",
+		"already_refreshing": "MCP серверы уже обновляются.",
+		"refreshing_all": "Обновление всех MCP серверов...",
+		"all_refreshed": "Все MCP серверы обновлены.",
+		"project_config_deleted": "Файл конфигурации MCP проекта удален. Все MCP серверы проекта отключены."
+	}
+}

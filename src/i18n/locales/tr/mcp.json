@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "Geçersiz MCP ayarları JSON formatı. Lütfen ayarlarınızın doğru JSON formatını takip ettiğinden emin olun.",
+		"invalid_settings_syntax": "Geçersiz MCP ayarları JSON formatı. Lütfen ayarlar dosyanızda sözdizimi hatalarını kontrol edin.",
+		"invalid_settings_validation": "Geçersiz MCP ayarları formatı: {{errorMessages}}",
+
+		"create_json": ".roo/mcp.json oluşturulamadı veya açılamadı: {{error}}",
+		"failed_update_project": "Proje MCP sunucuları güncellenemedi"
+	},
+	"info": {
+		"server_restarting": "{{serverName}} MCP sunucusu yeniden başlatılıyor...",
+		"server_connected": "{{serverName}} MCP sunucusu bağlandı",
+		"server_deleted": "MCP sunucusu silindi: {{serverName}}",
+		"server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı",
+		"global_servers_active": "Aktif Global MCP Sunucuları: {{mcpServers}}",
+		"project_servers_active": "Aktif Proje MCP Sunucuları: {{mcpServers}}",
+		"already_refreshing": "MCP sunucuları zaten yenileniyor.",
+		"refreshing_all": "Tüm MCP sunucuları yenileniyor...",
+		"all_refreshed": "Tüm MCP sunucuları yenilendi.",
+		"project_config_deleted": "Proje MCP yapılandırma dosyası silindi. Tüm proje MCP sunucuları bağlantısı kesildi."
+	}
+}

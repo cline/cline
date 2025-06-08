@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "Araç bulunamadı",
 		"noResources": "Kaynak bulunamadı",
-		"noLogs": "Kayıt bulunamadı",
 		"noErrors": "Hata bulunamadı"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "Tekrar deneniyor...",
 		"retryConnection": "Bağlantıyı tekrar dene"
-	}
+	},
+	"refreshMCP": "MCP Sunucularını Yenile"
 }

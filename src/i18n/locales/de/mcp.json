@@ -1,0 +1,21 @@
+{
+	"errors": {
+		"invalid_settings_format": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte stelle sicher, dass deine Einstellungen dem korrekten JSON-Format entsprechen.",
+		"invalid_settings_syntax": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte überprüfe deine Einstellungsdatei auf Syntaxfehler.",
+		"invalid_settings_validation": "Ungültiges MCP-Einstellungen-Format: {{errorMessages}}",
+		"create_json": "Fehler beim Erstellen oder Öffnen von .roo/mcp.json: {{error}}",
+		"failed_update_project": "Fehler beim Aktualisieren der Projekt-MCP-Server"
+	},
+	"info": {
+		"server_restarting": "MCP-Server {{serverName}} wird neu gestartet...",
+		"server_connected": "MCP-Server {{serverName}} verbunden",
+		"server_deleted": "MCP-Server gelöscht: {{serverName}}",
+		"server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden",
+		"global_servers_active": "Aktive globale MCP-Server: {{mcpServers}}",
+		"project_servers_active": "Aktive Projekt-MCP-Server: {{mcpServers}}",
+		"already_refreshing": "MCP-Server werden bereits aktualisiert.",
+		"refreshing_all": "Alle MCP-Server werden aktualisiert...",
+		"all_refreshed": "Alle MCP-Server wurden aktualisiert.",
+		"project_config_deleted": "Projekt-MCP-Konfigurationsdatei gelöscht. Alle Projekt-MCP-Server wurden getrennt."
+	}
+}

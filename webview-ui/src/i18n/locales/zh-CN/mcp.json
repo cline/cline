@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "未找到工具",
 		"noResources": "未找到资源",
-		"noLogs": "未找到日志",
 		"noErrors": "未找到错误"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "重试中...",
 		"retryConnection": "重试连接"
-	}
+	},
+	"refreshMCP": "刷新 MCP 服务器"
 }

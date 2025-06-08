@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया सुनिश्चित करें कि आपकी सेटिंग्स सही JSON फॉर्मेट का पालन करती हैं।",
+		"invalid_settings_syntax": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया अपनी सेटिंग्स फ़ाइल में सिंटैक्स त्रुटियों की जांच करें।",
+		"invalid_settings_validation": "अमान्य MCP सेटिंग्स फॉर्मेट: {{errorMessages}}",
+
+		"create_json": ".roo/mcp.json बनाने या खोलने में विफल: {{error}}",
+		"failed_update_project": "प्रोजेक्ट MCP सर्वर अपडेट करने में विफल"
+	},
+	"info": {
+		"server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",
+		"server_connected": "{{serverName}} MCP सर्वर कनेक्टेड",
+		"server_deleted": "MCP सर्वर हटाया गया: {{serverName}}",
+		"server_not_found": "सर्वर \"{{serverName}}\" कॉन्फ़िगरेशन में नहीं मिला",
+		"global_servers_active": "सक्रिय वैश्विक एमसीपी सर्वर: {{mcpServers}}",
+		"project_servers_active": "सक्रिय परियोजना एमसीपी सर्वर: {{mcpServers}}",
+		"already_refreshing": "एमसीपी सर्वर पहले से ही रीफ्रेश हो रहे हैं।",
+		"refreshing_all": "सभी एमसीपी सर्वर रीफ्रेश हो रहे हैं...",
+		"all_refreshed": "सभी एमसीपी सर्वर रीफ्रेश हो गए हैं।",
+		"project_config_deleted": "प्रोजेक्ट एमसीपी कॉन्फ़िगरेशन फ़ाइल हटा दी गई है। सभी प्रोजेक्ट एमसीपी सर्वर डिस्कनेक्ट कर दिए गए हैं।"
+	}
+}

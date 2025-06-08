@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "कोई टूल नहीं मिला",
 		"noResources": "कोई संसाधन नहीं मिला",
-		"noLogs": "कोई लॉग नहीं मिला",
 		"noErrors": "कोई त्रुटि नहीं मिली"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "फिर से कोशिश कर रहा है...",
 		"retryConnection": "कनेक्शन फिर से आज़माएँ"
-	}
+	},
+	"refreshMCP": "एमसीपी सर्वर रीफ्रेश करें"
 }

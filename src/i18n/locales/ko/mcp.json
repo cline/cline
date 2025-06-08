@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "잘못된 MCP 설정 JSON 형식입니다. 설정이 올바른 JSON 형식을 따르는지 확인하세요.",
+		"invalid_settings_syntax": "잘못된 MCP 설정 JSON 형식입니다. 설정 파일의 구문 오류를 확인하세요.",
+		"invalid_settings_validation": "잘못된 MCP 설정 형식: {{errorMessages}}",
+
+		"create_json": ".roo/mcp.json 생성 또는 열기 실패: {{error}}",
+		"failed_update_project": "프로젝트 MCP 서버 업데이트에 실패했습니다"
+	},
+	"info": {
+		"server_restarting": "{{serverName}} MCP 서버를 재시작하는 중...",
+		"server_connected": "{{serverName}} MCP 서버 연결됨",
+		"server_deleted": "MCP 서버 삭제됨: {{serverName}}",
+		"server_not_found": "구성에서 서버 \"{{serverName}}\"을(를) 찾을 수 없습니다",
+		"global_servers_active": "활성 글로벌 MCP 서버: {{mcpServers}}",
+		"project_servers_active": "활성 프로젝트 MCP 서버: {{mcpServers}}",
+		"already_refreshing": "MCP 서버가 이미 새로 고쳐지고 있습니다.",
+		"refreshing_all": "모든 MCP 서버를 새로 고치는 중...",
+		"all_refreshed": "모든 MCP 서버가 새로 고쳐졌습니다.",
+		"project_config_deleted": "프로젝트 MCP 구성 파일이 삭제되었습니다. 모든 프로젝트 MCP 서버가 연결 해제되었습니다."
+	}
+}

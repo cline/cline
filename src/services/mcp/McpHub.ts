@@ -133,11 +133,12 @@ export class McpHub {
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 	private refCount: number = 0 // Reference counter for active clients
+	private configChangeDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
 		this.watchMcpSettingsFile()
-		this.watchProjectMcpFile()
+		this.watchProjectMcpFile().catch(console.error)
 		this.setupWorkspaceFoldersWatcher()
 		this.initializeGlobalMcpServers()
 		this.initializeProjectMcpServers()
@@ -248,43 +249,116 @@ export class McpHub {
 		this.disposables.push(
 			vscode.workspace.onDidChangeWorkspaceFolders(async () => {
 				await this.updateProjectMcpServers()
-				this.watchProjectMcpFile()
+				await this.watchProjectMcpFile()
 			}),
 		)
+	}
+
+	/**
+	 * Debounced wrapper for handling config file changes
+	 */
+	private debounceConfigChange(filePath: string, source: "global" | "project"): void {
+		const key = `${source}-${filePath}`
+
+		// Clear existing timer if any
+		const existingTimer = this.configChangeDebounceTimers.get(key)
+		if (existingTimer) {
+			clearTimeout(existingTimer)
+		}
+
+		// Set new timer
+		const timer = setTimeout(async () => {
+			this.configChangeDebounceTimers.delete(key)
+			await this.handleConfigFileChange(filePath, source)
+		}, 500) // 500ms debounce
+
+		this.configChangeDebounceTimers.set(key, timer)
 	}
 
 	private async handleConfigFileChange(filePath: string, source: "global" | "project"): Promise<void> {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
-			const config = JSON.parse(content)
+			let config: any
+
+			try {
+				config = JSON.parse(content)
+			} catch (parseError) {
+				const errorMessage = t("mcp:errors.invalid_settings_syntax")
+				console.error(errorMessage, parseError)
+				vscode.window.showErrorMessage(errorMessage)
+				return
+			}
+
 			const result = McpSettingsSchema.safeParse(config)
 
 			if (!result.success) {
 				const errorMessages = result.error.errors
 					.map((err) => `${err.path.join(".")}: ${err.message}`)
 					.join("\n")
-				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_settings_validation", { errorMessages }))
+				vscode.window.showErrorMessage(t("mcp:errors.invalid_settings_validation", { errorMessages }))
 				return
 			}
 
 			await this.updateServerConnections(result.data.mcpServers || {}, source)
 		} catch (error) {
-			if (error instanceof SyntaxError) {
-				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_settings_format"))
+			// Check if the error is because the file doesn't exist
+			if (error.code === "ENOENT" && source === "project") {
+				// File was deleted, clean up project MCP servers
+				await this.cleanupProjectMcpServers()
+				await this.notifyWebviewOfServerChanges()
+				vscode.window.showInformationMessage(t("mcp:info.project_config_deleted"))
 			} else {
-				this.showErrorMessage(`Failed to process ${source} MCP settings change`, error)
+				this.showErrorMessage(t("mcp:errors.failed_update_project"), error)
 			}
 		}
 	}
 
-	private watchProjectMcpFile(): void {
+	private async watchProjectMcpFile(): Promise<void> {
+		// Skip if test environment is detected or VSCode APIs are not available
+		if (
+			process.env.NODE_ENV === "test" ||
+			process.env.JEST_WORKER_ID !== undefined ||
+			!vscode.workspace.createFileSystemWatcher
+		) {
+			return
+		}
+
+		// Clean up existing project MCP watcher if it exists
+		if (this.projectMcpWatcher) {
+			this.projectMcpWatcher.dispose()
+			this.projectMcpWatcher = undefined
+		}
+
+		if (!vscode.workspace.workspaceFolders?.length) {
+			return
+		}
+
+		const workspaceFolder = vscode.workspace.workspaceFolders[0]
+		const projectMcpPattern = new vscode.RelativePattern(workspaceFolder, ".roo/mcp.json")
+
+		// Create a file system watcher for the project MCP file pattern
+		this.projectMcpWatcher = vscode.workspace.createFileSystemWatcher(projectMcpPattern)
+
+		// Watch for file changes
+		const changeDisposable = this.projectMcpWatcher.onDidChange((uri) => {
+			this.debounceConfigChange(uri.fsPath, "project")
+		})
+
+		// Watch for file creation
+		const createDisposable = this.projectMcpWatcher.onDidCreate((uri) => {
+			this.debounceConfigChange(uri.fsPath, "project")
+		})
+
+		// Watch for file deletion
+		const deleteDisposable = this.projectMcpWatcher.onDidDelete(async () => {
+			// Clean up all project MCP servers when the file is deleted
+			await this.cleanupProjectMcpServers()
+			await this.notifyWebviewOfServerChanges()
+			vscode.window.showInformationMessage(t("mcp:info.project_config_deleted"))
+		})
+
 		this.disposables.push(
-			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				const projectMcpPath = await this.getProjectMcpPath()
-				if (projectMcpPath && arePathsEqual(document.uri.fsPath, projectMcpPath)) {
-					await this.handleConfigFileChange(projectMcpPath, "project")
-				}
-			}),
+			vscode.Disposable.from(changeDisposable, createDisposable, deleteDisposable, this.projectMcpWatcher),
 		)
 	}
 
@@ -299,7 +373,7 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (parseError) {
-				const errorMessage = t("common:errors.invalid_mcp_settings_syntax")
+				const errorMessage = t("mcp:errors.invalid_settings_syntax")
 				console.error(errorMessage, parseError)
 				vscode.window.showErrorMessage(errorMessage)
 				return
@@ -315,21 +389,23 @@ export class McpHub {
 					.map((err) => `${err.path.join(".")}: ${err.message}`)
 					.join("\n")
 				console.error("Invalid project MCP settings format:", errorMessages)
-				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_settings_validation", { errorMessages }))
+				vscode.window.showErrorMessage(t("mcp:errors.invalid_settings_validation", { errorMessages }))
 			}
 		} catch (error) {
-			this.showErrorMessage(t("common:errors.failed_update_project_mcp"), error)
+			this.showErrorMessage(t("mcp:errors.failed_update_project"), error)
 		}
 	}
 
 	private async cleanupProjectMcpServers(): Promise<void> {
-		const projectServers = this.connections.filter((conn) => conn.server.source === "project")
+		// Disconnect and remove all project MCP servers
+		const projectConnections = this.connections.filter((conn) => conn.server.source === "project")
 
-		for (const conn of projectServers) {
+		for (const conn of projectConnections) {
 			await this.deleteConnection(conn.server.name, "project")
 		}
 
-		await this.notifyWebviewOfServerChanges()
+		// Clear project servers from the connections list
+		await this.updateServerConnections({}, "project", false)
 	}
 
 	getServers(): McpServer[] {
@@ -375,14 +451,43 @@ export class McpHub {
 	}
 
 	private async watchMcpSettingsFile(): Promise<void> {
+		// Skip if test environment is detected or VSCode APIs are not available
+		if (
+			process.env.NODE_ENV === "test" ||
+			process.env.JEST_WORKER_ID !== undefined ||
+			!vscode.workspace.createFileSystemWatcher
+		) {
+			return
+		}
+
+		// Clean up existing settings watcher if it exists
+		if (this.settingsWatcher) {
+			this.settingsWatcher.dispose()
+			this.settingsWatcher = undefined
+		}
+
 		const settingsPath = await this.getMcpSettingsFilePath()
-		this.disposables.push(
-			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					await this.handleConfigFileChange(settingsPath, "global")
-				}
-			}),
-		)
+		const settingsUri = vscode.Uri.file(settingsPath)
+		const settingsPattern = new vscode.RelativePattern(path.dirname(settingsPath), path.basename(settingsPath))
+
+		// Create a file system watcher for the global MCP settings file
+		this.settingsWatcher = vscode.workspace.createFileSystemWatcher(settingsPattern)
+
+		// Watch for file changes
+		const changeDisposable = this.settingsWatcher.onDidChange((uri) => {
+			if (arePathsEqual(uri.fsPath, settingsPath)) {
+				this.debounceConfigChange(settingsPath, "global")
+			}
+		})
+
+		// Watch for file creation
+		const createDisposable = this.settingsWatcher.onDidCreate((uri) => {
+			if (arePathsEqual(uri.fsPath, settingsPath)) {
+				this.debounceConfigChange(settingsPath, "global")
+			}
+		})
+
+		this.disposables.push(vscode.Disposable.from(changeDisposable, createDisposable, this.settingsWatcher))
 	}
 
 	private async initializeMcpServers(source: "global" | "project"): Promise<void> {
@@ -399,18 +504,18 @@ export class McpHub {
 			const result = McpSettingsSchema.safeParse(config)
 
 			if (result.success) {
-				await this.updateServerConnections(result.data.mcpServers || {}, source)
+				await this.updateServerConnections(result.data.mcpServers || {}, source, false)
 			} else {
 				const errorMessages = result.error.errors
 					.map((err) => `${err.path.join(".")}: ${err.message}`)
 					.join("\n")
 				console.error(`Invalid ${source} MCP settings format:`, errorMessages)
-				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_settings_validation", { errorMessages }))
+				vscode.window.showErrorMessage(t("mcp:errors.invalid_settings_validation", { errorMessages }))
 
 				if (source === "global") {
 					// Still try to connect with the raw config, but show warnings
 					try {
-						await this.updateServerConnections(config.mcpServers || {}, source)
+						await this.updateServerConnections(config.mcpServers || {}, source, false)
 					} catch (error) {
 						this.showErrorMessage(`Failed to initialize ${source} MCP servers with raw config`, error)
 					}
@@ -418,7 +523,7 @@ export class McpHub {
 			}
 		} catch (error) {
 			if (error instanceof SyntaxError) {
-				const errorMessage = t("common:errors.invalid_mcp_settings_syntax")
+				const errorMessage = t("mcp:errors.invalid_settings_syntax")
 				console.error(errorMessage, error)
 				vscode.window.showErrorMessage(errorMessage)
 			} else {
@@ -816,8 +921,11 @@ export class McpHub {
 	async updateServerConnections(
 		newServers: Record<string, any>,
 		source: "global" | "project" = "global",
+		manageConnectingState: boolean = true,
 	): Promise<void> {
-		this.isConnecting = true
+		if (manageConnectingState) {
+			this.isConnecting = true
+		}
 		this.removeAllFileWatchers()
 		// Filter connections by source
 		const currentConnections = this.connections.filter(
@@ -868,7 +976,9 @@ export class McpHub {
 			// If server exists with same config, do nothing
 		}
 		await this.notifyWebviewOfServerChanges()
-		this.isConnecting = false
+		if (manageConnectingState) {
+			this.isConnecting = false
+		}
 	}
 
 	private setupFileWatcher(
@@ -950,7 +1060,7 @@ export class McpHub {
 		const connection = this.findConnection(serverName, source)
 		const config = connection?.server.config
 		if (config) {
-			vscode.window.showInformationMessage(t("common:info.mcp_server_restarting", { serverName }))
+			vscode.window.showInformationMessage(t("mcp:info.server_restarting", { serverName }))
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
@@ -965,7 +1075,7 @@ export class McpHub {
 
 					// Try to connect again using validated config
 					await this.connectToServer(serverName, validatedConfig, connection.server.source || "global")
-					vscode.window.showInformationMessage(t("common:info.mcp_server_connected", { serverName }))
+					vscode.window.showInformationMessage(t("mcp:info.server_connected", { serverName }))
 				} catch (validationError) {
 					this.showErrorMessage(`Invalid configuration for MCP server "${serverName}"`, validationError)
 				}
@@ -976,6 +1086,73 @@ export class McpHub {
 
 		await this.notifyWebviewOfServerChanges()
 		this.isConnecting = false
+	}
+
+	public async refreshAllConnections(): Promise<void> {
+		if (this.isConnecting) {
+			vscode.window.showInformationMessage(t("mcp:info.already_refreshing"))
+			return
+		}
+
+		this.isConnecting = true
+		vscode.window.showInformationMessage(t("mcp:info.refreshing_all"))
+
+		try {
+			const globalPath = await this.getMcpSettingsFilePath()
+			let globalServers: Record<string, any> = {}
+			try {
+				const globalContent = await fs.readFile(globalPath, "utf-8")
+				const globalConfig = JSON.parse(globalContent)
+				globalServers = globalConfig.mcpServers || {}
+				const globalServerNames = Object.keys(globalServers)
+				vscode.window.showInformationMessage(
+					t("mcp:info.global_servers_active", {
+						mcpServers: `${globalServerNames.join(", ") || "none"}`,
+					}),
+				)
+			} catch (error) {
+				console.log("Error reading global MCP config:", error)
+			}
+
+			const projectPath = await this.getProjectMcpPath()
+			let projectServers: Record<string, any> = {}
+			if (projectPath) {
+				try {
+					const projectContent = await fs.readFile(projectPath, "utf-8")
+					const projectConfig = JSON.parse(projectContent)
+					projectServers = projectConfig.mcpServers || {}
+					const projectServerNames = Object.keys(projectServers)
+					vscode.window.showInformationMessage(
+						t("mcp:info.project_servers_active", {
+							mcpServers: `${projectServerNames.join(", ") || "none"}`,
+						}),
+					)
+				} catch (error) {
+					console.log("Error reading project MCP config:", error)
+				}
+			}
+
+			// Clear all existing connections first
+			const existingConnections = [...this.connections]
+			for (const conn of existingConnections) {
+				await this.deleteConnection(conn.server.name, conn.server.source)
+			}
+
+			// Re-initialize all servers from scratch
+			// This ensures proper initialization including fetching tools, resources, etc.
+			await this.initializeMcpServers("global")
+			await this.initializeMcpServers("project")
+
+			await delay(100)
+
+			await this.notifyWebviewOfServerChanges()
+
+			vscode.window.showInformationMessage(t("mcp:info.all_refreshed"))
+		} catch (error) {
+			this.showErrorMessage("Failed to refresh MCP servers", error)
+		} finally {
+			this.isConnecting = false
+		}
 	}
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
@@ -1020,10 +1197,40 @@ export class McpHub {
 		})
 
 		// Send sorted servers to webview
-		await this.providerRef.deref()?.postMessageToWebview({
-			type: "mcpServers",
-			mcpServers: sortedConnections.map((connection) => connection.server),
-		})
+		// Try to get the currently visible ClineProvider instance first
+		let targetProvider: ClineProvider | undefined = undefined
+		try {
+			// ClineProvider.getInstance() can focus the view if not visible,
+			// and returns a Promise<ClineProvider | undefined>
+			const instancePromise = ClineProvider.getInstance()
+			if (instancePromise) {
+				targetProvider = await instancePromise
+			}
+		} catch (error) {}
+
+		// Fallback to the providerRef if getInstance didn't yield a provider
+		if (!targetProvider) {
+			targetProvider = this.providerRef.deref()
+		}
+
+		if (targetProvider) {
+			const serversToSend = sortedConnections.map((connection) => connection.server)
+
+			const message = {
+				type: "mcpServers" as const,
+				mcpServers: serversToSend,
+			}
+
+			try {
+				await targetProvider.postMessageToWebview(message)
+			} catch (error) {
+				console.error("[McpHub] Error calling targetProvider.postMessageToWebview:", error)
+			}
+		} else {
+			console.error(
+				"[McpHub] No target provider available (neither from getInstance nor providerRef) - cannot send mcpServers message to webview",
+			)
+		}
 	}
 
 	public async toggleServerDisabled(
@@ -1217,9 +1424,9 @@ export class McpHub {
 				// Update server connections with the correct source
 				await this.updateServerConnections(config.mcpServers, serverSource)
 
-				vscode.window.showInformationMessage(t("common:info.mcp_server_deleted", { serverName }))
+				vscode.window.showInformationMessage(t("mcp:info.server_deleted", { serverName }))
 			} else {
-				vscode.window.showWarningMessage(t("common:info.mcp_server_not_found", { serverName }))
+				vscode.window.showWarningMessage(t("mcp:info.server_not_found", { serverName }))
 			}
 		} catch (error) {
 			this.showErrorMessage(`Failed to delete MCP server ${serverName}`, error)
@@ -1376,6 +1583,13 @@ export class McpHub {
 		}
 		console.log("McpHub: Disposing...")
 		this.isDisposed = true
+
+		// Clear all debounce timers
+		for (const timer of this.configChangeDebounceTimers.values()) {
+			clearTimeout(timer)
+		}
+		this.configChangeDebounceTimers.clear()
+
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
 			try {
@@ -1387,6 +1601,11 @@ export class McpHub {
 		this.connections = []
 		if (this.settingsWatcher) {
 			this.settingsWatcher.dispose()
+			this.settingsWatcher = undefined
+		}
+		if (this.projectMcpWatcher) {
+			this.projectMcpWatcher.dispose()
+			this.projectMcpWatcher = undefined
 		}
 		this.disposables.forEach((d) => d.dispose())
 	}

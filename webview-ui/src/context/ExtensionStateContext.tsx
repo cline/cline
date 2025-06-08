@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
-import { useEvent } from "react-use"
 
 import {
 	type ProviderSettings,
@@ -300,7 +299,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		[setListApiConfigMeta],
 	)
 
-	useEvent("message", handleMessage)
+	useEffect(() => {
+		window.addEventListener("message", handleMessage)
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [handleMessage])
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })

@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "Инструменты не найдены",
 		"noResources": "Ресурсы не найдены",
-		"noLogs": "Логи не найдены",
 		"noErrors": "Ошибки не найдены"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "Повторная попытка...",
 		"retryConnection": "Повторить подключение"
-	}
+	},
+	"refreshMCP": "Обновить MCP серверы"
 }

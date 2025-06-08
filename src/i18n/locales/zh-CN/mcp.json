@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "MCP设置JSON格式无效。请确保您的设置遵循正确的JSON格式。",
+		"invalid_settings_syntax": "MCP设置JSON格式无效。请检查您的设置文件是否有语法错误。",
+		"invalid_settings_validation": "MCP设置格式无效：{{errorMessages}}",
+
+		"create_json": "创建或打开 .roo/mcp.json 失败：{{error}}",
+		"failed_update_project": "更新项目MCP服务器失败"
+	},
+	"info": {
+		"server_restarting": "正在重启{{serverName}}MCP服务器...",
+		"server_connected": "{{serverName}}MCP服务器已连接",
+		"server_deleted": "已删除MCP服务器：{{serverName}}",
+		"server_not_found": "在配置中未找到服务器\"{{serverName}}\"",
+		"global_servers_active": "活动的全局 MCP 服务器: {{mcpServers}}",
+		"project_servers_active": "活动的项目 MCP 服务器: {{mcpServers}}",
+		"already_refreshing": "MCP 服务器已在刷新中。",
+		"refreshing_all": "正在刷新所有 MCP 服务器...",
+		"all_refreshed": "所有 MCP 服务器已刷新。",
+		"project_config_deleted": "项目MCP配置文件已删除。所有项目MCP服务器已断开连接。"
+	}
+}

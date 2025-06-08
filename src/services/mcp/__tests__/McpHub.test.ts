@@ -49,6 +49,9 @@ jest.mock("vscode", () => ({
 		showErrorMessage: jest.fn(),
 		showInformationMessage: jest.fn(),
 		showWarningMessage: jest.fn(),
+		createTextEditorDecorationType: jest.fn().mockReturnValue({
+			dispose: jest.fn(),
+		}),
 	},
 	Disposable: {
 		from: jest.fn(),

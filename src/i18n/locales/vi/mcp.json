@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "Định dạng JSON của cài đặt MCP không hợp lệ. Vui lòng đảm bảo cài đặt của bạn tuân theo định dạng JSON chính xác.",
+		"invalid_settings_syntax": "Định dạng JSON của cài đặt MCP không hợp lệ. Vui lòng kiểm tra lỗi cú pháp trong tệp cài đặt của bạn.",
+		"invalid_settings_validation": "Định dạng cài đặt MCP không hợp lệ: {{errorMessages}}",
+
+		"create_json": "Không thể tạo hoặc mở .roo/mcp.json: {{error}}",
+		"failed_update_project": "Không thể cập nhật máy chủ MCP của dự án"
+	},
+	"info": {
+		"server_restarting": "Đang khởi động lại máy chủ MCP {{serverName}}...",
+		"server_connected": "Máy chủ MCP {{serverName}} đã kết nối",
+		"server_deleted": "Đã xóa máy chủ MCP: {{serverName}}",
+		"server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình",
+		"global_servers_active": "Các máy chủ MCP toàn cầu đang hoạt động: {{mcpServers}}",
+		"project_servers_active": "Các máy chủ MCP dự án đang hoạt động: {{mcpServers}}",
+		"already_refreshing": "Các máy chủ MCP đã đang làm mới.",
+		"refreshing_all": "Đang làm mới tất cả các máy chủ MCP...",
+		"all_refreshed": "Tất cả các máy chủ MCP đã được làm mới.",
+		"project_config_deleted": "Tệp cấu hình MCP của dự án đã bị xóa. Tất cả các máy chủ MCP của dự án đã bị ngắt kết nối."
+	}
+}

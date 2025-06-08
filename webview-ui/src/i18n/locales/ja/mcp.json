@@ -28,7 +28,6 @@
 	"emptyState": {
 		"noTools": "ツールが見つかりません",
 		"noResources": "リソースが見つかりません",
-		"noLogs": "ログが見つかりません",
 		"noErrors": "エラーが見つかりません"
 	},
 	"networkTimeout": {
@@ -54,5 +53,6 @@
 	"serverStatus": {
 		"retrying": "再試行中...",
 		"retryConnection": "再接続"
-	}
+	},
+	"refreshMCP": "MCPサーバーを更新"
 }

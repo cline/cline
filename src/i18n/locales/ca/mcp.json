@@ -1,0 +1,21 @@
+{
+	"errors": {
+		"invalid_settings_format": "Format JSON de configuració MCP no vàlid. Si us plau, assegura't que la teva configuració segueix el format JSON correcte.",
+		"invalid_settings_syntax": "Format JSON de configuració MCP no vàlid. Si us plau, comprova si hi ha errors de sintaxi al teu fitxer de configuració.",
+		"invalid_settings_validation": "Format de configuració MCP no vàlid: {{errorMessages}}",
+		"create_json": "Ha fallat la creació o obertura de .roo/mcp.json: {{error}}",
+		"failed_update_project": "Ha fallat l'actualització dels servidors MCP del projecte"
+	},
+	"info": {
+		"server_restarting": "Reiniciant el servidor MCP {{serverName}}...",
+		"server_connected": "Servidor MCP {{serverName}} connectat",
+		"server_deleted": "Servidor MCP eliminat: {{serverName}}",
+		"server_not_found": "Servidor \"{{serverName}}\" no trobat a la configuració",
+		"global_servers_active": "Servidors MCP globals actius: {{mcpServers}}",
+		"project_servers_active": "Servidors MCP del projecte actius: {{mcpServers}}",
+		"already_refreshing": "Els servidors MCP ja s'estan actualitzant.",
+		"refreshing_all": "Actualitzant tots els servidors MCP...",
+		"all_refreshed": "Tots els servidors MCP han estat actualitzats.",
+		"project_config_deleted": "Fitxer de configuració MCP del projecte eliminat. Tots els servidors MCP del projecte han estat desconnectats."
+	}
+}
