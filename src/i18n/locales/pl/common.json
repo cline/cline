@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "Za mało wiadomości do skondensowania kontekstu",
 		"condensed_recently": "Kontekst został niedawno skondensowany; pomijanie tej próby",
 		"condense_handler_invalid": "Nieprawidłowy handler API do kondensowania kontekstu",
-		"condense_context_grew": "Rozmiar kontekstu wzrósł podczas kondensacji; pomijanie tej próby"
+		"condense_context_grew": "Rozmiar kontekstu wzrósł podczas kondensacji; pomijanie tej próby",
+		"share_task_failed": "Nie udało się udostępnić zadania",
+		"share_no_active_task": "Brak aktywnego zadania do udostępnienia"
 	},
 	"warnings": {
 		"no_terminal_content": "Nie wybrano zawartości terminala",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji",
 		"custom_storage_path_set": "Ustawiono niestandardową ścieżkę przechowywania: {{path}}",
 		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania",
-		"settings_imported": "Ustawienia zaimportowane pomyślnie."
+		"settings_imported": "Ustawienia zaimportowane pomyślnie.",
+		"share_link_copied": "Link udostępniania skopiowany do schowka"
 	},
 	"answers": {
 		"yes": "Tak",

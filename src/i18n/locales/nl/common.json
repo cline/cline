@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "Niet genoeg berichten om context te comprimeren",
 		"condensed_recently": "Context is recent gecomprimeerd; deze poging wordt overgeslagen",
 		"condense_handler_invalid": "API-handler voor het comprimeren van context is ongeldig",
-		"condense_context_grew": "Contextgrootte nam toe tijdens comprimeren; deze poging wordt overgeslagen"
+		"condense_context_grew": "Contextgrootte nam toe tijdens comprimeren; deze poging wordt overgeslagen",
+		"share_task_failed": "Delen van taak mislukt",
+		"share_no_active_task": "Geen actieve taak om te delen"
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" niet gevonden in configuratie",
 		"custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
 		"default_storage_path": "Terug naar standaard opslagpad",
-		"settings_imported": "Instellingen succesvol geïmporteerd."
+		"settings_imported": "Instellingen succesvol geïmporteerd.",
+		"share_link_copied": "Deellink gekopieerd naar klembord"
 	},
 	"answers": {
 		"yes": "Ja",

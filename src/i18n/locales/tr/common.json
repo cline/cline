@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "Bağlamı sıkıştırmak için yeterli mesaj yok",
 		"condensed_recently": "Bağlam yakın zamanda sıkıştırıldı; bu deneme atlanıyor",
 		"condense_handler_invalid": "Bağlamı sıkıştırmak için API işleyicisi geçersiz",
-		"condense_context_grew": "Sıkıştırma sırasında bağlam boyutu arttı; bu deneme atlanıyor"
+		"condense_context_grew": "Sıkıştırma sırasında bağlam boyutu arttı; bu deneme atlanıyor",
+		"share_task_failed": "Görev paylaşılamadı",
+		"share_no_active_task": "Paylaşılacak aktif görev yok"
 	},
 	"warnings": {
 		"no_terminal_content": "Seçili terminal içeriği yok",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı",
 		"custom_storage_path_set": "Özel depolama yolu ayarlandı: {{path}}",
 		"default_storage_path": "Varsayılan depolama yoluna geri dönüldü",
-		"settings_imported": "Ayarlar başarıyla içe aktarıldı."
+		"settings_imported": "Ayarlar başarıyla içe aktarıldı.",
+		"share_link_copied": "Paylaşım bağlantısı panoya kopyalandı"
 	},
 	"answers": {
 		"yes": "Evet",

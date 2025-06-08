@@ -63,7 +63,9 @@
 		"condense_not_enough_messages": "Não há mensagens suficientes para condensar o contexto",
 		"condensed_recently": "O contexto foi condensado recentemente; pulando esta tentativa",
 		"condense_handler_invalid": "O manipulador de API para condensar o contexto é inválido",
-		"condense_context_grew": "O tamanho do contexto aumentou durante a condensação; pulando esta tentativa"
+		"condense_context_grew": "O tamanho do contexto aumentou durante a condensação; pulando esta tentativa",
+		"share_task_failed": "Falha ao compartilhar tarefa",
+		"share_no_active_task": "Nenhuma tarefa ativa para compartilhar"
 	},
 	"warnings": {
 		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",
@@ -79,7 +81,8 @@
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração",
 		"custom_storage_path_set": "Caminho de armazenamento personalizado definido: {{path}}",
 		"default_storage_path": "Retornado ao caminho de armazenamento padrão",
-		"settings_imported": "Configurações importadas com sucesso."
+		"settings_imported": "Configurações importadas com sucesso.",
+		"share_link_copied": "Link de compartilhamento copiado para a área de transferência"
 	},
 	"answers": {
 		"yes": "Sim",

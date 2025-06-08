@@ -11,7 +11,8 @@
 		"closeAndStart": "Fechar tarefa e iniciar nova",
 		"export": "Exportar histórico de tarefas",
 		"delete": "Excluir tarefa (Shift + Clique para pular confirmação)",
-		"condenseContext": "Condensar contexto de forma inteligente"
+		"condenseContext": "Condensar contexto de forma inteligente",
+		"share": "Compartilhar tarefa"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",

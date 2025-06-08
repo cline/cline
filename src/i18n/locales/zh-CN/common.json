@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "没有足够的对话来压缩上下文",
 		"condensed_recently": "上下文最近已压缩；跳过此次尝试",
 		"condense_handler_invalid": "压缩上下文的API处理程序无效",
-		"condense_context_grew": "压缩过程中上下文大小增加；跳过此次尝试"
+		"condense_context_grew": "压缩过程中上下文大小增加；跳过此次尝试",
+		"share_task_failed": "分享任务失败。请重试。",
+		"share_no_active_task": "没有活跃任务可分享"
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "在配置中未找到服务器\"{{serverName}}\"",
 		"custom_storage_path_set": "自定义存储路径已设置：{{path}}",
 		"default_storage_path": "已恢复使用默认存储路径",
-		"settings_imported": "设置已成功导入。"
+		"settings_imported": "设置已成功导入。",
+		"share_link_copied": "分享链接已复制到剪贴板"
 	},
 	"answers": {
 		"yes": "是",

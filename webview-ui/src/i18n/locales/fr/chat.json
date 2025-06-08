@@ -11,7 +11,8 @@
 		"closeAndStart": "Fermer la tâche et en commencer une nouvelle",
 		"export": "Exporter l'historique des tâches",
 		"delete": "Supprimer la tâche (Shift + Clic pour ignorer la confirmation)",
-		"condenseContext": "Condenser intelligemment le contexte"
+		"condenseContext": "Condenser intelligemment le contexte",
+		"share": "Partager la tâche"
 	},
 	"unpin": "Désépingler",
 	"pin": "Épingler",

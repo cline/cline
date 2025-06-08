@@ -7,6 +7,7 @@ import { CloudServiceCallbacks } from "./types"
 import { AuthService } from "./AuthService"
 import { SettingsService } from "./SettingsService"
 import { TelemetryClient } from "./TelemetryClient"
+import { ShareService } from "./ShareService"
 
 export class CloudService {
 	private static _instance: CloudService | null = null
@@ -17,6 +18,7 @@ export class CloudService {
 	private authService: AuthService | null = null
 	private settingsService: SettingsService | null = null
 	private telemetryClient: TelemetryClient | null = null
+	private shareService: ShareService | null = null
 	private isInitialized = false
 	private log: (...args: unknown[]) => void
 
@@ -47,6 +49,8 @@ export class CloudService {
 			)
 
 			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
+
+			this.shareService = new ShareService(this.authService, this.settingsService, this.log)
 
 			try {
 				TelemetryService.instance.register(this.telemetryClient)
@@ -112,6 +116,18 @@ export class CloudService {
 		this.telemetryClient!.capture(event)
 	}
 
+	// ShareService
+
+	public async shareTask(taskId: string): Promise<boolean> {
+		this.ensureInitialized()
+		return this.shareService!.shareTask(taskId)
+	}
+
+	public async canShareTask(): Promise<boolean> {
+		this.ensureInitialized()
+		return this.shareService!.canShareTask()
+	}
+
 	// Lifecycle
 
 	public dispose(): void {
@@ -128,7 +144,13 @@ export class CloudService {
 	}
 
 	private ensureInitialized(): void {
-		if (!this.isInitialized || !this.authService || !this.settingsService || !this.telemetryClient) {
+		if (
+			!this.isInitialized ||
+			!this.authService ||
+			!this.settingsService ||
+			!this.telemetryClient ||
+			!this.shareService
+		) {
 			throw new Error("CloudService not initialized.")
 		}
 	}

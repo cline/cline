@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "コンテキストを圧縮するのに十分なメッセージがありません",
 		"condensed_recently": "コンテキストは最近圧縮されました；この試行をスキップします",
 		"condense_handler_invalid": "コンテキストを圧縮するためのAPIハンドラーが無効です",
-		"condense_context_grew": "圧縮中にコンテキストサイズが増加しました；この試行をスキップします"
+		"condense_context_grew": "圧縮中にコンテキストサイズが増加しました；この試行をスキップします",
+		"share_task_failed": "タスクの共有に失敗しました",
+		"share_no_active_task": "共有するアクティブなタスクがありません"
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
 		"default_storage_path": "デフォルトのストレージパスに戻りました",
-		"settings_imported": "設定が正常にインポートされました。"
+		"settings_imported": "設定が正常にインポートされました。",
+		"share_link_copied": "共有リンクがクリップボードにコピーされました"
 	},
 	"answers": {
 		"yes": "はい",

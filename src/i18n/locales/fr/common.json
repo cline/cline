@@ -59,7 +59,9 @@
 		"condense_not_enough_messages": "Pas assez de messages pour condenser le contexte",
 		"condensed_recently": "Le contexte a été condensé récemment ; cette tentative est ignorée",
 		"condense_handler_invalid": "Le gestionnaire d'API pour condenser le contexte est invalide",
-		"condense_context_grew": "La taille du contexte a augmenté pendant la condensation ; cette tentative est ignorée"
+		"condense_context_grew": "La taille du contexte a augmenté pendant la condensation ; cette tentative est ignorée",
+		"share_task_failed": "Échec du partage de la tâche. Veuillez réessayer.",
+		"share_no_active_task": "Aucune tâche active à partager"
 	},
 	"warnings": {
 		"no_terminal_content": "Aucun contenu de terminal sélectionné",
@@ -75,7 +77,8 @@
 		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration",
 		"custom_storage_path_set": "Chemin de stockage personnalisé défini : {{path}}",
 		"default_storage_path": "Retour au chemin de stockage par défaut",
-		"settings_imported": "Paramètres importés avec succès."
+		"settings_imported": "Paramètres importés avec succès.",
+		"share_link_copied": "Lien de partage copié dans le presse-papiers"
 	},
 	"answers": {
 		"yes": "Oui",

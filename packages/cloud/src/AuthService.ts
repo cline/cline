@@ -9,6 +9,7 @@ import type { CloudUserInfo } from "@roo-code/types"
 
 import { getClerkBaseUrl, getRooCodeApiUrl } from "./Config"
 import { RefreshTimer } from "./RefreshTimer"
+import { getUserAgent } from "./utils"
 
 export interface AuthServiceEvents {
 	"inactive-session": [data: { previousState: AuthState }]
@@ -435,7 +436,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	}
 
 	private userAgent(): string {
-		return `Roo-Code ${this.context.extension?.packageJSON?.version}`
+		return getUserAgent(this.context)
 	}
 
 	private static _instance: AuthService | null = null

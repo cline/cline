@@ -11,7 +11,8 @@
 		"closeAndStart": "Taak sluiten en een nieuwe starten",
 		"export": "Taakgeschiedenis exporteren",
 		"delete": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)",
-		"condenseContext": "Context intelligent samenvatten"
+		"condenseContext": "Context intelligent samenvatten",
+		"share": "Taak delen"
 	},
 	"unpin": "Losmaken",
 	"pin": "Vastmaken",

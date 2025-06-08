@@ -104,3 +104,15 @@ export const ORGANIZATION_DEFAULT: OrganizationSettings = {
 	defaultSettings: {},
 	allowList: ORGANIZATION_ALLOW_ALL,
 } as const
+
+/**
+ * Share Types
+ */
+
+export const shareResponseSchema = z.object({
+	success: z.boolean(),
+	shareUrl: z.string().optional(),
+	error: z.string().optional(),
+})
+
+export type ShareResponse = z.infer<typeof shareResponseSchema>

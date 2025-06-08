@@ -11,7 +11,8 @@
 		"closeAndStart": "작업 닫고 새 작업 시작",
 		"export": "작업 기록 내보내기",
 		"delete": "작업 삭제 (Shift + 클릭으로 확인 생략)",
-		"condenseContext": "컨텍스트 지능적으로 압축"
+		"condenseContext": "컨텍스트 지능적으로 압축",
+		"share": "작업 공유"
 	},
 	"unpin": "고정 해제하기",
 	"pin": "고정하기",

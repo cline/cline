@@ -11,7 +11,8 @@
 		"closeAndStart": "Görevi kapat ve yeni bir görev başlat",
 		"export": "Görev geçmişini dışa aktar",
 		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)",
-		"condenseContext": "Bağlamı akıllıca yoğunlaştır"
+		"condenseContext": "Bağlamı akıllıca yoğunlaştır",
+		"share": "Görevi paylaş"
 	},
 	"unpin": "Sabitlemeyi iptal et",
 	"pin": "Sabitle",
