@@ -154,10 +154,10 @@ jobs:
                   cache-dependency-path: "**/package-lock.json"
 
             - name: Install root dependencies
-              run: npm ci
+              run: npm ci --verbose
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --verbose
 
             # Build the extension before running tests
             - name: Build Extension
