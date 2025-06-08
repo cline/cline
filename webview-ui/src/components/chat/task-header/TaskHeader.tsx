@@ -151,8 +151,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		return (cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0)
 	}
 
-	console.log("IS_DEV", { IS_DEV, isItTrue: IS_DEV === '"true"' })
-
 	const ContextWindowComponent = (
 		<>
 			{isTaskExpanded && contextWindow && (
