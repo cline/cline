@@ -13,6 +13,7 @@ import { experimentDefault } from "../../../shared/experiments"
 import { setTtsEnabled } from "../../../utils/tts"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task, TaskOptions } from "../../task/Task"
+import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 import { ClineProvider } from "../ClineProvider"
 
@@ -40,6 +41,8 @@ jest.mock("axios", () => ({
 	get: jest.fn().mockResolvedValue({ data: { data: [] } }),
 	post: jest.fn(),
 }))
+
+jest.mock("../../../utils/safeWriteJson")
 
 jest.mock(
 	"@modelcontextprotocol/sdk/types.js",
@@ -2001,10 +2004,7 @@ describe("Project MCP Settings", () => {
 		)
 
 		// Verify file was created with default content
-		expect(fs.writeFile).toHaveBeenCalledWith(
-			expect.stringContaining("mcp.json"),
-			JSON.stringify({ mcpServers: {} }, null, 2),
-		)
+		expect(safeWriteJson).toHaveBeenCalledWith(expect.stringContaining("mcp.json"), { mcpServers: {} })
 	})
 
 	test("handles openProjectMcpSettings when workspace is not open", async () => {

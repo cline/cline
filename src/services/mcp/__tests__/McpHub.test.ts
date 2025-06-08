@@ -3,8 +3,35 @@ import type { ClineProvider } from "../../../core/webview/ClineProvider"
 import type { ExtensionContext, Uri } from "vscode"
 import { ServerConfigSchema } from "../McpHub"
 
-const fs = require("fs/promises")
 const { McpHub } = require("../McpHub")
+const path = require("path")
+
+// Mock fs/promises before importing anything that uses it
+jest.mock("fs/promises", () => ({
+	access: jest.fn().mockResolvedValue(undefined),
+	writeFile: jest.fn().mockResolvedValue(undefined),
+	readFile: jest.fn().mockResolvedValue("{}"),
+	unlink: jest.fn().mockResolvedValue(undefined),
+	rename: jest.fn().mockResolvedValue(undefined),
+	lstat: jest.fn().mockImplementation(() =>
+		Promise.resolve({
+			isDirectory: () => true,
+		}),
+	),
+	mkdir: jest.fn().mockResolvedValue(undefined),
+}))
+
+// Import the mocked fs
+const fs = require("fs/promises")
+
+// Mock safeWriteJson
+jest.mock("../../../utils/safeWriteJson", () => ({
+	safeWriteJson: jest.fn(async (filePath, data) => {
+		// Instead of trying to write to the file system, just call fs.writeFile mock
+		// This avoids the complex file locking and temp file operations
+		return fs.writeFile(filePath, JSON.stringify(data), "utf8")
+	}),
+}))
 
 jest.mock("vscode", () => ({
 	workspace: {
@@ -42,6 +69,9 @@ describe("McpHub", () => {
 
 		// Mock console.error to suppress error messages during tests
 		console.error = jest.fn()
+
+		// Reset the mock implementations before each test
+		jest.clearAllMocks()
 
 		const mockUri: Uri = {
 			scheme: "file",

@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { createHash } from "crypto"
 import debounce from "lodash.debounce"
 import { CacheManager } from "../cache-manager"
+import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 // Mock vscode
 jest.mock("vscode", () => ({
@@ -11,10 +12,14 @@ jest.mock("vscode", () => ({
 	workspace: {
 		fs: {
 			readFile: jest.fn(),
-			writeFile: jest.fn(),
 			delete: jest.fn(),
 		},
 	},
+}))
+
+// Mock safeWriteJson
+jest.mock("../../../utils/safeWriteJson", () => ({
+	safeWriteJson: jest.fn(),
 }))
 
 // Mock debounce to execute immediately
@@ -88,7 +93,7 @@ describe("CacheManager", () => {
 			cacheManager.updateHash(filePath, hash)
 
 			expect(cacheManager.getHash(filePath)).toBe(hash)
-			expect(vscode.workspace.fs.writeFile).toHaveBeenCalled()
+			expect(safeWriteJson).toHaveBeenCalled()
 		})
 
 		it("should delete hash and trigger save", () => {
@@ -99,7 +104,7 @@ describe("CacheManager", () => {
 			cacheManager.deleteHash(filePath)
 
 			expect(cacheManager.getHash(filePath)).toBeUndefined()
-			expect(vscode.workspace.fs.writeFile).toHaveBeenCalled()
+			expect(safeWriteJson).toHaveBeenCalled()
 		})
 
 		it("should return shallow copy of hashes", () => {
@@ -124,18 +129,14 @@ describe("CacheManager", () => {
 
 			cacheManager.updateHash(filePath, hash)
 
-			expect(vscode.workspace.fs.writeFile).toHaveBeenCalledWith(mockCachePath, expect.any(Uint8Array))
+			expect(safeWriteJson).toHaveBeenCalledWith(mockCachePath.fsPath, { [filePath]: hash })
 
-			// Verify the saved data
-			const savedData = JSON.parse(
-				Buffer.from((vscode.workspace.fs.writeFile as jest.Mock).mock.calls[0][1]).toString(),
-			)
-			expect(savedData).toEqual({ [filePath]: hash })
+			// No need to parse the data since safeWriteJson receives the object directly
 		})
 
 		it("should handle save errors gracefully", async () => {
 			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation()
-			;(vscode.workspace.fs.writeFile as jest.Mock).mockRejectedValue(new Error("Save failed"))
+			;(safeWriteJson as jest.Mock).mockRejectedValue(new Error("Save failed"))
 
 			cacheManager.updateHash("test.ts", "hash")
 
@@ -152,19 +153,19 @@ describe("CacheManager", () => {
 		it("should clear cache file and reset state", async () => {
 			cacheManager.updateHash("test.ts", "hash")
 
-			// Reset the mock to ensure writeFile succeeds for clearCacheFile
-			;(vscode.workspace.fs.writeFile as jest.Mock).mockClear()
-			;(vscode.workspace.fs.writeFile as jest.Mock).mockResolvedValue(undefined)
+			// Reset the mock to ensure safeWriteJson succeeds for clearCacheFile
+			;(safeWriteJson as jest.Mock).mockClear()
+			;(safeWriteJson as jest.Mock).mockResolvedValue(undefined)
 
 			await cacheManager.clearCacheFile()
 
-			expect(vscode.workspace.fs.writeFile).toHaveBeenCalledWith(mockCachePath, Buffer.from("{}"))
+			expect(safeWriteJson).toHaveBeenCalledWith(mockCachePath.fsPath, {})
 			expect(cacheManager.getAllHashes()).toEqual({})
 		})
 
 		it("should handle clear errors gracefully", async () => {
 			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation()
-			;(vscode.workspace.fs.writeFile as jest.Mock).mockRejectedValue(new Error("Save failed"))
+			;(safeWriteJson as jest.Mock).mockRejectedValue(new Error("Save failed"))
 
 			await cacheManager.clearCacheFile()
 

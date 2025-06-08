@@ -1,3 +1,4 @@
+import { safeWriteJson } from "../../utils/safeWriteJson"
 import * as path from "path"
 import fs from "fs/promises"
 import pWaitFor from "p-wait-for"
@@ -499,7 +500,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const exists = await fileExistsAtPath(mcpPath)
 
 				if (!exists) {
-					await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
+					await safeWriteJson(mcpPath, { mcpServers: {} })
 				}
 
 				await openFile(mcpPath)

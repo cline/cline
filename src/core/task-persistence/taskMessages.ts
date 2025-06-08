@@ -1,3 +1,4 @@
+import { safeWriteJson } from "../../utils/safeWriteJson"
 import * as path from "path"
 import * as fs from "fs/promises"
 
@@ -37,5 +38,5 @@ export type SaveTaskMessagesOptions = {
 export async function saveTaskMessages({ messages, taskId, globalStoragePath }: SaveTaskMessagesOptions) {
 	const taskDir = await getTaskDirectoryPath(globalStoragePath, taskId)
 	const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-	await fs.writeFile(filePath, JSON.stringify(messages))
+	await safeWriteJson(filePath, messages)
 }
