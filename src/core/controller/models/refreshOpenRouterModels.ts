@@ -15,7 +15,7 @@ import { GlobalFileNames } from "@core/storage/disk"
  */
 export async function refreshOpenRouterModels(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
 
@@ -123,7 +123,7 @@ export async function refreshOpenRouterModels(
 			console.error("Invalid response from OpenRouter API")
 		}
 		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		console.log("OpenRouter models fetched and saved", models)
+		console.log("OpenRouter models fetched and saved", JSON.stringify(models).slice(0, 300))
 	} catch (error) {
 		console.error("Error fetching OpenRouter models:", error)
 

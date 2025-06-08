@@ -17,21 +17,12 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "workspaceUpdated"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
-		| "relinquishControl"
 		| "mcpDownloadDetails"
-		| "commitSearchResults"
-		| "openGraphData"
-		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
-		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
@@ -41,7 +32,6 @@ export interface ExtensionMessage {
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	filePaths?: string[]
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
@@ -50,14 +40,6 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
-	openGraphData?: {
-		title?: string
-		description?: string
-		image?: string
-		url?: string
-		siteName?: string
-		type?: string
-	}
 	url?: string
 	isImage?: boolean
 	userCreditsBalance?: BalanceResponse
