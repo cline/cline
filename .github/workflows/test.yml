@@ -72,7 +72,7 @@ jobs:
               if: runner.os == 'Windows' && steps.root-cache.outputs.cache-hit == 'true'
               run: |
                   npm install eslint-plugin-eslint-rules 
-                  cd webview-ui/ && npm install eslint-plugin-eslint-rules 
+                  cd webview-ui/ && npm install eslint-plugin-eslint-rules
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
