@@ -50,7 +50,7 @@ const TaskItem = ({
 				"cursor-pointer",
 				{
 					// Compact variant styling
-					"bg-vscode-editor-background rounded relative overflow-hidden border border-vscode-toolbar-hoverBackground/30 hover:border-vscode-toolbar-hoverBackground/60":
+					"group bg-vscode-editor-background rounded relative overflow-hidden border border-vscode-toolbar-hoverBackground/30 hover:border-vscode-toolbar-hoverBackground/60":
 						isCompact,
 					// Full variant styling
 					"bg-vscode-list-activeSelectionBackground": !isCompact && isSelectionMode && isSelected,
