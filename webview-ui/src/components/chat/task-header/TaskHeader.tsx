@@ -159,11 +159,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
 					color: "var(--vscode-badge-foreground)",
-					borderRadius: "12px",
-					padding: isTaskExpanded ? "9px 10px 9px 14px" : "9px 8px 6px 12px",
+					borderRadius: "6px",
+					padding: "9px 10px 9px 14px",
 					display: "flex",
 					flexDirection: "column",
-					gap: isTaskExpanded ? 6 : 3,
+					gap: 6,
 					position: "relative",
 					zIndex: 1,
 				}}>
@@ -172,48 +172,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
+						minHeight: "24px",
 					}}>
 					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							cursor: "pointer",
-							marginLeft: -2,
-							userSelect: "none",
-							WebkitUserSelect: "none",
-							MozUserSelect: "none",
-							msUserSelect: "none",
-							flexGrow: 1,
-							minWidth: 0, // This allows the div to shrink below its content size
-						}}
+						className="flex items-center cursor-pointer select-none flex-grow min-w-0"
+						style={{ marginLeft: -2 }}
 						onClick={() => setIsTaskExpanded(!isTaskExpanded)}>
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								flexShrink: 0,
-							}}>
+						<div className="flex items-center flex-shrink-0">
 							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`}></span>
 						</div>
-						<div
-							style={{
-								marginLeft: 6,
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								flexGrow: 1,
-								minWidth: 0, // This allows the div to shrink below its content size
-							}}>
-							<span style={{ fontWeight: "bold" }}>
-								Task
-								{!isTaskExpanded && ":"}
-							</span>
-							{!isTaskExpanded && (
-								<span className="ph-no-capture" style={{ marginLeft: 4 }}>
-									{highlightText(task.text, false)}
-								</span>
-							)}
-						</div>
+						{isTaskExpanded && (
+							<div className="ml-1.5 whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 h-6 flex items-center">
+								<span className="font-bold">Task</span>
+							</div>
+						)}
+						{!isTaskExpanded && (
+							<div className="ml-1.5 flex-grow min-w-0 h-6 flex items-center" onClick={(e) => e.stopPropagation()}>
+								<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
+							</div>
+						)}
 					</div>
 					{isCostAvailable && (
 						<div
@@ -479,30 +456,83 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								</div>
 							)}
 						</div>
+						<div className="flex flex-col">
+							<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
+							{contextWindow && (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: windowWidth < 270 ? "column" : "row",
+										gap: "4px",
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "3px",
+											flex: 1,
+											whiteSpace: "nowrap",
+										}}>
+										<HeroTooltip content="Current tokens used in this request">
+											<span className="cursor-pointer">
+												{formatLargeNumber(lastApiReqTotalTokens || 0)}
+											</span>
+										</HeroTooltip>
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+												flex: 1,
+											}}>
+											<HeroTooltip content="Context window usage">
+												<div
+													style={{
+														flex: 1,
+														height: "4px",
+														backgroundColor:
+															"color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
+														borderRadius: "2px",
+														overflow: "hidden",
+													}}
+													className="cursor-pointer">
+													<div
+														style={{
+															width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
+															height: "100%",
+															backgroundColor: "var(--vscode-badge-foreground)",
+															borderRadius: "2px",
+														}}
+													/>
+												</div>
+											</HeroTooltip>
+											<HeroTooltip content="Maximum context window size for this model">
+												<span className="cursor-pointer">{formatLargeNumber(contextWindow)}</span>
+											</HeroTooltip>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
 					</>
 				)}
 
-				{/* Always visible footer with TaskTimeline and Context Window */}
-				<div className={`flex flex-col ${isTaskExpanded ? "gap-0.5" : "gap-0.5 mt-0.5"}`}>
-					<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
-					{contextWindow && (
+				{/* Collapsed state: only show context window progress bar */}
+				{!isTaskExpanded && contextWindow && (
+					<div className="flex flex-col gap-0.5 mt-0.5">
 						<div className={`flex ${windowWidth < 270 ? "flex-col" : "flex-row"} gap-1`}>
 							<div className="flex items-center gap-1 flex-1 whitespace-nowrap">
-								<HeroTooltip content="Current tokens used in this request">
-									<span className={`cursor-pointer ${isTaskExpanded ? "" : "text-xs"}`}>
-										{formatLargeNumber(lastApiReqTotalTokens || 0)}
-									</span>
-								</HeroTooltip>
 								<div className="flex items-center gap-1 flex-1">
-									<HeroTooltip content="Context window usage">
+									<HeroTooltip
+										content={`Context window usage: ${formatLargeNumber(lastApiReqTotalTokens || 0)} / ${formatLargeNumber(contextWindow)} tokens`}>
 										<div
-											className={`flex-1 ${isTaskExpanded ? "h-1" : "h-0.5"} rounded-sm overflow-hidden cursor-pointer`}
+											className="flex-1 h-0.5 rounded-sm overflow-hidden cursor-pointer"
 											style={{
 												backgroundColor:
 													"color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
 											}}>
 											<div
-												className={`${isTaskExpanded ? "h-1" : "h-0.5"} rounded-sm`}
+												className="h-0.5 rounded-sm"
 												style={{
 													width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
 													backgroundColor: "var(--vscode-badge-foreground)",
@@ -510,16 +540,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											/>
 										</div>
 									</HeroTooltip>
-									<HeroTooltip content="Maximum context window size for this model">
-										<span className={`cursor-pointer ${isTaskExpanded ? "" : "text-xs"}`}>
-											{formatLargeNumber(contextWindow)}
-										</span>
-									</HeroTooltip>
 								</div>
 							</div>
 						</div>
-					)}
-				</div>
+					</div>
+				)}
 			</div>
 		</div>
 	)
