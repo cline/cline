@@ -89,6 +89,7 @@ program
 	.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 	.option("--parallel", "Run tests in parallel", false)
 	.option("-v, --verbose", "Enable verbose logging", false)
 	.action(async (testPath, outputPath, options) => {
@@ -100,6 +101,7 @@ program
 				...options,
 				// Ensure numberOfRuns is a number, as commander might pass it as a string
 				numberOfRuns: parseInt(options.numberOfRuns, 10),
+				thinkingBudget: parseInt(options.thinkingBudget, 10),
 			}
 			await runDiffEvalHandler(fullOptions)
 		} catch (error) {

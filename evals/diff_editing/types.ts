@@ -29,6 +29,7 @@ export interface TestConfig {
 	number_of_runs: number
 	parsing_function: string
 	diff_edit_function: string
+	thinking_tokens_budget: number
 }
 
 export interface SystemPromptDetails {
@@ -79,4 +80,5 @@ export interface TestInput {
 	originalFilePath: string
 	parsingFunction: string
 	diffEditFunction: string
+	thinkingBudgetTokens: number
 }

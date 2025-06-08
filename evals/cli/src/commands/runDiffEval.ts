@@ -8,6 +8,7 @@ interface RunDiffEvalOptions {
 	numberOfRuns: number
 	parsingFunction: string
 	diffEditFunction: string
+	thinkingBudget: number
 	parallel: boolean
 	verbose: boolean
 	testPath: string
@@ -35,6 +36,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 		"--diff-edit-function",
 		options.diffEditFunction,
 	]
+
+	if (options.thinkingBudget > 0) {
+		args.push("--thinking-budget", String(options.thinkingBudget))
+	}
 
 	if (options.parallel) {
 		args.push("--parallel")

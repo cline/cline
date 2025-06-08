@@ -107,6 +107,7 @@ class NodeTestRunner {
 			originalFilePath: testCase.file_path,
 			parsingFunction: testConfig.parsing_function,
 			diffEditFunction: testConfig.diff_edit_function,
+			thinkingBudgetTokens: testConfig.thinking_tokens_budget,
 		}
 
 		return await runSingleEvaluation(input)
@@ -256,12 +257,13 @@ async function main() {
 		.description("Run evaluation tests for diff editing")
 		.version("1.0.0")
 		.argument("<test_path>", "Path to the test cases JSON file")
-		.argument("<output_path>", "Directory to save the results")
+		.argument("<output_path>", "Path to save the output JSON file")
 		.option("--model-id <model_id>", "The model ID to use for the test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 		.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
 
@@ -277,6 +279,7 @@ async function main() {
 		number_of_runs: parseInt(options.numberOfRuns, 10),
 		parsing_function: options.parsingFunction,
 		diff_edit_function: options.diffEditFunction,
+		thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
 	}
 
 	try {
@@ -304,16 +307,15 @@ async function main() {
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
 
+		// Get the directory name from the full output path
+		const outputDir = path.dirname(outputPath)
+
 		// Ensure output directory exists
-		if (!fs.existsSync(outputPath)) {
-			fs.mkdirSync(outputPath, { recursive: true })
+		if (!fs.existsSync(outputDir)) {
+			fs.mkdirSync(outputDir, { recursive: true })
 		}
 
-		const timestamp = new Date().toISOString().split(".")[0].replace(/:/g, "-")
-		const outputFile = `results_${timestamp}.json`
-		const outputFilePath = path.join(outputPath, outputFile)
-
-		fs.writeFileSync(outputFilePath, JSON.stringify(results, null, 2))
+		fs.writeFileSync(outputPath, JSON.stringify(results, null, 2))
 	} catch (error) {
 		console.error("\nError running tests:", error)
 		process.exit(1)

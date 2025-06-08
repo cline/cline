@@ -104,8 +104,17 @@ async function processStream(
 export async function runSingleEvaluation(input: TestInput): Promise<TestResult> {
 	try {
 		// Extract parameters
-		const { apiKey, systemPrompt, messages, modelId, originalFile, originalFilePath, parsingFunction, diffEditFunction } =
-			input
+		const {
+			apiKey,
+			systemPrompt,
+			messages,
+			modelId,
+			originalFile,
+			originalFilePath,
+			parsingFunction,
+			diffEditFunction,
+			thinkingBudgetTokens,
+		} = input
 
 		const requiredParams = {
 			apiKey,
@@ -143,7 +152,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		const options: ApiHandlerOptions = {
 			openRouterApiKey: apiKey,
 			openRouterModelId: modelId,
-			// reasoningEffort: "medium", // may need to turn this on
+			thinkingBudgetTokens: thinkingBudgetTokens,
 			openRouterModelInfo: {
 				maxTokens: 10_000,
 				contextWindow: 1_000_000,
