@@ -86,6 +86,7 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 
 	let taskStartedAt = Date.now()
 	let taskFinishedAt: number | undefined
+	let taskAbortedAt: number | undefined
 	let taskMetricsId: number | undefined
 	let rooTaskId: string | undefined
 	let isClientDisconnected = false
@@ -162,9 +163,12 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 			await updateTaskMetrics(taskMetricsId, { toolUsage })
 		}
 
-		if (eventName === RooCodeEventName.TaskAborted || eventName === RooCodeEventName.TaskCompleted) {
+		if (eventName === RooCodeEventName.TaskAborted) {
+			taskAbortedAt = Date.now()
+		}
+
+		if (eventName === RooCodeEventName.TaskCompleted) {
 			taskFinishedAt = Date.now()
-			await updateTask(task.id, { finishedAt: new Date() })
 		}
 	})
 
@@ -187,7 +191,10 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 	})
 
 	try {
-		await pWaitFor(() => !!taskFinishedAt || isClientDisconnected, { interval: 1_000, timeout: EVALS_TIMEOUT })
+		await pWaitFor(() => !!taskFinishedAt || !!taskAbortedAt || isClientDisconnected, {
+			interval: 1_000,
+			timeout: EVALS_TIMEOUT,
+		})
 	} catch (_error) {
 		logger.error("time limit reached")
 
@@ -197,18 +204,27 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 			await new Promise((resolve) => setTimeout(resolve, 5_000)) // Allow some time for the task to cancel.
 		}
 
+		taskFinishedAt = Date.now()
+	}
+
+	if (taskFinishedAt) {
+		logger.info("setting task finished at")
 		await updateTask(task.id, { finishedAt: new Date() })
 	}
 
-	if (isClientDisconnected) {
+	if (!taskFinishedAt && isClientDisconnected) {
 		logger.error("client disconnected before task finished")
-	} else {
-		if (rooTaskId) {
-			logger.info("closing task")
-			client.sendCommand({ commandName: TaskCommandName.CloseTask, data: rooTaskId })
-			await new Promise((resolve) => setTimeout(resolve, 2_000)) // Allow some time for the window to close.
-		}
+		throw new Error("Client disconnected before task completion.")
+	}
 
+	if (rooTaskId && !isClientDisconnected) {
+		logger.info("closing task")
+		client.sendCommand({ commandName: TaskCommandName.CloseTask, data: rooTaskId })
+		await new Promise((resolve) => setTimeout(resolve, 2_000)) // Allow some time for the window to close.
+	}
+
+	if (!isClientDisconnected) {
+		logger.info("disconnecting client")
 		client.disconnect()
 	}
 
