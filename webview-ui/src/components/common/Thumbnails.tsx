@@ -1,7 +1,7 @@
-import React, { useState, useRef, useLayoutEffect, memo } from "react"
-import { useWindowSize } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
+import { StringRequest } from "@shared/proto/common"
+import React, { memo, useLayoutEffect, useRef, useState } from "react"
+import { useWindowSize } from "react-use"
 
 interface ThumbnailsProps {
 	images: string[]
@@ -41,11 +41,15 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 	const isDeletableFiles = setFiles !== undefined
 
 	const handleImageClick = (image: string) => {
-		FileServiceClient.openImage({ value: image }).catch((err) => console.error("Failed to open image:", err))
+		FileServiceClient.openImage(StringRequest.create({ value: image })).catch((err) =>
+			console.error("Failed to open image:", err),
+		)
 	}
 
 	const handleFileClick = (filePath: string) => {
-		FileServiceClient.openFile({ value: filePath }).catch((err) => console.error("Failed to open file:", err))
+		FileServiceClient.openFile(StringRequest.create({ value: filePath })).catch((err) =>
+			console.error("Failed to open file:", err),
+		)
 	}
 
 	return (

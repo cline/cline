@@ -92,6 +92,8 @@ export type GlobalStateKey =
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
+	| "mcpResponsesCollapsed"
+	| "terminalReuseEnabled"
 	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"

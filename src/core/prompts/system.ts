@@ -3,7 +3,9 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { SYSTEM_PROMPT_CLAUDE4 } from "./model_prompts/claude4"
+import { SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL } from "@core/prompts/model_prompts/claude4-experimental"
+import { SYSTEM_PROMPT_CLAUDE4 } from "@core/prompts/model_prompts/claude4"
+import { USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "@core/task/index"; 
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
@@ -12,10 +14,16 @@ export const SYSTEM_PROMPT = async (
 	browserSettings: BrowserSettings,
 	isClaude4ModelFamily: boolean = false,
 ) => {
-	if (isClaude4ModelFamily) {
-		return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
-	} else {
-		return `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+	if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+		return SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL(cwd, supportsBrowserUse, mcpHub, browserSettings)
+	}
+
+  if (isClaude4ModelFamily) {
+    return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
+  }
+
+	return `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
 
@@ -121,11 +129,11 @@ Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd.toPosix()})
 - diff: (required) One or more SEARCH/REPLACE blocks following this exact format:
   \`\`\`
-  <<<<<<< SEARCH
+  ------- SEARCH
   [exact content to find]
   =======
   [new content to replace with]
-  >>>>>>> REPLACE
+  +++++++ REPLACE
   \`\`\`
   Critical rules:
   1. SEARCH content must match the associated file section to find EXACTLY:
@@ -695,7 +703,7 @@ ${
 		: `
 - When using the replace_in_file tool, you must include complete lines in your SEARCH blocks, not partial lines. The system requires exact line matches and cannot match partial lines. For example, if you want to match a line containing "const x = 5;", your SEARCH block must include the entire line, not just "x = 5" or other fragments.
 - When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
-- When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., <<<<<<< SEARCH> is INVALID). Do NOT forget to use the closing >>>>>>> REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
+- When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
 `
 }
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
@@ -726,7 +734,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 	}
-}
+
 
 export function addUserInstructions(
 	settingsCustomInstructions?: string,

@@ -9,6 +9,8 @@ const FeatureSettingsSection = () => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		chatSettings,
 		setChatSettings,
 	} = useExtensionState()
@@ -40,6 +42,19 @@ const FeatureSettingsSection = () => {
 				</VSCodeCheckbox>
 				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Enables the MCP Marketplace tab for discovering and installing MCP servers.
+				</p>
+			</div>
+			<div style={{ marginTop: 10 }}>
+				<VSCodeCheckbox
+					checked={mcpResponsesCollapsed}
+					onChange={(e: any) => {
+						const checked = e.target.checked === true
+						setMcpResponsesCollapsed(checked)
+					}}>
+					Collapse MCP Responses
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					Sets the default display mode for MCP response panels
 				</p>
 			</div>
 			<div style={{ marginTop: 10 }}>

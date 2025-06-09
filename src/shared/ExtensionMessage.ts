@@ -17,21 +17,9 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "partialMessage"
-		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
-		| "relinquishControl"
-		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
-		| "commitSearchResults"
-		| "openGraphData"
-		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
@@ -40,24 +28,13 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
-		| "accountLogoutClicked"
-		| "accountButtonClicked"
-		| "focusChatInput"
+	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	filePaths?: string[]
-	partialMessage?: ClineMessage
-	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
@@ -66,14 +43,6 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
-	openGraphData?: {
-		title?: string
-		description?: string
-		image?: string
-		url?: string
-		siteName?: string
-		type?: string
-	}
 	url?: string
 	isImage?: boolean
 	userCreditsBalance?: BalanceResponse
@@ -124,6 +93,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
+	terminalReuseEnabled?: boolean
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
@@ -138,6 +108,7 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	mcpResponsesCollapsed?: boolean
 }
 
 export interface ClineMessage {
@@ -212,6 +183,7 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "webFetch"
 	path?: string
 	diff?: string
 	content?: string

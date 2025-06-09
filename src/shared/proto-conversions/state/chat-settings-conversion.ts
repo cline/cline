@@ -6,17 +6,18 @@ import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, Pla
  * Converts domain ChatSettings objects to proto ChatSettings objects
  */
 export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
-	return {
+	return ProtoChatSettings.create({
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 		preferredLanguage: chatSettings.preferredLanguage,
 		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-	}
+	})
 }
 
 /**
  * Converts proto ChatSettings objects to domain ChatSettings objects
  */
 export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoChatSettings): ChatSettings {
+	// eslint-disable-next-line eslint-rules/no-protobuf-object-literals
 	return {
 		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
 		preferredLanguage: protoChatSettings.preferredLanguage,
@@ -32,11 +33,11 @@ export function convertChatContentToProtoChatContent(chatContent?: ChatContent):
 		return undefined
 	}
 
-	return {
+	return ProtoChatContent.create({
 		message: chatContent.message,
 		images: chatContent.images || [],
 		files: chatContent.files || [],
-	}
+	})
 }
 
 /**
@@ -47,6 +48,7 @@ export function convertProtoChatContentToChatContent(protoChatContent?: ProtoCha
 		return undefined
 	}
 
+	// eslint-disable-next-line eslint-rules/no-protobuf-object-literals
 	return {
 		message: protoChatContent.message,
 		images: protoChatContent.images || [],

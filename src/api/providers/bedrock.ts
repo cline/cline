@@ -120,7 +120,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		)
 
 		for await (const chunk of stream) {
-			switch (chunk.type) {
+			switch (chunk?.type) {
 				case "message_start":
 					const usage = chunk.message.usage
 					yield {
@@ -223,8 +223,19 @@ export class AwsBedrockHandler implements ApiHandler {
 		secretAccessKey: string
 		sessionToken?: string
 	}> {
+		// Configure provider options
+		const providerOptions: any = {}
+		if (this.options.awsUseProfile) {
+			// For profile-based auth, always use ignoreCache to detect credential file changes
+			// This solves the AWS Identity Manager issue where credential files change externally
+			providerOptions.ignoreCache = true
+			if (this.options.awsProfile) {
+				providerOptions.profile = this.options.awsProfile
+			}
+		}
+
 		// Create AWS credentials by executing an AWS provider chain
-		const providerChain = fromNodeProviderChain()
+		const providerChain = fromNodeProviderChain(providerOptions)
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
