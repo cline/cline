@@ -1,6 +1,6 @@
 import type { Controller } from "../index"
 import type { EmptyRequest } from "@shared/proto/common"
-import type { UserCreditsData } from "@shared/proto/account"
+import { UserCreditsData } from "@shared/proto/account"
 
 /**
  * Handles fetching all user credits data (balance, usage, payments)
@@ -22,11 +22,11 @@ export async function fetchUserCreditsData(controller: Controller, request: Empt
 		])
 
 		// Since generated types match exactly, no conversion needed!
-		return {
+		return UserCreditsData.create({
 			balance: balance ? { currentBalance: balance.currentBalance } : { currentBalance: 0 },
 			usageTransactions: usageTransactions || [],
 			paymentTransactions: paymentTransactions || [],
-		}
+		})
 	} catch (error) {
 		console.error(`Failed to fetch user credits data: ${error}`)
 		throw error
