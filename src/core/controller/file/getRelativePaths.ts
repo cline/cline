@@ -3,6 +3,8 @@ import { RelativePathsRequest, RelativePaths } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
+import { UriServiceClient } from "../../../standalone/services/host-grpc-client"
+import { Metadata, StringRequest } from "@shared/proto/common"
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -17,7 +19,15 @@ export const getRelativePaths: FileMethodHandler = async (
 	const resolvedPaths = await Promise.all(
 		request.uris.map(async (uriString) => {
 			try {
-				const fileUri = vscode.Uri.parse(uriString, true)
+				// Use the host URI service client instead of directly using vscode.Uri.parse
+				const parseResponse = await UriServiceClient.parse(
+					StringRequest.create({
+						metadata: Metadata.create({}),
+						value: uriString,
+					}),
+				)
+				const fileUri = vscode.Uri.parse(`${parseResponse.scheme}://${parseResponse.authority}${parseResponse.path}`)
+				console.log("[DEBUG] UriServiceClient.parse:", fileUri)
 				const relativePathToGet = vscode.workspace.asRelativePath(fileUri, false)
 
 				// If the path is still absolute, it's outside the workspace

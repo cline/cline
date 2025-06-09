@@ -1,17 +1,18 @@
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
+import { openRouterDefaultModelId } from "@shared/api"
+import { StringRequest } from "@shared/proto/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "@shared/api"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import FeaturedModelCard from "./FeaturedModelCard"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -41,8 +42,8 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-sonnet-4",
-		description: "Best model for agentic coding",
+		id: "anthropic/claude-3.7-sonnet",
+		description: "Recommended for agentic coding in Cline",
 		label: "Best",
 	},
 	{
@@ -58,7 +59,7 @@ const featuredModels = [
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -83,11 +84,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	useMount(() => {
-		ModelsServiceClient.refreshOpenRouterModels({}).catch((error: Error) =>
-			console.error("Failed to refresh OpenRouter models:", error),
-		)
-	})
+	useMount(refreshOpenRouterModels)
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -293,9 +290,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 												isFavorite={isFavorite}
 												onClick={(e) => {
 													e.stopPropagation()
-													StateServiceClient.toggleFavoriteModel({ value: item.id }).catch((error) =>
-														console.error("Failed to toggle favorite model:", error),
-													)
+													StateServiceClient.toggleFavoriteModel(
+														StringRequest.create({ value: item.id }),
+													).catch((error) => console.error("Failed to toggle favorite model:", error))
 												}}
 											/>
 										</div>
@@ -336,8 +333,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-sonnet-4")}>
-							anthropic/claude-sonnet-4.
+							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
+							anthropic/claude-3.7-sonnet.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>
