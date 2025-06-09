@@ -229,13 +229,13 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 			OAuthLogger.logError(
 				this.serverName,
 				"authorization_state_save_failed",
-				"Failed to save state parameter, authorization may fail",
+				"Failed to save state parameter, aborting OAuth flow for security",
 			)
-			vscode.window.showWarningMessage(
-				`Failed to properly secure the authorization process for ${this.serverName}. The authorization may fail or be insecure.`,
+			vscode.window.showErrorMessage(
+				`Failed to save OAuth state for ${this.serverName}. Authorization aborted for security reasons.`,
 				{ modal: true },
 			)
-			// Proceeding anyway to give it a chance to work, but with a warning to the user
+			throw new Error("OAuth state could not be saved securely - authorization flow aborted")
 		}
 
 		authorizationUrl.searchParams.set("state", state)
