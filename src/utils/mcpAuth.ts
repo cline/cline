@@ -5,10 +5,10 @@ import crypto from "crypto"
  * Used for creating unique OAuth callback paths.
  * @param serverName The name of the MCP server.
  * @param serverUrl The URL of the MCP server.
- * @returns An MD5 hash string.
+ * @returns A SHA-256 hash string.
  */
 export const getServerAuthHash = (serverName: string, serverUrl: string): string => {
-	return crypto.createHash("md5").update(`${serverName}:${serverUrl}`).digest("hex")
+	return crypto.createHash("sha256").update(`${serverName}:${serverUrl}`).digest("hex")
 }
 
 /**
