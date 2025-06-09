@@ -22,7 +22,10 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.options = options
 	}
 
-	@withRetry()
+	@withRetry({maxRetries: 4000000,
+		baseDelay: 2000,
+		maxDelay: 15000000,
+	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const modelId = await this.getModelId()
