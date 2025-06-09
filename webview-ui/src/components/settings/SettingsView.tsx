@@ -193,7 +193,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					mcpMarketplaceEnabled,
 					shellIntegrationTimeout,
 					terminalReuseEnabled,
-					defaultTerminalProfile,
 					mcpResponsesCollapsed,
 					apiConfiguration: apiConfigurationToSubmit
 						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
