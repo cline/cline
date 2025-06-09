@@ -1,5 +1,5 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { anthropicDefaultModelId, anthropicModels, type ApiHandlerOptions } from "@/shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, type ApiHandlerOptions } from "@/shared/api"
 import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
@@ -19,17 +19,17 @@ export class ClaudeCodeHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		// TODO: Extract the path from the options
 		const claudeProcess = runClaudeCode({
 			systemPrompt,
 			messages,
+			path: this.options.claudeCodePath,
+			modelId: this.getModel().id,
 		})
 
 		const dataQueue: string[] = []
-		let isProcessComplete = false
 		let processError = null
-
 		let errorOutput = ""
+		let exitCode: number | null = null
 
 		claudeProcess.stdout.on("data", (data) => {
 			const output = data.toString()
@@ -45,12 +45,8 @@ export class ClaudeCodeHandler implements ApiHandler {
 			errorOutput += data.toString()
 		})
 
-		claudeProcess.on("close", () => {
-			if (errorOutput) {
-				throw new Error(`ripgrep process error: ${errorOutput}`)
-			}
-
-			isProcessComplete = true
+		claudeProcess.on("close", (code) => {
+			exitCode = code
 		})
 
 		claudeProcess.on("error", (error) => {
@@ -67,9 +63,15 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
-		while (!isProcessComplete || dataQueue.length > 0) {
+		while (exitCode !== 0 || dataQueue.length > 0) {
 			if (dataQueue.length === 0) {
 				await new Promise((resolve) => setImmediate(resolve))
+			}
+
+			if (exitCode !== null && exitCode !== 0) {
+				throw new Error(
+					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput.trim()}` : ""}`,
+				)
 			}
 
 			const data = dataQueue.shift()
@@ -95,7 +97,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null) {
+				if (message.stop_reason !== null && message.stop_reason !== "tool_use") {
 					const errorMessage = message.content[0]?.text || `Claude Code stopped with reason: ${message.stop_reason}`
 
 					throw new Error(errorMessage)
@@ -133,6 +135,12 @@ export class ClaudeCodeHandler implements ApiHandler {
 	}
 
 	getModel() {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in anthropicModels) {
+			const id = modelId as AnthropicModelId
+			return { id, info: anthropicModels[id] }
+		}
+
 		return {
 			id: anthropicDefaultModelId,
 			info: anthropicModels[anthropicDefaultModelId],
