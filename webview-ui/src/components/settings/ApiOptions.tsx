@@ -2569,10 +2569,17 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
+			const openRouterModelId = apiConfiguration?.openRouterModelId || openRouterDefaultModelId
+			const openRouterModelInfo = apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
-				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+				selectedModelId: openRouterModelId,
+				// TODO: remove this once we have a better way to handle free models on Cline
+				// Free grok 3 promotion
+				selectedModelInfo:
+					openRouterModelId === "x-ai/grok-3-beta"
+						? { ...openRouterModelInfo, inputPrice: 0, outputPrice: 0 }
+						: openRouterModelInfo,
 			}
 		case "openai":
 			return {
