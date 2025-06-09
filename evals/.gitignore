@@ -1,3 +1,6 @@
 repositories
 
 results/evals.db
+
+diff_editing/test_cases/
+diff_editing/test_outputs/
