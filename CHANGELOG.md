@@ -2,7 +2,7 @@
 
 ## [3.17.12]
 
--   **Free Grok Model Available!** Access Grok 3 Beta completely free through the Cline provider - no API key required
+-   **Free Grok Model Available!** Access Grok 3 Beta completely free through the Cline provider
 -   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output
 -   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions
 -   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
