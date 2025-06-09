@@ -28,9 +28,10 @@
      ```
 
 3. **What You Should See**
-   - VS Code notification popups appearing in real-time
-   - Each notification shows: "MCP notification-test: [notification_demo] Notification X/5 sent..."
+   - MCP notifications appearing in the Cline chat interface in real-time
+   - Each notification shows as a bell icon with: "MCP Notification: [notification-test] [notification_demo] Notification X/5 sent..."
    - Notifications arrive with random delays between 0.5-5 seconds
+   - VS Code notification popups also appear (can be disabled by removing those lines in McpHub.ts)
    - Console logs in Developer Tools showing the raw notification data
 
 ## Troubleshooting
@@ -60,12 +61,16 @@ If notifications aren't appearing:
 
 1. **Server Side**: Sends notifications using `send_log_message` without `related_request_id`
 2. **Client Side**: McpHub registers notification handlers using the MCP SDK's `setNotificationHandler`
-3. **Display**: Notifications are shown as VS Code popups and logged to console
+3. **Display**: 
+   - Notifications are displayed in the Cline chat as they arrive
+   - Task checks for pending notifications before and after MCP tool calls
+   - VS Code popups also appear (optional)
 4. **Transport**: Works with streamableHTTP transport (and should work with stdio/SSE too)
 
 ## Success Indicators
 
-✅ VS Code popups appear in real-time
+✅ Notifications appear in Cline chat with bell icon
+✅ VS Code popups appear in real-time (optional)
 ✅ Console shows `[MCP Notification]` logs
 ✅ Notifications arrive independently with delays
 ✅ Tool completes after all notifications sent

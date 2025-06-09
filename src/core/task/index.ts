@@ -3340,7 +3340,20 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
+
+								// Check for any pending notifications before the tool call
+								const notificationsBefore = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsBefore) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
+
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+
+								// Check for any pending notifications after the tool call
+								const notificationsAfter = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsAfter) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
 
 								// TODO: add progress indicator
 

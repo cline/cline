@@ -52,6 +52,14 @@ export class McpHub {
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
+	// Store notifications for display in chat
+	private pendingNotifications: Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> = []
+
 	constructor(
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
@@ -353,8 +361,16 @@ export class McpHub {
 
 					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
 
-					// Display as VS Code notification
+					// Store notification for display in chat
 					const message = logger ? `[${logger}] ${data}` : data
+					this.pendingNotifications.push({
+						serverName: name,
+						level,
+						message,
+						timestamp: Date.now(),
+					})
+
+					// Also show as VS Code notification for now (can be removed later if desired)
 					switch (level) {
 						case "error":
 							vscode.window.showErrorMessage(`MCP ${name}: ${message}`)
@@ -1018,6 +1034,21 @@ export class McpHub {
 			)
 			throw error
 		}
+	}
+
+	/**
+	 * Get and clear pending notifications
+	 * @returns Array of pending notifications
+	 */
+	getPendingNotifications(): Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> {
+		const notifications = [...this.pendingNotifications]
+		this.pendingNotifications = []
+		return notifications
 	}
 
 	async dispose(): Promise<void> {
