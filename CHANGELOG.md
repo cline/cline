@@ -1,18 +1,15 @@
 # Changelog
 
-## 3.18.0
+## [3.17.12]
 
--   5b3647f: Prioritize active files in file context menu
--   7e37cec: Context menu is default to File option on start up
--   922c795: Migrate fetchLatestServersFromHub to protobus
--   582a3b1: the response of the mcps is displayed with a collapsible which allows to focus on the model responses.
--   2158165: Migrated updateSettings to protos, removed didUpdateSettings, altered Plan/Act toggling in settings menu
--   b0926b1: Fixed issue where telemetry warning popup was created for every new Cline window
--   fd85473: toggleWorkflow protobus migration
--   d7e1fff: Added promise to task init to prevent race condition with checkpoints
--   78792c2: Spring cleaning
--   aaa03a3: Add free grok model
--   a952757: Fix bug where replace_in_file would not be able to handle for out-of-order SEARCH/REPLACE blocks
+-   **Free Grok Model Available!** Access Grok 3 Beta completely free through the Cline provider - no API key required
+-   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output
+-   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions
+-   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
+-   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
+-   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
+-   Fix race condition in task initialization that was preventing checkpoints from working properly
+-   Internal improvements to settings handling and code organization
 
 ## [3.17.11]
 
