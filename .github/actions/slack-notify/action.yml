@@ -1,0 +1,60 @@
+name: 'Slack Notification'
+description: 'Send Slack notification for workflow failures'
+inputs:
+  webhook-url:
+    description: 'Slack webhook URL'
+    required: true
+  channel:
+    description: 'Slack channel to notify'
+    required: true
+  workflow-name:
+    description: 'Name of the workflow'
+    required: true
+  failed-jobs:
+    description: 'JSON object containing job results'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Parse failed jobs
+      id: parse-jobs
+      shell: bash
+      run: |
+        echo "Parsing job results..."
+        failed_list=""
+        
+        # Parse the JSON and extract failed jobs
+        echo '${{ inputs.failed-jobs }}' | jq -r 'to_entries[] | select(.value.result == "failure") | .key' | while read job; do
+          case $job in
+            "check-translations") failed_list="${failed_list}❌ Translation check\n" ;;
+            "knip") failed_list="${failed_list}❌ Knip analysis\n" ;;
+            "compile") failed_list="${failed_list}❌ Compile & lint\n" ;;
+            "platform-unit-test") failed_list="${failed_list}❌ Unit tests\n" ;;
+            "integration-test") failed_list="${failed_list}❌ Integration tests\n" ;;
+          esac
+        done
+        
+        # Remove trailing newline and save to output
+        echo "failed_jobs<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$failed_list" | sed '/^$/d' >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: ${{ inputs.channel }}
+        text: |
+          🚨 ${{ inputs.workflow-name }} workflow failed on main branch!
+          
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+          
+          Failed jobs:
+          ${{ steps.parse-jobs.outputs.failed_jobs }}
+          
+          View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.webhook-url }}

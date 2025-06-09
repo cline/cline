@@ -1,86 +1,102 @@
 name: Code QA Roo Code
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, reopened, ready_for_review, synchronize]
-    branches: [main]
+    workflow_dispatch:
+    push:
+        branches: [main]
+    pull_request:
+        types: [opened, reopened, ready_for_review, synchronize]
+        branches: [main]
 
 jobs:
-  check-translations:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Verify all translations are complete
-        run: node scripts/find-missing-translations.js
+    check-translations:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+            - name: Verify all translations are complete
+              run: node scripts/find-missing-translations.js
 
-  knip:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Run knip checks
-        run: pnpm knip
+    knip:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+            - name: Run knip checks
+              run: pnpm knip
 
-  compile:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Lint
-        run: pnpm lint
-      - name: Check types
-        run: pnpm check-types
+    compile:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+            - name: Lint
+              run: pnpm lint
+            - name: Check types
+              run: pnpm check-types
 
-  platform-unit-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Run unit tests
-        run: pnpm test
+    platform-unit-test:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest]
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+            - name: Run unit tests
+              run: pnpm test
 
-  check-openrouter-api-key:
-    runs-on: ubuntu-latest
-    outputs:
-      exists: ${{ steps.openrouter-api-key-check.outputs.defined }}
-    steps:
-      - name: Check if OpenRouter API key exists
-        id: openrouter-api-key-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.OPENROUTER_API_KEY }}" != '' ]; then
-            echo "defined=true" >> $GITHUB_OUTPUT;
-          else
-            echo "defined=false" >> $GITHUB_OUTPUT;
-          fi
+    check-openrouter-api-key:
+        runs-on: ubuntu-latest
+        outputs:
+            exists: ${{ steps.openrouter-api-key-check.outputs.defined }}
+        steps:
+            - name: Check if OpenRouter API key exists
+              id: openrouter-api-key-check
+              shell: bash
+              run: |
+                  if [ "${{ secrets.OPENROUTER_API_KEY }}" != '' ]; then
+                    echo "defined=true" >> $GITHUB_OUTPUT;
+                  else
+                    echo "defined=false" >> $GITHUB_OUTPUT;
+                  fi
 
-  integration-test:
-    runs-on: ubuntu-latest
-    needs: [check-openrouter-api-key]
-    if: needs.check-openrouter-api-key.outputs.exists == 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Create .env.local file
-        working-directory: apps/vscode-e2e
-        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local
-      - name: Run integration tests
-        working-directory: apps/vscode-e2e
-        run: xvfb-run -a pnpm test:ci
+    integration-test:
+        runs-on: ubuntu-latest
+        needs: [check-openrouter-api-key]
+        if: needs.check-openrouter-api-key.outputs.exists == 'true'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+            - name: Create .env.local file
+              working-directory: apps/vscode-e2e
+              run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local
+            - name: Run integration tests
+              working-directory: apps/vscode-e2e
+              run: xvfb-run -a pnpm test:ci
+
+    notify-slack-on-failure:
+        runs-on: ubuntu-latest
+        needs: [check-translations, knip, compile, platform-unit-test, integration-test]
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(needs.*.result, 'failure') }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Send Slack notification on failure
+              uses: ./.github/actions/slack-notify
+              with:
+                  webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+                  channel: "#ci"
+                  workflow-name: "Code QA"
+                  failed-jobs: ${{ toJSON(needs) }}
