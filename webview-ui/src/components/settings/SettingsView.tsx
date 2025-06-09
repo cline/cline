@@ -194,7 +194,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					shellIntegrationTimeout,
 					terminalReuseEnabled,
 					defaultTerminalProfile,
-			mcpResponsesCollapsed,
+					mcpResponsesCollapsed,
 					apiConfiguration: apiConfigurationToSubmit
 						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
 						: undefined,
