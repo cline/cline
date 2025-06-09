@@ -92,7 +92,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 												<VSCodeDataGridCell grid-column="1">
 													{formatTimestamp(row.paidAt)}
 												</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{`$${formatDollars(parseInt(row.amountCents))}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
 												<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>
 											</VSCodeDataGridRow>
 										))}
