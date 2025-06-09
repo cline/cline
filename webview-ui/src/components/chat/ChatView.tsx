@@ -235,9 +235,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
 		// basically as long as a task is active, the conversation history will be persisted
 		if (lastMessage) {
+			const isPartial = lastMessage.partial === true
 			switch (lastMessage.type) {
 				case "ask":
-					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
 							setSendingDisabled(true)
@@ -392,9 +392,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "command_output":
 						case "mcp_server_request_started":
 						case "mcp_server_response":
-						case "completion_result":
 						case "tool":
 						case "load_mcp_documentation":
+							break
+						case "completion_result":
+							setSendingDisabled(isPartial)
+							setClineAsk("completion_result")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Start New Task")
+							setSecondaryButtonText(undefined)
 							break
 					}
 					break
