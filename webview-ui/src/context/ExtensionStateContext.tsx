@@ -434,8 +434,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage) => {
 				try {
-					console.log("[PARTIAL] Received partialMessage event from gRPC stream")
-
 					// Validate critical fields
 					if (!protoMessage.ts || protoMessage.ts <= 0) {
 						console.error("Invalid timestamp in partial message:", protoMessage)
@@ -443,8 +441,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					console.log("[PARTIAL] Partial message:", partialMessage)
-					console.log("\n")
 					setState((prevState) => {
 						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
 						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
