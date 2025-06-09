@@ -138,7 +138,7 @@ class NodeTestRunner {
 		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
 		isVerbose: boolean,
-		maxConcurrency: number = 20,
+		maxConcurrency: number = 10,
 	): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 		testCases.forEach((tc) => {

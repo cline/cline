@@ -9,7 +9,7 @@ import {
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
 import { constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
-import { constructNewFileContentV2 as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
+import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff" // this defaults to the new v1 when called
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
@@ -157,7 +157,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 				maxTokens: 10_000,
 				contextWindow: 1_000_000,
 				supportsImages: true,
-				supportsPromptCache: false, // may need to turn this on
+				supportsPromptCache: true, // may need to turn this on
 				inputPrice: 0,
 				outputPrice: 0,
 			},
