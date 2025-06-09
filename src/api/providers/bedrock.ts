@@ -418,7 +418,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
-					console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+					// console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
 
 					// Handle thinking response in additionalModelResponseFields (LangChain format)
 					const metadata = chunk.metadata as ExtendedMetadata | undefined
