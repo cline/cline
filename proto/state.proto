@@ -10,7 +10,7 @@ service StateService {
   rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
   rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
   rpc updateDefaultTerminalProfile(StringRequest) returns (Empty);
-  rpc getAvailableTerminalProfiles(EmptyRequest) returns (AvailableTerminalProfilesResponse);
+  rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(EmptyRequest) returns (Empty);
@@ -22,7 +22,7 @@ message State {
   string state_json = 1;
 }
 
-message AvailableTerminalProfilesResponse {
+message TerminalProfiles {
   repeated TerminalProfile profiles = 1;
 }
 

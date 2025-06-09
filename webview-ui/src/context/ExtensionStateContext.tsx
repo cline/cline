@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { TerminalProfile } from "../../../src/shared/terminal_types" // Added import
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { TerminalProfile } from "@shared/proto/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
@@ -225,20 +225,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
-				break
-			}
-			// Add case to handle availableTerminalProfiles message
-			case "availableTerminalProfiles": {
-				// This type needs to be added to ExtensionMessage
-				if (message.text) {
-					// Assuming profiles are sent as a JSON string in message.text
-					try {
-						const profiles = JSON.parse(message.text) as TerminalProfile[]
-						setAvailableTerminalProfiles(profiles)
-					} catch (error) {
-						console.error("Error parsing available terminal profiles:", error)
-					}
-				}
 				break
 			}
 		}

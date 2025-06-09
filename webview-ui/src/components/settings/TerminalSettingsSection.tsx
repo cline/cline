@@ -3,7 +3,6 @@ import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "../../services/grpc-client"
 import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
-import { TerminalProfile } from "../../../../src/shared/terminal_types"
 
 export const TerminalSettingsSection: React.FC = () => {
 	const {
@@ -65,7 +64,7 @@ export const TerminalSettingsSection: React.FC = () => {
 		})
 	}
 
-	// Usamos any para evitar conflictos de tipo entre Event y FormEvent
+	// Use any to avoid type conflicts between Event and FormEvent
 	const handleDefaultTerminalProfileChange = (event: any) => {
 		const target = event.target as HTMLSelectElement
 		const profileId = target.value

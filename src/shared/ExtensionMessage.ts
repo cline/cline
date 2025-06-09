@@ -32,7 +32,6 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "fileSearchResults"
-		| "availableTerminalProfiles"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
