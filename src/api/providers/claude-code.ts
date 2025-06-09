@@ -36,7 +36,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 			const lines = output.split("\n").filter((line: string) => line.trim() !== "")
 
 			for (const line of lines) {
-				console.log("Received line:", line)
 				dataQueue.push(line)
 			}
 		})
