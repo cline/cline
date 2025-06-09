@@ -474,6 +474,28 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "claude-code" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.claudeCodePath || ""}
+						style={{ width: "100%", marginTop: 3 }}
+						type="text"
+						onInput={handleInputChange("claudeCodePath")}
+						placeholder="Default: claude"
+					/>
+
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Path to the Claude Code CLI executable. Use `which claude` to find the path on Linux or macOS, or `where
+						claude` on Windows.
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "openai-native" && (
 				<div>
 					<VSCodeTextField
@@ -2253,7 +2275,8 @@ const ApiOptions = ({
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{(selectedProvider === "anthropic" || selectedProvider === "claude-code") &&
+								createDropdown(anthropicModels)}
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
@@ -2604,6 +2627,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	}
 	switch (provider) {
 		case "anthropic":
+		case "claude-code":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "bedrock":
 			if (apiConfiguration?.awsBedrockCustomSelected) {
