@@ -81,14 +81,44 @@ class NodeTestRunner {
 	}
 
 	/**
-	 * Loads our test cases, json files which contain messages, file path & contents for what we expect to be edited
+	 * Loads our test cases from a directory of json files
 	 */
-	async loadTestCases(testFilePath: string): Promise<TestCase[]> {
-		const fileContent = fs.readFileSync(testFilePath, "utf8")
-		const testCasesDict: { [test_id: string]: TestCase } = JSON.parse(fileContent)
-		const testCasesArray: TestCase[] = Object.values(testCasesDict)
+	loadTestCases(testDirectoryPath: string): TestCase[] {
+		const testCasesArray: TestCase[] = []
+		const dirents = fs.readdirSync(testDirectoryPath, { withFileTypes: true })
+
+		for (const dirent of dirents) {
+			if (dirent.isFile() && dirent.name.endsWith(".json")) {
+				const testFilePath = path.join(testDirectoryPath, dirent.name)
+				const fileContent = fs.readFileSync(testFilePath, "utf8")
+				const testCase: TestCase = JSON.parse(fileContent)
+
+				// Use the filename (without extension) as the test_id if not provided
+				if (!testCase.test_id) {
+					testCase.test_id = path.parse(dirent.name).name
+				}
+				testCasesArray.push(testCase)
+			}
+		}
 
 		return testCasesArray
+	}
+
+	/**
+	 * Saves the test results to the specified output directory.
+	 */
+	saveTestResults(results: TestResultSet, outputPath: string) {
+		// Ensure output directory exists
+		if (!fs.existsSync(outputPath)) {
+			fs.mkdirSync(outputPath, { recursive: true })
+		}
+
+		// Write each test result to its own file
+		for (const testId in results) {
+			const outputFilePath = path.join(outputPath, `${testId}.json`)
+			const testResult = results[testId]
+			fs.writeFileSync(outputFilePath, JSON.stringify(testResult, null, 2))
+		}
 	}
 
 	/**
@@ -138,7 +168,7 @@ class NodeTestRunner {
 		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
 		isVerbose: boolean,
-		maxConcurrency: number = 10,
+		maxConcurrency: number = 20,
 	): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 		testCases.forEach((tc) => {
@@ -269,12 +299,15 @@ class NodeTestRunner {
 async function main() {
 	const program = new Command()
 
+	const defaultTestPath = path.join(__dirname, "test_cases")
+	const defaultOutputPath = path.join(__dirname, "test_outputs")
+
 	program
 		.name("TestRunner")
 		.description("Run evaluation tests for diff editing")
 		.version("1.0.0")
-		.argument("<test_path>", "Path to the test cases JSON file")
-		.argument("<output_path>", "Path to save the output JSON file")
+		.option("--test-path <path>", "Path to the directory containing test case JSON files", defaultTestPath)
+		.option("--output-path <path>", "Path to the directory to save the test output JSON files", defaultOutputPath)
 		.option("--model-id <model_id>", "The model ID to use for the test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 		.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
@@ -286,9 +319,10 @@ async function main() {
 
 	program.parse(process.argv)
 
-	const [testPath, outputPath] = program.args
 	const options = program.opts()
 	const isVerbose = options.verbose
+	const testPath = options.testPath
+	const outputPath = options.outputPath
 
 	const testConfig: TestConfig = {
 		model_id: options.modelId,
@@ -303,7 +337,7 @@ async function main() {
 		const startTime = Date.now()
 
 		const runner = new NodeTestRunner()
-		const testCases = await runner.loadTestCases(testPath)
+		const testCases = runner.loadTestCases(testPath)
 
 		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
 			...tc,
@@ -324,15 +358,7 @@ async function main() {
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
 
-		// Get the directory name from the full output path
-		const outputDir = path.dirname(outputPath)
-
-		// Ensure output directory exists
-		if (!fs.existsSync(outputDir)) {
-			fs.mkdirSync(outputDir, { recursive: true })
-		}
-
-		fs.writeFileSync(outputPath, JSON.stringify(results, null, 2))
+		runner.saveTestResults(results, outputPath)
 	} catch (error) {
 		console.error("\nError running tests:", error)
 		process.exit(1)

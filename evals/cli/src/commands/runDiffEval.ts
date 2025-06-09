@@ -23,8 +23,6 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	// Construct the arguments array for the execa call
 	const args = [
-		options.testPath,
-		options.outputPath,
 		"--model-id",
 		options.modelId,
 		"--system-prompt-name",
@@ -37,6 +35,13 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 		options.diffEditFunction,
 	]
 
+	// Conditionally add the optional arguments
+	if (options.testPath) {
+		args.push("--test-path", options.testPath)
+	}
+	if (options.outputPath) {
+		args.push("--output-path", options.outputPath)
+	}
 	if (options.thinkingBudget > 0) {
 		args.push("--thinking-budget", String(options.thinkingBudget))
 	}

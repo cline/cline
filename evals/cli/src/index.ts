@@ -82,8 +82,8 @@ program
 program
 	.command("run-diff-eval")
 	.description("Run the diff editing evaluation suite")
-	.argument("<test_path>", "Path to the test cases JSON file")
-	.argument("<output_path>", "Directory to save the results")
+	.option("--test-path <path>", "Path to the directory containing test case JSON files")
+	.option("--output-path <path>", "Path to the directory to save the test output JSON files")
 	.option("--model-id <model_id>", "The model ID to use for the test")
 	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 	.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
@@ -92,14 +92,11 @@ program
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 	.option("--parallel", "Run tests in parallel", false)
 	.option("-v, --verbose", "Enable verbose logging", false)
-	.action(async (testPath, outputPath, options) => {
+	.action(async (options) => {
 		try {
-			// We need to combine the positional arguments and the options into a single object
+			// The logic here simplifies slightly
 			const fullOptions = {
-				testPath,
-				outputPath,
 				...options,
-				// Ensure numberOfRuns is a number, as commander might pass it as a string
 				numberOfRuns: parseInt(options.numberOfRuns, 10),
 				thinkingBudget: parseInt(options.thinkingBudget, 10),
 			}
