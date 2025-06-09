@@ -1,4 +1,3 @@
-import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
@@ -13,6 +12,28 @@ import {
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
+
+// Import proper AWS SDK types
+import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
+
+// Extend AWS SDK types to include additionalModelResponseFields
+interface ExtendedMetadata {
+	usage?: {
+		inputTokens?: number
+		outputTokens?: number
+		cacheReadInputTokens?: number
+		cacheWriteInputTokens?: number
+	}
+	additionalModelResponseFields?: {
+		thinkingResponse?: {
+			reasoning?: Array<{
+				type: string
+				text?: string
+				signature?: string
+			}>
+		}
+	}
+}
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -46,146 +67,8 @@ export class AwsBedrockHandler implements ApiHandler {
 			return
 		}
 
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn =
-			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
-			budget_tokens !== 0
-				? true
-				: false
-
-		// Get model info and message indices for caching
-		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
-		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-
-		// Create anthropic client, using sessions created or renewed after this handler's
-		// initialization, and allowing for session renewal if necessary as well
-		const client = await this.getAnthropicClient()
-
-		// Use withTempEnv to ensure environment variables are properly restored
-		const stream = await AwsBedrockHandler.withTempEnv(
-			() => {
-				// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
-				// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
-				// Temporarily remove AWS_PROFILE to ensure our credentials are used
-				delete process.env["AWS_PROFILE"]
-			},
-			async () => {
-				return await client.messages.create({
-					model: modelId,
-					max_tokens: model.info.maxTokens || 8192,
-					thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-					temperature: reasoningOn ? undefined : 0,
-					system: [
-						{
-							text: systemPrompt,
-							type: "text",
-							...(this.options.awsBedrockUsePromptCache === true && {
-								cache_control: { type: "ephemeral" },
-							}),
-						},
-					],
-					messages: messages.map((message, index) => {
-						if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [
-												{
-													type: "text",
-													text: message.content,
-													...(this.options.awsBedrockUsePromptCache === true && {
-														cache_control: { type: "ephemeral" },
-													}),
-												},
-											]
-										: message.content.map((content, contentIndex) =>
-												contentIndex === message.content.length - 1
-													? {
-															...content,
-															...(this.options.awsBedrockUsePromptCache === true && {
-																cache_control: { type: "ephemeral" },
-															}),
-														}
-													: content,
-											),
-							}
-						}
-						return message
-					}),
-					stream: true,
-				})
-			},
-		)
-
-		for await (const chunk of stream) {
-			switch (chunk?.type) {
-				case "message_start":
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: usage.cache_read_input_tokens || undefined,
-					}
-					break
-				case "message_delta":
-					yield {
-						type: "usage",
-						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
-					}
-					break
-				case "content_block_start":
-					switch (chunk.content_block.type) {
-						case "thinking":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.content_block.thinking || "",
-							}
-							break
-						case "redacted_thinking":
-							// Handle redacted thinking blocks - we still mark it as reasoning
-							// but note that the content is encrypted
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
-							}
-							break
-						case "text":
-							if (chunk.index > 0) {
-								yield {
-									type: "text",
-									text: "\n",
-								}
-							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
-							}
-							break
-					}
-					break
-				case "content_block_delta":
-					switch (chunk.delta.type) {
-						case "thinking_delta":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.delta.thinking,
-							}
-							break
-						case "text_delta":
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-							break
-					}
-					break
-			}
-		}
+		// Default: Use Anthropic Converse API for all Anthropic models
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -273,22 +156,6 @@ export class AwsBedrockHandler implements ApiHandler {
 				sessionToken: credentials.sessionToken,
 			},
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
-		})
-	}
-
-	/**
-	 * Creates an AnthropicBedrock client with the appropriate credentials
-	 */
-	private async getAnthropicClient(): Promise<AnthropicBedrock> {
-		const credentials = await this.getAwsCredentials()
-
-		// Return an AnthropicBedrock client with the resolved/assumed credentials.
-		return new AnthropicBedrock({
-			awsAccessKey: credentials.accessKeyId,
-			awsSecretKey: credentials.secretAccessKey,
-			awsSessionToken: credentials.sessionToken,
-			awsRegion: this.getRegion(),
-			...(this.options.awsBedrockEndpoint && { baseURL: this.options.awsBedrockEndpoint }),
 		})
 	}
 
@@ -536,126 +403,318 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using Amazon Nova models through AWS Bedrock
-	 * Implements support for Amazon Nova models
+	 * Executes a Converse API stream command and handles the response
+	 * Common implementation for both Anthropic and Nova models
 	 */
-	private async *createNovaMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		modelId: string,
-		model: { id: string; info: ModelInfo },
-	): ApiStream {
-		// Get Bedrock client with proper credentials
-		const client = await this.getBedrockClient()
-
-		// Format messages for Nova model
-		const formattedMessages = this.formatNovaMessages(messages)
-
-		// Prepare request for Nova model
-		const command = new ConverseStreamCommand({
-			modelId: modelId,
-			messages: formattedMessages,
-			system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-			inferenceConfig: {
-				maxTokens: model.info.maxTokens || 5000,
-				temperature: 0,
-				// topP: 0.9, // Alternative: use topP instead of temperature
-			},
-		})
-
-		// Execute the streaming request and handle response
+	private async *executeConverseStream(command: ConverseStreamCommand, modelInfo: ModelInfo): ApiStream {
 		try {
+			const client = await this.getBedrockClient()
 			const response = await client.send(command)
 
 			if (response.stream) {
-				let hasReportedInputTokens = false
+				// Buffer content by contentBlockIndex to handle multi-block responses correctly
+				const contentBuffers: Record<number, string> = {}
+				const blockTypes = new Map<number, "reasoning" | "text">()
 
 				for await (const chunk of response.stream) {
+					// Debug logging to see actual response structure
+					// console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+
+					// Handle thinking response in additionalModelResponseFields (LangChain format)
+					const metadata = chunk.metadata as ExtendedMetadata | undefined
+					if (metadata?.additionalModelResponseFields?.thinkingResponse) {
+						const thinkingResponse = metadata.additionalModelResponseFields.thinkingResponse
+						if (thinkingResponse.reasoning && Array.isArray(thinkingResponse.reasoning)) {
+							for (const reasoningBlock of thinkingResponse.reasoning) {
+								if (reasoningBlock.type === "text" && reasoningBlock.text) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningBlock.text,
+									}
+								}
+							}
+						}
+					}
+
 					// Handle metadata events with token usage information
 					if (chunk.metadata?.usage) {
-						// Report complete token usage from the model itself
 						const inputTokens = chunk.metadata.usage.inputTokens || 0
 						const outputTokens = chunk.metadata.usage.outputTokens || 0
+						const cacheReadInputTokens = chunk.metadata.usage.cacheReadInputTokens || 0
+						const cacheWriteInputTokens = chunk.metadata.usage.cacheWriteInputTokens || 0
+
 						yield {
 							type: "usage",
 							inputTokens,
 							outputTokens,
-							totalCost: calculateApiCostOpenAI(model.info, inputTokens, outputTokens, 0, 0),
-						}
-						hasReportedInputTokens = true
-					}
-
-					// Handle content delta (text generation)
-					if (chunk.contentBlockDelta?.delta?.text) {
-						yield {
-							type: "text",
-							text: chunk.contentBlockDelta.delta.text,
-						}
-					}
-
-					// Handle reasoning content if present
-					if (chunk.contentBlockDelta?.delta?.reasoningContent?.text) {
-						yield {
-							type: "reasoning",
-							reasoning: chunk.contentBlockDelta.delta.reasoningContent.text,
+							cacheReadTokens: cacheReadInputTokens,
+							cacheWriteTokens: cacheWriteInputTokens,
+							totalCost: calculateApiCostOpenAI(
+								modelInfo,
+								inputTokens,
+								outputTokens,
+								cacheWriteInputTokens,
+								cacheReadInputTokens,
+							),
 						}
 					}
 
-					// Handle errors
-					if (chunk.internalServerException) {
-						yield {
-							type: "text",
-							text: `[ERROR] Internal server error: ${chunk.internalServerException.message}`,
-						}
-					} else if (chunk.modelStreamErrorException) {
-						yield {
-							type: "text",
-							text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
-						}
-					} else if (chunk.validationException) {
-						yield {
-							type: "text",
-							text: `[ERROR] Validation error: ${chunk.validationException.message}`,
-						}
-					} else if (chunk.throttlingException) {
-						yield {
-							type: "text",
-							text: `[ERROR] Throttling error: ${chunk.throttlingException.message}`,
-						}
-					} else if (chunk.serviceUnavailableException) {
-						yield {
-							type: "text",
-							text: `[ERROR] Service unavailable: ${chunk.serviceUnavailableException.message}`,
+					// Handle content block start - check if Bedrock uses Anthropic SDK format
+					if (chunk.contentBlockStart) {
+						const blockStart = chunk.contentBlockStart as any
+						const blockIndex = chunk.contentBlockStart.contentBlockIndex
+
+						// Check for thinking block in various possible formats
+						if (
+							blockStart.start?.type === "thinking" ||
+							blockStart.contentBlock?.type === "thinking" ||
+							blockStart.type === "thinking"
+						) {
+							if (blockIndex !== undefined) {
+								blockTypes.set(blockIndex, "reasoning")
+								// Initialize content if provided
+								const initialContent =
+									blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
+								if (initialContent) {
+									yield {
+										type: "reasoning",
+										reasoning: initialContent,
+									}
+								}
+							}
 						}
 					}
+
+					// Handle content block delta - accumulate content by block index
+					if (chunk.contentBlockDelta) {
+						const blockIndex = chunk.contentBlockDelta.contentBlockIndex
+
+						if (blockIndex !== undefined) {
+							// Initialize buffer for this block if it doesn't exist
+							if (!(blockIndex in contentBuffers)) {
+								contentBuffers[blockIndex] = ""
+							}
+
+							// Check if this is a thinking block
+							const blockType = blockTypes.get(blockIndex)
+							const delta = chunk.contentBlockDelta.delta as any
+
+							// Handle thinking delta (Anthropic SDK format)
+							if (delta?.type === "thinking_delta" || delta?.thinking) {
+								const thinkingContent = delta.thinking || delta.text || ""
+								if (thinkingContent) {
+									yield {
+										type: "reasoning",
+										reasoning: thinkingContent,
+									}
+								}
+							} else if (delta?.reasoningContent?.text) {
+								// Handle reasoning content (Bedrock format)
+								const reasoningText = delta.reasoningContent.text
+								if (reasoningText) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningText,
+									}
+								}
+							} else if (chunk.contentBlockDelta.delta?.text) {
+								// Handle regular text content
+								const textContent = chunk.contentBlockDelta.delta.text
+								contentBuffers[blockIndex] += textContent
+
+								// Stream based on block type
+								if (blockType === "reasoning") {
+									yield {
+										type: "reasoning",
+										reasoning: textContent,
+									}
+								} else {
+									yield {
+										type: "text",
+										text: textContent,
+									}
+								}
+							}
+						}
+					}
+
+					// Handle content block stop - clean up buffers
+					if (chunk.contentBlockStop) {
+						const blockIndex = chunk.contentBlockStop.contentBlockIndex
+
+						if (blockIndex !== undefined) {
+							// Clean up buffers and tracking for this block
+							delete contentBuffers[blockIndex]
+							blockTypes.delete(blockIndex)
+						}
+					}
+
+					// Handle errors with unified error handling
+					yield* this.handleBedrockStreamError(chunk)
 				}
 			}
 		} catch (error) {
-			console.error("Error processing Nova model response:", error)
+			console.error("Error processing Converse API response:", error)
 			yield {
 				type: "text",
-				text: `[ERROR] Failed to process Nova response: ${error instanceof Error ? error.message : String(error)}`,
+				text: `[ERROR] Failed to process response: ${error instanceof Error ? error.message : String(error)}`,
 			}
 		}
 	}
 
 	/**
-	 * Formats messages for Amazon Nova models according to the SDK specification
+	 * Handles Bedrock stream errors in a unified way
 	 */
-	private formatNovaMessages(messages: Anthropic.Messages.MessageParam[]): { role: ConversationRole; content: any[] }[] {
+	private *handleBedrockStreamError(chunk: any): Generator<{ type: "text"; text: string }> {
+		if (chunk.internalServerException) {
+			yield {
+				type: "text",
+				text: `[ERROR] Internal server error: ${chunk.internalServerException.message}`,
+			}
+		} else if (chunk.modelStreamErrorException) {
+			yield {
+				type: "text",
+				text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
+			}
+		} else if (chunk.validationException) {
+			yield {
+				type: "text",
+				text: `[ERROR] Validation error: ${chunk.validationException.message}`,
+			}
+		} else if (chunk.throttlingException) {
+			yield {
+				type: "text",
+				text: `[ERROR] Throttling error: ${chunk.throttlingException.message}`,
+			}
+		} else if (chunk.serviceUnavailableException) {
+			yield {
+				type: "text",
+				text: `[ERROR] Service unavailable: ${chunk.serviceUnavailableException.message}`,
+			}
+		}
+	}
+
+	/**
+	 * Prepares system messages with optional caching support
+	 */
+	private prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
+		if (!systemPrompt) {
+			return undefined
+		}
+
+		if (enableCaching) {
+			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
+		}
+
+		return [{ text: systemPrompt }]
+	}
+
+	/**
+	 * Gets inference configuration for different model types
+	 */
+	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
+		// For Anthropic models with thinking enabled, temperature must be 1
+		if (modelType === "anthropic") {
+			const budget_tokens = this.options.thinkingBudgetTokens || 0
+			const baseModelId =
+				(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
+				this.getModel().id
+			const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+
+			return {
+				maxTokens: modelInfo.maxTokens || 8192,
+				temperature: reasoningOn ? 1 : 0,
+			}
+		}
+
+		return {
+			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
+			temperature: 0,
+		}
+	}
+
+	/**
+	 * Determines if reasoning should be enabled for Claude models
+	 */
+	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
+		return (
+			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			budgetTokens !== 0
+		)
+	}
+
+	/**
+	 * Creates a message using Anthropic Claude models through AWS Bedrock Converse API
+	 * Implements support for Anthropic Claude models using the unified Converse API
+	 */
+	private async *createAnthropicMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		model: { id: string; info: ModelInfo },
+	): ApiStream {
+		// Format messages for Anthropic model using unified formatter
+		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+
+		// Get model info and message indices for caching
+		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+		// Apply caching controls to messages if enabled
+		const messagesWithCache = this.options.awsBedrockUsePromptCache
+			? this.applyCacheControlToMessages(formattedMessages, lastUserMsgIndex, secondLastMsgUserIndex)
+			: formattedMessages
+
+		// Prepare system message with caching support
+		const systemMessages = this.prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
+
+		// Get thinking configuration
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const baseModelId =
+			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
+			this.getModel().id
+		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+
+		// Prepare request for Anthropic model using Converse API
+		const command = new ConverseStreamCommand({
+			modelId: modelId,
+			messages: messagesWithCache,
+			system: systemMessages,
+			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			// Add thinking configuration as per LangChain documentation
+			additionalModelRequestFields: reasoningOn
+				? {
+						thinking: {
+							type: "enabled",
+							budget_tokens: budget_tokens,
+						},
+					}
+				: undefined,
+		})
+
+		// Execute the streaming request using unified handler
+		yield* this.executeConverseStream(command, model.info)
+	}
+
+	/**
+	 * Formats messages for models using the Converse API specification
+	 * Used by both Anthropic and Nova models to avoid code duplication
+	 */
+	private formatMessagesForConverseAPI(messages: Anthropic.Messages.MessageParam[]): Message[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
 
 			// Process content based on type
-			let content: any[] = []
+			let content: ContentBlock[] = []
 
 			if (typeof message.content === "string") {
 				// Simple text content
 				content = [{ text: message.content }]
 			} else if (Array.isArray(message.content)) {
-				// Convert Anthropic content format to Nova content format
-				content = message.content
+				// Convert Anthropic content format to Converse API content format
+				const processedContent = message.content
 					.map((item) => {
 						// Text content
 						if (item.type === "text") {
@@ -664,55 +723,16 @@ export class AwsBedrockHandler implements ApiHandler {
 
 						// Image content
 						if (item.type === "image") {
-							// Handle different image source formats
-							let imageData: Uint8Array
-							let format = "jpeg" // default format
-
-							// Extract format from media_type if available
-							if (item.source.media_type) {
-								// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
-								const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-								if (formatMatch && formatMatch[1]) {
-									format = formatMatch[1]
-									// Ensure format is one of the allowed values
-									if (!["png", "jpeg", "gif", "webp"].includes(format)) {
-										format = "jpeg" // Default to jpeg if not supported
-									}
-								}
-							}
-
-							// Get image data
-							try {
-								if (typeof item.source.data === "string") {
-									// Handle base64 encoded data
-									const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-									imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-								} else if (item.source.data && typeof item.source.data === "object") {
-									// Try to convert to Uint8Array
-									imageData = new Uint8Array(Buffer.from(item.source.data as any))
-								} else {
-									console.error("Unsupported image data format")
-									return null // Skip this item if format is not supported
-								}
-							} catch (error) {
-								console.error("Could not convert image data to Uint8Array:", error)
-								return null // Skip this item if conversion fails
-							}
-
-							return {
-								image: {
-									format,
-									source: {
-										bytes: imageData,
-									},
-								},
-							}
+							return this.processImageContent(item)
 						}
 
-						// Return null for unsupported content types
+						// Log unsupported content types for debugging
+						console.warn(`Unsupported content type: ${(item as any).type}`)
 						return null
 					})
-					.filter(Boolean) // Remove any null items
+					.filter((item): item is ContentBlock => item !== null)
+
+				content = processedContent
 			}
 
 			// Return formatted message
@@ -721,5 +741,130 @@ export class AwsBedrockHandler implements ApiHandler {
 				content,
 			}
 		})
+	}
+
+	/**
+	 * Processes image content with proper error handling and user notification
+	 */
+	private processImageContent(item: any): ContentBlock | null {
+		let imageData: Uint8Array
+		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
+
+		// Extract format from media_type if available
+		if (item.source.media_type) {
+			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
+			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+			if (formatMatch && formatMatch[1]) {
+				const extractedFormat = formatMatch[1]
+				// Ensure format is one of the allowed values
+				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
+					format = extractedFormat as "png" | "jpeg" | "gif" | "webp"
+				}
+			}
+		}
+
+		// Get image data with improved error handling
+		try {
+			if (typeof item.source.data === "string") {
+				// Handle base64 encoded data
+				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+			} else if (item.source.data && typeof item.source.data === "object") {
+				// Try to convert to Uint8Array
+				imageData = new Uint8Array(Buffer.from(item.source.data as any))
+			} else {
+				throw new Error("Unsupported image data format")
+			}
+
+			return {
+				image: {
+					format,
+					source: {
+						bytes: imageData,
+					},
+				},
+			}
+		} catch (error) {
+			console.error("Failed to process image content:", error)
+			// Return a text content indicating the error instead of null
+			// This ensures users are aware of the issue
+			return {
+				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
+			}
+		}
+	}
+
+	/**
+	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
+	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
+	 */
+	private applyCacheControlToMessages(
+		messages: Message[],
+		lastUserMsgIndex: number,
+		secondLastMsgUserIndex: number,
+	): Message[] {
+		return messages.map((message, index) => {
+			// Add cachePoint to the last user message and second-to-last user message
+			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+				// Clone the message to avoid modifying the original
+				const messageWithCache = { ...message }
+
+				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
+					// Add cachePoint to the end of the content array
+					messageWithCache.content = [
+						...messageWithCache.content,
+						{
+							cachePoint: {
+								type: "default",
+							},
+						} as any, // Type assertion needed for AWS SDK compatibility
+					]
+				}
+
+				return messageWithCache
+			}
+
+			return message
+		})
+	}
+
+	/**
+	 * Creates a message using Amazon Nova models through AWS Bedrock
+	 * Implements support for Amazon Nova models with caching support
+	 */
+	private async *createNovaMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		model: { id: string; info: ModelInfo },
+	): ApiStream {
+		// Format messages for Nova model using unified formatter
+		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+
+		// Get model info and message indices for caching (for Nova models that support it)
+		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+		// Apply caching controls to messages if model supports caching and option is enabled
+		const messagesWithCache =
+			this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
+				? this.applyCacheControlToMessages(formattedMessages, lastUserMsgIndex, secondLastMsgUserIndex)
+				: formattedMessages
+
+		// Prepare system message with caching support for Nova models that support it
+		const enableCaching = this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
+		const systemMessages = this.prepareSystemMessages(systemPrompt, enableCaching || false)
+
+		// Prepare request for Nova model
+		const command = new ConverseStreamCommand({
+			modelId: modelId,
+			messages: messagesWithCache,
+			system: systemMessages,
+			inferenceConfig: this.getInferenceConfig(model.info, "nova"),
+		})
+
+		// Execute the streaming request using unified handler
+		yield* this.executeConverseStream(command, model.info)
 	}
 }
