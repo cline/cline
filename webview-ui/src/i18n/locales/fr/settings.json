@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Activer la lecture simultanée de fichiers",
-			"description": "Lorsqu'activé, Roo peut lire plusieurs fichiers dans une seule requête (jusqu'à 15 fichiers). Lorsque désactivé, Roo doit lire les fichiers un par un. La désactivation peut aider lors du travail avec des modèles moins performants ou lorsque vous souhaitez plus de contrôle sur l'accès aux fichiers."
+			"description": "Lorsqu'activé, Roo peut lire plusieurs fichiers dans une seule requête. Lorsque désactivé, Roo doit lire les fichiers un par un. La désactivation peut aider lors du travail avec des modèles moins performants ou lorsque tu souhaites plus de contrôle sur l'accès aux fichiers."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Désactiver l'exécution des commandes dans attempt_completion",

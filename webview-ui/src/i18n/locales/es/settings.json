@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Habilitar lectura concurrente de archivos",
-			"description": "Cuando está habilitado, Roo puede leer múltiples archivos en una sola solicitud (hasta 15 archivos). Cuando está deshabilitado, Roo debe leer archivos uno a la vez. Deshabilitarlo puede ayudar cuando se trabaja con modelos menos capaces o cuando desea más control sobre el acceso a archivos."
+			"description": "Cuando está habilitado, Roo puede leer múltiples archivos en una sola solicitud. Cuando está deshabilitado, Roo debe leer archivos uno a la vez. Deshabilitarlo puede ayudar cuando se trabaja con modelos menos capaces o cuando deseas más control sobre el acceso a archivos."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Desactivar la ejecución de comandos en attempt_completion",

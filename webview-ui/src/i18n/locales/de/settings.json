@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Gleichzeitiges Lesen von Dateien aktivieren",
-			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage lesen (bis zu 15 Dateien). Wenn deaktiviert, muss Roo Dateien nacheinander lesen. Das Deaktivieren kann helfen, wenn Sie mit weniger leistungsfähigen Modellen arbeiten oder mehr Kontrolle über den Dateizugriff wünschen."
+			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage lesen. Wenn deaktiviert, muss Roo Dateien nacheinander lesen. Das Deaktivieren kann helfen, wenn du mit weniger leistungsfähigen Modellen arbeitest oder mehr Kontrolle über den Dateizugriff möchtest."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Befehlsausführung in attempt_completion deaktivieren",

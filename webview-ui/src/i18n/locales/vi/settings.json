@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Bật đọc tệp đồng thời",
-			"description": "Khi bật, Roo có thể đọc nhiều tệp trong một yêu cầu duy nhất (tối đa 15 tệp). Khi tắt, Roo phải đọc từng tệp một. Việc tắt có thể hữu ích khi làm việc với các mô hình ít khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn quyền truy cập tệp."
+			"description": "Khi bật, Roo có thể đọc nhiều tệp trong một yêu cầu duy nhất. Khi tắt, Roo phải đọc từng tệp một. Việc tắt có thể hữu ích khi làm việc với các mô hình ít khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn quyền truy cập tệp."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Tắt thực thi lệnh trong attempt_completion",

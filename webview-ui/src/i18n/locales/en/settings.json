@@ -487,7 +487,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Enable concurrent file reads",
-			"description": "When enabled, Roo can read multiple files in a single request (up to 15 files). When disabled, Roo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
+			"description": "When enabled, Roo can read multiple files in a single request. When disabled, Roo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
 		},
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Use experimental multi block diff tool",

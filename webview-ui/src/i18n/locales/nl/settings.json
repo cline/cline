@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Gelijktijdig lezen van bestanden inschakelen",
-			"description": "Wanneer ingeschakeld, kan Roo meerdere bestanden in één verzoek lezen (tot 15 bestanden). Wanneer uitgeschakeld, moet Roo bestanden één voor één lezen. Uitschakelen kan helpen bij het werken met minder capabele modellen of wanneer u meer controle over bestandstoegang wilt."
+			"description": "Wanneer ingeschakeld, kan Roo meerdere bestanden in één verzoek lezen. Wanneer uitgeschakeld, moet Roo bestanden één voor één lezen. Uitschakelen kan helpen bij het werken met minder capabele modellen of wanneer u meer controle over bestandstoegang wilt."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Commando-uitvoering in attempt_completion uitschakelen",

@@ -491,7 +491,7 @@
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Włącz jednoczesne odczytywanie plików",
-			"description": "Po włączeniu Roo może odczytać wiele plików w jednym żądaniu (do 15 plików). Po wyłączeniu Roo musi odczytywać pliki pojedynczo. Wyłączenie może pomóc podczas pracy z mniej wydajnymi modelami lub gdy chcesz mieć większą kontrolę nad dostępem do plików."
+			"description": "Po włączeniu Roo może odczytać wiele plików w jednym żądaniu. Po wyłączeniu Roo musi odczytywać pliki pojedynczo. Wyłączenie może pomóc podczas pracy z mniej wydajnymi modelami lub gdy chcesz mieć większą kontrolę nad dostępem do plików."
 		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Wyłącz wykonywanie poleceń w attempt_completion",
