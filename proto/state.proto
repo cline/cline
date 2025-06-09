@@ -185,4 +185,7 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 71;
+
+  // Claude Code specific
+  optional string claudeCodePath = 72;
 }

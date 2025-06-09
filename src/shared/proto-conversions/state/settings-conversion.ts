@@ -110,6 +110,9 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		litellmModelInfo: config.liteLlmModelInfo ? JSON.stringify(config.liteLlmModelInfo) : undefined,
 		openaiHeaders: config.openAiHeaders ? JSON.stringify(config.openAiHeaders) : undefined,
 
+		// Claude Code specific
+		claudeCodePath: config.claudeCodePath,
+
 		// Arrays
 		favoritedModelIds: config.favoritedModelIds || [],
 	})
@@ -207,6 +210,9 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// OpenRouter specific
 		openRouterProviderSorting: protoConfig.openrouterProviderSorting,
+
+		// Claude Code specific
+		claudeCodePath: protoConfig.claudeCodePath,
 
 		// Arrays
 		favoritedModelIds: protoConfig.favoritedModelIds || [],

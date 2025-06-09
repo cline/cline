@@ -68,6 +68,7 @@ export type GlobalStateKey =
 	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
 	| "isNewUser"
+	| "claudeCodePath"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"
