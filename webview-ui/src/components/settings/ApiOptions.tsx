@@ -16,6 +16,8 @@ import {
 	bedrockModels,
 	cerebrasDefaultModelId,
 	cerebrasModels,
+	claudeCodeDefaultModelId,
+	claudeCodeModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
 	doubaoDefaultModelId,
@@ -486,8 +488,7 @@ const ApiOptions = ({
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Path to the Claude Code CLI executable. Use `which claude` to find the path on Linux or macOS, or `where
-						claude` on Windows.
+						Path to the Claude Code CLI.
 					</p>
 				</div>
 			)}
@@ -2206,8 +2207,8 @@ const ApiOptions = ({
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{(selectedProvider === "anthropic" || selectedProvider === "claude-code") &&
-								createDropdown(anthropicModels)}
+							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
@@ -2557,8 +2558,9 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	}
 	switch (provider) {
 		case "anthropic":
-		case "claude-code":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "claude-code":
+			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId)
 		case "bedrock":
 			if (apiConfiguration?.awsBedrockCustomSelected) {
 				const baseModelId = apiConfiguration.awsBedrockCustomModelBaseId

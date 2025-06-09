@@ -1,5 +1,5 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, type ApiHandlerOptions } from "@/shared/api"
+import { claudeCodeDefaultModelId, ClaudeCodeModelId, claudeCodeModels, type ApiHandlerOptions } from "@/shared/api"
 import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
@@ -100,6 +100,13 @@ export class ClaudeCodeHandler implements ApiHandler {
 				if (message.stop_reason !== null && message.stop_reason !== "tool_use") {
 					const errorMessage = message.content[0]?.text || `Claude Code stopped with reason: ${message.stop_reason}`
 
+					if (errorMessage.includes("Invalid model name")) {
+						throw new Error(
+							errorMessage +
+								`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
+						)
+					}
+
 					throw new Error(errorMessage)
 				}
 
@@ -136,14 +143,14 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 	getModel() {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in anthropicModels) {
-			const id = modelId as AnthropicModelId
-			return { id, info: anthropicModels[id] }
+		if (modelId && modelId in claudeCodeModels) {
+			const id = modelId as ClaudeCodeModelId
+			return { id, info: claudeCodeModels[id] }
 		}
 
 		return {
-			id: anthropicDefaultModelId,
-			info: anthropicModels[anthropicDefaultModelId],
+			id: claudeCodeDefaultModelId,
+			info: claudeCodeModels[claudeCodeDefaultModelId],
 		}
 	}
 
