@@ -99,7 +99,6 @@ export async function refreshOpenRouterModels(
 						modelInfo.cacheWritesPrice = 0.14
 						modelInfo.cacheReadsPrice = 0.014
 						break
-						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
