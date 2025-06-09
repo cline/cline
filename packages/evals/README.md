@@ -68,8 +68,7 @@ To stop an evals run early you can simply stop the "controller" container using 
 
 <img width="1302" alt="Screenshot 2025-06-06 at 9 00 41 AM" src="https://github.com/user-attachments/assets/a9d4725b-730c-441a-ba24-ac99f9599ced" />
 
-
-## Advanced Usage / Debugging
+## Advanced Usage
 
 The evals system runs VS Code headlessly in Docker containers for consistent, reproducible environments. While this design ensures reliability, it can make debugging more challenging. For debugging purposes, you can run the system locally on macOS, though this approach is less reliable due to hardware and environment variability.
 
@@ -89,3 +88,21 @@ The setup script does the following:
 - Creates and migrates a Postgres database
 - Prompts for an OpenRouter API key to add to `.env.local`
 - Optionally builds and installs the Roo Code extension from source
+
+## Troubleshooting
+
+Here are some errors that you might encounter along with potential fixes:
+
+Problem:
+
+```sh
+Error response from daemon: network 3d812c43410fcad072c764fa872a53fc0a5edf33634964699242a886947aff1a not found
+```
+
+Solution:
+
+Prune orphaned resources:
+
+```sh
+docker system prune -f
+```

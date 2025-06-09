@@ -77,3 +77,8 @@ services:
         tty: true
         profiles:
             - runner
+
+networks:
+    default:
+        name: evals_default
+        driver: bridge
