@@ -60,6 +60,9 @@ export class McpHub {
 		timestamp: number
 	}> = []
 
+	// Callback for sending notifications to active task
+	private notificationCallback?: (serverName: string, level: string, message: string) => void
+
 	constructor(
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
@@ -361,14 +364,23 @@ export class McpHub {
 
 					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
 
-					// Store notification for display in chat
+					// Format the message
 					const message = logger ? `[${logger}] ${data}` : data
-					this.pendingNotifications.push({
-						serverName: name,
-						level,
-						message,
-						timestamp: Date.now(),
-					})
+
+					// Send notification directly to active task if callback is set
+					if (this.notificationCallback) {
+						console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						this.notificationCallback(name, level, message)
+					} else {
+						// Fallback: store for later retrieval
+						console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						this.pendingNotifications.push({
+							serverName: name,
+							level,
+							message,
+							timestamp: Date.now(),
+						})
+					}
 
 					// Also show as VS Code notification for now (can be removed later if desired)
 					switch (level) {
@@ -1049,6 +1061,23 @@ export class McpHub {
 		const notifications = [...this.pendingNotifications]
 		this.pendingNotifications = []
 		return notifications
+	}
+
+	/**
+	 * Set the notification callback for real-time notifications
+	 * @param callback Function to call when notifications arrive
+	 */
+	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
+		this.notificationCallback = callback
+		console.log("[MCP Debug] Notification callback set")
+	}
+
+	/**
+	 * Clear the notification callback
+	 */
+	clearNotificationCallback(): void {
+		this.notificationCallback = undefined
+		console.log("[MCP Debug] Notification callback cleared")
 	}
 
 	async dispose(): Promise<void> {

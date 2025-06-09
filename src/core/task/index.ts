@@ -234,6 +234,12 @@ export class Task {
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
 
+		// Set up MCP notification callback for real-time notifications
+		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+			// Display notification in chat immediately
+			await this.say("mcp_notification", `[${serverName}] ${message}`)
+		})
+
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1209,6 +1215,9 @@ export class Task {
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
+
+		// Clear the notification callback when task is aborted
+		this.mcpHub.clearNotificationCallback()
 	}
 
 	// Checkpoints

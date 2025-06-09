@@ -1,76 +1,50 @@
-# MCP Real-time Notifications Implementation Summary
+# MCP Real-Time Notifications Implementation Summary
 
 ## Overview
-
-We've successfully implemented support for MCP real-time notifications in Cline. This allows MCP servers to send notifications that appear immediately in the Cline chat interface, providing real-time feedback for long-running operations.
+We've successfully implemented real-time MCP notification support in the Cline codebase, allowing notifications from MCP servers to be displayed immediately in the chat as they arrive, rather than being collected and displayed all at once after a tool completes.
 
 ## Key Changes Made
 
 ### 1. McpHub.ts (`src/services/mcp/McpHub.ts`)
-- Added notification handler registration using MCP SDK's `setNotificationHandler`
-- Created a `pendingNotifications` array to store notifications
-- Implemented `getPendingNotifications()` method to retrieve and clear pending notifications
-- Notifications are captured and stored for display in the chat
+- Added a notification callback mechanism:
+  - `notificationCallback` property to store the callback function
+  - `setNotificationCallback()` method to set the callback
+  - `clearNotificationCallback()` method to clear the callback
+- Modified the notification handler to:
+  - Send notifications directly to the active task via the callback when available
+  - Fall back to storing in `pendingNotifications` when no active task
+- Added debug logging to track notification flow
 
-### 2. Task/index.ts (`src/core/task/index.ts`)
-- Modified the `use_mcp_tool` case to check for pending notifications before and after tool execution
-- Displays notifications in the chat using the new "mcp_notification" message type
-
-### 3. ExtensionMessage.ts (`src/shared/ExtensionMessage.ts`)
-- Added "mcp_notification" to the `ClineSay` type enum
-
-### 4. ChatRow.tsx (`webview-ui/src/components/chat/ChatRow.tsx`)
-- Added UI rendering for "mcp_notification" messages
-- Displays notifications with a bell icon and styled background
-- Shows "MCP Notification:" prefix followed by the notification content
-
-### 5. Protocol Buffer Updates (`proto/ui.proto`)
-- Added `MCP_NOTIFICATION = 19` to the `ClineSay` enum
-- Updated all subsequent enum values to maintain proper ordering
-
-### 6. Proto Conversions (`src/shared/proto-conversions/cline-message.ts`)
-- Added mappings for `mcp_notification` in both directions
-- Ensures proper serialization/deserialization of notification messages
-
-## Build Status
-✅ **All TypeScript compilation errors have been resolved**
-✅ **Project builds successfully**
-✅ **Ready for testing**
+### 2. Task.ts (`src/core/task/index.ts`)
+- Set up the notification callback in the constructor:
+  ```typescript
+  this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+    await this.say("mcp_notification", `[${serverName}] ${message}`)
+  })
+  ```
+- Clear the callback when the task is aborted to prevent memory leaks
 
 ## How It Works
 
-1. **Server sends notification**: MCP server uses `send_log_message` without `related_request_id`
-2. **Client receives**: McpHub's notification handler captures the notification
-3. **Storage**: Notification is stored in `pendingNotifications` array
-4. **Display**: Task checks for pending notifications and displays them in chat
-5. **Cleanup**: Notifications are cleared after being displayed
-
-## Testing
-
-The `test-mcp-notifications` directory contains:
-- `server.py`: Test MCP server that sends random delayed notifications
-- `test-client.py`: Standalone client to verify server functionality
-- `test-notifications.md`: Step-by-step testing guide
+1. **When a Task Starts**: The Task constructor sets up a notification callback with McpHub
+2. **When Notifications Arrive**: The MCP server sends notifications via the `notifications/message` method
+3. **Real-Time Display**: Instead of storing notifications, McpHub immediately calls the callback, which displays the notification in the chat
+4. **When Task Ends**: The callback is cleared to prevent notifications from being sent to a completed task
 
 ## Benefits
 
-1. **Real-time feedback**: Users see progress updates as they happen
-2. **Better UX**: Long-running operations can provide status updates
-3. **Flexibility**: Works with all MCP transport types (stdio, SSE, streamableHTTP)
-4. **Non-blocking**: Notifications don't interrupt the main task flow
+- **Real-Time Feedback**: Users see MCP server notifications as they happen
+- **Better UX**: No more waiting until tool completion to see what the server is doing
+- **Progress Tracking**: Servers can send progress updates that appear immediately
+- **Debugging**: Real-time logs help debug MCP server behavior
+
+## Testing
+
+The implementation was tested with a custom MCP server that sends notifications with random delays. The notifications now appear in the chat immediately as they are sent, providing real-time feedback about the server's operations.
 
 ## Future Enhancements
 
-1. **Notification filtering**: Add ability to filter notifications by level or logger
-2. **Notification grouping**: Group related notifications together
-3. **Custom styling**: Allow different notification types to have different styles
-4. **Persistence**: Option to save notifications in task history
-5. **Rate limiting**: Prevent notification spam
-
-## Example Use Cases
-
-- Progress updates for file processing
-- Status updates for API calls
-- Milestone notifications for multi-step operations
-- Warning/error notifications for background processes
-- Real-time data streaming updates
+1. **Notification Types**: Support different notification types (info, warning, error) with different styling
+2. **Notification Filtering**: Allow users to filter which notifications they want to see
+3. **Notification History**: Keep a separate log of all notifications for debugging
+4. **Progress Bars**: Support structured progress notifications with visual progress bars
