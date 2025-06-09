@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   5b3647f: Prioritize active files in file context menu
+-   7e37cec: Context menu is default to File option on start up
+-   922c795: Migrate fetchLatestServersFromHub to protobus
+-   582a3b1: the response of the mcps is displayed with a collapsible which allows to focus on the model responses.
+
+### Patch Changes
+
+-   2158165: Migrated updateSettings to protos, removed didUpdateSettings, altered Plan/Act toggling in settings menu
+-   b0926b1: Fixed issue where telemetry warning popup was created for every new Cline window
+-   fd85473: toggleWorkflow protobus migration
+-   d7e1fff: Added promise to task init to prevent race condition with checkpoints
+-   78792c2: Spring cleaning
+-   aaa03a3: Add free grok model
+-   a952757: Fix bug where replace_in_file would not be able to handle for out-of-order SEARCH/REPLACE blocks
+
 ## [3.17.11]
 
 -   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
