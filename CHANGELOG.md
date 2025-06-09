@@ -2,14 +2,12 @@
 
 ## [3.17.12]
 
--   **Free Grok Model Available!** Access Grok 3 Beta completely free through the Cline provider
+-   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
 -   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output
 -   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions
 -   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
 -   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
 -   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
--   Fix race condition in task initialization that was preventing checkpoints from working properly
--   Internal improvements to settings handling and code organization
 
 ## [3.17.11]
 
