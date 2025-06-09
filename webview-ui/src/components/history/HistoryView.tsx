@@ -49,7 +49,7 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, filePaths } = extensionStateContext
+	const { taskHistory, filePaths, onRelinquishControl } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -130,12 +130,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		[showFavoritesOnly, loadTaskHistory],
 	)
 
-	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
-		if (event.data.type === "relinquishControl") {
+	// Use the onRelinquishControl hook instead of message event
+	useEffect(() => {
+		return onRelinquishControl(() => {
 			setDeleteAllDisabled(false)
-		}
-	}, [])
-	useEvent("message", handleMessage)
+		})
+	}, [onRelinquishControl])
 
 	const { totalTasksSize, setTotalTasksSize } = extensionStateContext
 

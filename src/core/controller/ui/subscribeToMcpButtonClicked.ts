@@ -41,7 +41,7 @@ export async function subscribeToMcpButtonClicked(
  * @param webviewType The type of webview that triggered the event (SIDEBAR or TAB)
  */
 export async function sendMcpButtonClickedEvent(webviewType?: WebviewProviderType): Promise<void> {
-	const event: Empty = Empty.create({})
+	const event = Empty.create({})
 
 	// Process all subscriptions, filtering based on the source
 	const promises = Array.from(mcpButtonClickedSubscriptions.entries()).map(async ([responseStream, providerType]) => {

@@ -50,7 +50,7 @@ export async function sendChatButtonClickedEvent(controllerId: string): Promise<
 	}
 
 	try {
-		const event: Empty = Empty.create({})
+		const event = Empty.create({})
 		await responseStream(
 			event,
 			false, // Not the last message
