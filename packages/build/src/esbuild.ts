@@ -1,5 +1,6 @@
 import * as fs from "fs"
 import * as path from "path"
+import { execSync } from "child_process"
 
 import { ViewsContainer, Views, Menus, Configuration, contributesSchema } from "./types.js"
 
@@ -22,7 +23,7 @@ function copyDir(srcDir: string, dstDir: string, count: number): number {
 	return count
 }
 
-function rmDir(dirPath: string, maxRetries: number = 3): void {
+function rmDir(dirPath: string, maxRetries: number = 5): void {
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
 			fs.rmSync(dirPath, { recursive: true, force: true })
@@ -30,15 +31,42 @@ function rmDir(dirPath: string, maxRetries: number = 3): void {
 		} catch (error) {
 			const isLastAttempt = attempt === maxRetries
 
-			const isEnotemptyError =
-				error instanceof Error && "code" in error && (error.code === "ENOTEMPTY" || error.code === "EBUSY")
+			const isRetryableError =
+				error instanceof Error &&
+				"code" in error &&
+				(error.code === "ENOTEMPTY" ||
+					error.code === "EBUSY" ||
+					error.code === "EPERM" ||
+					error.code === "EACCES")
 
-			if (isLastAttempt || !isEnotemptyError) {
-				throw error // Re-throw if it's the last attempt or not a locking error.
+			if (isLastAttempt) {
+				// On the last attempt, try alternative cleanup methods.
+				try {
+					console.warn(`[rmDir] Final attempt using alternative cleanup for ${dirPath}`)
+
+					// Try to clear readonly flags on Windows.
+					if (process.platform === "win32") {
+						try {
+							execSync(`attrib -R "${dirPath}\\*.*" /S /D`, { stdio: "ignore" })
+						} catch {
+							// Ignore attrib errors.
+						}
+					}
+					fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+					return
+				} catch (finalError) {
+					console.error(`[rmDir] Failed to remove ${dirPath} after ${maxRetries} attempts:`, finalError)
+					throw finalError
+				}
 			}
 
-			// Wait with exponential backoff before retrying.
-			const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000) // Cap at 1s.
+			if (!isRetryableError) {
+				throw error // Re-throw if it's not a retryable error.
+			}
+
+			// Wait with exponential backoff before retrying, with longer delays for Windows.
+			const baseDelay = process.platform === "win32" ? 200 : 100
+			const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 2000) // Cap at 2s
 			console.warn(`[rmDir] Attempt ${attempt} failed for ${dirPath}, retrying in ${delay}ms...`)
 
 			// Synchronous sleep for simplicity in build scripts.
