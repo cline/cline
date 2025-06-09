@@ -19,16 +19,20 @@ describe("getToolUseGuidelinesSection", () => {
 	describe("when codebase_search is available", () => {
 		it("should include codebase_search first enforcement", () => {
 			const guidelines = getToolUseGuidelinesSection(mockCodeIndexManagerEnabled)
-			
+
 			// Check that the guidelines include the codebase_search enforcement
-			expect(guidelines).toContain("IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST")
+			expect(guidelines).toContain(
+				"IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST",
+			)
 			expect(guidelines).toContain("before any other search tools")
-			expect(guidelines).toContain("semantic search tool helps you find relevant code based on meaning rather than just keywords")
+			expect(guidelines).toContain(
+				"semantic search tool helps you find relevant code based on meaning rather than just keywords",
+			)
 		})
 
 		it("should maintain proper numbering with codebase_search", () => {
 			const guidelines = getToolUseGuidelinesSection(mockCodeIndexManagerEnabled)
-			
+
 			// Check that all numbered items are present
 			expect(guidelines).toContain("1. In <thinking> tags")
 			expect(guidelines).toContain("2. **IMPORTANT:")
@@ -43,15 +47,17 @@ describe("getToolUseGuidelinesSection", () => {
 	describe("when codebase_search is not available", () => {
 		it("should not include codebase_search enforcement", () => {
 			const guidelines = getToolUseGuidelinesSection(mockCodeIndexManagerDisabled)
-			
+
 			// Check that the guidelines do not include the codebase_search enforcement
-			expect(guidelines).not.toContain("IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST")
+			expect(guidelines).not.toContain(
+				"IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST",
+			)
 			expect(guidelines).not.toContain("semantic search tool helps you find relevant code based on meaning")
 		})
 
 		it("should maintain proper numbering without codebase_search", () => {
 			const guidelines = getToolUseGuidelinesSection(mockCodeIndexManagerDisabled)
-			
+
 			// Check that all numbered items are present with correct numbering
 			expect(guidelines).toContain("1. In <thinking> tags")
 			expect(guidelines).toContain("2. Choose the most appropriate tool")
@@ -65,7 +71,7 @@ describe("getToolUseGuidelinesSection", () => {
 	it("should include iterative process guidelines regardless of codebase_search availability", () => {
 		const guidelinesEnabled = getToolUseGuidelinesSection(mockCodeIndexManagerEnabled)
 		const guidelinesDisabled = getToolUseGuidelinesSection(mockCodeIndexManagerDisabled)
-		
+
 		// Check that the iterative process section is included in both cases
 		for (const guidelines of [guidelinesEnabled, guidelinesDisabled]) {
 			expect(guidelines).toContain("It is crucial to proceed step-by-step")

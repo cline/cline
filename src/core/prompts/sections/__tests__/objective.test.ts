@@ -19,9 +19,11 @@ describe("getObjectiveSection", () => {
 	describe("when codebase_search is available", () => {
 		it("should include codebase_search first enforcement in thinking process", () => {
 			const objective = getObjectiveSection(mockCodeIndexManagerEnabled)
-			
+
 			// Check that the objective includes the codebase_search enforcement
-			expect(objective).toContain("if the task involves understanding existing code or functionality, you MUST use the `codebase_search` tool")
+			expect(objective).toContain(
+				"if the task involves understanding existing code or functionality, you MUST use the `codebase_search` tool",
+			)
 			expect(objective).toContain("BEFORE using any other search or file exploration tools")
 		})
 	})
@@ -29,7 +31,7 @@ describe("getObjectiveSection", () => {
 	describe("when codebase_search is not available", () => {
 		it("should not include codebase_search enforcement", () => {
 			const objective = getObjectiveSection(mockCodeIndexManagerDisabled)
-			
+
 			// Check that the objective does not include the codebase_search enforcement
 			expect(objective).not.toContain("you MUST use the `codebase_search` tool")
 			expect(objective).not.toContain("BEFORE using any other search or file exploration tools")
@@ -39,7 +41,7 @@ describe("getObjectiveSection", () => {
 	it("should maintain proper structure regardless of codebase_search availability", () => {
 		const objectiveEnabled = getObjectiveSection(mockCodeIndexManagerEnabled)
 		const objectiveDisabled = getObjectiveSection(mockCodeIndexManagerDisabled)
-		
+
 		// Check that all numbered items are present in both cases
 		for (const objective of [objectiveEnabled, objectiveDisabled]) {
 			expect(objective).toContain("1. Analyze the user's task")
@@ -53,7 +55,7 @@ describe("getObjectiveSection", () => {
 	it("should include thinking tags guidance regardless of codebase_search availability", () => {
 		const objectiveEnabled = getObjectiveSection(mockCodeIndexManagerEnabled)
 		const objectiveDisabled = getObjectiveSection(mockCodeIndexManagerDisabled)
-		
+
 		// Check that thinking tags guidance is included in both cases
 		for (const objective of [objectiveEnabled, objectiveDisabled]) {
 			expect(objective).toContain("<thinking></thinking> tags")
@@ -65,11 +67,13 @@ describe("getObjectiveSection", () => {
 	it("should include parameter inference guidance regardless of codebase_search availability", () => {
 		const objectiveEnabled = getObjectiveSection(mockCodeIndexManagerEnabled)
 		const objectiveDisabled = getObjectiveSection(mockCodeIndexManagerDisabled)
-		
+
 		// Check parameter inference guidance in both cases
 		for (const objective of [objectiveEnabled, objectiveDisabled]) {
 			expect(objective).toContain("Go through each of the required parameters")
-			expect(objective).toContain("determine if the user has directly provided or given enough information to infer a value")
+			expect(objective).toContain(
+				"determine if the user has directly provided or given enough information to infer a value",
+			)
 			expect(objective).toContain("DO NOT invoke the tool (not even with fillers for the missing params)")
 			expect(objective).toContain("ask_followup_question tool")
 		}

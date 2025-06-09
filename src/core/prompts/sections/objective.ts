@@ -1,8 +1,12 @@
 import { EXPERIMENT_IDS, experiments } from "../../../shared/experiments"
 import { CodeIndexManager } from "../../../services/code-index/manager"
 
-export function getObjectiveSection(codeIndexManager?: CodeIndexManager, experimentsConfig?: Record<string, boolean>): string {
-	const isCodebaseSearchAvailable = codeIndexManager &&
+export function getObjectiveSection(
+	codeIndexManager?: CodeIndexManager,
+	experimentsConfig?: Record<string, boolean>,
+): string {
+	const isCodebaseSearchAvailable =
+		codeIndexManager &&
 		codeIndexManager.isFeatureEnabled &&
 		codeIndexManager.isFeatureConfigured &&
 		codeIndexManager.isInitialized
@@ -10,10 +14,10 @@ export function getObjectiveSection(codeIndexManager?: CodeIndexManager, experim
 	const codebaseSearchInstruction = isCodebaseSearchAvailable
 		? "First, if the task involves understanding existing code or functionality, you MUST use the `codebase_search` tool to search for relevant code based on the task's intent BEFORE using any other search or file exploration tools. Then, "
 		: "First, "
-	
+
 	// Check if command execution is disabled via experiment
 	const isCommandDisabled = experimentsConfig && experimentsConfig[EXPERIMENT_IDS.DISABLE_COMPLETION_COMMAND]
-	
+
 	const commandInstruction = !isCommandDisabled
 		? " You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built."
 		: ""
