@@ -2577,7 +2577,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				// TODO: remove this once we have a better way to handle free models on Cline
 				// Free grok 3 promotion
 				selectedModelInfo:
-					openRouterModelId === "x-ai/grok-3-beta"
+					openRouterModelId === "x-ai/grok-3"
 						? { ...openRouterModelInfo, inputPrice: 0, outputPrice: 0 }
 						: openRouterModelInfo,
 			}

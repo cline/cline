@@ -117,6 +117,11 @@ export async function refreshOpenRouterModels(
 						break
 				}
 
+				// add new model id
+				if (rawModel.id === "x-ai/grok-3-beta") {
+					models["x-ai/grok-3"] = modelInfo
+				}
+
 				models[rawModel.id] = modelInfo
 			}
 		} else {
