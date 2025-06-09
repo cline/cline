@@ -1,4 +1,3 @@
-import { safeWriteJson } from "../../utils/safeWriteJson"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
@@ -1341,7 +1340,7 @@ export class McpHub {
 			mcpServers: config.mcpServers,
 		}
 
-		await safeWriteJson(configPath, updatedConfig)
+		await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 2))
 	}
 
 	public async updateServerTimeout(
@@ -1419,7 +1418,7 @@ export class McpHub {
 					mcpServers: config.mcpServers,
 				}
 
-				await safeWriteJson(configPath, updatedConfig)
+				await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 2))
 
 				// Update server connections with the correct source
 				await this.updateServerConnections(config.mcpServers, serverSource)
@@ -1561,7 +1560,7 @@ export class McpHub {
 			}
 
 			// Write updated config back to file
-			await safeWriteJson(normalizedPath, config)
+			await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
 			if (connection) {
