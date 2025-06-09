@@ -314,7 +314,7 @@ const ApiOptions = ({
 					OpenAiModelsRequest.create({
 						baseUrl,
 						apiKey,
-					})
+					}),
 				).catch((error: any) => {
 					console.error("Failed to refresh OpenAI models:", error)
 				})
