@@ -319,6 +319,83 @@ export class McpHub {
 			connection.server.status = "connected"
 			connection.server.error = ""
 
+			// Register notification handler for real-time messages
+			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			console.log(`[MCP Debug] Client instance:`, connection.client)
+			console.log(`[MCP Debug] Transport type:`, config.type)
+
+			// Try to set notification handler using the client's method
+			try {
+				// Import the notification schema from MCP SDK
+				const { z } = await import("zod")
+
+				// Define the notification schema for notifications/message
+				const NotificationMessageSchema = z.object({
+					method: z.literal("notifications/message"),
+					params: z
+						.object({
+							level: z.enum(["debug", "info", "warning", "error"]).optional(),
+							logger: z.string().optional(),
+							data: z.string().optional(),
+							message: z.string().optional(),
+						})
+						.optional(),
+				})
+
+				// Set the notification handler
+				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
+					console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					const params = notification.params || {}
+					const level = params.level || "info"
+					const data = params.data || params.message || ""
+					const logger = params.logger || ""
+
+					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+
+					// Display as VS Code notification
+					const message = logger ? `[${logger}] ${data}` : data
+					switch (level) {
+						case "error":
+							vscode.window.showErrorMessage(`MCP ${name}: ${message}`)
+							break
+						case "warning":
+							vscode.window.showWarningMessage(`MCP ${name}: ${message}`)
+							break
+						default:
+							vscode.window.showInformationMessage(`MCP ${name}: ${message}`)
+					}
+
+					// Forward to webview if available
+					if (this.postMessageToWebview) {
+						await this.postMessageToWebview({
+							type: "mcpNotification",
+							serverName: name,
+							notification: {
+								level,
+								data,
+								logger,
+								timestamp: Date.now(),
+							},
+						} as any)
+					}
+				})
+				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+
+				// Also set a fallback handler for any other notification types
+				connection.client.fallbackNotificationHandler = async (notification: any) => {
+					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					// Show in VS Code for visibility
+					vscode.window.showInformationMessage(
+						`MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
+					)
+				}
+				console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+			} catch (error) {
+				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+			}
+
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
