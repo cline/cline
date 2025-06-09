@@ -99,6 +99,13 @@ export async function refreshOpenRouterModels(
 						modelInfo.cacheWritesPrice = 0.14
 						modelInfo.cacheReadsPrice = 0.014
 						break
+					case "x-ai/grok-3-beta":
+						// free promotion
+						modelInfo.inputPrice = 0
+						modelInfo.outputPrice = 0
+						modelInfo.cacheWritesPrice = 0
+						modelInfo.cacheReadsPrice = 0
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
