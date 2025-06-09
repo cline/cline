@@ -194,6 +194,11 @@ class NodeTestRunner {
 
 			const batchResults = await Promise.all(batchPromises)
 
+			// Calculate the total cost for this batch
+			const batchCost = batchResults.reduce((total, result) => {
+				return total + (result.streamResult?.usage?.totalCost || 0)
+			}, 0)
+
 			// Populate the results dictionary
 			for (const result of batchResults) {
 				if (result.test_id) {
@@ -203,7 +208,7 @@ class NodeTestRunner {
 
 			const batchNumber = i / maxConcurrency + 1
 			const totalBatches = Math.ceil(allRuns.length / maxConcurrency)
-			log(isVerbose, `-Completed batch ${batchNumber} of ${totalBatches}...`)
+			log(isVerbose, `-Completed batch ${batchNumber} of ${totalBatches}... (Batch Cost: $${batchCost.toFixed(6)})`)
 		}
 
 		return results
