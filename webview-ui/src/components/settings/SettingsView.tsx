@@ -6,7 +6,7 @@ import { cn } from "@/utils/cn"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { PlanActMode, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
@@ -200,6 +200,28 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
 				}),
 			)
+
+			// Update default terminal profile if it has changed
+			if (defaultTerminalProfile !== originalState.current.defaultTerminalProfile) {
+				await StateServiceClient.updateDefaultTerminalProfile({
+					value: defaultTerminalProfile || "default",
+				} as StringRequest)
+			}
+
+			// Update the original state to reflect the saved changes
+			originalState.current = {
+				apiConfiguration,
+				customInstructions,
+				telemetrySetting,
+				planActSeparateModelsSetting,
+				enableCheckpointsSetting,
+				mcpMarketplaceEnabled,
+				mcpResponsesCollapsed,
+				chatSettings,
+				shellIntegrationTimeout,
+				terminalReuseEnabled,
+				defaultTerminalProfile,
+			}
 		} catch (error) {
 			console.error("Failed to update settings:", error)
 		}

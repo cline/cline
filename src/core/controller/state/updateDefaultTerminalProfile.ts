@@ -11,6 +11,11 @@ export async function updateDefaultTerminalProfile(
 	// Update the terminal profile in the state
 	await updateGlobalState(controller.context, "defaultTerminalProfile", profileId)
 
+	// Update the terminal manager of the current task if it exists
+	if (controller.task) {
+		controller.task.terminalManager.setDefaultTerminalProfile(profileId)
+	}
+
 	// Broadcast state update to all webviews
 	await controller.postStateToWebview()
 
