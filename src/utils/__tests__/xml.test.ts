@@ -117,35 +117,47 @@ describe("parseXml", () => {
 
 	describe("error handling", () => {
 		it("wraps parser errors with a descriptive message", () => {
-			// Use jest.spyOn to mock the XMLParser implementation
+			// Create a mock implementation that throws an error
 			const mockParseFn = jest.fn().mockImplementation(() => {
 				throw new Error("Simulated parsing error")
 			})
 
+			// Create a mock parser instance
 			const mockParserInstance = {
 				parse: mockParseFn,
 			}
 
-			// Spy on the XMLParser constructor to return our mock
-			const parserSpy = jest
-				.spyOn(require("fast-xml-parser"), "XMLParser")
-				.mockImplementation(() => mockParserInstance)
+			// Create a mock constructor function
+			const MockXMLParser = jest.fn().mockImplementation(() => mockParserInstance)
 
-			// Test that our function wraps the error appropriately
-			expect(() => parseXml("<root></root>")).toThrow("Failed to parse XML: Simulated parsing error")
+			// Save the original XMLParser
+			const { XMLParser } = jest.requireActual("fast-xml-parser")
 
-			// Verify the parser was called with the expected options
-			expect(parserSpy).toHaveBeenCalledWith({
-				ignoreAttributes: false,
-				attributeNamePrefix: "@_",
-				parseAttributeValue: false,
-				parseTagValue: false,
-				trimValues: true,
-				stopNodes: [],
+			// Replace the XMLParser with our mock
+			jest.doMock("fast-xml-parser", () => ({
+				XMLParser: MockXMLParser,
+			}))
+
+			// Import the module with our mocked dependency
+			jest.isolateModules(() => {
+				const { parseXml } = require("../xml")
+
+				// Test that our function wraps the error appropriately
+				expect(() => parseXml("<root></root>")).toThrow("Failed to parse XML: Simulated parsing error")
+
+				// Verify the parser was called with the expected options
+				expect(MockXMLParser).toHaveBeenCalledWith({
+					ignoreAttributes: false,
+					attributeNamePrefix: "@_",
+					parseAttributeValue: false,
+					parseTagValue: false,
+					trimValues: true,
+					stopNodes: [],
+				})
 			})
 
-			// Cleanup
-			parserSpy.mockRestore()
+			// Restore the original module
+			jest.dontMock("fast-xml-parser")
 		})
 	})
 })
