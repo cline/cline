@@ -187,4 +187,8 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 71;
+
+  // OpenAI configs (stored as JSON string)
+  optional string open_ai_configs = 72;
+  optional int32 open_ai_selected_config_index = 73;
 }

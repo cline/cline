@@ -94,5 +94,9 @@ export type GlobalStateKey =
 	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
 	| "isNewUser"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
 
 export type LocalStateKey = "localClineRulesToggles"
