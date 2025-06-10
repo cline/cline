@@ -19,8 +19,14 @@ export async function getRequestyModels(apiKey?: string): Promise<Record<string,
 		const rawModels = response.data.data
 
 		for (const rawModel of rawModels) {
-			const reasoningBudget = rawModel.supports_reasoning && rawModel.id.includes("claude")
-			const reasoningEffort = rawModel.supports_reasoning && rawModel.id.includes("openai")
+			const reasoningBudget =
+				rawModel.supports_reasoning &&
+				(rawModel.id.includes("claude") ||
+					rawModel.id.includes("coding/gemini-2.5") ||
+					rawModel.id.includes("vertex/gemini-2.5"))
+			const reasoningEffort =
+				rawModel.supports_reasoning &&
+				(rawModel.id.includes("openai") || rawModel.id.includes("google/gemini-2.5"))
 
 			const modelInfo: ModelInfo = {
 				maxTokens: rawModel.max_output_tokens,
