@@ -19,7 +19,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { WatchServiceClient } from "../../standalone/services/host-grpc-client"
+import { WatchServiceClient } from "@hosts/host-bridge-client"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { Metadata } from "../../shared/proto/common"
 import {
