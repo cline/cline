@@ -1,40 +1,24 @@
 import React from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest } from "@shared/proto/state"
+import { Int64, Int64Request } from "@shared/proto/common"
 
 const TerminalOutputLineLimitSlider: React.FC = () => {
-	const { terminalOutputLineLimit, setTerminalOutputLineLimit, ...state } = useExtensionState()
+	const { terminalOutputLineLimit, setTerminalOutputLineLimit } = useExtensionState()
 
-	const handleSliderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setTerminalOutputLineLimit(value)
 
-		// Import the conversion functions
-		const { convertApiConfigurationToProtoApiConfiguration } = await import(
-			"@shared/proto-conversions/state/settings-conversion"
-		)
-		const { convertChatSettingsToProtoChatSettings } = await import(
-			"@shared/proto-conversions/state/chat-settings-conversion"
-		)
-
-		StateServiceClient.updateSettings(
-			UpdateSettingsRequest.create({
-				terminalOutputLineLimit: value,
-				apiConfiguration: state.apiConfiguration
-					? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
-					: undefined,
-				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: state.telemetrySetting,
-				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-				enableCheckpointsSetting: state.enableCheckpointsSetting,
-				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-				chatSettings: state.chatSettings ? convertChatSettingsToProtoChatSettings(state.chatSettings) : undefined,
-				shellIntegrationTimeout: state.shellIntegrationTimeout,
-				terminalReuseEnabled: state.terminalReuseEnabled,
-				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-			}),
-		)
+		StateServiceClient.updateTerminalOutputLinesLimit({
+			value,
+		} as Int64Request)
+			.then((response: Int64) => {
+				setTerminalOutputLineLimit(response.value)
+			})
+			.catch((error) => {
+				console.error("Failed to update terminal output line limit:", error)
+			})
 	}
 
 	return (
@@ -46,9 +30,9 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 				<input
 					type="range"
 					id="terminal-output-limit"
-					min="50"
-					max="2000"
-					step="50"
+					min="100"
+					max="5000"
+					step="100"
 					value={terminalOutputLineLimit ?? 500}
 					onChange={handleSliderChange}
 					style={{ flexGrow: 1, marginRight: "1rem" }}

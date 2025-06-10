@@ -187,7 +187,6 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
-	private terminalOutputLineLimit?: number
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -204,7 +203,7 @@ export class Task {
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
-		terminalOutputLineLimit: number | undefined,
+		terminalOutputLineLimit: number,
 		enableCheckpointsSetting: boolean,
 		customInstructions?: string,
 		task?: string,
@@ -225,6 +224,7 @@ export class Task {
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
+		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
@@ -234,7 +234,6 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
-		this.terminalOutputLineLimit = terminalOutputLineLimit
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -1493,14 +1492,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		let result = outputLines.join("\n").trim()
-
-		if (this.terminalOutputLineLimit && outputLines.length > this.terminalOutputLineLimit) {
-			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			result = `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
-		}
+		let result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)

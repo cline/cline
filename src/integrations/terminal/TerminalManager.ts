@@ -95,6 +95,7 @@ export class TerminalManager {
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout: number = 4000
 	private terminalReuseEnabled: boolean = true
+	private terminalOutputLineLimit: number = 500
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -317,5 +318,19 @@ export class TerminalManager {
 
 	setTerminalReuseEnabled(enabled: boolean): void {
 		this.terminalReuseEnabled = enabled
+	}
+
+	setTerminalOutputLineLimit(limit: number): void {
+		this.terminalOutputLineLimit = limit
+	}
+
+	public processOutput(outputLines: string[]): string {
+		if (outputLines.length > this.terminalOutputLineLimit) {
+			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
+			const start = outputLines.slice(0, halfLimit)
+			const end = outputLines.slice(outputLines.length - halfLimit)
+			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
+		}
+		return outputLines.join("\n").trim()
 	}
 }
