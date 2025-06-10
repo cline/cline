@@ -1,4 +1,0 @@
-mcp
-uvicorn
-starlette
-anyio
