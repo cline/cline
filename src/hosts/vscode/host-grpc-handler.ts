@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
 import { hostServiceHandlers } from "./host-grpc-service-config"
-import { GrpcRequestRegistry } from "../../src/core/controller/grpc-request-registry"
+import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
 /**
  * Type definition for a streaming response handler

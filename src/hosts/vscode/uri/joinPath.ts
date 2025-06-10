@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { JoinPathRequest, Uri } from "../../../src/shared/proto/host/uri"
+import { JoinPathRequest, Uri } from "@shared/proto/host/uri"
 
 /**
  * Joins a URI with additional path segments

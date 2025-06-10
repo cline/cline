@@ -3,7 +3,7 @@ import { RelativePathsRequest, RelativePaths } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
-import { UriServiceClient } from "../../../standalone/services/host-grpc-client"
+import { UriServiceClient } from "@hosts/host-bridge-client"
 import { Metadata, StringRequest } from "@shared/proto/common"
 
 /**

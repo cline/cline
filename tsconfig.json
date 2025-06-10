@@ -24,6 +24,7 @@
 			"@/*": ["src/*"],
 			"@api/*": ["src/api/*"],
 			"@core/*": ["src/core/*"],
+			"@hosts/*": ["src/hosts/*"],
 			"@integrations/*": ["src/integrations/*"],
 			"@services/*": ["src/services/*"],
 			"@shared/*": ["src/shared/*"],
