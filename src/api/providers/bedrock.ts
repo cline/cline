@@ -35,6 +35,59 @@ interface ExtendedMetadata {
 	}
 }
 
+// Define types for stream response content blocks
+interface ContentBlockStart {
+	contentBlockIndex?: number
+	start?: {
+		type?: string
+		thinking?: string
+	}
+	contentBlock?: {
+		type?: string
+		thinking?: string
+	}
+	type?: string
+	thinking?: string
+}
+
+// Define types for stream response deltas
+interface ContentBlockDelta {
+	contentBlockIndex?: number
+	delta?: {
+		type?: string
+		thinking?: string
+		text?: string
+		reasoningContent?: {
+			text?: string
+		}
+	}
+}
+
+// Define types for supported content types
+type SupportedContentType = "text" | "image" | "thinking"
+
+interface ContentItem {
+	type: SupportedContentType
+	text?: string
+	source?: {
+		data: string | Buffer | Uint8Array
+		media_type?: string
+	}
+}
+
+// Define cache point type for AWS Bedrock
+interface CachePointContentBlock {
+	cachePoint: {
+		type: "default"
+	}
+}
+
+// Define provider options type based on AWS SDK patterns
+interface ProviderChainOptions {
+	ignoreCache?: boolean
+	profile?: string
+}
+
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -107,7 +160,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		sessionToken?: string
 	}> {
 		// Configure provider options
-		const providerOptions: any = {}
+		const providerOptions: ProviderChainOptions = {}
 		if (this.options.awsUseProfile) {
 			// For profile-based auth, always use ignoreCache to detect credential file changes
 			// This solves the AWS Identity Manager issue where credential files change externally
@@ -461,7 +514,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 					// Handle content block start - check if Bedrock uses Anthropic SDK format
 					if (chunk.contentBlockStart) {
-						const blockStart = chunk.contentBlockStart as any
+						const blockStart = chunk.contentBlockStart as ContentBlockStart
 						const blockIndex = chunk.contentBlockStart.contentBlockIndex
 
 						// Check for thinking block in various possible formats
@@ -497,7 +550,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 							// Check if this is a thinking block
 							const blockType = blockTypes.get(blockIndex)
-							const delta = chunk.contentBlockDelta.delta as any
+							const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
 
 							// Handle thinking delta (Anthropic SDK format)
 							if (delta?.type === "thinking_delta" || delta?.thinking) {
@@ -727,7 +780,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 
 						// Log unsupported content types for debugging
-						console.warn(`Unsupported content type: ${(item as any).type}`)
+						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
 						return null
 					})
 					.filter((item): item is ContentBlock => item !== null)
@@ -771,7 +824,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
 			} else if (item.source.data && typeof item.source.data === "object") {
 				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as any))
+				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
 			} else {
 				throw new Error("Unsupported image data format")
 			}
@@ -817,7 +870,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							cachePoint: {
 								type: "default",
 							},
-						} as any, // Type assertion needed for AWS SDK compatibility
+						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
 					]
 				}
 
