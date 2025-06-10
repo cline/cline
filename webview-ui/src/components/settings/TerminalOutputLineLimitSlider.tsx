@@ -4,14 +4,37 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { UpdateSettingsRequest } from "@shared/proto/state"
 
 const TerminalOutputLineLimitSlider: React.FC = () => {
-	const { terminalOutputLineLimit, setTerminalOutputLineLimit } = useExtensionState()
+	const { terminalOutputLineLimit, setTerminalOutputLineLimit, ...state } = useExtensionState()
 
-	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleSliderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setTerminalOutputLineLimit(value)
-		StateServiceClient.updateSettings({
-			terminalOutputLineLimit: value,
-		} as UpdateSettingsRequest)
+
+		// Import the conversion functions
+		const { convertApiConfigurationToProtoApiConfiguration } = await import(
+			"@shared/proto-conversions/state/settings-conversion"
+		)
+		const { convertChatSettingsToProtoChatSettings } = await import(
+			"@shared/proto-conversions/state/chat-settings-conversion"
+		)
+
+		StateServiceClient.updateSettings(
+			UpdateSettingsRequest.create({
+				terminalOutputLineLimit: value,
+				apiConfiguration: state.apiConfiguration
+					? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
+					: undefined,
+				customInstructionsSetting: state.customInstructions,
+				telemetrySetting: state.telemetrySetting,
+				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+				enableCheckpointsSetting: state.enableCheckpointsSetting,
+				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				chatSettings: state.chatSettings ? convertChatSettingsToProtoChatSettings(state.chatSettings) : undefined,
+				shellIntegrationTimeout: state.shellIntegrationTimeout,
+				terminalReuseEnabled: state.terminalReuseEnabled,
+				mcpResponsesCollapsed: state.mcpResponsesCollapsed,
+			}),
+		)
 	}
 
 	return (
