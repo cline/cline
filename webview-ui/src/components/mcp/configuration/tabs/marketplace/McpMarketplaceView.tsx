@@ -20,7 +20,7 @@ const McpMarketplaceView = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name" | "downloadCount">("downloadCount")
+	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name" | "downloadCount">("newest")
 
 	const items = mcpMarketplaceCatalog?.items || []
 
