@@ -10,7 +10,7 @@ on:
 
 jobs:
     check-translations:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
               run: node scripts/find-missing-translations.js
 
     knip:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
               run: pnpm knip
 
     compile:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -41,11 +41,16 @@ jobs:
             - name: Check types
               run: pnpm check-types
 
-    platform-unit-test:
+    unit-test:
+        name: platform-unit-test (${{ matrix.name }})
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                include:
+                    - os: blacksmith-4vcpu-ubuntu-2404
+                      name: ubuntu-latest
+                    - os: windows-latest
+                      name: windows-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -70,7 +75,7 @@ jobs:
                   fi
 
     integration-test:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         needs: [check-openrouter-api-key]
         if: needs.check-openrouter-api-key.outputs.exists == 'true'
         steps:
@@ -87,7 +92,7 @@ jobs:
 
     notify-slack-on-failure:
         runs-on: ubuntu-latest
-        needs: [check-translations, knip, compile, platform-unit-test, integration-test]
+        needs: [check-translations, knip, compile, unit-test, integration-test]
         if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(needs.*.result, 'failure') }}
         steps:
             - name: Checkout code
