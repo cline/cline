@@ -383,7 +383,7 @@
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"google-auth-library": "^9.15.1",
-		"i18next": "^24.2.2",
+		"i18next": "^25.0.0",
 		"ignore": "^7.0.3",
 		"isbinaryfile": "^5.0.2",
 		"lodash.debounce": "^4.0.8",
