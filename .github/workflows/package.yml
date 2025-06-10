@@ -49,20 +49,34 @@ jobs:
             - name: Install vsce
               run: npm install -g vsce
 
-            - name: Package Extension
+            - name: Extract version from package.json
+              id: get_version
+              run: |
+                  VERSION=$(jq -r '.version' package.json)
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "Version extracted: $VERSION"
+
+            - name: Package Extension (Latest)
               env:
                   CI: false
               run: vsce package --out "cline-latest.vsix"
 
-            - name: Upload VSIX as Artifact
+            - name: Package Extension (Versioned)
+              env:
+                  CI: false
+              run: vsce package --out "cline-v${{ steps.get_version.outputs.version }}.vsix"
+
+            - name: Upload VSIX as Artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: cline-latest
-                  path: cline-latest.vsix
+                  name: cline-packages
+                  path: |
+                      cline-latest.vsix
+                      cline-v${{ steps.get_version.outputs.version }}.vsix
 
             # This will make the VSIX available at:
             # https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
-            - name: Upload VSIX to Release
+            - name: Upload VSIX to Latest Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
@@ -77,3 +91,25 @@ jobs:
                     --notes "Latest automated build from branch ${{ github.ref_name }}" \
                     --target ${{ github.sha }} \
                     cline-latest.vsix
+
+            # This will make the VSIX available at:
+            # https://github.com/wingsuitist/cline/releases/download/v{version}/cline-v{version}.vsix
+            - name: Upload VSIX to Versioned Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  VERSION="${{ steps.get_version.outputs.version }}"
+                  TAG="v$VERSION"
+                  FILENAME="cline-v$VERSION.vsix"
+
+                  # Delete existing versioned release and tag if they exist
+                  gh release delete "$TAG" --yes || true
+                  git tag -d "$TAG" || true
+                  git push origin ":refs/tags/$TAG" || true
+
+                  # Create new versioned release with VSIX as asset
+                  gh release create "$TAG" \
+                    --title "Release v$VERSION" \
+                    --notes "Automated build for version $VERSION from branch ${{ github.ref_name }}" \
+                    --target ${{ github.sha }} \
+                    "$FILENAME"
