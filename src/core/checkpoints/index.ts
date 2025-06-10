@@ -24,7 +24,7 @@ export function getCheckpointService(cline: Task) {
 	}
 
 	if (cline.checkpointServiceInitializing) {
-		console.log("[Cline#getCheckpointService] checkpoint service is still initializing")
+		console.log("[Task#getCheckpointService] checkpoint service is still initializing")
 		return undefined
 	}
 
@@ -40,13 +40,13 @@ export function getCheckpointService(cline: Task) {
 		}
 	}
 
-	console.log("[Cline#getCheckpointService] initializing checkpoints service")
+	console.log("[Task#getCheckpointService] initializing checkpoints service")
 
 	try {
 		const workspaceDir = getWorkspacePath()
 
 		if (!workspaceDir) {
-			log("[Cline#getCheckpointService] workspace folder not found, disabling checkpoints")
+			log("[Task#getCheckpointService] workspace folder not found, disabling checkpoints")
 			cline.enableCheckpoints = false
 			return undefined
 		}
@@ -54,7 +54,7 @@ export function getCheckpointService(cline: Task) {
 		const globalStorageDir = provider?.context.globalStorageUri.fsPath
 
 		if (!globalStorageDir) {
-			log("[Cline#getCheckpointService] globalStorageDir not found, disabling checkpoints")
+			log("[Task#getCheckpointService] globalStorageDir not found, disabling checkpoints")
 			cline.enableCheckpoints = false
 			return undefined
 		}
@@ -71,7 +71,7 @@ export function getCheckpointService(cline: Task) {
 		cline.checkpointServiceInitializing = true
 
 		service.on("initialize", () => {
-			log("[Cline#getCheckpointService] service initialized")
+			log("[Task#getCheckpointService] service initialized")
 
 			try {
 				const isCheckpointNeeded =
@@ -81,11 +81,11 @@ export function getCheckpointService(cline: Task) {
 				cline.checkpointServiceInitializing = false
 
 				if (isCheckpointNeeded) {
-					log("[Cline#getCheckpointService] no checkpoints found, saving initial checkpoint")
+					log("[Task#getCheckpointService] no checkpoints found, saving initial checkpoint")
 					checkpointSave(cline)
 				}
 			} catch (err) {
-				log("[Cline#getCheckpointService] caught error in on('initialize'), disabling checkpoints")
+				log("[Task#getCheckpointService] caught error in on('initialize'), disabling checkpoints")
 				cline.enableCheckpoints = false
 			}
 		})
@@ -99,30 +99,26 @@ export function getCheckpointService(cline: Task) {
 						isNonInteractive: true,
 					})
 					.catch((err) => {
-						log("[Cline#getCheckpointService] caught unexpected error in say('checkpoint_saved')")
+						log("[Task#getCheckpointService] caught unexpected error in say('checkpoint_saved')")
 						console.error(err)
 					})
 			} catch (err) {
-				log("[Cline#getCheckpointService] caught unexpected error in on('checkpoint'), disabling checkpoints")
+				log("[Task#getCheckpointService] caught unexpected error in on('checkpoint'), disabling checkpoints")
 				console.error(err)
 				cline.enableCheckpoints = false
 			}
 		})
 
-		log("[Cline#getCheckpointService] initializing shadow git")
+		log("[Task#getCheckpointService] initializing shadow git")
 
 		service.initShadowGit().catch((err) => {
-			log(
-				`[Cline#getCheckpointService] caught unexpected error in initShadowGit, disabling checkpoints (${err.message})`,
-			)
-
-			console.error(err)
+			log(`[Task#getCheckpointService] initShadowGit -> ${err.message}`)
 			cline.enableCheckpoints = false
 		})
 
 		return service
 	} catch (err) {
-		log("[Cline#getCheckpointService] caught unexpected error, disabling checkpoints")
+		log(`[Task#getCheckpointService] ${err.message}`)
 		cline.enableCheckpoints = false
 		return undefined
 	}
@@ -141,7 +137,7 @@ async function getInitializedCheckpointService(
 	try {
 		await pWaitFor(
 			() => {
-				console.log("[Cline#getCheckpointService] waiting for service to initialize")
+				console.log("[Task#getCheckpointService] waiting for service to initialize")
 				return service.isInitialized
 			},
 			{ interval, timeout },
@@ -171,7 +167,7 @@ export async function checkpointSave(cline: Task, force = false) {
 
 	// Start the checkpoint process in the background.
 	return service.saveCheckpoint(`Task: ${cline.taskId}, Time: ${Date.now()}`, { allowEmpty: force }).catch((err) => {
-		console.error("[Cline#checkpointSave] caught unexpected error, disabling checkpoints", err)
+		console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
 		cline.enableCheckpoints = false
 	})
 }

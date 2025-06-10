@@ -10,7 +10,6 @@ import pWaitFor from "p-wait-for"
 import { fileExistsAtPath } from "../../utils/fs"
 import { executeRipgrep } from "../../services/search/file-search"
 
-import { GIT_DISABLED_SUFFIX } from "./constants"
 import { CheckpointDiff, CheckpointResult, CheckpointEventMap } from "./types"
 import { getExcludePatterns } from "./excludes"
 
@@ -63,6 +62,15 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 	public async initShadowGit(onInit?: () => Promise<void>) {
 		if (this.git) {
 			throw new Error("Shadow git repo already initialized")
+		}
+
+		const hasNestedGitRepos = await this.hasNestedGitRepositories()
+
+		if (hasNestedGitRepos) {
+			throw new Error(
+				"Checkpoints are disabled because nested git repositories were detected in the workspace. " +
+					"Please remove or relocate nested git repositories to use the checkpoints feature.",
+			)
 		}
 
 		await fs.mkdir(this.checkpointsDir, { recursive: true })
@@ -132,71 +140,43 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 	}
 
 	private async stageAll(git: SimpleGit) {
-		await this.renameNestedGitRepos(true)
-
 		try {
 			await git.add(".")
 		} catch (error) {
 			this.log(
 				`[${this.constructor.name}#stageAll] failed to add files to git: ${error instanceof Error ? error.message : String(error)}`,
 			)
-		} finally {
-			await this.renameNestedGitRepos(false)
 		}
 	}
 
-	// Since we use git to track checkpoints, we need to temporarily disable
-	// nested git repos to work around git's requirement of using submodules for
-	// nested repos.
-	private async renameNestedGitRepos(disable: boolean) {
+	private async hasNestedGitRepositories(): Promise<boolean> {
 		try {
 			// Find all .git directories that are not at the root level.
-			const gitDir = ".git" + (disable ? "" : GIT_DISABLED_SUFFIX)
-			const args = ["--files", "--hidden", "--follow", "-g", `**/${gitDir}/HEAD`, this.workspaceDir]
+			const args = ["--files", "--hidden", "--follow", "-g", "**/.git/HEAD", this.workspaceDir]
 
-			const gitPaths = await (
-				await executeRipgrep({ args, workspacePath: this.workspaceDir })
-			).filter(({ type, path }) => type === "folder" && path.includes(".git") && !path.startsWith(".git"))
+			const gitPaths = await executeRipgrep({ args, workspacePath: this.workspaceDir })
 
-			// For each nested .git directory, rename it based on operation.
-			for (const gitPath of gitPaths) {
-				if (gitPath.path.startsWith(".git")) {
-					continue
-				}
+			// Filter to only include nested git directories (not the root .git).
+			const nestedGitPaths = gitPaths.filter(
+				({ type, path }) =>
+					type === "folder" && path.includes(".git") && !path.startsWith(".git") && path !== ".git",
+			)
 
-				const currentPath = path.join(this.workspaceDir, gitPath.path)
-				let newPath: string
-
-				if (disable) {
-					newPath = !currentPath.endsWith(GIT_DISABLED_SUFFIX)
-						? currentPath + GIT_DISABLED_SUFFIX
-						: currentPath
-				} else {
-					newPath = currentPath.endsWith(GIT_DISABLED_SUFFIX)
-						? currentPath.slice(0, -GIT_DISABLED_SUFFIX.length)
-						: currentPath
-				}
-
-				if (currentPath === newPath) {
-					continue
-				}
-
-				try {
-					await fs.rename(currentPath, newPath)
-
-					this.log(
-						`[${this.constructor.name}#renameNestedGitRepos] ${disable ? "disabled" : "enabled"} nested git repo ${currentPath}`,
-					)
-				} catch (error) {
-					this.log(
-						`[${this.constructor.name}#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repo ${currentPath}: ${error instanceof Error ? error.message : String(error)}`,
-					)
-				}
+			if (nestedGitPaths.length > 0) {
+				this.log(
+					`[${this.constructor.name}#hasNestedGitRepositories] found ${nestedGitPaths.length} nested git repositories: ${nestedGitPaths.map((p) => p.path).join(", ")}`,
+				)
+				return true
 			}
+
+			return false
 		} catch (error) {
 			this.log(
-				`[${this.constructor.name}#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repos: ${error instanceof Error ? error.message : String(error)}`,
+				`[${this.constructor.name}#hasNestedGitRepositories] failed to check for nested git repos: ${error instanceof Error ? error.message : String(error)}`,
 			)
+
+			// If we can't check, assume there are no nested repos to avoid blocking the feature.
+			return false
 		}
 	}
 

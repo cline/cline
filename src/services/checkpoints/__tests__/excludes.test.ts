@@ -6,7 +6,6 @@ import { join } from "path"
 import { fileExistsAtPath } from "../../../utils/fs"
 
 import { getExcludePatterns } from "../excludes"
-import { GIT_DISABLED_SUFFIX } from "../constants"
 
 jest.mock("fs/promises")
 
@@ -54,7 +53,6 @@ readme.md text
 
 			// Verify all normal patterns also exist
 			expect(excludePatterns).toContain(".git/")
-			expect(excludePatterns).toContain(`.git${GIT_DISABLED_SUFFIX}/`)
 		})
 
 		it("should handle .gitattributes with no LFS patterns", async () => {
@@ -89,7 +87,6 @@ readme.md text
 
 			// Verify default patterns are included
 			expect(excludePatterns).toContain(".git/")
-			expect(excludePatterns).toContain(`.git${GIT_DISABLED_SUFFIX}/`)
 		})
 
 		it("should handle missing .gitattributes file", async () => {
@@ -107,7 +104,6 @@ readme.md text
 
 			// Verify standard patterns are included
 			expect(excludePatterns).toContain(".git/")
-			expect(excludePatterns).toContain(`.git${GIT_DISABLED_SUFFIX}/`)
 
 			// Verify we have standard patterns but no LFS patterns
 			// Check for a few known patterns from different categories
@@ -139,7 +135,6 @@ readme.md text
 
 			// Verify standard patterns are included
 			expect(excludePatterns).toContain(".git/")
-			expect(excludePatterns).toContain(`.git${GIT_DISABLED_SUFFIX}/`)
 
 			// Verify we have standard patterns but no LFS patterns
 			// Check for a few known patterns from different categories

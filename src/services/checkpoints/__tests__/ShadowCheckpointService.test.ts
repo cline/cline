@@ -380,8 +380,8 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 			})
 		})
 
-		describe(`${klass.name}#renameNestedGitRepos`, () => {
-			it("handles nested git repositories during initialization", async () => {
+		describe(`${klass.name}#hasNestedGitRepositories`, () => {
+			it("throws error when nested git repositories are detected during initialization", async () => {
 				// Create a new temporary workspace and service for this test.
 				const shadowDir = path.join(tmpDir, `${prefix}-nested-git-${Date.now()}`)
 				const workspaceDir = path.join(tmpDir, `workspace-nested-git-${Date.now()}`)
@@ -417,11 +417,7 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				const nestedGitDir = path.join(nestedRepoPath, ".git")
 				const headFile = path.join(nestedGitDir, "HEAD")
 				await fs.writeFile(headFile, "HEAD")
-				const nestedGitDisabledDir = `${nestedGitDir}_disabled`
 				expect(await fileExistsAtPath(nestedGitDir)).toBe(true)
-				expect(await fileExistsAtPath(nestedGitDisabledDir)).toBe(false)
-
-				const renameSpy = jest.spyOn(fs, "rename")
 
 				jest.spyOn(fileSearch, "executeRipgrep").mockImplementation(({ args }) => {
 					const searchPattern = args[4]
@@ -440,29 +436,48 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				})
 
 				const service = new klass(taskId, shadowDir, workspaceDir, () => {})
-				await service.initShadowGit()
 
-				// Verify rename was called with correct paths.
-				expect(renameSpy.mock.calls).toHaveLength(1)
-				expect(renameSpy.mock.calls[0][0]).toBe(nestedGitDir)
-				expect(renameSpy.mock.calls[0][1]).toBe(nestedGitDisabledDir)
-
-				jest.spyOn(require("../../../utils/fs"), "fileExistsAtPath").mockImplementation((path) => {
-					if (path === nestedGitDir) {
-						return Promise.resolve(true)
-					} else if (path === nestedGitDisabledDir) {
-						return Promise.resolve(false)
-					}
-
-					return Promise.resolve(false)
-				})
-
-				// Verify the nested git directory is back to normal after initialization.
-				expect(await fileExistsAtPath(nestedGitDir)).toBe(true)
-				expect(await fileExistsAtPath(nestedGitDisabledDir)).toBe(false)
+				// Verify that initialization throws an error when nested git repos are detected
+				await expect(service.initShadowGit()).rejects.toThrow(
+					"Checkpoints are disabled because nested git repositories were detected in the workspace",
+				)
 
 				// Clean up.
-				renameSpy.mockRestore()
+				jest.restoreAllMocks()
+				await fs.rm(shadowDir, { recursive: true, force: true })
+				await fs.rm(workspaceDir, { recursive: true, force: true })
+			})
+
+			it("succeeds when no nested git repositories are detected", async () => {
+				// Create a new temporary workspace and service for this test.
+				const shadowDir = path.join(tmpDir, `${prefix}-no-nested-git-${Date.now()}`)
+				const workspaceDir = path.join(tmpDir, `workspace-no-nested-git-${Date.now()}`)
+
+				// Create a primary workspace repo without any nested repos.
+				await fs.mkdir(workspaceDir, { recursive: true })
+				const mainGit = simpleGit(workspaceDir)
+				await mainGit.init()
+				await mainGit.addConfig("user.name", "Roo Code")
+				await mainGit.addConfig("user.email", "support@roocode.com")
+
+				// Create a test file in the main workspace.
+				const mainFile = path.join(workspaceDir, "main-file.txt")
+				await fs.writeFile(mainFile, "Content in main repo")
+				await mainGit.add(".")
+				await mainGit.commit("Initial commit in main repo")
+
+				jest.spyOn(fileSearch, "executeRipgrep").mockImplementation(() => {
+					// Return empty array to simulate no nested git repos found
+					return Promise.resolve([])
+				})
+
+				const service = new klass(taskId, shadowDir, workspaceDir, () => {})
+
+				// Verify that initialization succeeds when no nested git repos are detected
+				await expect(service.initShadowGit()).resolves.not.toThrow()
+				expect(service.isInitialized).toBe(true)
+
+				// Clean up.
 				jest.restoreAllMocks()
 				await fs.rm(shadowDir, { recursive: true, force: true })
 				await fs.rm(workspaceDir, { recursive: true, force: true })

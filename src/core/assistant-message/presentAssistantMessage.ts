@@ -51,7 +51,7 @@ import { codebaseSearchTool } from "../tools/codebaseSearchTool"
 
 export async function presentAssistantMessage(cline: Task) {
 	if (cline.abort) {
-		throw new Error(`[Cline#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
+		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
 	}
 
 	if (cline.presentAssistantMessageLocked) {
