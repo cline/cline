@@ -105,7 +105,7 @@ import {
 	getLocalCursorRules,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
-import { getGlobalState } from "@core/storage/state"
+import { getWorkspaceState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -3713,7 +3713,7 @@ export class Task {
 								const clineVersion =
 									vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 								const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-								const providerAndModel = `${(await getGlobalState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
+								const providerAndModel = `${(await getWorkspaceState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
 
 								// Ask user for confirmation
 								const bugReportData = JSON.stringify({
@@ -4227,7 +4227,7 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const currentProviderId = (await getWorkspaceState(this.getContext(), "apiProvider")) as string
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
