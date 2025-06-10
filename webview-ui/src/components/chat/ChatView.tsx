@@ -1058,7 +1058,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const placeholderText = useMemo(() => {
 		// <letsboot.ch fork change>
-		const text = task ? "Type a message... (letsboot fork v3.17.5)" : "Type your task here... (letsboot fork v3.17.5)"
+		const text = task ? "Type a message... (letsboot fork v3.17.12)" : "Type your task here... (letsboot fork v3.17.12)"
 		// </letsboot.ch fork change>
 		return text
 	}, [task])
