@@ -36,12 +36,14 @@ if (nativeModules.length > 0) {
 // Zip the build directory (excluding any pre-existing output zip).
 const zipPath = path.join(BUILD_DIR, "standalone.zip")
 const output = fs.createWriteStream(zipPath)
-const archive = archiver("zip", { zlib: { level: 9 } })
+const archive = archiver("zip", { zlib: { level: 3 } })
 
 output.on("close", () => {
 	console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
 })
-
+archive.on("warning", (err) => {
+	console.warn(`Warning: ${err}`)
+})
 archive.on("error", (err) => {
 	throw err
 })
@@ -51,4 +53,20 @@ archive.glob("**/*", {
 	cwd: BUILD_DIR,
 	ignore: ["standalone.zip"],
 })
+
+// Add the whole cline directory under "extension"
+archive.directory(process.cwd(), "extension", (entry) => {
+	// Skip certain directories
+	if (
+		entry.name.startsWith(BUILD_DIR + "/") ||
+		entry.name.startsWith("node_modules/") || // node_modules nearly 1GB.
+		entry.name.startsWith("webview-ui/node_modules/") || // node_modules nearly 1GB.
+		entry.name.match(/(^|\/)\./) // exclude dot directories
+	) {
+		return false
+	}
+	return entry
+})
+
+console.log("Zipping package...")
 await archive.finalize()
