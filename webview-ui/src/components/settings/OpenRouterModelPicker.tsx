@@ -52,7 +52,7 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-3-beta",
+		id: "x-ai/grok-3",
 		description: "Latest flagship model from xAI, free for now!",
 		label: "Free",
 	},
