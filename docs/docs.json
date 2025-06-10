@@ -55,63 +55,63 @@
 	"navigation": {
 		"versions": [
 			{
-				"version": "3.17",
+				"version": "Version 3.17",
 				"groups": [
 					{
 						"group": "Getting Started",
 						"pages": [
-							"v1/getting-started/for-new-coders",
-							"v1/getting-started/installing-cline",
-							"v1/getting-started/installing-dev-essentials",
-							"v1/getting-started/model-selection-guide",
-							"v1/getting-started/our-favorite-tech-stack",
-							"v1/getting-started/task-management",
-							"v1/getting-started/understanding-context-management",
-							"v1/getting-started/what-is-cline"
+							"3.17/getting-started/for-new-coders",
+							"3.17/getting-started/installing-cline",
+							"3.17/getting-started/installing-dev-essentials",
+							"3.17/getting-started/model-selection-guide",
+							"3.17/getting-started/our-favorite-tech-stack",
+							"3.17/getting-started/task-management",
+							"3.17/getting-started/understanding-context-management",
+							"3.17/getting-started/what-is-cline"
 						]
 					},
 					{
 						"group": "Improving Your Prompting Skills",
-						"pages": ["v1/prompting/prompt-engineering-guide", "v1/prompting/cline-memory-bank"]
+						"pages": ["3.17/prompting/prompt-engineering-guide", "3.17/prompting/cline-memory-bank"]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							"v1/features/auto-approve",
-							"v1/features/checkpoints",
-							"v1/features/cline-rules",
-							"v1/features/drag-and-drop",
-							"v1/features/plan-and-act",
-							"v1/features/slash-commands/workflows",
-							"v1/features/editing-messages",
+							"3.17/features/auto-approve",
+							"3.17/features/checkpoints",
+							"3.17/features/cline-rules",
+							"3.17/features/drag-and-drop",
+							"3.17/features/plan-and-act",
+							"3.17/features/slash-commands/workflows",
+							"3.17/features/editing-messages",
 							{
 								"group": "@ Mentions",
 								"pages": [
-									"v1/features/at-mentions/overview",
-									"v1/features/at-mentions/file-mentions",
-									"v1/features/at-mentions/terminal-mentions",
-									"v1/features/at-mentions/problem-mentions",
-									"v1/features/at-mentions/git-mentions",
-									"v1/features/at-mentions/url-mentions"
+									"3.17/features/at-mentions/overview",
+									"3.17/features/at-mentions/file-mentions",
+									"3.17/features/at-mentions/terminal-mentions",
+									"3.17/features/at-mentions/problem-mentions",
+									"3.17/features/at-mentions/git-mentions",
+									"3.17/features/at-mentions/url-mentions"
 								]
 							},
 							{
 								"group": "Slash Commands",
 								"pages": [
-									"v1/features/slash-commands/new-task",
-									"v1/features/slash-commands/new-rule",
-									"v1/features/slash-commands/smol",
-									"v1/features/slash-commands/report-bug"
+									"3.17/features/slash-commands/new-task",
+									"3.17/features/slash-commands/new-rule",
+									"3.17/features/slash-commands/smol",
+									"3.17/features/slash-commands/report-bug"
 								]
 							},
 							{
 								"group": "Commands & Shortcuts",
 								"pages": [
-									"v1/features/commands-and-shortcuts/overview",
-									"v1/features/commands-and-shortcuts/code-commands",
-									"v1/features/commands-and-shortcuts/terminal-integration",
-									"v1/features/commands-and-shortcuts/git-integration",
-									"v1/features/commands-and-shortcuts/keyboard-shortcuts"
+									"3.17/features/commands-and-shortcuts/overview",
+									"3.17/features/commands-and-shortcuts/code-commands",
+									"3.17/features/commands-and-shortcuts/terminal-integration",
+									"3.17/features/commands-and-shortcuts/git-integration",
+									"3.17/features/commands-and-shortcuts/keyboard-shortcuts"
 								]
 							}
 						]
@@ -119,62 +119,62 @@
 					{
 						"group": "Exploring Cline's Tools",
 						"pages": [
-							"v1/exploring-clines-tools/cline-tools-guide",
-							"v1/exploring-clines-tools/new-task-tool",
-							"v1/exploring-clines-tools/remote-browser-support"
+							"3.17/exploring-clines-tools/cline-tools-guide",
+							"3.17/exploring-clines-tools/new-task-tool",
+							"3.17/exploring-clines-tools/remote-browser-support"
 						]
 					},
 					{
 						"group": "Enterprise Solutions",
 						"pages": [
-							"v1/enterprise-solutions/cloud-provider-integration",
-							"v1/enterprise-solutions/custom-instructions",
-							"v1/enterprise-solutions/mcp-servers",
-							"v1/enterprise-solutions/security-concerns"
+							"3.17/enterprise-solutions/cloud-provider-integration",
+							"3.17/enterprise-solutions/custom-instructions",
+							"3.17/enterprise-solutions/mcp-servers",
+							"3.17/enterprise-solutions/security-concerns"
 						]
 					},
 					{
 						"group": "MCP Servers",
 						"pages": [
-							"v1/mcp/mcp-overview",
-							"v1/mcp/adding-mcp-servers-from-github",
-							"v1/mcp/configuring-mcp-servers",
-							"v1/mcp/connecting-to-a-remote-server",
-							"v1/mcp/mcp-marketplace",
-							"v1/mcp/mcp-server-development-protocol",
-							"v1/mcp/mcp-transport-mechanisms"
+							"3.17/mcp/mcp-overview",
+							"3.17/mcp/adding-mcp-servers-from-github",
+							"3.17/mcp/configuring-mcp-servers",
+							"3.17/mcp/connecting-to-a-remote-server",
+							"3.17/mcp/mcp-marketplace",
+							"3.17/mcp/mcp-server-development-protocol",
+							"3.17/mcp/mcp-transport-mechanisms"
 						]
 					},
 					{
 						"group": "Provider Configuration",
 						"pages": [
-							"v1/provider-config/anthropic",
-							"v1/provider-config/aws-bedrock-with-credentials-authentication",
-							"v1/provider-config/aws-bedrock-with-profile-authentication",
-							"v1/provider-config/gcp-vertex-ai",
-							"v1/provider-config/litellm-and-cline-using-codestral",
-							"v1/provider-config/vscode-language-model-api",
-							"v1/provider-config/xai-grok",
-							"v1/provider-config/mistral-ai",
-							"v1/provider-config/deepseek",
-							"v1/provider-config/ollama",
-							"v1/provider-config/openai",
-							"v1/provider-config/openai-compatible",
-							"v1/provider-config/openrouter",
-							"v1/provider-config/requesty"
+							"3.17/provider-config/anthropic",
+							"3.17/provider-config/aws-bedrock-with-credentials-authentication",
+							"3.17/provider-config/aws-bedrock-with-profile-authentication",
+							"3.17/provider-config/gcp-vertex-ai",
+							"3.17/provider-config/litellm-and-cline-using-codestral",
+							"3.17/provider-config/vscode-language-model-api",
+							"3.17/provider-config/xai-grok",
+							"3.17/provider-config/mistral-ai",
+							"3.17/provider-config/deepseek",
+							"3.17/provider-config/ollama",
+							"3.17/provider-config/openai",
+							"3.17/provider-config/openai-compatible",
+							"3.17/provider-config/openrouter",
+							"3.17/provider-config/requesty"
 						]
 					},
 					{
 						"group": "Running Models Locally",
 						"pages": [
-							"v1/running-models-locally/read-me-first",
-							"v1/running-models-locally/lm-studio",
-							"v1/running-models-locally/ollama"
+							"3.17/running-models-locally/read-me-first",
+							"3.17/running-models-locally/lm-studio",
+							"3.17/running-models-locally/ollama"
 						]
 					},
 					{
 						"group": "More Info",
-						"pages": ["v1/more-info/telemetry"]
+						"pages": ["3.17/more-info/telemetry"]
 					}
 				]
 			}
