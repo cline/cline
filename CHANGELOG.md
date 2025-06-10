@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.19.6] - 2025-06-09
+
+- Replace explicit caching with implicit caching to reduce latency for Gemini models
+- Clarify that the default concurrent file read limit is 15 files (thanks @olearycrew!)
+- Fix copy button logic (thanks @samhvw8!)
+- Fade buttons on history preview if no interaction in progress (thanks @sachasayan!)
+- Allow MCP server refreshing, fix state changes in MCP server management UI view (thanks @taylorwilsdon!)
+- Remove unnecessary npx usage in some npm scripts (thanks @user202729!)
+- Bug fix for trailing slash error when using LiteLLM provider (thanks @kcwhite!)
+
 ## [3.19.5] - 2025-06-05
 
 - Fix Gemini 2.5 Pro Preview thinking budget bug
