@@ -114,10 +114,10 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			parsingFunction,
 			diffEditFunction,
 			thinkingBudgetTokens,
+			originalDiffEditToolCallMessage,
 		} = input
 
 		const requiredParams = {
-			apiKey,
 			systemPrompt,
 			messages,
 			modelId,
@@ -163,17 +163,26 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			},
 		}
 
-		const openRouterHandler = new OpenRouterHandler(options)
-
 		// Get the output of streaming output of this llm call
 		let streamResult: StreamResult
-		try {
-			streamResult = await processStream(openRouterHandler, systemPrompt, messages)
-		} catch (error: any) {
-			return {
-				success: false,
-				error: "llm_stream_error",
-				errorString: error.message || error.toString(),
+		if (originalDiffEditToolCallMessage !== undefined) {
+			// Replay mode: mock the stream result
+			streamResult = {
+				assistantMessage: originalDiffEditToolCallMessage,
+				reasoningMessage: "",
+				usage: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+			}
+		} else {
+			// Live mode: existing API call logic
+			try {
+				const openRouterHandler = new OpenRouterHandler(options)
+				streamResult = await processStream(openRouterHandler, systemPrompt, messages)
+			} catch (error: any) {
+				return {
+					success: false,
+					error: "llm_stream_error",
+					errorString: error.message || error.toString(),
+				}
 			}
 		}
 
