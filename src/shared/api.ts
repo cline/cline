@@ -598,6 +598,9 @@ export const vertexModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
+		thinkingConfig: {
+			maxBudget: 32768,
+		},
 	},
 	"gemini-2.5-flash-preview-04-17": {
 		maxTokens: 65536,
@@ -768,7 +771,6 @@ export const geminiModels = {
 		],
 		thinkingConfig: {
 			maxBudget: 32768,
-			outputPrice: 3.5,
 		},
 	},
 	"gemini-2.5-flash-preview-05-20": {
