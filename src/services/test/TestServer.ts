@@ -13,7 +13,13 @@ import {
 	getFileChanges,
 	calculateToolSuccessRate,
 } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState, updateApiConfiguration, storeSecret } from "@core/storage/state"
+import {
+	updateGlobalState,
+	getAllExtensionState,
+	updateApiConfiguration,
+	storeSecret,
+	updateWorkspaceState,
+} from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -272,7 +278,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
 
 						// Update global state to use cline provider
-						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
+						await updateWorkspaceState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()
