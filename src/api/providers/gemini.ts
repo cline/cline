@@ -99,6 +99,7 @@ export class GeminiHandler implements ApiHandler {
 		if (info.thinkingConfig?.outputPrice !== undefined && maxBudget > 0) {
 			requestConfig.thinkingConfig = {
 				thinkingBudget: thinkingBudget,
+				includeThoughts: true,
 			}
 		}
 
@@ -128,6 +129,30 @@ export class GeminiHandler implements ApiHandler {
 					sdkFirstChunkTime = Date.now()
 					ttftSdkMs = sdkFirstChunkTime - sdkCallStartTime
 					isFirstSdkChunk = false
+				}
+
+				// Handle thinking content from Gemini's response
+				const candidateForThoughts = chunk?.candidates?.[0]
+				const partsForThoughts = candidateForThoughts?.content?.parts
+				let thoughts = "" // Initialize as empty string
+
+				if (partsForThoughts) {
+					// This ensures partsForThoughts is a Part[] array
+					for (const part of partsForThoughts) {
+						if ((part as any).thought && (part as any).text) {
+							// Ensure part.text exists
+							// Handle the thought part
+							thoughts += (part as any).text + "\n" // Append thought and a newline
+						}
+					}
+				}
+
+				if (thoughts.trim() !== "") {
+					yield {
+						type: "reasoning",
+						reasoning: thoughts.trim(),
+					}
+					thoughts = "" // Reset thoughts after yielding
 				}
 
 				if (chunk.text) {
