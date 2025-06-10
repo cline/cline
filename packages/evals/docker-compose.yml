@@ -17,8 +17,8 @@ services:
     db:
         container_name: evals-db
         image: postgres:15.4
-        ports:
-            - 5432:5432
+        expose:
+            - 5432
         volumes:
             - ./.docker/postgres:/var/lib/postgresql/data
             - ./.docker/scripts/postgres:/docker-entrypoint-initdb.d
@@ -38,8 +38,8 @@ services:
     redis:
         container_name: evals-redis
         image: redis:7-alpine
-        ports:
-            - "6379:6379"
+        expose:
+            - 6379
         volumes:
             - ./.docker/redis:/data
         command: redis-server --appendonly yes
@@ -52,7 +52,7 @@ services:
             context: ../../
             dockerfile: packages/evals/Dockerfile.web
         ports:
-            - "3000:3000"
+            - "${EVALS_WEB_PORT:-3000}:3000"
         environment:
             - HOST_EXECUTION_METHOD=docker
         volumes:
