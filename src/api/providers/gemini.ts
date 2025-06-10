@@ -2,6 +2,7 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
 import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
+import { Part } from "@google/genai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
@@ -140,10 +141,10 @@ export class GeminiHandler implements ApiHandler {
 				if (partsForThoughts) {
 					// This ensures partsForThoughts is a Part[] array
 					for (const part of partsForThoughts) {
-						if ((part as any).thought && (part as any).text) {
+						if ((part as Part).thought && (part as Part).text) {
 							// Ensure part.text exists
 							// Handle the thought part
-							thoughts += (part as any).text + "\n" // Append thought and a newline
+							thoughts += (part as Part).text + "\n" // Append thought and a newline
 						}
 					}
 				}
