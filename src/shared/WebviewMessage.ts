@@ -18,6 +18,7 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
+		| "dumpStateToFile"
 
 	text?: string
 	disabled?: boolean

@@ -5,6 +5,9 @@ import { getUri } from "./getUri"
 import { getTheme } from "@integrations/theme/getTheme"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
+// <letsboot.ch fork change>
+import { applyStateOverwriteOnStartup, applySecretOverwriteOnStartup } from "../../fork/letsboot/state-override"
+// </letsboot.ch fork change>
 import { readFile } from "fs/promises"
 import path from "node:path"
 import { WebviewProviderType } from "@/shared/webview/types"
@@ -82,6 +85,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			this.context.extensionMode === vscode.ExtensionMode.Development
 				? await this.getHMRHtmlContent(webviewView.webview)
 				: this.getHtmlContent(webviewView.webview)
+
+		// <letsboot.ch fork change> - Apply initial state/secret overrides from settings.json
+		await applyStateOverwriteOnStartup(this.context)
+		await applySecretOverwriteOnStartup(this.context)
+		// </letsboot.ch fork change>
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is received

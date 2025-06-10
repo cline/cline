@@ -318,7 +318,49 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.overwriteState": {
+					"type": "object",
+					"description": "[Letsboot Fork] Override non-secret state properties. See example-settings.json for available options.",
+					"additionalProperties": true
+				},
+				"cline.overwriteSecrets": {
+					"type": "object",
+					"description": "[Letsboot Fork] Override secret properties (like API keys). See example-settings.json for available options.",
+					"additionalProperties": true
+				},
+				"cline.dirsToIgnore": {
+					"type": "object",
+					"properties": {
+						"patterns": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "List of directory patterns to ignore when suggesting files. Default patterns include: node_modules, __pycache__, env, venv, target/dependency, build/dependencies, dist, out, bundle, vendor, tmp, temp, deps, pkg, Pods, and .* (hidden directories). Set to empty array [] to show all directories.",
+							"default": [
+								"node_modules",
+								"__pycache__",
+								"env",
+								"venv",
+								"target/dependency",
+								"build/dependencies",
+								"dist",
+								"out",
+								"bundle",
+								"vendor",
+								"tmp",
+								"temp",
+								"deps",
+								"pkg",
+								"Pods",
+								".*"
+							]
+						}
+					},
+					"description": "Configure which directories to ignore when suggesting files with @"
+				}
+			}
 		}
 	},
 	"scripts": {

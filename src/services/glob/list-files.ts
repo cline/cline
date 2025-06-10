@@ -3,6 +3,10 @@ import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "@utils/path"
 
+// <letsboot.ch fork change>
+import * as vscode from "vscode"
+// </letsboot.ch fork change>
+
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	// First resolve the path normally - path.resolve doesn't care about glob special characters
 	const absolutePath = path.resolve(dirPath)
@@ -18,7 +22,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		return [[homeDir], false]
 	}
 
-	const dirsToIgnore = [
+	const defaultDirsToIgnore = [
 		"node_modules",
 		"__pycache__",
 		"env",
@@ -34,8 +38,12 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		"deps",
 		"pkg",
 		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-	].map((dir) => `**/${dir}/**`)
+		".*",
+	]
+
+	// overwrite dirsToIgnore using vs code user settings.json
+	const userDirs = vscode.workspace.getConfiguration("cline").get<string[]>("dirsToIgnore.patterns")
+	const dirsToIgnore = (userDirs ?? defaultDirsToIgnore).map((dir: string) => `**/${dir}/**`)
 
 	const options: Options = {
 		cwd: dirPath,

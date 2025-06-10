@@ -1,0 +1,41 @@
+{
+	"cline.overwriteState": {
+		"apiProvider": "openrouter",
+		"openRouterModelId": "anthropic/claude-3.5-sonnet",
+		"autoApprovalSettings": {
+			"enabled": true,
+			"actions": {
+				"readFiles": true,
+				"editFiles": false,
+				"executeCommands": true,
+				"useBrowser": true,
+				"useMcp": false
+			},
+			"maxRequests": 10,
+			"enableNotifications": false
+		}
+	},
+	"cline.overwriteSecrets": {
+		"openRouterApiKey": "YOUR-OPENROUTER-KEY"
+	},
+	"cline.dirsToIgnore": {
+		"patterns": [
+			"node_modules",
+			"__pycache__",
+			"env",
+			"venv",
+			"target/dependency",
+			"build/dependencies",
+			"dist",
+			"out",
+			"bundle",
+			"vendor",
+			"tmp",
+			"temp",
+			"deps",
+			"pkg",
+			"Pods",
+			".*"
+		]
+	}
+}

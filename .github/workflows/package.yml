@@ -1,0 +1,79 @@
+name: "Package Extension"
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+
+    package:
+        needs: test
+        name: Create VSIX Package - Letsboot Fork
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            # Cache root dependencies
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Install vsce
+              run: npm install -g vsce
+
+            - name: Package Extension
+              env:
+                  CI: false
+              run: vsce package --out "cline-latest.vsix"
+
+            - name: Upload VSIX as Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cline-latest
+                  path: cline-latest.vsix
+
+            # This will make the VSIX available at:
+            # https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
+            - name: Upload VSIX to Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  # Delete existing release and tag
+                  gh release delete latest --yes || true
+                  git tag -d latest || true
+                  git push origin :refs/tags/latest || true
+
+                  # Create new release with VSIX as asset
+                  gh release create latest \
+                    --title "Latest Build" \
+                    --notes "Latest automated build from branch ${{ github.ref_name }}" \
+                    --target ${{ github.sha }} \
+                    cline-latest.vsix

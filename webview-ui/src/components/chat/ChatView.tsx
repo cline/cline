@@ -1057,7 +1057,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message..." : "Type your task here..."
+		// <letsboot.ch fork change>
+		const text = task ? "Type a message... (letsboot fork v3.17.5)" : "Type your task here... (letsboot fork v3.17.5)"
+		// </letsboot.ch fork change>
 		return text
 	}, [task])
 

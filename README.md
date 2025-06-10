@@ -1,8 +1,35 @@
+# Letsboot Labmachine specific Fork
+
+- Ability to select model and set token in user settings.json.
+- Overwrite any of the state and secret using settiongs.json.
+- Overwrite default dirsToIgnore in the user settings.json.
+- Update overwrite state and secrets from UI
+- Debug button to dump state to a file `.state.dump.json`
+- Package as vsxi in the fork project
+
+## Install fork:
+
+```sh
+# Local VS Code
+curl -L -o /tmp/cline-latest.vsix https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
+code --install-extension /tmp/cline-latest.vsix
+rm /tmp/cline-latest.vsix
+```
+
+```sh
+# Code Server
+curl -L -o /tmp/cline-latest.vsix https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
+code-server --install-extension /tmp/cline-latest.vsix
+rm /tmp/cline-latest.vsix
+```
+
+----
+
 <div align="center"><sub>
 English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
 
-# Cline – \#1 on OpenRouter
+# Cline – #1 on OpenRouter
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />

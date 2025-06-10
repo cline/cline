@@ -454,6 +454,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						Save
 					</VSCodeButton>
 				</div>
+				{/* letsboot fork */}
+				<div className="flex gap-2">
+					<VSCodeButton onClick={() => vscode.postMessage({ type: "dumpStateToFile" })}>
+						Dump State to File
+					</VSCodeButton>
+				</div>
+				{/* /letsboot fork */}
 			</TabHeader>
 
 			{/* Vertical tabs layout */}

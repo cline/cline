@@ -261,7 +261,27 @@ export class Controller {
 				}
 				break
 			}
-
+			// <letsboot fork>
+			case "dumpStateToFile": {
+				try {
+					const state = await this.getStateToPostToWebview()
+					const workspaceFolders = vscode.workspace.workspaceFolders
+					if (workspaceFolders && workspaceFolders.length > 0) {
+						const rootPath = workspaceFolders[0].uri.fsPath
+						const filePath = path.join(rootPath, ".state.dump.json")
+						await fs.writeFile(filePath, JSON.stringify(state, null, 2))
+						vscode.window.showInformationMessage("Successfully dumped state to .state.dump.json")
+					} else {
+						vscode.window.showErrorMessage("No workspace folder open to dump state file.")
+					}
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+					vscode.window.showErrorMessage(`Failed to dump state: ${errorMessage}`)
+					console.error("Failed to dump state:", error)
+				}
+				break
+			}
+			// </letsboot fork>
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}

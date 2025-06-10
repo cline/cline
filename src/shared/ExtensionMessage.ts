@@ -24,6 +24,7 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
+		| "dumpStateToFile" // letsboot fork
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
 	state?: ExtensionState
