@@ -14,14 +14,14 @@
 ```sh
 # Local VS Code
 curl -L -o /tmp/cline-latest.vsix https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
-code --install-extension /tmp/cline-latest.vsix
+code --force  --install-extension /tmp/cline-latest.vsix
 rm /tmp/cline-latest.vsix
 ```
 
 ```sh
 # Code Server
 curl -L -o /tmp/cline-latest.vsix https://github.com/wingsuitist/cline/releases/download/latest/cline-latest.vsix
-code-server --install-extension /tmp/cline-latest.vsix
+code-server --force --install-extension /tmp/cline-latest.vsix
 rm /tmp/cline-latest.vsix
 ```
 
