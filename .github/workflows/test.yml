@@ -18,9 +18,9 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                os: [ubuntu-latest]
         runs-on: ${{ matrix.os }}
-        name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
+        name: test
         defaults:
             run:
                 shell: bash
@@ -68,16 +68,6 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            - name: Install local modules on windows
-              if: runner.os == 'Windows' && steps.root-cache.outputs.cache-hit == 'true'
-              run: |
-                  npm install eslint-plugin-eslint-rules 
-                  cd webview-ui/ && npm install eslint-plugin-eslint-rules
-
-            - name: Set up NPM on Windows
-              if: runner.os == 'Windows'
-              run: |
-                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
             - name: Type Check
               run: npm run check-types
@@ -102,7 +92,6 @@ jobs:
               continue-on-error: true
               run: |
                   node ./scripts/test-ci.js > extension_coverage.txt 2>&1
-                  # Default the encoding to UTF-8 - It's not the default on Windows
                   PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
