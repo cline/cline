@@ -23,6 +23,9 @@ export interface ExtensionMessage {
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
+		| "addToInput"
+		| "browserConnectionResult"
+		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"

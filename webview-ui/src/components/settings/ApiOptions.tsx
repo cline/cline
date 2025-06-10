@@ -46,6 +46,8 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
+	nebulaBlockModels,
+	nebulaBlockDefaultModelId,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { OpenAiModelsRequest } from "@shared/proto/models"
@@ -313,7 +315,7 @@ const ApiOptions = ({
 						baseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
+				).catch((error: any) => {
 					console.error("Failed to refresh OpenAI models:", error)
 				})
 			}, 500)
@@ -357,6 +359,7 @@ const ApiOptions = ({
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+					<VSCodeOption value="nebula-block">Nebula Block</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
@@ -2043,6 +2046,37 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "nebula-block" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.nebulaBlockApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("nebulaBlockApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Nebula Block API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.nebulaBlockApiKey && (
+							<VSCodeLink
+								href="https://www.nebulablock.com/apiKeys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Nebula Block API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "cerebras" && (
 				<div>
 					<VSCodeTextField
@@ -2191,6 +2225,7 @@ const ApiOptions = ({
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "nebula-block" && createDropdown(nebulaBlockModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
@@ -2622,6 +2657,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+		case "nebula-block":
+			return getProviderData(nebulaBlockModels, nebulaBlockDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
 		default:

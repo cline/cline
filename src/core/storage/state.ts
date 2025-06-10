@@ -155,6 +155,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		thinkingBudgetTokens,
 		reasoningEffort,
 		sambanovaApiKey,
+		nebulaBlockApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
 		planActSeparateModelsSettingRaw,
@@ -247,6 +248,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
 		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
+		getSecret(context, "nebulaBlockApiKey") as Promise<string | undefined>,
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
@@ -363,6 +365,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			asksageApiUrl,
 			xaiApiKey,
 			sambanovaApiKey,
+			nebulaBlockApiKey,
 			cerebrasApiKey,
 			nebiusApiKey,
 			favoritedModelIds,
@@ -460,6 +463,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		reasoningEffort,
 		clineApiKey,
 		sambanovaApiKey,
+		nebulaBlockApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
@@ -522,6 +526,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
+	await storeSecret(context, "nebulaBlockApiKey", nebulaBlockApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
@@ -553,6 +558,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"asksageApiKey",
 		"xaiApiKey",
 		"sambanovaApiKey",
+		"nebulaBlockApiKey",
 		"cerebrasApiKey",
 		"nebiusApiKey",
 	]
