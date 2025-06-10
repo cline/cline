@@ -27,14 +27,80 @@ export async function updateGlobalState(context: vscode.ExtensionContext, key: G
 	const config = vscode.workspace.getConfiguration("cline")
 	const overwriteState = config.get<Record<string, any>>("overwriteState")
 	if (overwriteState && typeof overwriteState === "object") {
-		// If overwriteState exists, delegate update to the fork function which updates settings.json
-		await updateOverwrittenState(context, key, value)
-		return // Prevent updating internal state directly
+		// Check if this key exists directly in overwriteState
+		if (Object.prototype.hasOwnProperty.call(overwriteState, key)) {
+			await updateOverwrittenState(context, key, value)
+			return // Prevent updating internal state directly
+		}
+
+		// Check if this key belongs to a nested object in overwriteState
+		if (overwriteState.apiConfiguration && isApiConfigurationKey(key)) {
+			await updateOverwrittenState(context, key, value)
+			return // Prevent updating internal state directly
+		}
+
+		if (overwriteState.autoApprovalSettings && key === "autoApprovalSettings") {
+			await updateOverwrittenState(context, key, value)
+			return // Prevent updating internal state directly
+		}
 	}
 	// </letsboot.ch fork change>
 
 	// Original logic: Update internal VS Code global state
 	await context.globalState.update(key, value)
+}
+
+// Helper function to check if a key belongs to apiConfiguration
+function isApiConfigurationKey(key: GlobalStateKey): boolean {
+	const apiConfigurationKeys = [
+		"apiProvider",
+		"apiModelId",
+		"awsRegion",
+		"awsUseCrossRegionInference",
+		"awsBedrockUsePromptCache",
+		"awsBedrockEndpoint",
+		"awsProfile",
+		"awsUseProfile",
+		"awsBedrockCustomSelected",
+		"awsBedrockCustomModelBaseId",
+		"vertexProjectId",
+		"vertexRegion",
+		"openAiBaseUrl",
+		"openAiModelId",
+		"openAiModelInfo",
+		"openAiHeaders",
+		"ollamaModelId",
+		"ollamaBaseUrl",
+		"ollamaApiOptionsCtxNum",
+		"lmStudioModelId",
+		"lmStudioBaseUrl",
+		"anthropicBaseUrl",
+		"geminiBaseUrl",
+		"requestyModelId",
+		"requestyModelInfo",
+		"togetherModelId",
+		"qwenApiLine",
+		"doubaoApiKey",
+		"mistralApiKey",
+		"azureApiVersion",
+		"openRouterModelId",
+		"openRouterModelInfo",
+		"openRouterProviderSorting",
+		"vsCodeLmModelSelector",
+		"thinkingBudgetTokens",
+		"reasoningEffort",
+		"liteLlmBaseUrl",
+		"liteLlmModelId",
+		"liteLlmModelInfo",
+		"liteLlmUsePromptCache",
+		"fireworksModelId",
+		"fireworksModelMaxCompletionTokens",
+		"fireworksModelMaxTokens",
+		"asksageApiUrl",
+		"favoritedModelIds",
+		"requestTimeoutMs",
+	]
+	return apiConfigurationKeys.includes(key as any)
 }
 
 export async function getGlobalState(context: vscode.ExtensionContext, key: GlobalStateKey) {
@@ -47,9 +113,8 @@ export async function storeSecret(context: vscode.ExtensionContext, key: SecretK
 	// <letsboot.ch fork change> - Check if secret is managed by settings.json
 	const config = vscode.workspace.getConfiguration("cline")
 	const overwriteSecrets = config.get<Record<string, any>>("overwriteSecrets")
-	if (overwriteSecrets && typeof overwriteSecrets === "object") {
-		// If overwriteSecrets exists, delegate update to the fork function which updates settings.json
-		// Pass undefined value to handle deletion if necessary within the fork function
+	if (overwriteSecrets && typeof overwriteSecrets === "object" && Object.prototype.hasOwnProperty.call(overwriteSecrets, key)) {
+		// Only intercept if this specific key is being managed by settings.json
 		await updateOverwrittenSecret(context, key, value)
 		return // Prevent updating internal secret storage directly
 	}

@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
-import { storeSecret, updateGlobalState } from "../../core/storage/state"
+import { storeSecret, updateGlobalState, updateApiConfiguration } from "../../core/storage/state"
 import { GlobalStateKey, SecretKey } from "../../core/storage/state-keys" // Import the actual types
+import { ApiConfiguration } from "../../shared/api"
 
 // --- Functions to Apply Overrides on Startup ---
 
@@ -15,11 +16,27 @@ export async function applyStateOverwriteOnStartup(context: vscode.ExtensionCont
 	if (overwriteState && typeof overwriteState === "object") {
 		console.log("[Letsboot Fork] Applying initial state overwrites from settings.json...")
 		for (const key in overwriteState) {
-			// Assume keys in overwriteState are valid GlobalStateKeys based on config structure
 			if (Object.prototype.hasOwnProperty.call(overwriteState, key)) {
 				try {
-					// Type assertion helps satisfy the storage function signature
-					await updateGlobalState(context, key as GlobalStateKey, overwriteState[key])
+					// Handle nested objects specially
+					if (key === "apiConfiguration" && typeof overwriteState[key] === "object") {
+						// Apply each property from the apiConfiguration object
+						const apiConfig = overwriteState[key]
+						for (const apiKey in apiConfig) {
+							if (Object.prototype.hasOwnProperty.call(apiConfig, apiKey)) {
+								console.log(`[Letsboot Fork] Applying apiConfiguration.${apiKey} = ${apiConfig[apiKey]}`)
+								await updateGlobalState(context, apiKey as GlobalStateKey, apiConfig[apiKey])
+							}
+						}
+					} else if (key === "autoApprovalSettings" && typeof overwriteState[key] === "object") {
+						// Apply the entire autoApprovalSettings object
+						console.log(`[Letsboot Fork] Applying autoApprovalSettings object`)
+						await updateGlobalState(context, key as GlobalStateKey, overwriteState[key])
+					} else {
+						// Apply top-level keys directly
+						console.log(`[Letsboot Fork] Applying ${key} = ${overwriteState[key]}`)
+						await updateGlobalState(context, key as GlobalStateKey, overwriteState[key])
+					}
 				} catch (error) {
 					console.error(`[Letsboot Fork] Error applying initial state overwrite for key "${key}":`, error)
 				}
@@ -71,7 +88,7 @@ export async function updateOverwrittenState(context: vscode.ExtensionContext, k
 		vscode.window.showErrorMessage(`[Letsboot Fork] Failed to update internal state for "${key}".`)
 	}
 
-	// Only update settings.json if this key already exists in overwriteState
+	// Check if this key exists directly in overwriteState
 	if (Object.prototype.hasOwnProperty.call(currentOverwriteState, key)) {
 		try {
 			// Create the updated object with only the existing keys
@@ -84,9 +101,105 @@ export async function updateOverwrittenState(context: vscode.ExtensionContext, k
 			console.error(`[Letsboot Fork] Failed to update overwriteState.${key} in settings.json:`, error)
 			// Don't show error message to user since internal state was updated successfully
 		}
-	} else {
-		console.log(`[Letsboot Fork] Key ${key} not found in overwriteState, skipping settings.json update.`)
+		return
 	}
+
+	// Check if this key belongs to a nested object in overwriteState
+	// Handle apiConfiguration nested object
+	if (isApiConfigurationKey(key) && currentOverwriteState.apiConfiguration) {
+		try {
+			const newApiConfiguration = { ...currentOverwriteState.apiConfiguration, [key]: value }
+			const newState = { ...currentOverwriteState, apiConfiguration: newApiConfiguration }
+
+			// Update settings.json
+			await config.update("overwriteState", newState, vscode.ConfigurationTarget.Global)
+			console.log(`[Letsboot Fork] Updated overwriteState.apiConfiguration.${key} in settings.json.`)
+		} catch (error) {
+			console.error(`[Letsboot Fork] Failed to update overwriteState.apiConfiguration.${key} in settings.json:`, error)
+		}
+		return
+	}
+
+	// Handle autoApprovalSettings nested object
+	if (isAutoApprovalSettingsKey(key) && currentOverwriteState.autoApprovalSettings) {
+		try {
+			const newAutoApprovalSettings = { ...currentOverwriteState.autoApprovalSettings, [key]: value }
+			const newState = { ...currentOverwriteState, autoApprovalSettings: newAutoApprovalSettings }
+
+			// Update settings.json
+			await config.update("overwriteState", newState, vscode.ConfigurationTarget.Global)
+			console.log(`[Letsboot Fork] Updated overwriteState.autoApprovalSettings.${key} in settings.json.`)
+		} catch (error) {
+			console.error(`[Letsboot Fork] Failed to update overwriteState.autoApprovalSettings.${key} in settings.json:`, error)
+		}
+		return
+	}
+
+	console.log(`[Letsboot Fork] Key ${key} not found in overwriteState or nested objects, skipping settings.json update.`)
+}
+
+/**
+ * Helper function to check if a key belongs to apiConfiguration
+ */
+function isApiConfigurationKey(key: GlobalStateKey): boolean {
+	const apiConfigurationKeys = [
+		"apiProvider",
+		"apiModelId",
+		"awsRegion",
+		"awsUseCrossRegionInference",
+		"awsBedrockUsePromptCache",
+		"awsBedrockEndpoint",
+		"awsProfile",
+		"awsUseProfile",
+		"awsBedrockCustomSelected",
+		"awsBedrockCustomModelBaseId",
+		"vertexProjectId",
+		"vertexRegion",
+		"openAiBaseUrl",
+		"openAiModelId",
+		"openAiModelInfo",
+		"openAiHeaders",
+		"ollamaModelId",
+		"ollamaBaseUrl",
+		"ollamaApiOptionsCtxNum",
+		"lmStudioModelId",
+		"lmStudioBaseUrl",
+		"anthropicBaseUrl",
+		"geminiBaseUrl",
+		"requestyModelId",
+		"requestyModelInfo",
+		"togetherModelId",
+		"qwenApiLine",
+		"doubaoApiKey",
+		"mistralApiKey",
+		"azureApiVersion",
+		"openRouterModelId",
+		"openRouterModelInfo",
+		"openRouterProviderSorting",
+		"vsCodeLmModelSelector",
+		"thinkingBudgetTokens",
+		"reasoningEffort",
+		"liteLlmBaseUrl",
+		"liteLlmModelId",
+		"liteLlmModelInfo",
+		"liteLlmUsePromptCache",
+		"fireworksModelId",
+		"fireworksModelMaxCompletionTokens",
+		"fireworksModelMaxTokens",
+		"asksageApiUrl",
+		"favoritedModelIds",
+		"requestTimeoutMs",
+	]
+	return apiConfigurationKeys.includes(key as any)
+}
+
+/**
+ * Helper function to check if a key belongs to autoApprovalSettings
+ */
+function isAutoApprovalSettingsKey(key: GlobalStateKey): boolean {
+	// autoApprovalSettings is stored as a complete object, not individual keys
+	// So this function may not be needed, but keeping for consistency
+	return key === "autoApprovalSettings"
 }
 
 /**
