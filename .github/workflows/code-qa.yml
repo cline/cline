@@ -10,7 +10,7 @@ on:
 
 jobs:
     check-translations:
-        runs-on: blacksmith-4vcpu-ubuntu-2404
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
               run: node scripts/find-missing-translations.js
 
     knip:
-        runs-on: blacksmith-4vcpu-ubuntu-2404
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
               run: pnpm knip
 
     compile:
-        runs-on: blacksmith-4vcpu-ubuntu-2404
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
         strategy:
             matrix:
                 include:
-                    - os: blacksmith-4vcpu-ubuntu-2404
+                    - os: ubuntu-latest
                       name: ubuntu-latest
                     - os: windows-latest
                       name: windows-latest
@@ -75,7 +75,7 @@ jobs:
                   fi
 
     integration-test:
-        runs-on: blacksmith-4vcpu-ubuntu-2404
+        runs-on: ubuntu-latest
         needs: [check-openrouter-api-key]
         if: needs.check-openrouter-api-key.outputs.exists == 'true'
         steps:
