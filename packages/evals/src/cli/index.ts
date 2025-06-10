@@ -1,11 +1,12 @@
 import * as fs from "fs"
 
-import { command, run, number, option } from "cmd-ts"
+import { run, command, option, flag, number, boolean } from "cmd-ts"
 
-import { exercisesPath } from "../exercises/index.js"
+import { EVALS_REPO_PATH } from "../exercises/index.js"
 
+import { runCi } from "./runCi.js"
 import { runEvals } from "./runEvals.js"
-import { processTask } from "./processTask.js"
+import { processTask } from "./runTask.js"
 
 const main = async () => {
 	await run(
@@ -14,25 +15,22 @@ const main = async () => {
 			description: "Execute an eval run.",
 			version: "0.0.0",
 			args: {
+				ci: flag({ type: boolean, long: "ci", defaultValue: () => false }),
 				runId: option({ type: number, long: "runId", short: "r", defaultValue: () => -1 }),
 				taskId: option({ type: number, long: "taskId", short: "t", defaultValue: () => -1 }),
 			},
 			handler: async (args) => {
-				const { runId, taskId } = args
-
-				if (runId === -1 && taskId === -1) {
-					throw new Error("Either runId or taskId must be provided.")
-				}
-
-				if (runId !== -1 && taskId !== -1) {
-					throw new Error("Only one of runId or taskId must be provided.")
-				}
+				const { runId, taskId, ci } = args
 
 				try {
-					if (runId !== -1) {
+					if (ci) {
+						await runCi({ concurrency: 3, exercisesPerLanguage: 5 })
+					} else if (runId !== -1) {
 						await runEvals(runId)
-					} else {
+					} else if (taskId !== -1) {
 						await processTask({ taskId })
+					} else {
+						throw new Error("Either runId or taskId must be provided.")
 					}
 				} catch (error) {
 					console.error(error)
@@ -46,9 +44,9 @@ const main = async () => {
 	process.exit(0)
 }
 
-if (!fs.existsSync(exercisesPath)) {
+if (!fs.existsSync(EVALS_REPO_PATH)) {
 	console.error(
-		`Exercises do not exist at ${exercisesPath}. Please run "git clone https://github.com/RooCodeInc/Roo-Code-Evals.git evals".`,
+		`Exercises do not exist at ${EVALS_REPO_PATH}. Please run "git clone https://github.com/RooCodeInc/Roo-Code-Evals.git evals".`,
 	)
 
 	process.exit(1)

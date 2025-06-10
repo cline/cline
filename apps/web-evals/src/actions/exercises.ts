@@ -1,37 +1,22 @@
 "use server"
 
-import * as fs from "fs/promises"
 import * as path from "path"
 import { fileURLToPath } from "url"
 
-import { type ExerciseLanguage, exerciseLanguages } from "@roo-code/evals"
+import { exerciseLanguages, listDirectories } from "@roo-code/evals"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url)) // <repo>/apps/web-evals/src/actions
 
-const EXERCISES_BASE_PATH = path.resolve(__dirname, "../../../../../evals")
-
-export const listDirectories = async (relativePath: string) => {
-	try {
-		const targetPath = path.resolve(__dirname, relativePath)
-		const entries = await fs.readdir(targetPath, { withFileTypes: true })
-		return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name)
-	} catch (error) {
-		console.error(`Error listing directories at ${relativePath}:`, error)
-		return []
-	}
-}
+const EVALS_REPO_PATH = path.resolve(__dirname, "../../../../../evals")
 
 export const getExercises = async () => {
 	const result = await Promise.all(
 		exerciseLanguages.map(async (language) => {
-			const languagePath = path.join(EXERCISES_BASE_PATH, language)
-			const exercises = await listDirectories(languagePath)
+			const languagePath = path.join(EVALS_REPO_PATH, language)
+			const exercises = await listDirectories(__dirname, languagePath)
 			return exercises.map((exercise) => `${language}/${exercise}`)
 		}),
 	)
 
 	return result.flat()
 }
-
-export const getExercisesForLanguage = async (language: ExerciseLanguage) =>
-	listDirectories(path.join(EXERCISES_BASE_PATH, language))

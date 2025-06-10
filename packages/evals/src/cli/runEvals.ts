@@ -1,12 +1,11 @@
 import PQueue from "p-queue"
 
 import { findRun, finishRun, getTasks } from "../db/index.js"
-import { exercisesPath } from "../exercises/index.js"
+import { EVALS_REPO_PATH } from "../exercises/index.js"
 
-import { getTag, isDockerContainer, resetEvalsRepo, commitEvalsRepoChanges } from "./utils.js"
-import { processTask, processTaskInContainer } from "./processTask.js"
+import { Logger, getTag, isDockerContainer, resetEvalsRepo, commitEvalsRepoChanges } from "./utils.js"
 import { startHeartbeat, stopHeartbeat } from "./redis.js"
-import { FileLogger } from "./FileLogger.js"
+import { processTask, processTaskInContainer } from "./runTask.js"
 
 export const runEvals = async (runId: number) => {
 	const run = await findRun(runId)
@@ -21,7 +20,7 @@ export const runEvals = async (runId: number) => {
 		throw new Error(`Run ${run.id} has no tasks.`)
 	}
 
-	const logger = new FileLogger({
+	const logger = new Logger({
 		logDir: `/var/log/evals/runs/${run.id}`,
 		filename: `controller.log`,
 		tag: getTag("runEvals", { run }),
@@ -32,7 +31,7 @@ export const runEvals = async (runId: number) => {
 	const containerized = isDockerContainer()
 
 	if (!containerized) {
-		await resetEvalsRepo({ run, cwd: exercisesPath })
+		await resetEvalsRepo({ run, cwd: EVALS_REPO_PATH })
 	}
 
 	const heartbeat = await startHeartbeat(run.id)
@@ -63,7 +62,7 @@ export const runEvals = async (runId: number) => {
 		// will lost when the container is destroyed. I think we should
 		// store the diffs in the database instead.
 		if (!containerized) {
-			await commitEvalsRepoChanges({ run, cwd: exercisesPath })
+			await commitEvalsRepoChanges({ run, cwd: EVALS_REPO_PATH })
 		}
 	} finally {
 		logger.info("cleaning up")

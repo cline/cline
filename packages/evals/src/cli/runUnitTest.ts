@@ -3,14 +3,14 @@ import * as path from "path"
 import { execa, parseCommandString } from "execa"
 import psTree from "ps-tree"
 
-import type { Run, Task } from "../db/index.js"
-import { type ExerciseLanguage, exercisesPath } from "../exercises/index.js"
+import type { Task } from "../db/index.js"
+import { type ExerciseLanguage, EVALS_REPO_PATH } from "../exercises/index.js"
 
-import { getTag } from "./utils.js"
+import { Logger } from "./utils.js"
 
 const UNIT_TEST_TIMEOUT = 2 * 60 * 1_000
 
-const testCommands: Record<ExerciseLanguage, { commands: string[]; timeout?: number; cwd?: string }> = {
+const testCommands: Record<ExerciseLanguage, { commands: string[]; timeout?: number }> = {
 	go: { commands: ["go test"] },
 	java: { commands: ["./gradlew test"] },
 	javascript: { commands: ["pnpm install", "pnpm test"] },
@@ -18,22 +18,21 @@ const testCommands: Record<ExerciseLanguage, { commands: string[]; timeout?: num
 	rust: { commands: ["cargo test"] },
 }
 
-export const runUnitTest = async ({ run, task }: { run: Run; task: Task }) => {
-	const tag = getTag("runUnitTest", { run, task })
-	const log = (message: string, ...args: unknown[]) => console.log(`[${Date.now()} | ${tag}] ${message}`, ...args)
-	const logError = (message: string, ...args: unknown[]) =>
-		console.error(`[${Date.now()} | ${tag}] ${message}`, ...args)
+type RunUnitTestOptions = {
+	task: Task
+	logger: Logger
+}
 
+export const runUnitTest = async ({ task, logger }: RunUnitTestOptions) => {
 	const cmd = testCommands[task.language]
-	const exercisePath = path.resolve(exercisesPath, task.language, task.exercise)
-	const cwd = cmd.cwd ? path.resolve(exercisePath, cmd.cwd) : exercisePath
+	const cwd = path.resolve(EVALS_REPO_PATH, task.language, task.exercise)
 	const commands = cmd.commands.map((cs) => parseCommandString(cs))
 
 	let passed = true
 
 	for (const command of commands) {
 		try {
-			log(`running "${command.join(" ")}"`)
+			logger.info(`running "${command.join(" ")}"`)
 			const subprocess = execa({ cwd, shell: "/bin/bash", reject: false })`${command}`
 			subprocess.stdout.pipe(process.stdout)
 			subprocess.stderr.pipe(process.stderr)
@@ -49,25 +48,27 @@ export const runUnitTest = async ({ run, task }: { run: Run; task: Task }) => {
 					})
 				})
 
-				log(`"${command.join(" ")}" timed out, killing ${subprocess.pid} + ${JSON.stringify(descendants)}`)
+				logger.info(
+					`"${command.join(" ")}" timed out, killing ${subprocess.pid} + ${JSON.stringify(descendants)}`,
+				)
 
 				if (descendants.length > 0) {
 					for (const descendant of descendants) {
 						try {
-							log(`killing descendant process ${descendant}`)
+							logger.info(`killing descendant process ${descendant}`)
 							await execa`kill -9 ${descendant}`
 						} catch (error) {
-							logError(`failed to kill descendant process ${descendant}:`, error)
+							logger.error(`failed to kill descendant process ${descendant}:`, error)
 						}
 					}
 				}
 
-				log(`killing main process ${subprocess.pid}`)
+				logger.info(`killing main process ${subprocess.pid}`)
 
 				try {
 					await execa`kill -9 ${subprocess.pid!}`
 				} catch (error) {
-					logError(`failed to kill main process ${subprocess.pid}:`, error)
+					logger.error(`failed to kill main process ${subprocess.pid}:`, error)
 				}
 			}, UNIT_TEST_TIMEOUT)
 
@@ -80,7 +81,7 @@ export const runUnitTest = async ({ run, task }: { run: Run; task: Task }) => {
 				break
 			}
 		} catch (error) {
-			logError(`unexpected error:`, error)
+			logger.error(`unexpected error:`, error)
 			passed = false
 			break
 		}

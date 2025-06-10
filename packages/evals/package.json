@@ -21,7 +21,8 @@
 		"db:start": "docker compose up -d db",
 		"db:stop": "docker compose down db",
 		"redis:start": "docker compose up -d redis",
-		"redis:stop": "docker compose down redis"
+		"redis:stop": "docker compose down redis",
+		"services:start": "docker compose up -d db redis"
 	},
 	"dependencies": {
 		"@roo-code/ipc": "workspace:^",

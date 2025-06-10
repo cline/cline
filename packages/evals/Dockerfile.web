@@ -8,7 +8,7 @@ RUN npm install -g npm@latest
 RUN npm install -g npm-run-all
 
 # Install system packages
-RUN apt update && apt install -y curl git vim jq postgresql-client
+RUN apt update && apt install -y curl git vim jq netcat-openbsd postgresql-client
 
 # Install Docker cli
 RUN apt install -y apt-transport-https ca-certificates gnupg lsb-release

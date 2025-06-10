@@ -4,15 +4,15 @@ import { fileURLToPath } from "url"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export const exercisesPath = path.resolve(__dirname, "..", "..", "..", "..", "..", "evals")
+export const EVALS_REPO_PATH = path.resolve(__dirname, "..", "..", "..", "..", "..", "evals")
 
 export const exerciseLanguages = ["go", "java", "javascript", "python", "rust"] as const
 
 export type ExerciseLanguage = (typeof exerciseLanguages)[number]
 
-const listDirectories = async (relativePath: string) => {
+export const listDirectories = async (basePath: string, relativePath: string) => {
 	try {
-		const targetPath = path.resolve(__dirname, relativePath)
+		const targetPath = path.resolve(basePath, relativePath)
 		const entries = await fs.readdir(targetPath, { withFileTypes: true })
 		return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name)
 	} catch (error) {
@@ -21,5 +21,5 @@ const listDirectories = async (relativePath: string) => {
 	}
 }
 
-export const getExercisesForLanguage = async (language: ExerciseLanguage) =>
-	listDirectories(path.join(exercisesPath, language))
+export const getExercisesForLanguage = async (basePath: string, language: ExerciseLanguage) =>
+	listDirectories(__dirname, path.join(basePath, language))

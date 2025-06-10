@@ -13,6 +13,7 @@ RUN apt update && \
   git \
   vim \
   jq \
+  netcat-openbsd \
   apt-transport-https \
   ca-certificates \
   gnupg \

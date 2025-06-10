@@ -1,0 +1,74 @@
+name: Evals
+
+on:
+    pull_request:
+        types: [labeled]
+    workflow_dispatch:
+
+env:
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+    evals:
+        # Run if triggered manually or if PR has 'evals' label.
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.label.name, 'evals')
+        runs-on: blacksmith-16vcpu-ubuntu-2404
+        timeout-minutes: 45
+
+        defaults:
+            run:
+                working-directory: packages/evals
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Create environment
+              run: |
+                  cat > .env.local << EOF
+                  OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY || 'test-key-for-build' }}
+                  EOF
+
+                  cat > .env.development << EOF
+                  NODE_ENV=development
+                  DATABASE_URL=postgresql://postgres:password@db:5432/evals_development
+                  REDIS_URL=redis://redis:6379
+                  HOST_EXECUTION_METHOD=docker
+                  EOF
+
+            - name: Build image
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: packages/evals/Dockerfile.runner
+                  tags: evals-runner:latest
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+                  push: false
+                  load: true
+
+            - name: Tag image
+              run: docker tag evals-runner:latest evals-runner
+
+            - name: Start containers
+              run: |
+                  docker compose up -d db redis
+                  timeout 60 bash -c 'until docker compose exec -T db pg_isready -U postgres; do sleep 2; done'
+                  timeout 60 bash -c 'until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 2; done'
+                  docker compose run --rm runner sh -c 'nc -z db 5432 && echo "✓ Runner -> Database connection successful"'
+                  docker compose run --rm runner sh -c 'nc -z redis 6379 && echo "✓ Runner -> Redis connection successful"'
+                  docker compose run --rm runner docker ps
+
+            - name: Run database migrations
+              run: docker compose run --rm runner pnpm --filter @roo-code/evals db:migrate
+
+            - name: Run evals
+              run: docker compose run --rm runner pnpm --filter @roo-code/evals cli --ci
+
+            - name: Cleanup
+              if: always()
+              run: docker compose down -v --remove-orphans
