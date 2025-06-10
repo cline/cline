@@ -141,10 +141,11 @@ export class GeminiHandler implements ApiHandler {
 				if (partsForThoughts) {
 					// This ensures partsForThoughts is a Part[] array
 					for (const part of partsForThoughts) {
-						if ((part as Part).thought && (part as Part).text) {
+						const { thought, text } = part as Part
+						if (thought && text) {
 							// Ensure part.text exists
 							// Handle the thought part
-							thoughts += (part as Part).text + "\n" // Append thought and a newline
+							thoughts += text + "\n" // Append thought and a newline
 						}
 					}
 				}
