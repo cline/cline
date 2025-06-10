@@ -69,6 +69,7 @@ export type GlobalStateKey =
 	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
 	| "isNewUser"
+	| "terminalOutputLineLimit"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"

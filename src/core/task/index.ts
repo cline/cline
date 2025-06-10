@@ -187,6 +187,7 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
+	private terminalOutputLineLimit?: number
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -203,6 +204,7 @@ export class Task {
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
+		terminalOutputLineLimit: number | undefined,
 		enableCheckpointsSetting: boolean,
 		customInstructions?: string,
 		task?: string,
@@ -232,6 +234,7 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+		this.terminalOutputLineLimit = terminalOutputLineLimit
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -1446,9 +1449,9 @@ export class Task {
 			chunkTimer = setTimeout(async () => await flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
-		let result = ""
+		const outputLines: string[] = []
 		process.on("line", async (line) => {
-			result += line + "\n"
+			outputLines.push(line)
 
 			if (!didContinue) {
 				outputBuffer.push(line)
@@ -1490,7 +1493,14 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		result = result.trim()
+		let result = outputLines.join("\n").trim()
+
+		if (this.terminalOutputLineLimit && outputLines.length > this.terminalOutputLineLimit) {
+			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
+			const start = outputLines.slice(0, halfLimit)
+			const end = outputLines.slice(outputLines.length - halfLimit)
+			result = `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
+		}
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)

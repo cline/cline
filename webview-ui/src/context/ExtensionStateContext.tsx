@@ -63,6 +63,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpResponsesCollapsed: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
+	setTerminalOutputLineLimit: (value: number) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -190,6 +191,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		terminalReuseEnabled: true, // default to enabled for backward compatibility
+		terminalOutputLineLimit: 500,
 		isNewUser: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
@@ -711,6 +713,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				terminalReuseEnabled: value,
+			})),
+		setTerminalOutputLineLimit: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				terminalOutputLineLimit: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),

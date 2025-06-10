@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import TerminalOutputLineLimitSlider from "./TerminalOutputLineLimitSlider"
 import { StateServiceClient } from "@/services/grpc-client"
 import { Int64, Int64Request } from "@shared/proto/common"
 
@@ -99,6 +100,7 @@ export const TerminalSettingsSection: React.FC = () => {
 					this if you experience issues with task lockout after a terminal command.
 				</p>
 			</div>
+			<TerminalOutputLineLimitSlider />
 		</div>
 	)
 }
