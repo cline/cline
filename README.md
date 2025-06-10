@@ -6,6 +6,8 @@
 - Update overwrite state and secrets from UI
 - Debug button to dump state to a file `.state.dump.json`
 - Package as vsxi in the fork project
+- Fixed Content-Security-Policy for https://data.cline.bot on code-server.
+- Disable windows tests.
 
 ## Install fork:
 
