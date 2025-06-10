@@ -39,7 +39,6 @@ export const OPEN_ROUTER_PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:thinking",
 	"anthropic/claude-sonnet-4",
 	"anthropic/claude-opus-4",
-	"google/gemini-2.5-pro-preview",
 	"google/gemini-2.5-flash-preview",
 	"google/gemini-2.5-flash-preview:thinking",
 	"google/gemini-2.5-flash-preview-05-20",
