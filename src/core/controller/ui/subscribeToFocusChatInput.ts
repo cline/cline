@@ -49,7 +49,7 @@ export async function sendFocusChatInputEvent(clientId: string): Promise<void> {
 	}
 
 	try {
-		const event: Empty = {}
+		const event = Empty.create({})
 		await responseStream(
 			event,
 			false, // Not the last message
