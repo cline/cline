@@ -22,12 +22,14 @@ const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
 type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] }
 
 class NodeTestRunner {
-	private apiKey: string
+	private apiKey: string | undefined
 
-	constructor() {
-		this.apiKey = process.env.OPENROUTER_API_KEY!
-		if (!this.apiKey) {
-			throw new Error("OPENROUTER_API_KEY environment variable not set")
+	constructor(isReplay: boolean) {
+		if (!isReplay) {
+			this.apiKey = process.env.OPENROUTER_API_KEY
+			if (!this.apiKey) {
+				throw new Error("OPENROUTER_API_KEY environment variable not set for a non-replay run.")
+			}
 		}
 	}
 
@@ -125,6 +127,14 @@ class NodeTestRunner {
 	 * Run a single test example
 	 */
 	async runSingleTest(testCase: ProcessedTestCase, testConfig: TestConfig): Promise<TestResult> {
+		if (testConfig.replay && !testCase.original_diff_edit_tool_call_message) {
+			return {
+				success: false,
+				error: "missing_original_diff_edit_tool_call_message",
+				errorString: `Test case ${testCase.test_id} is missing 'original_diff_edit_tool_call_message' for replay.`,
+			}
+		}
+
 		const customSystemPrompt = this.constructSystemPrompt(testCase.system_prompt_details, testConfig.system_prompt_name)
 
 		// messages don't include system prompt and are everything up to the first replace_in_file tool call which results in a diff edit error
@@ -138,6 +148,7 @@ class NodeTestRunner {
 			parsingFunction: testConfig.parsing_function,
 			diffEditFunction: testConfig.diff_edit_function,
 			thinkingBudgetTokens: testConfig.thinking_tokens_budget,
+			originalDiffEditToolCallMessage: testConfig.replay ? testCase.original_diff_edit_tool_call_message : undefined,
 		}
 
 		return await runSingleEvaluation(input)
@@ -320,6 +331,7 @@ async function main() {
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
+		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
 
 	program.parse(process.argv)
@@ -336,12 +348,13 @@ async function main() {
 		parsing_function: options.parsingFunction,
 		diff_edit_function: options.diffEditFunction,
 		thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
+		replay: options.replay,
 	}
 
 	try {
 		const startTime = Date.now()
 
-		const runner = new NodeTestRunner()
+		const runner = new NodeTestRunner(testConfig.replay)
 		const testCases = runner.loadTestCases(testPath)
 
 		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
@@ -351,6 +364,9 @@ async function main() {
 
 		log(isVerbose, `-Loaded ${testCases.length} test cases.`)
 		log(isVerbose, `-Executing ${testConfig.number_of_runs} run(s) per test case.`)
+		if (testConfig.replay) {
+			log(isVerbose, `-Running in REPLAY mode. No API calls will be made.`)
+		}
 		log(isVerbose, "Starting tests...\n")
 
 		const results = options.parallel

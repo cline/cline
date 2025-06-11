@@ -13,6 +13,7 @@ interface RunDiffEvalOptions {
 	verbose: boolean
 	testPath: string
 	outputPath: string
+	replay: boolean
 }
 
 export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
@@ -48,6 +49,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	if (options.parallel) {
 		args.push("--parallel")
+	}
+
+	if (options.replay) {
+		args.push("--replay")
 	}
 
 	if (options.verbose) {
