@@ -10,6 +10,8 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
+import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import chokidar, { FSWatcher } from "chokidar"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import deepEqual from "fast-deep-equal"
@@ -17,6 +19,9 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
+import { WatchServiceClient } from "@hosts/host-bridge-client"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { Metadata } from "../../shared/proto/common"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -48,6 +53,17 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
+
+	// Store notifications for display in chat
+	private pendingNotifications: Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> = []
+
+	// Callback for sending notifications to active task
+	private notificationCallback?: (serverName: string, level: string, message: string) => void
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -118,22 +134,45 @@ export class McpHub {
 
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
-		this.disposables.push(
-			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const settings = await this.readAndValidateMcpSettingsFile()
-					if (settings) {
-						try {
-							vscode.window.showInformationMessage("Updating MCP servers...")
-							await this.updateServerConnections(settings.mcpServers)
-							vscode.window.showInformationMessage("MCP servers updated")
-						} catch (error) {
-							console.error("Failed to process MCP settings change:", error)
+
+		// Subscribe to file changes using the gRPC WatchService
+		console.log("[DEBUG] subscribing to mcp file changes")
+		const cancelSubscription = WatchServiceClient.subscribeToFile(
+			SubscribeToFileRequest.create({
+				metadata: Metadata.create({}),
+				path: settingsPath,
+			}),
+			{
+				onResponse: async (response) => {
+					console.log(
+						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
+					)
+
+					// Only process the file if it was changed (not created or deleted)
+					if (response.type === FileChangeEvent_ChangeType.CHANGED) {
+						const settings = await this.readAndValidateMcpSettingsFile()
+						if (settings) {
+							try {
+								vscode.window.showInformationMessage("Updating MCP servers...")
+								await this.updateServerConnections(settings.mcpServers)
+								vscode.window.showInformationMessage("MCP servers updated")
+							} catch (error) {
+								console.error("Failed to process MCP settings change:", error)
+							}
 						}
 					}
-				}
-			}),
+				},
+				onError: (error) => {
+					console.error("Error watching MCP settings file:", error)
+				},
+				onComplete: () => {
+					console.log("[DEBUG] MCP settings file watch completed")
+				},
+			},
 		)
+
+		// Add the cancellation function to disposables
+		this.disposables.push({ dispose: cancelSubscription })
 	}
 
 	private async initializeMcpServers(): Promise<void> {
@@ -292,6 +331,100 @@ export class McpHub {
 
 			connection.server.status = "connected"
 			connection.server.error = ""
+
+			// Register notification handler for real-time messages
+			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			console.log(`[MCP Debug] Client instance:`, connection.client)
+			console.log(`[MCP Debug] Transport type:`, config.type)
+
+			// Try to set notification handler using the client's method
+			try {
+				// Import the notification schema from MCP SDK
+				const { z } = await import("zod")
+
+				// Define the notification schema for notifications/message
+				const NotificationMessageSchema = z.object({
+					method: z.literal("notifications/message"),
+					params: z
+						.object({
+							level: z.enum(["debug", "info", "warning", "error"]).optional(),
+							logger: z.string().optional(),
+							data: z.string().optional(),
+							message: z.string().optional(),
+						})
+						.optional(),
+				})
+
+				// Set the notification handler
+				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
+					console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					const params = notification.params || {}
+					const level = params.level || "info"
+					const data = params.data || params.message || ""
+					const logger = params.logger || ""
+
+					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+
+					// Format the message
+					const message = logger ? `[${logger}] ${data}` : data
+
+					// Send notification directly to active task if callback is set
+					if (this.notificationCallback) {
+						console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						this.notificationCallback(name, level, message)
+					} else {
+						// Fallback: store for later retrieval
+						console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						this.pendingNotifications.push({
+							serverName: name,
+							level,
+							message,
+							timestamp: Date.now(),
+						})
+					}
+
+					// Also show as VS Code notification for now (can be removed later if desired)
+					switch (level) {
+						case "error":
+							vscode.window.showErrorMessage(`MCP ${name}: ${message}`)
+							break
+						case "warning":
+							vscode.window.showWarningMessage(`MCP ${name}: ${message}`)
+							break
+						default:
+							vscode.window.showInformationMessage(`MCP ${name}: ${message}`)
+					}
+
+					// Forward to webview if available
+					if (this.postMessageToWebview) {
+						await this.postMessageToWebview({
+							type: "mcpNotification",
+							serverName: name,
+							notification: {
+								level,
+								data,
+								logger,
+								timestamp: Date.now(),
+							},
+						} as any)
+					}
+				})
+				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+
+				// Also set a fallback handler for any other notification types
+				connection.client.fallbackNotificationHandler = async (notification: any) => {
+					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					// Show in VS Code for visibility
+					vscode.window.showInformationMessage(
+						`MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
+					)
+				}
+				console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+			} catch (error) {
+				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+			}
 
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name)
@@ -580,14 +713,29 @@ export class McpHub {
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
-		await this.postMessageToWebview({
-			type: "mcpServers",
-			mcpServers: this.getSortedMcpServers(serverOrder),
+
+		// Get sorted servers
+		const sortedServers = this.getSortedMcpServers(serverOrder)
+
+		// Send update using gRPC stream
+		await sendMcpServersUpdate({
+			mcpServers: convertMcpServersToProtoMcpServers(sortedServers),
 		})
 	}
 
 	async sendLatestMcpServers() {
 		await this.notifyWebviewOfServerChanges()
+	}
+
+	async getLatestMcpServersRPC(): Promise<McpServer[]> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			// Return empty array if settings can't be read or validated
+			return []
+		}
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
 	}
 
 	// Using server
@@ -904,6 +1052,38 @@ export class McpHub {
 			)
 			throw error
 		}
+	}
+
+	/**
+	 * Get and clear pending notifications
+	 * @returns Array of pending notifications
+	 */
+	getPendingNotifications(): Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> {
+		const notifications = [...this.pendingNotifications]
+		this.pendingNotifications = []
+		return notifications
+	}
+
+	/**
+	 * Set the notification callback for real-time notifications
+	 * @param callback Function to call when notifications arrive
+	 */
+	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
+		this.notificationCallback = callback
+		console.log("[MCP Debug] Notification callback set")
+	}
+
+	/**
+	 * Clear the notification callback
+	 */
+	clearNotificationCallback(): void {
+		this.notificationCallback = undefined
+		console.log("[MCP Debug] Notification callback cleared")
 	}
 
 	async dispose(): Promise<void> {

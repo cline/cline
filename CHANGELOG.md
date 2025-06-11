@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.17.12]
+
+-   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
+-   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output (Thanks @valinha!)
+-   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions (Thanks @abeatrix!)
+-   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
+-   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
+-   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
+
+## [3.17.11]
+
+-   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
+
+## [3.17.10]
+
+-   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
+-   Add new AskSage models: Claude 4 Sonnet, Claude 4 Opus, GPT 4.1, Gemini 2.5 Pro (Thanks @swhite24!)
+-   Add VSCode walkthrough to help new users get started with Cline
+-   Add support for streamable MCP servers
+-   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
+-   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
+-   Fix settings dialog applying changes even when cancel button is clicked
+
 ## [3.17.9]
 
 -   Aligning Cline to work with Claude 4 model family (Experimental)

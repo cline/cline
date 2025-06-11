@@ -17,7 +17,7 @@
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
-		"better-sqlite3": "^8.0.0",
+		"better-sqlite3": "^11.10.0",
 		"chalk": "^4.1.2",
 		"commander": "^9.4.1",
 		"execa": "^5.1.1",

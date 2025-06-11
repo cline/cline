@@ -237,7 +237,7 @@ export const ChatRowContent = ({
 	sendMessageFromChatRow,
 	onSetQuote,
 }: ChatRowContentProps) => {
-	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
+	const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 	const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 		visible: false,
@@ -269,17 +269,12 @@ export const ChatRowContent = ({
 
 	const type = message.type === "ask" ? message.ask : message.say
 
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		switch (message.type) {
-			case "relinquishControl": {
-				setSeeNewChangesDisabled(false)
-				break
-			}
-		}
-	}, [])
-
-	useEvent("message", handleMessage)
+	// Use the onRelinquishControl hook instead of message event
+	useEffect(() => {
+		return onRelinquishControl(() => {
+			setSeeNewChangesDisabled(false)
+		})
+	}, [onRelinquishControl])
 
 	// --- Quote Button Logic ---
 	// MOVE handleQuoteClick INSIDE ChatRowContent
@@ -1059,6 +1054,36 @@ export const ChatRowContent = ({
 					return null // we should never see this message type
 				case "mcp_server_response":
 					return <McpResponseDisplay responseText={message.text || ""} />
+				case "mcp_notification":
+					return (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "flex-start",
+								gap: "8px",
+								padding: "8px 12px",
+								backgroundColor: "var(--vscode-textBlockQuote-background)",
+								borderRadius: "4px",
+								fontSize: "13px",
+								color: "var(--vscode-foreground)",
+								opacity: 0.9,
+								marginBottom: "8px",
+							}}>
+							<i
+								className="codicon codicon-bell"
+								style={{
+									marginTop: "2px",
+									fontSize: "14px",
+									color: "var(--vscode-notificationsInfoIcon-foreground)",
+									flexShrink: 0,
+								}}
+							/>
+							<div style={{ flex: 1, wordBreak: "break-word" }}>
+								<span style={{ fontWeight: 500 }}>MCP Notification: </span>
+								<span className="ph-no-capture">{message.text}</span>
+							</div>
+						</div>
+					)
 				case "text":
 					return (
 						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text}>

@@ -16,11 +16,15 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { v4 as uuidv4 } from "uuid"
 import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
+import { migratePlanActGlobalToWorkspaceStorage } from "./core/storage/state"
 
+import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -41,6 +45,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	// Migrate global storage values to workspace storage (one-time cleanup)
+	await migratePlanActGlobalToWorkspaceStorage(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
@@ -168,20 +175,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openSettings = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "settingsButtonClicked",
-					})
-				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openSettings(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openSettings)
-				}
-			})
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			sendSettingsButtonClickedEvent(webviewType)
 		}),
 	)
 
@@ -199,20 +196,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openAccount = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "accountButtonClicked",
-					})
+			console.log("[DEBUG] accountButtonClicked", webview)
+
+			const isSidebar = !webview
+			if (isSidebar) {
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance) {
+					// Send event to sidebar controller
+					sendAccountButtonClickedEvent(sidebarInstance.controller.id)
 				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openAccount(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openAccount)
+			} else {
+				// Send to all tab instances
+				const tabInstances = WebviewProvider.getTabInstances()
+				for (const instance of tabInstances) {
+					sendAccountButtonClickedEvent(instance.controller.id)
 				}
-			})
+			}
 		}),
 	)
 
@@ -591,10 +590,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			// At this point, activeWebviewProvider should be the one we want to send the message to.
 			// It could still be undefined if opening a new tab failed or timed out.
 			if (activeWebviewProvider) {
-				activeWebviewProvider.controller.postMessageToWebview({
-					type: "action",
-					action: "focusChatInput",
-				})
+				// Use the gRPC streaming method instead of postMessageToWebview
+				const clientId = activeWebviewProvider.getClientId()
+				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				vscode.window.showErrorMessage(

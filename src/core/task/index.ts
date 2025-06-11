@@ -72,6 +72,9 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
+import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
@@ -102,7 +105,7 @@ import {
 	getLocalCursorRules,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
-import { getGlobalState } from "@core/storage/state"
+import { getWorkspaceState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -199,6 +202,7 @@ export class Task {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
+		terminalReuseEnabled: boolean,
 		enableCheckpointsSetting: boolean,
 		customInstructions?: string,
 		task?: string,
@@ -218,6 +222,7 @@ export class Task {
 		// Initialization moved to startTask/resumeTaskFromHistory
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
+		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
@@ -227,6 +232,12 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+
+		// Set up MCP notification callback for real-time notifications
+		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+			// Display notification in chat immediately
+			await this.say("mcp_notification", `[${serverName}] ${message}`)
+		})
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -508,17 +519,17 @@ export class Task {
 
 			await this.saveClineMessagesAndUpdateHistory()
 
-			await this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 
 			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
-			this.postMessageToWebview({ type: "relinquishControl" })
+			sendRelinquishControlEvent()
 		}
 		if (!this.enableCheckpoints) {
 			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
@@ -741,10 +752,8 @@ export class Task {
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({
-						type: "partialMessage",
-						partialMessage: lastMessage,
-					})
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
 					// this is a new partial message, so add it with partial state
@@ -785,10 +794,8 @@ export class Task {
 					lastMessage.partial = false
 					await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({
-						type: "partialMessage",
-						partialMessage: lastMessage,
-					})
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
 					this.askResponse = undefined
@@ -864,7 +871,8 @@ export class Task {
 					lastMessage.images = images
 					lastMessage.files = files
 					lastMessage.partial = partial
-					await this.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
@@ -894,7 +902,8 @@ export class Task {
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					await this.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage }) // more performant than an entire postStateToWebview
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
@@ -1193,6 +1202,9 @@ export class Task {
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
+
+		// Clear the notification callback when task is aborted
+		this.mcpHub.clearNotificationCallback()
 	}
 
 	// Checkpoints
@@ -3320,7 +3332,20 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
+
+								// Check for any pending notifications before the tool call
+								const notificationsBefore = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsBefore) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
+
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+
+								// Check for any pending notifications after the tool call
+								const notificationsAfter = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsAfter) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
 
 								// TODO: add progress indicator
 
@@ -3710,7 +3735,7 @@ export class Task {
 								const clineVersion =
 									vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 								const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-								const providerAndModel = `${(await getGlobalState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
+								const providerAndModel = `${(await getWorkspaceState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
 
 								// Ask user for confirmation
 								const bugReportData = JSON.stringify({
@@ -4224,7 +4249,7 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const currentProviderId = (await getWorkspaceState(this.getContext(), "apiProvider")) as string
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)

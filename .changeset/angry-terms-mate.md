@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Telemetry fix
+updating o3 model pricing
