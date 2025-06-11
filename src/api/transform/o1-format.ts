@@ -240,6 +240,7 @@ const toolNames = [
 	"search_files",
 	"read_file",
 	"write_to_file",
+	"move_lines",
 	"ask_followup_question",
 	"attempt_completion",
 ]

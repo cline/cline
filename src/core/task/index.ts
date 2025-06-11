@@ -84,6 +84,7 @@ import {
 } from "@core/context/context-management/context-error-handling"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { loadMcpDocumentation } from "@core/prompts/loadMcpDocumentation"
+import { moveLines } from "../tools/moveLines"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
@@ -1566,6 +1567,11 @@ export class Task {
 				case "access_mcp_resource":
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
+				case "move_lines":
+					return [
+						this.autoApprovalSettings.actions.editFiles,
+						this.autoApprovalSettings.actions.editFilesExternally ?? false,
+					]
 			}
 		}
 		return false
@@ -2027,6 +2033,8 @@ export class Task {
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
+						case "move_lines":
+							return `[${block.name} from '${block.params.source_path}' lines ${block.params.start_line}-${block.params.end_line} to '${block.params.target_path}' after line ${block.params.target_line}]`
 						case "execute_command":
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
@@ -2574,6 +2582,122 @@ export class Task {
 							await handleError("writing file", error)
 							await this.diffViewProvider.revertChanges()
 							await this.diffViewProvider.reset()
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "move_lines": {
+						const operation = block.params.operation as "move" | "copy"
+						const sourcePath = block.params.source_path
+						const startLine = block.params.start_line
+						const endLine = block.params.end_line
+						const targetPath = block.params.target_path
+						const targetLine = block.params.target_line
+
+						try {
+							if (block.partial) {
+								// Partial block handling
+								const sharedMessageProps: ClineSayTool = {
+									tool: "moveLines",
+									path: getReadablePath(cwd, removeClosingTag("source_path", sourcePath)),
+									content: `from ${removeClosingTag("source_path", sourcePath)} lines ${removeClosingTag("start_line", startLine)}-${removeClosingTag("end_line", endLine)} to ${removeClosingTag("target_path", targetPath)} after line ${removeClosingTag("target_line", targetLine)}`,
+									operationIsLocatedInWorkspace:
+										isLocatedInWorkspace(sourcePath) || isLocatedInWorkspace(targetPath),
+								}
+								const partialMessage = JSON.stringify(sharedMessageProps)
+								if (
+									this.shouldAutoApproveToolWithPath(block.name, sourcePath) &&
+									this.shouldAutoApproveToolWithPath(block.name, targetPath)
+								) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", partialMessage, undefined, undefined, block.partial)
+								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								// Full block handling
+								if (!operation || !sourcePath || !startLine || !endLine || !targetPath || !targetLine) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("move_lines", "one or more parameters"),
+									)
+									await this.saveCheckpoint()
+									break
+								}
+
+								const sourceAccessAllowed = this.clineIgnoreController.validateAccess(sourcePath)
+								const targetAccessAllowed = this.clineIgnoreController.validateAccess(targetPath)
+								if (!sourceAccessAllowed || !targetAccessAllowed) {
+									const deniedPath = !sourceAccessAllowed ? sourcePath : targetPath
+									await this.say("clineignore_error", deniedPath)
+									pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(deniedPath)))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify({
+									tool: "moveLines",
+									path: getReadablePath(cwd, sourcePath),
+									content: `from ${sourcePath} lines ${startLine}-${endLine} to ${targetPath} after line ${targetLine}`,
+									operationIsLocatedInWorkspace:
+										isLocatedInWorkspace(sourcePath) || isLocatedInWorkspace(targetPath),
+								} satisfies ClineSayTool)
+
+								if (
+									this.shouldAutoApproveToolWithPath(block.name, sourcePath) &&
+									this.shouldAutoApproveToolWithPath(block.name, targetPath)
+								) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", completeMessage, undefined, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to ${operation} lines from ${path.basename(sourcePath)} to ${path.basename(targetPath)}`,
+									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
+										await this.saveCheckpoint()
+										break
+									}
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										true,
+									)
+								}
+
+								await moveLines(
+									operation,
+									path.resolve(cwd, sourcePath),
+									parseInt(startLine),
+									parseInt(endLine),
+									path.resolve(cwd, targetPath),
+									parseInt(targetLine),
+									cwd,
+								)
+
+								pushToolResult(
+									`Successfully ${operation}d lines ${startLine}-${endLine} from ${sourcePath} to line ${targetLine} in ${targetPath}`,
+								)
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("moving lines", error)
 							await this.saveCheckpoint()
 							break
 						}

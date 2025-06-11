@@ -13,6 +13,7 @@ export const toolUseNames = [
 	"read_file",
 	"write_to_file",
 	"replace_in_file",
+	"move_lines",
 	"search_files",
 	"list_files",
 	"list_code_definition_names",
@@ -60,6 +61,12 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
+	"source_path",
+	"target_path",
+	"start_line",
+	"end_line",
+	"target_line",
+	"operation",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
