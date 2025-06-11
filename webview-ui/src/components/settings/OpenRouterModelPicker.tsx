@@ -1,18 +1,18 @@
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
+import { openRouterDefaultModelId } from "@shared/api"
+import { StringRequest } from "@shared/proto/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "@shared/api"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import FeaturedModelCard from "./FeaturedModelCard"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -43,7 +43,7 @@ export interface OpenRouterModelPickerProps {
 const featuredModels = [
 	{
 		id: "anthropic/claude-3.7-sonnet",
-		description: "Leading model for agentic coding",
+		description: "Recommended for agentic coding in Cline",
 		label: "Best",
 	},
 	{
@@ -52,14 +52,14 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
-		id: "openai/gpt-4.1",
-		description: "1M context window, blazing fast",
-		label: "New",
+		id: "x-ai/grok-3",
+		description: "Latest flagship model from xAI, free for now!",
+		label: "Free",
 	},
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -84,11 +84,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	useMount(() => {
-		ModelsServiceClient.refreshOpenRouterModels({}).catch((error: Error) =>
-			console.error("Failed to refresh OpenRouter models:", error),
-		)
-	})
+	useMount(refreshOpenRouterModels)
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -199,6 +195,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 	const showBudgetSlider = useMemo(() => {
 		return (
+			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
@@ -292,10 +290,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 												isFavorite={isFavorite}
 												onClick={(e) => {
 													e.stopPropagation()
-													vscode.postMessage({
-														type: "toggleFavoriteModel",
-														modelId: item.id,
-													})
+													StateServiceClient.toggleFavoriteModel(
+														StringRequest.create({ value: item.id }),
+													).catch((error) => console.error("Failed to toggle favorite model:", error))
 												}}
 											/>
 										</div>

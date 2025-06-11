@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.14.1",
+	"version": "3.17.12",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -40,16 +40,77 @@
 		"llama"
 	],
 	"activationEvents": [
+		"onLanguage",
+		"onStartupFinished",
 		"workspaceContains:evals.env"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"walkthroughs": [
+			{
+				"id": "ClineWalkthrough",
+				"title": "Meet Cline, your new coding partner",
+				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"steps": [
+					{
+						"id": "welcome",
+						"title": "Start with a Goal, Not Just a Prompt",
+						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"media": {
+							"markdown": "walkthrough/step1.md"
+						}
+					},
+					{
+						"id": "learn",
+						"title": "Let Cline Learn Your Codebase",
+						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"media": {
+							"markdown": "walkthrough/step2.md"
+						}
+					},
+					{
+						"id": "advanced-features",
+						"title": "Always Use the Best AI Models",
+						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"media": {
+							"markdown": "walkthrough/step3.md"
+						}
+					},
+					{
+						"id": "mcp",
+						"title": "Extend with Powerful Tools (MCP)",
+						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"media": {
+							"markdown": "walkthrough/step4.md"
+						}
+					},
+					{
+						"id": "getting-started",
+						"title": "You're Always in Control",
+						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"media": {
+							"markdown": "walkthrough/step5.md"
+						},
+						"content": {
+							"path": "walkthrough/step5.md"
+						}
+					}
+				]
+			}
+		],
 		"viewsContainers": {
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
-					"icon": "assets/icons/icon.svg"
+					"title": "Cline (⌘+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isMac"
+				},
+				{
+					"id": "claude-dev-ActivityBar",
+					"title": "Cline (Ctrl+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "!isMac"
 				}
 			]
 		},
@@ -124,6 +185,21 @@
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(robot)"
+			},
+			{
+				"command": "cline.explainCode",
+				"title": "Explain with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.improveCode",
+				"title": "Improve with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.openWalkthrough",
+				"title": "Open Walkthrough",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -138,6 +214,14 @@
 			{
 				"command": "cline.generateGitCommitMessage",
 				"when": "scmProvider == git"
+			},
+			{
+				"command": "cline.focusChatInput",
+				"key": "cmd+'",
+				"mac": "cmd+'",
+				"win": "ctrl+'",
+				"linux": "ctrl+'",
+				"when": "!editorHasSelection"
 			}
 		],
 		"menus": {
@@ -234,92 +318,25 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {
-				"cline.vsCodeLmModelSelector": {
-					"type": "object",
-					"properties": {
-						"vendor": {
-							"type": "string",
-							"description": "The vendor of the language model (e.g. copilot)"
-						},
-						"family": {
-							"type": "string",
-							"description": "The family of the language model (e.g. gpt-4)"
-						}
-					},
-					"description": "Settings for VSCode Language Model API"
-				},
-				"cline.enableCheckpoints": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
-				},
-				"cline.disableBrowserTool": {
-					"type": "boolean",
-					"default": false,
-					"description": "Disables extension from spawning browser session."
-				},
-				"cline.modelSettings.o3Mini.reasoningEffort": {
-					"type": "string",
-					"enum": [
-						"low",
-						"medium",
-						"high"
-					],
-					"default": "medium",
-					"description": "Controls the reasoning effort when using an OpenAI reasoning model. Higher values may result in more thorough but slower responses."
-				},
-				"cline.chromeExecutablePath": {
-					"type": "string",
-					"default": null,
-					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
-				},
-				"cline.preferredLanguage": {
-					"type": "string",
-					"enum": [
-						"English",
-						"Arabic - العربية",
-						"Portuguese - Português (Brasil)",
-						"Czech - Čeština",
-						"French - Français",
-						"German - Deutsch",
-						"Hindi - हिन्दी",
-						"Hungarian - Magyar",
-						"Italian - Italiano",
-						"Japanese - 日本語",
-						"Korean - 한국어",
-						"Polish - Polski",
-						"Portuguese - Português (Portugal)",
-						"Russian - Русский",
-						"Simplified Chinese - 简体中文",
-						"Spanish - Español",
-						"Traditional Chinese - 繁體中文",
-						"Turkish - Türkçe"
-					],
-					"default": "English",
-					"description": "The language that Cline should use for communication."
-				},
-				"cline.mcpMarketplace.enabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Controls whether the MCP Marketplace is enabled."
-				}
-			}
+			"properties": {}
 		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.js",
+		"compile-standalone": "npm run check-types && npm run lint && node esbuild.js --standalone",
+		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
-		"protos": "node proto/build-proto.js && prettier src/shared/proto src/core/controller webview-ui/src/services --write",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
+		"protos": "node proto/build-proto.js && node scripts/generate-server-setup.mjs",
+		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/standalone/server-setup.ts --write --log-level silent",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
-		"pretest": "npm run compile-tests && npm run compile && npm run lint",
-		"check-types": "tsc --noEmit",
-		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts",
+		"pretest": "npm run compile-tests && npm run compile && npm run compile-standalone && npm run lint",
+		"check-types": "npm run protos && tsc --noEmit",
+		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && cd webview-ui && npm run lint",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "npm-run-all test:unit test:integration",
@@ -356,13 +373,15 @@
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
-		"@typescript-eslint/parser": "^7.11.0",
-		"@vscode/test-cli": "^0.0.9",
-		"@vscode/test-electron": "^2.4.0",
+		"@typescript-eslint/parser": "^7.18.0",
+		"@typescript-eslint/utils": "^8.33.0",
+		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-electron": "^2.4.1",
 		"chai": "^4.3.10",
 		"chalk": "^5.3.0",
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
+		"eslint-plugin-eslint-rules": "file:eslint-rules",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
 		"mintlify": "^4.0.515",
@@ -381,13 +400,15 @@
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.821.0",
 		"@bufbuild/protobuf": "^2.2.5",
+		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/genai": "^0.9.0",
+		"@google/genai": "^0.13.0",
 		"@grpc/grpc-js": "^1.9.15",
+		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.7.0",
+		"@modelcontextprotocol/sdk": "^1.11.1",
 		"@opentelemetry/api": "^1.4.1",
 		"@opentelemetry/exporter-trace-otlp-http": "^0.39.1",
 		"@opentelemetry/resources": "^1.30.1",
@@ -395,7 +416,9 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@sentry/browser": "^9.12.0",
+		"@streamparser/json": "^0.0.22",
 		"@vscode/codicons": "^0.0.36",
+		"archiver": "^7.0.1",
 		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -403,12 +426,14 @@
 		"clone-deep": "^4.0.1",
 		"default-shell": "^2.2.0",
 		"diff": "^5.2.0",
+		"exceljs": "^4.4.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
 		"firebase": "^11.2.0",
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"grpc-health-check": "^2.0.2",
 		"iconv-lite": "^0.6.3",
 		"ignore": "^7.0.3",
 		"image-size": "^2.0.2",
@@ -417,6 +442,7 @@
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"ollama": "^0.5.13",
+		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
@@ -426,11 +452,14 @@
 		"posthog-node": "^4.8.1",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
+		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
 		"tree-sitter-wasms": "^0.1.11",
+		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
+		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
 	}

@@ -11,6 +11,10 @@ on:
                 options:
                     - pre-release
                     - release
+            tag:
+                description: "Enter existing tag to publish (e.g., v3.1.2)"
+                required: true
+                type: string
 
 permissions:
     contents: write
@@ -30,6 +34,8 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.tag }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -69,14 +75,20 @@ jobs:
                   VERSION=$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Create Git Tag
-              id: create_tag
+            - name: Validate Tag
+              id: validate_tag
               run: |
-                  VERSION=v${{ steps.get_version.outputs.version }}
-                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
-                  echo "Tagging with $VERSION"
-                  git tag "$VERSION"
-                  git push origin "$VERSION"
+                  TAG="${{ github.event.inputs.tag }}"
+                  echo "tag=$TAG" >> $GITHUB_OUTPUT
+                  echo "Using existing tag: $TAG"
+
+                  # Verify the tag exists
+                  if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+                    echo "Error: Tag '$TAG' does not exist in the repository"
+                    exit 1
+                  fi
+
+                  echo "Tag '$TAG' validated successfully"
 
             - name: Package and Publish Extension
               env:
@@ -106,7 +118,7 @@ jobs:
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: ${{ steps.create_tag.outputs.tag }}
+                  tag_name: ${{ steps.validate_tag.outputs.tag }}
                   files: "*.vsix"
                   # body: ${{ steps.changelog.outputs.content }}
                   generate_release_notes: true

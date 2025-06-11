@@ -5,6 +5,7 @@ import { execa } from "execa"
 import { Logger } from "@services/logging/Logger"
 import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
 import {
 	getWorkspacePath,
 	validateWorkspacePath,
@@ -12,12 +13,18 @@ import {
 	getFileChanges,
 	calculateToolSuccessRate,
 } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState, updateApiConfiguration, storeSecret } from "@core/storage/state"
+import {
+	updateGlobalState,
+	getAllExtensionState,
+	updateApiConfiguration,
+	storeSecret,
+	updateWorkspaceState,
+} from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
-import { WebviewMessage } from "@shared/WebviewMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
+import { AskResponseRequest } from "@/shared/proto/task"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -36,25 +43,28 @@ function createToolCallTracker(webviewProvider: WebviewProvider): {
 	// Intercept messages to track tool usage
 	const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
 	webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
-		// Track tool calls
-		if (message.type === "partialMessage" && message.partialMessage?.say === "tool") {
-			const toolName = (message.partialMessage.text as any)?.tool
-			if (toolName) {
-				tracker.toolCalls[toolName] = (tracker.toolCalls[toolName] || 0) + 1
-			}
-		}
+		// NOTE: Tool tracking via partialMessage has been migrated to gRPC streaming
+		// This interceptor is kept for potential future use with other message types
 
-		// Track tool failures
-		if (message.type === "partialMessage" && message.partialMessage?.say === "error") {
-			const errorText = message.partialMessage.text
-			if (errorText && errorText.includes("Error executing tool")) {
-				const match = errorText.match(/Error executing tool: (\w+)/)
-				if (match && match[1]) {
-					const toolName = match[1]
-					tracker.toolFailures[toolName] = (tracker.toolFailures[toolName] || 0) + 1
-				}
-			}
-		}
+		// Track tool calls - commented out as partialMessage is now handled via gRPC
+		// if (message.type === "partialMessage" && message.partialMessage?.say === "tool") {
+		// 	const toolName = (message.partialMessage.text as any)?.tool
+		// 	if (toolName) {
+		// 		tracker.toolCalls[toolName] = (tracker.toolCalls[toolName] || 0) + 1
+		// 	}
+		// }
+
+		// Track tool failures - commented out as partialMessage is now handled via gRPC
+		// if (message.type === "partialMessage" && message.partialMessage?.say === "error") {
+		// 	const errorText = message.partialMessage.text
+		// 	if (errorText && errorText.includes("Error executing tool")) {
+		// 		const match = errorText.match(/Error executing tool: (\w+)/)
+		// 		if (match && match[1]) {
+		// 			const toolName = match[1]
+		// 			tracker.toolFailures[toolName] = (tracker.toolFailures[toolName] || 0) + 1
+		// 		}
+		// 	}
+		// }
 
 		return originalPostMessageToWebview.call(webviewProvider.controller, message)
 	}
@@ -268,7 +278,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
 
 						// Update global state to use cline provider
-						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
+						await updateWorkspaceState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()
@@ -503,22 +513,25 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 
 		// Intercept outgoing messages from extension to webview
 		webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
-			// Check for completion_result message
-			if (message.type === "partialMessage" && message.partialMessage?.say === "completion_result") {
-				// Complete the current task
-				completeTask()
-			}
+			// NOTE: Completion and ask message detection has been migrated to gRPC streaming
+			// This interceptor is kept for potential future use with other message types
 
-			// Check for ask messages that require user intervention
-			if (message.type === "partialMessage" && message.partialMessage?.type === "ask" && !message.partialMessage.partial) {
-				const askType = message.partialMessage.ask as ClineAsk
-				const askText = message.partialMessage.text
+			// Check for completion_result message - commented out as partialMessage is now handled via gRPC
+			// if (message.type === "partialMessage" && message.partialMessage?.say === "completion_result") {
+			// 	// Complete the current task
+			// 	completeTask()
+			// }
 
-				// Automatically respond to different types of asks
-				setTimeout(() => {
-					autoRespondToAsk(webviewProvider, askType, askText)
-				}, 100) // Small delay to ensure the message is processed first
-			}
+			// Check for ask messages that require user intervention - commented out as partialMessage is now handled via gRPC
+			// if (message.type === "partialMessage" && message.partialMessage?.type === "ask" && !message.partialMessage.partial) {
+			// 	const askType = message.partialMessage.ask as ClineAsk
+			// 	const askText = message.partialMessage.text
+
+			// 	// Automatically respond to different types of asks
+			// 	setTimeout(async () => {
+			// 		await autoRespondToAsk(webviewProvider, askType, askText)
+			// 	}, 100) // Small delay to ensure the message is processed first
+			// }
 
 			return originalPostMessageToWebview.call(webviewProvider.controller, message)
 		}
@@ -538,65 +551,64 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
  * @param askType The type of ask message
  * @param askText The text content of the ask message
  */
-function autoRespondToAsk(webviewProvider: WebviewProvider, askType: ClineAsk, askText?: string): void {
+async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: ClineAsk, askText?: string): Promise<void> {
 	if (!webviewProvider.controller) {
 		return
 	}
 
 	Logger.log(`Auto-responding to ask type: ${askType}`)
 
-	// Create a response message based on the ask type
-	const response: WebviewMessage = {
-		type: "askResponse",
-		askResponse: "yesButtonClicked", // Default to approving most actions
-	}
+	// Default to approving most actions
+	let responseType = "yesButtonClicked"
+	let responseText: string | undefined
+	let responseImages: string[] | undefined
 
 	// Handle specific ask types differently if needed
 	switch (askType) {
 		case "followup":
 			// For follow-up questions, provide a generic response
-			response.askResponse = "messageResponse"
-			response.text = "I can't answer any questions right now, use your best judgment."
+			responseType = "messageResponse"
+			responseText = "I can't answer any questions right now, use your best judgment."
 			break
 
 		case "api_req_failed":
 			// Always retry API requests
-			response.askResponse = "yesButtonClicked" // "Retry" button
+			responseType = "yesButtonClicked" // "Retry" button
 			break
 
 		case "completion_result":
 			// Accept the completion
-			response.askResponse = "messageResponse"
-			response.text = "Task completed successfully."
+			responseType = "messageResponse"
+			responseText = "Task completed successfully."
 			break
 
 		case "mistake_limit_reached":
 			// Provide guidance to continue
-			response.askResponse = "messageResponse"
-			response.text = "Try breaking down the task into smaller steps."
+			responseType = "messageResponse"
+			responseText = "Try breaking down the task into smaller steps."
 			break
 
 		case "auto_approval_max_req_reached":
 			// Reset the count to continue
-			response.askResponse = "yesButtonClicked" // "Reset and continue" button
+			responseType = "yesButtonClicked" // "Reset and continue" button
 			break
 
 		case "resume_task":
 		case "resume_completed_task":
 			// Resume the task
-			response.askResponse = "messageResponse"
+			responseType = "messageResponse"
 			break
 
 		case "new_task":
 			// Decline creating a new task to keep the current task running
-			response.askResponse = "messageResponse"
-			response.text = "Continue with the current task."
+			responseType = "messageResponse"
+			responseText = "Continue with the current task."
 			break
 
 		case "plan_mode_respond":
 			// Respond to plan mode with a message to toggle to Act mode
-			response.askResponse = "messageResponse"
-			response.text = "PLAN_MODE_TOGGLE_RESPONSE" // Special marker to toggle to Act mode
+			responseType = "messageResponse"
+			responseText = "PLAN_MODE_TOGGLE_RESPONSE" // Special marker to toggle to Act mode
 
 			// Automatically toggle to Act mode after responding
 			setTimeout(async () => {
@@ -616,8 +628,18 @@ function autoRespondToAsk(webviewProvider: WebviewProvider, askType: ClineAsk, a
 	}
 
 	// Send the response message
-	webviewProvider.controller.handleWebviewMessage(response)
-	Logger.log(`Auto-responded to ${askType} with ${response.askResponse}`)
+	try {
+		await TaskServiceClient.askResponse(
+			AskResponseRequest.create({
+				responseType,
+				text: responseText,
+				images: responseImages,
+			}),
+		)
+		Logger.log(`Auto-responded to ${askType} with ${responseType}`)
+	} catch (error) {
+		Logger.log(`Error sending askResponse: ${error}`)
+	}
 }
 
 /**

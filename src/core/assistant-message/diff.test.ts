@@ -1,9 +1,9 @@
-import { constructNewFileContent as cnfc2 } from "./diff"
+import { constructNewFileContent as cnfc } from "./diff"
 import { describe, it } from "mocha"
 import { expect } from "chai"
 
-async function cnfc(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	return cnfc2(diffContent, originalContent, isFinal, "v1")
+async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+	return cnfc(diffContent, originalContent, isFinal, "v2")
 }
 
 describe("constructNewFileContent", () => {
@@ -11,55 +11,55 @@ describe("constructNewFileContent", () => {
 		{
 			name: "empty file",
 			original: "",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 =======
 new content
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "new content\n",
 			isFinal: true,
 		},
 		{
 			name: "full file replacement",
 			original: "old content",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 =======
 new content
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "new content\n",
 			isFinal: true,
 		},
 		{
 			name: "exact match replacement",
 			original: "line1\nline2\nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "line-trimmed match replacement",
 			original: "line1\n line2 \nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "block anchor match replacement",
 			original: "line1\nstart\nmiddle\nend\nline5",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 start
 middle
 end
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline5",
 			isFinal: true,
 		},
@@ -67,11 +67,11 @@ replaced
 			name: "incremental processing",
 			original: "line1\nline2\nline3",
 			diff: [
-				`<<<<<<< SEARCH
+				`------- SEARCH
 line2
 =======`,
 				"replaced\n",
-				">>>>>>> REPLACE",
+				"+++++++ REPLACE",
 			].join("\n"),
 			expected: "line1\nreplaced\n\nline3",
 			isFinal: true,
@@ -79,60 +79,60 @@ line2
 		{
 			name: "final chunk with remaining content",
 			original: "line1\nline2\nline3",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3",
 			isFinal: true,
 		},
 		{
 			name: "multiple ordered replacements",
 			original: "First\nSecond\nThird\nFourth",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 First
 =======
 1st
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 Third
 =======
 3rd
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "1st\nSecond\n3rd\nFourth",
 			isFinal: true,
 		},
 		{
 			name: "replace then delete",
 			original: "line1\nline2\nline3\nline4",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line2
 =======
 replaced
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 line4
 =======
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line1\nreplaced\nline3\n",
 			isFinal: true,
 		},
 		{
 			name: "delete then replace",
 			original: "line1\nline2\nline3\nline4",
-			diff: `<<<<<<< SEARCH
+			diff: `------- SEARCH
 line1
 =======
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 line3
 =======
 replaced
->>>>>>> REPLACE`,
++++++++ REPLACE`,
 			expected: "line2\nreplaced\nline4",
 			isFinal: true,
 		},
@@ -155,11 +155,11 @@ replaced
 
 	it("should throw error when no match found", async () => {
 		const original = "line1\nline2\nline3"
-		const diff = `<<<<<<< SEARCH
+		const diff = `------- SEARCH
 non-existent
 =======
 replaced
->>>>>>> REPLACE`
++++++++ REPLACE`
 
 		try {
 			await cnfc(diff, original, true)
@@ -174,5 +174,137 @@ replaced
 		} catch (err) {
 			expect(err).to.be.an("error")
 		}
+	})
+
+	it("should handle missing final REPLACE marker when isFinal is true", async () => {
+		const original = "line1\nline2\nline3"
+		const diff = `------- SEARCH
+line2
+=======
+replaced`
+		// Note: missing +++++++ REPLACE marker
+
+		const result1 = await cnfc(diff, original, true) // isFinal = true
+
+		// Should still work and replace line2 with "replaced"
+		const expected = "line1\nreplaced\nline3"
+
+		expect(result1).to.equal(expected)
+	})
+
+	it("should handle missing final REPLACE marker with multiple lines of replacement", async () => {
+		const original = "function test() {\n\tconst a = 1;\n\treturn a;\n}"
+		const diff = `------- SEARCH
+	const a = 1;
+	return a;
+=======
+	const a = 42;
+	console.log('updated');
+	return a;`
+		// Note: missing +++++++ REPLACE marker
+
+		const result1 = await cnfc(diff, original, true) // isFinal = true
+		const expected = "function test() {\n\tconst a = 42;\n\tconsole.log('updated');\n\treturn a;\n}"
+
+		expect(result1).to.equal(expected)
+	})
+
+	// 	it("should NOT process incomplete replacement when isFinal is false", async () => {
+	// 		const original = "line1\nline2\nline3"
+	// 		const diff = `------- SEARCH
+	// line2
+	// =======
+	// replaced`
+	// 		// Note: missing +++++++ REPLACE marker AND isFinal = false
+
+	// 		const result1 = await cnfc(diff, original, false) // isFinal = false
+
+	// 		// Should not make any changes since the block is incomplete
+	// 		const expected = "line1\nline2\nline3"
+
+	// 		expect(result1).to.equal(expected)
+	// 	})
+})
+
+// Test cases for out-of-order search/replace blocks
+
+describe("Diff Format Out of Order Cases", () => {
+	it("should handle out-of-order replacements with different positions", async () => {
+		const isFinal = true
+		const original = "first\nsecond\nthird\nfourth\n"
+		const diff = `------- SEARCH
+fourth
+=======
+new fourth
++++++++ REPLACE
+------- SEARCH
+second
+=======
+new second
++++++++ REPLACE`
+		const result1 = await cnfc(diff, original, isFinal)
+		const expectedResult = "first\nnew second\nthird\nnew fourth\n"
+		expect(result1).to.equal(expectedResult)
+	})
+
+	it("should handle multiple out-of-order replacements", async () => {
+		const isFinal = true
+		const original = "one\ntwo\nthree\nfour\nfive\n"
+		const diff = `------- SEARCH
+four
+=======
+fourth
++++++++ REPLACE
+------- SEARCH
+two
+=======
+second
++++++++ REPLACE
+------- SEARCH
+five
+=======
+fifth
++++++++ REPLACE`
+		const result1 = await cnfc(diff, original, isFinal)
+		const expectedResult = "one\nsecond\nthree\nfourth\nfifth\n"
+		expect(result1).to.equal(expectedResult)
+	})
+
+	it("should handle out-of-order replacements with indentation", async () => {
+		const isFinal = true
+		const original = "function test() {\n\tconst a = 1;\n\tconst b = 2;\n\tconst c = 3;\n\n}"
+		const diff = `------- SEARCH
+	const c = 3;
+=======
+	const c = 30;
++++++++ REPLACE
+------- SEARCH
+	const a = 1;
+=======
+	const a = 10;
++++++++ REPLACE`
+		const result1 = await cnfc(diff, original, isFinal)
+		const expectedResult = "function test() {\n\tconst a = 10;\n\tconst b = 2;\n\tconst c = 30;\n\n}"
+		expect(result1).to.equal(expectedResult)
+	})
+
+	it("should handle out-of-order replacements with empty lines", async () => {
+		const isFinal = true
+		const original = "header\n\nbody\n\nfooter\n"
+		const diff = `------- SEARCH
+footer
+=======
+new footer
++++++++ REPLACE
+------- SEARCH
+
+body
+
+=======
+new body content
++++++++ REPLACE`
+		const result1 = await cnfc(diff, original, isFinal)
+		const expectedResult = "header\nnew body content\nnew footer\n"
+		expect(result1).to.equal(expectedResult)
 	})
 })

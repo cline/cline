@@ -1,6 +1,7 @@
 import { Controller } from ".."
 import { GetTaskHistoryRequest, TaskHistoryArray } from "../../../shared/proto/task"
 import { getGlobalState } from "../../storage/state"
+import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 
 /**
  * Gets filtered task history
@@ -10,22 +11,49 @@ import { getGlobalState } from "../../storage/state"
  */
 export async function getTaskHistory(controller: Controller, request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 	try {
-		const { favoritesOnly, searchQuery, sortBy } = request
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 
 		// Get task history from global state
 		const taskHistory = ((await getGlobalState(controller.context, "taskHistory")) as any[]) || []
+		const workspacePath = getWorkspacePath()
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
 			// Basic filter: must have timestamp and task content
 			const hasRequiredFields = item.ts && item.task
-
-			// Apply favorites filter if requested
-			if (favoritesOnly && hasRequiredFields) {
-				return item.isFavorited === true
+			if (!hasRequiredFields) {
+				return false
 			}
 
-			return hasRequiredFields
+			// Apply favorites filter if requested
+			if (favoritesOnly && !item.isFavorited) {
+				return false
+			}
+
+			// Apply current workspace filter if requested
+			if (currentWorkspaceOnly) {
+				let isInWorkspace = false
+
+				// First check the cwdOnTaskInitialization property - Only present on tasks from this change forward
+				if (item.cwdOnTaskInitialization) {
+					if (arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
+						isInWorkspace = true
+					}
+				}
+
+				// For tasks without cwdOnTaskInitialization, check the older shadowGitConfigWorkTree property
+				if (!isInWorkspace && item.shadowGitConfigWorkTree) {
+					if (arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
+						isInWorkspace = true
+					}
+				}
+
+				if (!isInWorkspace) {
+					return false
+				}
+			}
+
+			return true
 		})
 
 		// Apply search if provided
@@ -78,10 +106,10 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			cacheReads: item.cacheReads || 0,
 		}))
 
-		return {
+		return TaskHistoryArray.create({
 			tasks,
 			totalCount,
-		}
+		})
 	} catch (error) {
 		console.error("Error in getTaskHistory:", error)
 		throw error

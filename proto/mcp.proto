@@ -10,6 +10,19 @@ service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
+  rpc downloadMcp(StringRequest) returns (Empty);
+  rpc restartMcpServer(StringRequest) returns (McpServers);
+  rpc deleteMcpServer(StringRequest) returns (McpServers);
+  rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
+  rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
+  rpc openMcpSettings(EmptyRequest) returns (Empty);
+  
+  // Subscribe to MCP marketplace catalog updates
+  rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
+  rpc getLatestMcpServers(Empty) returns (McpServers);
+  
+  // Subscribe to MCP server updates
+  rpc subscribeToMcpServers(EmptyRequest) returns (stream McpServers);
 }
 
 message ToggleMcpServerRequest {
@@ -28,6 +41,13 @@ message AddRemoteMcpServerRequest {
   Metadata metadata = 1;
   string server_name = 2;
   string server_url = 3;
+}
+
+message ToggleToolAutoApproveRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  repeated string tool_names = 3;
+  bool auto_approve = 4;
 }
 
 message McpTool {
@@ -73,4 +93,29 @@ message McpServer {
 
 message McpServers {
   repeated McpServer mcp_servers = 1;
+}
+
+message McpMarketplaceItem {
+  string mcp_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string codicon_icon = 6;
+  string logo_url = 7;
+  string category = 8;
+  repeated string tags = 9;
+  bool requires_api_key = 10;
+  optional string readme_content = 11;
+  optional string llms_installation_content = 12;
+  bool is_recommended = 13;
+  int32 github_stars = 14;
+  int32 download_count = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  string last_github_sync = 18;
+}
+
+message McpMarketplaceCatalog {
+  repeated McpMarketplaceItem items = 1;
 }

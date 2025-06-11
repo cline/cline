@@ -94,7 +94,6 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 							if (message.grpc_response.message) {
 								const responseType = method.responseType
 								const response = responseType.fromJSON(message.grpc_response.message)
-								console.log("[DEBUG] Received streaming response:", message.grpc_response.message)
 								options.onResponse(response)
 							}
 						}
@@ -149,7 +148,6 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 								// Convert JSON back to protobuf message
 								const responseType = method.responseType
 								const response = responseType.fromJSON(message.grpc_response.message)
-								console.log("[DEBUG] grpc-client sending response:", response)
 								resolve(response)
 							}
 						}

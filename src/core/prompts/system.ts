@@ -3,13 +3,27 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL } from "@core/prompts/model_prompts/claude4-experimental"
+import { SYSTEM_PROMPT_CLAUDE4 } from "@core/prompts/model_prompts/claude4"
+import { USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "@core/task/index"; 
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
 	supportsBrowserUse: boolean,
 	mcpHub: McpHub,
 	browserSettings: BrowserSettings,
-) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+	isClaude4ModelFamily: boolean = false,
+) => {
+
+	if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+		return SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL(cwd, supportsBrowserUse, mcpHub, browserSettings)
+	}
+
+  if (isClaude4ModelFamily) {
+    return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
+  }
+
+	return `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
 
@@ -76,11 +90,11 @@ Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd.toPosix()})
 - diff: (required) One or more SEARCH/REPLACE blocks following this exact format:
   \`\`\`
-  <<<<<<< SEARCH
+  ------- SEARCH
   [exact content to find]
   =======
   [new content to replace with]
-  >>>>>>> REPLACE
+  +++++++ REPLACE
   \`\`\`
   Critical rules:
   1. SEARCH content must match the associated file section to find EXACTLY:
@@ -103,8 +117,9 @@ Usage:
 <path>File path here</path>
 <diff>
 Search and replace blocks here
-</diff>
+</diff> 
 </replace_in_file>
+
 
 ## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
@@ -331,22 +346,22 @@ Usage:
 <replace_in_file>
 <path>src/components/App.tsx</path>
 <diff>
-<<<<<<< SEARCH
+------- SEARCH
 import React from 'react';
 =======
 import React, { useState } from 'react';
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 function handleSubmit() {
   saveData();
   setLoading(false);
 }
 
 =======
->>>>>>> REPLACE
++++++++ REPLACE
 
-<<<<<<< SEARCH
+------- SEARCH
 return (
   <div>
 =======
@@ -357,9 +372,10 @@ function handleSubmit() {
 
 return (
   <div>
->>>>>>> REPLACE
++++++++ REPLACE
 </diff>
 </replace_in_file>
+
 
 ## Example 5: Requesting to use an MCP tool
 
@@ -532,7 +548,6 @@ You have access to two tools for working with files: **write_to_file** and **rep
 2. For targeted edits, apply replace_in_file with carefully crafted SEARCH/REPLACE blocks. If you need multiple changes, you can stack multiple SEARCH/REPLACE blocks within a single replace_in_file call.
 3. For major overhauls or initial file creation, rely on write_to_file.
 4. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
-
 By thoughtfully selecting between write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.
 
 ====
@@ -604,6 +619,7 @@ RULES
 - Before executing commands, check the "Actively Running Terminals" section in environment_details. If present, consider how these active processes might impact your task. For example, if a local development server is already running, you wouldn't need to start it again. If no active terminals are listed, proceed with command execution as normal.
 - When using the replace_in_file tool, you must include complete lines in your SEARCH blocks, not partial lines. The system requires exact line matches and cannot match partial lines. For example, if you want to match a line containing "const x = 5;", your SEARCH block must include the entire line, not just "x = 5" or other fragments.
 - When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
+- When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 	supportsBrowserUse
 		? " Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser."
@@ -631,9 +647,10 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, analyze the file structure provided in environment_details to gain context and insights for proceeding effectively. Then, think about which of the provided tools is the most relevant tool to accomplish the user's task. Next, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool use. BUT, if one of the values for a required parameter is missing, DO NOT invoke the tool (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
+	}
+
 
 export function addUserInstructions(
-	settingsCustomInstructions?: string,
 	globalClineRulesFileInstructions?: string,
 	localClineRulesFileInstructions?: string,
 	localCursorRulesFileInstructions?: string,
@@ -645,9 +662,6 @@ export function addUserInstructions(
 	let customInstructions = ""
 	if (preferredLanguageInstructions) {
 		customInstructions += preferredLanguageInstructions + "\n\n"
-	}
-	if (settingsCustomInstructions) {
-		customInstructions += settingsCustomInstructions + "\n\n"
 	}
 	if (globalClineRulesFileInstructions) {
 		customInstructions += globalClineRulesFileInstructions + "\n\n"

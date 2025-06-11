@@ -1,8 +1,10 @@
-import { useCallback, useState, useRef, useMemo } from "react"
-import styled from "styled-components"
+import { McpServiceClient } from "@/services/grpc-client"
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
-import { vscode } from "@/utils/vscode"
+import { StringRequest } from "@shared/proto/common"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -14,6 +16,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
 	const githubLinkRef = useRef<HTMLDivElement>(null)
+	const { onRelinquishControl } = useExtensionState()
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message = event.data
@@ -21,13 +24,16 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 			case "mcpDownloadDetails":
 				setIsDownloading(false)
 				break
-			case "relinquishControl":
-				setIsLoading(false)
-				break
 		}
 	}, [])
 
 	useEvent("message", handleMessage)
+
+	useEffect(() => {
+		return onRelinquishControl(() => {
+			setIsLoading(false)
+		})
+	}, [onRelinquishControl])
 
 	const githubAuthorUrl = useMemo(() => {
 		const url = new URL(item.githubUrl)
@@ -107,15 +113,17 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								{item.name}
 							</h3>
 							<div
-								onClick={(e) => {
+								onClick={async (e) => {
 									e.preventDefault() // Prevent card click when clicking install
 									e.stopPropagation() // Stop event from bubbling up to parent link
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
-										vscode.postMessage({
-											type: "downloadMcp",
-											mcpId: item.mcpId,
-										})
+										try {
+											await McpServiceClient.downloadMcp(StringRequest.create({ value: item.mcpId }))
+										} catch (error) {
+											setIsDownloading(false)
+											console.error("Failed to download MCP:", error)
+										}
 									}
 								}}
 								style={{}}>

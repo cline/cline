@@ -6,6 +6,7 @@ import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
+import { withRetry } from "../retry"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -25,6 +26,7 @@ export class ClineHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined
 
@@ -33,7 +35,7 @@ export class ClineHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
@@ -72,6 +74,16 @@ export class ClineHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage && chunk.usage) {
+				// @ts-ignore-next-line
+				let totalCost = chunk.usage.cost || 0
+				const modelId = this.getModel().id
+				const provider = modelId.split("/")[0]
+
+				// If provider is x-ai, set totalCost to 0 (we're doing a promo)
+				if (provider === "x-ai") {
+					totalCost = 0
+				}
+
 				yield {
 					type: "usage",
 					cacheWriteTokens: 0,
@@ -79,7 +91,7 @@ export class ClineHandler implements ApiHandler {
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
-					totalCost: chunk.usage.cost || 0,
+					totalCost,
 				}
 				didOutputUsage = true
 			}
@@ -122,7 +134,10 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
+		let modelId = this.options.openRouterModelId
+		if (modelId === "x-ai/grok-3") {
+			modelId = "x-ai/grok-3-beta"
+		}
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

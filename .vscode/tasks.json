@@ -4,6 +4,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "compile-standalone",
+			"type": "npm",
+			"script": "compile-standalone",
+			"group": "build",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
 			"label": "npm: protos",
 			"type": "npm",
 			"script": "protos",
@@ -118,7 +128,25 @@
 			"type": "npm",
 			"script": "watch:esbuild",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": {
+				"pattern": [
+					{
+						"regexp": "^✘ \\[ERROR\\] (.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^\\s+(.*):(\\d+):(\\d+):$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[watch\\] build started$",
+					"endsPattern": "^\\[watch\\] build finished$"
+				}
+			},
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
 			"dependsOn": ["npm: protos"],
@@ -136,7 +164,25 @@
 			"type": "npm",
 			"script": "watch:esbuild:test",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": {
+				"pattern": [
+					{
+						"regexp": "^✘ \\[ERROR\\] (.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^\\s+(.*):(\\d+):(\\d+):$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[watch\\] build started$",
+					"endsPattern": "^\\[watch\\] build finished$"
+				}
+			},
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
 			"dependsOn": ["npm: protos"],
@@ -185,6 +231,12 @@
 			"label": "stop",
 			"command": "echo ${input:terminate}",
 			"type": "shell"
+		},
+		{
+			"label": "clean-sandbox",
+			"type": "shell",
+			"dependsOn": ["watch"],
+			"command": "rm -rf .vscode-dev"
 		}
 	],
 	"inputs": [

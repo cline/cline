@@ -4,6 +4,7 @@ import { ApiHandlerOptions, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults 
 import { ApiHandler } from ".."
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { withRetry } from "../retry"
 
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -51,6 +52,7 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -65,7 +67,7 @@ export class LiteLlmHandler implements ApiHandler {
 		const reasoningOn = budgetTokens !== 0 ? true : false
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
-		let temperature: number | undefined = 0
+		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
 
 		if (isOminiModel && reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
@@ -169,7 +171,7 @@ export class LiteLlmHandler implements ApiHandler {
 	getModel() {
 		return {
 			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: liteLlmModelInfoSaneDefaults,
+			info: this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 		}
 	}
 }

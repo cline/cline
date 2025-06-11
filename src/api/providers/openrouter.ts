@@ -35,7 +35,7 @@ export class OpenRouterHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
@@ -139,7 +139,10 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
+		let modelId = this.options.openRouterModelId
+		if (modelId === "x-ai/grok-3") {
+			modelId = "x-ai/grok-3-beta"
+		}
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

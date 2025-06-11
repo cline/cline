@@ -17,53 +17,21 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
-		| "relinquishControl"
-		| "authCallback"
-		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
-		| "commitSearchResults"
-		| "openGraphData"
-		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
-		| "totalTasksSize"
-		| "addToInput"
-		| "browserConnectionResult"
-		| "scrollToSettings"
-		| "browserRelaunchResult"
-		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
-		| "setActiveQuote"
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
-		| "accountLogoutClicked"
-		| "accountButtonClicked"
-		| "focusChatInput"
-	invoke?: Invoke
+	action?: "didBecomeVisible" | "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
+	files?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	filePaths?: string[]
-	partialMessage?: ClineMessage
-	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
@@ -72,20 +40,11 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
-	openGraphData?: {
-		title?: string
-		description?: string
-		image?: string
-		url?: string
-		siteName?: string
-		type?: string
-	}
 	url?: string
 	isImage?: boolean
 	userCreditsBalance?: BalanceResponse
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
-	totalTasksSize?: number | null
 	success?: boolean
 	endpoint?: string
 	isBundled?: boolean
@@ -108,13 +67,12 @@ export interface ExtensionMessage {
 	}
 }
 
-export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
-
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
 export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
+	isNewUser: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -123,14 +81,15 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
+	enableCheckpointsSetting?: boolean
 	platform: Platform
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
+	terminalReuseEnabled?: boolean
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
@@ -138,11 +97,14 @@ export interface ExtensionState {
 		photoURL: string | null
 	}
 	version: string
-	vscMachineId: string
+	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
+	localWorkflowToggles: ClineRulesToggles
+	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	mcpResponsesCollapsed?: boolean
 }
 
 export interface ClineMessage {
@@ -153,6 +115,7 @@ export interface ClineMessage {
 	text?: string
 	reasoning?: string
 	images?: string[]
+	files?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
@@ -199,12 +162,14 @@ export type ClineSay =
 	| "browser_action_result"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
+	| "mcp_notification"
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "info" // Added for general informational messages like retry status
 
 export interface ClineSayTool {
 	tool:
@@ -215,6 +180,7 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "webFetch"
 	path?: string
 	diff?: string
 	content?: string
@@ -273,8 +239,14 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
+	retryStatus?: {
+		attempt: number
+		maxAttempts: number
+		delaySec: number
+		errorSnippet?: string
+	}
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

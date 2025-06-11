@@ -1,0 +1,45 @@
+---
+title: "File Mentions"
+sidebarTitle: "File Mentions"
+---
+
+File mentions let you pull any file from your workspace directly into your conversation with Cline. No more copying and pasting code snippets - just type `@/` and point to the file you need help with.
+
+When you type `@/` in the chat, Cline shows your workspace files. Navigate through folders, select the file you want, and it's instantly available to Cline - complete with all imports, related functions, and surrounding context.
+
+I use file mentions constantly when debugging. Instead of trying to figure out which parts of my code to copy over, I just reference the file directly:
+
+```
+I'm getting this error when my form submits: @terminal
+
+Here's my component: @/src/components/ContactForm.jsx
+
+And the API endpoint: @/src/api/contact.js
+
+What am I missing?
+```
+
+This gives Cline everything it needs - the error message, the component code, and the API endpoint - all without me having to copy anything. Cline can see imports, dependencies, and all the surrounding context that might be causing the issue.
+
+File mentions shine when you're dealing with complex bugs that span multiple files. Before, I'd have to carefully copy each relevant file, making sure I didn't miss anything important. Now I just reference each file with `@/` and Cline gets the complete picture.
+
+Next time you're stuck on a problem, try using file mentions instead of copying code. You'll save time and get better answers because Cline has all the context it needs.
+
+## How It Works Under the Hood
+
+When you use a file mention in your message, here's what happens behind the scenes:
+
+1. When you send your message, Cline detects the `@/path/to/file` pattern in your text
+2. The extension resolves the file path relative to your workspace root
+3. It checks if the file is binary (like an image) or text-based
+4. For text files, it reads the complete file content
+5. The file content is appended to your message in a structured format:
+    ```
+    <file_content path="path/to/file">
+    [Complete file content]
+    </file_content>
+    ```
+6. This enhanced message with the embedded file content is sent to the AI
+7. The AI can now "see" the complete file content as if you had copied and pasted it
+
+This seamless process happens automatically whenever you use a file mention, giving the AI full context without you having to manually copy anything.
