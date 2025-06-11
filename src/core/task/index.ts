@@ -113,6 +113,8 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
+import { parseAssistantMessageV3 } from "../assistant-message/parse-assistant-message"
+import { MorphClient } from "@integrations/morph/MorphClient"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -1550,6 +1552,7 @@ export class Task {
 				case "new_rule":
 				case "write_to_file":
 				case "replace_in_file":
+				case "edit_file":
 					return [
 						this.autoApprovalSettings.actions.editFiles,
 						this.autoApprovalSettings.actions.editFilesExternally ?? false,
@@ -2035,6 +2038,8 @@ export class Task {
 							return `[${block.name} for '${block.params.path}']`
 						case "replace_in_file":
 							return `[${block.name} for '${block.params.path}']`
+						case "edit_file":
+							return `[${block.name} for '${block.params.target_file}']`
 						case "search_files":
 							return `[${block.name} for '${block.params.regex}'${
 								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
@@ -4021,27 +4026,250 @@ export class Task {
 							break
 						}
 					}
-					case "attempt_completion": {
-						/*
-						this.consecutiveMistakeCount = 0
-						let resultToSend = result
-						if (command) {
-							await this.say("completion_result", resultToSend)
-							// TODO: currently we don't handle if this command fails, it could be useful to let cline know and retry
-							const [didUserReject, commandResult] = await this.executeCommand(command, true)
-							// if we received non-empty string, the command was rejected or failed
-							if (commandResult) {
-								return [didUserReject, commandResult]
+					case "edit_file": {
+						const targetFile: string | undefined = block.params.target_file
+						const instructions: string | undefined = block.params.instructions
+						const codeEdit: string | undefined = block.params.code_edit
+
+						if (!targetFile || !instructions || !codeEdit) {
+							// checking for all required params ensures targetFile is complete
+							// wait so we can determine if it's a new file or editing an existing file
+							break
+						}
+
+						const accessAllowed = this.clineIgnoreController.validateAccess(targetFile)
+						if (!accessAllowed) {
+							await this.say("clineignore_error", targetFile)
+							pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(targetFile)))
+							await this.saveCheckpoint()
+							break
+						}
+
+						// Check if file exists using cached map or fs.access
+						let fileExists: boolean
+						if (this.diffViewProvider.editType !== undefined) {
+							fileExists = this.diffViewProvider.editType === "modify"
+						} else {
+							const absolutePath = path.resolve(cwd, targetFile)
+							fileExists = await fileExistsAtPath(absolutePath)
+							this.diffViewProvider.editType = fileExists ? "modify" : "create"
+						}
+
+						if (!fileExists) {
+							await this.say("error", `File does not exist: ${targetFile}`)
+							pushToolResult(formatResponse.toolError(`File does not exist: ${targetFile}`))
+							await this.saveCheckpoint()
+							break
+						}
+
+						try {
+							// Read the current file content and use Morph API to generate new content
+							let newContent: string
+							const fs = await import("fs/promises")
+							const absolutePath = path.resolve(cwd, targetFile)
+							const originalCode = await fs.readFile(absolutePath, "utf-8")
+
+							try {
+								const morphClient = new MorphClient()
+								newContent = await morphClient.applyEdit(originalCode, codeEdit)
+							} catch (morphError) {
+								const errorMessage = morphError instanceof Error ? morphError.message : "Unknown error"
+								await this.say("error", `Failed to edit ${targetFile} using Morph API: ${errorMessage}`)
+								pushToolResult(formatResponse.toolError(`Failed to edit ${targetFile}: ${errorMessage}`))
+								await this.saveCheckpoint()
+								break
 							}
-							resultToSend = ""
+
+							newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
+
+							const sharedMessageProps: ClineSayTool = {
+								tool: "editedExistingFile",
+								path: getReadablePath(cwd, removeClosingTag("target_file", targetFile)),
+								content: codeEdit,
+								operationIsLocatedInWorkspace: isLocatedInWorkspace(targetFile),
+							}
+
+							if (block.partial) {
+								// update gui message
+								const partialMessage = JSON.stringify(sharedMessageProps)
+
+								if (this.shouldAutoApproveToolWithPath(block.name, targetFile)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
+									await this.say("tool", partialMessage, undefined, undefined, block.partial)
+								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								// update editor
+								if (!this.diffViewProvider.isEditing) {
+									// open the editor and prepare to stream content in
+									await this.diffViewProvider.open(targetFile)
+								}
+								// editor is open, stream content in
+								await this.diffViewProvider.update(newContent, false)
+								break
+							} else {
+								if (!targetFile) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError(block.name, "target_file"))
+									await this.diffViewProvider.reset()
+									await this.saveCheckpoint()
+									break
+								}
+								if (!instructions) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_file", "instructions"))
+									await this.diffViewProvider.reset()
+									await this.saveCheckpoint()
+									break
+								}
+								if (!codeEdit) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_file", "code_edit"))
+									await this.diffViewProvider.reset()
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								// if isEditingFile false, that means we have the full contents of the file already.
+								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
+								// in other words, you must always repeat the block.partial logic here
+								if (!this.diffViewProvider.isEditing) {
+									// show gui message before showing edit animation
+									const partialMessage = JSON.stringify(sharedMessageProps)
+									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.diffViewProvider.open(targetFile)
+								}
+								await this.diffViewProvider.update(newContent, true)
+								await setTimeoutPromise(300) // wait for diff view to update
+								this.diffViewProvider.scrollToFirstDiff()
+
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: codeEdit,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(targetFile),
+								} satisfies ClineSayTool)
+								if (this.shouldAutoApproveToolWithPath(block.name, targetFile)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", completeMessage, undefined, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+
+									// we need an artificial delay to let the diagnostics catch up to the changes
+									await setTimeoutPromise(3_500)
+								} else {
+									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to edit ${path.basename(targetFile)}`,
+									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+
+									// Need a more customized tool response for file edits to highlight the fact that the file was not updated (particularly important for deepseek)
+									let didApprove = true
+									const {
+										response,
+										text,
+										images,
+										files: askFiles,
+									} = await this.ask("tool", completeMessage, false)
+									if (response !== "yesButtonClicked") {
+										// User either sent a message or pressed reject button
+										const fileDeniedNote = "The file was not updated, and maintains its original contents."
+										pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
+										if (text || (images && images.length > 0) || (askFiles && askFiles.length > 0)) {
+											let fileContentString = ""
+											if (askFiles && askFiles.length > 0) {
+												fileContentString = await processFilesIntoText(askFiles)
+											}
+
+											pushAdditionalToolFeedback(text, images, fileContentString)
+											await this.say("user_feedback", text, images, askFiles)
+											await this.saveCheckpoint()
+										}
+										this.didRejectTool = true
+										didApprove = false
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+									} else {
+										// User hit the approve button, and may have provided feedback
+										if (text || (images && images.length > 0) || (askFiles && askFiles.length > 0)) {
+											let fileContentString = ""
+											if (askFiles && askFiles.length > 0) {
+												fileContentString = await processFilesIntoText(askFiles)
+											}
+
+											pushAdditionalToolFeedback(text, images, fileContentString)
+											await this.say("user_feedback", text, images, askFiles)
+											await this.saveCheckpoint()
+										}
+										telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+									}
+
+									if (!didApprove) {
+										await this.diffViewProvider.revertChanges()
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// Mark the file as edited by Cline to prevent false "recently modified" warnings
+								this.fileContextTracker.markFileAsEditedByCline(targetFile)
+
+								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
+									await this.diffViewProvider.saveChanges()
+								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+
+								// Track file edit operation
+								await this.fileContextTracker.trackFileContext(targetFile, "cline_edited")
+
+								if (userEdits) {
+									// Track file edit operation
+									await this.fileContextTracker.trackFileContext(targetFile, "user_edited")
+
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: "editedExistingFile",
+											path: getReadablePath(cwd, targetFile),
+											diff: userEdits,
+										} satisfies ClineSayTool),
+									)
+									pushToolResult(
+										formatResponse.fileEditWithUserChanges(
+											targetFile,
+											userEdits,
+											autoFormattingEdits,
+											finalContent,
+											newProblemsMessage,
+										),
+									)
+								} else {
+									pushToolResult(
+										formatResponse.fileEditWithoutUserChanges(
+											targetFile,
+											autoFormattingEdits,
+											finalContent,
+											newProblemsMessage,
+										),
+									)
+								}
+
+								await this.diffViewProvider.reset()
+
+								await this.saveCheckpoint()
+
+								break
+							}
+						} catch (error) {
+							await handleError("editing file with Morph API", error)
+							await this.diffViewProvider.revertChanges()
+							await this.diffViewProvider.reset()
+							await this.saveCheckpoint()
+							break
 						}
-						const { response, text, images } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
-						if (response === "yesButtonClicked") {
-							return [false, ""] // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
-						}
-						await this.say("user_feedback", text ?? "", images)
-						return [
-						*/
+					}
+					case "attempt_completion": {
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
 

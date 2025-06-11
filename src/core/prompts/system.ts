@@ -120,6 +120,40 @@ Search and replace blocks here
 </diff> 
 </replace_in_file>
 
+## edit_file
+Description: Use this tool to propose an edit to an existing file.
+
+This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write.
+When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines.
+
+For example:
+
+// ... existing code ...
+FIRST_EDIT
+// ... existing code ...
+SECOND_EDIT
+// ... existing code ...
+THIRD_EDIT
+// ... existing code ...
+
+You should still bias towards repeating as few lines of the original file as possible to convey the change.
+But, each edit should contain sufficient context of unchanged lines around the code you're editing to resolve ambiguity.
+DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.
+Make sure it is clear what the edit should be.
+
+You should specify the following arguments before the others: [target_file]
+Parameters:
+- target_file: (required) The target file to modify. Always specify the target file as the first argument and use the relative path in the workspace of the file to edit
+- instructions: (required) A single sentence instruction describing what you are going to do for the sketched edit. This is used to assist the less intelligent model in applying the edit. Please use the first person to describe what you are going to do. Dont repeat what you have said previously in normal messages. And use it to disambiguate uncertainty in the edit.
+- code_edit: (required) Specify ONLY the precise lines of code that you wish to edit. NEVER specify or write out unchanged code. Instead, represent all unchanged code using the comment of the language you're editing in - example: // ... existing code ...
+Usage:
+<edit_file>
+<target_file>File path here</target_file>
+<instructions>Single sentence describing the edit in first person</instructions>
+<code_edit>
+Your code edit here with // ... existing code ... comments
+</code_edit>
+</edit_file>
 
 ## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
@@ -520,17 +554,19 @@ You have access to two tools for working with files: **write_to_file** and **rep
 
 # Choosing the Appropriate Tool
 
-- **Default to replace_in_file** for most changes. It's the safer, more precise option that minimizes potential issues.
+- **Default to replace_in_file** for most simple changes. It's the safer, more precise option that minimizes potential issues.
+- **Use edit_file** when:
+  - You need to make a more complex edit that requires a more precise specification of the code you wish to edit.
+  - The changes are so extensive that using replace_in_file would be more complex or risky
 - **Use write_to_file** when:
   - Creating new files
-  - The changes are so extensive that using replace_in_file would be more complex or risky
   - You need to completely reorganize or restructure a file
   - The file is relatively small and the changes affect most of its content
   - You're generating boilerplate or template files
 
 # Auto-formatting Considerations
 
-- After using either write_to_file or replace_in_file, the user's editor may automatically format the file
+- After using either write_to_file, edit_file, or replace_in_file, the user's editor may automatically format the file
 - This auto-formatting may modify the file contents, for example:
   - Breaking single lines into multiple lines
   - Adjusting indentation to match project style (e.g. 2 spaces vs 4 spaces vs tabs)
@@ -539,16 +575,17 @@ You have access to two tools for working with files: **write_to_file** and **rep
   - Adding/removing trailing commas in objects and arrays
   - Enforcing consistent brace style (e.g. same-line vs new-line)
   - Standardizing semicolon usage (adding or removing based on style)
-- The write_to_file and replace_in_file tool responses will include the final state of the file after any auto-formatting
+- The write_to_file, edit_file, and replace_in_file tool responses will include the final state of the file after any auto-formatting
 - Use this final state as your reference point for any subsequent edits. This is ESPECIALLY important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.
 
 # Workflow Tips
 
 1. Before editing, assess the scope of your changes and decide which tool to use.
-2. For targeted edits, apply replace_in_file with carefully crafted SEARCH/REPLACE blocks. If you need multiple changes, you can stack multiple SEARCH/REPLACE blocks within a single replace_in_file call.
+2. For small, targeted edits, apply replace_in_file with carefully crafted SEARCH/REPLACE blocks. If you need multiple changes, you can stack multiple SEARCH/REPLACE blocks within a single replace_in_file call.
+3. For moderate to large edits, rely on edit_file.
 3. For major overhauls or initial file creation, rely on write_to_file.
-4. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
-By thoughtfully selecting between write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.
+4. Once the file has been edited with either edit_file, write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
+By thoughtfully selecting between edit_file, write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.
 
 ====
  
