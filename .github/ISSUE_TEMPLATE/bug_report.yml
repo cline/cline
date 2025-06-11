@@ -59,7 +59,7 @@ body:
       attributes:
           label: Model
           description: What model were you using when the issue occurred?
-          placeholder: "e.g., claude-3.5-sonnet, gpt-4o, gemini-2.0-flash-exp, grok-2-1212"
+          placeholder: "e.g., claude-4-sonnet, gpt-4o, gemini-2.0-flash-exp, grok-2-1212"
       validations:
           required: true
     - type: input
