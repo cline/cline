@@ -255,4 +255,7 @@ service UiService {
   
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
+  
+  // Subscribe to focus chat input events with client ID
+  rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
 }
