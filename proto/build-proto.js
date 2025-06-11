@@ -15,11 +15,23 @@ const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
 
 const isWindows = process.platform === "win32"
 const tsProtoPlugin = isWindows
 	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
+
+const TS_PROTO_OPTIONS = [
+	"env=node",
+	"esModuleInterop=true",
+
+	"outputIndex=true", // output an index file for each package which exports all protos in the package.
+	"outputServices=generic-definitions",
+
+	"useOptionals=messages", // Message fields are optional, scalars are not.
+	"useDate=false", // Timestamp fields will not be automatically converted to Date.
+]
 
 // List of gRPC services
 // To add a new service, simply add it to this map and run this script
@@ -47,7 +59,9 @@ const hostServiceNameMap = {
 	watch: "host.WatchService",
 	// Add new host services here
 }
-const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "hosts", "vscode", serviceKey))
+const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>
+	path.join(ROOT_DIR, "src", "hosts", "vscode", serviceKey),
+)
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
@@ -55,18 +69,9 @@ async function main() {
 	// Check for Apple Silicon compatibility before proceeding
 	checkAppleSiliconCompatibility()
 
-	// Define output directories
-	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-
 	// Create output directories if they don't exist
 	await fs.mkdir(TS_OUT_DIR, { recursive: true })
-
-	// Clean up existing generated files
-	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
-	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
-	for (const file of existingFiles) {
-		await fs.unlink(path.join(TS_OUT_DIR, file))
-	}
+	await cleanup()
 
 	// Check for missing proto files for services in serviceNameMap
 	await ensureProtoFilesExist()
@@ -81,9 +86,7 @@ async function main() {
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
 		`--ts_proto_out="${TS_OUT_DIR}"`,
-		"--ts_proto_opt=exportCommonSymbols=false",
-		"--ts_proto_opt=outputIndex=true",
-		"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
+		`--ts_proto_opt=${TS_PROTO_OPTIONS.join(",")} `,
 		...protoFiles,
 	].join(" ")
 	try {
@@ -592,7 +595,7 @@ export interface HostServiceHandlerConfig {
 export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const configPath = path.join(ROOT_DIR, "hosts", "vscode", "host-grpc-service-config.ts")
+	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "host-grpc-service-config.ts")
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
 	console.log(chalk.green(`Generated host service configuration at ${configPath}`))
@@ -637,10 +640,39 @@ export {
 	${serviceExports.join(",\n\t")}
 }`
 
-	const configPath = path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts")
+	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "client", "host-grpc-client.ts")
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
 	console.log(chalk.green(`Generated host gRPC client at ${configPath}`))
+}
+
+async function cleanup() {
+	// Clean up existing generated files
+	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
+	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
+	for (const file of existingFiles) {
+		await fs.unlink(path.join(TS_OUT_DIR, file))
+	}
+
+	// Clean up generated files that were moved.
+	await fs.rm(path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts"), { force: true })
+	await rmdir(path.join(ROOT_DIR, "src", "standalone", "services"))
+	await fs.rm(path.join(ROOT_DIR, "hosts", "vscode"), { force: true, recursive: true })
+	await rmdir(path.join(ROOT_DIR, "hosts"))
+}
+
+/**
+ * Remove an empty dir, do nothing if the directory doesn't exist or is not empty.
+ */
+async function rmdir(path) {
+	try {
+		await fs.rmdir(path)
+	} catch (error) {
+		if (error.code !== "ENOTEMPTY" && error.code !== "ENOENT") {
+			// Only re-throw if it's not "not empty" or "doesn't exist"
+			throw error
+		}
+	}
 }
 
 // Check for Apple Silicon compatibility

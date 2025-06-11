@@ -113,6 +113,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
+import { isClaude4ModelFamily } from "@/utils/model-utils"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -144,7 +145,6 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private didEditFile: boolean = false
-	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
@@ -204,7 +204,6 @@ export class Task {
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		enableCheckpointsSetting: boolean,
-		customInstructions?: string,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -227,11 +226,16 @@ export class Task {
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+
+		// Set up MCP notification callback for real-time notifications
+		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+			// Display notification in chat immediately
+			await this.say("mcp_notification", `[${serverName}] ${message}`)
+		})
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -1196,6 +1200,9 @@ export class Task {
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
+
+		// Clear the notification callback when task is aborted
+		this.mcpHub.clearNotificationCallback()
 	}
 
 	// Checkpoints
@@ -1620,12 +1627,6 @@ export class Task {
 		}
 	}
 
-	private async isClaude4ModelFamily(): Promise<boolean> {
-		const model = this.api.getModel()
-		const modelId = model.id
-		return modelId.includes("sonnet-4") || modelId.includes("opus-4")
-	}
-
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1639,10 +1640,9 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4ModelFamily)
+		const isClaude4Model = isClaude4ModelFamily(this.api)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4Model)
 
-		let settingsCustomInstructions = this.customInstructions?.trim()
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1670,7 +1670,6 @@ export class Task {
 		}
 
 		if (
-			settingsCustomInstructions ||
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
 			localCursorRulesFileInstructions ||
@@ -1681,7 +1680,6 @@ export class Task {
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			const userInstructions = addUserInstructions(
-				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
 				localCursorRulesFileInstructions,
@@ -1690,6 +1688,7 @@ export class Task {
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			console.log("[INSTRUCTIONS] User instructions:", userInstructions)
 			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
@@ -1921,7 +1920,6 @@ export class Task {
 
 			// Get final list of replacements
 			const allReplacements = this.streamingJsonReplacer.getSuccessfullyParsedItems()
-			// console.log(`Total replacements applied: ${allReplacements.length}`)
 
 			// Cleanup
 			this.streamingJsonReplacer = undefined
@@ -1951,7 +1949,6 @@ export class Task {
 			if (this.didCompleteReadingStream) {
 				this.userMessageContentReady = true
 			}
-			// console.log("no more content blocks to stream! this shouldn't happen?")
 			this.presentAssistantMessageLocked = false
 			return
 			//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
@@ -2087,11 +2084,11 @@ export class Task {
 					break
 				}
 
-				const pushToolResult = (content: ToolResponse, isClaude4ModelFamily: boolean = false) => {
+				const pushToolResult = (content: ToolResponse, isClaude4Model: boolean = false) => {
 					if (typeof content === "string") {
 						const resultText = content || "(tool did not return anything)"
 
-						if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+						if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 							// Claude 4 family: Use function_results format
 							this.userMessageContent.push({
 								type: "text",
@@ -2177,7 +2174,7 @@ export class Task {
 					}
 				}
 
-				const handleError = async (action: string, error: Error, isClaude4ModelFamily: boolean = false) => {
+				const handleError = async (action: string, error: Error, isClaude4Model: boolean = false) => {
 					if (this.abandoned) {
 						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 						return
@@ -2188,7 +2185,7 @@ export class Task {
 						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
 					)
 
-					pushToolResult(formatResponse.toolError(errorString), isClaude4ModelFamily)
+					pushToolResult(formatResponse.toolError(errorString), isClaude4Model)
 				}
 
 				// If block is partial, remove partial closing tag so its not presented to user
@@ -2266,9 +2263,9 @@ export class Task {
 
 								const currentFullJson = block.params.diff
 								// Check if we should use streaming (e.g., for specific models)
-								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
+								const isClaude4Model = isClaude4ModelFamily(this.api)
 								// Going through claude family of models
-								if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
+								if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 									console.log("[EDIT] Streaming JSON replacement")
 									const streamingResult = await this.handleStreamingJsonReplacement(
 										block,
@@ -2660,7 +2657,7 @@ export class Task {
 						}
 					}
 					case "list_files": {
-						const isClaude4ModelFamily = await this.isClaude4ModelFamily()
+						const isClaude4Model = isClaude4ModelFamily(this.api)
 						const relDirPath: string | undefined = block.params.path
 						const recursiveRaw: string | undefined = block.params.recursive
 						const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -2686,10 +2683,7 @@ export class Task {
 							} else {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("list_files", "path"),
-										isClaude4ModelFamily,
-									)
+									pushToolResult(await this.sayAndCreateMissingParamError("list_files", "path"), isClaude4Model)
 									await this.saveCheckpoint()
 									break
 								}
@@ -2740,12 +2734,12 @@ export class Task {
 										true,
 									)
 								}
-								pushToolResult(result, isClaude4ModelFamily)
+								pushToolResult(result, isClaude4Model)
 								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
-							await handleError("listing files", error, isClaude4ModelFamily)
+							await handleError("listing files", error, isClaude4Model)
 							await this.saveCheckpoint()
 							break
 						}
@@ -2833,7 +2827,7 @@ export class Task {
 						}
 					}
 					case "search_files": {
-						const isClaude4ModelFamily = await this.isClaude4ModelFamily()
+						const isClaude4Model = isClaude4ModelFamily(this.api)
 						const relDirPath: string | undefined = block.params.path
 						const regex: string | undefined = block.params.regex
 						const filePattern: string | undefined = block.params.file_pattern
@@ -2863,7 +2857,7 @@ export class Task {
 									this.consecutiveMistakeCount++
 									pushToolResult(
 										await this.sayAndCreateMissingParamError("search_files", "path"),
-										isClaude4ModelFamily,
+										isClaude4Model,
 									)
 									await this.saveCheckpoint()
 									break
@@ -2872,7 +2866,7 @@ export class Task {
 									this.consecutiveMistakeCount++
 									pushToolResult(
 										await this.sayAndCreateMissingParamError("search_files", "regex"),
-										isClaude4ModelFamily,
+										isClaude4Model,
 									)
 									await this.saveCheckpoint()
 									break
@@ -2923,12 +2917,12 @@ export class Task {
 										true,
 									)
 								}
-								pushToolResult(results, isClaude4ModelFamily)
+								pushToolResult(results, isClaude4Model)
 								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
-							await handleError("searching files", error, isClaude4ModelFamily)
+							await handleError("searching files", error, isClaude4Model)
 							await this.saveCheckpoint()
 							break
 						}
@@ -3323,7 +3317,20 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
+
+								// Check for any pending notifications before the tool call
+								const notificationsBefore = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsBefore) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
+
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+
+								// Check for any pending notifications after the tool call
+								const notificationsAfter = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsAfter) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
 
 								// TODO: add progress indicator
 
@@ -4503,9 +4510,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length
-							const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-
-							if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+							const isClaude4Model = isClaude4ModelFamily(this.api)
+							if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 								this.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
 							} else {
 								this.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
