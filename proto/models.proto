@@ -92,7 +92,7 @@ message OpenAiModelsRequest {
 // Request for updating API configuration
 message UpdateApiConfigurationRequest {
   Metadata metadata = 1;
-  ApiConfiguration api_configuration = 2;
+  ModelsApiConfiguration api_configuration = 2;
 }
 
 // API Provider enumeration
@@ -159,7 +159,7 @@ message LiteLLMModelInfo {
 }
 
 // Main ApiConfiguration message
-message ApiConfiguration {
+message ModelsApiConfiguration {
   // From ApiHandlerOptions (excluding onRetryAttempt function)
   optional string api_model_id = 1;
   optional string api_key = 2;

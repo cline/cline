@@ -7,15 +7,12 @@ import {
 	LiteLLMModelInfo as AppLiteLLMModelInfo,
 } from "../../api"
 import {
-	ApiConfiguration as ProtoApiConfiguration,
+	ModelsApiConfiguration as ProtoApiConfiguration,
 	ApiProvider as ProtoApiProvider,
 	LiteLLMModelInfo,
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
-	LanguageModelChatSelector,
 	ThinkingConfig,
-	ModelTier,
-	PriceTier,
 } from "../../proto/models"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
