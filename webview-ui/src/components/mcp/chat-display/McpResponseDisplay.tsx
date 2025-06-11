@@ -118,7 +118,7 @@ interface UrlMatch {
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const { mcpResponsesCollapsed } = useExtensionState() // Get setting from context
-  const { mcpRichDisplayEnabled } = useExtensionState()
+	const { mcpRichDisplayEnabled } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {

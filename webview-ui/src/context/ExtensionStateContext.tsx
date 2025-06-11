@@ -771,7 +771,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 						enableCheckpointsSetting: state.enableCheckpointsSetting,
 						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-            mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
+						mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
 						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 					}),
 				)

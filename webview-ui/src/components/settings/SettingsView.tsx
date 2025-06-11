@@ -191,7 +191,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					telemetrySetting,
 					enableCheckpointsSetting,
 					mcpMarketplaceEnabled,
-          mcpRichDisplayEnabled,
+					mcpRichDisplayEnabled,
 					shellIntegrationTimeout,
 					terminalReuseEnabled,
 					mcpResponsesCollapsed,
@@ -225,7 +225,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
 			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
@@ -280,6 +280,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							? originalState.current.mcpRichDisplayEnabled
 							: true,
 					)
+				}
 				// Reset terminal settings
 				if (typeof setShellIntegrationTimeout === "function") {
 					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
