@@ -5,20 +5,35 @@ body:
     - type: markdown
       attributes:
           value: |
-              **Important:** All bug reports must be reproducible using Claude 3.5 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
-    - type: textarea
-      id: what-happened
+              ** BEFORE YOU POST:** Please check whether there is already an open issue on your report here: https://github.com/cline/cline/issues
+    - type: markdown
       attributes:
-          label: What happened?
-          description: Also tell us, what did you expect to happen?
-          placeholder: Tell us what you see!
+          value: |
+              **Important:** All bug reports must be reproducible using Claude 4 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
+    - type: textarea
+      id: expected-result
+      attributes:
+          label: What was the expected result, outcome, or action?
+          description: Describe what you expected to happen.
+          placeholder: Tell us what you expected to see or happen!
+      validations:
+          required: true
+    - type: textarea
+      id: observed-result
+      attributes:
+          label: What was the observed result?
+          description: Describe what actually happened instead.
+          placeholder: Tell us what you actually saw or what happened!
       validations:
           required: true
     - type: textarea
       id: steps
       attributes:
           label: Steps to reproduce
-          description: How do you trigger this bug? Please walk us through it step by step.
+          description: |
+              - Please describe what you were doing before the bug appeared (tool actions, user actions, etc)
+              - Mention specific details about your actions (clicks, tool calls, files, etc), that triggered this bug
+              - Every detail counts, break down the process into as many steps as needed
           value: |
               1.
               2.
@@ -32,11 +47,19 @@ body:
           description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
           render: shell
     - type: input
-      id: provider-model
+      id: provider
       attributes:
-          label: Provider/Model
-          description: What provider and model were you using when the issue occurred?
-          placeholder: "e.g., cline:anthropic/claude-3.7-sonnet, gemini:gemini-2.5-pro-exp-03-25"
+          label: Provider
+          description: What provider were you using when the issue occurred?
+          placeholder: "e.g., anthropic, openai, gemini, xai"
+      validations:
+          required: true
+    - type: input
+      id: model
+      attributes:
+          label: Model
+          description: What model were you using when the issue occurred?
+          placeholder: "e.g., claude-3.5-sonnet, gpt-4o, gemini-2.0-flash-exp, grok-2-1212"
       validations:
           required: true
     - type: input
@@ -66,5 +89,5 @@ body:
     - type: textarea
       id: additional-context
       attributes:
-          label: Additional context
+          label: Additional context/ screenshots
           description: Add any other context about the problem here, such as screenshots or related issues.
