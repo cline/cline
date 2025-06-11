@@ -40,12 +40,27 @@ export async function moveLines(
 	// Extract lines to move/copy (convert to 0-based)
 	const linesToMove = sourceLines.slice(startLine - 1, endLine)
 
-	// Read and validate target file
-	const targetContent = await fs.readFile(targetPath, "utf8")
-	const targetLines = targetContent.split("\n")
+	// Check if target file exists
+	let targetLines: string[]
+	let targetFileExists = false
+	try {
+		const targetContent = await fs.readFile(targetPath, "utf8")
+		targetLines = targetContent.split("\n")
+		targetFileExists = true
+	} catch (error) {
+		if (error.code === "ENOENT") {
+			// File doesn't exist, which is fine. We'll create it.
+			targetLines = []
+			// Ensure directory exists
+			await fs.mkdir(path.dirname(targetPath), { recursive: true })
+		} else {
+			// Other error
+			throw error
+		}
+	}
 
-	// Validate target line
-	if (targetLine > targetLines.length) {
+	// Validate target line for existing files
+	if (targetFileExists && targetLine > targetLines.length) {
 		throw new Error(`Target line ${targetLine} is beyond end of target file (${targetLines.length} lines)`)
 	}
 
@@ -57,7 +72,7 @@ export async function moveLines(
 
 	// Use DiffViewProvider to safely update target file
 	const targetDiffProvider = new DiffViewProvider(cwd)
-	targetDiffProvider.editType = "modify"
+	targetDiffProvider.editType = targetFileExists ? "modify" : "create"
 	await targetDiffProvider.open(targetPath)
 	await targetDiffProvider.update(newTargetContent, true)
 	await targetDiffProvider.saveChanges()
