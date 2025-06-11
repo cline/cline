@@ -9,16 +9,6 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setTerminalOutputLineLimit(value)
-
-		StateServiceClient.updateTerminalOutputLineLimit({
-			value,
-		} as Int64Request)
-			.then((response: Int64) => {
-				setTerminalOutputLineLimit(response.value)
-			})
-			.catch((error) => {
-				console.error("Failed to update terminal output line limit:", error)
-			})
 	}
 
 	return (
