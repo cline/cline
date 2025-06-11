@@ -586,7 +586,7 @@ export const ChatRowContent = ({
 							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
-								{/* {message.type === "ask" ? "" : "Cline wants to read this file:"} */}
+								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
 								Cline wants to read this file:
 							</span>
 						</div>
