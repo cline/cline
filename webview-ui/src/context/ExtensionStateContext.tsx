@@ -7,10 +7,11 @@ import {
 	FileServiceClient,
 	McpServiceClient,
 } from "../services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { UpdateSettingsRequest } from "@shared/proto/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
@@ -27,7 +28,6 @@ import {
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { vscode } from "../utils/vscode"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 
 interface ExtensionStateContextType extends ExtensionState {
@@ -223,10 +223,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
-			case "mcpServers": {
-				setMcpServers(message.mcpServers ?? [])
-				break
-			}
 		}
 	}, [])
 
@@ -234,6 +230,9 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+
+	// Reference for focusChatInput subscription
+	const focusChatInputUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -256,6 +255,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			relinquishControlCallbacks.current.delete(callback)
 		}
 	}, [])
+	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -385,6 +385,22 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to MCP servers updates
+		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
+			onResponse: (response) => {
+				console.log("[DEBUG] Received MCP servers update from gRPC stream")
+				if (response.mcpServers) {
+					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
+				}
+			},
+			onError: (error) => {
+				console.error("Error in MCP servers subscription:", error)
+			},
+			onComplete: () => {
+				console.log("MCP servers subscription completed")
+			},
+		})
+
 		// Subscribe to workspace file updates
 		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -420,8 +436,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage) => {
 				try {
-					console.log("[PARTIAL] Received partialMessage event from gRPC stream")
-
 					// Validate critical fields
 					if (!protoMessage.ts || protoMessage.ts <= 0) {
 						console.error("Invalid timestamp in partial message:", protoMessage)
@@ -429,8 +443,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					console.log("[PARTIAL] Partial message:", partialMessage)
-					console.log("\n")
 					setState((prevState) => {
 						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
 						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
@@ -542,6 +554,24 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to focus chat input events
+		const clientId = (window as any).clineClientId
+		if (clientId) {
+			const request = StringRequest.create({ value: clientId })
+			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
+				onResponse: () => {
+					// Dispatch a local DOM event within this webview only
+					window.dispatchEvent(new CustomEvent("focusChatInput"))
+				},
+				onError: (error: Error) => {
+					console.error("Error in focusChatInput subscription:", error)
+				},
+				onComplete: () => {},
+			})
+		} else {
+			console.error("Client ID not found in window object")
+		}
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -591,6 +621,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (relinquishControlUnsubscribeRef.current) {
 				relinquishControlUnsubscribeRef.current()
 				relinquishControlUnsubscribeRef.current = null
+			}
+			if (focusChatInputUnsubscribeRef.current) {
+				focusChatInputUnsubscribeRef.current()
+				focusChatInputUnsubscribeRef.current = null
+			}
+			if (mcpServersSubscriptionRef.current) {
+				mcpServersSubscriptionRef.current()
+				mcpServersSubscriptionRef.current = null
 			}
 		}
 	}, [])

@@ -9,6 +9,7 @@ import { readFile } from "fs/promises"
 import path from "node:path"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
+import { v4 as uuidv4 } from "uuid"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -19,9 +20,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
+	private static clientIdMap = new Map<WebviewProvider, string>()
 	public view?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
 	controller: Controller
+	private clientId: string
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -29,7 +32,19 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		private readonly providerType: WebviewProviderType = WebviewProviderType.TAB, // Default to tab provider
 	) {
 		WebviewProvider.activeInstances.add(this)
+		this.clientId = uuidv4()
+		WebviewProvider.clientIdMap.set(this, this.clientId)
 		this.controller = new Controller(context, outputChannel, (message) => this.view?.webview.postMessage(message))
+	}
+
+	// Add a method to get the client ID
+	public getClientId(): string {
+		return this.clientId
+	}
+
+	// Add a static method to get the client ID for a specific instance
+	public static getClientIdForInstance(instance: WebviewProvider): string | undefined {
+		return WebviewProvider.clientIdMap.get(instance)
 	}
 
 	async dispose() {
@@ -44,6 +59,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		}
 		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
+		// Remove from client ID map
+		WebviewProvider.clientIdMap.delete(this)
 	}
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
@@ -245,6 +262,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				 <script type="text/javascript" nonce="${nonce}">
                     // Inject the provider type
                     window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
+                    
+                    // Inject the client ID
+                    window.clineClientId = "${this.clientId}";
                 </script>
 				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
@@ -358,6 +378,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 					<script type="text/javascript" nonce="${nonce}">
 						// Inject the provider type
 						window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
+						
+						// Inject the client ID
+						window.clineClientId = "${this.clientId}";
 					</script>
 					${reactRefresh}
 					<script type="module" src="${scriptUri}"></script>

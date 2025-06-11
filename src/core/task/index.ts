@@ -105,7 +105,7 @@ import {
 	getLocalCursorRules,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
-import { getGlobalState } from "@core/storage/state"
+import { getWorkspaceState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -166,7 +166,6 @@ export class Task {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
-	private initTaskPromise?: Promise<void>
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
@@ -298,9 +297,9 @@ export class Task {
 
 		// Continue with task initialization
 		if (historyItem) {
-			this.initTaskPromise = this.resumeTaskFromHistory()
+			this.resumeTaskFromHistory()
 		} else if (task || images || files) {
-			this.initTaskPromise = this.startTask(task, images, files)
+			this.startTask(task, images, files)
 		}
 
 		// initialize telemetry
@@ -389,10 +388,6 @@ export class Task {
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
-		if (this.initTaskPromise && !this.isInitialized) {
-			await this.initTaskPromise
-		}
-
 		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
 		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
@@ -527,10 +522,6 @@ export class Task {
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		if (this.initTaskPromise && !this.isInitialized) {
-			await this.initTaskPromise
-		}
-
 		const relinquishButton = () => {
 			sendRelinquishControlEvent()
 		}
@@ -660,10 +651,6 @@ export class Task {
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
-		if (this.initTaskPromise && !this.isInitialized) {
-			await this.initTaskPromise
-		}
-
 		if (!this.enableCheckpoints) {
 			return false
 		}
@@ -1214,10 +1201,6 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (this.initTaskPromise && !this.isInitialized) {
-			await this.initTaskPromise
-		}
-
 		if (!this.enableCheckpoints) {
 			// If checkpoints are disabled, do nothing.
 			return
@@ -3730,7 +3713,7 @@ export class Task {
 								const clineVersion =
 									vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 								const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-								const providerAndModel = `${(await getGlobalState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
+								const providerAndModel = `${(await getWorkspaceState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
 
 								// Ask user for confirmation
 								const bugReportData = JSON.stringify({
@@ -4244,7 +4227,7 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const currentProviderId = (await getWorkspaceState(this.getContext(), "apiProvider")) as string
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)

@@ -1,6 +1,6 @@
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
-import { SubscribeToFileRequest, FileChangeEvent, FileChangeEvent_ChangeType } from "../../../src/shared/proto/host/watch"
+import { SubscribeToFileRequest, FileChangeEvent, FileChangeEvent_ChangeType } from "@shared/proto/host/watch"
 import { StreamingResponseHandler, getRequestRegistry } from "../host-grpc-handler"
 
 // Debounce configuration

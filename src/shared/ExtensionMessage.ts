@@ -19,14 +19,13 @@ export interface ExtensionMessage {
 		| "selectedImages"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
 		| "mcpDownloadDetails"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
+	action?: "didBecomeVisible" | "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
