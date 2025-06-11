@@ -663,7 +663,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
     }
 
 export function addUserInstructions(
-    settingsCustomInstructions?: string,
     globalClineRulesFileInstructions?: string,
     localClineRulesFileInstructions?: string,
     localCursorRulesFileInstructions?: string,
@@ -675,9 +674,6 @@ export function addUserInstructions(
     let customInstructions = ""
     if (preferredLanguageInstructions) {
         customInstructions += preferredLanguageInstructions + "\n\n"
-    }
-    if (settingsCustomInstructions) {
-        customInstructions += settingsCustomInstructions + "\n\n"
     }
     if (globalClineRulesFileInstructions) {
         customInstructions += globalClineRulesFileInstructions + "\n\n"

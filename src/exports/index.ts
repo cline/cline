@@ -7,15 +7,6 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui
 
 export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
-		setCustomInstructions: async (value: string) => {
-			await sidebarController.updateCustomInstructions(value)
-			outputChannel.appendLine("Custom instructions set")
-		},
-
-		getCustomInstructions: async () => {
-			return (await getGlobalState(sidebarController.context, "customInstructions")) as string | undefined
-		},
-
 		startNewTask: async (task?: string, images?: string[]) => {
 			outputChannel.appendLine("Starting new task")
 			await sidebarController.clearTask()
