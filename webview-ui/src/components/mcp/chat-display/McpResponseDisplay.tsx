@@ -117,41 +117,19 @@ interface UrlMatch {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
-	const { mcpResponsesCollapsed } = useExtensionState() // Get setting from context
-	const { mcpRichDisplayEnabled } = useExtensionState()
+	const { mcpResponsesCollapsed, mcpRichDisplayEnabled } = useExtensionState() // Get setting from context
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
-		// First check localStorage for session preference
-		const savedMode = localStorage.getItem("mcpDisplayMode")
-		if (savedMode) {
-			return savedMode === "plain" ? "plain" : "rich"
-		}
-		// If no localStorage value, use the global setting
+		// Initialize directly from the global setting.
 		return mcpRichDisplayEnabled ? "rich" : "plain"
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
-	// Add a counter state for forcing re-renders to make toggling run smoother
-	const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
 	const toggleDisplayMode = useCallback(() => {
-		const newMode = displayMode === "rich" ? "plain" : "rich"
-		// Force an immediate re-render
-		setForceUpdateCounter((prev) => prev + 1)
-		// Update display mode and save preference
-		setDisplayMode(newMode)
-		localStorage.setItem("mcpDisplayMode", newMode)
-		// If switching to plain mode, cancel any ongoing processing
-		if (newMode === "plain") {
-			console.log("Switching to plain mode - cancelling URL processing")
-			setUrlMatches([]) // Clear any existing matches when switching to plain mode
-		} else {
-			// If switching to rich mode, the useEffect will re-run and fetch data
-			console.log("Switching to rich mode - will start URL processing")
-			setUrlMatches([])
-		}
-	}, [displayMode])
+		setDisplayMode((prevMode) => (prevMode === "rich" ? "plain" : "rich"))
+	}, [])
 
 	const toggleExpand = useCallback(() => {
 		setIsExpanded((prev) => !prev)
@@ -160,14 +138,16 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	// Effect to update isExpanded if mcpResponsesCollapsed changes from context
 	useEffect(() => {
 		setIsExpanded(!mcpResponsesCollapsed)
-	}, [])
+	}, [mcpResponsesCollapsed])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
 		// Skip all processing if in plain mode
 		if (!isExpanded || displayMode === "plain") {
 			setIsLoading(false)
-			setUrlMatches([]) // Clear any existing matches when in plain mode
+			if (urlMatches.length > 0) {
+				setUrlMatches([]) // Clear any existing matches when in plain mode
+			}
 			return
 		}
 
@@ -285,7 +265,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			processingCanceled = true
 			console.log("Cleaning up URL processing")
 		}
-	}, [responseText, displayMode, forceUpdateCounter, mcpRichDisplayEnabled, isExpanded])
+	}, [responseText, displayMode, isExpanded])
 
 	// Function to render content based on display mode
 	const renderContent = () => {

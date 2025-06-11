@@ -78,6 +78,7 @@ message UpdateSettingsRequest {
   optional int64 shell_integration_timeout = 9;
   optional bool terminal_reuse_enabled = 10;
   optional bool mcp_responses_collapsed = 11;
+  optional bool mcp_rich_display_enabled = 12;
 }
 
 // Complete API Configuration message
