@@ -27,31 +27,31 @@ service AccountService {
 // Response containing all user credits data
 message UserCreditsData {
     UserCreditsBalance balance = 1;
-    repeated UsageTransaction usageTransactions = 2;
-    repeated PaymentTransaction paymentTransactions = 3;
+    repeated UsageTransaction usage_transactions = 2;
+    repeated PaymentTransaction payment_transactions = 3;
 }
 
 // User's current credit balance
 message UserCreditsBalance {
-    double currentBalance = 1;
+    double current_balance = 1;
 }
 
 // Usage transaction record
 message UsageTransaction {
-    string spentAt = 1;
-    string creatorId = 2;
+    string spent_at = 1;
+    string creator_id = 2;
     double credits = 3;
-    string modelProvider = 4;
+    string model_provider = 4;
     string model = 5;
-    int32 promptTokens = 6;
-    int32 completionTokens = 7;
-    int32 totalTokens = 8;
+    int32 prompt_tokens = 6;
+    int32 completion_tokens = 7;
+    int32 total_tokens = 8;
 }
 
 // Payment transaction record
 message PaymentTransaction {
-    string paidAt = 1;
-    string creatorId = 2;
-    int32 amountCents = 3;
+    string paid_at = 1;
+    string creator_id = 2;
+    int32 amount_cents = 3;
     double credits = 4;
 }
