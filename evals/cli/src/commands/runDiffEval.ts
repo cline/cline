@@ -20,7 +20,7 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 	console.log(chalk.blue("Starting diff editing evaluation..."))
 
 	// Resolve the path to the TestRunner.ts script relative to the current file
-	const scriptPath = path.resolve(__dirname, "../../../diff_editing/TestRunner.ts")
+	const scriptPath = path.resolve(__dirname, "../../../diff-edits/TestRunner.ts")
 
 	// Construct the arguments array for the execa call
 	const args = [

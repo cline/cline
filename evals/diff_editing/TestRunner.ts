@@ -315,8 +315,8 @@ class NodeTestRunner {
 async function main() {
 	const program = new Command()
 
-	const defaultTestPath = path.join(__dirname, "test_cases")
-	const defaultOutputPath = path.join(__dirname, "test_outputs")
+	const defaultTestPath = path.join(__dirname, "cases")
+	const defaultOutputPath = path.join(__dirname, "results")
 
 	program
 		.name("TestRunner")
