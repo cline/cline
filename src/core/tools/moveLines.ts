@@ -21,9 +21,15 @@ export async function moveLines(
 	cwd: string,
 ): Promise<void> {
 	// Validate line numbers
-	if (startLine < 1) throw new Error("Start line must be >= 1")
-	if (endLine < startLine) throw new Error("End line must be >= start line")
-	if (targetLine < 0) throw new Error("Target line must be >= 0")
+	if (startLine < 1) {
+		throw new Error("Start line must be >= 1")
+	}
+	if (endLine < startLine) {
+		throw new Error("End line must be >= start line")
+	}
+	if (targetLine < 0) {
+		throw new Error("Target line must be >= 0")
+	}
 
 	// Read and validate source file
 	const sourceContent = await fs.readFile(sourcePath, "utf8")

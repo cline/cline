@@ -588,6 +588,7 @@ You have access to three tools for working with files: **write_to_file**, **repl
 ## Important Considerations
 
 - Before copying and pasting somewhere, always make sure to read the source and target first to understand which lines to use, unless the target is a new file.
+- When the target is a new file, this tool will automatically create the file and any sub-directories, no need to create the file beforehand.
 
 # Choosing the Appropriate Tool
 
