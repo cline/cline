@@ -34,7 +34,8 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret || "",
 		}
 
-		const response = await axios.post(this.options.sapAiCoreTokenUrl || "", payload, {
+		const tokenUrl = (this.options.sapAiCoreTokenUrl || "").replace(/\/+$/, "") + "/oauth/token"
+		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
 		const token = response.data as Token
@@ -61,7 +62,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"Content-Type": "application/json",
 		}
 
-		const url = `${this.options.sapAiCoreBaseUrl}/lm/deployments?$top=10000&$skip=0`
+		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
 
 		try {
 			const response = await axios.get(url, { headers })
@@ -133,10 +134,10 @@ export class SapAiCoreHandler implements ApiHandler {
 		let url: string
 		let payload: any
 		if (anthropicModels.includes(model.id)) {
-			url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/invoke-with-response-stream`
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
 			if (model.id === "anthropic--claude-3.7-sonnet") {
-				url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/converse-stream`
+				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
 				payload = {
 					inferenceConfig: {
 						maxTokens: model.info.maxTokens,
@@ -159,7 +160,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				...convertToOpenAiMessages(messages),
 			]
 
-			url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/chat/completions?api-version=2024-12-01-preview`
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions?api-version=2024-12-01-preview`
 			payload = {
 				stream: true,
 				messages: openAiMessages,

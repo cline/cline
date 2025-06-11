@@ -362,21 +362,21 @@ export class Controller {
 					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
 				case "sapaicore":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
-					await updateGlobalState(
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateWorkspaceState(
 						this.context,
 						"previousModeSapAiCoreClientSecret",
 						apiConfiguration.sapAiCoreClientSecret,
 					)
-					await updateGlobalState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
-					await updateGlobalState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
-					await updateGlobalState(
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateWorkspaceState(
 						this.context,
 						"previousModeSapAiCoreResourceGroup",
 						apiConfiguration.sapAiResourceGroup,
 					)
-					await updateGlobalState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
 					break
 			}
 
@@ -434,7 +434,7 @@ export class Controller {
 						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
 						break
 					case "sapaicore":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 				}
 

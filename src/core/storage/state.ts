@@ -196,12 +196,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		sapAiCoreModelId,
-		previousModeSapAiCoreClientId,
-		previousModeSapAiCoreClientSecret,
-		previousModeSapAiCoreBaseUrl,
-		previousModeSapAiCoreTokenUrl,
-		previousModeSapAiCoreResourceGroup,
-		previousModeSapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
@@ -265,19 +259,13 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpResponsesCollapsed") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
-		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,		
+		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
 		getSecret(context, "sapAiCoreClientId") as Promise<string | undefined>,
 		getSecret(context, "sapAiCoreClientSecret") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreClientId") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -311,6 +299,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
+		previousModeSapAiCoreClientId,
+		previousModeSapAiCoreClientSecret,
+		previousModeSapAiCoreBaseUrl,
+		previousModeSapAiCoreTokenUrl,
+		previousModeSapAiCoreResourceGroup,
+		previousModeSapAiCoreModelId,
 	] = await Promise.all([
 		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -340,6 +334,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getWorkspaceState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientId") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
