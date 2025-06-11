@@ -1196,21 +1196,7 @@ export class McpHub {
 		})
 
 		// Send sorted servers to webview
-		// Try to get the currently visible ClineProvider instance first
-		let targetProvider: ClineProvider | undefined = undefined
-		try {
-			// ClineProvider.getInstance() can focus the view if not visible,
-			// and returns a Promise<ClineProvider | undefined>
-			const instancePromise = ClineProvider.getInstance()
-			if (instancePromise) {
-				targetProvider = await instancePromise
-			}
-		} catch (error) {}
-
-		// Fallback to the providerRef if getInstance didn't yield a provider
-		if (!targetProvider) {
-			targetProvider = this.providerRef.deref()
-		}
+		const targetProvider: ClineProvider | undefined = this.providerRef.deref()
 
 		if (targetProvider) {
 			const serversToSend = sortedConnections.map((connection) => connection.server)
