@@ -69,7 +69,7 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 		// Execute the script as a child process
 		// We use 'inherit' to stream the stdout/stderr directly to the user's terminal
-		const subprocess = execa("npx", ["tsx", scriptPath, ...args], {
+		const subprocess = execa("npx", ["tsx", "--tsconfig", path.resolve(__dirname, "../../../tsconfig.json"), scriptPath, ...args], {
 			stdio: "inherit",
 		})
 
