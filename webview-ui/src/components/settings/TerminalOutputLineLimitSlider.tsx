@@ -1,7 +1,5 @@
 import React from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { Int64, Int64Request } from "@shared/proto/common"
 
 const TerminalOutputLineLimitSlider: React.FC = () => {
 	const { terminalOutputLineLimit, setTerminalOutputLineLimit } = useExtensionState()

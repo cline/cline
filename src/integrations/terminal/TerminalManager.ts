@@ -329,7 +329,7 @@ export class TerminalManager {
 			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
+			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
 		}
 		return outputLines.join("\n").trim()
 	}
