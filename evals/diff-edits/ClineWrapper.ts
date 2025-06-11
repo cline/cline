@@ -280,7 +280,10 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		}
 
 		// check that we are editing the correct file path
+		console.log(`Expected file path: "${originalFilePath}"`);
+		console.log(`Actual file path used: "${diffToolPath}"`);
 		if (diffToolPath !== originalFilePath) {
+			console.log(`❌ File path mismatch detected!`);
 			return {
 				success: false,
 				streamResult: streamResult,

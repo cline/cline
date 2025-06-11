@@ -386,7 +386,7 @@ class NodeTestRunner {
 	/**
 	 * Run a single test example
 	 */
-	async runSingleTest(testCase: ProcessedTestCase, testConfig: TestConfig): Promise<TestResult> {
+	async runSingleTest(testCase: ProcessedTestCase, testConfig: TestConfig, isVerbose: boolean = false): Promise<TestResult> {
 		if (testConfig.replay && !testCase.original_diff_edit_tool_call_message) {
 			return {
 				success: false,
@@ -411,6 +411,10 @@ class NodeTestRunner {
 			originalDiffEditToolCallMessage: testConfig.replay ? testCase.original_diff_edit_tool_call_message : undefined,
 		}
 
+		if (isVerbose) {
+			log(isVerbose, `    Sending request to ${testConfig.model_id} for test case ${testCase.test_id}...`);
+		}
+		
 		return await runSingleEvaluation(input)
 	}
 
@@ -432,8 +436,18 @@ class NodeTestRunner {
 
 			log(isVerbose, `-Running test: ${testCase.test_id}`)
 			for (let i = 0; i < testConfig.number_of_runs; i++) {
-				const result = await this.runSingleTest(testCase, testConfig)
+				log(isVerbose, `  Attempt ${i+1}/${testConfig.number_of_runs} for ${testCase.test_id}...`);
+				const result = await this.runSingleTest(testCase, testConfig, isVerbose)
 				results[testCase.test_id].push(result)
+				
+				// Log result status
+				if (isVerbose) {
+					if (result.success) {
+						log(isVerbose, `  ✓ Attempt ${i+1} completed successfully`);
+					} else {
+						log(isVerbose, `  ✗ Attempt ${i+1} failed (error: ${result.error || 'unknown'})`);
+					}
+				}
 				
 				// Store result in database
 				try {
@@ -477,12 +491,13 @@ class NodeTestRunner {
 		for (let i = 0; i < allRuns.length; i += maxConcurrency) {
 			const batch = allRuns.slice(i, i + maxConcurrency)
 
-			const batchPromises = batch.map((testCase) =>
-				this.runSingleTest(testCase, testConfig).then((result) => ({
+			const batchPromises = batch.map((testCase) => {
+				log(isVerbose, `  Running test for ${testCase.test_id}...`);
+				return this.runSingleTest(testCase, testConfig, isVerbose).then((result) => ({
 					...result,
 					test_id: testCase.test_id,
-				})),
-			)
+				}))
+			})
 
 			const batchResults = await Promise.all(batchPromises)
 
@@ -539,15 +554,18 @@ class NodeTestRunner {
 			// Keep trying until we get the requested number of valid attempts
 			while (validAttempts < testConfig.number_of_runs) {
 				totalAttempts++;
-				const result = await this.runSingleTest(testCase, testConfig)
+				log(isVerbose, `  Attempt ${totalAttempts} for ${testCase.test_id} (${validAttempts}/${testConfig.number_of_runs} valid so far)...`);
+				
+				const result = await this.runSingleTest(testCase, testConfig, isVerbose)
 				results[testCase.test_id].push(result)
 				
 				// Check if this was a valid attempt
-				if (this.isValidAttempt(result)) {
+				const isValid = this.isValidAttempt(result);
+				if (isValid) {
 					validAttempts++;
-					if (isVerbose && validAttempts === testConfig.number_of_runs) {
-						log(isVerbose, `  ✓ Completed ${validAttempts}/${testConfig.number_of_runs} valid attempts (${totalAttempts} total attempts)`);
-					}
+					log(isVerbose, `  ✓ Valid attempt ${validAttempts}/${testConfig.number_of_runs} completed (${result.success ? 'SUCCESS' : 'FAILED'})`);
+				} else {
+					log(isVerbose, `  ✗ Invalid attempt (error: ${result.error || 'unknown'})`);
 				}
 				
 				// Store result in database
@@ -563,6 +581,8 @@ class NodeTestRunner {
 					break;
 				}
 			}
+			
+			log(isVerbose, `  ✓ Completed test case ${testCase.test_id}: ${validAttempts}/${testConfig.number_of_runs} valid attempts (${totalAttempts} total attempts)`);
 		}
 		return results
 	}
@@ -605,7 +625,8 @@ class NodeTestRunner {
 			// Run the batch in parallel
 			const batchPromises = currentBatch.map(({ testCase, testId }) => {
 				totalAttemptsCount[testId]++;
-				return this.runSingleTest(testCase, testConfig).then((result) => ({
+				log(isVerbose, `  Attempt ${totalAttemptsCount[testId]} for ${testId} (${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid so far)...`);
+				return this.runSingleTest(testCase, testConfig, isVerbose).then((result) => ({
 					...result,
 					test_id: testId,
 				}))
@@ -625,8 +646,12 @@ class NodeTestRunner {
 					results[testId].push(result)
 					
 					// Check if this was a valid attempt
-					if (this.isValidAttempt(result)) {
+					const isValid = this.isValidAttempt(result);
+					if (isValid) {
 						validAttemptsCount[testId]++;
+						log(isVerbose, `  ✓ Valid attempt ${validAttemptsCount[testId]}/${testConfig.number_of_runs} for ${testId} completed (${result.success ? 'SUCCESS' : 'FAILED'})`);
+					} else {
+						log(isVerbose, `  ✗ Invalid attempt for ${testId} (error: ${result.error || 'unknown'})`);
 					}
 					
 					// Store result in database
@@ -648,7 +673,12 @@ class NodeTestRunner {
 					return false; // Remove from remaining test cases
 				}
 				
-				return validAttemptsCount[testId] < testConfig.number_of_runs;
+				const needsMoreAttempts = validAttemptsCount[testId] < testConfig.number_of_runs;
+				if (!needsMoreAttempts && isVerbose) {
+					log(isVerbose, `  ✓ Completed test case ${testId}: ${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid attempts (${totalAttemptsCount[testId]} total attempts)`);
+				}
+				
+				return needsMoreAttempts;
 			})
 			
 			log(isVerbose, `-Completed batch... (Batch Cost: $${batchCost.toFixed(6)}, Remaining test cases: ${remainingTestCases.length})`)
