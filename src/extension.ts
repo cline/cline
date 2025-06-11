@@ -22,7 +22,7 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
-import { migratePlanActGlobalToWorkspaceStorage } from "./core/storage/state"
+import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlobalRules } from "./core/storage/state"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 /*
@@ -48,6 +48,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate global storage values to workspace storage (one-time cleanup)
 	await migratePlanActGlobalToWorkspaceStorage(context)
+
+	// Migrate custom instructions to global Cline rules (one-time cleanup)
+	await migrateCustomInstructionsToGlobalRules(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version

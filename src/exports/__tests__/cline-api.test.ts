@@ -65,59 +65,6 @@ describe("ClineAPI Core Functionality", () => {
 		sandbox.restore()
 	})
 
-	describe("setCustomInstructions", () => {
-		it("should update custom instructions in controller", async () => {
-			const testInstructions = "Test custom instructions"
-
-			await api.setCustomInstructions(testInstructions)
-
-			// Verify controller method was called
-			sinon.assert.calledOnce(mockController.updateCustomInstructions)
-			sinon.assert.calledWith(mockController.updateCustomInstructions, testInstructions)
-
-			// Verify output channel was updated
-			sinon.assert.calledWith(mockOutputChannel.appendLine, "Custom instructions set")
-		})
-
-		it("should handle empty instructions", async () => {
-			await api.setCustomInstructions("")
-
-			sinon.assert.calledWith(mockController.updateCustomInstructions, "")
-			sinon.assert.calledWith(mockOutputChannel.appendLine, "Custom instructions set")
-		})
-
-		it("should handle very long instructions", async () => {
-			const longInstructions = "a".repeat(10000)
-
-			await api.setCustomInstructions(longInstructions)
-
-			sinon.assert.calledWith(mockController.updateCustomInstructions, longInstructions)
-		})
-	})
-
-	describe("getCustomInstructions", () => {
-		it("should retrieve custom instructions from state", async () => {
-			const testInstructions = "Retrieved instructions"
-			// The real implementation uses getGlobalState from the state module
-			getGlobalStateStub.resolves(testInstructions)
-
-			const result = await api.getCustomInstructions()
-
-			result!.should.equal(testInstructions)
-			sinon.assert.calledWith(getGlobalStateStub, mockController.context, "customInstructions")
-		})
-
-		it("should return undefined when no instructions set", async () => {
-			// The real implementation uses getGlobalState from the state module
-			getGlobalStateStub.resolves(undefined)
-
-			const result = await api.getCustomInstructions()
-
-			should.not.exist(result)
-			sinon.assert.calledWith(getGlobalStateStub, mockController.context, "customInstructions")
-		})
-	})
-
 	describe("startNewTask", () => {
 		it("should clear existing task and start new one with description", async () => {
 			const taskDescription = "Create a test function"
@@ -260,17 +207,6 @@ describe("ClineAPI Core Functionality", () => {
 	})
 
 	describe("Error Handling", () => {
-		it("should handle errors in setCustomInstructions", async () => {
-			mockController.updateCustomInstructions.rejects(new Error("Update failed"))
-
-			try {
-				await api.setCustomInstructions("test")
-				should.fail("", "", "Should have thrown an error", "")
-			} catch (error: any) {
-				error.message.should.equal("Update failed")
-			}
-		})
-
 		it("should handle errors in task initialization", async () => {
 			mockController.initTask.rejects(new Error("Init failed"))
 

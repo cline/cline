@@ -52,7 +52,6 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
-	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
@@ -688,11 +687,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				apiConfiguration: value,
 			})),
-		setCustomInstructions: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				customInstructions: value,
-			})),
 		setTelemetrySetting: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -760,7 +754,6 @@ export const ExtensionStateContextProvider: React.FC<{
 						apiConfiguration: state.apiConfiguration
 							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
 							: undefined,
-						customInstructionsSetting: state.customInstructions,
 						telemetrySetting: state.telemetrySetting,
 						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 						enableCheckpointsSetting: state.enableCheckpointsSetting,

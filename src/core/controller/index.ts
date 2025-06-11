@@ -130,7 +130,6 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
-			customInstructions,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
@@ -172,7 +171,6 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			enableCheckpointsSetting ?? true,
-			customInstructions,
 			task,
 			images,
 			files,
@@ -457,14 +455,6 @@ export class Controller {
 			}
 			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
-		}
-	}
-
-	async updateCustomInstructions(instructions?: string) {
-		// User may be clearing the field
-		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
-		if (this.task) {
-			this.task.customInstructions = instructions || undefined
 		}
 	}
 
@@ -949,7 +939,6 @@ export class Controller {
 		const {
 			apiConfiguration,
 			lastShownAnnouncementId,
-			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
@@ -981,7 +970,6 @@ export class Controller {
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
-			customInstructions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
