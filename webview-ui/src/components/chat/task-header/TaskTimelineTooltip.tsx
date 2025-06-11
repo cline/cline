@@ -73,7 +73,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 		} else if (message.type === "ask") {
 			switch (message.ask) {
 				case "followup":
-					return "User Message"
+					return "Assistant Message"
 				case "plan_mode_respond":
 					return "Planning Response"
 				case "tool":
