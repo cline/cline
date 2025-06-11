@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Spring cleaning
+updating o3 model pricing
