@@ -163,6 +163,7 @@ export type ClineSay =
 	| "browser_action_result"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
+	| "mcp_notification"
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
