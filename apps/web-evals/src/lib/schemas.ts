@@ -19,7 +19,7 @@ export const createRunSchema = z
 		suite: z.enum(["full", "partial"]),
 		exercises: z.array(z.string()).optional(),
 		settings: rooCodeSettingsSchema.optional(),
-		concurrency: z.number().int().min(CONCURRENCY_MIN).max(CONCURRENCY_MAX).default(CONCURRENCY_DEFAULT),
+		concurrency: z.number().int().min(CONCURRENCY_MIN).max(CONCURRENCY_MAX),
 		systemPrompt: z.string().optional(),
 	})
 	.refine((data) => data.suite === "full" || (data.exercises || []).length > 0, {

@@ -15,8 +15,8 @@ import { globalSettingsSchema, providerSettingsSchema, EVALS_SETTINGS, getModelI
 import { createRun } from "@/actions/runs"
 import { getExercises } from "@/actions/exercises"
 import {
-	createRunSchema as formSchema,
-	type CreateRun as FormValues,
+	createRunSchema,
+	type CreateRun,
 	MODEL_DEFAULT,
 	CONCURRENCY_MIN,
 	CONCURRENCY_MAX,
@@ -68,8 +68,8 @@ export function NewRun() {
 	const models = useOpenRouterModels()
 	const exercises = useQuery({ queryKey: ["getExercises"], queryFn: () => getExercises() })
 
-	const form = useForm<FormValues>({
-		resolver: zodResolver(formSchema),
+	const form = useForm<CreateRun>({
+		resolver: zodResolver(createRunSchema),
 		defaultValues: {
 			model: MODEL_DEFAULT,
 			description: "",
@@ -94,7 +94,7 @@ export function NewRun() {
 	const systemPromptRef = useRef<HTMLTextAreaElement>(null)
 
 	const onSubmit = useCallback(
-		async (values: FormValues) => {
+		async (values: CreateRun) => {
 			try {
 				if (mode === "openrouter") {
 					values.settings = { ...(values.settings || {}), openRouterModelId: model }

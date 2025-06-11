@@ -72,7 +72,7 @@
 		"use-sound": "^5.0.0",
 		"vscode-material-icons": "^0.1.1",
 		"vscrui": "^0.2.2",
-		"zod": "^3.24.2"
+		"zod": "^3.25.61"
 	},
 	"devDependencies": {
 		"@jest/globals": "^29.7.0",
@@ -82,7 +82,7 @@
 		"@testing-library/react": "^16.2.0",
 		"@testing-library/user-event": "^14.6.1",
 		"@types/jest": "^29.0.0",
-		"@types/node": "^18.0.0",
+		"@types/node": "20.x",
 		"@types/react": "^18.3.23",
 		"@types/react-dom": "^18.3.5",
 		"@types/shell-quote": "^1.7.5",

@@ -13,9 +13,24 @@ env:
     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
+    check-secrets:
+        runs-on: ubuntu-latest
+        outputs:
+            has-vercel-token: ${{ steps.check.outputs.has-vercel-token }}
+        steps:
+            - name: Check if VERCEL_TOKEN exists
+              id: check
+              run: |
+                if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+                  echo "has-vercel-token=true" >> $GITHUB_OUTPUT
+                else
+                  echo "has-vercel-token=false" >> $GITHUB_OUTPUT
+                fi
+
     deploy:
         runs-on: ubuntu-latest
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        needs: check-secrets
+        if: ${{ needs.check-secrets.outputs.has-vercel-token == 'true' }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4

@@ -419,7 +419,7 @@
 		"web-tree-sitter": "^0.22.6",
 		"workerpool": "^9.2.0",
 		"yaml": "^2.8.0",
-		"zod": "^3.24.2"
+		"zod": "^3.25.61"
 	},
 	"devDependencies": {
 		"@jest/globals": "^29.7.0",

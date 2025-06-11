@@ -12,12 +12,12 @@
 		"cli": "dotenvx run -f .env.development .env.local -- tsx src/cli/index.ts",
 		"drizzle-kit": "dotenvx run -f .env.development -- tsx node_modules/drizzle-kit/bin.cjs",
 		"drizzle-kit:test": "dotenvx run -f .env.test -- tsx node_modules/drizzle-kit/bin.cjs",
+		"drizzle-kit:production": "dotenvx run -f .env.production -- tsx node_modules/drizzle-kit/bin.cjs",
 		"db:generate": "pnpm drizzle-kit generate",
 		"db:migrate": "pnpm drizzle-kit migrate",
 		"db:push": "pnpm drizzle-kit push",
-		"db:check": "pnpm drizzle-kit check",
 		"db:test:push": "pnpm drizzle-kit:test push",
-		"db:test:check": "pnpm drizzle-kit:test check",
+		"db:production:push": "pnpm drizzle-kit:production push",
 		"db:start": "docker compose up -d db",
 		"db:stop": "docker compose down db",
 		"redis:start": "docker compose up -d redis",
@@ -27,7 +27,6 @@
 	"dependencies": {
 		"@roo-code/ipc": "workspace:^",
 		"@roo-code/types": "workspace:^",
-		"better-sqlite3": "^11.10.0",
 		"cmd-ts": "^0.13.0",
 		"drizzle-orm": "^0.44.1",
 		"execa": "^9.6.0",
@@ -38,12 +37,12 @@
 		"postgres": "^3.4.7",
 		"ps-tree": "^1.2.0",
 		"redis": "^5.5.5",
-		"zod": "^3.24.2"
+		"zod": "^3.25.61"
 	},
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@types/node": "^22.15.20",
+		"@types/node": "20.x",
 		"@types/node-ipc": "^9.2.3",
 		"@types/ps-tree": "^1.1.6",
 		"drizzle-kit": "^0.31.1",

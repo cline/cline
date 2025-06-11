@@ -3,14 +3,17 @@
 import { useMemo } from "react"
 import { ScatterChart, Scatter, XAxis, YAxis, Label, Customized, Cross } from "recharts"
 
-import { TaskMetrics, type Run } from "@/db"
+import type { TaskMetrics, Run } from "@roo-code/evals"
 
-import { ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
 import { formatTokens, formatCurrency, formatDuration, formatScore } from "@/lib"
+import { useOpenRouterModels } from "@/lib/hooks"
 import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	ChartConfig,
+	ChartLegend,
+	ChartLegendContent,
 	Table,
 	TableBody,
 	TableCaption,
@@ -19,7 +22,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui"
-import { useOpenRouterModels } from "@/lib/hooks/use-open-router-models"
 
 export function Evals({
 	runs,
@@ -126,7 +128,7 @@ export function Evals({
 					{tableData.map((run) => (
 						<TableRow key={run.id}>
 							<TableCell title={run.model?.description}>
-								<div className="font-sans">{run.model?.name || run.label}</div>
+								<div className="font-sans">{run.label}</div>
 								<div className="text-xs opacity-50">
 									{formatTokens(run.modelInfo?.contextWindow ?? 0)}
 								</div>
