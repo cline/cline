@@ -11,11 +11,19 @@ import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
 import { Controller } from "./core/controller"
+import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
+import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { v4 as uuidv4 } from "uuid"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
+import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
+import { migratePlanActGlobalToWorkspaceStorage } from "./core/storage/state"
+
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -37,6 +45,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	// Migrate global storage values to workspace storage (one-time cleanup)
+	await migratePlanActGlobalToWorkspaceStorage(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
@@ -89,36 +100,40 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
-			const openChat = async (instance?: WebviewProvider) => {
+			console.log("[DEBUG] plusButtonClicked", webview)
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+
+			const openChat = async (instance: WebviewProvider) => {
 				await instance?.controller.clearTask()
 				await instance?.controller.postStateToWebview()
-				await instance?.controller.postMessageToWebview({
-					type: "action",
-					action: "chatButtonClicked",
-				})
+				await sendChatButtonClickedEvent(instance.controller.id)
 			}
-			const isSidebar = !webview
+
 			if (isSidebar) {
-				openChat(WebviewProvider.getSidebarInstance())
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance) {
+					openChat(sidebarInstance)
+					// Send event to the sidebar instance
+				}
 			} else {
-				WebviewProvider.getTabInstances().forEach(openChat)
+				const tabInstances = WebviewProvider.getTabInstances()
+				for (const instance of tabInstances) {
+					openChat(instance)
+				}
 			}
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
-			const openMcp = (instance?: WebviewProvider) =>
-				instance?.controller.postMessageToWebview({
-					type: "action",
-					action: "mcpButtonClicked",
-				})
+			console.log("[DEBUG] mcpButtonClicked", webview)
+			// Pass the webview type to the event sender
 			const isSidebar = !webview
-			if (isSidebar) {
-				openMcp(WebviewProvider.getSidebarInstance())
-			} else {
-				WebviewProvider.getTabInstances().forEach(openMcp)
-			}
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			// Will send to appropriate subscribers based on the source webview type
+			sendMcpButtonClickedEvent(webviewType)
 		}),
 	)
 
@@ -160,58 +175,43 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openSettings = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "settingsButtonClicked",
-					})
-				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openSettings(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openSettings)
-				}
-			})
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			sendSettingsButtonClickedEvent(webviewType)
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openHistory = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "historyButtonClicked",
-					})
-				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openHistory(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openHistory)
-				}
-			})
+		vscode.commands.registerCommand("cline.historyButtonClicked", async (webview: any) => {
+			console.log("[DEBUG] historyButtonClicked", webview)
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			// Send event to all subscribers using the gRPC streaming method
+			await sendHistoryButtonClickedEvent(webviewType)
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openAccount = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "accountButtonClicked",
-					})
+			console.log("[DEBUG] accountButtonClicked", webview)
+
+			const isSidebar = !webview
+			if (isSidebar) {
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance) {
+					// Send event to sidebar controller
+					sendAccountButtonClickedEvent(sidebarInstance.controller.id)
 				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openAccount(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openAccount)
+			} else {
+				// Send to all tab instances
+				const tabInstances = WebviewProvider.getTabInstances()
+				for (const instance of tabInstances) {
+					sendAccountButtonClickedEvent(instance.controller.id)
 				}
-			})
+			}
 		}),
 	)
 

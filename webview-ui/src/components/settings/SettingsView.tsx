@@ -7,7 +7,7 @@ import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { PlanActMode, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
@@ -21,6 +21,8 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -126,6 +128,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		shellIntegrationTimeout,
+		setShellIntegrationTimeout,
+		terminalReuseEnabled,
+		setTerminalReuseEnabled,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -137,13 +145,14 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpResponsesCollapsed,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
-	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
-
-	const handleSubmit = (withoutDone: boolean = false) => {
+	const handleSubmit = async (withoutDone: boolean = false) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
@@ -171,15 +180,26 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			apiConfigurationToSubmit = undefined
 		}
 
-		vscode.postMessage({
-			type: "updateSettings",
-			planActSeparateModelsSetting,
-			customInstructionsSetting: customInstructions,
-			telemetrySetting,
-			enableCheckpointsSetting,
-			mcpMarketplaceEnabled,
-			apiConfiguration: apiConfigurationToSubmit,
-		})
+		try {
+			await StateServiceClient.updateSettings(
+				UpdateSettingsRequest.create({
+					planActSeparateModelsSetting,
+					customInstructionsSetting: customInstructions,
+					telemetrySetting,
+					enableCheckpointsSetting,
+					mcpMarketplaceEnabled,
+					shellIntegrationTimeout,
+					terminalReuseEnabled,
+					mcpResponsesCollapsed,
+					apiConfiguration: apiConfigurationToSubmit
+						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
+						: undefined,
+					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
+				}),
+			)
+		} catch (error) {
+			console.error("Failed to update settings:", error)
+		}
 
 		if (!withoutDone) {
 			onDone()
@@ -200,7 +220,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
+			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -210,7 +233,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpResponsesCollapsed,
 		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
 	])
 
 	// Handle cancel button click
@@ -241,6 +267,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				// Reset terminal settings
+				if (typeof setShellIntegrationTimeout === "function") {
+					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalReuseEnabled === "function") {
+					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+				}
+				if (typeof setMcpResponsesCollapsed === "function") {
+					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
+				}
 				// Close settings view
 				onDone()
 			}
@@ -258,6 +294,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpResponsesCollapsed,
 	])
 
 	// Handle confirmation dialog actions
@@ -287,59 +324,42 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
 
-	const handleMessage = useCallback(
-		(event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "didUpdateSettings":
-					if (pendingTabChange) {
-						StateServiceClient.togglePlanActMode(
-							TogglePlanActModeRequest.create({
-								chatSettings: {
-									mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-									preferredLanguage: chatSettings.preferredLanguage,
-									openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-								},
-							}),
-						)
-						setPendingTabChange(null)
-					}
-					break
-				// Handle tab navigation through targetSection prop instead
-				case "grpc_response":
-					if (message.grpc_response?.message?.action === "scrollToSettings") {
-						const tabId = message.grpc_response?.message?.value
-						if (tabId) {
-							console.log("Opening settings tab from GRPC response:", tabId)
-							// Check if the value corresponds to a valid tab ID
-							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		switch (message.type) {
+			// Handle tab navigation through targetSection prop instead
+			case "grpc_response":
+				if (message.grpc_response?.message?.action === "scrollToSettings") {
+					const tabId = message.grpc_response?.message?.value
+					if (tabId) {
+						console.log("Opening settings tab from GRPC response:", tabId)
+						// Check if the value corresponds to a valid tab ID
+						const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
-							if (isValidTabId) {
-								// Set the active tab directly
-								setActiveTab(tabId)
-							} else {
-								// Fall back to the old behavior of scrolling to an element
-								setTimeout(() => {
-									const element = document.getElementById(tabId)
-									if (element) {
-										element.scrollIntoView({ behavior: "smooth" })
+						if (isValidTabId) {
+							// Set the active tab directly
+							setActiveTab(tabId)
+						} else {
+							// Fall back to the old behavior of scrolling to an element
+							setTimeout(() => {
+								const element = document.getElementById(tabId)
+								if (element) {
+									element.scrollIntoView({ behavior: "smooth" })
 
-										element.style.transition = "background-color 0.5s ease"
-										element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+									element.style.transition = "background-color 0.5s ease"
+									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
 
-										setTimeout(() => {
-											element.style.backgroundColor = "transparent"
-										}, 1200)
-									}
-								}, 300)
-							}
+									setTimeout(() => {
+										element.style.backgroundColor = "transparent"
+									}, 1200)
+								}
+							}, 300)
 						}
 					}
-					break
-			}
-		},
-		[pendingTabChange],
-	)
+				}
+				break
+		}
+	}, [])
 
 	useEvent("message", handleMessage)
 
@@ -351,12 +371,27 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}
 
-	const handlePlanActModeChange = (tab: "plan" | "act") => {
+	const handlePlanActModeChange = async (tab: "plan" | "act") => {
 		if (tab === chatSettings.mode) {
 			return
 		}
-		setPendingTabChange(tab)
-		handleSubmit(true)
+
+		// Update settings first to ensure any changes to the current tab are saved
+		await handleSubmit(true)
+
+		try {
+			await StateServiceClient.togglePlanActMode(
+				TogglePlanActModeRequest.create({
+					chatSettings: {
+						mode: tab === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+						preferredLanguage: chatSettings.preferredLanguage,
+						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+					},
+				}),
+			)
+		} catch (error) {
+			console.error("Failed to toggle Plan/Act mode:", error)
+		}
 	}
 
 	// Track active tab
