@@ -13,6 +13,7 @@ export interface ProcessedTestCase {
 	file_contents: string
 	file_path: string
 	system_prompt_details: SystemPromptDetails
+	original_diff_edit_tool_call_message: string
 }
 
 export interface TestCase {
@@ -21,6 +22,7 @@ export interface TestCase {
 	file_contents: string
 	file_path: string
 	system_prompt_details: SystemPromptDetails
+	original_diff_edit_tool_call_message: string
 }
 
 export interface TestConfig {
@@ -30,6 +32,7 @@ export interface TestConfig {
 	parsing_function: string
 	diff_edit_function: string
 	thinking_tokens_budget: number
+	replay: boolean
 }
 
 export interface SystemPromptDetails {
@@ -72,7 +75,7 @@ export interface ExtractedToolCall {
 }
 
 export interface TestInput {
-	apiKey: string
+	apiKey?: string
 	systemPrompt: string
 	messages: Anthropic.Messages.MessageParam[]
 	modelId: string
@@ -81,4 +84,5 @@ export interface TestInput {
 	parsingFunction: string
 	diffEditFunction: string
 	thinkingBudgetTokens: number
+	originalDiffEditToolCallMessage?: string
 }
