@@ -87,6 +87,7 @@ program
 	.option("--model-id <model_id>", "The model ID to use for the test")
 	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 	.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
+	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
@@ -100,6 +101,7 @@ program
 				...options,
 				numberOfRuns: parseInt(options.numberOfRuns, 10),
 				thinkingBudget: parseInt(options.thinkingBudget, 10),
+				maxCases: options.maxCases ? parseInt(options.maxCases, 10) : undefined,
 			}
 			await runDiffEvalHandler(fullOptions)
 		} catch (error) {

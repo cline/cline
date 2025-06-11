@@ -14,6 +14,7 @@ interface RunDiffEvalOptions {
 	testPath: string
 	outputPath: string
 	replay: boolean
+	maxCases?: number
 }
 
 export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
@@ -57,6 +58,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	if (options.verbose) {
 		args.push("--verbose")
+	}
+
+	if (options.maxCases) {
+		args.push("--max-cases", String(options.maxCases))
 	}
 
 	try {

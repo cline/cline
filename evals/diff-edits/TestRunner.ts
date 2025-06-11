@@ -327,6 +327,7 @@ async function main() {
 		.option("--model-id <model_id>", "The model ID to use for the test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 		.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
+		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
@@ -355,7 +356,14 @@ async function main() {
 		const startTime = Date.now()
 
 		const runner = new NodeTestRunner(testConfig.replay)
-		const testCases = runner.loadTestCases(testPath)
+		let testCases = runner.loadTestCases(testPath)
+
+		// Apply max-cases limit if specified
+		if (options.maxCases && options.maxCases > 0) {
+			const originalCount = testCases.length
+			testCases = testCases.slice(0, options.maxCases)
+			log(isVerbose, `-Limited to ${options.maxCases} test cases (out of ${originalCount} available)`)
+		}
 
 		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
 			...tc,
