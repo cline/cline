@@ -13,17 +13,7 @@ import { ClineRulesToggles } from "./cline-rules"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "openAiModels"
-		| "requestyModels"
-		| "mcpDownloadDetails"
-		| "userCreditsBalance"
-		| "userCreditsUsage"
-		| "userCreditsPayments"
-		| "grpc_response" // New type for gRPC responses
+	type: "action" | "state" | "selectedImages" | "openAiModels" | "requestyModels" | "mcpDownloadDetails" | "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked"
 	state?: ExtensionState
@@ -42,9 +32,6 @@ export interface ExtensionMessage {
 	commits?: GitCommit[]
 	url?: string
 	isImage?: boolean
-	userCreditsBalance?: BalanceResponse
-	userCreditsUsage?: UsageTransaction[]
-	userCreditsPayments?: PaymentTransaction[]
 	success?: boolean
 	endpoint?: string
 	isBundled?: boolean
