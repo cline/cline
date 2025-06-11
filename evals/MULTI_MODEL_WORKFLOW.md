@@ -73,12 +73,28 @@ cd diff-edits/dashboard
 streamlit run app.py
 ```
 
-**Dashboard shows:**
-- Model comparison cards with success rates
-- Interactive charts (latency vs cost)
-- Drill-down analysis per model
-- Side-by-side file comparisons
-- Raw model outputs and parsed tool calls
+**Dashboard Features:**
+- **Hero Section**: Overview of current run with key metrics and model count
+- **Model Performance Cards**: Individual cards for each model with:
+  - Success rate percentage and letter grade (A-F)
+  - Average latency to first token and first edit
+  - Average cost per attempt
+  - Total attempts and success count
+- **Interactive Charts**: 
+  - Success rate comparison bar chart
+  - Latency vs Cost scatter plot with model clustering
+  - Performance metrics visualization
+- **Result Explorer**: Detailed drill-down with:
+  - Individual result selection and filtering
+  - Side-by-side file content comparison (original vs edited)
+  - Raw model output viewing
+  - Parsed tool call JSON inspection
+  - Timing and cost metrics per attempt
+  - Error analysis and categorization
+- **Run Selection**: Browse and compare different evaluation runs
+- **Real-time Updates**: Automatically refreshes with new evaluation data
+
+**Dashboard URL**: http://localhost:8502 (opens automatically)
 
 ## 🎯 Data Storage Logic
 

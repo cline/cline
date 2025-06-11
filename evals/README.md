@@ -217,37 +217,124 @@ Test cases are defined as JSON files in the `diff-edits/cases/` directory. Each 
 
 ### Running Diff Edit Evaluations
 
+#### Single Model Evaluation
+
 ```bash
 cd evals/cli
-node dist/index.js run-diff-eval --model-id claude-3-opus-20240229
+node dist/index.js run-diff-eval --model-ids "anthropic/claude-3-5-sonnet-20241022"
 ```
 
-Options:
-- `--model-id`: The model to evaluate (required)
+#### Multi-Model Evaluation
+
+Compare multiple models in a single evaluation run:
+
+```bash
+# Compare Claude and Grok models
+node dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
+  --max-cases 10 \
+  --valid-attempts-per-case 3 \
+  --verbose
+
+# Compare multiple Claude variants
+node dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,anthropic/claude-3-5-haiku-20241022,anthropic/claude-3-opus-20240229" \
+  --max-cases 5 \
+  --valid-attempts-per-case 2 \
+  --parallel
+```
+
+#### Options
+
+- `--model-ids`: Comma-separated list of model IDs to evaluate (required)
 - `--system-prompt-name`: System prompt to use (default: "basicSystemPrompt")
-- `--number-of-runs`: Number of times to run each test case (default: 1)
+- `--valid-attempts-per-case`: Number of attempts per test case per model (default: 1)
+- `--max-cases`: Maximum number of test cases to run (default: all available)
 - `--parsing-function`: Function to parse assistant messages (default: "parseAssistantMessageV2")
 - `--diff-edit-function`: Function to apply diffs (default: "constructNewFileContentV2")
 - `--test-path`: Path to test cases (default: diff-edits/cases)
-- `--output-path`: Path for results (default: diff-edits/results)
 - `--thinking-budget`: Tokens allocated for thinking (default: 0)
 - `--parallel`: Run tests in parallel (flag)
 - `--replay`: Use pre-recorded LLM output (flag)
 - `--verbose`: Enable detailed logging (flag)
 
-### Example
+#### Examples
 
 ```bash
-# Run all test cases with default settings
-node dist/index.js run-diff-eval --model-id claude-3-opus-20240229
+# Quick test with 2 models, 4 cases, 2 attempts each
+node dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
+  --max-cases 4 \
+  --valid-attempts-per-case 2 \
+  --verbose
 
-# Run with custom settings and parallel execution
-node dist/index.js run-diff-eval --model-id claude-3-sonnet-20240229 --system-prompt-name claude4SystemPrompt --number-of-runs 3 --parallel --verbose
+# Comprehensive evaluation with parallel execution
+node dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,anthropic/claude-3-5-haiku-20241022" \
+  --system-prompt-name claude4SystemPrompt \
+  --valid-attempts-per-case 5 \
+  --max-cases 20 \
+  --parallel \
+  --verbose
 ```
 
-### Results
+### Database Storage & Analytics
 
-Results are saved as JSON files in the `diff-edits/results/` directory, with one file per test case. The results include:
+All evaluation results are automatically stored in a SQLite database (`diff-edits/evals.db`) for advanced analytics and comparison. The database includes:
+
+- **System Prompts**: Versioned system prompt content with hashing for deduplication
+- **Processing Functions**: Versioned parsing and diff-edit function configurations
+- **Files**: Original and edited file content with content-based hashing
+- **Runs**: Evaluation run metadata and configuration
+- **Cases**: Individual test case information with context tokens
+- **Results**: Detailed results with timing, cost, and success metrics
+
+### Interactive Dashboard
+
+Launch the Streamlit dashboard to visualize and analyze evaluation results:
+
+```bash
+cd diff-edits/dashboard
+streamlit run app.py
+```
+
+The dashboard provides:
+
+- **Model Performance Comparison**: Side-by-side comparison of success rates, latency, and costs
+- **Interactive Charts**: Success rate trends, latency vs cost analysis, and performance metrics
+- **Detailed Drill-Down**: Individual result analysis with file content viewing
+- **Run Selection**: Browse and compare different evaluation runs
+- **Real-time Updates**: Automatically refreshes with new evaluation data
+
+#### Dashboard Features
+
+1. **Hero Section**: Overview of current run with key metrics
+2. **Model Cards**: Performance cards with grades and detailed metrics
+3. **Comparison Charts**: Interactive Plotly charts for visual analysis
+4. **Result Explorer**: Detailed view of individual test results including:
+   - Original and edited file content
+   - Raw model output
+   - Parsed tool calls
+   - Timing and cost metrics
+   - Error analysis
+
+#### Quick Start Dashboard
+
+```bash
+# Run a quick evaluation
+node cli/dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
+  --max-cases 4 \
+  --valid-attempts-per-case 2 \
+  --verbose
+
+# Launch dashboard to view results
+cd diff-edits/dashboard && streamlit run app.py
+```
+
+### Legacy Results
+
+For backward compatibility, results are also saved as JSON files in the `diff-edits/results/` directory. The JSON results include:
 - Success/failure status
 - Extracted tool calls
 - Diff edit content

@@ -8,14 +8,14 @@ echo "📦 Building CLI..."
 cd cli && npm run build && cd ..
 
 echo ""
-echo "🧪 Running multi-model evaluation with 2 models, 2 cases, 1 valid attempt per case per model"
+echo "🧪 Running multi-model evaluation with 2 models, 4 cases, 2 valid attempts per case per model"
 echo ""
 
 # Test command with multiple models
 node cli/dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-sonnet-4,x-ai/grok-3-beta" \
-  --max-cases 2 \
-  --valid-attempts-per-case 1 \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
+  --max-cases 4 \
+  --valid-attempts-per-case 2 \
   --verbose
 
 echo ""
