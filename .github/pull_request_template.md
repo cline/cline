@@ -1,4 +1,4 @@
-## ⚠️ Important: Discussion Required Before PR (Community Contributors)
+<!-- ⚠️ Important: Discussion Required Before PR (Community Contributors) -->
 
 **For community contributors, before submitting this PR, please ensure you have:**
 
@@ -14,8 +14,8 @@
 
 ### Related Issue
 
-<!-- Link the issue that this PR addresses: -->
-**Issue:** #[issue_number]
+<!-- Replace XXXX with the issue number that this PR addresses -->
+**Issue:** #XXXX
 
 ### Description
 
