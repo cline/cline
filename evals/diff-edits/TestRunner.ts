@@ -7,6 +7,21 @@ import * as fs from "fs"
 import * as path from "path"
 import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
+import {
+	getDatabase,
+	upsertSystemPrompt,
+	upsertProcessingFunctions,
+	upsertFile,
+	createBenchmarkRun,
+	createCase,
+	insertResult,
+	DatabaseClient,
+	CreateResultInput,
+} from "./database"
+
+// Load environment variables from .env file
+import * as dotenv from "dotenv"
+dotenv.config({ path: path.join(__dirname, "../.env") })
 
 function log(isVerbose: boolean, message: string) {
 	if (isVerbose) {
@@ -23,6 +38,10 @@ type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] 
 
 class NodeTestRunner {
 	private apiKey: string | undefined
+	private currentRunId: string | null = null
+	private systemPromptHash: string | null = null
+	private processingFunctionsHash: string | null = null
+	private caseIdMap: Map<string, string> = new Map() // test_id -> case_id mapping
 
 	constructor(isReplay: boolean) {
 		if (!isReplay) {
@@ -31,6 +50,242 @@ class NodeTestRunner {
 				throw new Error("OPENROUTER_API_KEY environment variable not set for a non-replay run.")
 			}
 		}
+	}
+
+	/**
+	 * Initialize database run and store system prompt and processing functions
+	 */
+	async initializeDatabaseRun(testConfig: TestConfig, testCases: ProcessedTestCase[], isVerbose: boolean): Promise<string> {
+		try {
+			// Generate a sample system prompt to hash (using first test case)
+			const sampleSystemPrompt = testCases.length > 0 
+				? this.constructSystemPrompt(testCases[0].system_prompt_details, testConfig.system_prompt_name)
+				: "default-system-prompt";
+
+			// Store system prompt
+			this.systemPromptHash = await upsertSystemPrompt({
+				name: testConfig.system_prompt_name,
+				content: sampleSystemPrompt
+			});
+
+			// Store processing functions
+			this.processingFunctionsHash = await upsertProcessingFunctions({
+				name: `${testConfig.parsing_function}-${testConfig.diff_edit_function}`,
+				parsing_function: testConfig.parsing_function,
+				diff_edit_function: testConfig.diff_edit_function
+			});
+
+			// Create benchmark run
+			const runDescription = `Model: ${testConfig.model_id}, Cases: ${testCases.length}, Runs per case: ${testConfig.number_of_runs}`;
+			this.currentRunId = await createBenchmarkRun({
+				description: runDescription,
+				system_prompt_hash: this.systemPromptHash
+			});
+
+			log(isVerbose, `✓ Database run initialized: ${this.currentRunId}`);
+			
+			// Create case records
+			await this.createDatabaseCases(testCases, isVerbose);
+
+			return this.currentRunId;
+		} catch (error) {
+			console.error("Failed to initialize database run:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Initialize multi-model database run (one run for all models)
+	 */
+	async initializeMultiModelRun(testCases: ProcessedTestCase[], systemPromptName: string, parsingFunction: string, diffEditFunction: string, runDescription: string, isVerbose: boolean): Promise<string> {
+		try {
+			// Generate a sample system prompt to hash (using first test case)
+			const sampleSystemPrompt = testCases.length > 0 
+				? this.constructSystemPrompt(testCases[0].system_prompt_details, systemPromptName)
+				: "default-system-prompt";
+
+			// Store system prompt
+			this.systemPromptHash = await upsertSystemPrompt({
+				name: systemPromptName,
+				content: sampleSystemPrompt
+			});
+
+			// Store processing functions
+			this.processingFunctionsHash = await upsertProcessingFunctions({
+				name: `${parsingFunction}-${diffEditFunction}`,
+				parsing_function: parsingFunction,
+				diff_edit_function: diffEditFunction
+			});
+
+			// Create benchmark run
+			this.currentRunId = await createBenchmarkRun({
+				description: runDescription,
+				system_prompt_hash: this.systemPromptHash
+			});
+
+			log(isVerbose, `✓ Multi-model database run initialized: ${this.currentRunId}`);
+			
+			// Create case records
+			await this.createDatabaseCases(testCases, isVerbose);
+
+			return this.currentRunId;
+		} catch (error) {
+			console.error("Failed to initialize multi-model database run:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Create database case records for all test cases
+	 */
+	async createDatabaseCases(testCases: ProcessedTestCase[], isVerbose: boolean): Promise<void> {
+		if (!this.currentRunId || !this.systemPromptHash) {
+			throw new Error("Database run not initialized");
+		}
+
+		for (const testCase of testCases) {
+			try {
+				// Store file content if available
+				let fileHash: string | undefined;
+				if (testCase.file_contents && testCase.file_path) {
+					fileHash = await upsertFile({
+						filepath: testCase.file_path,
+						content: testCase.file_contents
+					});
+				}
+
+				// Calculate tokens in context (approximate)
+				const tokensInContext = this.estimateTokens(testCase.messages);
+
+				// Create case record
+				const caseId = await createCase({
+					run_id: this.currentRunId,
+					description: testCase.test_id,
+					system_prompt_hash: this.systemPromptHash,
+					task_id: testCase.test_id,
+					tokens_in_context: tokensInContext,
+					file_hash: fileHash
+				});
+
+				this.caseIdMap.set(testCase.test_id, caseId);
+			} catch (error) {
+				console.error(`Failed to create database case for ${testCase.test_id}:`, error);
+				// Continue with other cases
+			}
+		}
+
+		log(isVerbose, `✓ Created ${this.caseIdMap.size} database case records`);
+	}
+
+	/**
+	 * Store test result in database
+	 */
+	async storeResultInDatabase(result: TestResult, testId: string, modelId: string): Promise<void> {
+		if (!this.currentRunId || !this.processingFunctionsHash) {
+			return; // Skip if database not initialized
+		}
+
+		const caseId = this.caseIdMap.get(testId);
+		if (!caseId) {
+			return; // Skip if case not found
+		}
+
+		try {
+			// Map error string to error enum (simple mapping)
+			const errorEnum = this.mapErrorToEnum(result.error);
+
+			// Store diff edit content if available
+			let fileEditedHash: string | undefined;
+			if (result.diffEdit) {
+				fileEditedHash = await upsertFile({
+					filepath: `diff-edit-${testId}`,
+					content: result.diffEdit
+				});
+			}
+
+			// Calculate basic metrics from diff edit if available
+			let numEdits = 0;
+			let numLinesAdded = 0;
+			let numLinesDeleted = 0;
+			
+			if (result.diffEdit) {
+				// Simple parsing to count edits - count SEARCH/REPLACE blocks
+				const searchBlocks = (result.diffEdit.match(/------- SEARCH/g) || []).length;
+				numEdits = searchBlocks;
+				
+				// Count added/deleted lines (rough approximation)
+				const lines = result.diffEdit.split('\n');
+				for (const line of lines) {
+					if (line.startsWith('+') && !line.startsWith('+++')) {
+						numLinesAdded++;
+					} else if (line.startsWith('-') && !line.startsWith('---')) {
+						numLinesDeleted++;
+					}
+				}
+			}
+
+			const resultInput: CreateResultInput = {
+				run_id: this.currentRunId,
+				case_id: caseId,
+				model_id: modelId,
+				processing_functions_hash: this.processingFunctionsHash,
+				succeeded: result.success && (result.diffEditSuccess ?? false),
+				error_enum: errorEnum,
+				num_edits: numEdits || undefined,
+				num_lines_deleted: numLinesDeleted || undefined,
+				num_lines_added: numLinesAdded || undefined,
+				time_to_first_token_ms: result.streamResult?.timing?.timeToFirstTokenMs,
+				time_to_first_edit_ms: result.streamResult?.timing?.timeToFirstEditMs,
+				time_round_trip_ms: result.streamResult?.timing?.totalRoundTripMs,
+				cost_usd: result.streamResult?.usage?.totalCost,
+				completion_tokens: result.streamResult?.usage?.outputTokens,
+				raw_model_output: result.streamResult?.assistantMessage,
+				file_edited_hash: fileEditedHash,
+				parsed_tool_call_json: result.toolCalls ? JSON.stringify(result.toolCalls) : undefined
+			};
+
+			await insertResult(resultInput);
+		} catch (error) {
+			console.error(`Failed to store result in database for ${testId}:`, error);
+			// Continue execution - don't fail the test run
+		}
+	}
+
+	/**
+	 * Estimate token count for messages (rough approximation)
+	 */
+	private estimateTokens(messages: Anthropic.Messages.MessageParam[]): number {
+		let totalChars = 0;
+		for (const message of messages) {
+			if (Array.isArray(message.content)) {
+				for (const block of message.content) {
+					if (block.type === 'text') {
+						totalChars += block.text.length;
+					}
+				}
+			} else if (typeof message.content === 'string') {
+				totalChars += message.content.length;
+			}
+		}
+		// Rough approximation: 4 characters per token
+		return Math.ceil(totalChars / 4);
+	}
+
+	/**
+	 * Map error string to error enum
+	 */
+	private mapErrorToEnum(error?: string): number | undefined {
+		if (!error) return undefined;
+		
+		const errorMap: Record<string, number> = {
+			'no_tool_calls': 1,
+			'parsing_error': 2,
+			'diff_edit_error': 3,
+			'missing_original_diff_edit_tool_call_message': 4,
+			'api_error': 5
+		};
+
+		return errorMap[error] || 99; // 99 for unknown errors
 	}
 
 	/**
@@ -160,6 +415,13 @@ class NodeTestRunner {
 	async runAllTests(testCases: ProcessedTestCase[], testConfig: TestConfig, isVerbose: boolean): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 
+		// Initialize database run
+		try {
+			await this.initializeDatabaseRun(testConfig, testCases, isVerbose);
+		} catch (error) {
+			log(isVerbose, `Warning: Failed to initialize database: ${error}`);
+		}
+
 		for (const testCase of testCases) {
 			results[testCase.test_id] = []
 
@@ -167,6 +429,13 @@ class NodeTestRunner {
 			for (let i = 0; i < testConfig.number_of_runs; i++) {
 				const result = await this.runSingleTest(testCase, testConfig)
 				results[testCase.test_id].push(result)
+				
+				// Store result in database
+				try {
+					await this.storeResultInDatabase(result, testCase.test_id, testConfig.model_id);
+				} catch (error) {
+					log(isVerbose, `Warning: Failed to store result in database: ${error}`);
+				}
 			}
 		}
 		return results
@@ -176,6 +445,98 @@ class NodeTestRunner {
 	 * Runs all of the text examples asynchronously, with concurrency limit
 	 */
 	async runAllTestsParallel(
+		testCases: ProcessedTestCase[],
+		testConfig: TestConfig,
+		isVerbose: boolean,
+		maxConcurrency: number = 20,
+	): Promise<TestResultSet> {
+		const results: TestResultSet = {}
+		testCases.forEach((tc) => {
+			results[tc.test_id] = []
+		})
+
+		// Initialize database run
+		try {
+			await this.initializeDatabaseRun(testConfig, testCases, isVerbose);
+		} catch (error) {
+			log(isVerbose, `Warning: Failed to initialize database: ${error}`);
+		}
+
+		// Create a flat list of all individual runs we need to execute
+		const allRuns = testCases.flatMap((testCase) =>
+			Array(testConfig.number_of_runs)
+				.fill(null)
+				.map(() => testCase),
+		)
+
+		for (let i = 0; i < allRuns.length; i += maxConcurrency) {
+			const batch = allRuns.slice(i, i + maxConcurrency)
+
+			const batchPromises = batch.map((testCase) =>
+				this.runSingleTest(testCase, testConfig).then((result) => ({
+					...result,
+					test_id: testCase.test_id,
+				})),
+			)
+
+			const batchResults = await Promise.all(batchPromises)
+
+			// Calculate the total cost for this batch
+			const batchCost = batchResults.reduce((total, result) => {
+				return total + (result.streamResult?.usage?.totalCost || 0)
+			}, 0)
+
+			// Populate the results dictionary and store in database
+			for (const result of batchResults) {
+				if (result.test_id) {
+					results[result.test_id].push(result)
+					
+					// Store result in database
+					try {
+						await this.storeResultInDatabase(result, result.test_id, testConfig.model_id);
+					} catch (error) {
+						log(isVerbose, `Warning: Failed to store result in database: ${error}`);
+					}
+				}
+			}
+
+			const batchNumber = i / maxConcurrency + 1
+			const totalBatches = Math.ceil(allRuns.length / maxConcurrency)
+			log(isVerbose, `-Completed batch ${batchNumber} of ${totalBatches}... (Batch Cost: $${batchCost.toFixed(6)})`)
+		}
+
+		return results
+	}
+
+	/**
+	 * Runs all tests for a specific model (assumes database run already initialized)
+	 */
+	async runAllTestsForModel(testCases: ProcessedTestCase[], testConfig: TestConfig, isVerbose: boolean): Promise<TestResultSet> {
+		const results: TestResultSet = {}
+
+		for (const testCase of testCases) {
+			results[testCase.test_id] = []
+
+			log(isVerbose, `-Running test: ${testCase.test_id}`)
+			for (let i = 0; i < testConfig.number_of_runs; i++) {
+				const result = await this.runSingleTest(testCase, testConfig)
+				results[testCase.test_id].push(result)
+				
+				// Store result in database
+				try {
+					await this.storeResultInDatabase(result, testCase.test_id, testConfig.model_id);
+				} catch (error) {
+					log(isVerbose, `Warning: Failed to store result in database: ${error}`);
+				}
+			}
+		}
+		return results
+	}
+
+	/**
+	 * Runs all tests for a specific model in parallel (assumes database run already initialized)
+	 */
+	async runAllTestsParallelForModel(
 		testCases: ProcessedTestCase[],
 		testConfig: TestConfig,
 		isVerbose: boolean,
@@ -210,10 +571,17 @@ class NodeTestRunner {
 				return total + (result.streamResult?.usage?.totalCost || 0)
 			}, 0)
 
-			// Populate the results dictionary
+			// Populate the results dictionary and store in database
 			for (const result of batchResults) {
 				if (result.test_id) {
 					results[result.test_id].push(result)
+					
+					// Store result in database
+					try {
+						await this.storeResultInDatabase(result, result.test_id, testConfig.model_id);
+					} catch (error) {
+						log(isVerbose, `Warning: Failed to store result in database: ${error}`);
+					}
 				}
 			}
 
@@ -324,9 +692,9 @@ async function main() {
 		.version("1.0.0")
 		.option("--test-path <path>", "Path to the directory containing test case JSON files", defaultTestPath)
 		.option("--output-path <path>", "Path to the directory to save the test output JSON files", defaultOutputPath)
-		.option("--model-id <model_id>", "The model ID to use for the test")
+		.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
-		.option("-n, --number-of-runs <number>", "Number of times to run each test case", "1")
+		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model", "1")
 		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
@@ -342,20 +710,19 @@ async function main() {
 	const testPath = options.testPath
 	const outputPath = options.outputPath
 
-	const testConfig: TestConfig = {
-		model_id: options.modelId,
-		system_prompt_name: options.systemPromptName,
-		number_of_runs: parseInt(options.numberOfRuns, 10),
-		parsing_function: options.parsingFunction,
-		diff_edit_function: options.diffEditFunction,
-		thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
-		replay: options.replay,
+	// Parse model IDs from comma-separated string
+	const modelIds = options.modelIds ? options.modelIds.split(',').map(id => id.trim()) : [];
+	if (modelIds.length === 0) {
+		console.error("Error: --model-ids is required and must contain at least one model ID");
+		process.exit(1);
 	}
 
+	const validAttemptsPerCase = parseInt(options.validAttemptsPerCase, 10);
+	
 	try {
 		const startTime = Date.now()
 
-		const runner = new NodeTestRunner(testConfig.replay)
+		const runner = new NodeTestRunner(options.replay)
 		let testCases = runner.loadTestCases(testPath)
 
 		// Apply max-cases limit if specified
@@ -371,23 +738,45 @@ async function main() {
 		}))
 
 		log(isVerbose, `-Loaded ${testCases.length} test cases.`)
-		log(isVerbose, `-Executing ${testConfig.number_of_runs} run(s) per test case.`)
-		if (testConfig.replay) {
+		log(isVerbose, `-Testing ${modelIds.length} model(s): ${modelIds.join(', ')}`)
+		log(isVerbose, `-Target: ${validAttemptsPerCase} valid attempts per test case per model`)
+		if (options.replay) {
 			log(isVerbose, `-Running in REPLAY mode. No API calls will be made.`)
 		}
 		log(isVerbose, "Starting tests...\n")
 
-		const results = options.parallel
-			? await runner.runAllTestsParallel(processedTestCases, testConfig, isVerbose)
-			: await runner.runAllTests(processedTestCases, testConfig, isVerbose)
+		// Initialize ONE database run for ALL models
+		const runDescription = `Models: ${modelIds.join(', ')}, Cases: ${testCases.length}, Valid attempts per case: ${validAttemptsPerCase}`;
+		await runner.initializeMultiModelRun(processedTestCases, options.systemPromptName, options.parsingFunction, options.diffEditFunction, runDescription, isVerbose);
 
-		runner.printSummary(results, isVerbose)
+		// For now, run models sequentially to avoid complexity
+		// TODO: Implement parallel model execution later
+		for (const modelId of modelIds) {
+			log(isVerbose, `\n=== Running Model: ${modelId} ===`)
+			
+			const testConfig: TestConfig = {
+				model_id: modelId,
+				system_prompt_name: options.systemPromptName,
+				number_of_runs: validAttemptsPerCase, // This will be used for retry logic later
+				parsing_function: options.parsingFunction,
+				diff_edit_function: options.diffEditFunction,
+				thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
+				replay: options.replay,
+			}
+
+			const results = options.parallel
+				? await runner.runAllTestsParallelForModel(processedTestCases, testConfig, isVerbose)
+				: await runner.runAllTestsForModel(processedTestCases, testConfig, isVerbose)
+
+			runner.printSummary(results, isVerbose)
+		}
 
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
 
-		runner.saveTestResults(results, outputPath)
+		// Note: Individual results are already saved to database during execution
+		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {
 		console.error("\nError running tests:", error)
 		process.exit(1)

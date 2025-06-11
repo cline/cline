@@ -3,9 +3,9 @@ import chalk from "chalk"
 import path from "path"
 
 interface RunDiffEvalOptions {
-	modelId: string
+	modelIds: string
 	systemPromptName: string
-	numberOfRuns: number
+	validAttemptsPerCase: number
 	parsingFunction: string
 	diffEditFunction: string
 	thinkingBudget: number
@@ -25,12 +25,12 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	// Construct the arguments array for the execa call
 	const args = [
-		"--model-id",
-		options.modelId,
+		"--model-ids",
+		options.modelIds,
 		"--system-prompt-name",
 		options.systemPromptName,
-		"--number-of-runs",
-		String(options.numberOfRuns),
+		"--valid-attempts-per-case",
+		String(options.validAttemptsPerCase),
 		"--parsing-function",
 		options.parsingFunction,
 		"--diff-edit-function",

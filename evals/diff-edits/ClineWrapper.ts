@@ -39,16 +39,22 @@ interface StreamResult {
 		cacheReadTokens: number
 		totalCost: number
 	}
+	timing?: {
+		timeToFirstTokenMs: number
+		timeToFirstEditMs?: number
+		totalRoundTripMs: number
+	}
 }
 
 /**
- * Process the stream and return full response
+ * Process the stream and return full response with timing data
  */
 async function processStream(
 	handler: OpenRouterHandler,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 ): Promise<StreamResult> {
+	const startTime = Date.now()
 	const stream = handler.createMessage(systemPrompt, messages)
 
 	let assistantMessage = ""
@@ -58,10 +64,19 @@ async function processStream(
 	let cacheWriteTokens = 0
 	let cacheReadTokens = 0
 	let totalCost = 0
+	
+	// Timing tracking
+	let timeToFirstTokenMs: number | null = null
+	let timeToFirstEditMs: number | null = null
 
 	for await (const chunk of stream) {
 		if (!chunk) {
 			continue
+		}
+
+		// Capture time to first token (any chunk type)
+		if (timeToFirstTokenMs === null) {
+			timeToFirstTokenMs = Date.now() - startTime
 		}
 
 		switch (chunk.type) {
@@ -79,9 +94,24 @@ async function processStream(
 				break
 			case "text":
 				assistantMessage += chunk.text
+				
+				// Try to detect first tool call by parsing accumulated message
+				if (timeToFirstEditMs === null) {
+					try {
+						const parsed = parseAssistantMessageV2(assistantMessage)
+						const hasToolCall = parsed.some(block => block.type === "tool_use")
+						if (hasToolCall) {
+							timeToFirstEditMs = Date.now() - startTime
+						}
+					} catch {
+						// Parsing failed, continue accumulating
+					}
+				}
 				break
 		}
 	}
+
+	const totalRoundTripMs = Date.now() - startTime
 
 	return {
 		assistantMessage,
@@ -92,6 +122,11 @@ async function processStream(
 			cacheWriteTokens,
 			cacheReadTokens,
 			totalCost,
+		},
+		timing: {
+			timeToFirstTokenMs: timeToFirstTokenMs || 0,
+			timeToFirstEditMs: timeToFirstEditMs || undefined,
+			totalRoundTripMs,
 		},
 	}
 }
