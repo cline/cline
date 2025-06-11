@@ -1,0 +1,16 @@
+<common_mistakes_to_avoid>
+  - Running tests or executing code during review
+  - Making judgmental or harsh comments
+  - Providing feedback on code outside the PR's scope
+  - Using excessive praise or unnecessary formatting
+  - Submitting comments without user preview/approval
+  - Ignoring existing PR comments and discussions
+  - Missing critical security or performance issues
+  - Not checking for proper i18n in UI changes
+  - Failing to suggest breaking up large PRs
+  - Using internal evaluation terminology in public comments
+  - Not providing actionable suggestions for improvements
+  - Reviewing only the diff without local context
+  - Making assumptions instead of asking clarifying questions
+  - Forgetting to link to specific lines with full GitHub URLs
+</common_mistakes_to_avoid>

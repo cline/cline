@@ -1,0 +1,211 @@
+<workflow>
+  <step number="1">
+    <name>Fetch Pull Request Information</name>
+    <instructions>
+      By default, use the GitHub MCP server to fetch and review pull requests from the
+      https://github.com/RooCodeInc/Roo-Code repository.
+      
+      If the user provides a PR number or URL, extract the necessary information:
+      - Repository owner and name
+      - Pull request number
+      
+      Use the GitHub MCP tool to fetch the PR details:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+    </instructions>
+  </step>
+
+  <step number="2">
+    <name>Fetch Pull Request Diff</name>
+    <instructions>
+      Get the pull request diff to understand the changes:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request_diff</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+    </instructions>
+  </step>
+
+  <step number="3">
+    <name>Check Out Pull Request Locally</name>
+    <instructions>
+      Use the GitHub CLI (e.g. `gh pr checkout <PR_NUMBER>`) to check out the pull request locally after fetching
+      the diff. This provides a better understanding of code context and interactions than relying solely on the diff.
+      
+      <execute_command>
+      <command>gh pr checkout [PR_NUMBER]</command>
+      </execute_command>
+      
+      This allows you to:
+      - Navigate the actual code structure
+      - Understand how changes interact with existing code
+      - Get better context for your review
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Fetch Existing PR Comments</name>
+    <instructions>
+      Get existing comments to understand the current discussion state:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request_comments</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Examine existing PR comments to understand the current state of discussion. Always verify whether a comment is current or already addressed before suggesting action.
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Perform Comprehensive Review</name>
+    <instructions>
+      Review the pull request thoroughly:
+      - Focus primarily on the changes made in the PR.
+      - Prioritize code quality, code smell, structural consistency, and for UI-related changes, ensure proper internationalization (i18n) is applied.
+      - Watch for signs of technical debt (e.g., overly complex logic, lack of abstraction, tight coupling, missing tests, TODOs).
+      - For large PRs, alert the user and recommend breaking it up if appropriate.
+      - NEVER run tests or execute code in PR Reviewer mode. The repository likely has automated testing. Your role is limited to:
+        - Code review and analysis
+        - Leaving review comments
+        - Checking code quality and structure
+        - Reviewing test coverage and quality (without execution)
+      
+      Document your findings:
+      - Code quality issues
+      - Structural improvements
+      - Missing tests or documentation
+      - Potential bugs or edge cases
+      - Performance concerns
+      - Security considerations
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Prepare Review Comments</name>
+    <instructions>
+      Format your review comments following these guidelines:
+      
+      Your suggestions should:
+      - Use a **friendly, curious tone** — prefer asking: "Is this intentional?" or "Could we approach this differently to improve X?"
+      - Avoid assumptions or judgments; ask questions instead of declaring problems.
+      - Skip unnecessary praise. At most, use a neutral acknowledgment like "Thanks for your contribution."
+      - Use Markdown **only when necessary for clarity** (e.g., links, code blocks). Avoid excessive formatting.
+      - Avoid including internal evaluation terminology (e.g., scores or internal tags) in public comments.
+      
+      When linking to specific lines or files, use full GitHub URLs relative to the repository, e.g.
+      `https://github.com/RooCodeInc/Roo-Code/blob/main/src/api/providers/human-relay.ts#L50`.
+      
+      Group your comments by:
+      - Critical issues (must fix)
+      - Important suggestions (should consider)
+      - Minor improvements (nice to have)
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Preview Review with User</name>
+    <instructions>
+      Always show the user a preview of your review suggestions and comments before taking any action.
+      Summarize your findings clearly for the user before submitting comments.
+      
+      <ask_followup_question>
+      <question>I've completed my review of PR #[number]. Here's what I found:
+
+      [Summary of findings organized by priority]
+
+      Would you like me to:
+      1. Submit these as individual review comments
+      2. Create a comprehensive review with all comments
+      3. Modify any of the suggestions
+      4. Skip the review submission</question>
+      <follow_up>
+      <suggest>Submit as individual review comments</suggest>
+      <suggest>Create a comprehensive review</suggest>
+      <suggest>Let me modify the suggestions first</suggest>
+      <suggest>Skip submission - just wanted the analysis</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="8">
+    <name>Submit Review</name>
+    <instructions>
+      Based on user preference, submit the review:
+      
+      For individual comments:
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>add_pull_request_review_comment_to_pending_review</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number],
+        "path": "[file path]",
+        "line": [line number],
+        "body": "[comment text]",
+        "subjectType": "LINE"
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      For comprehensive review:
+      1. First create a pending review:
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>create_pending_pull_request_review</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      2. Add comments to the pending review
+      
+      3. Submit the review:
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>submit_pending_pull_request_review</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number],
+        "event": "COMMENT",
+        "body": "[overall review summary]"
+      }
+      </arguments>
+      </use_mcp_tool>
+    </instructions>
+  </step>
+</workflow>
