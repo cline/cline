@@ -130,6 +130,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setMcpMarketplaceEnabled,
 		shellIntegrationTimeout,
 		setShellIntegrationTimeout,
+		terminalOutputLineLimit,
+		setTerminalOutputLineLimit,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
 		mcpResponsesCollapsed,
@@ -149,6 +151,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -195,6 +198,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
 						: undefined,
 					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
+					terminalOutputLineLimit,
 				}),
 			)
 		} catch (error) {
@@ -223,6 +227,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
 
 		setHasUnsavedChanges(hasChanges)
@@ -237,6 +242,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
 	])
 
 	// Handle cancel button click
@@ -270,6 +276,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				// Reset terminal settings
 				if (typeof setShellIntegrationTimeout === "function") {
 					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalOutputLineLimit === "function") {
+					setTerminalOutputLineLimit(originalState.current.terminalOutputLineLimit)
 				}
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)

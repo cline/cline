@@ -975,6 +975,7 @@ export class Controller {
 			terminalReuseEnabled,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1021,6 +1022,7 @@ export class Controller {
 			terminalReuseEnabled,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		}
 	}
 

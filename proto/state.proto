@@ -12,7 +12,7 @@ service StateService {
   rpc resetState(EmptyRequest) returns (Empty);
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
   rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
-  rpc updateTerminalOutputLinesLimit(Int64Request) returns (Int64);
+  rpc updateTerminalOutputLineLimit(Int64Request) returns (Int64);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
 }

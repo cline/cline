@@ -91,7 +91,7 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
-	terminalOutputLineLimit?: number
+	terminalOutputLineLimit: number
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

@@ -10,7 +10,7 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 		const value = parseInt(event.target.value, 10)
 		setTerminalOutputLineLimit(value)
 
-		StateServiceClient.updateTerminalOutputLinesLimit({
+		StateServiceClient.updateTerminalOutputLineLimit({
 			value,
 		} as Int64Request)
 			.then((response: Int64) => {

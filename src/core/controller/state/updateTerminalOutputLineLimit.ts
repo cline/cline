@@ -8,7 +8,7 @@ import { updateGlobalState } from "../../storage/state"
  * @param request The request containing the line limit value
  * @returns The updated line limit value
  */
-export async function updateTerminalOutputLinesLimit(controller: Controller, request: Int64Request): Promise<Int64> {
+export async function updateTerminalOutputLineLimit(controller: Controller, request: Int64Request): Promise<Int64> {
 	try {
 		const lineLimit = request.value
 
