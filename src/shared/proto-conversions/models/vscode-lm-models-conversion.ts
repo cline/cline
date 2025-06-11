@@ -1,4 +1,4 @@
-import { VsCodeLmModel } from "../../proto/models"
+import { LanguageModelChatSelector } from "../../proto/models"
 
 /**
  * Represents a VS Code language model in the native VS Code format
@@ -13,7 +13,7 @@ export interface VsCodeNativeModel {
 /**
  * Converts VS Code native model format to protobuf format
  */
-export function convertVsCodeNativeModelsToProtoModels(models: VsCodeNativeModel[]): VsCodeLmModel[] {
+export function convertVsCodeNativeModelsToProtoModels(models: VsCodeNativeModel[]): LanguageModelChatSelector[] {
 	return (models || []).map((model) => ({
 		vendor: model.vendor || "",
 		family: model.family || "",

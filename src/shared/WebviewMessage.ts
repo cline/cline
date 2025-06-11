@@ -8,7 +8,6 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "apiConfiguration"
 		| "requestVsCodeLmModels"
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
