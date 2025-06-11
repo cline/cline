@@ -4,3 +4,7 @@ results/evals.db
 
 diff-edits/cases/
 diff-edits/results/
+
+# backwards compatible
+diff_editing/test_cases/
+diff_editing/test_outputs/
