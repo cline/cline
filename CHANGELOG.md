@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## [3.19.7] - 2025-06-11
+
+- Fix McpHub sidebar focus behavior to prevent unwanted focus grabbing
+- Disable checkpoint functionality when nested git repositories are detected to prevent conflicts
+- Remove unused Storybook components and dependencies to reduce bundle size
+- Add data-testid ESLint rule for improved testing standards (thanks @elianiva!)
+- Update development dependencies including eslint, knip, @types/node, i18next, fast-xml-parser, and @google/genai
+- Improve CI infrastructure with GitHub Actions and Blacksmith runner migrations
+
 ## [3.19.6] - 2025-06-09
 
 - Replace explicit caching with implicit caching to reduce latency for Gemini models
