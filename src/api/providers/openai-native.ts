@@ -36,6 +36,23 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 	}
 
+	private async *yieldResponseUsage(info: ModelInfo, usage: any): ApiStream {
+		const inputTokens = usage?.input_tokens || 0
+		const outputTokens = usage?.output_tokens || 0
+		const cacheReadTokens = usage?.input_tokens_details?.cached_tokens || 0
+		const cacheWriteTokens = 0
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
+		yield {
+			type: "usage",
+			inputTokens: nonCachedInputTokens,
+			outputTokens: outputTokens,
+			cacheWriteTokens: cacheWriteTokens,
+			cacheReadTokens: cacheReadTokens,
+			totalCost: totalCost,
+		}
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
@@ -56,6 +73,37 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 				yield* this.yieldUsage(model.info, response.usage)
 
+				break
+			}
+			case "o3-pro": {
+				// For o3-pro, we need to use the responses API which doesn't support streaming in the same way
+				const response = await this.client.responses.create({
+					model: model.id,
+					input: convertToOpenAiMessages(messages)
+						.map((m) => m.content)
+						.join("\n\n"),
+					instructions: systemPrompt,
+				})
+
+				// Extract text from the response structure
+				if (response.output && response.output.length > 0) {
+					const message = response.output[1]
+					if (message.type === "message" && message.content) {
+						for (const content of message.content) {
+							if (content.type === "output_text" && content.text) {
+								yield {
+									type: "text",
+									text: content.text,
+								}
+							}
+						}
+					}
+				}
+
+				// Yield usage information if available
+				if (response.usage) {
+					yield* this.yieldResponseUsage(model.info, response.usage)
+				}
 				break
 			}
 			case "o4-mini":
