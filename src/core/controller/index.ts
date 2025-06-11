@@ -34,6 +34,7 @@ import {
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
+	updateWorkspaceState,
 } from "../storage/state"
 import { Task } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -113,7 +114,7 @@ export class Controller {
 		try {
 			await storeSecret(this.context, "clineApiKey", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await updateGlobalState(this.context, "apiProvider", "openrouter")
+			await updateWorkspaceState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
@@ -129,7 +130,6 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
-			customInstructions,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
@@ -171,7 +171,6 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			enableCheckpointsSetting ?? true,
-			customInstructions,
 			task,
 			images,
 			files,
@@ -203,15 +202,7 @@ export class Controller {
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
 				break
-			case "apiConfiguration":
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-				await this.postStateToWebview()
-				break
+
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
@@ -296,9 +287,9 @@ export class Controller {
 
 		if (shouldSwitchModel) {
 			// Save the last model used in this mode
-			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
-			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
-			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
+			await updateWorkspaceState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
+			await updateWorkspaceState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			await updateWorkspaceState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "vertex":
@@ -308,16 +299,16 @@ export class Controller {
 				case "qwen":
 				case "deepseek":
 				case "xai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "bedrock":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(
 						this.context,
 						"previousModeAwsBedrockCustomSelected",
 						apiConfiguration.awsBedrockCustomSelected,
 					)
-					await updateGlobalState(
+					await updateWorkspaceState(
 						this.context,
 						"previousModeAwsBedrockCustomModelBaseId",
 						apiConfiguration.awsBedrockCustomModelBaseId,
@@ -325,34 +316,34 @@ export class Controller {
 					break
 				case "openrouter":
 				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 					break
 				case "vscode-lm":
 					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
-					await updateGlobalState(
+					await updateWorkspaceState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
 						apiConfiguration.vsCodeLmModelSelector,
 					)
 					break
 				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
 					break
 				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
 					break
 				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
 					break
 				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
 					break
 				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
 			}
 
@@ -364,9 +355,9 @@ export class Controller {
 				newReasoningEffort ||
 				newVsCodeLmModelSelector
 			) {
-				await updateGlobalState(this.context, "apiProvider", newApiProvider)
-				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
-				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
+				await updateWorkspaceState(this.context, "apiProvider", newApiProvider)
+				await updateWorkspaceState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
+				await updateWorkspaceState(this.context, "reasoningEffort", newReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
 					case "vertex":
@@ -376,38 +367,38 @@ export class Controller {
 					case "qwen":
 					case "deepseek":
 					case "xai":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 					case "bedrock":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
-						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
+						await updateWorkspaceState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
+						await updateWorkspaceState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
 						break
 					case "openrouter":
 					case "cline":
-						await updateGlobalState(this.context, "openRouterModelId", newModelId)
-						await updateGlobalState(this.context, "openRouterModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "openRouterModelId", newModelId)
+						await updateWorkspaceState(this.context, "openRouterModelInfo", newModelInfo)
 						break
 					case "vscode-lm":
-						await updateGlobalState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
+						await updateWorkspaceState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
 						break
 					case "openai":
-						await updateGlobalState(this.context, "openAiModelId", newModelId)
-						await updateGlobalState(this.context, "openAiModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "openAiModelId", newModelId)
+						await updateWorkspaceState(this.context, "openAiModelInfo", newModelInfo)
 						break
 					case "ollama":
-						await updateGlobalState(this.context, "ollamaModelId", newModelId)
+						await updateWorkspaceState(this.context, "ollamaModelId", newModelId)
 						break
 					case "lmstudio":
-						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
+						await updateWorkspaceState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
+						await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
 						break
 					case "requesty":
-						await updateGlobalState(this.context, "requestyModelId", newModelId)
-						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
+						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
 						break
 				}
 
@@ -418,7 +409,7 @@ export class Controller {
 			}
 		}
 
-		await updateGlobalState(this.context, "chatSettings", chatSettings)
+		await updateWorkspaceState(this.context, "chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
@@ -467,14 +458,6 @@ export class Controller {
 		}
 	}
 
-	async updateCustomInstructions(instructions?: string) {
-		// User may be clearing the field
-		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
-		if (this.task) {
-			this.task.customInstructions = instructions || undefined
-		}
-	}
-
 	// Account
 
 	async fetchUserCreditsData() {
@@ -509,7 +492,7 @@ export class Controller {
 			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
-			await updateGlobalState(this.context, "apiProvider", clineProvider)
+			await updateWorkspaceState(this.context, "apiProvider", clineProvider)
 
 			// Update API configuration with the new provider and API key
 			const { apiConfiguration } = await getAllExtensionState(this.context)
@@ -668,7 +651,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		await updateGlobalState(this.context, "apiProvider", openrouter)
+		await updateWorkspaceState(this.context, "apiProvider", openrouter)
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
@@ -956,7 +939,6 @@ export class Controller {
 		const {
 			apiConfiguration,
 			lastShownAnnouncementId,
-			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
@@ -988,7 +970,6 @@ export class Controller {
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
-			customInstructions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,

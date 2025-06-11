@@ -22,7 +22,9 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
+import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlobalRules } from "./core/storage/state"
 
+import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -43,6 +45,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	// Migrate global storage values to workspace storage (one-time cleanup)
+	await migratePlanActGlobalToWorkspaceStorage(context)
+
+	// Migrate custom instructions to global Cline rules (one-time cleanup)
+	await migrateCustomInstructionsToGlobalRules(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
@@ -585,10 +593,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			// At this point, activeWebviewProvider should be the one we want to send the message to.
 			// It could still be undefined if opening a new tab failed or timed out.
 			if (activeWebviewProvider) {
-				activeWebviewProvider.controller.postMessageToWebview({
-					type: "action",
-					action: "focusChatInput",
-				})
+				// Use the gRPC streaming method instead of postMessageToWebview
+				const clientId = activeWebviewProvider.getClientId()
+				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				vscode.window.showErrorMessage(
