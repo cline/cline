@@ -145,7 +145,6 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private didEditFile: boolean = false
-	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
@@ -205,7 +204,6 @@ export class Task {
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		enableCheckpointsSetting: boolean,
-		customInstructions?: string,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -228,7 +226,6 @@ export class Task {
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -1646,7 +1643,6 @@ export class Task {
 		const isClaude4Model = isClaude4ModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4Model)
 
-		let settingsCustomInstructions = this.customInstructions?.trim()
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1674,7 +1670,6 @@ export class Task {
 		}
 
 		if (
-			settingsCustomInstructions ||
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
 			localCursorRulesFileInstructions ||
@@ -1685,7 +1680,6 @@ export class Task {
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			const userInstructions = addUserInstructions(
-				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
 				localCursorRulesFileInstructions,
@@ -1694,6 +1688,7 @@ export class Task {
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			console.log("[INSTRUCTIONS] User instructions:", userInstructions)
 			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
