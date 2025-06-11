@@ -15,6 +15,7 @@ const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
 
 const isWindows = process.platform === "win32"
 const tsProtoPlugin = isWindows
@@ -68,18 +69,9 @@ async function main() {
 	// Check for Apple Silicon compatibility before proceeding
 	checkAppleSiliconCompatibility()
 
-	// Define output directories
-	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-
 	// Create output directories if they don't exist
 	await fs.mkdir(TS_OUT_DIR, { recursive: true })
-
-	// Clean up existing generated files
-	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
-	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
-	for (const file of existingFiles) {
-		await fs.unlink(path.join(TS_OUT_DIR, file))
-	}
+	await cleanup()
 
 	// Check for missing proto files for services in serviceNameMap
 	await ensureProtoFilesExist()
@@ -652,6 +644,35 @@ export {
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
 	console.log(chalk.green(`Generated host gRPC client at ${configPath}`))
+}
+
+async function cleanup() {
+	// Clean up existing generated files
+	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
+	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
+	for (const file of existingFiles) {
+		await fs.unlink(path.join(TS_OUT_DIR, file))
+	}
+
+	// Clean up generated files that were moved.
+	await fs.rm(path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts"), { force: true })
+	await rmdir(path.join(ROOT_DIR, "src", "standalone", "services"))
+	await fs.rm(path.join(ROOT_DIR, "hosts", "vscode"), { force: true, recursive: true })
+	await rmdir(path.join(ROOT_DIR, "hosts"))
+}
+
+/**
+ * Remove an empty dir, do nothing if the directory doesn't exist or is not empty.
+ */
+async function rmdir(path) {
+	try {
+		await fs.rmdir(path)
+	} catch (error) {
+		if (error.code !== "ENOTEMPTY" && error.code !== "ENOENT") {
+			// Only re-throw if it's not "not empty" or "doesn't exist"
+			throw error
+		}
+	}
 }
 
 // Check for Apple Silicon compatibility
