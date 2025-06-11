@@ -40,6 +40,12 @@ cline-repo/
 │   │   │   └── utils/                # Utility functions
 │   │   ├── package.json
 │   │   └── tsconfig.json
+│   ├── diff-edits/                   # Diff editing evaluation suite
+│   │   ├── cases/                    # Test case JSON files
+│   │   ├── results/                  # Evaluation results
+│   │   ├── diff-apply/               # Diff application logic
+│   │   ├── parsing/                  # Assistant message parsing
+│   │   └── prompts/                  # System prompts
 │   ├── repositories/                 # Cloned benchmark repositories
 │   │   ├── exercism/                 # Modified Exercism (from pashpashpash/evals)
 │   │   ├── swe-bench/                # SWE-Bench repository
@@ -147,6 +153,105 @@ Freelance-style programming tasks from the SWELancer benchmark.
 ### Multi-SWE-Bench (Coming Soon)
 
 Multi-file software engineering tasks from the Multi-SWE-Bench repository.
+
+## Diff Edit Evaluations
+
+The Cline Evaluation System includes a specialized suite for evaluating how well models can make precise edits to files using the `replace_in_file` tool.
+
+### Overview
+
+Diff edit evaluations test a model's ability to:
+
+1. Understand file content and identify specific sections to modify
+2. Generate correct SEARCH/REPLACE blocks for targeted edits
+3. Successfully apply changes without introducing errors
+
+### Directory Structure
+
+```
+diff-edits/
+├── cases/                  # Test case JSON files
+├── results/                # Evaluation results
+├── ClineWrapper.ts         # Wrapper for model interaction
+├── TestRunner.ts           # Main test execution logic
+├── types.ts                # Type definitions
+├── diff-apply/             # Diff application logic
+├── parsing/                # Assistant message parsing
+└── prompts/                # System prompts
+```
+
+### Creating Test Cases
+
+Test cases are defined as JSON files in the `diff-edits/cases/` directory. Each test case should include:
+
+```json
+{
+  "test_id": "example_test_1",
+  "messages": [
+    {
+      "role": "user",
+      "text": "Please fix the bug in this code...",
+      "images": []
+    },
+    {
+      "role": "assistant",
+      "text": "I'll help you fix that bug..."
+    }
+  ],
+  "file_contents": "// Original file content here\nfunction example() {\n  // Code with bug\n}",
+  "file_path": "src/example.js",
+  "system_prompt_details": {
+    "mcp_string": "",
+    "cwd_value": "/path/to/working/directory",
+    "browser_use": false,
+    "width": 900,
+    "height": 600,
+    "os_value": "macOS",
+    "shell_value": "/bin/zsh",
+    "home_value": "/Users/username",
+    "user_custom_instructions": ""
+  },
+  "original_diff_edit_tool_call_message": ""
+}
+```
+
+### Running Diff Edit Evaluations
+
+```bash
+cd evals/cli
+node dist/index.js run-diff-eval --model-id claude-3-opus-20240229
+```
+
+Options:
+- `--model-id`: The model to evaluate (required)
+- `--system-prompt-name`: System prompt to use (default: "basicSystemPrompt")
+- `--number-of-runs`: Number of times to run each test case (default: 1)
+- `--parsing-function`: Function to parse assistant messages (default: "parseAssistantMessageV2")
+- `--diff-edit-function`: Function to apply diffs (default: "constructNewFileContentV2")
+- `--test-path`: Path to test cases (default: diff-edits/cases)
+- `--output-path`: Path for results (default: diff-edits/results)
+- `--thinking-budget`: Tokens allocated for thinking (default: 0)
+- `--parallel`: Run tests in parallel (flag)
+- `--replay`: Use pre-recorded LLM output (flag)
+- `--verbose`: Enable detailed logging (flag)
+
+### Example
+
+```bash
+# Run all test cases with default settings
+node dist/index.js run-diff-eval --model-id claude-3-opus-20240229
+
+# Run with custom settings and parallel execution
+node dist/index.js run-diff-eval --model-id claude-3-sonnet-20240229 --system-prompt-name claude4SystemPrompt --number-of-runs 3 --parallel --verbose
+```
+
+### Results
+
+Results are saved as JSON files in the `diff-edits/results/` directory, with one file per test case. The results include:
+- Success/failure status
+- Extracted tool calls
+- Diff edit content
+- Token usage and cost metrics
 
 ## Metrics
 
