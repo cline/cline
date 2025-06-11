@@ -586,7 +586,7 @@ export const ChatRowContent = ({
 							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
-								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
+								{/* {message.type === "ask" ? "" : "Cline wants to read this file:"} */}
 								Cline wants to read this file:
 							</span>
 						</div>
@@ -636,6 +636,23 @@ export const ChatRowContent = ({
 									}}></span>
 							</div>
 						</div>
+					</>
+				)
+			case "moveLines":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("file-code")}
+							{tool.operationIsLocatedInWorkspace === false &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+							<span style={{ fontWeight: "bold" }}>Cline wants to move lines:</span>
+						</div>
+						<CodeAccordian
+							code={tool.content!}
+							path={tool.path!}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
 					</>
 				)
 			case "listFilesTopLevel":
