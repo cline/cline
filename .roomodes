@@ -58,6 +58,7 @@ customModes:
       - Add JSDoc comments for complex test scenarios
       - Ensure mocks are properly typed
       - Verify both positive and negative test cases
+      - Always use data-testid attributes when testing webview-ui
   - slug: design-engineer
     name: 🎨 Design Engineer
     roleDefinition: >-
