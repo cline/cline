@@ -71,14 +71,15 @@ async function main() {
 
 	// Create output directories if they don't exist
 	await fs.mkdir(TS_OUT_DIR, { recursive: true })
+
 	await cleanup()
 
 	// Check for missing proto files for services in serviceNameMap
 	await ensureProtoFilesExist()
 
 	// Process all proto files
-	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
 	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR, realpath: true })
+	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), SCRIPT_DIR)
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [
@@ -90,7 +91,7 @@ async function main() {
 		...protoFiles,
 	].join(" ")
 	try {
-		console.log(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
+		log_verbose(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
 		execSync(tsProtocCommand, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
@@ -108,15 +109,15 @@ async function main() {
 		...protoFiles,
 	].join(" ")
 	try {
-		console.log(chalk.cyan("Generating descriptor set..."))
+		log_verbose(chalk.cyan("Generating descriptor set..."))
 		execSync(descriptorProtocCommand, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
 	}
 
-	console.log(chalk.green("Protocol Buffer code generation completed successfully."))
-	console.log(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
+	log_verbose(chalk.green("Protocol Buffer code generation completed successfully."))
+	log_verbose(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
 
 	await generateMethodRegistrations()
 	await generateHostMethodRegistrations()
@@ -124,6 +125,8 @@ async function main() {
 	await generateHostServiceConfig()
 	await generateGrpcClientConfig()
 	await generateHostGrpcClientConfig()
+
+	console.log(chalk.bold.blue("Finished Protocol Buffer code generation."))
 }
 
 /**
@@ -131,7 +134,7 @@ async function main() {
  * This eliminates the need for manual imports and client creation in grpc-client.ts
  */
 async function generateGrpcClientConfig() {
-	console.log(chalk.cyan("Generating gRPC client configuration..."))
+	log_verbose(chalk.cyan("Generating gRPC client configuration..."))
 
 	const serviceImports = []
 	const serviceClientCreations = []
@@ -168,7 +171,7 @@ export {
 
 	const configPath = path.join(ROOT_DIR, "webview-ui", "src", "services", "grpc-client.ts")
 	await fs.writeFile(configPath, content)
-	console.log(chalk.green(`Generated gRPC client at ${configPath}`))
+	log_verbose(chalk.green(`Generated gRPC client at ${configPath}`))
 }
 
 /**
@@ -178,7 +181,7 @@ export {
  * @returns Map of service names to their streaming methods
  */
 async function parseProtoForStreamingMethods(protoFiles, scriptDir) {
-	console.log(chalk.cyan("Parsing proto files for streaming methods..."))
+	log_verbose(chalk.cyan("Parsing proto files for streaming methods..."))
 
 	// Map of service name to array of streaming method names
 	const streamingMethodsMap = new Map()
@@ -230,7 +233,7 @@ async function parseProtoForStreamingMethods(protoFiles, scriptDir) {
 }
 
 async function generateMethodRegistrations() {
-	console.log(chalk.cyan("Generating method registration files..."))
+	log_verbose(chalk.cyan("Generating method registration files..."))
 
 	// Parse proto files for streaming methods
 	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
@@ -240,7 +243,7 @@ async function generateMethodRegistrations() {
 		try {
 			await fs.access(serviceDir)
 		} catch (error) {
-			console.log(chalk.cyan(`Creating directory ${serviceDir} for new service`))
+			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new service`))
 			await fs.mkdir(serviceDir, { recursive: true })
 		}
 
@@ -251,7 +254,7 @@ async function generateMethodRegistrations() {
 		const fullServiceName = serviceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
-		console.log(chalk.cyan(`Generating method registrations for ${serviceName}...`))
+		log_verbose(chalk.cyan(`Generating method registrations for ${serviceName}...`))
 
 		// Get all TypeScript files in the service directory
 		const files = await globby("*.ts", { cwd: serviceDir })
@@ -304,7 +307,7 @@ export function registerAllMethods(): void {
 
 		// Write the methods.ts file
 		await fs.writeFile(registryFile, methodsContent)
-		console.log(chalk.green(`Generated ${registryFile}`))
+		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
 		const capitalizedServiceName = serviceName.charAt(0).toUpperCase() + serviceName.slice(1)
@@ -333,10 +336,10 @@ registerAllMethods()`
 
 		// Write the index.ts file
 		await fs.writeFile(indexFile, indexContent)
-		console.log(chalk.green(`Generated ${indexFile}`))
+		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
-	console.log(chalk.green("Method registration files generated successfully."))
+	log_verbose(chalk.green("Method registration files generated successfully."))
 }
 
 /**
@@ -344,7 +347,7 @@ registerAllMethods()`
  * This eliminates the need for manual switch/case statements in grpc-handler.ts
  */
 async function generateServiceConfig() {
-	console.log(chalk.cyan("Generating service configuration file..."))
+	log_verbose(chalk.cyan("Generating service configuration file..."))
 
 	const serviceImports = []
 	const serviceConfigs = []
@@ -385,7 +388,7 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceC
 
 	const configPath = path.join(ROOT_DIR, "src", "core", "controller", "grpc-service-config.ts")
 	await fs.writeFile(configPath, content)
-	console.log(chalk.green(`Generated service configuration at ${configPath}`))
+	log_verbose(chalk.green(`Generated service configuration at ${configPath}`))
 }
 
 /**
@@ -393,7 +396,7 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceC
  * If a .proto file doesn't exist, create a template file
  */
 async function ensureProtoFilesExist() {
-	console.log(chalk.cyan("Checking for missing proto files..."))
+	log_verbose(chalk.cyan("Checking for missing proto files..."))
 
 	// Get existing proto files
 	const existingProtoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
@@ -402,7 +405,7 @@ async function ensureProtoFilesExist() {
 	// Check each service in serviceNameMap
 	for (const [serviceName, fullServiceName] of Object.entries(serviceNameMap)) {
 		if (!existingProtoServices.includes(serviceName)) {
-			console.log(chalk.yellow(`Creating template proto file for ${serviceName}...`))
+			log_verbose(chalk.yellow(`Creating template proto file for ${serviceName}...`))
 
 			// Extract service class name from full name (e.g., "cline.ModelsService" -> "ModelsService")
 			const serviceClassName = fullServiceName.split(".").pop()
@@ -435,7 +438,7 @@ service ${serviceClassName} {
 			// Write the template proto file
 			const protoFilePath = path.join(SCRIPT_DIR, `${serviceName}.proto`)
 			await fs.writeFile(protoFilePath, protoContent)
-			console.log(chalk.green(`Created template proto file at ${protoFilePath}`))
+			log_verbose(chalk.green(`Created template proto file at ${protoFilePath}`))
 		}
 	}
 }
@@ -444,7 +447,7 @@ service ${serviceClassName} {
  * Generate method registration files for host services
  */
 async function generateHostMethodRegistrations() {
-	console.log(chalk.cyan("Generating host method registration files..."))
+	log_verbose(chalk.cyan("Generating host method registration files..."))
 
 	// Parse proto files for streaming methods
 	const hostProtoFiles = await globby("*.proto", { cwd: path.join(SCRIPT_DIR, "host") })
@@ -454,7 +457,7 @@ async function generateHostMethodRegistrations() {
 		try {
 			await fs.access(serviceDir)
 		} catch (error) {
-			console.log(chalk.cyan(`Creating directory ${serviceDir} for new host service`))
+			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new host service`))
 			await fs.mkdir(serviceDir, { recursive: true })
 		}
 
@@ -465,7 +468,7 @@ async function generateHostMethodRegistrations() {
 		const fullServiceName = hostServiceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
-		console.log(chalk.cyan(`Generating method registrations for host ${serviceName}...`))
+		log_verbose(chalk.cyan(`Generating method registrations for host ${serviceName}...`))
 
 		// Get all TypeScript files in the service directory
 		const files = await globby("*.ts", { cwd: serviceDir })
@@ -518,7 +521,7 @@ export function registerAllMethods(): void {
 
 		// Write the methods.ts file
 		await fs.writeFile(registryFile, methodsContent)
-		console.log(chalk.green(`Generated ${registryFile}`))
+		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
 		const capitalizedServiceName = serviceName.charAt(0).toUpperCase() + serviceName.slice(1)
@@ -547,17 +550,17 @@ registerAllMethods()`
 
 		// Write the index.ts file
 		await fs.writeFile(indexFile, indexContent)
-		console.log(chalk.green(`Generated ${indexFile}`))
+		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
-	console.log(chalk.green("Host method registration files generated successfully."))
+	log_verbose(chalk.green("Host method registration files generated successfully."))
 }
 
 /**
  * Generate a service configuration file for host services
  */
 async function generateHostServiceConfig() {
-	console.log(chalk.cyan("Generating host service configuration file..."))
+	log_verbose(chalk.cyan("Generating host service configuration file..."))
 
 	const serviceImports = []
 	const serviceConfigs = []
@@ -598,21 +601,21 @@ export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {${
 	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "host-grpc-service-config.ts")
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
-	console.log(chalk.green(`Generated host service configuration at ${configPath}`))
+	log_verbose(chalk.green(`Generated host service configuration at ${configPath}`))
 }
 
 /**
  * Generate a gRPC client configuration file for host services
  */
 async function generateHostGrpcClientConfig() {
-	console.log(chalk.cyan("Generating host gRPC client configuration..."))
+	log_verbose(chalk.cyan("Generating host gRPC client configuration..."))
 
 	const serviceImports = []
 	const serviceClientCreations = []
 	const serviceExports = []
 
 	// Process each service in the hostServiceNameMap
-	for (const [dirName, fullServiceName] of Object.entries(hostServiceNameMap)) {
+	for (const [dirName, _fullServiceName] of Object.entries(hostServiceNameMap)) {
 		const capitalizedName = dirName.charAt(0).toUpperCase() + dirName.slice(1)
 
 		// Add import statement
@@ -643,12 +646,12 @@ export {
 	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "client", "host-grpc-client.ts")
 	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, content)
-	console.log(chalk.green(`Generated host gRPC client at ${configPath}`))
+	log_verbose(chalk.green(`Generated host gRPC client at ${configPath}`))
 }
 
 async function cleanup() {
 	// Clean up existing generated files
-	console.log(chalk.cyan("Cleaning up existing generated TypeScript files..."))
+	log_verbose(chalk.cyan("Cleaning up existing generated TypeScript files..."))
 	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
 	for (const file of existingFiles) {
 		await fs.unlink(path.join(TS_OUT_DIR, file))
@@ -702,6 +705,12 @@ function checkAppleSiliconCompatibility() {
 		} catch (error) {
 			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
 		}
+	}
+}
+
+function log_verbose(s) {
+	if (process.argv.includes("-v") || process.argv.includes("--verbose")) {
+		console.log(s)
 	}
 }
 
