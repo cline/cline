@@ -258,6 +258,7 @@ def load_run_comparison(run_id):
     FROM results res
     JOIN cases c ON res.case_id = c.case_id
     WHERE c.run_id = '{run_id}'
+      AND (res.error_enum NOT IN (1, 6, 7) OR res.error_enum IS NULL)  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY res.model_id
     ORDER BY success_rate DESC, avg_round_trip_ms ASC
     """
@@ -286,13 +287,17 @@ def load_latest_run_comparison():
     return load_run_comparison(latest_run.iloc[0]['run_id'])
 
 @st.cache_data
-def load_detailed_results(run_id, model_id=None):
+def load_detailed_results(run_id, model_id=None, valid_only=False):
     """Load detailed results for drill-down analysis"""
     conn = get_database_connection()
     
     where_clause = f"WHERE c.run_id = '{run_id}'"
     if model_id:
         where_clause += f" AND res.model_id = '{model_id}'"
+    
+    # Option to filter out invalid attempts
+    if valid_only:
+        where_clause += " AND (res.error_enum NOT IN (1, 6, 7) OR res.error_enum IS NULL)"
     
     query = f"""
     SELECT 
@@ -340,6 +345,9 @@ def render_hero_section(current_run, model_performance):
     <div class="hero-container">
         <div class="hero-title">🚀 Diff Edits Evaluation Dashboard</div>
         <div class="hero-subtitle">Current Run: {run_title} • {current_run['created_at']}</div>
+        <div class="hero-subtitle" style="font-size: 0.9rem; margin-top: 5px;">
+            <i>Note: All metrics are based on valid attempts only (excluding attempts where models didn't call the diff edit tool, or called it on the wrong file)</i>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -363,7 +371,7 @@ def render_hero_section(current_run, model_performance):
         st.markdown(f"""
         <div class="custom-metric">
             <div class="custom-metric-value">{total_results}</div>
-            <div class="custom-metric-label">Total Results</div>
+            <div class="custom-metric-label">Valid Results</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -425,7 +433,7 @@ def render_model_comparison_cards(model_performance):
                     st.metric("Avg Cost", f"${model['avg_cost']:.4f}")
                 
                 with metric_col3:
-                    st.metric("Total Results", f"{model['total_results']}")
+                    st.metric("Valid Results", f"{model['total_results']}")
                 
                 with metric_col4:
                     st.metric("First Token", f"{model['avg_first_token_ms']:.0f}ms")
@@ -477,7 +485,8 @@ def render_comparison_charts(model_performance):
             labels={
                 'avg_round_trip_ms': 'Avg Round Trip (ms)',
                 'avg_cost': 'Avg Cost ($)',
-                'success_rate': 'Success Rate'
+                'success_rate': 'Success Rate',
+                'total_results': 'Valid Results'
             },
             color_continuous_scale='RdYlGn'
         )
@@ -492,19 +501,26 @@ def render_detailed_analysis(run_id, model_id):
     """Render detailed drill-down analysis"""
     st.markdown(f"## 🔍 Detailed Analysis: {model_id}")
     
+    # Load all results (including invalid attempts)
     detailed_results = load_detailed_results(run_id, model_id)
+    
+    # Also load only valid results for metrics
+    valid_results = load_detailed_results(run_id, model_id, valid_only=True)
     
     if detailed_results.empty:
         st.warning("No detailed results found.")
         return
     
+    # Show total vs valid results
+    st.info(f"Showing all {len(detailed_results)} results ({len(valid_results)} valid, {len(detailed_results) - len(valid_results)} invalid)")
+    
     # Results overview
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        success_count = detailed_results['succeeded'].sum()
-        total_count = len(detailed_results)
-        st.metric("Success Rate", f"{success_count}/{total_count} ({success_count/total_count:.1%})")
+        success_count = valid_results['succeeded'].sum()
+        total_count = len(valid_results)
+        st.metric("Success Rate", f"{success_count}/{total_count} ({success_count/total_count:.1%} of valid results)")
     
     with col2:
         avg_latency = detailed_results['time_round_trip_ms'].mean()
@@ -517,11 +533,21 @@ def render_detailed_analysis(run_id, model_id):
     # Interactive results table
     st.markdown("### 📋 Individual Results")
     
-    # Add result selector
+    # Add result selector with indicators for valid/invalid attempts
     result_options = []
     for idx, row in detailed_results.iterrows():
-        status = "✅" if row['succeeded'] else "❌"
-        result_options.append(f"{status} {row['task_id']} - {row['time_round_trip_ms']:.0f}ms")
+        # Check if this is a valid result
+        is_valid = (row['error_enum'] not in [1, 6, 7]) if not pd.isna(row['error_enum']) else True
+        
+        # Create status indicator
+        if is_valid:
+            status = "✅" if row['succeeded'] else "❌"
+        else:
+            status = "⚠️"  # Warning symbol for invalid results
+            
+        # Add validity indicator to the option text
+        validity_text = "" if is_valid else " [INVALID RESULT]"
+        result_options.append(f"{status} {row['task_id']} - {row['time_round_trip_ms']:.0f}ms{validity_text}")
     
     selected_result_idx = st.selectbox(
         "Select a result to analyze:",
@@ -535,6 +561,13 @@ def render_detailed_analysis(run_id, model_id):
 def render_result_detail(result):
     """Render detailed view of a single result"""
     st.markdown("### 🔬 Result Deep Dive")
+    
+    # Check if this is a valid result
+    is_valid = (result['error_enum'] not in [1, 6, 7]) if not pd.isna(result['error_enum']) else True
+    
+    # Show validity warning if needed
+    if not is_valid:
+        st.warning("⚠️ **This is an invalid result** - The model didn't properly call the diff edit tool or edited the wrong file. This result is excluded from success rate calculations.")
     
     # Result metadata
     col1, col2, col3, col4 = st.columns(4)
@@ -714,6 +747,14 @@ def render_metrics_view(result):
             st.metric("Context Tokens", int(result['tokens_in_context']))
 
 def main():
+    # Add a note about valid attempts
+    st.sidebar.markdown("""
+    ### 📝 Note on Metrics
+    Success rates are calculated based on **valid results only**. 
+    
+    Invalid results (where the model didn't call the diff edit tool or edited the wrong file) are excluded from calculations.
+    """)
+    
     # Initialize session state
     if 'drill_down_model' not in st.session_state:
         st.session_state.drill_down_model = None

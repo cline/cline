@@ -20,6 +20,7 @@ export async function getSuccessRatesByModel(): Promise<ModelSuccessRate[]> {
       SUM(CASE WHEN succeeded THEN 1 ELSE 0 END) as successful_runs,
       ROUND(AVG(CASE WHEN succeeded THEN 1.0 ELSE 0.0 END) * 100, 2) as success_rate
     FROM results
+    WHERE error_enum NOT IN (1, 6, 7) OR error_enum IS NULL  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY model_id
     ORDER BY success_rate DESC, total_runs DESC
   `);
@@ -112,6 +113,7 @@ export async function getPerformanceTrends(days: number = 30): Promise<Performan
       ROUND(AVG(r.cost_usd), 4) as avg_cost_usd
     FROM results r
     WHERE r.created_at >= datetime('now', '-' || ? || ' days')
+      AND (r.error_enum NOT IN (1, 6, 7) OR r.error_enum IS NULL)  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY DATE(r.created_at), r.model_id
     ORDER BY date DESC, model_id
   `);
@@ -128,6 +130,7 @@ export async function getModelComparisons(): Promise<ModelComparison[]> {
       ROUND(AVG(cost_usd), 4) as avg_cost_usd,
       COUNT(*) as total_runs
     FROM results
+    WHERE error_enum NOT IN (1, 6, 7) OR error_enum IS NULL  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY model_id
     HAVING total_runs >= 10
     ORDER BY success_rate DESC, avg_latency_ms ASC
@@ -153,6 +156,7 @@ export async function getTopPerformingCases(limit: number = 10): Promise<Array<{
       COUNT(r.result_id) as total_runs
     FROM cases c
     JOIN results r ON c.case_id = r.case_id
+    WHERE r.error_enum NOT IN (1, 6, 7) OR r.error_enum IS NULL  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY c.case_id, c.description
     HAVING total_runs >= 5
     ORDER BY success_rate DESC, avg_latency_ms ASC
@@ -184,6 +188,7 @@ export async function getWorstPerformingCases(limit: number = 10): Promise<Array
       COUNT(r.result_id) as total_runs
     FROM cases c
     JOIN results r ON c.case_id = r.case_id
+    WHERE r.error_enum NOT IN (1, 6, 7) OR r.error_enum IS NULL  -- Exclude: no_tool_calls, wrong_tool_call, wrong_file_edited
     GROUP BY c.case_id, c.description
     HAVING total_runs >= 5
     ORDER BY success_rate ASC, avg_latency_ms DESC
@@ -267,6 +272,7 @@ export async function getDatabaseSummary(): Promise<{
   total_runs: number;
   total_cases: number;
   total_results: number;
+  valid_results: number;
   unique_models: number;
   overall_success_rate: number;
   date_range: { earliest: string; latest: string };
@@ -276,11 +282,15 @@ export async function getDatabaseSummary(): Promise<{
       (SELECT COUNT(*) FROM runs) as total_runs,
       (SELECT COUNT(*) FROM cases) as total_cases,
       (SELECT COUNT(*) FROM results) as total_results,
+      (SELECT COUNT(*) FROM results WHERE error_enum NOT IN (1, 6, 7) OR error_enum IS NULL) as valid_results,
       (SELECT COUNT(DISTINCT model_id) FROM results) as unique_models,
-      ROUND(AVG(CASE WHEN succeeded THEN 1.0 ELSE 0.0 END) * 100, 2) as overall_success_rate,
+      (SELECT ROUND(AVG(CASE WHEN succeeded THEN 1.0 ELSE 0.0 END) * 100, 2) 
+       FROM results 
+       WHERE error_enum NOT IN (1, 6, 7) OR error_enum IS NULL) as overall_success_rate,
       (SELECT MIN(created_at) FROM results) as earliest,
       (SELECT MAX(created_at) FROM results) as latest
     FROM results
+    LIMIT 1
   `);
   
   const result = stmt.get() as any;
@@ -288,6 +298,7 @@ export async function getDatabaseSummary(): Promise<{
     total_runs: result.total_runs || 0,
     total_cases: result.total_cases || 0,
     total_results: result.total_results || 0,
+    valid_results: result.valid_results || 0,
     unique_models: result.unique_models || 0,
     overall_success_rate: result.overall_success_rate || 0,
     date_range: {

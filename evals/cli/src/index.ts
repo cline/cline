@@ -86,7 +86,7 @@ program
 	.option("--output-path <path>", "Path to the directory to save the test output JSON files")
 	.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
-	.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model", "1")
+	.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")

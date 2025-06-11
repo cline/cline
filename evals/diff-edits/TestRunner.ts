@@ -282,7 +282,12 @@ class NodeTestRunner {
 			'parsing_error': 2,
 			'diff_edit_error': 3,
 			'missing_original_diff_edit_tool_call_message': 4,
-			'api_error': 5
+			'api_error': 5,
+			'wrong_tool_call': 6,
+			'wrong_file_edited': 7,
+			'multi_tool_calls': 8,
+			'tool_call_params_undefined': 9,
+			'other_error': 99
 		};
 
 		return errorMap[error] || 99; // 99 for unknown errors
@@ -509,24 +514,53 @@ class NodeTestRunner {
 	}
 
 	/**
+	 * Check if a test result is a valid attempt (no error_enum 1, 6, or 7)
+	 */
+	isValidAttempt(result: TestResult): boolean {
+		// Invalid if error is one of: no_tool_calls, wrong_tool_call, wrong_file_edited
+		const invalidErrors = ['no_tool_calls', 'wrong_tool_call', 'wrong_file_edited'];
+		return !invalidErrors.includes(result.error || '');
+	}
+
+	/**
 	 * Runs all tests for a specific model (assumes database run already initialized)
+	 * Keeps retrying until we get the requested number of valid attempts per case
 	 */
 	async runAllTestsForModel(testCases: ProcessedTestCase[], testConfig: TestConfig, isVerbose: boolean): Promise<TestResultSet> {
 		const results: TestResultSet = {}
 
 		for (const testCase of testCases) {
 			results[testCase.test_id] = []
+			let validAttempts = 0;
+			let totalAttempts = 0;
 
 			log(isVerbose, `-Running test: ${testCase.test_id}`)
-			for (let i = 0; i < testConfig.number_of_runs; i++) {
+			
+			// Keep trying until we get the requested number of valid attempts
+			while (validAttempts < testConfig.number_of_runs) {
+				totalAttempts++;
 				const result = await this.runSingleTest(testCase, testConfig)
 				results[testCase.test_id].push(result)
+				
+				// Check if this was a valid attempt
+				if (this.isValidAttempt(result)) {
+					validAttempts++;
+					if (isVerbose && validAttempts === testConfig.number_of_runs) {
+						log(isVerbose, `  ✓ Completed ${validAttempts}/${testConfig.number_of_runs} valid attempts (${totalAttempts} total attempts)`);
+					}
+				}
 				
 				// Store result in database
 				try {
 					await this.storeResultInDatabase(result, testCase.test_id, testConfig.model_id);
 				} catch (error) {
 					log(isVerbose, `Warning: Failed to store result in database: ${error}`);
+				}
+				
+				// Safety check to prevent infinite loops - limit to 10 attempts per valid attempt requested
+				if (totalAttempts >= testConfig.number_of_runs * 10) {
+					log(isVerbose, `  ⚠️ Reached maximum attempts (${totalAttempts}) for test case ${testCase.test_id}. Only got ${validAttempts}/${testConfig.number_of_runs} valid attempts.`);
+					break;
 				}
 			}
 		}
@@ -535,6 +569,7 @@ class NodeTestRunner {
 
 	/**
 	 * Runs all tests for a specific model in parallel (assumes database run already initialized)
+	 * Keeps retrying until we get the requested number of valid attempts per case
 	 */
 	async runAllTestsParallelForModel(
 		testCases: ProcessedTestCase[],
@@ -543,51 +578,80 @@ class NodeTestRunner {
 		maxConcurrency: number = 20,
 	): Promise<TestResultSet> {
 		const results: TestResultSet = {}
+		const validAttemptsCount: Record<string, number> = {}
+		const totalAttemptsCount: Record<string, number> = {}
+		
+		// Initialize results and counters
 		testCases.forEach((tc) => {
 			results[tc.test_id] = []
+			validAttemptsCount[tc.test_id] = 0
+			totalAttemptsCount[tc.test_id] = 0
 		})
 
-		// Create a flat list of all individual runs we need to execute
-		const allRuns = testCases.flatMap((testCase) =>
-			Array(testConfig.number_of_runs)
-				.fill(null)
-				.map(() => testCase),
-		)
-
-		for (let i = 0; i < allRuns.length; i += maxConcurrency) {
-			const batch = allRuns.slice(i, i + maxConcurrency)
-
-			const batchPromises = batch.map((testCase) =>
-				this.runSingleTest(testCase, testConfig).then((result) => ({
+		// Keep track of which test cases still need more valid attempts
+		let remainingTestCases = [...testCases]
+		
+		// Keep trying until all test cases have enough valid attempts
+		while (remainingTestCases.length > 0) {
+			// Create a batch of runs for test cases that still need more valid attempts
+			const batchRuns = remainingTestCases.map(testCase => ({
+				testCase,
+				testId: testCase.test_id
+			}))
+			
+			// Limit batch size to maxConcurrency
+			const currentBatch = batchRuns.slice(0, maxConcurrency)
+			
+			// Run the batch in parallel
+			const batchPromises = currentBatch.map(({ testCase, testId }) => {
+				totalAttemptsCount[testId]++;
+				return this.runSingleTest(testCase, testConfig).then((result) => ({
 					...result,
-					test_id: testCase.test_id,
-				})),
-			)
-
+					test_id: testId,
+				}))
+			})
+			
 			const batchResults = await Promise.all(batchPromises)
-
+			
 			// Calculate the total cost for this batch
 			const batchCost = batchResults.reduce((total, result) => {
 				return total + (result.streamResult?.usage?.totalCost || 0)
 			}, 0)
-
-			// Populate the results dictionary and store in database
+			
+			// Process results and update counters
 			for (const result of batchResults) {
 				if (result.test_id) {
-					results[result.test_id].push(result)
+					const testId = result.test_id
+					results[testId].push(result)
+					
+					// Check if this was a valid attempt
+					if (this.isValidAttempt(result)) {
+						validAttemptsCount[testId]++;
+					}
 					
 					// Store result in database
 					try {
-						await this.storeResultInDatabase(result, result.test_id, testConfig.model_id);
+						await this.storeResultInDatabase(result, testId, testConfig.model_id);
 					} catch (error) {
 						log(isVerbose, `Warning: Failed to store result in database: ${error}`);
 					}
 				}
 			}
-
-			const batchNumber = i / maxConcurrency + 1
-			const totalBatches = Math.ceil(allRuns.length / maxConcurrency)
-			log(isVerbose, `-Completed batch ${batchNumber} of ${totalBatches}... (Batch Cost: $${batchCost.toFixed(6)})`)
+			
+			// Update the list of remaining test cases
+			remainingTestCases = remainingTestCases.filter(testCase => {
+				const testId = testCase.test_id
+				
+				// Safety check to prevent infinite loops - limit to 10 attempts per valid attempt requested
+				if (totalAttemptsCount[testId] >= testConfig.number_of_runs * 10) {
+					log(isVerbose, `  ⚠️ Reached maximum attempts (${totalAttemptsCount[testId]}) for test case ${testId}. Only got ${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid attempts.`);
+					return false; // Remove from remaining test cases
+				}
+				
+				return validAttemptsCount[testId] < testConfig.number_of_runs;
+			})
+			
+			log(isVerbose, `-Completed batch... (Batch Cost: $${batchCost.toFixed(6)}, Remaining test cases: ${remainingTestCases.length})`)
 		}
 
 		return results
@@ -694,7 +758,7 @@ async function main() {
 		.option("--output-path <path>", "Path to the directory to save the test output JSON files", defaultOutputPath)
 		.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
-		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model", "1")
+		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
 		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
@@ -739,7 +803,7 @@ async function main() {
 
 		log(isVerbose, `-Loaded ${testCases.length} test cases.`)
 		log(isVerbose, `-Testing ${modelIds.length} model(s): ${modelIds.join(', ')}`)
-		log(isVerbose, `-Target: ${validAttemptsPerCase} valid attempts per test case per model`)
+		log(isVerbose, `-Target: ${validAttemptsPerCase} valid attempts per test case per model (will retry until this many valid attempts are collected)`)
 		if (options.replay) {
 			log(isVerbose, `-Running in REPLAY mode. No API calls will be made.`)
 		}
