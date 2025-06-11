@@ -8,7 +8,6 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "apiConfiguration"
 		| "requestVsCodeLmModels"
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
@@ -46,7 +45,6 @@ export interface WebviewMessage {
 	mcpMarketplaceEnabled?: boolean
 	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
-	customInstructionsSetting?: string
 	mcpRichDisplayEnabled?: boolean
 	mentionsRequestId?: string
 	query?: string

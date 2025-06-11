@@ -81,7 +81,6 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
 	mcpRichDisplayEnabled: boolean
 	planActSeparateModelsSetting: boolean

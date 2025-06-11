@@ -25,11 +25,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
-		// Update custom instructions
-		if (request.customInstructionsSetting !== undefined) {
-			await controller.updateCustomInstructions(request.customInstructionsSetting)
-		}
-
 		// Update telemetry setting
 		if (request.telemetrySetting) {
 			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)

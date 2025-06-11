@@ -384,18 +384,6 @@ export class McpHub {
 						})
 					}
 
-					// Also show as VS Code notification for now (can be removed later if desired)
-					switch (level) {
-						case "error":
-							vscode.window.showErrorMessage(`MCP ${name}: ${message}`)
-							break
-						case "warning":
-							vscode.window.showWarningMessage(`MCP ${name}: ${message}`)
-							break
-						default:
-							vscode.window.showInformationMessage(`MCP ${name}: ${message}`)
-					}
-
 					// Forward to webview if available
 					if (this.postMessageToWebview) {
 						await this.postMessageToWebview({
