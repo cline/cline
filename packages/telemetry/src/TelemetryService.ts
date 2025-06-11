@@ -153,6 +153,47 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Captures a marketplace item installation event
+	 * @param itemId The unique identifier of the marketplace item
+	 * @param itemType The type of item (mode or mcp)
+	 * @param itemName The human-readable name of the item
+	 * @param target The installation target (project or global)
+	 * @param properties Additional properties like hasParameters, installationMethod
+	 */
+	public captureMarketplaceItemInstalled(
+		itemId: string,
+		itemType: string,
+		itemName: string,
+		target: string,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		properties?: Record<string, any>,
+	): void {
+		this.captureEvent(TelemetryEventName.MARKETPLACE_ITEM_INSTALLED, {
+			itemId,
+			itemType,
+			itemName,
+			target,
+			... (properties || {}),
+		})
+	}
+
+	/**
+	 * Captures a marketplace item removal event
+	 * @param itemId The unique identifier of the marketplace item
+	 * @param itemType The type of item (mode or mcp)
+	 * @param itemName The human-readable name of the item
+	 * @param target The removal target (project or global)
+	 */
+	public captureMarketplaceItemRemoved(itemId: string, itemType: string, itemName: string, target: string): void {
+		this.captureEvent(TelemetryEventName.MARKETPLACE_ITEM_REMOVED, {
+			itemId,
+			itemType,
+			itemName,
+			target,
+		})
+	}
+
+	/**
 	 * Captures a title button click event
 	 * @param button The button that was clicked
 	 */

@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Yüklü",
+		"settings": "Ayarlar",
+		"browse": "Gözat"
+	},
+	"done": "Tamamlandı",
+	"refresh": "Yenile",
+	"filters": {
+		"search": {
+			"placeholder": "Marketplace öğelerini ara...",
+			"placeholderMcp": "MCP'leri ara...",
+			"placeholderMode": "Modları ara..."
+		},
+		"type": {
+			"label": "Türe göre filtrele:",
+			"all": "Tüm türler",
+			"mode": "Mod",
+			"mcpServer": "MCP Sunucusu"
+		},
+		"sort": {
+			"label": "Sırala:",
+			"name": "İsim",
+			"author": "Yazar",
+			"lastUpdated": "Son Güncelleme"
+		},
+		"tags": {
+			"label": "Etiketlere göre filtrele:",
+			"clear": "Etiketleri temizle",
+			"placeholder": "Etiket aramak ve seçmek için yazın...",
+			"noResults": "Eşleşen etiket bulunamadı",
+			"selected": "Seçilen etiketlerden herhangi birine sahip öğeler gösteriliyor",
+			"clickToFilter": "Öğeleri filtrelemek için etiketlere tıklayın"
+		},
+		"none": "Hiçbiri"
+	},
+	"type-group": {
+		"modes": "Modlar",
+		"mcps": "MCP Sunucuları"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Marketplace öğesi bulunamadı",
+			"withFilters": "Filtrelerinizi ayarlamayı deneyin",
+			"noSources": "Kaynaklar sekmesinde kaynak eklemeyi deneyin",
+			"adjustFilters": "Filtrelerinizi veya arama terimlerinizi ayarlamayı deneyin",
+			"clearAllFilters": "Tüm filtreleri temizle"
+		},
+		"count": "{{count}} öğe bulundu",
+		"components": "{{count}} bileşen",
+		"matched": "{{count}} eşleşti",
+		"refresh": {
+			"button": "Yenile",
+			"refreshing": "Yenileniyor...",
+			"mayTakeMoment": "Bu biraz zaman alabilir."
+		},
+		"card": {
+			"by": "{{author}} tarafından",
+			"from": "{{source}} kaynağından",
+			"install": "Yükle",
+			"installProject": "Yükle",
+			"installGlobal": "Yükle (Global)",
+			"remove": "Kaldır",
+			"removeProject": "Kaldır",
+			"removeGlobal": "Kaldır (Global)",
+			"viewSource": "Görüntüle",
+			"viewOnSource": "{{source}} üzerinde görüntüle",
+			"noWorkspaceTooltip": "Marketplace öğelerini yüklemek için bir çalışma alanı açın",
+			"installed": "Yüklü",
+			"removeProjectTooltip": "Mevcut projeden kaldır",
+			"removeGlobalTooltip": "Global yapılandırmadan kaldır",
+			"actionsMenuLabel": "Daha fazla eylem"
+		}
+	},
+	"install": {
+		"title": "{{name}} Yükle",
+		"titleMode": "{{name}} Modunu Yükle",
+		"titleMcp": "{{name}} MCP'sini Yükle",
+		"scope": "Yükleme Kapsamı",
+		"project": "Proje (mevcut çalışma alanı)",
+		"global": "Global (tüm çalışma alanları)",
+		"method": "Yükleme Yöntemi",
+		"configuration": "Yapılandırma",
+		"configurationDescription": "Bu MCP sunucusu için gerekli parametreleri yapılandırın",
+		"button": "Yükle",
+		"successTitle": "{{name}} Yüklendi",
+		"successDescription": "Yükleme başarıyla tamamlandı",
+		"installed": "Başarıyla yüklendi!",
+		"whatNextMcp": "Artık bu MCP sunucusunu yapılandırabilir ve kullanabilirsiniz. Sekmeleri değiştirmek için kenar çubuğundaki MCP simgesine tıklayın.",
+		"whatNextMode": "Artık bu modu kullanabilirsiniz. Sekmeleri değiştirmek için kenar çubuğundaki Modlar simgesine tıklayın.",
+		"done": "Tamamlandı",
+		"goToMcp": "MCP Sekmesine Git",
+		"goToModes": "Modlar Sekmesine Git",
+		"moreInfoMcp": "{{name}} MCP belgelerini görüntüle",
+		"validationRequired": "Lütfen {{paramName}} için bir değer sağlayın",
+		"prerequisites": "Ön koşullar"
+	},
+	"sources": {
+		"title": "Marketplace Kaynaklarını Yapılandır",
+		"description": "Marketplace öğeleri içeren Git depolarını ekleyin. Bu depolar marketplace'e göz atarken getirilecektir.",
+		"add": {
+			"title": "Yeni Kaynak Ekle",
+			"urlPlaceholder": "Git deposu URL'si (örn., https://github.com/username/repo)",
+			"urlFormats": "Desteklenen formatlar: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), veya Git protokolü (git://github.com/username/repo.git)",
+			"namePlaceholder": "Görüntüleme adı (maks 20 karakter)",
+			"button": "Kaynak Ekle"
+		},
+		"current": {
+			"title": "Mevcut Kaynaklar",
+			"empty": "Yapılandırılmış kaynak yok. Başlamak için bir kaynak ekleyin.",
+			"refresh": "Bu kaynağı yenile",
+			"remove": "Kaynağı kaldır"
+		},
+		"errors": {
+			"emptyUrl": "URL boş olamaz",
+			"invalidUrl": "Geçersiz URL formatı",
+			"nonVisibleChars": "URL boşluklar dışında görünmeyen karakterler içeriyor",
+			"invalidGitUrl": "URL geçerli bir Git deposu URL'si olmalıdır (örn., https://github.com/username/repo)",
+			"duplicateUrl": "Bu URL zaten listede var (büyük/küçük harf ve boşluk duyarsız eşleşme)",
+			"nameTooLong": "İsim 20 karakter veya daha az olmalıdır",
+			"nonVisibleCharsName": "İsim boşluklar dışında görünmeyen karakterler içeriyor",
+			"duplicateName": "Bu isim zaten kullanılıyor (büyük/küçük harf ve boşluk duyarsız eşleşme)",
+			"emojiName": "Emoji karakterleri görüntüleme sorunlarına neden olabilir",
+			"maxSources": "Maksimum {{max}} kaynak izin verilir"
+		}
+	}
+}

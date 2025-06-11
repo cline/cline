@@ -493,6 +493,10 @@
 			"name": "Activer la lecture simultanée de fichiers",
 			"description": "Lorsqu'activé, Roo peut lire plusieurs fichiers dans une seule requête. Lorsque désactivé, Roo doit lire les fichiers un par un. La désactivation peut aider lors du travail avec des modèles moins performants ou lorsque tu souhaites plus de contrôle sur l'accès aux fichiers."
 		},
+		"MARKETPLACE": {
+			"name": "Activer le Marketplace",
+			"description": "Lorsque cette option est activée, tu peux installer des MCP et des modes personnalisés depuis le Marketplace."
+		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Désactiver l'exécution des commandes dans attempt_completion",
 			"description": "Lorsque cette option est activée, l'outil attempt_completion n'exécutera pas de commandes. Il s'agit d'une fonctionnalité expérimentale visant à préparer la dépréciation de l'exécution des commandes lors de la finalisation des tâches."

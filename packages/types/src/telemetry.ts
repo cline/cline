@@ -41,6 +41,9 @@ export enum TelemetryEventName {
 
 	AUTHENTICATION_INITIATED = "Authentication Initiated",
 
+	MARKETPLACE_ITEM_INSTALLED = "Marketplace Item Installed",
+	MARKETPLACE_ITEM_REMOVED = "Marketplace Item Removed",
+
 	SCHEMA_VALIDATION_ERROR = "Schema Validation Error",
 	DIFF_APPLICATION_ERROR = "Diff Application Error",
 	SHELL_INTEGRATION_ERROR = "Shell Integration Error",
@@ -106,6 +109,8 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.PROMPT_ENHANCED,
 			TelemetryEventName.TITLE_BUTTON_CLICKED,
 			TelemetryEventName.AUTHENTICATION_INITIATED,
+			TelemetryEventName.MARKETPLACE_ITEM_INSTALLED,
+			TelemetryEventName.MARKETPLACE_ITEM_REMOVED,
 			TelemetryEventName.SCHEMA_VALIDATION_ERROR,
 			TelemetryEventName.DIFF_APPLICATION_ERROR,
 			TelemetryEventName.SHELL_INTEGRATION_ERROR,

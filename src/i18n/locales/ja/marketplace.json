@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "モード",
+		"mcps": "MCPサーバー",
+		"match": "マッチ"
+	},
+	"item-card": {
+		"type-mode": "モード",
+		"type-mcp": "MCPサーバー",
+		"type-other": "その他",
+		"by-author": "{{author}}による",
+		"authors-profile": "作者のプロフィール",
+		"remove-tag-filter": "タグフィルターを削除: {{tag}}",
+		"filter-by-tag": "タグでフィルター: {{tag}}",
+		"component-details": "コンポーネントの詳細",
+		"view": "表示",
+		"source": "ソース"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "マーケットプレイスを検索..."
+		},
+		"type": {
+			"label": "タイプ",
+			"all": "すべてのタイプ",
+			"mode": "モード",
+			"mcpServer": "MCPサーバー"
+		},
+		"sort": {
+			"label": "並び替え",
+			"name": "名前",
+			"lastUpdated": "最終更新"
+		},
+		"tags": {
+			"label": "タグ",
+			"clear": "タグをクリア",
+			"placeholder": "タグを検索...",
+			"noResults": "タグが見つかりません。",
+			"selected": "選択されたタグのいずれかを持つアイテムを表示"
+		},
+		"title": "マーケットプレイス"
+	},
+	"done": "完了",
+	"tabs": {
+		"installed": "インストール済み",
+		"browse": "参照",
+		"settings": "設定"
+	},
+	"items": {
+		"empty": {
+			"noItems": "マーケットプレイスのアイテムが見つかりません。",
+			"emptyHint": "フィルターや検索用語を調整してみてください"
+		}
+	},
+	"installation": {
+		"installing": "アイテムをインストール中: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\"のインストールが完了しました",
+		"installError": "\"{{itemName}}\"のインストールに失敗しました: {{errorMessage}}",
+		"removing": "アイテムを削除中: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\"の削除が完了しました",
+		"removeError": "\"{{itemName}}\"の削除に失敗しました: {{errorMessage}}"
+	}
+}

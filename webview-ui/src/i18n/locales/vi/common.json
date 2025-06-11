@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "Có",
+		"no": "Không",
+		"cancel": "Hủy",
+		"remove": "Xóa",
+		"keep": "Giữ"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

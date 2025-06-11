@@ -20,6 +20,7 @@
 	"command.mcpServers.title": "MCP 伺服器",
 	"command.prompts.title": "模式",
 	"command.history.title": "歷史記錄",
+	"command.marketplace.title": "應用市場",
 	"command.openInEditor.title": "在編輯器中開啟",
 	"command.settings.title": "設定",
 	"command.documentation.title": "文件",

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { useEvent } from "react-use"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { ExtensionMessage } from "@roo/ExtensionMessage"
-
 import TranslationProvider from "./i18n/TranslationContext"
+import { MarketplaceViewStateManager } from "./components/marketplace/MarketplaceViewStateManager"
+
 import { vscode } from "./utils/vscode"
 import { telemetryClient } from "./utils/TelemetryClient"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
@@ -13,11 +14,12 @@ import HistoryView from "./components/history/HistoryView"
 import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import McpView from "./components/mcp/McpView"
+import { MarketplaceView } from "./components/marketplace/MarketplaceView"
 import ModesView from "./components/modes/ModesView"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 import { AccountView } from "./components/account/AccountView"
 
-type Tab = "settings" | "history" | "mcp" | "modes" | "chat" | "account"
+type Tab = "settings" | "history" | "mcp" | "modes" | "chat" | "marketplace" | "account"
 
 const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]>, Tab>> = {
 	chatButtonClicked: "chat",
@@ -25,6 +27,7 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 	promptsButtonClicked: "modes",
 	mcpButtonClicked: "mcp",
 	historyButtonClicked: "history",
+	marketplaceButtonClicked: "marketplace",
 	accountButtonClicked: "account",
 }
 
@@ -36,9 +39,13 @@ const App = () => {
 		telemetrySetting,
 		telemetryKey,
 		machineId,
+		experiments,
 		cloudUserInfo,
 		cloudIsAuthenticated,
 	} = useExtensionState()
+
+	// Create a persistent state manager
+	const marketplaceStateManager = useMemo(() => new MarketplaceViewStateManager(), [])
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
@@ -73,12 +80,28 @@ const App = () => {
 			const message: ExtensionMessage = e.data
 
 			if (message.type === "action" && message.action) {
-				const newTab = tabsByMessageAction[message.action]
-				const section = message.values?.section as string | undefined
+				// Handle switchTab action with tab parameter
+				if (message.action === "switchTab" && message.tab) {
+					const targetTab = message.tab as Tab
+					// Don't switch to marketplace tab if the experiment is disabled
+					if (targetTab === "marketplace" && !experiments.marketplace) {
+						return
+					}
+					switchTab(targetTab)
+					setCurrentSection(undefined)
+				} else {
+					// Handle other actions using the mapping
+					const newTab = tabsByMessageAction[message.action]
+					const section = message.values?.section as string | undefined
 
-				if (newTab) {
-					switchTab(newTab)
-					setCurrentSection(section)
+					if (newTab) {
+						// Don't switch to marketplace tab if the experiment is disabled
+						if (newTab === "marketplace" && !experiments.marketplace) {
+							return
+						}
+						switchTab(newTab)
+						setCurrentSection(section)
+					}
 				}
 			}
 
@@ -91,7 +114,7 @@ const App = () => {
 				chatViewRef.current?.acceptInput()
 			}
 		},
-		[switchTab],
+		[switchTab, experiments],
 	)
 
 	useEvent("message", onMessage)
@@ -127,6 +150,9 @@ const App = () => {
 			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
 			{tab === "settings" && (
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
+			)}
+			{tab === "marketplace" && (
+				<MarketplaceView stateManager={marketplaceStateManager} onDone={() => switchTab("chat")} />
 			)}
 			{tab === "account" && (
 				<AccountView

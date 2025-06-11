@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Instalado",
+		"settings": "Configuración",
+		"browse": "Explorar"
+	},
+	"done": "Hecho",
+	"refresh": "Actualizar",
+	"filters": {
+		"search": {
+			"placeholder": "Buscar elementos del marketplace...",
+			"placeholderMcp": "Buscar MCPs...",
+			"placeholderMode": "Buscar modos..."
+		},
+		"type": {
+			"label": "Filtrar por tipo:",
+			"all": "Todos los tipos",
+			"mode": "Modo",
+			"mcpServer": "Servidor MCP"
+		},
+		"sort": {
+			"label": "Ordenar por:",
+			"name": "Nombre",
+			"author": "Autor",
+			"lastUpdated": "Última actualización"
+		},
+		"tags": {
+			"label": "Filtrar por etiquetas:",
+			"clear": "Limpiar etiquetas",
+			"placeholder": "Escribe para buscar y seleccionar etiquetas...",
+			"noResults": "No se encontraron etiquetas coincidentes",
+			"selected": "Mostrando elementos con cualquiera de las etiquetas seleccionadas",
+			"clickToFilter": "Haz clic en las etiquetas para filtrar elementos"
+		},
+		"none": "Ninguno"
+	},
+	"type-group": {
+		"modes": "Modos",
+		"mcps": "Servidores MCP"
+	},
+	"items": {
+		"empty": {
+			"noItems": "No se encontraron elementos del marketplace",
+			"withFilters": "Intenta ajustar tus filtros",
+			"noSources": "Intenta agregar una fuente en la pestaña Fuentes",
+			"adjustFilters": "Intenta ajustar tus filtros o términos de búsqueda",
+			"clearAllFilters": "Limpiar todos los filtros"
+		},
+		"count": "{{count}} elementos encontrados",
+		"components": "{{count}} componentes",
+		"matched": "{{count}} coincidentes",
+		"refresh": {
+			"button": "Actualizar",
+			"refreshing": "Actualizando...",
+			"mayTakeMoment": "Esto puede tomar un momento."
+		},
+		"card": {
+			"by": "por {{author}}",
+			"from": "de {{source}}",
+			"install": "Instalar",
+			"installProject": "Instalar",
+			"installGlobal": "Instalar (Global)",
+			"remove": "Eliminar",
+			"removeProject": "Eliminar",
+			"removeGlobal": "Eliminar (Global)",
+			"viewSource": "Ver",
+			"viewOnSource": "Ver en {{source}}",
+			"noWorkspaceTooltip": "Abre un espacio de trabajo para instalar elementos del marketplace",
+			"installed": "Instalado",
+			"removeProjectTooltip": "Eliminar del proyecto actual",
+			"removeGlobalTooltip": "Eliminar de la configuración global",
+			"actionsMenuLabel": "Más acciones"
+		}
+	},
+	"install": {
+		"title": "Instalar {{name}}",
+		"titleMode": "Instalar modo {{name}}",
+		"titleMcp": "Instalar MCP {{name}}",
+		"scope": "Ámbito de instalación",
+		"project": "Proyecto (espacio de trabajo actual)",
+		"global": "Global (todos los espacios de trabajo)",
+		"method": "Método de instalación",
+		"configuration": "Configuración",
+		"configurationDescription": "Configura los parámetros requeridos para este servidor MCP",
+		"button": "Instalar",
+		"successTitle": "{{name}} instalado",
+		"successDescription": "Instalación completada exitosamente",
+		"installed": "¡Instalado exitosamente!",
+		"whatNextMcp": "Ahora puedes configurar y usar este servidor MCP. Haz clic en el icono MCP en la barra lateral para cambiar de pestaña.",
+		"whatNextMode": "Ahora puedes usar este modo. Haz clic en el icono Modos en la barra lateral para cambiar de pestaña.",
+		"done": "Hecho",
+		"goToMcp": "Ir a la pestaña MCP",
+		"goToModes": "Ir a la pestaña Modos",
+		"moreInfoMcp": "Ver documentación MCP de {{name}}",
+		"validationRequired": "Por favor proporciona un valor para {{paramName}}",
+		"prerequisites": "Requisitos previos"
+	},
+	"sources": {
+		"title": "Configurar fuentes del marketplace",
+		"description": "Agrega repositorios Git que contengan elementos del marketplace. Estos repositorios se obtendrán al navegar por el marketplace.",
+		"add": {
+			"title": "Agregar nueva fuente",
+			"urlPlaceholder": "URL del repositorio Git (ej., https://github.com/username/repo)",
+			"urlFormats": "Formatos soportados: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), o protocolo Git (git://github.com/username/repo.git)",
+			"namePlaceholder": "Nombre para mostrar (máx. 20 caracteres)",
+			"button": "Agregar fuente"
+		},
+		"current": {
+			"title": "Fuentes actuales",
+			"empty": "No hay fuentes configuradas. Agrega una fuente para comenzar.",
+			"refresh": "Actualizar esta fuente",
+			"remove": "Eliminar fuente"
+		},
+		"errors": {
+			"emptyUrl": "La URL no puede estar vacía",
+			"invalidUrl": "Formato de URL inválido",
+			"nonVisibleChars": "La URL contiene caracteres no visibles además de espacios",
+			"invalidGitUrl": "La URL debe ser una URL de repositorio Git válida (ej., https://github.com/username/repo)",
+			"duplicateUrl": "Esta URL ya está en la lista (coincidencia insensible a mayúsculas y espacios)",
+			"nameTooLong": "El nombre debe tener 20 caracteres o menos",
+			"nonVisibleCharsName": "El nombre contiene caracteres no visibles además de espacios",
+			"duplicateName": "Este nombre ya está en uso (coincidencia insensible a mayúsculas y espacios)",
+			"emojiName": "Los caracteres emoji pueden causar problemas de visualización",
+			"maxSources": "Máximo de {{max}} fuentes permitidas"
+		}
+	}
+}

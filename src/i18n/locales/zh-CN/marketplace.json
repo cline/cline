@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "模式",
+		"mcps": "MCP 服务",
+		"match": "匹配"
+	},
+	"item-card": {
+		"type-mode": "模式",
+		"type-mcp": "MCP 服务",
+		"type-other": "其他",
+		"by-author": "作者：{{author}}",
+		"authors-profile": "作者资料",
+		"remove-tag-filter": "移除标签过滤器：{{tag}}",
+		"filter-by-tag": "按标签过滤：{{tag}}",
+		"component-details": "组件详情",
+		"view": "查看",
+		"source": "来源"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "搜索 Marketplace..."
+		},
+		"type": {
+			"label": "类型",
+			"all": "所有类型",
+			"mode": "模式",
+			"mcpServer": "MCP 服务"
+		},
+		"sort": {
+			"label": "排序方式",
+			"name": "名称",
+			"lastUpdated": "最后更新"
+		},
+		"tags": {
+			"label": "标签",
+			"clear": "清除标签",
+			"placeholder": "搜索标签...",
+			"noResults": "未找到标签。",
+			"selected": "显示包含任一选中标签的项目"
+		},
+		"title": "Marketplace"
+	},
+	"done": "完成",
+	"tabs": {
+		"installed": "已安装",
+		"browse": "浏览",
+		"settings": "设置"
+	},
+	"items": {
+		"empty": {
+			"noItems": "未找到 Marketplace 项目。",
+			"emptyHint": "尝试调整过滤器或搜索条件"
+		}
+	},
+	"installation": {
+		"installing": "正在安装项目：\"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" 安装成功",
+		"installError": "\"{{itemName}}\" 安装失败：{{errorMessage}}",
+		"removing": "正在移除项目：\"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" 移除成功",
+		"removeError": "\"{{itemName}}\" 移除失败：{{errorMessage}}"
+	}
+}

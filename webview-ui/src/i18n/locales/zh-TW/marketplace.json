@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "已安裝",
+		"settings": "設定",
+		"browse": "瀏覽"
+	},
+	"done": "完成",
+	"refresh": "重新整理",
+	"filters": {
+		"search": {
+			"placeholder": "搜尋 Marketplace 項目...",
+			"placeholderMcp": "搜尋 MCP...",
+			"placeholderMode": "搜尋模式..."
+		},
+		"type": {
+			"label": "依類型篩選：",
+			"all": "所有類型",
+			"mode": "模式",
+			"mcpServer": "MCP 伺服器"
+		},
+		"sort": {
+			"label": "排序方式：",
+			"name": "名稱",
+			"author": "作者",
+			"lastUpdated": "最後更新"
+		},
+		"tags": {
+			"label": "依標籤篩選：",
+			"clear": "清除標籤",
+			"placeholder": "輸入以搜尋和選擇標籤...",
+			"noResults": "找不到符合的標籤",
+			"selected": "顯示包含任何選定標籤的項目",
+			"clickToFilter": "點擊標籤以篩選項目"
+		},
+		"none": "無"
+	},
+	"type-group": {
+		"modes": "模式",
+		"mcps": "MCP 伺服器"
+	},
+	"items": {
+		"empty": {
+			"noItems": "找不到 Marketplace 項目",
+			"withFilters": "嘗試調整您的篩選條件",
+			"noSources": "嘗試在來源標籤頁中新增來源",
+			"adjustFilters": "嘗試調整您的篩選條件或搜尋詞",
+			"clearAllFilters": "清除所有篩選條件"
+		},
+		"count": "找到 {{count}} 個項目",
+		"components": "{{count}} 個元件",
+		"matched": "{{count}} 個符合",
+		"refresh": {
+			"button": "重新整理",
+			"refreshing": "重新整理中...",
+			"mayTakeMoment": "這可能需要一些時間。"
+		},
+		"card": {
+			"by": "作者：{{author}}",
+			"from": "來源：{{source}}",
+			"install": "安裝",
+			"installProject": "安裝",
+			"installGlobal": "安裝（全域）",
+			"remove": "移除",
+			"removeProject": "移除",
+			"removeGlobal": "移除（全域）",
+			"viewSource": "檢視",
+			"viewOnSource": "在 {{source}} 上檢視",
+			"noWorkspaceTooltip": "開啟工作區以安裝 Marketplace 項目",
+			"installed": "已安裝",
+			"removeProjectTooltip": "從目前專案中移除",
+			"removeGlobalTooltip": "從全域設定中移除",
+			"actionsMenuLabel": "更多動作"
+		}
+	},
+	"install": {
+		"title": "安裝 {{name}}",
+		"titleMode": "安裝 {{name}} 模式",
+		"titleMcp": "安裝 {{name}} MCP",
+		"scope": "安裝範圍",
+		"project": "專案（目前工作區）",
+		"global": "全域（所有工作區）",
+		"method": "安裝方法",
+		"configuration": "設定",
+		"configurationDescription": "設定此 MCP 伺服器所需的參數",
+		"button": "安裝",
+		"successTitle": "{{name}} 已安裝",
+		"successDescription": "安裝成功完成",
+		"installed": "安裝成功！",
+		"whatNextMcp": "現在您可以設定和使用此 MCP 伺服器。點擊側邊欄中的 MCP 圖示以切換標籤頁。",
+		"whatNextMode": "現在您可以使用此模式。點擊側邊欄中的模式圖示以切換標籤頁。",
+		"done": "完成",
+		"goToMcp": "前往 MCP 標籤頁",
+		"goToModes": "前往模式標籤頁",
+		"moreInfoMcp": "檢視 {{name}} MCP 文件",
+		"validationRequired": "請為 {{paramName}} 提供值",
+		"prerequisites": "前置條件"
+	},
+	"sources": {
+		"title": "設定 Marketplace 來源",
+		"description": "新增包含 Marketplace 項目的 Git 儲存庫。瀏覽 Marketplace 時將會擷取這些儲存庫。",
+		"add": {
+			"title": "新增來源",
+			"urlPlaceholder": "Git 儲存庫 URL（例如：https://github.com/username/repo）",
+			"urlFormats": "支援的格式：HTTPS（https://github.com/username/repo）、SSH（git@github.com:username/repo.git）或 Git 協定（git://github.com/username/repo.git）",
+			"namePlaceholder": "顯示名稱（最多 20 個字元）",
+			"button": "新增來源"
+		},
+		"current": {
+			"title": "目前來源",
+			"empty": "尚未設定來源。新增來源以開始使用。",
+			"refresh": "重新整理此來源",
+			"remove": "移除來源"
+		},
+		"errors": {
+			"emptyUrl": "URL 不能為空",
+			"invalidUrl": "無效的 URL 格式",
+			"nonVisibleChars": "URL 包含除空格外的不可見字元",
+			"invalidGitUrl": "URL 必須是有效的 Git 儲存庫 URL（例如：https://github.com/username/repo）",
+			"duplicateUrl": "此 URL 已在清單中（不區分大小寫和空格的比對）",
+			"nameTooLong": "名稱必須為 20 個字元或更少",
+			"nonVisibleCharsName": "名稱包含除空格外的不可見字元",
+			"duplicateName": "此名稱已被使用（不區分大小寫和空格的比對）",
+			"emojiName": "表情符號字元可能導致顯示問題",
+			"maxSources": "最多允許 {{max}} 個來源"
+		}
+	}
+}

@@ -29,6 +29,25 @@ export const setupI18nForTests = () => {
 				chat: {
 					test: "Test",
 				},
+				marketplace: {
+					items: {
+						card: {
+							by: "by {{author}}",
+							viewSource: "View",
+							externalComponents: "Contains {{count}} external component",
+							externalComponents_plural: "Contains {{count}} external components",
+						},
+					},
+					filters: {
+						type: {
+							package: "Package",
+							mode: "Mode",
+						},
+						tags: {
+							clickToFilter: "Click tags to filter items",
+						},
+					},
+				},
 			},
 		},
 	})

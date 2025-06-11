@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Installé",
+		"settings": "Paramètres",
+		"browse": "Parcourir"
+	},
+	"done": "Terminé",
+	"refresh": "Actualiser",
+	"filters": {
+		"search": {
+			"placeholder": "Rechercher des éléments du marketplace...",
+			"placeholderMcp": "Rechercher des MCPs...",
+			"placeholderMode": "Rechercher des modes..."
+		},
+		"type": {
+			"label": "Filtrer par type :",
+			"all": "Tous les types",
+			"mode": "Mode",
+			"mcpServer": "Serveur MCP"
+		},
+		"sort": {
+			"label": "Trier par :",
+			"name": "Nom",
+			"author": "Auteur",
+			"lastUpdated": "Dernière mise à jour"
+		},
+		"tags": {
+			"label": "Filtrer par étiquettes :",
+			"clear": "Effacer les étiquettes",
+			"placeholder": "Tapez pour rechercher et sélectionner des étiquettes...",
+			"noResults": "Aucune étiquette correspondante trouvée",
+			"selected": "Affichage des éléments avec l'une des étiquettes sélectionnées",
+			"clickToFilter": "Cliquez sur les étiquettes pour filtrer les éléments"
+		},
+		"none": "Aucun"
+	},
+	"type-group": {
+		"modes": "Modes",
+		"mcps": "Serveurs MCP"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Aucun élément du marketplace trouvé",
+			"withFilters": "Essayez d'ajuster vos filtres",
+			"noSources": "Essayez d'ajouter une source dans l'onglet Sources",
+			"adjustFilters": "Essayez d'ajuster vos filtres ou termes de recherche",
+			"clearAllFilters": "Effacer tous les filtres"
+		},
+		"count": "{{count}} éléments trouvés",
+		"components": "{{count}} composants",
+		"matched": "{{count}} correspondants",
+		"refresh": {
+			"button": "Actualiser",
+			"refreshing": "Actualisation...",
+			"mayTakeMoment": "Cela peut prendre un moment."
+		},
+		"card": {
+			"by": "par {{author}}",
+			"from": "de {{source}}",
+			"install": "Installer",
+			"installProject": "Installer",
+			"installGlobal": "Installer (Global)",
+			"remove": "Supprimer",
+			"removeProject": "Supprimer",
+			"removeGlobal": "Supprimer (Global)",
+			"viewSource": "Voir",
+			"viewOnSource": "Voir sur {{source}}",
+			"noWorkspaceTooltip": "Ouvrez un espace de travail pour installer des éléments du marketplace",
+			"installed": "Installé",
+			"removeProjectTooltip": "Supprimer du projet actuel",
+			"removeGlobalTooltip": "Supprimer de la configuration globale",
+			"actionsMenuLabel": "Plus d'actions"
+		}
+	},
+	"install": {
+		"title": "Installer {{name}}",
+		"titleMode": "Installer le mode {{name}}",
+		"titleMcp": "Installer le MCP {{name}}",
+		"scope": "Portée d'installation",
+		"project": "Projet (espace de travail actuel)",
+		"global": "Global (tous les espaces de travail)",
+		"method": "Méthode d'installation",
+		"configuration": "Configuration",
+		"configurationDescription": "Configurez les paramètres requis pour ce serveur MCP",
+		"button": "Installer",
+		"successTitle": "{{name}} installé",
+		"successDescription": "Installation terminée avec succès",
+		"installed": "Installé avec succès !",
+		"whatNextMcp": "Vous pouvez maintenant configurer et utiliser ce serveur MCP. Cliquez sur l'icône MCP dans la barre latérale pour changer d'onglet.",
+		"whatNextMode": "Vous pouvez maintenant utiliser ce mode. Cliquez sur l'icône Modes dans la barre latérale pour changer d'onglet.",
+		"done": "Terminé",
+		"goToMcp": "Aller à l'onglet MCP",
+		"goToModes": "Aller à l'onglet Modes",
+		"moreInfoMcp": "Voir la documentation MCP de {{name}}",
+		"validationRequired": "Veuillez fournir une valeur pour {{paramName}}",
+		"prerequisites": "Prérequis"
+	},
+	"sources": {
+		"title": "Configurer les sources du marketplace",
+		"description": "Ajoutez des dépôts Git qui contiennent des éléments du marketplace. Ces dépôts seront récupérés lors de la navigation dans le marketplace.",
+		"add": {
+			"title": "Ajouter une nouvelle source",
+			"urlPlaceholder": "URL du dépôt Git (ex., https://github.com/username/repo)",
+			"urlFormats": "Formats pris en charge : HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), ou protocole Git (git://github.com/username/repo.git)",
+			"namePlaceholder": "Nom d'affichage (max. 20 caractères)",
+			"button": "Ajouter une source"
+		},
+		"current": {
+			"title": "Sources actuelles",
+			"empty": "Aucune source configurée. Ajoutez une source pour commencer.",
+			"refresh": "Actualiser cette source",
+			"remove": "Supprimer la source"
+		},
+		"errors": {
+			"emptyUrl": "L'URL ne peut pas être vide",
+			"invalidUrl": "Format d'URL invalide",
+			"nonVisibleChars": "L'URL contient des caractères non visibles autres que des espaces",
+			"invalidGitUrl": "L'URL doit être une URL de dépôt Git valide (ex., https://github.com/username/repo)",
+			"duplicateUrl": "Cette URL est déjà dans la liste (correspondance insensible à la casse et aux espaces)",
+			"nameTooLong": "Le nom doit faire 20 caractères ou moins",
+			"nonVisibleCharsName": "Le nom contient des caractères non visibles autres que des espaces",
+			"duplicateName": "Ce nom est déjà utilisé (correspondance insensible à la casse et aux espaces)",
+			"emojiName": "Les caractères emoji peuvent causer des problèmes d'affichage",
+			"maxSources": "Maximum de {{max}} sources autorisées"
+		}
+	}
+}

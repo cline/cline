@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "हाँ",
+		"no": "नहीं",
+		"cancel": "रद्द करें",
+		"remove": "हटाएं",
+		"keep": "रखें"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

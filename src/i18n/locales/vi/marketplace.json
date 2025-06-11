@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Chế độ",
+		"mcps": "Máy chủ MCP",
+		"match": "khớp"
+	},
+	"item-card": {
+		"type-mode": "Chế độ",
+		"type-mcp": "Máy chủ MCP",
+		"type-other": "Khác",
+		"by-author": "bởi {{author}}",
+		"authors-profile": "Hồ sơ tác giả",
+		"remove-tag-filter": "Xóa bộ lọc thẻ: {{tag}}",
+		"filter-by-tag": "Lọc theo thẻ: {{tag}}",
+		"component-details": "Chi tiết thành phần",
+		"view": "Xem",
+		"source": "Nguồn"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Tìm kiếm marketplace..."
+		},
+		"type": {
+			"label": "Loại",
+			"all": "Tất cả loại",
+			"mode": "Chế độ",
+			"mcpServer": "Máy chủ MCP"
+		},
+		"sort": {
+			"label": "Sắp xếp theo",
+			"name": "Tên",
+			"lastUpdated": "Cập nhật lần cuối"
+		},
+		"tags": {
+			"label": "Thẻ",
+			"clear": "Xóa thẻ",
+			"placeholder": "Tìm thẻ...",
+			"noResults": "Không tìm thấy thẻ nào.",
+			"selected": "Hiển thị các mục có bất kỳ thẻ nào được chọn"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Hoàn thành",
+	"tabs": {
+		"installed": "Đã cài đặt",
+		"browse": "Duyệt",
+		"settings": "Cài đặt"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Không tìm thấy mục marketplace nào.",
+			"emptyHint": "Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm"
+		}
+	},
+	"installation": {
+		"installing": "Đang cài đặt mục: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" đã được cài đặt thành công",
+		"installError": "Cài đặt \"{{itemName}}\" thất bại: {{errorMessage}}",
+		"removing": "Đang xóa mục: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" đã được xóa thành công",
+		"removeError": "Xóa \"{{itemName}}\" thất bại: {{errorMessage}}"
+	}
+}

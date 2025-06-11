@@ -1,9 +1,10 @@
 import type { AssertEqual, Equals, Keys, Values, ExperimentId } from "@roo-code/types"
 
 export const EXPERIMENT_IDS = {
-	POWER_STEERING: "powerSteering",
+	MARKETPLACE: "marketplace",
 	CONCURRENT_FILE_READS: "concurrentFileReads",
 	DISABLE_COMPLETION_COMMAND: "disableCompletionCommand",
+	POWER_STEERING: "powerSteering",
 } as const satisfies Record<string, ExperimentId>
 
 type _AssertExperimentIds = AssertEqual<Equals<ExperimentId, Values<typeof EXPERIMENT_IDS>>>
@@ -15,9 +16,10 @@ interface ExperimentConfig {
 }
 
 export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
-	POWER_STEERING: { enabled: false },
+	MARKETPLACE: { enabled: false },
 	CONCURRENT_FILE_READS: { enabled: false },
 	DISABLE_COMPLETION_COMMAND: { enabled: false },
+	POWER_STEERING: { enabled: false },
 }
 
 export const experimentDefault = Object.fromEntries(

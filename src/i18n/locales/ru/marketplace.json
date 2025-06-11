@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Режимы",
+		"mcps": "MCP серверы",
+		"match": "совпадение"
+	},
+	"item-card": {
+		"type-mode": "Режим",
+		"type-mcp": "MCP сервер",
+		"type-other": "Другое",
+		"by-author": "от {{author}}",
+		"authors-profile": "Профиль автора",
+		"remove-tag-filter": "Удалить фильтр тега: {{tag}}",
+		"filter-by-tag": "Фильтровать по тегу: {{tag}}",
+		"component-details": "Детали компонента",
+		"view": "Просмотр",
+		"source": "Источник"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Поиск в marketplace..."
+		},
+		"type": {
+			"label": "Тип",
+			"all": "Все типы",
+			"mode": "Режим",
+			"mcpServer": "MCP сервер"
+		},
+		"sort": {
+			"label": "Сортировать по",
+			"name": "Имя",
+			"lastUpdated": "Последнее обновление"
+		},
+		"tags": {
+			"label": "Теги",
+			"clear": "Очистить теги",
+			"placeholder": "Поиск тегов...",
+			"noResults": "Теги не найдены.",
+			"selected": "Показ элементов с любым из выбранных тегов"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Готово",
+	"tabs": {
+		"installed": "Установлено",
+		"browse": "Обзор",
+		"settings": "Настройки"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Элементы marketplace не найдены.",
+			"emptyHint": "Попробуйте настроить фильтры или поисковые термины"
+		}
+	},
+	"installation": {
+		"installing": "Установка элемента: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" успешно установлен",
+		"installError": "Не удалось установить \"{{itemName}}\": {{errorMessage}}",
+		"removing": "Удаление элемента: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" успешно удален",
+		"removeError": "Не удалось удалить \"{{itemName}}\": {{errorMessage}}"
+	}
+}

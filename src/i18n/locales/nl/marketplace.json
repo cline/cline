@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Modi",
+		"mcps": "MCP Servers",
+		"match": "overeenkomst"
+	},
+	"item-card": {
+		"type-mode": "Modus",
+		"type-mcp": "MCP Server",
+		"type-other": "Andere",
+		"by-author": "door {{author}}",
+		"authors-profile": "Auteursprofiel",
+		"remove-tag-filter": "Tag filter verwijderen: {{tag}}",
+		"filter-by-tag": "Filteren op tag: {{tag}}",
+		"component-details": "Component details",
+		"view": "Bekijken",
+		"source": "Bron"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Marketplace doorzoeken..."
+		},
+		"type": {
+			"label": "Type",
+			"all": "Alle types",
+			"mode": "Modus",
+			"mcpServer": "MCP Server"
+		},
+		"sort": {
+			"label": "Sorteren op",
+			"name": "Naam",
+			"lastUpdated": "Laatst bijgewerkt"
+		},
+		"tags": {
+			"label": "Tags",
+			"clear": "Tags wissen",
+			"placeholder": "Tags zoeken...",
+			"noResults": "Geen tags gevonden.",
+			"selected": "Items tonen met een van de geselecteerde tags"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Klaar",
+	"tabs": {
+		"installed": "Geïnstalleerd",
+		"browse": "Bladeren",
+		"settings": "Instellingen"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Geen marketplace items gevonden.",
+			"emptyHint": "Probeer je filters of zoektermen aan te passen"
+		}
+	},
+	"installation": {
+		"installing": "Item installeren: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" succesvol geïnstalleerd",
+		"installError": "Installatie van \"{{itemName}}\" mislukt: {{errorMessage}}",
+		"removing": "Item verwijderen: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" succesvol verwijderd",
+		"removeError": "Verwijdering van \"{{itemName}}\" mislukt: {{errorMessage}}"
+	}
+}

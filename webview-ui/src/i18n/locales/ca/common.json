@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "Sí",
+		"no": "No",
+		"cancel": "Cancel·lar",
+		"remove": "Eliminar",
+		"keep": "Mantenir"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

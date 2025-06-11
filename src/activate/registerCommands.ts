@@ -146,6 +146,11 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 
 		visibleProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
 	},
+	marketplaceButtonClicked: () => {
+		const visibleProvider = getVisibleProviderOrLog(outputChannel)
+		if (!visibleProvider) return
+		visibleProvider.postMessageToWebview({ type: "action", action: "marketplaceButtonClicked" })
+	},
 	showHumanRelayDialog: (params: { requestId: string; promptText: string }) => {
 		const panel = getPanel()
 

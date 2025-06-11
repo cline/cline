@@ -496,6 +496,10 @@
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Отключить выполнение команд в attempt_completion",
 			"description": "Если включено, инструмент attempt_completion не будет выполнять команды. Это экспериментальная функция для подготовки к будущему прекращению поддержки выполнения команд при завершении задачи."
+		},
+		"MARKETPLACE": {
+			"name": "Включить Marketplace",
+			"description": "Когда включено, вы можете устанавливать MCP и пользовательские режимы из Marketplace."
 		}
 	},
 	"promptCaching": {

@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Installed",
+		"settings": "Settings",
+		"browse": "Browse"
+	},
+	"done": "Done",
+	"refresh": "Refresh",
+	"filters": {
+		"search": {
+			"placeholder": "Search marketplace items...",
+			"placeholderMcp": "Search MCPs...",
+			"placeholderMode": "Search Modes..."
+		},
+		"type": {
+			"label": "Filter by type:",
+			"all": "All types",
+			"mode": "Mode",
+			"mcpServer": "MCP Server"
+		},
+		"sort": {
+			"label": "Sort by:",
+			"name": "Name",
+			"author": "Author",
+			"lastUpdated": "Last Updated"
+		},
+		"tags": {
+			"label": "Filter by tags:",
+			"clear": "Clear tags",
+			"placeholder": "Type to search and select tags...",
+			"noResults": "No matching tags found",
+			"selected": "Showing items with any of the selected tags",
+			"clickToFilter": "Click tags to filter items"
+		},
+		"none": "None"
+	},
+	"type-group": {
+		"modes": "Modes",
+		"mcps": "MCP Servers"
+	},
+	"items": {
+		"empty": {
+			"noItems": "No marketplace items found",
+			"withFilters": "Try adjusting your filters",
+			"noSources": "Try adding a source in the Sources tab",
+			"adjustFilters": "Try adjusting your filters or search terms",
+			"clearAllFilters": "Clear all filters"
+		},
+		"count": "{{count}} items found",
+		"components": "{{count}} components",
+		"matched": "{{count}} matched",
+		"refresh": {
+			"button": "Refresh",
+			"refreshing": "Refreshing...",
+			"mayTakeMoment": "This may take a moment."
+		},
+		"card": {
+			"by": "by {{author}}",
+			"from": "from {{source}}",
+			"install": "Install",
+			"installProject": "Install",
+			"installGlobal": "Install (Global)",
+			"remove": "Remove",
+			"removeProject": "Remove",
+			"removeGlobal": "Remove (Global)",
+			"viewSource": "View",
+			"viewOnSource": "View on {{source}}",
+			"noWorkspaceTooltip": "Open a workspace to install marketplace items",
+			"installed": "Installed",
+			"removeProjectTooltip": "Remove from current project",
+			"removeGlobalTooltip": "Remove from global configuration",
+			"actionsMenuLabel": "More actions"
+		}
+	},
+	"install": {
+		"title": "Install {{name}}",
+		"titleMode": "Install {{name}} Mode",
+		"titleMcp": "Install {{name}} MCP",
+		"scope": "Installation Scope",
+		"project": "Project (current workspace)",
+		"global": "Global (all workspaces)",
+		"method": "Installation Method",
+		"prerequisites": "Prerequisites",
+		"configuration": "Configuration",
+		"configurationDescription": "Configure the parameters required for this MCP server",
+		"button": "Install",
+		"successTitle": "{{name}} Installed",
+		"successDescription": "Installation completed successfully",
+		"installed": "Successfully installed!",
+		"whatNextMcp": "You can now configure and use this MCP server. Click the MCP icon in the sidebar to switch tabs.",
+		"whatNextMode": "You can now use this mode. Click the Modes icon in the sidebar to switch tabs.",
+		"done": "Done",
+		"goToMcp": "Go to MCP Tab",
+		"goToModes": "Go to Modes Tab",
+		"moreInfoMcp": "View {{name}} MCP documentation",
+		"validationRequired": "Please provide a value for {{paramName}}"
+	},
+	"sources": {
+		"title": "Configure Marketplace Sources",
+		"description": "Add Git repositories that contain marketplace items. These repositories will be fetched when browsing the marketplace.",
+		"add": {
+			"title": "Add New Source",
+			"urlPlaceholder": "Git repository URL (e.g., https://github.com/username/repo)",
+			"urlFormats": "Supported formats: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), or Git protocol (git://github.com/username/repo.git)",
+			"namePlaceholder": "Display name (max 20 chars)",
+			"button": "Add Source"
+		},
+		"current": {
+			"title": "Current Sources",
+			"empty": "No sources configured. Add a source to get started.",
+			"refresh": "Refresh this source",
+			"remove": "Remove source"
+		},
+		"errors": {
+			"emptyUrl": "URL cannot be empty",
+			"invalidUrl": "Invalid URL format",
+			"nonVisibleChars": "URL contains non-visible characters other than spaces",
+			"invalidGitUrl": "URL must be a valid Git repository URL (e.g., https://github.com/username/repo)",
+			"duplicateUrl": "This URL is already in the list (case and whitespace insensitive match)",
+			"nameTooLong": "Name must be 20 characters or less",
+			"nonVisibleCharsName": "Name contains non-visible characters other than spaces",
+			"duplicateName": "This name is already in use (case and whitespace insensitive match)",
+			"emojiName": "Emoji characters may cause display issues",
+			"maxSources": "Maximum of {{max}} sources allowed"
+		}
+	}
+}

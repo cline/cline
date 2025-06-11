@@ -419,10 +419,59 @@ input[cmdk-input]:focus {
 	text-rendering: geometricPrecision !important;
 }
 
-/*
- * Fix the color of <a> in ChatView
+/**
+ * Custom animations for UI elements
  */
 
-a:focus {
-	outline: 1px solid var(--vscode-focusBorder);
+@keyframes slide-in-right {
+	from {
+		transform: translateX(100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+
+.animate-slide-in-right {
+	animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.animate-fade-in {
+	animation: fade-in 0.2s ease-out;
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+.animate-pulse {
+	animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Transition utilities */
+.transition-all {
+	transition-property: all;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 150ms;
+}
+
+.transition-colors {
+	transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 150ms;
 }

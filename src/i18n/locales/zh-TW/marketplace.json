@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "模式",
+		"mcps": "MCP 伺服器",
+		"match": "符合"
+	},
+	"item-card": {
+		"type-mode": "模式",
+		"type-mcp": "MCP 伺服器",
+		"type-other": "其他",
+		"by-author": "作者：{{author}}",
+		"authors-profile": "作者檔案",
+		"remove-tag-filter": "移除標籤篩選器：{{tag}}",
+		"filter-by-tag": "依標籤篩選：{{tag}}",
+		"component-details": "元件詳情",
+		"view": "檢視",
+		"source": "來源"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "搜尋 Marketplace..."
+		},
+		"type": {
+			"label": "類型",
+			"all": "所有類型",
+			"mode": "模式",
+			"mcpServer": "MCP 伺服器"
+		},
+		"sort": {
+			"label": "排序方式",
+			"name": "名稱",
+			"lastUpdated": "最後更新"
+		},
+		"tags": {
+			"label": "標籤",
+			"clear": "清除標籤",
+			"placeholder": "搜尋標籤...",
+			"noResults": "找不到標籤。",
+			"selected": "顯示包含任一選取標籤的項目"
+		},
+		"title": "Marketplace"
+	},
+	"done": "完成",
+	"tabs": {
+		"installed": "已安裝",
+		"browse": "瀏覽",
+		"settings": "設定"
+	},
+	"items": {
+		"empty": {
+			"noItems": "找不到 Marketplace 項目。",
+			"emptyHint": "嘗試調整篩選器或搜尋條件"
+		}
+	},
+	"installation": {
+		"installing": "正在安裝項目：「{{itemName}}」",
+		"installSuccess": "「{{itemName}}」安裝成功",
+		"installError": "「{{itemName}}」安裝失敗：{{errorMessage}}",
+		"removing": "正在移除項目：「{{itemName}}」",
+		"removeSuccess": "「{{itemName}}」移除成功",
+		"removeError": "「{{itemName}}」移除失敗：{{errorMessage}}"
+	}
+}

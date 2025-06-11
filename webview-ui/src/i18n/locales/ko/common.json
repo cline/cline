@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "예",
+		"no": "아니오",
+		"cancel": "취소",
+		"remove": "삭제",
+		"keep": "유지"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

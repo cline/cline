@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "已安装",
+		"settings": "设置",
+		"browse": "浏览"
+	},
+	"done": "完成",
+	"refresh": "刷新",
+	"filters": {
+		"search": {
+			"placeholder": "搜索 Marketplace 项目...",
+			"placeholderMcp": "搜索 MCP...",
+			"placeholderMode": "搜索模式..."
+		},
+		"type": {
+			"label": "按类型筛选：",
+			"all": "所有类型",
+			"mode": "模式",
+			"mcpServer": "MCP 服务"
+		},
+		"sort": {
+			"label": "排序方式：",
+			"name": "名称",
+			"author": "作者",
+			"lastUpdated": "最后更新"
+		},
+		"tags": {
+			"label": "按标签筛选：",
+			"clear": "清除标签",
+			"placeholder": "输入搜索和选择标签...",
+			"noResults": "未找到匹配的标签",
+			"selected": "显示包含任何选定标签的项目",
+			"clickToFilter": "点击标签筛选项目"
+		},
+		"none": "无"
+	},
+	"type-group": {
+		"modes": "模式",
+		"mcps": "MCP 服务"
+	},
+	"items": {
+		"empty": {
+			"noItems": "未找到 Marketplace 项目",
+			"withFilters": "尝试调整筛选条件",
+			"noSources": "尝试在源标签页中添加源",
+			"adjustFilters": "尝试调整筛选条件或搜索词",
+			"clearAllFilters": "清除所有筛选条件"
+		},
+		"count": "找到 {{count}} 个项目",
+		"components": "{{count}} 个组件",
+		"matched": "{{count}} 个匹配",
+		"refresh": {
+			"button": "刷新",
+			"refreshing": "刷新中...",
+			"mayTakeMoment": "这可能需要一些时间。"
+		},
+		"card": {
+			"by": "作者：{{author}}",
+			"from": "来源：{{source}}",
+			"install": "安装",
+			"installProject": "安装",
+			"installGlobal": "安装（全局）",
+			"remove": "移除",
+			"removeProject": "移除",
+			"removeGlobal": "移除（全局）",
+			"viewSource": "查看",
+			"viewOnSource": "在 {{source}} 上查看",
+			"noWorkspaceTooltip": "打开工作区以安装 Marketplace 项目",
+			"installed": "已安装",
+			"removeProjectTooltip": "从当前项目中移除",
+			"removeGlobalTooltip": "从全局配置中移除",
+			"actionsMenuLabel": "更多操作"
+		}
+	},
+	"install": {
+		"title": "安装 {{name}}",
+		"titleMode": "安装 {{name}} 模式",
+		"titleMcp": "安装 {{name}} MCP",
+		"scope": "安装范围",
+		"project": "项目（当前工作区）",
+		"global": "全局（所有工作区）",
+		"method": "安装方法",
+		"configuration": "配置",
+		"configurationDescription": "配置此 MCP 服务所需的参数",
+		"button": "安装",
+		"successTitle": "{{name}} 已安装",
+		"successDescription": "安装成功完成",
+		"installed": "安装成功！",
+		"whatNextMcp": "现在您可以配置和使用此 MCP 服务。点击侧边栏中的 MCP 图标切换标签页。",
+		"whatNextMode": "现在您可以使用此模式。点击侧边栏中的模式图标切换标签页。",
+		"done": "完成",
+		"goToMcp": "转到 MCP 标签页",
+		"goToModes": "转到模式标签页",
+		"moreInfoMcp": "查看 {{name}} MCP 文档",
+		"validationRequired": "请为 {{paramName}} 提供值",
+		"prerequisites": "前置条件"
+	},
+	"sources": {
+		"title": "配置 Marketplace 源",
+		"description": "添加包含 Marketplace 项目的 Git 仓库。浏览 Marketplace 时将获取这些仓库。",
+		"add": {
+			"title": "添加新源",
+			"urlPlaceholder": "Git 仓库 URL（例如：https://github.com/username/repo）",
+			"urlFormats": "支持的格式：HTTPS（https://github.com/username/repo）、SSH（git@github.com:username/repo.git）或 Git 协议（git://github.com/username/repo.git）",
+			"namePlaceholder": "显示名称（最多 20 个字符）",
+			"button": "添加源"
+		},
+		"current": {
+			"title": "当前源",
+			"empty": "未配置源。添加源以开始使用。",
+			"refresh": "刷新此源",
+			"remove": "移除源"
+		},
+		"errors": {
+			"emptyUrl": "URL 不能为空",
+			"invalidUrl": "无效的 URL 格式",
+			"nonVisibleChars": "URL 包含除空格外的不可见字符",
+			"invalidGitUrl": "URL 必须是有效的 Git 仓库 URL（例如：https://github.com/username/repo）",
+			"duplicateUrl": "此 URL 已在列表中（不区分大小写和空格的匹配）",
+			"nameTooLong": "名称必须为 20 个字符或更少",
+			"nonVisibleCharsName": "名称包含除空格外的不可见字符",
+			"duplicateName": "此名称已被使用（不区分大小写和空格的匹配）",
+			"emojiName": "表情符号字符可能导致显示问题",
+			"maxSources": "最多允许 {{max}} 个源"
+		}
+	}
+}

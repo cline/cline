@@ -20,6 +20,7 @@
 	"command.mcpServers.title": "MCP 서버",
 	"command.prompts.title": "모드",
 	"command.history.title": "기록",
+	"command.marketplace.title": "마켓플레이스",
 	"command.openInEditor.title": "에디터에서 열기",
 	"command.settings.title": "설정",
 	"command.documentation.title": "문서",

@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Đã cài đặt",
+		"settings": "Cài đặt",
+		"browse": "Duyệt"
+	},
+	"done": "Hoàn thành",
+	"refresh": "Làm mới",
+	"filters": {
+		"search": {
+			"placeholder": "Tìm kiếm các mục marketplace...",
+			"placeholderMcp": "Tìm kiếm MCP...",
+			"placeholderMode": "Tìm kiếm Chế độ..."
+		},
+		"type": {
+			"label": "Lọc theo loại:",
+			"all": "Tất cả loại",
+			"mode": "Chế độ",
+			"mcpServer": "Máy chủ MCP"
+		},
+		"sort": {
+			"label": "Sắp xếp theo:",
+			"name": "Tên",
+			"author": "Tác giả",
+			"lastUpdated": "Cập nhật lần cuối"
+		},
+		"tags": {
+			"label": "Lọc theo thẻ:",
+			"clear": "Xóa thẻ",
+			"placeholder": "Nhập để tìm kiếm và chọn thẻ...",
+			"noResults": "Không tìm thấy thẻ phù hợp",
+			"selected": "Hiển thị các mục có bất kỳ thẻ nào được chọn",
+			"clickToFilter": "Nhấp vào thẻ để lọc mục"
+		},
+		"none": "Không có"
+	},
+	"type-group": {
+		"modes": "Chế độ",
+		"mcps": "Máy chủ MCP"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Không tìm thấy mục marketplace nào",
+			"withFilters": "Thử điều chỉnh bộ lọc của bạn",
+			"noSources": "Thử thêm nguồn trong tab Nguồn",
+			"adjustFilters": "Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm của bạn",
+			"clearAllFilters": "Xóa tất cả bộ lọc"
+		},
+		"count": "Tìm thấy {{count}} mục",
+		"components": "{{count}} thành phần",
+		"matched": "{{count}} khớp",
+		"refresh": {
+			"button": "Làm mới",
+			"refreshing": "Đang làm mới...",
+			"mayTakeMoment": "Điều này có thể mất một chút thời gian."
+		},
+		"card": {
+			"by": "bởi {{author}}",
+			"from": "từ {{source}}",
+			"install": "Cài đặt",
+			"installProject": "Cài đặt",
+			"installGlobal": "Cài đặt (Toàn cục)",
+			"remove": "Xóa",
+			"removeProject": "Xóa",
+			"removeGlobal": "Xóa (Toàn cục)",
+			"viewSource": "Xem",
+			"viewOnSource": "Xem trên {{source}}",
+			"noWorkspaceTooltip": "Mở không gian làm việc để cài đặt các mục marketplace",
+			"installed": "Đã cài đặt",
+			"removeProjectTooltip": "Xóa khỏi dự án hiện tại",
+			"removeGlobalTooltip": "Xóa khỏi cấu hình toàn cục",
+			"actionsMenuLabel": "Thêm hành động"
+		}
+	},
+	"install": {
+		"title": "Cài đặt {{name}}",
+		"titleMode": "Cài đặt Chế độ {{name}}",
+		"titleMcp": "Cài đặt MCP {{name}}",
+		"scope": "Phạm vi cài đặt",
+		"project": "Dự án (không gian làm việc hiện tại)",
+		"global": "Toàn cục (tất cả không gian làm việc)",
+		"method": "Phương thức cài đặt",
+		"configuration": "Cấu hình",
+		"configurationDescription": "Cấu hình các tham số cần thiết cho máy chủ MCP này",
+		"button": "Cài đặt",
+		"successTitle": "{{name}} đã được cài đặt",
+		"successDescription": "Cài đặt hoàn tất thành công",
+		"installed": "Cài đặt thành công!",
+		"whatNextMcp": "Bây giờ bạn có thể cấu hình và sử dụng máy chủ MCP này. Nhấp vào biểu tượng MCP trong thanh bên để chuyển tab.",
+		"whatNextMode": "Bây giờ bạn có thể sử dụng chế độ này. Nhấp vào biểu tượng Chế độ trong thanh bên để chuyển tab.",
+		"done": "Hoàn thành",
+		"goToMcp": "Đi đến Tab MCP",
+		"goToModes": "Đi đến Tab Chế độ",
+		"moreInfoMcp": "Xem tài liệu MCP {{name}}",
+		"validationRequired": "Vui lòng cung cấp giá trị cho {{paramName}}",
+		"prerequisites": "Điều kiện tiên quyết"
+	},
+	"sources": {
+		"title": "Cấu hình Nguồn Marketplace",
+		"description": "Thêm các kho Git chứa các mục marketplace. Các kho này sẽ được tải khi duyệt marketplace.",
+		"add": {
+			"title": "Thêm Nguồn Mới",
+			"urlPlaceholder": "URL kho Git (ví dụ: https://github.com/username/repo)",
+			"urlFormats": "Định dạng được hỗ trợ: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), hoặc giao thức Git (git://github.com/username/repo.git)",
+			"namePlaceholder": "Tên hiển thị (tối đa 20 ký tự)",
+			"button": "Thêm Nguồn"
+		},
+		"current": {
+			"title": "Nguồn Hiện tại",
+			"empty": "Chưa có nguồn nào được cấu hình. Thêm nguồn để bắt đầu.",
+			"refresh": "Làm mới nguồn này",
+			"remove": "Xóa nguồn"
+		},
+		"errors": {
+			"emptyUrl": "URL không được để trống",
+			"invalidUrl": "Định dạng URL không hợp lệ",
+			"nonVisibleChars": "URL chứa các ký tự không hiển thị khác ngoài khoảng trắng",
+			"invalidGitUrl": "URL phải là URL kho Git hợp lệ (ví dụ: https://github.com/username/repo)",
+			"duplicateUrl": "URL này đã có trong danh sách (khớp không phân biệt chữ hoa thường và khoảng trắng)",
+			"nameTooLong": "Tên phải có 20 ký tự hoặc ít hơn",
+			"nonVisibleCharsName": "Tên chứa các ký tự không hiển thị khác ngoài khoảng trắng",
+			"duplicateName": "Tên này đã được sử dụng (khớp không phân biệt chữ hoa thường và khoảng trắng)",
+			"emojiName": "Ký tự emoji có thể gây ra vấn đề hiển thị",
+			"maxSources": "Tối đa {{max}} nguồn được phép"
+		}
+	}
+}

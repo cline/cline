@@ -67,12 +67,30 @@ jest.mock("@src/components/modes/ModesView", () => ({
 	},
 }))
 
+jest.mock("@src/components/marketplace/MarketplaceView", () => ({
+	MarketplaceView: function MarketplaceView({ onDone }: { onDone: () => void }) {
+		return (
+			<div data-testid="marketplace-view" onClick={onDone}>
+				Marketplace View
+			</div>
+		)
+	},
+}))
+
+jest.mock("@src/components/account/AccountView", () => ({
+	AccountView: function AccountView({ onDone }: { onDone: () => void }) {
+		return (
+			<div data-testid="account-view" onClick={onDone}>
+				Account View
+			</div>
+		)
+	},
+}))
+
+const mockUseExtensionState = jest.fn()
+
 jest.mock("@src/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({
-		didHydrateState: true,
-		showWelcome: false,
-		shouldShowAnnouncement: false,
-	}),
+	useExtensionState: () => mockUseExtensionState(),
 	ExtensionStateContextProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
@@ -80,6 +98,15 @@ describe("App", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 		window.removeEventListener("message", () => {})
+
+		// Set up default mock return value
+		mockUseExtensionState.mockReturnValue({
+			didHydrateState: true,
+			showWelcome: false,
+			shouldShowAnnouncement: false,
+			experiments: { marketplace: false },
+			language: "en",
+		})
 	})
 
 	afterEach(() => {
@@ -195,5 +222,76 @@ describe("App", () => {
 		const chatView = screen.getByTestId("chat-view")
 		expect(chatView.getAttribute("data-hidden")).toBe("false")
 		expect(screen.queryByTestId(`${view}-view`)).not.toBeInTheDocument()
+	})
+
+	describe("marketplace experiment", () => {
+		it("does not switch to marketplace tab when experiment is disabled", async () => {
+			mockUseExtensionState.mockReturnValue({
+				didHydrateState: true,
+				showWelcome: false,
+				shouldShowAnnouncement: false,
+				experiments: { marketplace: false },
+				language: "en",
+			})
+
+			render(<AppWithProviders />)
+
+			act(() => {
+				triggerMessage("marketplaceButtonClicked")
+			})
+
+			// Should remain on chat view
+			const chatView = screen.getByTestId("chat-view")
+			expect(chatView.getAttribute("data-hidden")).toBe("false")
+			expect(screen.queryByTestId("marketplace-view")).not.toBeInTheDocument()
+		})
+
+		it("switches to marketplace tab when experiment is enabled", async () => {
+			mockUseExtensionState.mockReturnValue({
+				didHydrateState: true,
+				showWelcome: false,
+				shouldShowAnnouncement: false,
+				experiments: { marketplace: true },
+				language: "en",
+			})
+
+			render(<AppWithProviders />)
+
+			act(() => {
+				triggerMessage("marketplaceButtonClicked")
+			})
+
+			const marketplaceView = await screen.findByTestId("marketplace-view")
+			expect(marketplaceView).toBeInTheDocument()
+
+			const chatView = screen.getByTestId("chat-view")
+			expect(chatView.getAttribute("data-hidden")).toBe("true")
+		})
+
+		it("returns to chat view when clicking done in marketplace view", async () => {
+			mockUseExtensionState.mockReturnValue({
+				didHydrateState: true,
+				showWelcome: false,
+				shouldShowAnnouncement: false,
+				experiments: { marketplace: true },
+				language: "en",
+			})
+
+			render(<AppWithProviders />)
+
+			act(() => {
+				triggerMessage("marketplaceButtonClicked")
+			})
+
+			const marketplaceView = await screen.findByTestId("marketplace-view")
+
+			act(() => {
+				marketplaceView.click()
+			})
+
+			const chatView = screen.getByTestId("chat-view")
+			expect(chatView.getAttribute("data-hidden")).toBe("false")
+			expect(screen.queryByTestId("marketplace-view")).not.toBeInTheDocument()
+		})
 	})
 })

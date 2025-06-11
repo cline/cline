@@ -4,6 +4,13 @@
 		"million_suffix": "m",
 		"billion_suffix": "b"
 	},
+	"answers": {
+		"yes": "Sim",
+		"no": "Não",
+		"cancel": "Cancelar",
+		"remove": "Remover",
+		"keep": "Manter"
+	},
 	"ui": {
 		"search_placeholder": "Pesquisar..."
 	},

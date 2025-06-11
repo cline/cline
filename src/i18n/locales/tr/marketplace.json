@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Modlar",
+		"mcps": "MCP Sunucuları",
+		"match": "eşleşme"
+	},
+	"item-card": {
+		"type-mode": "Mod",
+		"type-mcp": "MCP Sunucusu",
+		"type-other": "Diğer",
+		"by-author": "{{author}} tarafından",
+		"authors-profile": "Yazarın Profili",
+		"remove-tag-filter": "Etiket filtresini kaldır: {{tag}}",
+		"filter-by-tag": "Etikete göre filtrele: {{tag}}",
+		"component-details": "Bileşen Detayları",
+		"view": "Görüntüle",
+		"source": "Kaynak"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Marketplace'te ara..."
+		},
+		"type": {
+			"label": "Tür",
+			"all": "Tüm Türler",
+			"mode": "Mod",
+			"mcpServer": "MCP Sunucusu"
+		},
+		"sort": {
+			"label": "Sırala",
+			"name": "İsim",
+			"lastUpdated": "Son Güncelleme"
+		},
+		"tags": {
+			"label": "Etiketler",
+			"clear": "Etiketleri temizle",
+			"placeholder": "Etiket ara...",
+			"noResults": "Etiket bulunamadı.",
+			"selected": "Seçilen etiketlerden herhangi birine sahip öğeleri göster"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Tamam",
+	"tabs": {
+		"installed": "Yüklü",
+		"browse": "Gözat",
+		"settings": "Ayarlar"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Marketplace öğesi bulunamadı.",
+			"emptyHint": "Filtrelerinizi veya arama terimlerinizi ayarlamayı deneyin"
+		}
+	},
+	"installation": {
+		"installing": "Öğe yükleniyor: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" başarıyla yüklendi",
+		"installError": "\"{{itemName}}\" yüklenemedi: {{errorMessage}}",
+		"removing": "Öğe kaldırılıyor: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" başarıyla kaldırıldı",
+		"removeError": "\"{{itemName}}\" kaldırılamadı: {{errorMessage}}"
+	}
+}

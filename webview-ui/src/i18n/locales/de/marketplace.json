@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Installiert",
+		"settings": "Einstellungen",
+		"browse": "Durchsuchen"
+	},
+	"done": "Fertig",
+	"refresh": "Aktualisieren",
+	"filters": {
+		"search": {
+			"placeholder": "Marketplace-Elemente durchsuchen...",
+			"placeholderMcp": "MCPs durchsuchen...",
+			"placeholderMode": "Modi durchsuchen..."
+		},
+		"type": {
+			"label": "Nach Typ filtern:",
+			"all": "Alle Typen",
+			"mode": "Modus",
+			"mcpServer": "MCP-Server"
+		},
+		"sort": {
+			"label": "Sortieren nach:",
+			"name": "Name",
+			"author": "Autor",
+			"lastUpdated": "Zuletzt aktualisiert"
+		},
+		"tags": {
+			"label": "Nach Tags filtern:",
+			"clear": "Tags löschen",
+			"placeholder": "Zum Suchen und Auswählen von Tags eingeben...",
+			"noResults": "Keine passenden Tags gefunden",
+			"selected": "Zeige Elemente mit einem der ausgewählten Tags",
+			"clickToFilter": "Klicke auf Tags, um Elemente zu filtern"
+		},
+		"none": "Keine"
+	},
+	"type-group": {
+		"modes": "Modi",
+		"mcps": "MCP-Server"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Keine Marketplace-Elemente gefunden",
+			"withFilters": "Versuche deine Filter anzupassen",
+			"noSources": "Versuche eine Quelle im Quellen-Tab hinzuzufügen",
+			"adjustFilters": "Versuche deine Filter oder Suchbegriffe anzupassen",
+			"clearAllFilters": "Alle Filter löschen"
+		},
+		"count": "{{count}} Elemente gefunden",
+		"components": "{{count}} Komponenten",
+		"matched": "{{count}} gefunden",
+		"refresh": {
+			"button": "Aktualisieren",
+			"refreshing": "Wird aktualisiert...",
+			"mayTakeMoment": "Dies kann einen Moment dauern."
+		},
+		"card": {
+			"by": "von {{author}}",
+			"from": "von {{source}}",
+			"install": "Installieren",
+			"installProject": "Installieren",
+			"installGlobal": "Installieren (Global)",
+			"remove": "Entfernen",
+			"removeProject": "Entfernen",
+			"removeGlobal": "Entfernen (Global)",
+			"viewSource": "Anzeigen",
+			"viewOnSource": "Auf {{source}} anzeigen",
+			"noWorkspaceTooltip": "Öffne einen Arbeitsbereich, um Marketplace-Elemente zu installieren",
+			"installed": "Installiert",
+			"removeProjectTooltip": "Aus aktuellem Projekt entfernen",
+			"removeGlobalTooltip": "Aus globaler Konfiguration entfernen",
+			"actionsMenuLabel": "Weitere Aktionen"
+		}
+	},
+	"install": {
+		"title": "{{name}} installieren",
+		"titleMode": "{{name}} Modus installieren",
+		"titleMcp": "{{name}} MCP installieren",
+		"scope": "Installationsbereich",
+		"project": "Projekt (aktueller Arbeitsbereich)",
+		"global": "Global (alle Arbeitsbereiche)",
+		"method": "Installationsmethode",
+		"configuration": "Konfiguration",
+		"configurationDescription": "Konfiguriere die für diesen MCP-Server erforderlichen Parameter",
+		"button": "Installieren",
+		"successTitle": "{{name}} installiert",
+		"successDescription": "Installation erfolgreich abgeschlossen",
+		"installed": "Erfolgreich installiert!",
+		"whatNextMcp": "Du kannst diesen MCP-Server jetzt konfigurieren und verwenden. Klicke auf das MCP-Symbol in der Seitenleiste, um die Tabs zu wechseln.",
+		"whatNextMode": "Du kannst diesen Modus jetzt verwenden. Klicke auf das Modi-Symbol in der Seitenleiste, um die Tabs zu wechseln.",
+		"done": "Fertig",
+		"goToMcp": "Zum MCP-Tab gehen",
+		"goToModes": "Zum Modi-Tab gehen",
+		"moreInfoMcp": "{{name}} MCP-Dokumentation anzeigen",
+		"validationRequired": "Bitte gib einen Wert für {{paramName}} an",
+		"prerequisites": "Voraussetzungen"
+	},
+	"sources": {
+		"title": "Marketplace-Quellen konfigurieren",
+		"description": "Füge Git-Repositories hinzu, die Marketplace-Elemente enthalten. Diese Repositories werden beim Durchsuchen des Marketplace abgerufen.",
+		"add": {
+			"title": "Neue Quelle hinzufügen",
+			"urlPlaceholder": "Git-Repository-URL (z.B. https://github.com/username/repo)",
+			"urlFormats": "Unterstützte Formate: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git) oder Git-Protokoll (git://github.com/username/repo.git)",
+			"namePlaceholder": "Anzeigename (max. 20 Zeichen)",
+			"button": "Quelle hinzufügen"
+		},
+		"current": {
+			"title": "Aktuelle Quellen",
+			"empty": "Keine Quellen konfiguriert. Füge eine Quelle hinzu, um zu beginnen.",
+			"refresh": "Diese Quelle aktualisieren",
+			"remove": "Quelle entfernen"
+		},
+		"errors": {
+			"emptyUrl": "URL darf nicht leer sein",
+			"invalidUrl": "Ungültiges URL-Format",
+			"nonVisibleChars": "URL enthält nicht sichtbare Zeichen außer Leerzeichen",
+			"invalidGitUrl": "URL muss eine gültige Git-Repository-URL sein (z.B. https://github.com/username/repo)",
+			"duplicateUrl": "Diese URL ist bereits in der Liste (Groß-/Kleinschreibung und Leerzeichen werden ignoriert)",
+			"nameTooLong": "Name muss 20 Zeichen oder weniger haben",
+			"nonVisibleCharsName": "Name enthält nicht sichtbare Zeichen außer Leerzeichen",
+			"duplicateName": "Dieser Name wird bereits verwendet (Groß-/Kleinschreibung und Leerzeichen werden ignoriert)",
+			"emojiName": "Emoji-Zeichen können Anzeigefehler verursachen",
+			"maxSources": "Maximal {{max}} Quellen erlaubt"
+		}
+	}
+}

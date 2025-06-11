@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "모드",
+		"mcps": "MCP 서버",
+		"match": "일치"
+	},
+	"item-card": {
+		"type-mode": "모드",
+		"type-mcp": "MCP 서버",
+		"type-other": "기타",
+		"by-author": "{{author}} 작성",
+		"authors-profile": "작성자 프로필",
+		"remove-tag-filter": "태그 필터 제거: {{tag}}",
+		"filter-by-tag": "태그로 필터링: {{tag}}",
+		"component-details": "컴포넌트 세부사항",
+		"view": "보기",
+		"source": "소스"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "마켓플레이스 검색..."
+		},
+		"type": {
+			"label": "유형",
+			"all": "모든 유형",
+			"mode": "모드",
+			"mcpServer": "MCP 서버"
+		},
+		"sort": {
+			"label": "정렬 기준",
+			"name": "이름",
+			"lastUpdated": "마지막 업데이트"
+		},
+		"tags": {
+			"label": "태그",
+			"clear": "태그 지우기",
+			"placeholder": "태그 검색...",
+			"noResults": "태그를 찾을 수 없습니다.",
+			"selected": "선택된 태그 중 하나를 가진 항목 표시"
+		},
+		"title": "마켓플레이스"
+	},
+	"done": "완료",
+	"tabs": {
+		"installed": "설치됨",
+		"browse": "찾아보기",
+		"settings": "설정"
+	},
+	"items": {
+		"empty": {
+			"noItems": "마켓플레이스 항목을 찾을 수 없습니다.",
+			"emptyHint": "필터나 검색어를 조정해 보세요"
+		}
+	},
+	"installation": {
+		"installing": "항목 설치 중: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" 설치 완료",
+		"installError": "\"{{itemName}}\" 설치 실패: {{errorMessage}}",
+		"removing": "항목 제거 중: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" 제거 완료",
+		"removeError": "\"{{itemName}}\" 제거 실패: {{errorMessage}}"
+	}
+}

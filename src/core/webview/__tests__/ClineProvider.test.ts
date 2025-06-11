@@ -146,6 +146,9 @@ jest.mock("vscode", () => ({
 		QuickFix: { value: "quickfix" },
 		RefactorRewrite: { value: "refactor.rewrite" },
 	},
+	commands: {
+		executeCommand: jest.fn().mockResolvedValue(undefined),
+	},
 	window: {
 		showInformationMessage: jest.fn(),
 		showErrorMessage: jest.fn(),

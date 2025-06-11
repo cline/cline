@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "Evet",
+		"no": "Hayır",
+		"cancel": "İptal",
+		"remove": "Kaldır",
+		"keep": "Tut"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

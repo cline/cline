@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Установлено",
+		"settings": "Настройки",
+		"browse": "Обзор"
+	},
+	"done": "Готово",
+	"refresh": "Обновить",
+	"filters": {
+		"search": {
+			"placeholder": "Поиск элементов marketplace...",
+			"placeholderMcp": "Поиск MCPs...",
+			"placeholderMode": "Поиск режимов..."
+		},
+		"type": {
+			"label": "Фильтр по типу:",
+			"all": "Все типы",
+			"mode": "Режим",
+			"mcpServer": "MCP сервер"
+		},
+		"sort": {
+			"label": "Сортировать по:",
+			"name": "Название",
+			"author": "Автор",
+			"lastUpdated": "Последнее обновление"
+		},
+		"tags": {
+			"label": "Фильтр по тегам:",
+			"clear": "Очистить теги",
+			"placeholder": "Введите для поиска и выбора тегов...",
+			"noResults": "Подходящие теги не найдены",
+			"selected": "Показаны элементы с любым из выбранных тегов",
+			"clickToFilter": "Нажмите на теги для фильтрации элементов"
+		},
+		"none": "Нет"
+	},
+	"type-group": {
+		"modes": "Режимы",
+		"mcps": "MCP серверы"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Элементы marketplace не найдены",
+			"withFilters": "Попробуйте настроить фильтры",
+			"noSources": "Попробуйте добавить источник во вкладке Источники",
+			"adjustFilters": "Попробуйте настроить фильтры или поисковые запросы",
+			"clearAllFilters": "Очистить все фильтры"
+		},
+		"count": "Найдено {{count}} элементов",
+		"components": "{{count}} компонентов",
+		"matched": "{{count}} совпадений",
+		"refresh": {
+			"button": "Обновить",
+			"refreshing": "Обновление...",
+			"mayTakeMoment": "Это может занять некоторое время."
+		},
+		"card": {
+			"by": "от {{author}}",
+			"from": "из {{source}}",
+			"install": "Установить",
+			"installProject": "Установить",
+			"installGlobal": "Установить (Глобально)",
+			"remove": "Удалить",
+			"removeProject": "Удалить",
+			"removeGlobal": "Удалить (Глобально)",
+			"viewSource": "Просмотр",
+			"viewOnSource": "Просмотр на {{source}}",
+			"noWorkspaceTooltip": "Откройте рабочую область для установки элементов marketplace",
+			"installed": "Установлено",
+			"removeProjectTooltip": "Удалить из текущего проекта",
+			"removeGlobalTooltip": "Удалить из глобальной конфигурации",
+			"actionsMenuLabel": "Дополнительные действия"
+		}
+	},
+	"install": {
+		"title": "Установить {{name}}",
+		"titleMode": "Установить режим {{name}}",
+		"titleMcp": "Установить MCP {{name}}",
+		"scope": "Область установки",
+		"project": "Проект (текущая рабочая область)",
+		"global": "Глобально (все рабочие области)",
+		"method": "Метод установки",
+		"configuration": "Конфигурация",
+		"configurationDescription": "Настройте параметры, необходимые для этого MCP сервера",
+		"button": "Установить",
+		"successTitle": "{{name}} установлен",
+		"successDescription": "Установка успешно завершена",
+		"installed": "Успешно установлено!",
+		"whatNextMcp": "Теперь вы можете настроить и использовать этот MCP сервер. Нажмите на иконку MCP в боковой панели для переключения вкладок.",
+		"whatNextMode": "Теперь вы можете использовать этот режим. Нажмите на иконку Режимы в боковой панели для переключения вкладок.",
+		"done": "Готово",
+		"goToMcp": "Перейти во вкладку MCP",
+		"goToModes": "Перейти во вкладку Режимы",
+		"moreInfoMcp": "Просмотреть документацию MCP {{name}}",
+		"validationRequired": "Пожалуйста, укажите значение для {{paramName}}",
+		"prerequisites": "Предварительные требования"
+	},
+	"sources": {
+		"title": "Настроить источники marketplace",
+		"description": "Добавьте Git репозитории, содержащие элементы marketplace. Эти репозитории будут загружены при просмотре marketplace.",
+		"add": {
+			"title": "Добавить новый источник",
+			"urlPlaceholder": "URL Git репозитория (например, https://github.com/username/repo)",
+			"urlFormats": "Поддерживаемые форматы: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), или Git протокол (git://github.com/username/repo.git)",
+			"namePlaceholder": "Отображаемое имя (макс. 20 символов)",
+			"button": "Добавить источник"
+		},
+		"current": {
+			"title": "Текущие источники",
+			"empty": "Источники не настроены. Добавьте источник для начала работы.",
+			"refresh": "Обновить этот источник",
+			"remove": "Удалить источник"
+		},
+		"errors": {
+			"emptyUrl": "URL не может быть пустым",
+			"invalidUrl": "Неверный формат URL",
+			"nonVisibleChars": "URL содержит невидимые символы кроме пробелов",
+			"invalidGitUrl": "URL должен быть действительным URL Git репозитория (например, https://github.com/username/repo)",
+			"duplicateUrl": "Этот URL уже есть в списке (сравнение без учета регистра и пробелов)",
+			"nameTooLong": "Имя должно содержать 20 символов или меньше",
+			"nonVisibleCharsName": "Имя содержит невидимые символы кроме пробелов",
+			"duplicateName": "Это имя уже используется (сравнение без учета регистра и пробелов)",
+			"emojiName": "Символы эмодзи могут вызвать проблемы с отображением",
+			"maxSources": "Максимум {{max}} источников разрешено"
+		}
+	}
+}

@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "इंस्टॉल किया गया",
+		"settings": "सेटिंग्स",
+		"browse": "ब्राउज़ करें"
+	},
+	"done": "पूर्ण",
+	"refresh": "रिफ्रेश करें",
+	"filters": {
+		"search": {
+			"placeholder": "Marketplace आइटम खोजें...",
+			"placeholderMcp": "MCP खोजें...",
+			"placeholderMode": "मोड खोजें..."
+		},
+		"type": {
+			"label": "प्रकार के अनुसार फ़िल्टर करें:",
+			"all": "सभी प्रकार",
+			"mode": "मोड",
+			"mcpServer": "MCP सर्वर"
+		},
+		"sort": {
+			"label": "इसके अनुसार क्रमबद्ध करें:",
+			"name": "नाम",
+			"author": "लेखक",
+			"lastUpdated": "अंतिम अपडेट"
+		},
+		"tags": {
+			"label": "टैग के अनुसार फ़िल्टर करें:",
+			"clear": "टैग साफ़ करें",
+			"placeholder": "टैग खोजने और चुनने के लिए टाइप करें...",
+			"noResults": "कोई मिलान टैग नहीं मिला",
+			"selected": "चयनित टैग में से किसी एक के साथ आइटम दिखाएं",
+			"clickToFilter": "आइटम फ़िल्टर करने के लिए टैग पर क्लिक करें"
+		},
+		"none": "कोई नहीं"
+	},
+	"type-group": {
+		"modes": "मोड",
+		"mcps": "MCP सर्वर"
+	},
+	"items": {
+		"empty": {
+			"noItems": "कोई Marketplace आइटम नहीं मिला",
+			"withFilters": "अपने फ़िल्टर समायोजित करने का प्रयास करें",
+			"noSources": "स्रोत टैब में एक स्रोत जोड़ने का प्रयास करें",
+			"adjustFilters": "अपने फ़िल्टर या खोज शब्दों को समायोजित करने का प्रयास करें",
+			"clearAllFilters": "सभी फ़िल्टर साफ़ करें"
+		},
+		"count": "{{count}} आइटम मिले",
+		"components": "{{count}} घटक",
+		"matched": "{{count}} मिले",
+		"refresh": {
+			"button": "रिफ्रेश करें",
+			"refreshing": "रिफ्रेश हो रहा है...",
+			"mayTakeMoment": "इसमें कुछ समय लग सकता है।"
+		},
+		"card": {
+			"by": "{{author}} द्वारा",
+			"from": "{{source}} से",
+			"install": "इंस्टॉल करें",
+			"installProject": "इंस्टॉल करें",
+			"installGlobal": "इंस्टॉल करें (ग्लोबल)",
+			"remove": "हटाएं",
+			"removeProject": "हटाएं",
+			"removeGlobal": "हटाएं (ग्लोबल)",
+			"viewSource": "देखें",
+			"viewOnSource": "{{source}} पर देखें",
+			"noWorkspaceTooltip": "Marketplace आइटम इंस्टॉल करने के लिए एक वर्कस्पेस खोलें",
+			"installed": "इंस्टॉल किया गया",
+			"removeProjectTooltip": "वर्तमान प्रोजेक्ट से हटाएं",
+			"removeGlobalTooltip": "ग्लोबल कॉन्फ़िगरेशन से हटाएं",
+			"actionsMenuLabel": "अधिक क्रियाएं"
+		}
+	},
+	"install": {
+		"title": "{{name}} इंस्टॉल करें",
+		"titleMode": "{{name}} मोड इंस्टॉल करें",
+		"titleMcp": "{{name}} MCP इंस्टॉल करें",
+		"scope": "इंस्टॉलेशन स्कोप",
+		"project": "प्रोजेक्ट (वर्तमान वर्कस्पेस)",
+		"global": "ग्लोबल (सभी वर्कस्पेस)",
+		"method": "इंस्टॉलेशन विधि",
+		"configuration": "कॉन्फ़िगरेशन",
+		"configurationDescription": "इस MCP सर्वर के लिए आवश्यक पैरामीटर कॉन्फ़िगर करें",
+		"button": "इंस्टॉल करें",
+		"successTitle": "{{name}} इंस्टॉल किया गया",
+		"successDescription": "इंस्टॉलेशन सफलतापूर्वक पूर्ण",
+		"installed": "सफलतापूर्वक इंस्टॉल किया गया!",
+		"whatNextMcp": "अब आप इस MCP सर्वर को कॉन्फ़िगर और उपयोग कर सकते हैं। टैब स्विच करने के लिए साइडबार में MCP आइकन पर क्लिक करें।",
+		"whatNextMode": "अब आप इस मोड का उपयोग कर सकते हैं। टैब स्विच करने के लिए साइडबार में मोड आइकन पर क्लिक करें।",
+		"done": "पूर्ण",
+		"goToMcp": "MCP टैब पर जाएं",
+		"goToModes": "मोड टैब पर जाएं",
+		"moreInfoMcp": "{{name}} MCP दस्तावेज़ देखें",
+		"validationRequired": "कृपया {{paramName}} के लिए एक मान प्रदान करें",
+		"prerequisites": "आवश्यकताएं"
+	},
+	"sources": {
+		"title": "Marketplace स्रोत कॉन्फ़िगर करें",
+		"description": "Git रिपॉजिटरी जोड़ें जिनमें Marketplace आइटम हैं। Marketplace ब्राउज़ करते समय इन रिपॉजिटरी को प्राप्त किया जाएगा।",
+		"add": {
+			"title": "नया स्रोत जोड़ें",
+			"urlPlaceholder": "Git रिपॉजिटरी URL (जैसे https://github.com/username/repo)",
+			"urlFormats": "समर्थित प्रारूप: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git) या Git प्रोटोकॉल (git://github.com/username/repo.git)",
+			"namePlaceholder": "प्रदर्शन नाम (अधिकतम 20 वर्ण)",
+			"button": "स्रोत जोड़ें"
+		},
+		"current": {
+			"title": "वर्तमान स्रोत",
+			"empty": "कोई स्रोत कॉन्फ़िगर नहीं किया गया। शुरू करने के लिए एक स्रोत जोड़ें।",
+			"refresh": "इस स्रोत को रिफ्रेश करें",
+			"remove": "स्रोत हटाएं"
+		},
+		"errors": {
+			"emptyUrl": "URL खाली नहीं हो सकता",
+			"invalidUrl": "अमान्य URL प्रारूप",
+			"nonVisibleChars": "URL में स्पेस के अलावा अदृश्य वर्ण हैं",
+			"invalidGitUrl": "URL एक वैध Git रिपॉजिटरी URL होना चाहिए (जैसे https://github.com/username/repo)",
+			"duplicateUrl": "यह URL पहले से सूची में है (केस और स्पेस को नजरअंदाज किया गया)",
+			"nameTooLong": "नाम 20 वर्ण या उससे कम होना चाहिए",
+			"nonVisibleCharsName": "नाम में स्पेस के अलावा अदृश्य वर्ण हैं",
+			"duplicateName": "यह नाम पहले से उपयोग में है (केस और स्पेस को नजरअंदाज किया गया)",
+			"emojiName": "इमोजी वर्ण प्रदर्शन समस्याएं पैदा कर सकते हैं",
+			"maxSources": "अधिकतम {{max}} स्रोतों की अनुमति है"
+		}
+	}
+}

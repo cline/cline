@@ -493,6 +493,10 @@
 			"name": "Bật đọc tệp đồng thời",
 			"description": "Khi bật, Roo có thể đọc nhiều tệp trong một yêu cầu duy nhất. Khi tắt, Roo phải đọc từng tệp một. Việc tắt có thể hữu ích khi làm việc với các mô hình ít khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn quyền truy cập tệp."
 		},
+		"MARKETPLACE": {
+			"name": "Bật Marketplace",
+			"description": "Khi được bật, bạn có thể cài đặt MCP và chế độ tùy chỉnh từ Marketplace."
+		},
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Tắt thực thi lệnh trong attempt_completion",
 			"description": "Khi được bật, công cụ attempt_completion sẽ không thực thi lệnh. Đây là một tính năng thử nghiệm để chuẩn bị cho việc ngừng hỗ trợ thực thi lệnh khi hoàn thành tác vụ trong tương lai."

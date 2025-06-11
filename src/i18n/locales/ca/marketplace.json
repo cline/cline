@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Modes",
+		"mcps": "Servidors MCP",
+		"match": "coincidència"
+	},
+	"item-card": {
+		"type-mode": "Mode",
+		"type-mcp": "Servidor MCP",
+		"type-other": "Altre",
+		"by-author": "per {{author}}",
+		"authors-profile": "Perfil de l'autor",
+		"remove-tag-filter": "Eliminar filtre d'etiqueta: {{tag}}",
+		"filter-by-tag": "Filtrar per etiqueta: {{tag}}",
+		"component-details": "Detalls del component",
+		"view": "Veure",
+		"source": "Font"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Cercar al marketplace..."
+		},
+		"type": {
+			"label": "Tipus",
+			"all": "Tots els tipus",
+			"mode": "Mode",
+			"mcpServer": "Servidor MCP"
+		},
+		"sort": {
+			"label": "Ordenar per",
+			"name": "Nom",
+			"lastUpdated": "Última actualització"
+		},
+		"tags": {
+			"label": "Etiquetes",
+			"clear": "Netejar etiquetes",
+			"placeholder": "Cercar etiquetes...",
+			"noResults": "No s'han trobat etiquetes.",
+			"selected": "Mostrant elements amb qualsevol de les etiquetes seleccionades"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Fet",
+	"tabs": {
+		"installed": "Instal·lat",
+		"browse": "Navegar",
+		"settings": "Configuració"
+	},
+	"items": {
+		"empty": {
+			"noItems": "No s'han trobat elements del marketplace.",
+			"emptyHint": "Prova d'ajustar els filtres o termes de cerca"
+		}
+	},
+	"installation": {
+		"installing": "Instal·lant element: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" instal·lat correctament",
+		"installError": "Error en instal·lar \"{{itemName}}\": {{errorMessage}}",
+		"removing": "Eliminant element: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" eliminat correctament",
+		"removeError": "Error en eliminar \"{{itemName}}\": {{errorMessage}}"
+	}
+}

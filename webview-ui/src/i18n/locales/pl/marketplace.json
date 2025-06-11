@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Zainstalowane",
+		"settings": "Ustawienia",
+		"browse": "Przeglądaj"
+	},
+	"done": "Gotowe",
+	"refresh": "Odśwież",
+	"filters": {
+		"search": {
+			"placeholder": "Szukaj elementów marketplace...",
+			"placeholderMcp": "Szukaj MCPs...",
+			"placeholderMode": "Szukaj trybów..."
+		},
+		"type": {
+			"label": "Filtruj według typu:",
+			"all": "Wszystkie typy",
+			"mode": "Tryb",
+			"mcpServer": "Serwer MCP"
+		},
+		"sort": {
+			"label": "Sortuj według:",
+			"name": "Nazwa",
+			"author": "Autor",
+			"lastUpdated": "Ostatnia aktualizacja"
+		},
+		"tags": {
+			"label": "Filtruj według tagów:",
+			"clear": "Wyczyść tagi",
+			"placeholder": "Wpisz, aby wyszukać i wybrać tagi...",
+			"noResults": "Nie znaleziono pasujących tagów",
+			"selected": "Pokazywanie elementów z dowolnym z wybranych tagów",
+			"clickToFilter": "Kliknij tagi, aby filtrować elementy"
+		},
+		"none": "Brak"
+	},
+	"type-group": {
+		"modes": "Tryby",
+		"mcps": "Serwery MCP"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Nie znaleziono elementów marketplace",
+			"withFilters": "Spróbuj dostosować swoje filtry",
+			"noSources": "Spróbuj dodać źródło w zakładce Źródła",
+			"adjustFilters": "Spróbuj dostosować swoje filtry lub terminy wyszukiwania",
+			"clearAllFilters": "Wyczyść wszystkie filtry"
+		},
+		"count": "Znaleziono {{count}} elementów",
+		"components": "{{count}} komponentów",
+		"matched": "{{count}} dopasowanych",
+		"refresh": {
+			"button": "Odśwież",
+			"refreshing": "Odświeżanie...",
+			"mayTakeMoment": "To może chwilę potrwać."
+		},
+		"card": {
+			"by": "przez {{author}}",
+			"from": "z {{source}}",
+			"install": "Zainstaluj",
+			"installProject": "Zainstaluj",
+			"installGlobal": "Zainstaluj (Globalnie)",
+			"remove": "Usuń",
+			"removeProject": "Usuń",
+			"removeGlobal": "Usuń (Globalnie)",
+			"viewSource": "Zobacz",
+			"viewOnSource": "Zobacz na {{source}}",
+			"noWorkspaceTooltip": "Otwórz obszar roboczy, aby zainstalować elementy marketplace",
+			"installed": "Zainstalowane",
+			"removeProjectTooltip": "Usuń z bieżącego projektu",
+			"removeGlobalTooltip": "Usuń z konfiguracji globalnej",
+			"actionsMenuLabel": "Więcej akcji"
+		}
+	},
+	"install": {
+		"title": "Zainstaluj {{name}}",
+		"titleMode": "Zainstaluj tryb {{name}}",
+		"titleMcp": "Zainstaluj MCP {{name}}",
+		"scope": "Zakres instalacji",
+		"project": "Projekt (bieżący obszar roboczy)",
+		"global": "Globalnie (wszystkie obszary robocze)",
+		"method": "Metoda instalacji",
+		"configuration": "Konfiguracja",
+		"configurationDescription": "Skonfiguruj parametry wymagane dla tego serwera MCP",
+		"button": "Zainstaluj",
+		"successTitle": "{{name}} zainstalowane",
+		"successDescription": "Instalacja zakończona pomyślnie",
+		"installed": "Zainstalowano pomyślnie!",
+		"whatNextMcp": "Możesz teraz skonfigurować i używać tego serwera MCP. Kliknij ikonę MCP na pasku bocznym, aby przełączyć zakładki.",
+		"whatNextMode": "Możesz teraz używać tego trybu. Kliknij ikonę Tryby na pasku bocznym, aby przełączyć zakładki.",
+		"done": "Gotowe",
+		"goToMcp": "Przejdź do zakładki MCP",
+		"goToModes": "Przejdź do zakładki Tryby",
+		"moreInfoMcp": "Zobacz dokumentację MCP {{name}}",
+		"validationRequired": "Podaj wartość dla {{paramName}}",
+		"prerequisites": "Wymagania wstępne"
+	},
+	"sources": {
+		"title": "Konfiguruj źródła marketplace",
+		"description": "Dodaj repozytoria Git zawierające elementy marketplace. Te repozytoria będą pobierane podczas przeglądania marketplace.",
+		"add": {
+			"title": "Dodaj nowe źródło",
+			"urlPlaceholder": "URL repozytorium Git (np. https://github.com/username/repo)",
+			"urlFormats": "Obsługiwane formaty: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git) lub protokół Git (git://github.com/username/repo.git)",
+			"namePlaceholder": "Nazwa wyświetlana (maks. 20 znaków)",
+			"button": "Dodaj źródło"
+		},
+		"current": {
+			"title": "Bieżące źródła",
+			"empty": "Brak skonfigurowanych źródeł. Dodaj źródło, aby rozpocząć.",
+			"refresh": "Odśwież to źródło",
+			"remove": "Usuń źródło"
+		},
+		"errors": {
+			"emptyUrl": "URL nie może być pusty",
+			"invalidUrl": "Nieprawidłowy format URL",
+			"nonVisibleChars": "URL zawiera niewidoczne znaki inne niż spacje",
+			"invalidGitUrl": "URL musi być prawidłowym URL repozytorium Git (np. https://github.com/username/repo)",
+			"duplicateUrl": "Ten URL jest już na liście (dopasowanie bez uwzględniania wielkości liter i spacji)",
+			"nameTooLong": "Nazwa musi mieć 20 znaków lub mniej",
+			"nonVisibleCharsName": "Nazwa zawiera niewidoczne znaki inne niż spacje",
+			"duplicateName": "Ta nazwa jest już używana (dopasowanie bez uwzględniania wielkości liter i spacji)",
+			"emojiName": "Znaki emoji mogą powodować problemy z wyświetlaniem",
+			"maxSources": "Maksymalnie {{max}} źródeł dozwolonych"
+		}
+	}
+}

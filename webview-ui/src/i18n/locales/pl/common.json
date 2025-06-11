@@ -4,6 +4,13 @@
 		"million_suffix": "m",
 		"billion_suffix": "b"
 	},
+	"answers": {
+		"yes": "Tak",
+		"no": "Nie",
+		"cancel": "Anuluj",
+		"remove": "Usuń",
+		"keep": "Zachowaj"
+	},
 	"ui": {
 		"search_placeholder": "Szukaj..."
 	},

@@ -1,4 +1,11 @@
 {
+	"answers": {
+		"yes": "はい",
+		"no": "いいえ",
+		"cancel": "キャンセル",
+		"remove": "削除",
+		"keep": "保持"
+	},
 	"number_format": {
 		"thousand_suffix": "k",
 		"million_suffix": "m",

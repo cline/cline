@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Modos",
+		"mcps": "Servidores MCP",
+		"match": "coincidencia"
+	},
+	"item-card": {
+		"type-mode": "Modo",
+		"type-mcp": "Servidor MCP",
+		"type-other": "Otro",
+		"by-author": "por {{author}}",
+		"authors-profile": "Perfil del autor",
+		"remove-tag-filter": "Eliminar filtro de etiqueta: {{tag}}",
+		"filter-by-tag": "Filtrar por etiqueta: {{tag}}",
+		"component-details": "Detalles del componente",
+		"view": "Ver",
+		"source": "Fuente"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Buscar en marketplace..."
+		},
+		"type": {
+			"label": "Tipo",
+			"all": "Todos los tipos",
+			"mode": "Modo",
+			"mcpServer": "Servidor MCP"
+		},
+		"sort": {
+			"label": "Ordenar por",
+			"name": "Nombre",
+			"lastUpdated": "Última actualización"
+		},
+		"tags": {
+			"label": "Etiquetas",
+			"clear": "Limpiar etiquetas",
+			"placeholder": "Buscar etiquetas...",
+			"noResults": "No se encontraron etiquetas.",
+			"selected": "Mostrando elementos con cualquiera de las etiquetas seleccionadas"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Hecho",
+	"tabs": {
+		"installed": "Instalado",
+		"browse": "Explorar",
+		"settings": "Configuración"
+	},
+	"items": {
+		"empty": {
+			"noItems": "No se encontraron elementos del marketplace.",
+			"emptyHint": "Intenta ajustar tus filtros o términos de búsqueda"
+		}
+	},
+	"installation": {
+		"installing": "Instalando elemento: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" instalado correctamente",
+		"installError": "Error al instalar \"{{itemName}}\": {{errorMessage}}",
+		"removing": "Eliminando elemento: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" eliminado correctamente",
+		"removeError": "Error al eliminar \"{{itemName}}\": {{errorMessage}}"
+	}
+}

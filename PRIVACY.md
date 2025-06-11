@@ -1,6 +1,6 @@
 # Roo Code Privacy Policy
 
-**Last Updated: March 7th, 2025**
+**Last Updated: June 10th, 2025**
 
 Roo Code respects your privacy and is committed to transparency about how we handle your data. Below is a simple breakdown of where key pieces of data go—and, importantly, where they don’t.
 
@@ -11,6 +11,7 @@ Roo Code respects your privacy and is committed to transparency about how we han
 - **Prompts & AI Requests**: When you use AI-powered features, your prompts and relevant project context are sent to your chosen AI model provider (e.g., OpenAI, Anthropic, OpenRouter) to generate responses. We do not store or process this data. These AI providers have their own privacy policies and may store data per their terms of service.
 - **API Keys & Credentials**: If you enter an API key (e.g., to connect an AI model), it is stored locally on your device and never sent to us or any third party, except the provider you have chosen.
 - **Telemetry (Usage Data)**: We only collect feature usage and error data if you explicitly opt-in. This telemetry is powered by PostHog and helps us understand feature usage to improve Roo Code. This includes your VS Code machine ID and feature usage patterns and exception reports. We do **not** collect personally identifiable information, your code, or AI prompts.
+- **Marketplace Requests**: When you browse or search the Marketplace for Model Configuration Profiles (MCPs) or Custom Modes, Roo Code makes a secure API call to Roo Code’s backend servers to retrieve listing information. These requests send only the query parameters (e.g., extension version, search term) necessary to fulfill the request and do not include your code, prompts, or personally identifiable information.
 
 ### **How We Use Your Data (If Collected)**
 

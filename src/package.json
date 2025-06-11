@@ -91,6 +91,11 @@
 				"icon": "$(history)"
 			},
 			{
+				"command": "roo-cline.marketplaceButtonClicked",
+				"title": "%command.marketplace.title%",
+				"icon": "$(extensions)"
+			},
+			{
 				"command": "roo-cline.popoutButtonClicked",
 				"title": "%command.openInEditor.title%",
 				"icon": "$(link-external)"
@@ -225,23 +230,28 @@
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.historyButtonClicked",
+					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@4",
-					"when": "view == roo-cline.SidebarProvider"
+					"when": "view == roo-cline.SidebarProvider && roo-cline.marketplaceEnabled"
 				},
 				{
-					"command": "roo-cline.popoutButtonClicked",
+					"command": "roo-cline.historyButtonClicked",
 					"group": "navigation@5",
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.accountButtonClicked",
+					"command": "roo-cline.popoutButtonClicked",
 					"group": "navigation@6",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.accountButtonClicked",
+					"group": "navigation@7",
 					"when": "view == roo-cline.SidebarProvider && config.roo-cline.rooCodeCloudEnabled"
 				},
 				{
 					"command": "roo-cline.settingsButtonClicked",
-					"group": "navigation@7",
+					"group": "navigation@8",
 					"when": "view == roo-cline.SidebarProvider"
 				}
 			],
@@ -262,12 +272,12 @@
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.historyButtonClicked",
+					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider && roo-cline.marketplaceEnabled"
 				},
 				{
-					"command": "roo-cline.popoutButtonClicked",
+					"command": "roo-cline.historyButtonClicked",
 					"group": "navigation@5",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},

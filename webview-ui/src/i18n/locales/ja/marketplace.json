@@ -1,0 +1,128 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "インストール済み",
+		"settings": "設定",
+		"browse": "参照"
+	},
+	"done": "完了",
+	"refresh": "更新",
+	"filters": {
+		"search": {
+			"placeholder": "Marketplaceアイテムを検索...",
+			"placeholderMcp": "MCPを検索...",
+			"placeholderMode": "モードを検索..."
+		},
+		"type": {
+			"label": "タイプでフィルター:",
+			"all": "すべてのタイプ",
+			"mode": "モード",
+			"mcpServer": "MCPサーバー"
+		},
+		"sort": {
+			"label": "並び順:",
+			"name": "名前",
+			"author": "作成者",
+			"lastUpdated": "最終更新"
+		},
+		"tags": {
+			"label": "タグでフィルター:",
+			"clear": "タグをクリア",
+			"placeholder": "タグを検索して選択するために入力...",
+			"noResults": "一致するタグが見つかりません",
+			"selected": "選択されたタグのいずれかを持つアイテムを表示",
+			"clickToFilter": "タグをクリックしてアイテムをフィルター"
+		},
+		"none": "なし"
+	},
+	"type-group": {
+		"modes": "モード",
+		"mcps": "MCPサーバー"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Marketplaceアイテムが見つかりません",
+			"withFilters": "フィルターを調整してみてください",
+			"noSources": "ソースタブでソースを追加してみてください",
+			"adjustFilters": "フィルターや検索語を調整してみてください",
+			"clearAllFilters": "すべてのフィルターをクリア"
+		},
+		"count": "{{count}}個のアイテムが見つかりました",
+		"components": "{{count}}個のコンポーネント",
+		"matched": "{{count}}個が一致",
+		"refresh": {
+			"button": "更新",
+			"refreshing": "更新中...",
+			"mayTakeMoment": "しばらく時間がかかる場合があります。"
+		},
+		"card": {
+			"by": "{{author}}による",
+			"from": "{{source}}から",
+			"install": "インストール",
+			"installProject": "インストール",
+			"installGlobal": "インストール（グローバル）",
+			"remove": "削除",
+			"removeProject": "削除",
+			"removeGlobal": "削除（グローバル）",
+			"viewSource": "表示",
+			"viewOnSource": "{{source}}で表示",
+			"noWorkspaceTooltip": "Marketplaceアイテムをインストールするにはワークスペースを開いてください",
+			"installed": "インストール済み",
+			"removeProjectTooltip": "現在のプロジェクトから削除",
+			"removeGlobalTooltip": "グローバル設定から削除",
+			"actionsMenuLabel": "その他のアクション"
+		}
+	},
+	"install": {
+		"title": "{{name}}をインストール",
+		"titleMode": "{{name}}モードをインストール",
+		"titleMcp": "{{name}} MCPをインストール",
+		"scope": "インストール範囲",
+		"project": "プロジェクト（現在のワークスペース）",
+		"global": "グローバル（すべてのワークスペース）",
+		"method": "インストール方法",
+		"configuration": "設定",
+		"configurationDescription": "このMCPサーバーに必要なパラメーターを設定",
+		"button": "インストール",
+		"successTitle": "{{name}}がインストールされました",
+		"successDescription": "インストールが正常に完了しました",
+		"installed": "正常にインストールされました！",
+		"whatNextMcp": "このMCPサーバーを設定して使用できるようになりました。サイドバーのMCPアイコンをクリックしてタブを切り替えてください。",
+		"whatNextMode": "このモードを使用できるようになりました。サイドバーのモードアイコンをクリックしてタブを切り替えてください。",
+		"done": "完了",
+		"goToMcp": "MCPタブに移動",
+		"goToModes": "モードタブに移動",
+		"moreInfoMcp": "{{name}} MCPドキュメントを表示",
+		"validationRequired": "{{paramName}}の値を入力してください",
+		"prerequisites": "前提条件"
+	},
+	"sources": {
+		"title": "Marketplaceソースを設定",
+		"description": "Marketplaceアイテムを含むGitリポジトリを追加します。Marketplaceを閲覧する際にこれらのリポジトリが取得されます。",
+		"add": {
+			"title": "新しいソースを追加",
+			"urlPlaceholder": "GitリポジトリURL（例：https://github.com/username/repo）",
+			"urlFormats": "サポートされている形式：HTTPS（https://github.com/username/repo）、SSH（git@github.com:username/repo.git）、またはGitプロトコル（git://github.com/username/repo.git）",
+			"namePlaceholder": "表示名（最大20文字）",
+			"button": "ソースを追加"
+		},
+		"current": {
+			"title": "現在のソース",
+			"empty": "ソースが設定されていません。開始するにはソースを追加してください。",
+			"refresh": "このソースを更新",
+			"remove": "ソースを削除"
+		},
+		"errors": {
+			"emptyUrl": "URLを空にすることはできません",
+			"invalidUrl": "無効なURL形式",
+			"nonVisibleChars": "URLにスペース以外の見えない文字が含まれています",
+			"invalidGitUrl": "URLは有効なGitリポジトリURLである必要があります（例：https://github.com/username/repo）",
+			"duplicateUrl": "このURLは既にリストにあります（大文字小文字とスペースは無視されます）",
+			"nameTooLong": "名前は20文字以下である必要があります",
+			"nonVisibleCharsName": "名前にスペース以外の見えない文字が含まれています",
+			"duplicateName": "この名前は既に使用されています（大文字小文字とスペースは無視されます）",
+			"emojiName": "絵文字文字は表示の問題を引き起こす可能性があります",
+			"maxSources": "最大{{max}}個のソースが許可されています"
+		}
+	}
+}

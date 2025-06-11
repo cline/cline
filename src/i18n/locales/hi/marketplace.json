@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "मोड्स",
+		"mcps": "MCP सर्वर",
+		"match": "मैच"
+	},
+	"item-card": {
+		"type-mode": "मोड",
+		"type-mcp": "MCP सर्वर",
+		"type-other": "अन्य",
+		"by-author": "{{author}} द्वारा",
+		"authors-profile": "लेखक की प्रोफ़ाइल",
+		"remove-tag-filter": "टैग फ़िल्टर हटाएं: {{tag}}",
+		"filter-by-tag": "टैग द्वारा फ़िल्टर करें: {{tag}}",
+		"component-details": "कंपोनेंट विवरण",
+		"view": "देखें",
+		"source": "स्रोत"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "मार्केटप्लेस खोजें..."
+		},
+		"type": {
+			"label": "प्रकार",
+			"all": "सभी प्रकार",
+			"mode": "मोड",
+			"mcpServer": "MCP सर्वर"
+		},
+		"sort": {
+			"label": "इसके द्वारा क्रमबद्ध करें",
+			"name": "नाम",
+			"lastUpdated": "अंतिम अपडेट"
+		},
+		"tags": {
+			"label": "टैग्स",
+			"clear": "टैग्स साफ़ करें",
+			"placeholder": "टैग्स खोजें...",
+			"noResults": "कोई टैग नहीं मिले।",
+			"selected": "चयनित टैग्स में से किसी भी के साथ आइटम दिखा रहे हैं"
+		},
+		"title": "मार्केटप्लेस"
+	},
+	"done": "हो गया",
+	"tabs": {
+		"installed": "इंस्टॉल किया गया",
+		"browse": "ब्राउज़ करें",
+		"settings": "सेटिंग्स"
+	},
+	"items": {
+		"empty": {
+			"noItems": "कोई मार्केटप्लेस आइटम नहीं मिले।",
+			"emptyHint": "अपने फ़िल्टर या खोज शब्दों को समायोजित करने का प्रयास करें"
+		}
+	},
+	"installation": {
+		"installing": "आइटम इंस्टॉल कर रहे हैं: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" सफलतापूर्वक इंस्टॉल हुआ",
+		"installError": "\"{{itemName}}\" इंस्टॉल करने में विफल: {{errorMessage}}",
+		"removing": "आइटम हटा रहे हैं: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" सफलतापूर्वक हटाया गया",
+		"removeError": "\"{{itemName}}\" हटाने में विफल: {{errorMessage}}"
+	}
+}

@@ -4,6 +4,13 @@
 		"million_suffix": "млн",
 		"billion_suffix": "млрд"
 	},
+	"answers": {
+		"yes": "Да",
+		"no": "Нет",
+		"cancel": "Отмена",
+		"remove": "Удалить",
+		"keep": "Оставить"
+	},
 	"ui": {
 		"search_placeholder": "Поиск..."
 	},
