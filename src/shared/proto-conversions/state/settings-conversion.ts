@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
 import { ChatSettings } from "@shared/ChatSettings"
 import {
 	ApiConfiguration as ProtoApiConfiguration,
@@ -122,7 +122,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 	// eslint-disable-next-line eslint-rules/no-protobuf-object-literals
 	const config: ApiConfiguration = {
 		// Core API fields
-		apiProvider: protoConfig.apiProvider as any,
+		apiProvider: protoConfig.apiProvider as ApiProvider,
 		apiModelId: protoConfig.apiModelId,
 		apiKey: protoConfig.apiKey,
 
@@ -158,7 +158,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected: protoConfig.awsBedrockCustomSelected,
-		awsBedrockCustomModelBaseId: protoConfig.awsBedrockCustomModelBaseId as any,
+		awsBedrockCustomModelBaseId: protoConfig.awsBedrockCustomModelBaseId as BedrockModelId | undefined,
 		awsAccessKey: protoConfig.awsAccessKey,
 		awsSecretKey: protoConfig.awsSecretKey,
 		awsSessionToken: protoConfig.awsSessionToken,
