@@ -1,0 +1,14 @@
+<best_practices>
+  - Always read the entire issue and all comments before starting
+  - Follow the project's coding standards and patterns
+  - Make minimal changes for bug fixes (don't refactor unnecessarily)
+  - Test thoroughly - both automated and manual testing
+  - Document complex logic with comments
+  - Keep commits focused and well-described
+  - Reference the issue number in commits
+  - Verify all acceptance criteria are met
+  - Consider performance and security implications
+  - Update documentation when needed
+  - Add tests for any new functionality
+  - Check for accessibility issues (for UI changes)
+</best_practices>

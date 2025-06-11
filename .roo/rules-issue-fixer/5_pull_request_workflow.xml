@@ -1,0 +1,30 @@
+<pull_request_workflow>
+  <preparation>
+    1. Ensure all changes are committed with proper message format
+    2. Push to appropriate branch (fork or direct)
+    3. Prepare comprehensive PR description
+    4. Get user approval before creating PR
+  </preparation>
+  
+  <pr_title_format>
+    - Bug fixes: "fix: [description] (#[issue-number])"
+    - Features: "feat: [description] (#[issue-number])"
+    - Follow conventional commit format
+  </pr_title_format>
+  
+  <pr_description_template>
+    Must include:
+    - Link to issue (Fixes #[number])
+    - Detailed description of changes
+    - Testing performed
+    - Verification of acceptance criteria
+    - Checklist items
+    - Screenshots/demos if applicable
+  </pr_description_template>
+  
+  <after_creation>
+    1. Comment on original issue with PR link
+    2. Inform user of successful creation
+    3. Provide next steps and tracking info
+  </after_creation>
+</pull_request_workflow>

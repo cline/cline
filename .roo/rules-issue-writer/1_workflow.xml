@@ -1,0 +1,258 @@
+<workflow>
+  <step number="1">
+    <name>Determine Issue Type</name>
+    <instructions>
+      Use ask_followup_question to determine if the user wants to create:
+      
+      <ask_followup_question>
+      <question>What type of issue would you like to create?</question>
+      <follow_up>
+      <suggest>Bug Report - Report a problem with existing functionality</suggest>
+      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="2">
+    <name>Gather Initial Information</name>
+    <instructions>
+      Based on the user's initial prompt or request, extract key information.
+      If the user hasn't provided enough detail, use ask_followup_question to gather
+      the required fields from the appropriate template.
+      
+      For Bug Reports, ensure you have:
+      - App version (ask user to check in VSCode extension panel if unknown)
+      - API provider being used
+      - Model being used
+      - Clear steps to reproduce
+      - What happened vs what was expected
+      - Any error messages or logs
+      
+      For Feature Requests, ensure you have:
+      - Specific problem description with impact
+      - Detailed proposed solution
+      - Clear acceptance criteria in Given/When/Then format
+      - Effort estimation with reasoning
+      
+      Use multiple ask_followup_question calls if needed to gather all information.
+      Be specific in your questions based on what's missing.
+    </instructions>
+  </step>
+
+  <step number="3">
+    <name>Search GitHub Discussions</name>
+    <instructions>
+      Search GitHub Discussions for related feature requests or bug reports:
+      
+      1. Use the GitHub web interface or API to search discussions in:
+         https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests
+      
+      2. Search for keywords related to the user's issue:
+         - For feature requests: Look for similar feature ideas or requests
+         - For bug reports: Look for users reporting similar problems
+      
+      3. Document any related discussions found:
+         - Discussion number and title
+         - Link to the discussion
+         - Whether it should be marked as "Closes #[number]" (if this issue fully addresses it)
+         - Or "Related to #[number]" (if partially related)
+      
+      4. If multiple related discussions exist, list them all for inclusion in the issue
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Explore Codebase for Context</name>
+    <instructions>
+      Use codebase_search FIRST to understand the relevant parts of the codebase:
+      
+      For Bug Reports:
+      - Search for the feature or functionality that's broken
+      - Find error handling code related to the issue
+      - Look for recent changes that might have caused the bug
+      
+      For Feature Requests:
+      - Search for existing similar functionality
+      - Identify files that would need modification
+      - Find related configuration or settings
+      - Look for potential integration points
+      
+      Example searches:
+      - "task execution parallel" for parallel task feature
+      - "button dark theme styling" for UI issues
+      - "error handling API response" for API-related bugs
+      
+      After codebase_search, use:
+      - list_code_definition_names on relevant directories
+      - read_file on specific files to understand implementation
+      - search_files for specific error messages or patterns
+      
+      Document all relevant findings including:
+      - File paths and line numbers
+      - Current implementation details
+      - Related code that might be affected
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Draft Complete Issue Content</name>
+    <instructions>
+      Create the complete issue body following the exact template structure.
+      
+      For Bug Reports, format as:
+      ```
+      ## App Version
+      [version from user]
+      
+      ## API Provider
+      [provider from dropdown list]
+      
+      ## Model Used
+      [exact model name]
+      
+      ## 🔁 Steps to Reproduce
+      
+      1. [First step with specific details]
+      2. [Second step with exact actions]
+      3. [Continue numbering all steps]
+      
+      Include:
+      - Exact button clicks or menu selections
+      - Specific input text or prompts used
+      - File names and paths involved
+      - Any settings or configuration
+      
+      ## 💥 Outcome Summary
+      
+      Expected: [what should have happened]
+      Actual: [what actually happened]
+      
+      ## 📄 Relevant Logs or Errors
+      
+      ```[language]
+      [paste any error messages or logs]
+      ```
+      
+      ## Technical Context (from codebase exploration)
+      
+      Based on my investigation:
+      - The issue appears to be in [file:line]
+      - Related code: [brief description with file references]
+      - Possible cause: [technical explanation]
+      ```
+      
+      For Feature Requests, format as:
+      ```
+      ## What specific problem does this solve?
+      
+      [Detailed problem description following the template guidelines]
+      
+      **Who is affected:** [user groups]
+      **When this happens:** [specific scenarios]
+      **Current behavior:** [what happens now]
+      **Expected behavior:** [what should happen]
+      **Impact:** [time wasted, errors, productivity loss]
+      
+      ## How should this be solved?
+      
+      [Detailed solution description]
+      
+      **What will change:**
+      - [Specific change 1]
+      - [Specific change 2]
+      
+      **User interaction:**
+      - [How users will use this feature]
+      - [What they'll see in the UI]
+      
+      ## Acceptance Criteria
+      
+      ```
+      Given [context]
+      When [action]
+      Then [result]
+      And [additional expectation]
+      But [what should not happen]
+      ```
+      
+      [Add multiple scenarios as needed]
+      
+      ## Estimated Effort and Complexity
+      
+      **Size:** [estimate]
+      **Reasoning:** [why this size]
+      **Main challenges:** [technical difficulties]
+      **Dependencies:** [what's needed]
+      
+      ## Technical Implementation Details (from codebase exploration)
+      
+      Based on my analysis:
+      - Key files to modify: [list with paths]
+      - Current architecture: [brief description]
+      - Integration points: [where this fits]
+      - Similar patterns in codebase: [examples]
+      
+      ## Technical Considerations
+      
+      [Any additional technical details]
+      
+      ## Trade-offs and Risks
+      
+      [Alternatives considered and potential issues]
+      
+      ## Related Discussions
+      
+      [If any related discussions were found, list them here]
+      - Closes #[discussion number] - [discussion title]
+      - Related to #[discussion number] - [discussion title]
+      ```
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Review and Confirm with User</name>
+    <instructions>
+      Present the complete drafted issue to the user for review:
+      
+      <ask_followup_question>
+      <question>I've prepared the following GitHub issue. Please review it carefully:
+
+      [Show the complete formatted issue content]
+
+      Would you like me to create this issue, or would you like to make any changes?</question>
+      <follow_up>
+      <suggest>Yes, create this issue in RooCodeInc/Roo-Code</suggest>
+      <suggest>Modify the problem description</suggest>
+      <suggest>Add more technical details</suggest>
+      <suggest>Change the title to: [let me specify]</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      If user requests changes, make them and show the updated version for confirmation.
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Create GitHub Issue</name>
+    <instructions>
+      Once user confirms, create the issue using the GitHub MCP tool:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>create_issue</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "title": "[Create a descriptive title based on the issue content]",
+        "body": "[The complete formatted issue body from step 4]",
+        "labels": [Use ["bug"] for bug reports or ["proposal", "enhancement"] for features]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      After creation, inform the user of the issue number and URL.
+    </instructions>
+  </step>
+</workflow>

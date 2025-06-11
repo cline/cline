@@ -1,0 +1,323 @@
+<github_mcp_tools_usage>
+  <overview>
+    The GitHub MCP server provides multiple tools for interacting with GitHub.
+    Here's when and how to use each tool in the issue creation workflow.
+    
+    Note: Issue body formatting should follow the templates defined in
+    <github_issue_templates><bug_report_template> and <github_issue_templates><feature_request_template>
+  </overview>
+
+  <pre_creation_tools>
+    <tool name="search_issues">
+      <when_to_use>
+        ALWAYS use this FIRST before creating any issue to check for duplicates.
+        Search for keywords from the user's problem description.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>search_issues</tool_name>
+        <arguments>
+        {
+          "q": "repo:RooCodeInc/Roo-Code dark theme button visibility",
+          "sort": "updated",
+          "order": "desc"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="list_issues">
+      <when_to_use>
+        Use to browse recent issues if search doesn't find specific matches.
+        Helpful for understanding issue patterns and formatting.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>list_issues</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "state": "all",
+          "labels": ["bug"],
+          "sort": "created",
+          "direction": "desc",
+          "perPage": 10
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="get_issue">
+      <when_to_use>
+        Use when you find a potentially related issue and need full details.
+        Check if the user's issue is already reported or related.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>get_issue</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "issue_number": 123
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="get_issue_comments">
+      <when_to_use>
+        Use on related issues to understand discussion context.
+        Helps avoid creating issues for already-discussed topics.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>get_issue_comments</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "issue_number": 123
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+  </pre_creation_tools>
+
+  <codebase_investigation_tools>
+    <tool name="list_commits">
+      <when_to_use>
+        For bug reports, check recent commits that might have introduced the issue.
+        Look for commits touching the affected files.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>list_commits</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "perPage": 20
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="get_commit">
+      <when_to_use>
+        When you identify a potentially problematic commit.
+        Get details about what changed.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>get_commit</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "sha": "abc123def456"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="search_code">
+      <when_to_use>
+        Use to find code patterns across the repository on GitHub.
+        Complements local codebase_search tool.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>search_code</tool_name>
+        <arguments>
+        {
+          "q": "repo:RooCodeInc/Roo-Code language:typescript dark theme button"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="list_pull_requests">
+      <when_to_use>
+        Check recent PRs that might be related to the issue.
+        Look for PRs that modified relevant code.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>list_pull_requests</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "state": "all",
+          "sort": "updated",
+          "direction": "desc",
+          "perPage": 10
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+  </codebase_investigation_tools>
+
+  <issue_creation_tool>
+    <tool name="create_issue">
+      <when_to_use>
+        Only use after:
+        1. Confirming no duplicates exist
+        2. Gathering all required information per <github_issue_templates><bug_report_template> or <github_issue_templates><feature_request_template>
+        3. Exploring codebase for context
+        4. Getting user confirmation
+      </when_to_use>
+      <bug_report_example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>create_issue</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "title": "[Descriptive title of the bug]",
+          "body": "[Format according to <github_issue_templates><bug_report_template> fields]",
+          "labels": ["bug"]
+        }
+        </arguments>
+        </use_mcp_tool>
+      </bug_report_example>
+      <feature_request_example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>create_issue</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "title": "[Descriptive title of the feature request]",
+          "body": "[Format according to <github_issue_templates><feature_request_template> fields]",
+          "labels": ["proposal", "enhancement"]
+        }
+        </arguments>
+        </use_mcp_tool>
+      </feature_request_example>
+    </tool>
+  </issue_creation_tool>
+
+  <post_creation_tools>
+    <tool name="add_issue_comment">
+      <when_to_use>
+        Use if user wants to add additional information after creation.
+        Also use to link related issues.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>add_issue_comment</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "issue_number": 456,
+          "body": "Related to #123 - both issues affect dark theme visibility"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+
+    <tool name="update_issue">
+      <when_to_use>
+        Use if user realizes they need to update the issue after creation.
+        Can update title, body, or state.
+      </when_to_use>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>update_issue</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "issue_number": 456,
+          "title": "[Updated title if needed]",
+          "body": "[Updated body if needed]"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+  </post_creation_tools>
+
+  <workflow_integration>
+    <step_1_integration>
+      After user selects issue type, immediately search for related issues:
+      1. Use search_issues with keywords from their description
+      2. Show any similar issues found
+      3. Ask if they want to continue or comment on existing issue
+    </step_1_integration>
+
+    <step_3_integration>
+      When searching GitHub Discussions:
+      1. Note that GitHub MCP tools don't currently support discussions API
+      2. Instruct user to manually search discussions at:
+         https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests
+      3. Ask user to provide any related discussion numbers they find
+      4. Include these in the "Related Discussions" section of the issue
+    </step_3_integration>
+
+    <step_4_integration>
+      During codebase exploration:
+      1. Use list_commits to find recent changes to affected files
+      2. Use search_code for additional code references
+      3. Check list_pull_requests for related PRs
+      4. Include findings in the technical context section
+    </step_4_integration>
+
+    <step_5_integration>
+      When creating the issue:
+      1. Format the issue body according to <github_issue_templates><bug_report_template> or <github_issue_templates><feature_request_template>
+      2. Use create_issue with complete formatted body
+      3. Capture the returned issue number
+      4. If related issues were found, use add_issue_comment to link them
+      5. Show user the created issue URL
+    </step_5_integration>
+  </workflow_integration>
+
+  <error_handling>
+    <duplicate_found>
+      If search_issues finds exact duplicate:
+      - Show the existing issue to user
+      - Ask if they want to add a comment instead
+      - Use add_issue_comment if they agree
+    </duplicate_found>
+
+    <creation_failed>
+      If create_issue fails:
+      - Check error message (permissions, rate limit, etc.)
+      - Save the drafted issue content
+      - Provide user with the content to create manually
+    </creation_failed>
+
+    <api_limits>
+      Be aware of GitHub API rate limits:
+      - Authenticated requests: 5000/hour
+      - Search API: 30 requests/minute
+      - Use searches efficiently
+    </api_limits>
+  </error_handling>
+</github_mcp_tools_usage>

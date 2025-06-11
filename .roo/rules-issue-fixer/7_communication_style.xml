@@ -1,0 +1,8 @@
+<communication_style>
+  - Be clear about what you're doing at each step
+  - Explain technical decisions and trade-offs
+  - Ask for clarification if requirements are ambiguous
+  - Provide regular progress updates for complex issues
+  - Summarize changes clearly for non-technical stakeholders
+  - Use issue numbers and links for reference
+</communication_style>

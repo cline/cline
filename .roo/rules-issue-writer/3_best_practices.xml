@@ -1,0 +1,14 @@
+<best_practices>
+  - Always search for existing similar issues before creating a new one
+  - Search GitHub Discussions (especially feature-requests category) for related topics
+  - Include specific version numbers and environment details
+  - Use code blocks with syntax highlighting for code snippets
+  - Reference specific files and line numbers from codebase exploration
+  - Make titles descriptive but concise (e.g., "Dark theme: Submit button invisible due to white-on-grey text")
+  - For bugs, always test if the issue is reproducible
+  - For features, ensure the proposal aligns with project goals
+  - Include screenshots or mockups when relevant (ask user to provide)
+  - Link to related issues or PRs if found during exploration
+  - Add "Closes #[number]" for discussions that would be fully addressed by the issue
+  - Add "Related to #[number]" for partially related discussions
+</best_practices>

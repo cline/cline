@@ -1,0 +1,492 @@
+<workflow>
+  <step number="1">
+    <name>Determine Workflow Type and Retrieve Context</name>
+    <instructions>
+      First, determine what type of work is needed. The user will provide either:
+      - An issue number/URL (e.g., "#123" or GitHub issue URL) - for new implementation
+      - A PR number/URL (e.g., "#456" or GitHub PR URL) - for addressing review feedback
+      - A description of changes needed for an existing PR
+      
+      For Issue-based workflow:
+      Extract the issue number and retrieve it:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_issue</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "issue_number": [extracted number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      For PR Review workflow:
+      Extract the PR number and retrieve it:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "pull_number": [extracted number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Then get PR review comments:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request_reviews</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "pull_number": [extracted number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Analyze the context to determine:
+      1. Type of work (new issue implementation vs PR feedback)
+      2. All requirements and acceptance criteria
+      3. Specific changes requested (for PR reviews)
+      4. Technical details mentioned
+      5. Any linked issues or discussions
+    </instructions>
+  </step>
+
+  <step number="2">
+    <name>Review Issue Comments and Related Context</name>
+    <instructions>
+      Get all comments on the issue to understand:
+      - Additional context or clarifications
+      - Maintainer feedback
+      - Community suggestions
+      - Any decisions or changes to requirements
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_issue_comments</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "issue_number": [issue number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Also check for:
+      1. Related issues mentioned in the body or comments
+      2. Linked pull requests
+      3. Referenced discussions
+      
+      Document all requirements and constraints found.
+    </instructions>
+  </step>
+
+  <step number="3">
+    <name>Create Implementation Plan</name>
+    <instructions>
+      Based on the issue analysis, create a detailed implementation plan:
+      
+      For Bug Fixes:
+      1. Reproduce the bug locally (if possible)
+      2. Identify root cause
+      3. Plan the fix approach
+      4. Identify files to modify
+      5. Plan test cases to prevent regression
+      
+      For Feature Implementation:
+      1. Break down the feature into components
+      2. Identify all files that need changes
+      3. Plan the implementation approach
+      4. Consider edge cases and error handling
+      5. Plan test coverage
+      
+      Present the plan to the user:
+      
+      <ask_followup_question>
+      <question>I've analyzed issue #[number]: "[title]"
+
+      Here's my implementation plan:
+
+      [Detailed plan with steps and affected files]
+
+      Would you like me to proceed with this implementation?</question>
+      <follow_up>
+      <suggest>Yes, proceed with the implementation</suggest>
+      <suggest>Let me review the issue first</suggest>
+      <suggest>Modify the approach for: [specific aspect]</suggest>
+      <suggest>Focus only on: [specific part]</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Explore Codebase and Related Files</name>
+    <instructions>
+      Use codebase_search FIRST to understand the codebase structure and find ALL related files:
+      
+      For Bug Fixes:
+      - Search for the broken functionality
+      - Find error handling and logging
+      - Locate related test files
+      - Identify dependencies and imports
+      - Find similar patterns in the codebase
+      
+      For Features:
+      - Search for similar existing features
+      - Find integration points
+      - Locate configuration files
+      - Identify patterns to follow
+      - Find related components and utilities
+      
+      For PR Reviews:
+      - Search for files mentioned in review comments
+      - Find related files that use similar patterns
+      - Locate test files for modified functionality
+      - Identify files that import/depend on changed code
+      
+      Example searches based on issue type:
+      - Bug: Search for error messages, function names, component names
+      - Feature: Search for similar functionality, API endpoints, UI components
+      - PR Review: Search for patterns mentioned in feedback
+      
+      CRITICAL: Always read multiple related files together to understand:
+      - Current code patterns and conventions
+      - How similar functionality is implemented
+      - Testing patterns used in the project
+      - Import/export patterns
+      - Error handling approaches
+      - Configuration and setup patterns
+      
+      Then use other tools:
+      - list_code_definition_names to understand file structure
+      - read_file to examine specific implementations (read multiple files at once)
+      - search_files for specific patterns or error messages
+      
+      Also use GitHub tools:
+      - list_commits to see recent changes to affected files
+      - get_commit to understand specific changes
+      - list_pull_requests to find related PRs
+      
+      Document:
+      - All files that need modification
+      - Current implementation details and patterns
+      - Code conventions to follow (naming, structure, etc.)
+      - Test file locations and patterns
+      - Related files that might be affected
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Implement the Solution</name>
+    <instructions>
+      Implement the fix or feature following the plan:
+      
+      General Guidelines:
+      1. Follow existing code patterns and style
+      2. Add appropriate error handling
+      3. Include necessary comments
+      4. Update related documentation
+      5. Ensure backward compatibility (if applicable)
+      
+      For Bug Fixes:
+      1. Apply the minimal fix needed
+      2. Don't refactor unrelated code
+      3. Add regression tests
+      4. Verify the fix resolves the issue
+      5. Check for side effects
+      
+      For Features:
+      1. Implement incrementally
+      2. Test each component as you build
+      3. Follow the acceptance criteria exactly
+      4. Add comprehensive tests
+      5. Update documentation
+      
+      Use appropriate tools:
+      - apply_diff for targeted changes
+      - write_to_file for new files
+      - search_and_replace for systematic updates
+      
+      After each significant change, run relevant tests:
+      - execute_command to run test suites
+      - Check for linting errors
+      - Verify functionality works as expected
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Verify Acceptance Criteria</name>
+    <instructions>
+      Systematically verify all acceptance criteria from the issue:
+      
+      For Bug Fixes:
+      1. Confirm the bug no longer reproduces
+      2. Follow the exact reproduction steps
+      3. Verify expected behavior now occurs
+      4. Check no new bugs introduced
+      5. Run all related tests
+      
+      For Features:
+      1. Test each acceptance criterion
+      2. Verify all Given/When/Then scenarios
+      3. Test edge cases
+      4. Verify UI changes (if applicable)
+      5. Check performance impact
+      
+      Document verification results:
+      - [ ] Criterion 1: [result]
+      - [ ] Criterion 2: [result]
+      - [ ] All tests passing
+      - [ ] No linting errors
+      
+      If any criteria fail, return to implementation step.
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Run Tests and Checks</name>
+    <instructions>
+      Run comprehensive tests to ensure quality:
+      
+      1. Run unit tests for modified files:
+         ```
+         npm test [test file paths]
+         ```
+      
+      2. Run integration tests if applicable:
+         ```
+         npm run test:integration
+         ```
+      
+      3. Check for linting errors:
+         ```
+         npm run lint
+         ```
+      
+      4. Run type checking:
+         ```
+         npm run type-check
+         ```
+      
+      5. If UI changes, test manually:
+         - Build the extension
+         - Test in VSCode
+         - Verify visual changes
+      
+      Document all test results and fix any failures.
+    </instructions>
+  </step>
+
+  <step number="8">
+    <name>Prepare Summary</name>
+    <instructions>
+      Create a comprehensive summary of the implementation:
+      
+      ## Summary of Changes
+      
+      **Issue:** #[number] - [title]
+      **Type:** [Bug Fix/Feature Implementation]
+      
+      ### What was done:
+      - [List key changes]
+      - [Files modified]
+      - [Tests added]
+      
+      ### How it addresses the issue:
+      [Explain how each requirement is met]
+      
+      ### Testing performed:
+      - [List all tests run]
+      - [Manual testing done]
+      - [Verification of acceptance criteria]
+      
+      ### Files changed:
+      - `path/to/file1.ts` - [brief description]
+      - `path/to/file2.ts` - [brief description]
+      
+      ### Potential impacts:
+      - [Any breaking changes]
+      - [Performance considerations]
+      - [Compatibility notes]
+      
+      Present to user for review:
+      
+      <ask_followup_question>
+      <question>I've completed the implementation for issue #[number]. Here's what was done:
+
+      [Insert summary]
+
+      All acceptance criteria have been met and tests are passing.
+
+      Would you like me to prepare a pull request, or would you like to review the changes first?</question>
+      <follow_up>
+      <suggest>Create a pull request with these changes</suggest>
+      <suggest>Show me the key changes in detail</suggest>
+      <suggest>Run additional tests for: [specific area]</suggest>
+      <suggest>Make additional changes to: [specific file]</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="9">
+    <name>Prepare for Pull Request</name>
+    <instructions>
+      If user wants to create a pull request, prepare everything needed:
+      
+      1. Create appropriate branch name:
+         - Bug fix: `fix/issue-[number]-[brief-description]`
+         - Feature: `feat/issue-[number]-[brief-description]`
+      
+      2. Ensure all changes are committed:
+         ```bash
+         git status
+         git add [modified files]
+         git commit -m "fix: [description] (#[issue-number])"
+         ```
+      
+      3. Push to a fork or branch (depending on user's access):
+         ```bash
+         git push origin [branch-name]
+         ```
+      
+      4. Prepare comprehensive PR description:
+         ```markdown
+         ## Description
+         
+         Fixes #[issue number]
+         
+         [Detailed description of what was changed and why]
+         
+         ## Changes Made
+         
+         - [Specific change 1 with file references]
+         - [Specific change 2 with technical details]
+         - [Any refactoring or cleanup done]
+         
+         ## Testing
+         
+         - [x] All existing tests pass
+         - [x] Added tests for [specific functionality]
+         - [x] Manual testing completed:
+           - [Specific manual test 1]
+           - [Specific manual test 2]
+         
+         ## Verification of Acceptance Criteria
+         
+         [For each criterion from the issue, show it's met]
+         - [x] Criterion 1: [How it's verified]
+         - [x] Criterion 2: [How it's verified]
+         
+         ## Checklist
+         
+         - [x] Code follows project style guidelines
+         - [x] Self-review completed
+         - [x] Comments added for complex logic
+         - [x] Documentation updated (if needed)
+         - [x] No breaking changes (or documented if any)
+         - [x] Accessibility checked (for UI changes)
+         
+         ## Screenshots/Demo (if applicable)
+         
+         [Add before/after screenshots for UI changes]
+         [Add terminal output for CLI changes]
+         ```
+      
+      5. Ask user for final approval:
+      
+      <ask_followup_question>
+      <question>I've prepared everything for the pull request:
+
+      **Branch:** [branch-name]
+      **Title:** [PR title]
+      **Target:** RooCodeInc/Roo-Code (main branch)
+
+      Here's the PR description:
+
+      [Show prepared PR description]
+
+      Would you like me to create this pull request to RooCodeInc/Roo-Code?</question>
+      <follow_up>
+      <suggest>Yes, create the pull request</suggest>
+      <suggest>Let me review the PR description first</suggest>
+      <suggest>Change the PR title to: [let me specify]</suggest>
+      <suggest>Add more details about: [specific aspect]</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="10">
+    <name>Create Pull Request</name>
+    <instructions>
+      Once user approves, create the pull request using GitHub MCP:
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>create_pull_request</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "title": "[Type]: [Brief description] (#[issue-number])",
+        "head": "[user-fork-owner]:[branch-name]",
+        "base": "main",
+        "body": "[Complete PR description from step 9]",
+        "draft": false,
+        "maintainer_can_modify": true
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Note: The "head" parameter format depends on where the branch exists:
+      - If user has push access: "branch-name"
+      - If working from a fork: "username:branch-name"
+      
+      After PR creation:
+      1. Capture the PR number and URL from the response
+      2. Link the PR to the issue by commenting on the issue
+      3. Inform the user of the successful creation
+      
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>add_issue_comment</tool_name>
+      <arguments>
+      {
+        "owner": "RooCodeInc",
+        "repo": "Roo-Code",
+        "issue_number": [original issue number],
+        "body": "PR #[new PR number] has been created to address this issue: [PR URL]"
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Final message to user:
+      ```
+      ✅ Pull Request Created Successfully!
+      
+      PR #[number]: [title]
+      URL: [PR URL]
+      
+      The PR has been created and linked to issue #[issue number].
+      
+      Next steps:
+      1. The PR will be reviewed by maintainers
+      2. Address any feedback in the PR comments
+      3. Once approved, it will be merged
+      
+      You can track the PR status at: [PR URL]
+      ```
+    </instructions>
+  </step>
+</workflow>

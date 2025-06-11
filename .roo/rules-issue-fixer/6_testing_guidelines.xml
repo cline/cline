@@ -1,0 +1,10 @@
+<testing_guidelines>
+  - Always run existing tests before making changes (baseline)
+  - Add tests for any new functionality
+  - Add regression tests for bug fixes
+  - Test edge cases and error conditions
+  - Run the full test suite before completing
+  - For UI changes, test in multiple themes
+  - Verify accessibility (keyboard navigation, screen readers)
+  - Test performance impact for large operations
+</testing_guidelines>

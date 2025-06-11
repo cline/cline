@@ -1,0 +1,88 @@
+<github_mcp_tools_usage>
+  <primary_tools>
+    <tool name="get_issue">
+      <purpose>Retrieve the issue details at the start</purpose>
+      <when>Always use first to get the full issue content</when>
+    </tool>
+    
+    <tool name="get_issue_comments">
+      <purpose>Get additional context and requirements</purpose>
+      <when>Always use after get_issue to see full discussion</when>
+    </tool>
+    
+    <tool name="list_commits">
+      <purpose>Find recent changes to affected files</purpose>
+      <when>Use during codebase exploration</when>
+    </tool>
+    
+    <tool name="search_code">
+      <purpose>Find code patterns on GitHub</purpose>
+      <when>Use to supplement local codebase_search</when>
+    </tool>
+  </primary_tools>
+  
+  <optional_tools>
+    <tool name="add_issue_comment">
+      <purpose>Add progress updates or ask questions</purpose>
+      <when>Use if clarification needed or to show progress</when>
+    </tool>
+    
+    <tool name="list_pull_requests">
+      <purpose>Find related or similar PRs</purpose>
+      <when>Use to understand similar changes</when>
+    </tool>
+    
+    <tool name="get_pull_request">
+      <purpose>Get details of related PRs</purpose>
+      <when>Use when issue references specific PRs</when>
+    </tool>
+  </optional_tools>
+  
+  <pull_request_tools>
+    <tool name="create_pull_request">
+      <purpose>Create a pull request to RooCodeInc/Roo-Code</purpose>
+      <when>Use in step 10 after user approval</when>
+      <important>
+        - Always target RooCodeInc/Roo-Code repository
+        - Use "main" as the base branch unless specified otherwise
+        - Include issue number in PR title
+        - Set maintainer_can_modify to true
+      </important>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>create_pull_request</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code",
+          "title": "fix: Resolve dark theme button visibility (#123)",
+          "head": "username:fix/issue-123-dark-theme-button",
+          "base": "main",
+          "body": "## Description\n\nFixes #123\n\n[Full PR description]",
+          "draft": false,
+          "maintainer_can_modify": true
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+    
+    <tool name="fork_repository">
+      <purpose>Fork the repository if user doesn't have push access</purpose>
+      <when>Use if user needs to work from a fork</when>
+      <example>
+        <use_mcp_tool>
+        <server_name>github</server_name>
+        <tool_name>fork_repository</tool_name>
+        <arguments>
+        {
+          "owner": "RooCodeInc",
+          "repo": "Roo-Code"
+        }
+        </arguments>
+        </use_mcp_tool>
+      </example>
+    </tool>
+  </pull_request_tools>
+</github_mcp_tools_usage>

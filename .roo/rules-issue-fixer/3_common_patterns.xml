@@ -1,0 +1,21 @@
+<common_patterns>
+  <bug_fix_pattern>
+    1. Reproduce the issue
+    2. Identify root cause
+    3. Implement minimal fix
+    4. Add regression test
+    5. Verify fix works
+    6. Check for side effects
+  </bug_fix_pattern>
+  
+  <feature_implementation_pattern>
+    1. Understand all requirements
+    2. Design the solution
+    3. Implement incrementally
+    4. Test each component
+    5. Integrate components
+    6. Verify acceptance criteria
+    7. Add comprehensive tests
+    8. Update documentation
+  </feature_implementation_pattern>
+</common_patterns>

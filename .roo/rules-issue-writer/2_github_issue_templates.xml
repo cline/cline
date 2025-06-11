@@ -1,0 +1,204 @@
+<github_issue_templates>
+  <bug_report_template>
+    <name>Bug Report</name>
+    <description>Clearly report a bug with detailed repro steps</description>
+    <labels>["bug"]</labels>
+    <fields>
+      <field name="version" type="input" required="true">
+        <label>App Version</label>
+        <description>What version of Roo Code are you using? (e.g., v3.3.1)</description>
+      </field>
+      <field name="provider" type="dropdown" required="true">
+        <label>API Provider</label>
+        <options>
+          - Anthropic
+          - AWS Bedrock
+          - Chutes AI
+          - DeepSeek
+          - Glama
+          - Google Gemini
+          - Google Vertex AI
+          - Groq
+          - Human Relay Provider
+          - LiteLLM
+          - LM Studio
+          - Mistral AI
+          - Ollama
+          - OpenAI
+          - OpenAI Compatible
+          - OpenRouter
+          - Requesty
+          - Unbound
+          - VS Code Language Model API
+          - xAI (Grok)
+          - Not Applicable / Other
+        </options>
+      </field>
+      <field name="model" type="input" required="true">
+        <label>Model Used</label>
+        <description>Exact model name (e.g., Claude 3.7 Sonnet). Use N/A if irrelevant.</description>
+      </field>
+      <field name="steps" type="textarea" required="true">
+        <label>🔁 Steps to Reproduce</label>
+        <description>
+          Help us see what you saw. Give clear, numbered steps:
+          
+          1. Setup (OS, extension version, settings)
+          2. Exact actions (clicks, input, files, commands)
+          3. What happened after each step
+          
+          Think like you're writing a recipe. Without this, we can't reproduce the issue.
+        </description>
+      </field>
+      <field name="what-happened" type="textarea" required="true">
+        <label>💥 Outcome Summary</label>
+        <description>
+          Recap what went wrong in one or two lines.
+          
+          Example: "Expected code to run, but got an empty response and no error."
+        </description>
+        <placeholder>Expected ___, but got ___.</placeholder>
+      </field>
+      <field name="logs" type="textarea" required="false">
+        <label>📄 Relevant Logs or Errors (Optional)</label>
+        <description>Paste API logs, terminal output, or errors here. Use triple backticks (```) for code formatting.</description>
+        <render>shell</render>
+      </field>
+    </fields>
+  </bug_report_template>
+  
+  <feature_request_template>
+    <name>Detailed Feature Proposal</name>
+    <description>Propose a specific, actionable feature or enhancement for implementation</description>
+    <labels>["proposal", "enhancement"]</labels>
+    <fields>
+      <field name="problem-description" type="textarea" required="true">
+        <label>What specific problem does this solve?</label>
+        <description>
+          **Be concrete and detailed.** Explain the problem from a user's perspective.
+          
+          ✅ **Good examples (specific, clear impact):**
+          - "When running large tasks, users wait 5+ minutes because tasks execute sequentially instead of in parallel, blocking productivity"
+          - "AI can only read one file per request, forcing users to make multiple requests for multi-file projects, increasing wait time from 30s to 5+ minutes"
+          - "Dark theme users can't see the submit button because it uses white text on light grey background"
+          
+          ❌ **Poor examples (vague, unclear impact):**
+          - "The UI looks weird" -> What specifically looks weird? On which screen? What's the impact?
+          - "System prompt is not good" -> What's wrong with it? What behaviour does it cause? What should it do instead?
+          - "Performance could be better" -> Where? How slow is it currently? What's the user impact?
+          
+          **Your problem description should answer:**
+          - Who is affected? (all users, specific user types, etc.)
+          - When does this happen? (specific scenarios/steps)
+          - What's the current behaviour vs expected behaviour?
+          - What's the impact? (time wasted, errors caused, etc.)
+        </description>
+        <placeholder>Be specific about the problem, who it affects, and the impact. Avoid generic statements like "it's slow" or "it's confusing."</placeholder>
+      </field>
+      <field name="proposed-solution" type="textarea" required="true">
+        <label>How should this be solved?</label>
+        <description>
+          **Describe your solution in detail.** Explain not just what to build, but how it should work.
+          
+          ✅ **Good examples:**
+          - "Add parallel task execution: Allow up to 3 tasks to run simultaneously with a queue system for additional tasks. Show progress for each active task in the UI."
+          - "Enable multi-file AI processing: Modify the request handler to accept multiple files in a single request and process them together, reducing round trips."
+          - "Fix button contrast: Change submit button to use primary colour on dark theme (white text on blue background) instead of current grey."
+          
+          ❌ **Poor examples:**
+          - "Make it faster" -> How? What specific changes?
+          - "Improve the UI" -> Which part? What specific improvements?
+          - "Fix the prompt" -> What should the new prompt do differently?
+          
+          **Your solution should explain:**
+          - What exactly will change?
+          - How will users interact with it?
+          - What will the new behaviour look like?
+        </description>
+        <placeholder>Describe the specific changes and how they will work. Include user interaction details if relevant.</placeholder>
+      </field>
+      <field name="acceptance-criteria" type="textarea" required="true">
+        <label>How will we know it works? (Acceptance Criteria)</label>
+        <description>
+          **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
+          
+          **Format suggestion:**
+          ```
+          Given [context/situation]
+          When [user action]
+          Then [expected result]
+          And [additional expectations]
+          But [what should NOT happen]
+          ```
+          
+          **Example:**
+          ```
+          Given I have 5 large tasks to run
+          When I start all of them
+          Then they execute in parallel (max 3 at once, can be configured)
+          And I see progress for each active task
+          And queued tasks show "waiting" status
+          But the UI doesn't freeze or become unresponsive
+          ```
+        </description>
+        <placeholder>
+          Define specific, testable criteria. What should users be able to do? What should happen? What should NOT happen?
+          Use the Given/When/Then format above or your own clear structure.
+        </placeholder>
+      </field>
+      <field name="estimated-effort" type="textarea" required="true">
+        <label>Estimated effort and complexity</label>
+        <description>
+          **Help us understand the scope.** This helps with planning and prioritisation.
+          
+          **Please include:**
+          - **Size estimate:** XS/Small/Medium/Large/XL
+          - **Reasoning:** What makes it this size? Which parts are complex?
+          - **Main challenges:** What's the trickiest bit to implement?
+          - **Dependencies:** Does this require other changes or external libraries?
+          
+          **Example:**
+          ```
+          Size: Large
+          Reasoning: Touches task execution engine, UI components, and state management
+          Main challenges: Preventing memory leaks with parallel execution and managing shared resources
+          Dependencies: Might need to add a new dependency for the new feature
+          ```
+        </description>
+        <placeholder>
+          Size: [your estimate]
+          Reasoning: [why this size?]
+          Main challenges: [what's tricky?]
+          Dependencies: [what else is needed?]
+        </placeholder>
+      </field>
+      <field name="technical-considerations" type="textarea" required="false">
+        <label>Technical considerations (optional but helpful)</label>
+        <description>
+          Share technical insights that could help planning:
+          - Implementation approach or architecture changes
+          - Performance implications
+          - Compatibility concerns
+          - Systems that might be affected
+          - Potential blockers you can foresee
+        </description>
+        <placeholder>e.g., "Will need to refactor task manager", "Could impact memory usage on large files", "Requires a large portion of code to be rewritten"</placeholder>
+      </field>
+      <field name="trade-offs-and-risks" type="textarea" required="false">
+        <label>Trade-offs and risks (optional)</label>
+        <description>
+          What could go wrong or what alternatives did you consider?
+          - Alternative approaches and why you chose this one
+          - Potential negative impacts (performance, UX, etc.)
+          - Breaking changes or migration concerns
+          - Edge cases that need careful handling
+        </description>
+        <placeholder>e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"</placeholder>
+      </field>
+      <field name="additional-context" type="textarea" required="false">
+        <label>Additional context (optional)</label>
+        <description>Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.</description>
+      </field>
+    </fields>
+  </feature_request_template>
+</github_issue_templates>

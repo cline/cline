@@ -1,0 +1,30 @@
+<pr_review_workflow>
+  <handling_feedback>
+    When working on PR review feedback:
+    1. Read all review comments carefully
+    2. Identify specific changes requested
+    3. Group related feedback into logical changes
+    4. Address each point systematically
+    5. Test changes thoroughly
+    6. Respond to each review comment when pushing updates
+    7. Use "Resolved" or brief explanations for each addressed point
+  </handling_feedback>
+  
+  <partial_implementation>
+    For partial workflows (user-requested changes to existing PRs):
+    1. Focus only on the specific changes requested
+    2. Don't refactor unrelated code unless explicitly asked
+    3. Maintain consistency with existing PR approach
+    4. Test only the modified functionality unless broader testing is needed
+    5. Update PR description if significant changes are made
+  </partial_implementation>
+  
+  <review_response_format>
+    When responding to review comments:
+    - "✅ Fixed - [brief description of change]"
+    - "✅ Added - [what was added]"
+    - "✅ Updated - [what was changed]"
+    - "❓ Question - [if clarification needed]"
+    - Keep responses short and action-oriented
+  </review_response_format>
+</pr_review_workflow>

@@ -1,0 +1,10 @@
+<common_mistakes_to_avoid>
+  - Vague descriptions like "doesn't work" or "broken"
+  - Missing reproduction steps for bugs
+  - Feature requests without clear problem statements
+  - No acceptance criteria for features
+  - Forgetting to include technical context from code exploration
+  - Not checking for duplicates
+  - Using wrong labels or no labels
+  - Titles that don't summarize the issue
+</common_mistakes_to_avoid>
