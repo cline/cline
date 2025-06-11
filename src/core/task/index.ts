@@ -233,6 +233,12 @@ export class Task {
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
 
+		// Set up MCP notification callback for real-time notifications
+		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+			// Display notification in chat immediately
+			await this.say("mcp_notification", `[${serverName}] ${message}`)
+		})
+
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1196,6 +1202,9 @@ export class Task {
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
+
+		// Clear the notification callback when task is aborted
+		this.mcpHub.clearNotificationCallback()
 	}
 
 	// Checkpoints
@@ -3323,7 +3332,20 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
+
+								// Check for any pending notifications before the tool call
+								const notificationsBefore = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsBefore) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
+
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+
+								// Check for any pending notifications after the tool call
+								const notificationsAfter = this.mcpHub.getPendingNotifications()
+								for (const notification of notificationsAfter) {
+									await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
+								}
 
 								// TODO: add progress indicator
 

@@ -1054,6 +1054,36 @@ export const ChatRowContent = ({
 					return null // we should never see this message type
 				case "mcp_server_response":
 					return <McpResponseDisplay responseText={message.text || ""} />
+				case "mcp_notification":
+					return (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "flex-start",
+								gap: "8px",
+								padding: "8px 12px",
+								backgroundColor: "var(--vscode-textBlockQuote-background)",
+								borderRadius: "4px",
+								fontSize: "13px",
+								color: "var(--vscode-foreground)",
+								opacity: 0.9,
+								marginBottom: "8px",
+							}}>
+							<i
+								className="codicon codicon-bell"
+								style={{
+									marginTop: "2px",
+									fontSize: "14px",
+									color: "var(--vscode-notificationsInfoIcon-foreground)",
+									flexShrink: 0,
+								}}
+							/>
+							<div style={{ flex: 1, wordBreak: "break-word" }}>
+								<span style={{ fontWeight: 500 }}>MCP Notification: </span>
+								<span className="ph-no-capture">{message.text}</span>
+							</div>
+						</div>
+					)
 				case "text":
 					return (
 						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text}>
