@@ -719,10 +719,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Listen for local focusChatInput event
 	useEffect(() => {
 		const handleFocusChatInput = () => {
-			textAreaRef.current?.focus()
 			if (isHidden) {
 				navigateToChat()
 			}
+			textAreaRef.current?.focus()
 		}
 
 		window.addEventListener("focusChatInput", handleFocusChatInput)

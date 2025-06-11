@@ -28,7 +28,6 @@ import {
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { vscode } from "../utils/vscode"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 
 interface ExtensionStateContextType extends ExtensionState {
@@ -559,7 +558,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		const clientId = (window as any).clineClientId
 		if (clientId) {
 			const request = StringRequest.create({ value: clientId })
-			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToAddToInput(request, {
+			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
 				onResponse: () => {
 					// Dispatch a local DOM event within this webview only
 					window.dispatchEvent(new CustomEvent("focusChatInput"))
