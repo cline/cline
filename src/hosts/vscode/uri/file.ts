@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
-import { Uri } from "../../../src/shared/proto/host/uri"
-import { StringRequest } from "../../../src/shared/proto/common"
+import { Uri } from "@shared/proto/host/uri"
+import { StringRequest } from "@shared/proto/common"
 
 /**
  * Creates a file URI from a file path

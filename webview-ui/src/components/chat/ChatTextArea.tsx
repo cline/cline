@@ -6,7 +6,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
@@ -34,6 +34,8 @@ import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
+import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -962,12 +964,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 
 		// Separate the API config submission logic
-		const submitApiConfig = useCallback(() => {
+		const submitApiConfig = useCallback(async () => {
 			const apiValidationResult = validateApiConfiguration(apiConfiguration)
 			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-			if (!apiValidationResult && !modelIdValidationResult) {
-				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
+				try {
+					await ModelsServiceClient.updateApiConfigurationProto(
+						UpdateApiConfigurationRequest.create({
+							apiConfiguration: convertApiConfigurationToProto(apiConfiguration),
+						}),
+					)
+				} catch (error) {
+					console.error("Failed to update API configuration:", error)
+				}
 			} else {
 				StateServiceClient.getLatestState(EmptyRequest.create())
 					.then(() => {
@@ -1566,7 +1576,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
-							Type @ for context, / for slash commands & workflows
+							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (

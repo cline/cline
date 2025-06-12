@@ -25,7 +25,7 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
+	action?: "didBecomeVisible" | "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
@@ -81,7 +81,6 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
@@ -164,6 +163,7 @@ export type ClineSay =
 	| "browser_action_result"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
+	| "mcp_notification"
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"

@@ -48,7 +48,8 @@ import {
 	xaiModels,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { OpenAiModelsRequest } from "@shared/proto/models"
+import { OpenAiModelsRequest, UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -118,7 +119,14 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 
 const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
 	anthropic: ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-	vertex: ["claude-3-7-sonnet@20250219", "claude-sonnet-4@20250514", "claude-opus-4@20250514"],
+	vertex: [
+		"claude-3-7-sonnet@20250219",
+		"claude-sonnet-4@20250514",
+		"claude-opus-4@20250514",
+		"gemini-2.5-flash-preview-05-20",
+		"gemini-2.5-flash-preview-04-17",
+		"gemini-2.5-pro-preview-06-05",
+	],
 	qwen: [
 		"qwen3-235b-a22b",
 		"qwen3-32b",
@@ -131,6 +139,7 @@ const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
 		"qwen-plus-latest",
 		"qwen-turbo-latest",
 	],
+	gemini: ["gemini-2.5-flash-preview-05-20", "gemini-2.5-flash-preview-04-17", "gemini-2.5-pro-preview-06-05"],
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -192,12 +201,19 @@ const ApiOptions = ({
 		if (saveImmediately && field === "apiProvider") {
 			// Use apiConfiguration from the full extensionState context to send the most complete data
 			const currentFullApiConfig = extensionState.apiConfiguration
-			vscode.postMessage({
-				type: "apiConfiguration",
-				apiConfiguration: {
-					...currentFullApiConfig, // Send the most complete config available
-					apiProvider: newValue, // Override with the new provider
-				},
+
+			// Convert to proto format and send via gRPC
+			const updatedConfig = {
+				...currentFullApiConfig,
+				apiProvider: newValue,
+			}
+			const protoConfig = convertApiConfigurationToProto(updatedConfig)
+			ModelsServiceClient.updateApiConfigurationProto(
+				UpdateApiConfigurationRequest.create({
+					apiConfiguration: protoConfig,
+				}),
+			).catch((error) => {
+				console.error("Failed to update API configuration:", error)
 			})
 		}
 	}
@@ -1049,15 +1065,6 @@ const ApiOptions = ({
 							</VSCodeLink>
 						)}
 					</p>
-
-					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
-					{selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17" && (
-						<ThinkingBudgetSlider
-							apiConfiguration={apiConfiguration}
-							setApiConfiguration={setApiConfiguration}
-							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-						/>
-					)}
 				</div>
 			)}
 

@@ -7,11 +7,12 @@ import {
 	FileServiceClient,
 	McpServiceClient,
 } from "../services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { UpdateSettingsRequest } from "@shared/proto/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { TerminalProfile } from "@shared/proto/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
@@ -27,9 +28,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { vscode } from "../utils/vscode"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 
 interface ExtensionStateContextType extends ExtensionState {
@@ -55,7 +54,6 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
-	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
@@ -237,6 +235,9 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+
+	// Reference for focusChatInput subscription
+	const focusChatInputUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -567,6 +568,24 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to focus chat input events
+		const clientId = (window as any).clineClientId
+		if (clientId) {
+			const request = StringRequest.create({ value: clientId })
+			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
+				onResponse: () => {
+					// Dispatch a local DOM event within this webview only
+					window.dispatchEvent(new CustomEvent("focusChatInput"))
+				},
+				onError: (error: Error) => {
+					console.error("Error in focusChatInput subscription:", error)
+				},
+				onComplete: () => {},
+			})
+		} else {
+			console.error("Client ID not found in window object")
+		}
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -617,7 +636,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				relinquishControlUnsubscribeRef.current()
 				relinquishControlUnsubscribeRef.current = null
 			}
-
+			if (focusChatInputUnsubscribeRef.current) {
+				focusChatInputUnsubscribeRef.current()
+				focusChatInputUnsubscribeRef.current = null
+			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
 				mcpServersSubscriptionRef.current = null
@@ -680,11 +702,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				apiConfiguration: value,
-			})),
-		setCustomInstructions: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				customInstructions: value,
 			})),
 		setTelemetrySetting: (value) =>
 			setState((prevState) => ({
@@ -759,7 +776,6 @@ export const ExtensionStateContextProvider: React.FC<{
 						apiConfiguration: state.apiConfiguration
 							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
 							: undefined,
-						customInstructionsSetting: state.customInstructions,
 						telemetrySetting: state.telemetrySetting,
 						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 						enableCheckpointsSetting: state.enableCheckpointsSetting,
