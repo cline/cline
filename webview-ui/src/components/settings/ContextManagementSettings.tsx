@@ -61,6 +61,7 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	maxWorkspaceFiles: number
 	showRooIgnoredFiles?: boolean
 	maxReadFileLine?: number
+	maxConcurrentFileReads?: number
 	setCachedStateField: SetCachedStateField<
 		| "autoCondenseContext"
 		| "autoCondenseContextPercent"
@@ -70,6 +71,7 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "maxWorkspaceFiles"
 		| "showRooIgnoredFiles"
 		| "maxReadFileLine"
+		| "maxConcurrentFileReads"
 	>
 }
 
@@ -84,6 +86,7 @@ export const ContextManagementSettings = ({
 	showRooIgnoredFiles,
 	setCachedStateField,
 	maxReadFileLine,
+	maxConcurrentFileReads,
 	className,
 	...props
 }: ContextManagementSettingsProps) => {
@@ -137,6 +140,26 @@ export const ContextManagementSettings = ({
 				</div>
 
 				<div>
+					<span className="block font-medium mb-1">
+						{t("settings:contextManagement.maxConcurrentFileReads.label")}
+					</span>
+					<div className="flex items-center gap-2">
+						<Slider
+							min={1}
+							max={100}
+							step={1}
+							value={[Math.max(1, maxConcurrentFileReads ?? 5)]}
+							onValueChange={([value]) => setCachedStateField("maxConcurrentFileReads", value)}
+							data-testid="max-concurrent-file-reads-slider"
+						/>
+						<span className="w-10 text-sm">{Math.max(1, maxConcurrentFileReads ?? 5)}</span>
+					</div>
+					<div className="text-vscode-descriptionForeground text-sm mt-1 mb-3">
+						{t("settings:contextManagement.maxConcurrentFileReads.description")}
+					</div>
+				</div>
+
+				<div>
 					<VSCodeCheckbox
 						checked={showRooIgnoredFiles}
 						onChange={(e: any) => setCachedStateField("showRooIgnoredFiles", e.target.checked)}
@@ -145,7 +168,7 @@ export const ContextManagementSettings = ({
 							{t("settings:contextManagement.rooignore.label")}
 						</label>
 					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
+					<div className="text-vscode-descriptionForeground text-sm mt-1 mb-3">
 						{t("settings:contextManagement.rooignore.description")}
 					</div>
 				</div>
@@ -186,8 +209,7 @@ export const ContextManagementSettings = ({
 					</div>
 				</div>
 			</Section>
-
-			<Section>
+			<Section className="pt-2">
 				<VSCodeCheckbox
 					checked={autoCondenseContext}
 					onChange={(e: any) => setCachedStateField("autoCondenseContext", e.target.checked)}

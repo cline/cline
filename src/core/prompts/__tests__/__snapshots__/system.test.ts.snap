@@ -39,7 +39,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -69,7 +69,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -93,10 +93,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -533,7 +533,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -563,7 +563,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -587,10 +587,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -1027,7 +1027,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -1057,7 +1057,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -1081,10 +1081,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -1521,7 +1521,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -1551,7 +1551,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -1575,10 +1575,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -2071,7 +2071,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -2101,7 +2101,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -2125,10 +2125,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -2633,7 +2633,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -2663,7 +2663,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -2687,10 +2687,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -3183,7 +3183,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -3213,7 +3213,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -3237,10 +3237,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -3765,7 +3765,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -3795,7 +3795,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -3819,10 +3819,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -4301,7 +4301,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -4331,7 +4331,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -4355,10 +4355,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -4872,7 +4872,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -4902,7 +4902,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -4926,10 +4926,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -5357,7 +5357,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -5387,7 +5387,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -5411,10 +5411,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -5759,7 +5759,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 
 Parameters:
@@ -5789,7 +5789,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -5813,10 +5813,10 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task
@@ -6339,7 +6339,7 @@ Always use the actual tool name as the XML tag name for proper parsing and execu
 ## read_file
 Description: Request to read the contents of one or more files. The tool outputs line-numbered content (e.g. "1 | const x = 1") for easy reference when creating diffs or discussing code. Use line ranges to efficiently read specific portions of large files. Supports text extraction from PDF and DOCX files, but may not handle other binary files properly.
 
-**IMPORTANT: You can read a maximum of 15 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
+**IMPORTANT: You can read a maximum of 5 files in a single request.** If you need to read more files, use multiple sequential read_file requests.
 
 By specifying line ranges, you can efficiently read specific portions of large files without loading the entire file into memory.
 Parameters:
@@ -6369,7 +6369,7 @@ Examples:
 </args>
 </read_file>
 
-2. Reading multiple files (within the 15-file limit):
+2. Reading multiple files (within the 5-file limit):
 <read_file>
 <args>
   <file>
@@ -6394,14 +6394,14 @@ Examples:
 </read_file>
 
 IMPORTANT: You MUST use this Efficient Reading Strategy:
-- You MUST read all related files and implementations together in a single operation (up to 15 files at once)
+- You MUST read all related files and implementations together in a single operation (up to 5 files at once)
 - You MUST obtain all necessary context before proceeding with changes
 - You MUST use line ranges to read specific portions of large files, rather than reading entire files when not needed
 - You MUST combine adjacent line ranges (<10 lines apart)
 - You MUST use multiple ranges for content separated by >10 lines
 - You MUST include sufficient line context for planned modifications while keeping ranges minimal
 
-- When you need to read more than 15 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
+- When you need to read more than 5 files, prioritize the most critical files first, then use subsequent read_file requests for additional files
 
 ## fetch_instructions
 Description: Request to fetch instructions to perform a task

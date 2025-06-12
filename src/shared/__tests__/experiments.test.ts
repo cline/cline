@@ -28,7 +28,6 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				marketplace: false,
-				concurrentFileReads: false,
 				disableCompletionCommand: false,
 				multiFileApplyDiff: false,
 			}
@@ -39,7 +38,6 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: true,
 				marketplace: false,
-				concurrentFileReads: false,
 				disableCompletionCommand: false,
 				multiFileApplyDiff: false,
 			}
@@ -50,33 +48,10 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				marketplace: false,
-				concurrentFileReads: false,
 				disableCompletionCommand: false,
 				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
-		})
-
-		it("returns false when CONCURRENT_FILE_READS experiment is not enabled", () => {
-			const experiments: Record<ExperimentId, boolean> = {
-				powerSteering: false,
-				marketplace: false,
-				concurrentFileReads: false,
-				disableCompletionCommand: false,
-				multiFileApplyDiff: false,
-			}
-			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.CONCURRENT_FILE_READS)).toBe(false)
-		})
-
-		it("returns true when CONCURRENT_FILE_READS experiment is enabled", () => {
-			const experiments: Record<ExperimentId, boolean> = {
-				powerSteering: false,
-				marketplace: false,
-				concurrentFileReads: true,
-				disableCompletionCommand: false,
-				multiFileApplyDiff: false,
-			}
-			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.CONCURRENT_FILE_READS)).toBe(true)
 		})
 	})
 	describe("MARKETPLACE", () => {
@@ -93,7 +68,6 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				marketplace: false,
-				concurrentFileReads: false,
 				disableCompletionCommand: false,
 				multiFileApplyDiff: false,
 			}
@@ -104,7 +78,6 @@ describe("experiments", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
 				marketplace: true,
-				concurrentFileReads: false,
 				disableCompletionCommand: false,
 				multiFileApplyDiff: false,
 			}
@@ -114,7 +87,6 @@ describe("experiments", () => {
 		it("returns false when MARKETPLACE experiment is not present", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
-				concurrentFileReads: false,
 				// marketplace missing
 			} as any
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.MARKETPLACE)).toBe(false)
