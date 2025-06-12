@@ -1,11 +1,10 @@
 import React, { useState } from "react"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { Int64, Int64Request } from "@shared/proto/common"
 
 export const TerminalSettingsSection: React.FC = () => {
-	const { shellIntegrationTimeout, setShellIntegrationTimeout } = useExtensionState()
+	const { shellIntegrationTimeout, setShellIntegrationTimeout, terminalReuseEnabled, setTerminalReuseEnabled } =
+		useExtensionState()
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
 
@@ -26,18 +25,6 @@ export const TerminalSettingsSection: React.FC = () => {
 
 		// Update local state
 		setShellIntegrationTimeout(timeout)
-
-		// Send to extension using gRPC
-		StateServiceClient.updateTerminalConnectionTimeout({
-			value: timeout,
-		} as Int64Request)
-			.then((response: Int64) => {
-				setShellIntegrationTimeout(response.value)
-				setInputValue((response.value / 1000).toString())
-			})
-			.catch((error) => {
-				console.error("Failed to update terminal connection timeout:", error)
-			})
 	}
 
 	const handleInputBlur = () => {
@@ -46,6 +33,17 @@ export const TerminalSettingsSection: React.FC = () => {
 			setInputValue((shellIntegrationTimeout / 1000).toString())
 			setInputError(null)
 		}
+	}
+
+	const handleTerminalReuseChange = (event: Event) => {
+		const target = event.target as HTMLInputElement
+		const checked = target.checked
+
+		// Update local state
+		setTerminalReuseEnabled(checked)
+
+		// TODO: Send to extension using gRPC when the backend is ready
+		// For now, we'll just update the local state
 	}
 
 	return (
@@ -71,6 +69,20 @@ export const TerminalSettingsSection: React.FC = () => {
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: 0 }}>
 					Set how long Cline waits for shell integration to activate before executing commands. Increase this value if
 					you experience terminal connection timeouts.
+				</p>
+			</div>
+
+			<div style={{ marginBottom: 15 }}>
+				<div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+					<VSCodeCheckbox
+						checked={terminalReuseEnabled ?? true}
+						onChange={(event) => handleTerminalReuseChange(event as Event)}>
+						Enable aggressive terminal reuse
+					</VSCodeCheckbox>
+				</div>
+				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: 0 }}>
+					When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable
+					this if you experience issues with task lockout after a terminal command.
 				</p>
 			</div>
 		</div>
