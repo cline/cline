@@ -1,17 +1,16 @@
 # Changelog
 
-## 3.18.0
+## [3.17.13]
 
--   59a68c8: Migrate focusChatInput message to protobus
--   95ad8d8: change text field input
--   1e06cf0: updating o3 model pricing
--   0ae2dc3: Sorting mcp marketplace by newest listings by default
--   889ffca: fix(bedrock): remove Anthropic-Bedrock SDK
--   28bc432: Remove ‘-beta’ from grok model id
--   099f0ec: fix menu for setting terminal timeout
--   980bddb: Add prompt caching indicator to grok 3
--   ddca841: Supporting Notifications MCP with Cline
--   2a0d60f: Adding Thinking UX for Gemini
+-   Add Thinking UX for Gemini models, providing visual feedback during model reasoning
+-   Add support for Notifications MCP integration with Cline
+-   Add prompt caching indicator for Grok 3 models
+-   Sort MCP marketplace by newest listings by default for easier discovery of recent servers
+-   Update O3 model family pricing to reflect latest OpenAI rates
+-   Remove '-beta' suffix from Grok model identifiers
+-   Fix AWS Bedrock provider by removing deprecated Anthropic-Bedrock SDK (Thanks @watany-dev!)
+-   Fix menu display issue for terminal timeout settings
+-   Improve chat input field styling and behavior
 
 ## [3.17.12]
 
