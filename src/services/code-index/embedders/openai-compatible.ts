@@ -8,6 +8,19 @@ import {
 } from "../constants"
 import { getDefaultModelId } from "../../../shared/embeddingModels"
 
+interface EmbeddingItem {
+	embedding: string | number[]
+	[key: string]: any
+}
+
+interface OpenAIEmbeddingResponse {
+	data: EmbeddingItem[]
+	usage?: {
+		prompt_tokens?: number
+		total_tokens?: number
+	}
+}
+
 /**
  * OpenAI Compatible implementation of the embedder interface with batching and rate limiting.
  * This embedder allows using any OpenAI-compatible API endpoint by specifying a custom baseURL.
@@ -108,13 +121,38 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	): Promise<{ embeddings: number[][]; usage: { promptTokens: number; totalTokens: number } }> {
 		for (let attempts = 0; attempts < MAX_RETRIES; attempts++) {
 			try {
-				const response = await this.embeddingsClient.embeddings.create({
+				const response = (await this.embeddingsClient.embeddings.create({
 					input: batchTexts,
 					model: model,
+					// OpenAI package (as of v4.78.1) has a parsing issue that truncates embedding dimensions to 256
+					// when processing numeric arrays, which breaks compatibility with models using larger dimensions.
+					// By requesting base64 encoding, we bypass the package's parser and handle decoding ourselves.
+					encoding_format: "base64",
+				})) as OpenAIEmbeddingResponse
+
+				// Convert base64 embeddings to float32 arrays
+				const processedEmbeddings = response.data.map((item: EmbeddingItem) => {
+					if (typeof item.embedding === "string") {
+						const buffer = Buffer.from(item.embedding, "base64")
+
+						// Create Float32Array view over the buffer
+						const float32Array = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4)
+
+						return {
+							...item,
+							embedding: Array.from(float32Array),
+						}
+					}
+					return item
 				})
 
+				// Replace the original data with processed embeddings
+				response.data = processedEmbeddings
+
+				const embeddings = response.data.map((item) => item.embedding as number[])
+
 				return {
-					embeddings: response.data.map((item) => item.embedding),
+					embeddings: embeddings,
 					usage: {
 						promptTokens: response.usage?.prompt_tokens || 0,
 						totalTokens: response.usage?.total_tokens || 0,
