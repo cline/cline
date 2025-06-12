@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "अमान्य डेटा URI फॉर्मेट",
+		"error_copying_image": "छवि कॉपी करने में त्रुटि: {{errorMessage}}",
+		"error_saving_image": "छवि सहेजने में त्रुटि: {{errorMessage}}",
+		"error_opening_image": "छवि खोलने में त्रुटि: {{error}}",
+		"could_not_open_file": "फ़ाइल नहीं खोली जा सकी: {{errorMessage}}",
+		"could_not_open_file_generic": "फ़ाइल नहीं खोली जा सकी!",
 		"checkpoint_timeout": "चेकपॉइंट को पुनर्स्थापित करने का प्रयास करते समय टाइमआउट हो गया।",
 		"checkpoint_failed": "चेकपॉइंट पुनर्स्थापित करने में विफल।",
 		"no_workspace": "कृपया पहले प्रोजेक्ट फ़ोल्डर खोलें",
@@ -66,8 +71,10 @@
 		"history_cleanup": "इतिहास से गायब फाइलों वाले {{count}} टास्क साफ किए गए।",
 		"custom_storage_path_set": "कस्टम स्टोरेज पाथ सेट किया गया: {{path}}",
 		"default_storage_path": "डिफ़ॉल्ट स्टोरेज पाथ का उपयोग पुनः शुरू किया गया",
-		"settings_imported": "सेटिंग्स सफलतापूर्वक इम्पोर्ट की गईं.",
-		"share_link_copied": "साझा लिंक क्लिपबोर्ड पर कॉपी किया गया"
+		"settings_imported": "सेटिंग्स सफलतापूर्वक इम्पोर्ट की गईं।",
+		"share_link_copied": "साझा लिंक क्लिपबोर्ड पर कॉपी किया गया",
+		"image_copied_to_clipboard": "छवि डेटा URI क्लिपबोर्ड में कॉपी की गई",
+		"image_saved": "छवि {{path}} में सहेजी गई"
 	},
 	"answers": {
 		"yes": "हां",

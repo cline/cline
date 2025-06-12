@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "Format d'URI de données invalide",
+		"error_copying_image": "Erreur lors de la copie de l'image : {{errorMessage}}",
+		"error_saving_image": "Erreur lors de l'enregistrement de l'image : {{errorMessage}}",
+		"error_opening_image": "Erreur lors de l'ouverture de l'image : {{error}}",
+		"could_not_open_file": "Impossible d'ouvrir le fichier : {{errorMessage}}",
+		"could_not_open_file_generic": "Impossible d'ouvrir le fichier !",
 		"checkpoint_timeout": "Expiration du délai lors de la tentative de rétablissement du checkpoint.",
 		"checkpoint_failed": "Échec du rétablissement du checkpoint.",
 		"no_workspace": "Veuillez d'abord ouvrir un espace de travail",
@@ -67,7 +72,9 @@
 		"custom_storage_path_set": "Chemin de stockage personnalisé défini : {{path}}",
 		"default_storage_path": "Retour au chemin de stockage par défaut",
 		"settings_imported": "Paramètres importés avec succès.",
-		"share_link_copied": "Lien de partage copié dans le presse-papiers"
+		"share_link_copied": "Lien de partage copié dans le presse-papiers",
+		"image_copied_to_clipboard": "URI de données d'image copiée dans le presse-papiers",
+		"image_saved": "Image enregistrée dans {{path}}"
 	},
 	"answers": {
 		"yes": "Oui",

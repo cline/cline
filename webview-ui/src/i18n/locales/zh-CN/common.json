@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "生成 Mermaid 图表中...",
-		"render_error": "无法渲染图表"
+		"render_error": "无法渲染图表",
+		"buttons": {
+			"zoom": "缩放",
+			"zoomIn": "放大",
+			"zoomOut": "缩小",
+			"copy": "复制",
+			"save": "保存图片",
+			"viewCode": "查看代码",
+			"viewDiagram": "查看图表",
+			"close": "关闭"
+		},
+		"modal": {
+			"codeTitle": "Mermaid 代码"
+		},
+		"tabs": {
+			"diagram": "图表",
+			"code": "代码"
+		},
+		"feedback": {
+			"imageCopied": "图片已复制到剪贴板",
+			"copyError": "复制图片时出错"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "无效的数据 URI 格式",
+			"copyingImage": "复制图片时出错: {{error}}",
+			"openingImage": "打开图片时出错: {{error}}",
+			"pathNotExists": "路径不存在: {{path}}",
+			"couldNotOpen": "无法打开文件: {{error}}",
+			"couldNotOpenGeneric": "无法打开文件!"
+		},
+		"success": {
+			"imageDataUriCopied": "图片数据 URI 已复制到剪贴板"
+		}
 	}
 }

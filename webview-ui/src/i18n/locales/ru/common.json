@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Создание диаграммы mermaid...",
-		"render_error": "Не удалось отобразить диаграмму"
+		"render_error": "Не удалось отобразить диаграмму",
+		"buttons": {
+			"zoom": "Масштаб",
+			"zoomIn": "Увеличить",
+			"zoomOut": "Уменьшить",
+			"copy": "Копировать",
+			"save": "Сохранить изображение",
+			"viewCode": "Посмотреть код",
+			"viewDiagram": "Посмотреть диаграмму",
+			"close": "Закрыть"
+		},
+		"modal": {
+			"codeTitle": "Код Mermaid"
+		},
+		"tabs": {
+			"diagram": "Диаграмма",
+			"code": "Код"
+		},
+		"feedback": {
+			"imageCopied": "Изображение скопировано в буфер обмена",
+			"copyError": "Ошибка копирования изображения"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Неверный формат URI данных",
+			"copyingImage": "Ошибка копирования изображения: {{error}}",
+			"openingImage": "Ошибка открытия изображения: {{error}}",
+			"pathNotExists": "Путь не существует: {{path}}",
+			"couldNotOpen": "Не удалось открыть файл: {{error}}",
+			"couldNotOpenGeneric": "Не удалось открыть файл!"
+		},
+		"success": {
+			"imageDataUriCopied": "URI данных изображения скопирован в буфер обмена"
+		}
 	}
 }

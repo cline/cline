@@ -28,6 +28,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "Format d'URI de dades no vàlid",
+		"error_copying_image": "Error copiant la imatge: {{errorMessage}}",
+		"error_saving_image": "Error desant la imatge: {{errorMessage}}",
+		"error_opening_image": "Error obrint la imatge: {{error}}",
+		"could_not_open_file": "No s'ha pogut obrir el fitxer: {{errorMessage}}",
+		"could_not_open_file_generic": "No s'ha pogut obrir el fitxer!",
 		"checkpoint_timeout": "S'ha esgotat el temps en intentar restaurar el punt de control.",
 		"checkpoint_failed": "Ha fallat la restauració del punt de control.",
 		"no_workspace": "Si us plau, obre primer una carpeta de projecte",
@@ -71,7 +76,9 @@
 		"custom_storage_path_set": "Ruta d'emmagatzematge personalitzada establerta: {{path}}",
 		"default_storage_path": "S'ha reprès l'ús de la ruta d'emmagatzematge predeterminada",
 		"settings_imported": "Configuració importada correctament.",
-		"share_link_copied": "Enllaç de compartició copiat al portapapers"
+		"share_link_copied": "Enllaç de compartició copiat al portapapers",
+		"image_copied_to_clipboard": "URI de dades de la imatge copiada al portapapers",
+		"image_saved": "Imatge desada a {{path}}"
 	},
 	"answers": {
 		"yes": "Sí",

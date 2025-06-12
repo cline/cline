@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "머메이드 다이어그램 생성 중...",
-		"render_error": "다이어그램을 렌더링할 수 없음"
+		"render_error": "다이어그램을 렌더링할 수 없음",
+		"buttons": {
+			"zoom": "줌",
+			"zoomIn": "확대",
+			"zoomOut": "축소",
+			"copy": "복사",
+			"save": "이미지 저장",
+			"viewCode": "코드 보기",
+			"viewDiagram": "다이어그램 보기",
+			"close": "닫기"
+		},
+		"modal": {
+			"codeTitle": "머메이드 코드"
+		},
+		"tabs": {
+			"diagram": "다이어그램",
+			"code": "코드"
+		},
+		"feedback": {
+			"imageCopied": "이미지가 클립보드에 복사됨",
+			"copyError": "이미지 복사 오류"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "잘못된 데이터 URI 형식",
+			"copyingImage": "이미지 복사 오류: {{error}}",
+			"openingImage": "이미지 열기 오류: {{error}}",
+			"pathNotExists": "경로가 존재하지 않음: {{path}}",
+			"couldNotOpen": "파일을 열 수 없음: {{error}}",
+			"couldNotOpenGeneric": "파일을 열 수 없습니다!"
+		},
+		"success": {
+			"imageDataUriCopied": "이미지 데이터 URI가 클립보드에 복사됨"
+		}
 	}
 }

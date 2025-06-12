@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "Formato URI dati non valido",
+		"error_copying_image": "Errore durante la copia dell'immagine: {{errorMessage}}",
+		"error_saving_image": "Errore durante il salvataggio dell'immagine: {{errorMessage}}",
+		"error_opening_image": "Errore durante l'apertura dell'immagine: {{error}}",
+		"could_not_open_file": "Impossibile aprire il file: {{errorMessage}}",
+		"could_not_open_file_generic": "Impossibile aprire il file!",
 		"checkpoint_timeout": "Timeout durante il tentativo di ripristinare il checkpoint.",
 		"checkpoint_failed": "Impossibile ripristinare il checkpoint.",
 		"no_workspace": "Per favore, apri prima una cartella di progetto",
@@ -67,7 +72,9 @@
 		"custom_storage_path_set": "Percorso di archiviazione personalizzato impostato: {{path}}",
 		"default_storage_path": "Tornato al percorso di archiviazione predefinito",
 		"settings_imported": "Impostazioni importate con successo.",
-		"share_link_copied": "Link di condivisione copiato negli appunti"
+		"share_link_copied": "Link di condivisione copiato negli appunti",
+		"image_copied_to_clipboard": "URI dati dell'immagine copiato negli appunti",
+		"image_saved": "Immagine salvata in {{path}}"
 	},
 	"answers": {
 		"yes": "Sì",

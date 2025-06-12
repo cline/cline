@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Đang tạo biểu đồ mermaid...",
-		"render_error": "Không thể hiển thị biểu đồ"
+		"render_error": "Không thể hiển thị biểu đồ",
+		"buttons": {
+			"zoom": "Thu phóng",
+			"zoomIn": "Phóng to",
+			"zoomOut": "Thu nhỏ",
+			"copy": "Sao chép",
+			"save": "Lưu hình ảnh",
+			"viewCode": "Xem mã",
+			"viewDiagram": "Xem biểu đồ",
+			"close": "Đóng"
+		},
+		"modal": {
+			"codeTitle": "Mã Mermaid"
+		},
+		"tabs": {
+			"diagram": "Biểu đồ",
+			"code": "Mã"
+		},
+		"feedback": {
+			"imageCopied": "Hình ảnh đã được sao chép vào clipboard",
+			"copyError": "Lỗi sao chép hình ảnh"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Định dạng URI dữ liệu không hợp lệ",
+			"copyingImage": "Lỗi sao chép hình ảnh: {{error}}",
+			"openingImage": "Lỗi mở hình ảnh: {{error}}",
+			"pathNotExists": "Đường dẫn không tồn tại: {{path}}",
+			"couldNotOpen": "Không thể mở tệp: {{error}}",
+			"couldNotOpenGeneric": "Không thể mở tệp!"
+		},
+		"success": {
+			"imageDataUriCopied": "URI dữ liệu hình ảnh đã được sao chép vào clipboard"
+		}
 	}
 }

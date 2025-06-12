@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Mermaidダイアグラムを生成中...",
-		"render_error": "ダイアグラムをレンダリングできません"
+		"render_error": "ダイアグラムをレンダリングできません",
+		"buttons": {
+			"zoom": "ズーム",
+			"zoomIn": "拡大",
+			"zoomOut": "縮小",
+			"copy": "コピー",
+			"save": "画像を保存",
+			"viewCode": "コードを表示",
+			"viewDiagram": "ダイアグラムを表示",
+			"close": "閉じる"
+		},
+		"modal": {
+			"codeTitle": "Mermaidコード"
+		},
+		"tabs": {
+			"diagram": "ダイアグラム",
+			"code": "コード"
+		},
+		"feedback": {
+			"imageCopied": "画像をクリップボードにコピーしました",
+			"copyError": "画像のコピーエラー"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "無効なデータURI形式",
+			"copyingImage": "画像のコピーエラー: {{error}}",
+			"openingImage": "画像を開く際のエラー: {{error}}",
+			"pathNotExists": "パスが存在しません: {{path}}",
+			"couldNotOpen": "ファイルを開けませんでした: {{error}}",
+			"couldNotOpenGeneric": "ファイルを開けませんでした！"
+		},
+		"success": {
+			"imageDataUriCopied": "画像データURIをクリップボードにコピーしました"
+		}
 	}
 }

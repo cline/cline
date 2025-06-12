@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "मरमेड डायग्राम जनरेट हो रहा है...",
-		"render_error": "डायग्राम रेंडर नहीं किया जा सकता"
+		"render_error": "डायग्राम रेंडर नहीं किया जा सकता",
+		"buttons": {
+			"zoom": "ज़ूम",
+			"zoomIn": "बड़ा करें",
+			"zoomOut": "छोटा करें",
+			"copy": "कॉपी करें",
+			"save": "छवि सहेजें",
+			"viewCode": "कोड देखें",
+			"viewDiagram": "डायग्राम देखें",
+			"close": "बंद करें"
+		},
+		"modal": {
+			"codeTitle": "मरमेड कोड"
+		},
+		"tabs": {
+			"diagram": "डायग्राम",
+			"code": "कोड"
+		},
+		"feedback": {
+			"imageCopied": "इमेज क्लिपबोर्ड में कॉपी हो गई",
+			"copyError": "इमेज कॉपी करने में त्रुटि"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "अमान्य डेटा URI फॉर्मेट",
+			"copyingImage": "इमेज कॉपी करने में त्रुटि: {{error}}",
+			"openingImage": "इमेज खोलने में त्रुटि: {{error}}",
+			"pathNotExists": "पथ मौजूद नहीं है: {{path}}",
+			"couldNotOpen": "फ़ाइल नहीं खोली जा सकी: {{error}}",
+			"couldNotOpenGeneric": "फ़ाइल नहीं खोली जा सकी!"
+		},
+		"success": {
+			"imageDataUriCopied": "इमेज डेटा URI क्लिपबोर्ड में कॉपी हो गया"
+		}
 	}
 }

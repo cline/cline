@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Generant diagrama mermaid...",
-		"render_error": "No es pot renderitzar el diagrama"
+		"render_error": "No es pot renderitzar el diagrama",
+		"buttons": {
+			"zoom": "Zoom",
+			"zoomIn": "Ampliar",
+			"zoomOut": "Reduir",
+			"copy": "Copiar",
+			"save": "Desar imatge",
+			"viewCode": "Veure codi",
+			"viewDiagram": "Veure diagrama",
+			"close": "Tancar"
+		},
+		"modal": {
+			"codeTitle": "Codi Mermaid"
+		},
+		"tabs": {
+			"diagram": "Diagrama",
+			"code": "Codi"
+		},
+		"feedback": {
+			"imageCopied": "Imatge copiada al porta-retalls",
+			"copyError": "Error copiant la imatge"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Format d'URI de dades no vàlid",
+			"copyingImage": "Error copiant la imatge: {{error}}",
+			"openingImage": "Error obrint la imatge: {{error}}",
+			"pathNotExists": "El camí no existeix: {{path}}",
+			"couldNotOpen": "No s'ha pogut obrir el fitxer: {{error}}",
+			"couldNotOpenGeneric": "No s'ha pogut obrir el fitxer!"
+		},
+		"success": {
+			"imageDataUriCopied": "URI de dades de la imatge copiada al porta-retalls"
+		}
 	}
 }

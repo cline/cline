@@ -2,23 +2,7 @@ import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
 import { arePathsEqual, getWorkspacePath } from "../../utils/path"
-
-export async function openImage(dataUri: string) {
-	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
-	if (!matches) {
-		vscode.window.showErrorMessage("Invalid data URI format")
-		return
-	}
-	const [, format, base64Data] = matches
-	const imageBuffer = Buffer.from(base64Data, "base64")
-	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}.${format}`)
-	try {
-		await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), imageBuffer)
-		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
-	} catch (error) {
-		vscode.window.showErrorMessage(`Error opening image: ${error}`)
-	}
-}
+import { t } from "../../i18n"
 
 interface OpenFileOptions {
 	create?: boolean
@@ -151,9 +135,9 @@ export async function openFile(filePath: string, options: OpenFileOptions = {}) 
 		})
 	} catch (error) {
 		if (error instanceof Error) {
-			vscode.window.showErrorMessage(`Could not open file: ${error.message}`)
+			vscode.window.showErrorMessage(t("common:errors.could_not_open_file", { errorMessage: error.message }))
 		} else {
-			vscode.window.showErrorMessage(`Could not open file!`)
+			vscode.window.showErrorMessage(t("common:errors.could_not_open_file_generic"))
 		}
 	}
 }

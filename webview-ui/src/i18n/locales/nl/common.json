@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Mermaid-diagram genereren...",
-		"render_error": "Kan diagram niet weergeven"
+		"render_error": "Kan diagram niet weergeven",
+		"buttons": {
+			"zoom": "Zoom",
+			"zoomIn": "Inzoomen",
+			"zoomOut": "Uitzoomen",
+			"copy": "Kopiëren",
+			"save": "Afbeelding opslaan",
+			"viewCode": "Code bekijken",
+			"viewDiagram": "Diagram bekijken",
+			"close": "Sluiten"
+		},
+		"modal": {
+			"codeTitle": "Mermaid-code"
+		},
+		"tabs": {
+			"diagram": "Diagram",
+			"code": "Code"
+		},
+		"feedback": {
+			"imageCopied": "Afbeelding gekopieerd naar klembord",
+			"copyError": "Fout bij kopiëren van afbeelding"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Ongeldig data-URI-formaat",
+			"copyingImage": "Fout bij kopiëren van afbeelding: {{error}}",
+			"openingImage": "Fout bij openen van afbeelding: {{error}}",
+			"pathNotExists": "Pad bestaat niet: {{path}}",
+			"couldNotOpen": "Kon bestand niet openen: {{error}}",
+			"couldNotOpenGeneric": "Kon bestand niet openen!"
+		},
+		"success": {
+			"imageDataUriCopied": "Afbeelding data-URI gekopieerd naar klembord"
+		}
 	}
 }

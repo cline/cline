@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Mermaid diyagramı oluşturuluyor...",
-		"render_error": "Diyagram render edilemiyor"
+		"render_error": "Diyagram render edilemiyor",
+		"buttons": {
+			"zoom": "Yakınlaştır",
+			"zoomIn": "Büyüt",
+			"zoomOut": "Küçült",
+			"copy": "Kopyala",
+			"save": "Resmi kaydet",
+			"viewCode": "Kodu görüntüle",
+			"viewDiagram": "Diyagramı görüntüle",
+			"close": "Kapat"
+		},
+		"modal": {
+			"codeTitle": "Mermaid Kodu"
+		},
+		"tabs": {
+			"diagram": "Diyagram",
+			"code": "Kod"
+		},
+		"feedback": {
+			"imageCopied": "Görsel panoya kopyalandı",
+			"copyError": "Görsel kopyalama hatası"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Geçersiz veri URI formatı",
+			"copyingImage": "Görsel kopyalama hatası: {{error}}",
+			"openingImage": "Görsel açma hatası: {{error}}",
+			"pathNotExists": "Yol mevcut değil: {{path}}",
+			"couldNotOpen": "Dosya açılamadı: {{error}}",
+			"couldNotOpenGeneric": "Dosya açılamadı!"
+		},
+		"success": {
+			"imageDataUriCopied": "Görsel veri URI'si panoya kopyalandı"
+		}
 	}
 }

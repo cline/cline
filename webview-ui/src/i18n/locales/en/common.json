@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Generating mermaid diagram...",
-		"render_error": "Unable to Render Diagram"
+		"render_error": "Unable to Render Diagram",
+		"buttons": {
+			"zoom": "Zoom",
+			"zoomIn": "Zoom In",
+			"zoomOut": "Zoom Out",
+			"copy": "Copy",
+			"save": "Save Image",
+			"viewCode": "View Code",
+			"viewDiagram": "View Diagram",
+			"close": "Close"
+		},
+		"modal": {
+			"codeTitle": "Mermaid Code"
+		},
+		"tabs": {
+			"diagram": "Diagram",
+			"code": "Code"
+		},
+		"feedback": {
+			"imageCopied": "Image copied to clipboard",
+			"copyError": "Error copying image"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Invalid data URI format",
+			"copyingImage": "Error copying image: {{error}}",
+			"openingImage": "Error opening image: {{error}}",
+			"pathNotExists": "Path does not exist: {{path}}",
+			"couldNotOpen": "Could not open file: {{error}}",
+			"couldNotOpenGeneric": "Could not open file!"
+		},
+		"success": {
+			"imageDataUriCopied": "Image data URI copied to clipboard"
+		}
 	}
 }

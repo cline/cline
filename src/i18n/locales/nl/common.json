@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "Ongeldig data-URI-formaat",
+		"error_copying_image": "Fout bij kopiëren van afbeelding: {{errorMessage}}",
+		"error_saving_image": "Fout bij opslaan van afbeelding: {{errorMessage}}",
+		"error_opening_image": "Fout bij openen van afbeelding: {{error}}",
+		"could_not_open_file": "Kon bestand niet openen: {{errorMessage}}",
+		"could_not_open_file_generic": "Kon bestand niet openen!",
 		"checkpoint_timeout": "Time-out bij het herstellen van checkpoint.",
 		"checkpoint_failed": "Herstellen van checkpoint mislukt.",
 		"no_workspace": "Open eerst een projectmap",
@@ -67,7 +72,9 @@
 		"custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
 		"default_storage_path": "Terug naar standaard opslagpad",
 		"settings_imported": "Instellingen succesvol geïmporteerd.",
-		"share_link_copied": "Deellink gekopieerd naar klembord"
+		"share_link_copied": "Deellink gekopieerd naar klembord",
+		"image_copied_to_clipboard": "Afbeelding data-URI gekopieerd naar klembord",
+		"image_saved": "Afbeelding opgeslagen naar {{path}}"
 	},
 	"answers": {
 		"yes": "Ja",

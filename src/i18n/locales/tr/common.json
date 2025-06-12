@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "Geçersiz veri URI formatı",
+		"error_copying_image": "Resim kopyalanırken hata oluştu: {{errorMessage}}",
+		"error_saving_image": "Resim kaydedilirken hata oluştu: {{errorMessage}}",
+		"error_opening_image": "Resim açılırken hata oluştu: {{error}}",
+		"could_not_open_file": "Dosya açılamadı: {{errorMessage}}",
+		"could_not_open_file_generic": "Dosya açılamadı!",
 		"checkpoint_timeout": "Kontrol noktasını geri yüklemeye çalışırken zaman aşımına uğradı.",
 		"checkpoint_failed": "Kontrol noktası geri yüklenemedi.",
 		"no_workspace": "Lütfen önce bir proje klasörü açın",
@@ -67,7 +72,9 @@
 		"custom_storage_path_set": "Özel depolama yolu ayarlandı: {{path}}",
 		"default_storage_path": "Varsayılan depolama yoluna geri dönüldü",
 		"settings_imported": "Ayarlar başarıyla içe aktarıldı.",
-		"share_link_copied": "Paylaşım bağlantısı panoya kopyalandı"
+		"share_link_copied": "Paylaşım bağlantısı panoya kopyalandı",
+		"image_copied_to_clipboard": "Resim veri URI'si panoya kopyalandı",
+		"image_saved": "Resim {{path}} konumuna kaydedildi"
 	},
 	"answers": {
 		"yes": "Evet",

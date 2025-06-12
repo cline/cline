@@ -24,6 +24,11 @@
 	},
 	"errors": {
 		"invalid_data_uri": "データURIフォーマットが無効です",
+		"error_copying_image": "画像のコピー中にエラーが発生しました：{{errorMessage}}",
+		"error_saving_image": "画像の保存中にエラーが発生しました：{{errorMessage}}",
+		"error_opening_image": "画像を開く際にエラーが発生しました：{{error}}",
+		"could_not_open_file": "ファイルを開けませんでした：{{errorMessage}}",
+		"could_not_open_file_generic": "ファイルを開けませんでした！",
 		"checkpoint_timeout": "チェックポイントの復元を試みる際にタイムアウトしました。",
 		"checkpoint_failed": "チェックポイントの復元に失敗しました。",
 		"no_workspace": "まずプロジェクトフォルダを開いてください",
@@ -67,7 +72,9 @@
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
 		"default_storage_path": "デフォルトのストレージパスに戻りました",
 		"settings_imported": "設定が正常にインポートされました。",
-		"share_link_copied": "共有リンクがクリップボードにコピーされました"
+		"share_link_copied": "共有リンクがクリップボードにコピーされました",
+		"image_copied_to_clipboard": "画像データURIがクリップボードにコピーされました",
+		"image_saved": "画像を{{path}}に保存しました"
 	},
 	"answers": {
 		"yes": "はい",

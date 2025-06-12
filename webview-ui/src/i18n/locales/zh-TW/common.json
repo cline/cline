@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "產生 Mermaid 圖表中...",
-		"render_error": "無法渲染圖表"
+		"render_error": "無法渲染圖表",
+		"buttons": {
+			"zoom": "縮放",
+			"zoomIn": "放大",
+			"zoomOut": "縮小",
+			"copy": "複製",
+			"save": "儲存圖片",
+			"viewCode": "檢視程式碼",
+			"viewDiagram": "檢視圖表",
+			"close": "關閉"
+		},
+		"modal": {
+			"codeTitle": "Mermaid 程式碼"
+		},
+		"tabs": {
+			"diagram": "圖表",
+			"code": "程式碼"
+		},
+		"feedback": {
+			"imageCopied": "圖片已複製到剪貼簿",
+			"copyError": "複製圖片時發生錯誤"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "無效的資料 URI 格式",
+			"copyingImage": "複製圖片時發生錯誤: {{error}}",
+			"openingImage": "開啟圖片時發生錯誤: {{error}}",
+			"pathNotExists": "路徑不存在: {{path}}",
+			"couldNotOpen": "無法開啟檔案: {{error}}",
+			"couldNotOpenGeneric": "無法開啟檔案！"
+		},
+		"success": {
+			"imageDataUriCopied": "圖片資料 URI 已複製到剪貼簿"
+		}
 	}
 }

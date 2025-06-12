@@ -16,6 +16,40 @@
 	},
 	"mermaid": {
 		"loading": "Mermaid-Diagramm wird generiert...",
-		"render_error": "Diagramm kann nicht gerendert werden"
+		"render_error": "Diagramm kann nicht gerendert werden",
+		"buttons": {
+			"zoom": "Zoom",
+			"zoomIn": "Vergrößern",
+			"zoomOut": "Verkleinern",
+			"copy": "Kopieren",
+			"save": "Bild speichern",
+			"viewCode": "Code anzeigen",
+			"viewDiagram": "Diagramm anzeigen",
+			"close": "Schließen"
+		},
+		"modal": {
+			"codeTitle": "Mermaid-Code"
+		},
+		"tabs": {
+			"diagram": "Diagramm",
+			"code": "Code"
+		},
+		"feedback": {
+			"imageCopied": "Bild in die Zwischenablage kopiert",
+			"copyError": "Fehler beim Kopieren des Bildes"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Ungültiges Daten-URI-Format",
+			"copyingImage": "Fehler beim Kopieren des Bildes: {{error}}",
+			"openingImage": "Fehler beim Öffnen des Bildes: {{error}}",
+			"pathNotExists": "Pfad existiert nicht: {{path}}",
+			"couldNotOpen": "Datei konnte nicht geöffnet werden: {{error}}",
+			"couldNotOpenGeneric": "Datei konnte nicht geöffnet werden!"
+		},
+		"success": {
+			"imageDataUriCopied": "Bild-Daten-URI in die Zwischenablage kopiert"
+		}
 	}
 }
