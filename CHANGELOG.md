@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.17.13]
+
+-   Add Thinking UX for Gemini models, providing visual feedback during model reasoning
+-   Add support for Notifications MCP integration with Cline
+-   Add prompt caching indicator for Grok 3 models
+-   Sort MCP marketplace by newest listings by default for easier discovery of recent servers
+-   Update O3 model family pricing to reflect latest OpenAI rates
+-   Remove '-beta' suffix from Grok model identifiers
+-   Fix AWS Bedrock provider by removing deprecated Anthropic-Bedrock SDK (Thanks @watany-dev!)
+-   Fix menu display issue for terminal timeout settings
+-   Improve chat input field styling and behavior
+
 ## [3.17.12]
 
 -   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
