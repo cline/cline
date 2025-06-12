@@ -16,8 +16,6 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
 const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-const WEBVIEW_OUT_DIR = path.join(ROOT_DIR, "webview-ui", "src", "generated", "proto")
-
 const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-js")
 const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone", "proto")
 
@@ -147,7 +145,7 @@ async function generateGrpcClientConfig() {
 	const serviceExports = []
 
 	// Process each service in the serviceNameMap
-	for (const [dirName, fullServiceName] of Object.entries(serviceNameMap)) {
+	for (const [dirName, _fullServiceName] of Object.entries(serviceNameMap)) {
 		const capitalizedName = dirName.charAt(0).toUpperCase() + dirName.slice(1)
 
 		// Add import statement
