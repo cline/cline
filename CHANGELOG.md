@@ -2,13 +2,8 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   59a68c8: Migrate focusChatInput message to protobus
 -   95ad8d8: change text field input
-
-### Patch Changes
-
 -   1e06cf0: updating o3 model pricing
 -   0ae2dc3: Sorting mcp marketplace by newest listings by default
 -   889ffca: fix(bedrock): remove Anthropic-Bedrock SDK
