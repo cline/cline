@@ -106,7 +106,7 @@ export class ClineProvider
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
-	public readonly latestAnnouncementId = "may-29-2025-3-19" // Update for v3.19.0 announcement
+	public readonly latestAnnouncementId = "dec-12-2025-3-20" // Update for v3.20.0 announcement
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 

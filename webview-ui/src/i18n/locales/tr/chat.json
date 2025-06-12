@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
 		"description": "Roo Code {{version}} geri bildirimlerinize dayalı güçlü yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Akıllı Bağlam Sıkıştırma Varsayılan Olarak Etkin</bold>: Bağlam sıkıştırma artık varsayılan olarak etkin ve otomatik sıkıştırmanın ne zaman gerçekleşeceği için yapılandırılabilir ayarlar mevcut",
-		"feature2": "<bold>Manuel Sıkıştırma Butonu</bold>: Görev başlığındaki yeni buton, istediğiniz zaman manuel olarak bağlam sıkıştırmayı tetiklemenize olanak tanır",
-		"feature3": "<bold>Gelişmiş Sıkıştırma Ayarları</bold>: <contextSettingsLink>Bağlam Ayarları</contextSettingsLink> üzerinden otomatik sıkıştırmanın ne zaman ve nasıl gerçekleşeceğini ince ayarlayın",
+		"feature1": "<bold>Deneysel Marketplace</bold>: Yeni marketplaceden modları ve MCP'leri keşfedin ve kurun (<experimentalSettingsLink>Deneysel Ayarlar</experimentalSettingsLink>'da etkinleştirin)",
+		"feature2": "<bold>Gelişmiş Dosya İşlemleri</bold>: Deneysel çoklu eşzamanlı dosya yazma işlemleri ve eşzamanlı okuma artık <contextSettingsLink>Bağlam Ayarları</contextSettingsLink>'nda mevcut",
+		"feature3": "<bold>MCP İyileştirmeleri ve Daha Fazlası</bold>: Gelişmiş MCP desteği, Mermaid kontrolleri, Amazon Bedrock thinking desteği ve daha fazlası!",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},

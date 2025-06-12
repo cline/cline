@@ -202,9 +202,9 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} uitgebracht",
 		"description": "Roo Code {{version}} brengt krachtige nieuwe functies en verbeteringen op basis van jouw feedback.",
-		"feature1": "<bold>Intelligente Contextcompressie Standaard Ingeschakeld</bold>: Contextcompressie is nu standaard ingeschakeld met configureerbare instellingen voor wanneer automatische compressie plaatsvindt",
-		"feature2": "<bold>Handmatige Compressieknop</bold>: Nieuwe knop in de taakheader stelt je in staat om op elk moment handmatig contextcompressie te activeren",
-		"feature3": "<bold>Verbeterde Compressie-instellingen</bold>: Stel bij wanneer en hoe automatische compressie plaatsvindt via de <contextSettingsLink>Contextinstellingen</contextSettingsLink>",
+		"feature1": "<bold>Experimentele Marketplace</bold>: Ontdek en installeer modi en MCP's van de nieuwe marketplace (activeer in <experimentalSettingsLink>Experimentele Instellingen</experimentalSettingsLink>)",
+		"feature2": "<bold>Verbeterde Bestandsoperaties</bold>: Experimentele multi-concurrent bestandsschrijfoperaties, en concurrent lezen is nu beschikbaar in <contextSettingsLink>Contextinstellingen</contextSettingsLink>",
+		"feature3": "<bold>MCP Verbeteringen & Meer</bold>: Verbeterde MCP-ondersteuning, Mermaid-besturing, Amazon Bedrock thinking ondersteuning en meer!",
 		"hideButton": "Aankondiging verbergen",
 		"detailsDiscussLinks": "Meer details en discussie in <discordLink>Discord</discordLink> en <redditLink>Reddit</redditLink> 🚀",
 		"whatsNew": "Wat is er nieuw"

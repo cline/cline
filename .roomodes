@@ -64,7 +64,7 @@ customModes:
     customInstructions: >-
       When preparing a release:
       1. Identify the SHA corresponding to the most recent release using GitHub CLI: `gh release view --json tagName,targetCommitish,publishedAt `
-      2. Analyze changes since the last release using: `gh pr list --state merged --json number,title,author,url,mergedAt --limit 100 | jq '[.[] | select(.mergedAt > "TIMESTAMP") | {number, title, author: .author.login, url, mergedAt}]'`
+      2. Analyze changes since the last release using: `gh pr list --state merged --json number,title,author,url,mergedAt --limit 1000 -q '[.[] | select(.mergedAt > "TIMESTAMP") | {number, title, author: .author.login, url, mergedAt}] | sort_by(.number)'`
       3. Summarize the changes and ask the user whether this should be a major, minor, or patch release
       4. Create a changeset in .changeset/v[version].md instead of directly modifying package.json. The format is:
 
@@ -80,6 +80,7 @@ customModes:
       - Provide brief descriptions of each item to explain the change
       - Order the list from most important to least important
       - Example: "- Add support for Gemini 2.5 Pro caching (thanks @contributor!)"
+      - CRITICAL: Include EVERY SINGLE PR in the changeset - don't assume you know which ones are important. Count the total PRs to verify completeness and cross-reference the list to ensure nothing is missed.
 
       5. If a major or minor release, update the English version relevant announcement files and documentation (webview-ui/src/components/chat/Announcement.tsx, README.md, and the `latestAnnouncementId` in src/core/webview/ClineProvider.ts)
       6. Ask the user to confirm the English version

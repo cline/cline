@@ -220,11 +220,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",
-		"description": "Roo Code {{version}} brings powerful new features and improvements based on your feedback.",
+		"description": "Roo Code {{version}} brings major new features and improvements based on your feedback.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Intelligent Context Condensing Enabled by Default</bold>: Context condensing is now enabled by default with configurable settings for when automatic condensing happens",
-		"feature2": "<bold>Manual Condensing Button</bold>: New button in the task header allows you to manually trigger context condensing at any time",
-		"feature3": "<bold>Enhanced Condensing Settings</bold>: Fine-tune when and how automatic condensing occurs through the <contextSettingsLink>Context Settings</contextSettingsLink>",
+		"feature1": "<bold>Experimental Marketplace</bold>: Discover and install modes and MCPs from the new marketplace (enable in <experimentalSettingsLink>Experimental Settings</experimentalSettingsLink>)",
+		"feature2": "<bold>Enhanced File Operations</bold>: Multiple concurrent file writes in experimental settings, and concurrent reads now in <contextSettingsLink>Context Settings</contextSettingsLink>",
+		"feature3": "<bold>MCP Improvements & More</bold>: Enhanced MCP support, Mermaid controls, Amazon Bedrock thinking support, and much more!",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},

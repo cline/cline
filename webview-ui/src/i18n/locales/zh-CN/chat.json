@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} 已发布",
 		"description": "Roo Code {{version}} 带来基于您反馈的强大新功能和改进。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>智能上下文压缩默认启用</bold>: 上下文压缩现已默认启用，并提供可配置的自动压缩触发设置",
-		"feature2": "<bold>手动压缩按钮</bold>: 任务标题中的新按钮让您随时手动触发上下文压缩",
-		"feature3": "<bold>高级压缩设置</bold>: 通过<contextSettingsLink>上下文设置</contextSettingsLink>精确控制自动压缩的时机和方式",
+		"feature1": "<bold>实验性市场</bold>: 从新市场发现和安装模式及 MCP（在<experimentalSettingsLink>实验性设置</experimentalSettingsLink>中启用）",
+		"feature2": "<bold>增强文件操作</bold>: 实验性设置中的多个并发文件写入，并发读取现在在<contextSettingsLink>上下文设置</contextSettingsLink>中",
+		"feature3": "<bold>MCP 改进及更多</bold>: 增强的 MCP 支持、Mermaid 控制、Amazon Bedrock 思考支持等等！",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},

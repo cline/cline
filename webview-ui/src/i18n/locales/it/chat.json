@@ -216,9 +216,9 @@
 		"title": "🎉 Rilasciato Roo Code {{version}}",
 		"description": "Roo Code {{version}} introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Condensazione Intelligente del Contesto Abilitata di Default</bold>: La condensazione del contesto è ora abilitata di default con impostazioni configurabili per quando avviene la condensazione automatica",
-		"feature2": "<bold>Pulsante di Condensazione Manuale</bold>: Nuovo pulsante nell'intestazione delle attività che ti permette di attivare manualmente la condensazione del contesto in qualsiasi momento",
-		"feature3": "<bold>Impostazioni di Condensazione Migliorate</bold>: Regola quando e come avviene la condensazione automatica tramite le <contextSettingsLink>Impostazioni di Contesto</contextSettingsLink>",
+		"feature1": "<bold>Marketplace Sperimentale</bold>: Scopri e installa modalità e MCP dal nuovo marketplace (abilita in <experimentalSettingsLink>Impostazioni Sperimentali</experimentalSettingsLink>)",
+		"feature2": "<bold>Operazioni sui File Migliorate</bold>: Scritture multiple di file concorrenti nelle impostazioni sperimentali, e letture concorrenti ora in <contextSettingsLink>Impostazioni di Contesto</contextSettingsLink>",
+		"feature3": "<bold>Miglioramenti MCP e altro</bold>: Supporto MCP migliorato, controlli Mermaid, supporto per Amazon Bedrock thinking, e molto altro!",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

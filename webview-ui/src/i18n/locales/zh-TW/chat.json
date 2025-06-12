@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來基於您意見回饋的強大新功能與改進。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>智慧上下文壓縮預設啟用</bold>: 上下文壓縮現已預設啟用，並提供可設定的自動壓縮觸發設定",
-		"feature2": "<bold>手動壓縮按鈕</bold>: 工作標題中的新按鈕讓您隨時手動觸發上下文壓縮",
-		"feature3": "<bold>進階壓縮設定</bold>: 透過<contextSettingsLink>上下文設定</contextSettingsLink>精確控制自動壓縮的時機和方式",
+		"feature1": "<bold>實驗性市場</bold>: 探索並安裝新市場中的模式和 MCP（在<experimentalSettingsLink>實驗性設定</experimentalSettingsLink>中啟用）",
+		"feature2": "<bold>增強檔案操作</bold>: 實驗性多檔案並行寫入操作，並行讀取現已在<contextSettingsLink>上下文設定</contextSettingsLink>中提供",
+		"feature3": "<bold>MCP 改進與更多功能</bold>: 增強的 MCP 支援、Mermaid 控制項、Amazon Bedrock thinking 支援等更多功能！",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},

@@ -46,16 +46,36 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					<ul className="space-y-2">
 						<li>
 							•{" "}
-							<Trans i18nKey="chat:announcement.feature1" components={{ bold: <b />, code: <code /> }} />
-						</li>
-						<li>
-							•{" "}
-							<Trans i18nKey="chat:announcement.feature2" components={{ bold: <b />, code: <code /> }} />
+							<Trans
+								i18nKey="chat:announcement.feature1"
+								components={{
+									bold: <b />,
+									code: <code />,
+									experimentalSettingsLink: (
+										<VSCodeLink
+											href="#"
+											onClick={(e) => {
+												e.preventDefault()
+												setOpen(false)
+												hideAnnouncement()
+												window.postMessage(
+													{
+														type: "action",
+														action: "settingsButtonClicked",
+														values: { section: "experimental" },
+													},
+													"*",
+												)
+											}}
+										/>
+									),
+								}}
+							/>
 						</li>
 						<li>
 							•{" "}
 							<Trans
-								i18nKey="chat:announcement.feature3"
+								i18nKey="chat:announcement.feature2"
 								components={{
 									bold: <b />,
 									code: <code />,
@@ -79,6 +99,10 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 									),
 								}}
 							/>
+						</li>
+						<li>
+							•{" "}
+							<Trans i18nKey="chat:announcement.feature3" components={{ bold: <b />, code: <code /> }} />
 						</li>
 					</ul>
 					<Trans

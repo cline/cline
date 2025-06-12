@@ -49,13 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.19 Released
+## 🎉 Roo Code 3.20 Released
 
-Roo Code 3.19 brings intelligent context management improvements and enhanced user experience!
+Roo Code 3.20 brings major new features and improvements based on your feedback!
 
-- **Intelligent Context Condensing Enabled by Default** - Context condensing is now enabled by default with configurable settings for when automatic condensing happens.
-- **Manual Condensing Button** - New button in the task header allows you to manually trigger context condensing at any time.
-- **Enhanced Condensing Settings** - Fine-tune when and how automatic condensing occurs through the Context Settings panel.
+- **Experimental Marketplace** - Discover and install modes and MCPs from the new marketplace (enable in Experimental Settings).
+- **Enhanced File Operations** - Multiple concurrent file writes now available in Experimental Settings, and multiple concurrent reads has graduated from experimental and now lives in the Context Settings.
+- **MCP Improvements & More** - Enhanced MCP support, more Mermaid controls, thinking support in Amazon Bedrock, and much more!
 
 ---
 

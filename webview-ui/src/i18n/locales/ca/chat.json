@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} publicat",
 		"description": "Roo Code {{version}} porta noves funcionalitats potents i millores basades en els teus comentaris.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Condensació intel·ligent de context activada per defecte</bold>: La condensació de context ara està activada per defecte amb configuracions configurables per quan es produeix la condensació automàtica",
-		"feature2": "<bold>Botó de condensació manual</bold>: Nou botó a la capçalera de tasques que et permet activar manualment la condensació de context en qualsevol moment",
-		"feature3": "<bold>Configuració avançada de condensació</bold>: Ajusta quan i com es produeix la condensació automàtica a través de <contextSettingsLink>Configuració de context</contextSettingsLink>",
+		"feature1": "<bold>Marketplace Experimental</bold>: Descobreix i instal·la modes i MCP del nou marketplace (activa'l a la <experimentalSettingsLink>Configuració Experimental</experimentalSettingsLink>)",
+		"feature2": "<bold>Operacions de fitxer millorades</bold>: Operacions d'escriptura multi-concurrent experimentals i lectura concurrent ara disponibles a la <contextSettingsLink>Configuració de Context</contextSettingsLink>",
+		"feature3": "<bold>Millores MCP i més</bold>: Suport MCP millorat, controls Mermaid, suport Amazon Bedrock thinking, i més!",
 		"hideButton": "Amagar anunci",
 		"detailsDiscussLinks": "Obtingues més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

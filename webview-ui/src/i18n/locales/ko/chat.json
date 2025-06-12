@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} 출시",
 		"description": "Roo Code {{version}}은 사용자 피드백을 기반으로 강력한 새로운 기능과 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>지능형 컨텍스트 압축이 기본적으로 활성화됨</bold>: 컨텍스트 압축이 이제 기본적으로 활성화되며 자동 압축이 발생하는 시점을 구성할 수 있습니다",
-		"feature2": "<bold>수동 압축 버튼</bold>: 작업 헤더의 새 버튼으로 언제든지 수동으로 컨텍스트 압축을 트리거할 수 있습니다",
-		"feature3": "<bold>향상된 압축 설정</bold>: <contextSettingsLink>컨텍스트 설정</contextSettingsLink>을 통해 자동 압축이 언제 어떻게 발생하는지 세밀하게 조정",
+		"feature1": "<bold>실험적 마켓플레이스</bold>: 새로운 마켓플레이스에서 모드와 MCP를 발견하고 설치하세요 (<experimentalSettingsLink>실험적 설정</experimentalSettingsLink>에서 활성화)",
+		"feature2": "<bold>향상된 파일 작업</bold>: 실험적 설정에서 다중 동시 파일 쓰기, 동시 읽기는 이제 <contextSettingsLink>컨텍스트 설정</contextSettingsLink>에서 사용 가능",
+		"feature3": "<bold>MCP 개선 사항 및 기타</bold>: 향상된 MCP 지원, Mermaid 컨트롤, Amazon Bedrock thinking 지원 등!",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
 	},

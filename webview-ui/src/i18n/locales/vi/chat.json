@@ -216,9 +216,9 @@
 		"title": "🎉 Roo Code {{version}} Đã phát hành",
 		"description": "Roo Code {{version}} mang đến các tính năng mạnh mẽ và cải tiến mới dựa trên phản hồi của bạn.",
 		"whatsNew": "Có gì mới",
-		"feature1": "<bold>Cô đọng ngữ cảnh thông minh được bật mặc định</bold>: Cô đọng ngữ cảnh hiện được bật mặc định với các cài đặt có thể cấu hình cho khi nào tự động cô đọng",
-		"feature2": "<bold>Nút cô đọng thủ công</bold>: Nút mới trong tiêu đề nhiệm vụ cho phép bạn kích hoạt cô đọng ngữ cảnh thủ công bất cứ lúc nào",
-		"feature3": "<bold>Cài đặt cô đọng nâng cao</bold>: Tinh chỉnh khi nào và cách thức tự động cô đọng thông qua <contextSettingsLink>Cài đặt ngữ cảnh</contextSettingsLink>",
+		"feature1": "<bold>Marketplace Thử nghiệm</bold>: Khám phá và cài đặt các chế độ và MCP từ marketplace mới (kích hoạt trong <experimentalSettingsLink>Cài đặt Thử nghiệm</experimentalSettingsLink>)",
+		"feature2": "<bold>Cải tiến thao tác tệp</bold>: Thao tác ghi tệp đa luồng thử nghiệm, và đọc đồng thời hiện có sẵn trong <contextSettingsLink>Cài đặt Ngữ cảnh</contextSettingsLink>",
+		"feature3": "<bold>Cải tiến MCP và nhiều hơn nữa</bold>: Hỗ trợ MCP nâng cao, điều khiển Mermaid, hỗ trợ Amazon Bedrock thinking và nhiều hơn nữa!",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},
