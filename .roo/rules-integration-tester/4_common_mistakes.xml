@@ -1,0 +1,109 @@
+<common_mistakes_to_avoid>
+  <test_structure_mistakes>
+    - Writing a test file with a single write_to_file tool call instead of implementing in parts
+    - Not using proper Mocha TDD structure with suite() and test() blocks
+    - Forgetting to implement suiteSetup() and suiteTeardown() for proper cleanup
+    - Creating tests that depend on each other or specific execution order
+    - Not cleaning up tasks and files after test completion
+    - Using describe/it blocks instead of the required suite/test blocks
+  </test_structure_mistakes>
+
+  <api_interaction_mistakes>
+    - Not using the global api object for extension interactions
+    - Forgetting to set auto-approval settings (alwaysAllowWrite, alwaysAllowExecute) when testing functionality that requires user approval
+    - Not implementing proper async/await patterns with waitFor utilities
+    - Using incorrect timeout values that are too short for actual task execution
+    - Not properly cleaning up tasks with cancelCurrentTask or clearCurrentTask
+    - Assuming the AI will use specific tools instead of testing outcomes
+  </api_interaction_mistakes>
+
+  <file_system_mistakes>
+    - Assuming files will be created in the expected location without checking multiple paths
+    - Not accounting for the workspace directory being created by runTest.ts
+    - Creating test files in temporary directories instead of the VSCode workspace directory
+    - Not verifying files exist after creation during setup
+    - Forgetting that the AI may not see files in the workspace directory
+    - Not using flexible file location checking that searches workspace directories
+  </file_system_mistakes>
+
+  <event_handling_mistakes>
+    - Relying on parsing AI messages to detect tool usage instead of using proper event listeners
+    - Expecting tool results in "tool_result" message type (which doesn't exist)
+    - Not listening to terminal shell execution events for command tracking
+    - Depending on specific message formats that may vary
+    - Not implementing proper event cleanup after tests
+    - Parsing complex AI conversation messages instead of focusing on outcomes
+  </event_handling_mistakes>
+
+  <test_execution_mistakes>
+    - Using npm test instead of npm run test:run
+    - Not using the correct working directory (apps/vscode-e2e)
+    - Running tests from the wrong directory
+    - Not checking available scripts with npm run when unsure
+    - Forgetting to use TEST_FILE environment variable for specific tests
+    - Not running tests incrementally during development
+  </test_execution_mistakes>
+
+  <debugging_mistakes>
+    - Not adding sufficient logging to track test execution flow
+    - Not logging important events like task IDs, file paths, and AI responses
+    - Not using codebase_search to find similar test patterns before writing new tests
+    - Not checking test output carefully for error messages and stack traces
+    - Not validating test state at critical points
+    - Assuming test failures are due to code issues without checking test logic
+  </debugging_mistakes>
+
+  <ai_interaction_mistakes>
+    - Using complex instructions that may confuse the AI
+    - Expecting the AI to use exact tools specified in prompts
+    - Not allowing for variations in how the AI accomplishes tasks
+    - Testing implementation details instead of outcomes
+    - Not adapting tests based on actual AI behavior
+    - Forgetting to tell the AI to assume files exist in the workspace directory
+  </ai_interaction_mistakes>
+
+  <reliability_mistakes>
+    - Adding unnecessary waits for specific tool executions
+    - Using complex message parsing logic that depends on AI behavior
+    - Not using the simplest possible test structure
+    - Depending on specific AI message formats
+    - Not using terminal events for reliable command execution verification
+    - Making tests too brittle by depending on exact AI responses
+  </reliability_mistakes>
+
+  <workspace_mistakes>
+    - Not understanding that files may be created in /tmp/roo-test-workspace-* directories
+    - Assuming the AI can see files in the workspace directory
+    - Not checking multiple possible file locations when verifying creation
+    - Creating files outside the VSCode workspace during tests
+    - Not properly setting up the test workspace in suiteSetup()
+    - Forgetting to clean up workspace files in suiteTeardown()
+  </workspace_mistakes>
+
+  <message_handling_mistakes>
+    - Expecting specific message types for tool execution results
+    - Not understanding that ClineMessage types have specific values
+    - Trying to parse tool execution from AI conversation messages
+    - Not checking packages/types/src/message.ts for valid message types
+    - Depending on message parsing instead of outcome verification
+    - Not using api_req_started messages to verify tool execution
+  </message_handling_mistakes>
+
+  <timeout_and_timing_mistakes>
+    - Using timeouts that are too short for actual task execution
+    - Not accounting for AI processing time in test timeouts
+    - Waiting for specific tool executions instead of task completion
+    - Not implementing proper retry logic for flaky operations
+    - Using fixed delays instead of condition-based waiting
+    - Not considering that some operations may take longer in CI environments
+  </timeout_and_timing_mistakes>
+
+  <test_data_mistakes>
+    - Not creating test files in the correct workspace directory
+    - Using hardcoded paths that don't work across different environments
+    - Not storing file paths in test-scoped objects for easy reference
+    - Creating test data that conflicts with other tests
+    - Not cleaning up test data properly after tests complete
+    - Using test data that's too complex for the AI to handle reliably
+  </test_data_mistakes>
+</common_mistakes_to_avoid>

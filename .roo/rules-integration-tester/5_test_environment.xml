@@ -1,0 +1,209 @@
+<test_environment_and_tools>
+  <test_framework>
+    <description>VSCode E2E testing framework using Mocha and VSCode Test</description>
+    <key_components>
+      - Mocha TDD framework for test structure
+      - VSCode Test framework for extension testing
+      - Custom test utilities and helpers
+      - Event-driven testing patterns
+      - Workspace-based test execution
+    </key_components>
+  </test_framework>
+
+  <directory_structure>
+    <test_files_location>apps/vscode-e2e/src/suite/</test_files_location>
+    <test_utilities>apps/vscode-e2e/src/utils/</test_utilities>
+    <test_runner>apps/vscode-e2e/src/runTest.ts</test_runner>
+    <package_config>apps/vscode-e2e/package.json</package_config>
+    <type_definitions>packages/types/</type_definitions>
+  </directory_structure>
+
+  <test_execution_commands>
+    <working_directory>apps/vscode-e2e</working_directory>
+    <commands>
+      <run_all_tests>npm run test:run</run_all_tests>
+      <run_specific_test>TEST_FILE="filename.test" npm run test:run</run_specific_test>
+      <example>cd apps/vscode-e2e && TEST_FILE="apply-diff.test" npm run test:run</example>
+      <check_scripts>npm run</check_scripts>
+    </commands>
+    <important_notes>
+      - Never use npm test directly as it doesn't exist
+      - Always use the correct working directory
+      - Use TEST_FILE environment variable for specific tests
+      - Check available scripts with npm run if unsure
+    </important_notes>
+  </test_execution_commands>
+
+  <api_object>
+    <description>Global api object for extension interactions</description>
+    <key_methods>
+      <task_management>
+        - api.startTask(prompt: string): Start a new task
+        - api.cancelCurrentTask(): Cancel the current task
+        - api.clearCurrentTask(): Clear the current task
+        - api.abortTask(): Abort the current task
+        - api.getTaskStatus(): Get current task status
+      </task_management>
+      <event_listeners>
+        - api.onDidReceiveMessage(callback): Listen to messages
+        - api.onTaskCompleted(callback): Listen to task completion
+        - api.onTaskAborted(callback): Listen to task abortion
+        - api.onTaskStarted(callback): Listen to task start
+        - api.onDidStartTerminalShellExecution(callback): Terminal start events
+        - api.onDidEndTerminalShellExecution(callback): Terminal end events
+      </event_listeners>
+      <settings>
+        - api.updateSettings(settings): Update extension settings
+        - api.getSettings(): Get current settings
+      </settings>
+    </key_methods>
+  </api_object>
+
+  <test_utilities>
+    <wait_functions>
+      <waitFor>
+        <description>Wait for a condition to be true</description>
+        <usage>await waitFor(() => condition, timeout)</usage>
+        <example>await waitFor(() => fs.existsSync(filePath), 5000)</example>
+      </waitFor>
+      <waitUntilCompleted>
+        <description>Wait until current task is completed</description>
+        <usage>await waitUntilCompleted()</usage>
+        <timeout>Default timeout for task completion</timeout>
+      </waitUntilCompleted>
+      <waitUntilAborted>
+        <description>Wait until current task is aborted</description>
+        <usage>await waitUntilAborted()</usage>
+        <timeout>Default timeout for task abortion</timeout>
+      </waitUntilAborted>
+    </wait_functions>
+    
+    <helper_patterns>
+      <file_location_helper>
+        <description>Helper to find files in multiple possible locations</description>
+        <usage>Use when files might be created in different workspace directories</usage>
+      </file_location_helper>
+      <event_collector>
+        <description>Utility to collect and analyze events during test execution</description>
+        <usage>Use for comprehensive event tracking and validation</usage>
+      </event_collector>
+      <assertion_helpers>
+        <description>Custom assertion functions for common test patterns</description>
+        <usage>Use for consistent validation across tests</usage>
+      </assertion_helpers>
+    </helper_patterns>
+  </test_utilities>
+
+  <workspace_management>
+    <workspace_creation>
+      <description>Test workspaces are created by runTest.ts</description>
+      <location>/tmp/roo-test-workspace-*</location>
+      <access>vscode.workspace.workspaceFolders![0].uri.fsPath</access>
+    </workspace_creation>
+    
+    <file_creation_strategy>
+      <setup_phase>Create all test files in suiteSetup() before any tests run</setup_phase>
+      <location>Always create files in the VSCode workspace directory</location>
+      <verification>Verify files exist after creation to catch setup issues early</verification>
+      <cleanup>Clean up all test files in suiteTeardown() to avoid test pollution</cleanup>
+      <storage>Store file paths in a test-scoped object for easy reference</storage>
+    </file_creation_strategy>
+
+    <ai_visibility>
+      <important_note>The AI will not see the files in the workspace directory</important_note>
+      <solution>Tell the AI to assume files exist and proceed as if they do</solution>
+      <verification>Always verify outcomes rather than relying on AI file visibility</verification>
+    </ai_visibility>
+  </workspace_management>
+
+  <message_types>
+    <description>Understanding message types for proper event handling</description>
+    <reference>Check packages/types/src/message.ts for valid message types</reference>
+    
+    <key_message_types>
+      <api_req_started>
+        <type>say</type>
+        <say>api_req_started</say>
+        <description>Indicates tool execution started</description>
+        <text_content>JSON with tool name and execution details</text_content>
+        <usage>Most reliable way to verify tool execution</usage>
+      </api_req_started>
+      
+      <completion_result>
+        <description>Contains tool execution results</description>
+        <usage>Tool results appear here, not in "tool_result" type</usage>
+      </completion_result>
+      
+      <text_messages>
+        <description>General AI conversation messages</description>
+        <caution>Format may vary, don't rely on parsing these for tool detection</caution>
+      </text_messages>
+    </key_message_types>
+  </message_types>
+
+  <auto_approval_settings>
+    <description>Settings to enable automatic approval of AI actions</description>
+    <critical_settings>
+      <alwaysAllowWrite>Enable for file creation/modification tests</alwaysAllowWrite>
+      <alwaysAllowExecute>Enable for command execution tests</alwaysAllowExecute>
+      <alwaysAllowBrowser>Enable for browser-related tests</alwaysAllowBrowser>
+    </critical_settings>
+    <usage>
+      ```typescript
+      await api.updateSettings({
+        alwaysAllowWrite: true,
+        alwaysAllowExecute: true
+      });
+      ```
+    </usage>
+    <importance>Without proper auto-approval settings, the AI won't be able to perform actions without user approval</importance>
+  </auto_approval_settings>
+
+  <debugging_tools>
+    <console_logging>
+      <description>Use console.log for tracking test execution flow</description>
+      <best_practices>
+        - Log test phase transitions
+        - Log important events and data
+        - Log file paths and workspace state
+        - Log expected vs actual outcomes
+      </best_practices>
+    </console_logging>
+    
+    <state_validation>
+      <description>Helper functions to validate test state at critical points</description>
+      <includes>
+        - Workspace file listing
+        - Current working directory
+        - Task status
+        - Event counts
+      </includes>
+    </state_validation>
+    
+    <error_analysis>
+      <description>Tools for analyzing test failures</description>
+      <techniques>
+        - Stack trace analysis
+        - Event timeline reconstruction
+        - File system state comparison
+        - Message flow analysis
+      </techniques>
+    </error_analysis>
+  </debugging_tools>
+
+  <performance_considerations>
+    <timeouts>
+      <description>Appropriate timeout values for different operations</description>
+      <task_completion>Use generous timeouts for task completion (30+ seconds)</task_completion>
+      <file_operations>Shorter timeouts for file system operations (5-10 seconds)</file_operations>
+      <event_waiting>Medium timeouts for event waiting (10-15 seconds)</event_waiting>
+    </timeouts>
+    
+    <resource_management>
+      <description>Proper cleanup to avoid resource leaks</description>
+      <event_listeners>Always clean up event listeners after tests</event_listeners>
+      <tasks>Cancel or clear tasks in teardown</tasks>
+      <files>Remove test files to avoid disk space issues</files>
+    </resource_management>
+  </performance_considerations>
+</test_environment_and_tools>

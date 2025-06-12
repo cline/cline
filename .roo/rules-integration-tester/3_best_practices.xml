@@ -1,0 +1,104 @@
+<best_practices>
+  <test_structure>
+    - Always use suite() and test() blocks following Mocha TDD style
+    - Use descriptive test names that explain the scenario being tested
+    - Implement proper setup and teardown in suiteSetup() and suiteTeardown()
+    - Create test files in the VSCode workspace directory during suiteSetup()
+    - Store file paths in a test-scoped object for easy reference across tests
+    - Ensure tests are independent and can run in any order
+    - Clean up all test files and tasks in suiteTeardown() to avoid test pollution
+  </test_structure>
+
+  <api_interactions>
+    - Always use the global api object for extension interactions
+    - Implement proper async/await patterns with the waitFor utility
+    - Use waitUntilCompleted and waitUntilAborted helpers for task monitoring
+    - Set appropriate auto-approval settings (alwaysAllowWrite, alwaysAllowExecute) for the functionality being tested
+    - Listen to and validate appropriate events (message, taskCompleted, taskAborted, etc.)
+    - Always clean up tasks with cancelCurrentTask or clearCurrentTask after tests
+    - Use meaningful timeouts that account for actual task execution time
+  </api_interactions>
+
+  <file_system_handling>
+    - Be aware that files may be created in the workspace directory (/tmp/roo-test-workspace-*) rather than expected locations
+    - Always check multiple possible file locations when verifying file creation
+    - Use flexible file location checking that searches workspace directories
+    - Verify files exist after creation to catch setup issues early
+    - Account for the fact that the workspace directory is created by runTest.ts
+    - The AI may use internal tools instead of the documented tools - verify outcomes rather than methods
+  </file_system_handling>
+
+  <event_handling>
+    - Add multiple event listeners (taskStarted, taskCompleted, taskAborted) for better debugging
+    - Don't rely on parsing AI messages to detect tool usage - the AI's message format may vary
+    - Use terminal shell execution events (onDidStartTerminalShellExecution, onDidEndTerminalShellExecution) for command tracking
+    - Tool executions are reported via api_req_started messages with type="say" and say="api_req_started"
+    - Focus on testing outcomes (files created, commands executed) rather than message parsing
+    - There is no "tool_result" message type - tool results appear in "completion_result" or "text" messages
+  </event_handling>
+
+  <error_scenarios>
+    - Test both positive flows and error scenarios
+    - Validate message content using proper type assertions
+    - Implement proper error handling and edge cases
+    - Use try-catch blocks around critical test operations
+    - Log important events like task IDs, file paths, and AI responses for debugging
+    - Check test output carefully for error messages and stack traces
+  </error_scenarios>
+
+  <test_reliability>
+    - Remove unnecessary waits for specific tool executions - wait for task completion instead
+    - Simplify message handlers to only capture essential error information
+    - Use the simplest possible test structure that verifies the outcome
+    - Avoid complex message parsing logic that depends on AI behavior
+    - Terminal events are more reliable than message parsing for command execution verification
+    - Keep prompts simple and direct - complex instructions may confuse the AI
+  </test_reliability>
+
+  <debugging_and_troubleshooting>
+    - Add console.log statements to track test execution flow
+    - Log important events like task IDs, file paths, and AI responses
+    - Use codebase_search first to find similar test patterns before writing new tests
+    - Create helper functions for common file location checks
+    - Use descriptive variable names for file paths and content
+    - Always log the expected vs actual locations when tests fail
+    - Add comprehensive comments explaining complex test logic
+  </debugging_and_troubleshooting>
+
+  <test_utilities>
+    - Create reusable test utilities when patterns emerge
+    - Implement helper functions for common operations like file finding
+    - Use event collection utilities for consistent event handling
+    - Create assertion helpers for common validation patterns
+    - Document any new test utilities or patterns created
+    - Share common utilities across test files to reduce duplication
+  </test_utilities>
+
+  <ai_interaction_considerations>
+    - Keep prompts simple and direct - complex instructions may lead to unexpected behavior
+    - Allow for variations in how the AI accomplishes tasks
+    - The AI may not always use the exact tool you specify in the prompt
+    - Be prepared to adapt tests based on actual AI behavior rather than expected behavior
+    - The AI may interpret instructions creatively - test results rather than implementation details
+    - The AI will not see the files in the workspace directory, you must tell it to assume they exist and proceed
+  </ai_interaction_considerations>
+
+  <test_execution>
+    - ALWAYS use the correct working directory: apps/vscode-e2e
+    - The test command is: npm run test:run
+    - To run specific tests use environment variable: TEST_FILE="filename.test" npm run test:run
+    - Example: cd apps/vscode-e2e && TEST_FILE="apply-diff.test" npm run test:run
+    - Never use npm test directly as it doesn't exist
+    - Always check available scripts with npm run if unsure
+    - Run tests incrementally during development to catch issues early
+  </test_execution>
+
+  <code_organization>
+    - Never write a test file with a single write_to_file tool call
+    - Always implement tests in parts: structure first, then individual test cases
+    - Group related tests in the same suite
+    - Use consistent naming conventions for test files and functions
+    - Separate test utilities into their own files when they become substantial
+    - Follow the existing project structure and conventions
+  </code_organization>
+</best_practices>

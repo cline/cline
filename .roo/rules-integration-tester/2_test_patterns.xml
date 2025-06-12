@@ -1,0 +1,303 @@
+<test_patterns>
+  <mocha_tdd_structure>
+    <description>Standard Mocha TDD structure for integration tests</description>
+    <pattern>
+      <name>Basic Test Suite Structure</name>
+      <example>
+        ```typescript
+        import { suite, test, suiteSetup, suiteTeardown } from 'mocha';
+        import * as assert from 'assert';
+        import * as vscode from 'vscode';
+        import { waitFor, waitUntilCompleted, waitUntilAborted } from '../utils/testUtils';
+
+        suite('Feature Name Tests', () => {
+          let testWorkspaceDir: string;
+          let testFiles: { [key: string]: string } = {};
+
+          suiteSetup(async () => {
+            // Setup test workspace and files
+            testWorkspaceDir = vscode.workspace.workspaceFolders![0].uri.fsPath;
+            // Create test files in workspace
+          });
+
+          suiteTeardown(async () => {
+            // Cleanup test files and tasks
+            await api.cancelCurrentTask();
+          });
+
+          test('should perform specific functionality', async () => {
+            // Test implementation
+          });
+        });
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>Event Listening Pattern</name>
+      <example>
+        ```typescript
+        test('should handle task completion events', async () => {
+          const events: any[] = [];
+          
+          const messageListener = (message: any) => {
+            events.push({ type: 'message', data: message });
+          };
+          
+          const taskCompletedListener = (result: any) => {
+            events.push({ type: 'taskCompleted', data: result });
+          };
+
+          api.onDidReceiveMessage(messageListener);
+          api.onTaskCompleted(taskCompletedListener);
+
+          try {
+            // Perform test actions
+            await api.startTask('test prompt');
+            await waitUntilCompleted();
+            
+            // Validate events
+            assert(events.some(e => e.type === 'taskCompleted'));
+          } finally {
+            // Cleanup listeners
+            api.onDidReceiveMessage(() => {});
+            api.onTaskCompleted(() => {});
+          }
+        });
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>File Creation Test Pattern</name>
+      <example>
+        ```typescript
+        test('should create files in workspace', async () => {
+          const fileName = 'test-file.txt';
+          const expectedContent = 'test content';
+          
+          await api.startTask(`Create a file named ${fileName} with content: ${expectedContent}`);
+          await waitUntilCompleted();
+          
+          // Check multiple possible locations
+          const possiblePaths = [
+            path.join(testWorkspaceDir, fileName),
+            path.join(process.cwd(), fileName),
+            // Add other possible locations
+          ];
+          
+          let fileFound = false;
+          let actualContent = '';
+          
+          for (const filePath of possiblePaths) {
+            if (fs.existsSync(filePath)) {
+              actualContent = fs.readFileSync(filePath, 'utf8');
+              fileFound = true;
+              break;
+            }
+          }
+          
+          assert(fileFound, `File ${fileName} not found in any expected location`);
+          assert.strictEqual(actualContent.trim(), expectedContent);
+        });
+        ```
+      </example>
+    </pattern>
+  </mocha_tdd_structure>
+
+  <api_interaction_patterns>
+    <pattern>
+      <name>Basic Task Execution</name>
+      <example>
+        ```typescript
+        // Start a task and wait for completion
+        await api.startTask('Your prompt here');
+        await waitUntilCompleted();
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>Task with Auto-Approval Settings</name>
+      <example>
+        ```typescript
+        // Enable auto-approval for specific actions
+        await api.updateSettings({
+          alwaysAllowWrite: true,
+          alwaysAllowExecute: true
+        });
+        
+        await api.startTask('Create and execute a script');
+        await waitUntilCompleted();
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>Message Validation</name>
+      <example>
+        ```typescript
+        const messages: any[] = [];
+        api.onDidReceiveMessage((message) => {
+          messages.push(message);
+        });
+
+        await api.startTask('test prompt');
+        await waitUntilCompleted();
+
+        // Validate specific message types
+        const toolMessages = messages.filter(m => 
+          m.type === 'say' && m.say === 'api_req_started'
+        );
+        assert(toolMessages.length > 0, 'Expected tool execution messages');
+        ```
+      </example>
+    </pattern>
+  </api_interaction_patterns>
+
+  <error_handling_patterns>
+    <pattern>
+      <name>Task Abortion Handling</name>
+      <example>
+        ```typescript
+        test('should handle task abortion', async () => {
+          await api.startTask('long running task');
+          
+          // Abort after short delay
+          setTimeout(() => api.abortTask(), 1000);
+          
+          await waitUntilAborted();
+          
+          // Verify task was properly aborted
+          const status = await api.getTaskStatus();
+          assert.strictEqual(status, 'aborted');
+        });
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>Error Message Validation</name>
+      <example>
+        ```typescript
+        test('should handle invalid input gracefully', async () => {
+          const errorMessages: any[] = [];
+          
+          api.onDidReceiveMessage((message) => {
+            if (message.type === 'error' || message.text?.includes('error')) {
+              errorMessages.push(message);
+            }
+          });
+
+          await api.startTask('invalid prompt that should fail');
+          await waitFor(() => errorMessages.length > 0, 5000);
+          
+          assert(errorMessages.length > 0, 'Expected error messages');
+        });
+        ```
+      </example>
+    </pattern>
+  </error_handling_patterns>
+
+  <utility_patterns>
+    <pattern>
+      <name>File Location Helper</name>
+      <example>
+        ```typescript
+        function findFileInWorkspace(fileName: string, workspaceDir: string): string | null {
+          const possiblePaths = [
+            path.join(workspaceDir, fileName),
+            path.join(process.cwd(), fileName),
+            path.join(os.tmpdir(), fileName),
+            // Add other common locations
+          ];
+          
+          for (const filePath of possiblePaths) {
+            if (fs.existsSync(filePath)) {
+              return filePath;
+            }
+          }
+          
+          return null;
+        }
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>Event Collection Helper</name>
+      <example>
+        ```typescript
+        class EventCollector {
+          private events: any[] = [];
+          
+          constructor(private api: any) {
+            this.setupListeners();
+          }
+          
+          private setupListeners() {
+            this.api.onDidReceiveMessage((message: any) => {
+              this.events.push({ type: 'message', timestamp: Date.now(), data: message });
+            });
+            
+            this.api.onTaskCompleted((result: any) => {
+              this.events.push({ type: 'taskCompleted', timestamp: Date.now(), data: result });
+            });
+          }
+          
+          getEvents(type?: string) {
+            return type ? this.events.filter(e => e.type === type) : this.events;
+          }
+          
+          clear() {
+            this.events = [];
+          }
+        }
+        ```
+      </example>
+    </pattern>
+  </utility_patterns>
+
+  <debugging_patterns>
+    <pattern>
+      <name>Comprehensive Logging</name>
+      <example>
+        ```typescript
+        test('should log execution flow for debugging', async () => {
+          console.log('Starting test execution');
+          
+          const events: any[] = [];
+          api.onDidReceiveMessage((message) => {
+            console.log('Received message:', JSON.stringify(message, null, 2));
+            events.push(message);
+          });
+
+          console.log('Starting task with prompt');
+          await api.startTask('test prompt');
+          
+          console.log('Waiting for task completion');
+          await waitUntilCompleted();
+          
+          console.log('Task completed, events received:', events.length);
+          console.log('Final workspace state:', fs.readdirSync(testWorkspaceDir));
+        });
+        ```
+      </example>
+    </pattern>
+
+    <pattern>
+      <name>State Validation</name>
+      <example>
+        ```typescript
+        function validateTestState(description: string) {
+          console.log(`=== ${description} ===`);
+          console.log('Workspace files:', fs.readdirSync(testWorkspaceDir));
+          console.log('Current working directory:', process.cwd());
+          console.log('Task status:', api.getTaskStatus?.() || 'unknown');
+          console.log('========================');
+        }
+        ```
+      </example>
+    </pattern>
+  </debugging_patterns>
+</test_patterns>

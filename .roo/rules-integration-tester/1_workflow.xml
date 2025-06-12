@@ -1,0 +1,198 @@
+<workflow>
+  <step number="1">
+    <name>Understand Test Requirements</name>
+    <instructions>
+      Use ask_followup_question to determine what type of integration test is needed:
+      
+      <ask_followup_question>
+      <question>What type of integration test would you like me to create or work on?</question>
+      <follow_up>
+      <suggest>New E2E test for a specific feature or workflow</suggest>
+      <suggest>Fix or update an existing integration test</suggest>
+      <suggest>Create test utilities or helpers for common patterns</suggest>
+      <suggest>Debug failing integration tests</suggest>
+      </follow_up>
+      </ask_followup_question>
+    </instructions>
+  </step>
+
+  <step number="2">
+    <name>Gather Test Specifications</name>
+    <instructions>
+      Based on the test type, gather detailed requirements:
+      
+      For New E2E Tests:
+      - What specific user workflow or feature needs testing?
+      - What are the expected inputs and outputs?
+      - What edge cases or error scenarios should be covered?
+      - Are there specific API interactions to validate?
+      - What events should be monitored during the test?
+      
+      For Existing Test Issues:
+      - Which test file is failing or needs updates?
+      - What specific error messages or failures are occurring?
+      - What changes in the codebase might have affected the test?
+      
+      For Test Utilities:
+      - What common patterns are being repeated across tests?
+      - What helper functions would improve test maintainability?
+      
+      Use multiple ask_followup_question calls if needed to gather complete information.
+    </instructions>
+  </step>
+
+  <step number="3">
+    <name>Explore Existing Test Patterns</name>
+    <instructions>
+      Use codebase_search FIRST to understand existing test patterns and similar functionality:
+      
+      For New Tests:
+      - Search for similar test scenarios in apps/vscode-e2e/src/suite/
+      - Find existing test utilities and helpers
+      - Identify patterns for the type of functionality being tested
+      
+      For Test Fixes:
+      - Search for the failing test file and related code
+      - Find similar working tests for comparison
+      - Look for recent changes that might have broken the test
+      
+      Example searches:
+      - "file creation test mocha" for file operation tests
+      - "task completion waitUntilCompleted" for task monitoring patterns
+      - "api message validation" for API interaction tests
+      
+      After codebase_search, use:
+      - read_file on relevant test files to understand structure
+      - list_code_definition_names on test directories
+      - search_files for specific test patterns or utilities
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Analyze Test Environment and Setup</name>
+    <instructions>
+      Examine the test environment configuration:
+      
+      1. Read the test runner configuration:
+         - apps/vscode-e2e/package.json for test scripts
+         - apps/vscode-e2e/src/runTest.ts for test setup
+         - Any test configuration files
+      
+      2. Understand the test workspace setup:
+         - How test workspaces are created
+         - What files are available during tests
+         - How the extension API is accessed
+      
+      3. Review existing test utilities:
+         - Helper functions for common operations
+         - Event listening patterns
+         - Assertion utilities
+         - Cleanup procedures
+      
+      Document findings including:
+      - Test environment structure
+      - Available utilities and helpers
+      - Common patterns and best practices
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Design Test Structure</name>
+    <instructions>
+      Plan the test implementation based on gathered information:
+      
+      For New Tests:
+      - Define test suite structure with suite/test blocks
+      - Plan setup and teardown procedures
+      - Identify required test data and fixtures
+      - Design event listeners and validation points
+      - Plan for both success and failure scenarios
+      
+      For Test Fixes:
+      - Identify the root cause of the failure
+      - Plan the minimal changes needed to fix the issue
+      - Consider if the test needs to be updated due to code changes
+      - Plan for improved error handling or debugging
+      
+      Create a detailed test plan including:
+      - Test file structure and organization
+      - Required setup and cleanup
+      - Specific assertions and validations
+      - Error handling and edge cases
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Implement Test Code</name>
+    <instructions>
+      Implement the test following established patterns:
+      
+      CRITICAL: Never write a test file with a single write_to_file call.
+      Always implement tests in parts:
+      
+      1. Start with the basic test structure (suite, setup, teardown)
+      2. Add individual test cases one by one
+      3. Implement helper functions separately
+      4. Add event listeners and validation logic incrementally
+      
+      Follow these implementation guidelines:
+      - Use suite() and test() blocks following Mocha TDD style
+      - Always use the global api object for extension interactions
+      - Implement proper async/await patterns with waitFor utility
+      - Use waitUntilCompleted and waitUntilAborted helpers for task monitoring
+      - Listen to and validate appropriate events (message, taskCompleted, etc.)
+      - Test both positive flows and error scenarios
+      - Validate message content using proper type assertions
+      - Create reusable test utilities when patterns emerge
+      - Use meaningful test descriptions that explain the scenario
+      - Always clean up tasks with cancelCurrentTask or clearCurrentTask
+      - Ensure tests are independent and can run in any order
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Run and Validate Tests</name>
+    <instructions>
+      Execute the tests to ensure they work correctly:
+      
+      ALWAYS use the correct working directory and commands:
+      - Working directory: apps/vscode-e2e
+      - Test command: npm run test:run
+      - For specific tests: TEST_FILE="filename.test" npm run test:run
+      - Example: cd apps/vscode-e2e && TEST_FILE="apply-diff.test" npm run test:run
+      
+      Test execution process:
+      1. Run the specific test file first
+      2. Check for any failures or errors
+      3. Analyze test output and logs
+      4. Debug any issues found
+      5. Re-run tests after fixes
+      
+      If tests fail:
+      - Add console.log statements to track execution flow
+      - Log important events like task IDs, file paths, and AI responses
+      - Check test output carefully for error messages and stack traces
+      - Verify file creation in correct workspace directories
+      - Ensure proper event handling and timeouts
+    </instructions>
+  </step>
+
+  <step number="8">
+    <name>Document and Complete</name>
+    <instructions>
+      Finalize the test implementation:
+      
+      1. Add comprehensive comments explaining complex test logic
+      2. Document any new test utilities or patterns created
+      3. Ensure test descriptions clearly explain what is being tested
+      4. Verify all cleanup procedures are in place
+      5. Confirm tests can run independently and in any order
+      
+      Provide the user with:
+      - Summary of tests created or fixed
+      - Instructions for running the tests
+      - Any new patterns or utilities that can be reused
+      - Recommendations for future test improvements
+    </instructions>
+  </step>
+</workflow>
