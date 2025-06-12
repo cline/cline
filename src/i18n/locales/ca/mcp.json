@@ -4,7 +4,8 @@
 		"invalid_settings_syntax": "Format JSON de configuració MCP no vàlid. Si us plau, comprova si hi ha errors de sintaxi al teu fitxer de configuració.",
 		"invalid_settings_validation": "Format de configuració MCP no vàlid: {{errorMessages}}",
 		"create_json": "Ha fallat la creació o obertura de .roo/mcp.json: {{error}}",
-		"failed_update_project": "Ha fallat l'actualització dels servidors MCP del projecte"
+		"failed_update_project": "Ha fallat l'actualització dels servidors MCP del projecte",
+		"invalidJsonArgument": "Roo ha intentat utilitzar {{toolName}} amb un argument JSON no vàlid. Tornant a intentar..."
 	},
 	"info": {
 		"server_restarting": "Reiniciant el servidor MCP {{serverName}}...",

@@ -3,9 +3,9 @@
 		"invalid_settings_format": "Неверный формат JSON настроек MCP. Пожалуйста, убедитесь, что ваши настройки соответствуют правильному формату JSON.",
 		"invalid_settings_syntax": "Неверный формат JSON настроек MCP. Пожалуйста, проверьте ваш файл настроек на наличие синтаксических ошибок.",
 		"invalid_settings_validation": "Неверный формат настроек MCP: {{errorMessages}}",
-
 		"create_json": "Не удалось создать или открыть .roo/mcp.json: {{error}}",
-		"failed_update_project": "Не удалось обновить серверы проекта MCP"
+		"failed_update_project": "Не удалось обновить серверы проекта MCP",
+		"invalidJsonArgument": "Roo попытался использовать {{toolName}} с недопустимым JSON-аргументом. Повторная попытка..."
 	},
 	"info": {
 		"server_restarting": "Перезапуск сервера MCP {{serverName}}...",

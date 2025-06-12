@@ -54,5 +54,10 @@
 		"retrying": "Tekrar deneniyor...",
 		"retryConnection": "Bağlantıyı tekrar dene"
 	},
-	"refreshMCP": "MCP Sunucularını Yenile"
+	"refreshMCP": "MCP Sunucularını Yenile",
+	"execution": {
+		"running": "Çalışıyor",
+		"completed": "Tamamlandı",
+		"error": "Hata"
+	}
 }

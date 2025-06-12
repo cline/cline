@@ -54,5 +54,10 @@
 		"retrying": "Ponawianie...",
 		"retryConnection": "Ponów połączenie"
 	},
-	"refreshMCP": "Odśwież serwery MCP"
+	"refreshMCP": "Odśwież serwery MCP",
+	"execution": {
+		"running": "Uruchomione",
+		"completed": "Zakończone",
+		"error": "Błąd"
+	}
 }

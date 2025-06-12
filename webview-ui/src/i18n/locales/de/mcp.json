@@ -54,5 +54,10 @@
 		"retrying": "Wiederhole...",
 		"retryConnection": "Verbindung wiederholen"
 	},
-	"refreshMCP": "MCP-Server aktualisieren"
+	"refreshMCP": "MCP-Server aktualisieren",
+	"execution": {
+		"running": "Wird ausgeführt",
+		"completed": "Abgeschlossen",
+		"error": "Fehler"
+	}
 }

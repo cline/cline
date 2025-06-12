@@ -3,9 +3,9 @@
 		"invalid_settings_format": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया सुनिश्चित करें कि आपकी सेटिंग्स सही JSON फॉर्मेट का पालन करती हैं।",
 		"invalid_settings_syntax": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया अपनी सेटिंग्स फ़ाइल में सिंटैक्स त्रुटियों की जांच करें।",
 		"invalid_settings_validation": "अमान्य MCP सेटिंग्स फॉर्मेट: {{errorMessages}}",
-
 		"create_json": ".roo/mcp.json बनाने या खोलने में विफल: {{error}}",
-		"failed_update_project": "प्रोजेक्ट MCP सर्वर अपडेट करने में विफल"
+		"failed_update_project": "प्रोजेक्ट MCP सर्वर अपडेट करने में विफल",
+		"invalidJsonArgument": "Roo ने {{toolName}} को अमान्य JSON आर्गुमेंट के साथ उपयोग करने की कोशिश की। फिर से कोशिश कर रहा है..."
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",

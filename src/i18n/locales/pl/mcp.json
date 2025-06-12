@@ -3,9 +3,9 @@
 		"invalid_settings_format": "Nieprawidłowy format JSON ustawień MCP. Upewnij się, że Twoje ustawienia są zgodne z poprawnym formatem JSON.",
 		"invalid_settings_syntax": "Nieprawidłowy format JSON ustawień MCP. Sprawdź, czy w pliku ustawień nie ma błędów składniowych.",
 		"invalid_settings_validation": "Nieprawidłowy format ustawień MCP: {{errorMessages}}",
-
 		"create_json": "Nie udało się utworzyć lub otworzyć .roo/mcp.json: {{error}}",
-		"failed_update_project": "Nie udało się zaktualizować serwerów MCP projektu"
+		"failed_update_project": "Nie udało się zaktualizować serwerów MCP projektu",
+		"invalidJsonArgument": "Roo próbował użyć {{toolName}} z nieprawidłowym argumentem JSON. Ponawianie..."
 	},
 	"info": {
 		"server_restarting": "Ponowne uruchamianie serwera MCP {{serverName}}...",

@@ -22,6 +22,8 @@ module.exports = {
 		"^\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
 		"^@src/utils/highlighter$": "<rootDir>/src/__mocks__/utils/highlighter.ts",
 		"^shiki$": "<rootDir>/src/__mocks__/shiki.ts",
+		"^react-markdown$": "<rootDir>/src/__mocks__/react-markdown.tsx",
+		"^remark-gfm$": "<rootDir>/src/__mocks__/remark-gfm.ts",
 	},
 	reporters: [["jest-simple-dot-reporter", {}]],
 	transformIgnorePatterns: [

@@ -3,9 +3,9 @@
 		"invalid_settings_format": "잘못된 MCP 설정 JSON 형식입니다. 설정이 올바른 JSON 형식을 따르는지 확인하세요.",
 		"invalid_settings_syntax": "잘못된 MCP 설정 JSON 형식입니다. 설정 파일의 구문 오류를 확인하세요.",
 		"invalid_settings_validation": "잘못된 MCP 설정 형식: {{errorMessages}}",
-
 		"create_json": ".roo/mcp.json 생성 또는 열기 실패: {{error}}",
-		"failed_update_project": "프로젝트 MCP 서버 업데이트에 실패했습니다"
+		"failed_update_project": "프로젝트 MCP 서버 업데이트에 실패했습니다",
+		"invalidJsonArgument": "Roo가 유효하지 않은 JSON 인자로 {{toolName}}을(를) 사용하려고 했습니다. 다시 시도 중..."
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP 서버를 재시작하는 중...",

@@ -4,7 +4,8 @@
 		"invalid_settings_syntax": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte überprüfe deine Einstellungsdatei auf Syntaxfehler.",
 		"invalid_settings_validation": "Ungültiges MCP-Einstellungen-Format: {{errorMessages}}",
 		"create_json": "Fehler beim Erstellen oder Öffnen von .roo/mcp.json: {{error}}",
-		"failed_update_project": "Fehler beim Aktualisieren der Projekt-MCP-Server"
+		"failed_update_project": "Fehler beim Aktualisieren der Projekt-MCP-Server",
+		"invalidJsonArgument": "Roo hat versucht, {{toolName}} mit einem ungültigen JSON-Argument zu verwenden. Wiederhole..."
 	},
 	"info": {
 		"server_restarting": "MCP-Server {{serverName}} wird neu gestartet...",

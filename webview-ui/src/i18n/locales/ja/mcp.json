@@ -54,5 +54,10 @@
 		"retrying": "再試行中...",
 		"retryConnection": "再接続"
 	},
-	"refreshMCP": "MCPサーバーを更新"
+	"refreshMCP": "MCPサーバーを更新",
+	"execution": {
+		"running": "実行中",
+		"completed": "完了",
+		"error": "エラー"
+	}
 }

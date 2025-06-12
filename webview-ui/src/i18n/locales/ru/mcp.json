@@ -54,5 +54,10 @@
 		"retrying": "Повторная попытка...",
 		"retryConnection": "Повторить подключение"
 	},
-	"refreshMCP": "Обновить MCP серверы"
+	"refreshMCP": "Обновить MCP серверы",
+	"execution": {
+		"running": "Выполняется",
+		"completed": "Завершено",
+		"error": "Ошибка"
+	}
 }

@@ -54,5 +54,10 @@
 	"serverStatus": {
 		"retrying": "Retrying...",
 		"retryConnection": "Retry Connection"
+	},
+	"execution": {
+		"running": "Running",
+		"completed": "Completed",
+		"error": "Error"
 	}
 }

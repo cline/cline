@@ -54,5 +54,10 @@
 		"retrying": "重试中...",
 		"retryConnection": "重试连接"
 	},
-	"refreshMCP": "刷新 MCP 服务器"
+	"refreshMCP": "刷新 MCP 服务器",
+	"execution": {
+		"running": "运行中",
+		"completed": "已完成",
+		"error": "错误"
+	}
 }

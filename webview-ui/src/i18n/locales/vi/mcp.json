@@ -54,5 +54,10 @@
 		"retrying": "Đang thử lại...",
 		"retryConnection": "Thử kết nối lại"
 	},
-	"refreshMCP": "Làm mới Máy chủ MCP"
+	"refreshMCP": "Làm mới Máy chủ MCP",
+	"execution": {
+		"running": "Đang chạy",
+		"completed": "Hoàn thành",
+		"error": "Lỗi"
+	}
 }

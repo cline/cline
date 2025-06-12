@@ -54,5 +54,10 @@
 		"retrying": "Opnieuw proberen...",
 		"retryConnection": "Verbinding opnieuw proberen"
 	},
-	"refreshMCP": "MCP-servers vernieuwen"
+	"refreshMCP": "MCP-servers vernieuwen",
+	"execution": {
+		"running": "Wordt uitgevoerd",
+		"completed": "Voltooid",
+		"error": "Fout"
+	}
 }

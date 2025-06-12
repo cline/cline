@@ -54,5 +54,10 @@
 		"retrying": "Reintentando...",
 		"retryConnection": "Reintentar conexión"
 	},
-	"refreshMCP": "Actualizar Servidores MCP"
+	"refreshMCP": "Actualizar Servidores MCP",
+	"execution": {
+		"running": "Ejecutando",
+		"completed": "Completado",
+		"error": "Error"
+	}
 }

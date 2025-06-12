@@ -54,5 +54,10 @@
 		"retrying": "Tornant a intentar...",
 		"retryConnection": "Torna a intentar la connexió"
 	},
-	"refreshMCP": "Actualitza els servidors MCP"
+	"refreshMCP": "Actualitza els servidors MCP",
+	"execution": {
+		"running": "En execució",
+		"completed": "Completat",
+		"error": "Error"
+	}
 }

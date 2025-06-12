@@ -67,6 +67,7 @@ export interface ExtensionMessage {
 		| "acceptInput"
 		| "setHistoryPreviewCollapsed"
 		| "commandExecutionStatus"
+		| "mcpExecutionStatus"
 		| "vsCodeSetting"
 		| "authenticatedUser"
 		| "condenseTaskContextResponse"
@@ -313,6 +314,7 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+	response?: string
 }
 
 export interface ClineApiReqInfo {

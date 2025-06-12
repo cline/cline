@@ -3,9 +3,9 @@
 		"invalid_settings_format": "MCP设置JSON格式无效。请确保您的设置遵循正确的JSON格式。",
 		"invalid_settings_syntax": "MCP设置JSON格式无效。请检查您的设置文件是否有语法错误。",
 		"invalid_settings_validation": "MCP设置格式无效：{{errorMessages}}",
-
 		"create_json": "创建或打开 .roo/mcp.json 失败：{{error}}",
-		"failed_update_project": "更新项目MCP服务器失败"
+		"failed_update_project": "更新项目MCP服务器失败",
+		"invalidJsonArgument": "Roo 尝试使用无效的 JSON 参数调用 {{toolName}}。正在重试..."
 	},
 	"info": {
 		"server_restarting": "正在重启{{serverName}}MCP服务器...",
