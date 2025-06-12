@@ -426,7 +426,23 @@ export const webviewMessageHandler = async (
 			openImage(message.text!)
 			break
 		case "openFile":
-			openFile(message.text!, message.values as { create?: boolean; content?: string; line?: number })
+			// Check if we're in an automated workflow (AI is streaming/processing)
+			const currentCline = provider.getCurrentCline()
+			const autoApprovalEnabled = getGlobalState("autoApprovalEnabled")
+
+			// Detect automated workflow: AI is actively processing, streaming, or auto-approval is enabled
+			// and there's an active task that hasn't completed reading/processing
+			const isInAutomatedWorkflow =
+				currentCline &&
+				(currentCline.isStreaming ||
+					currentCline.isWaitingForFirstChunk ||
+					(autoApprovalEnabled && !currentCline.didCompleteReadingStream) ||
+					(autoApprovalEnabled && currentCline.presentAssistantMessageLocked))
+
+			openFile(message.text!, {
+				...(message.values as { create?: boolean; content?: string; line?: number }),
+				preserveFocus: !!isInAutomatedWorkflow,
+			})
 			break
 		case "openMention":
 			openMention(message.text)
@@ -481,6 +497,7 @@ export const webviewMessageHandler = async (
 			const customModesFilePath = await provider.customModesManager.getCustomModesFilePath()
 
 			if (customModesFilePath) {
+				// User-initiated settings opening, keep focus
 				openFile(customModesFilePath)
 			}
 
@@ -490,6 +507,7 @@ export const webviewMessageHandler = async (
 			const mcpSettingsFilePath = await provider.getMcpHub()?.getMcpSettingsFilePath()
 
 			if (mcpSettingsFilePath) {
+				// User-initiated settings opening, keep focus
 				openFile(mcpSettingsFilePath)
 			}
 
@@ -513,6 +531,7 @@ export const webviewMessageHandler = async (
 					await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
 				}
 
+				// User-initiated settings opening, keep focus
 				await openFile(mcpPath)
 			} catch (error) {
 				vscode.window.showErrorMessage(t("mcp:errors.create_json", { error: `${error}` }))
