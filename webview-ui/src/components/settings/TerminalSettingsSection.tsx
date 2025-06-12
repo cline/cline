@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react"
 import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "../../services/grpc-client"
-import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
+import { Int64, Int64Request } from "@shared/proto/common"
 
 export const TerminalSettingsSection: React.FC = () => {
 	const {
@@ -68,10 +68,8 @@ export const TerminalSettingsSection: React.FC = () => {
 	const handleDefaultTerminalProfileChange = (event: any) => {
 		const target = event.target as HTMLSelectElement
 		const profileId = target.value
+		// Only update the local state, let the Save button handle the backend update
 		setDefaultTerminalProfile(profileId)
-		StateServiceClient.updateDefaultTerminalProfile({ value: profileId } as StringRequest).catch((error) => {
-			console.error("Failed to update default terminal profile:", error)
-		})
 	}
 
 	const profilesToShow = availableTerminalProfiles
