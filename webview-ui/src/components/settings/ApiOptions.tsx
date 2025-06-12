@@ -465,12 +465,14 @@ const ApiOptions = ({
 				</>
 			)}
 
-			<ThinkingBudget
-				key={`${selectedProvider}-${selectedModelId}`}
-				apiConfiguration={apiConfiguration}
-				setApiConfigurationField={setApiConfigurationField}
-				modelInfo={selectedModelInfo}
-			/>
+			{selectedProviderModels.length > 0 && (
+				<ThinkingBudget
+					key={`${selectedProvider}-${selectedModelId}`}
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+					modelInfo={selectedModelInfo}
+				/>
+			)}
 
 			{!fromWelcomeView && (
 				<>
