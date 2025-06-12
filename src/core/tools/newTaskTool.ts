@@ -42,6 +42,9 @@ export async function newTaskTool(
 			}
 
 			cline.consecutiveMistakeCount = 0
+			// Un-escape one level of backslashes before '@' for hierarchical subtasks
+// Un-escape one level: \\@ -> \@ (removes one backslash for hierarchical subtasks)
+			const unescapedMessage = message.replace(/\\\\@/g, "\\@")
 
 			// Verify the mode exists
 			const targetMode = getModeBySlug(mode, (await cline.providerRef.deref()?.getState())?.customModes)
@@ -82,10 +85,10 @@ export async function newTaskTool(
 			// Delay to allow mode change to take effect before next tool is executed.
 			await delay(500)
 
-			const newCline = await provider.initClineWithTask(message, undefined, cline)
+			const newCline = await provider.initClineWithTask(unescapedMessage, undefined, cline)
 			cline.emit("taskSpawned", newCline.taskId)
 
-			pushToolResult(`Successfully created new task in ${targetMode.name} mode with message: ${message}`)
+			pushToolResult(`Successfully created new task in ${targetMode.name} mode with message: ${unescapedMessage}`)
 
 			// Set the isPaused flag to true so the parent
 			// task can wait for the sub-task to finish.

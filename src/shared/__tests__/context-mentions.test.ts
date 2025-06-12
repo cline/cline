@@ -41,8 +41,15 @@ describe("mentionRegex and mentionRegexGlobal", () => {
 		{ input: "mention@", expected: null }, // Trailing @
 		{ input: "@/path/trailing\\", expected: null }, // Trailing backslash (invalid escape)
 		{ input: "@/path/to/file\\not-a-space", expected: null }, // Backslash not followed by space
+		// Escaped mentions (should not match due to negative lookbehind)
+		{ input: "This is not a mention: \\@/path/to/file.txt", expected: null },
+		{ input: "Escaped \\@problems word", expected: null },
+		{ input: "Text with \\@https://example.com", expected: null },
+		{ input: "Another \\@a1b2c3d hash", expected: null },
+		{ input: "Not escaped @terminal", expected: ["@terminal"] }, // Ensure non-escaped still works nearby
+		{ input: "Double escape \\\\@/should/match", expected: null }, // Double backslash escapes the backslash, currently incorrectly fails to match
+		{ input: "Text with \\@/escaped/path\\ with\\ spaces.txt", expected: null }, // Escaped mention with escaped spaces within the path part
 	]
-
 	testCases.forEach(({ input, expected }) => {
 		it(`should handle input: "${input}"`, () => {
 			// Test mentionRegex (first match)
