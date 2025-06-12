@@ -9,8 +9,12 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 import TaskItemHeader from "./TaskItemHeader"
 import TaskItemFooter from "./TaskItemFooter"
 
+interface DisplayHistoryItem extends HistoryItem {
+	highlight?: string
+}
+
 interface TaskItemProps {
-	item: HistoryItem
+	item: DisplayHistoryItem
 	variant: "compact" | "full"
 	showWorkspace?: boolean
 	isSelectionMode?: boolean
@@ -103,8 +107,8 @@ const TaskItem = ({
 							overflowWrap: "anywhere",
 						}}
 						data-testid={isCompact ? undefined : "task-content"}
-						{...(isCompact ? {} : { dangerouslySetInnerHTML: { __html: item.task } })}>
-						{isCompact ? item.task : undefined}
+						{...(item.highlight ? { dangerouslySetInnerHTML: { __html: item.highlight } } : {})}>
+						{item.highlight ? undefined : item.task}
 					</div>
 
 					{/* Task Item Footer */}
