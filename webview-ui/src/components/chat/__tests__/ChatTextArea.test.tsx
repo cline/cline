@@ -68,6 +68,8 @@ describe("ChatTextArea", () => {
 			apiConfiguration: {
 				apiProvider: "anthropic",
 			},
+			taskHistory: [],
+			cwd: "/test/workspace",
 		})
 	})
 
@@ -76,6 +78,8 @@ describe("ChatTextArea", () => {
 			;(useExtensionState as jest.Mock).mockReturnValue({
 				filePaths: [],
 				openedTabs: [],
+				taskHistory: [],
+				cwd: "/test/workspace",
 			})
 			render(<ChatTextArea {...defaultProps} sendingDisabled={true} />)
 			const enhanceButton = getEnhancePromptButton()
@@ -94,6 +98,8 @@ describe("ChatTextArea", () => {
 				filePaths: [],
 				openedTabs: [],
 				apiConfiguration,
+				taskHistory: [],
+				cwd: "/test/workspace",
 			})
 
 			render(<ChatTextArea {...defaultProps} inputValue="Test prompt" />)
@@ -114,6 +120,8 @@ describe("ChatTextArea", () => {
 				apiConfiguration: {
 					apiProvider: "openrouter",
 				},
+				taskHistory: [],
+				cwd: "/test/workspace",
 			})
 
 			render(<ChatTextArea {...defaultProps} inputValue="" />)
@@ -131,6 +139,8 @@ describe("ChatTextArea", () => {
 				apiConfiguration: {
 					apiProvider: "openrouter",
 				},
+				taskHistory: [],
+				cwd: "/test/workspace",
 			})
 
 			render(<ChatTextArea {...defaultProps} inputValue="Test prompt" />)
@@ -155,6 +165,8 @@ describe("ChatTextArea", () => {
 					apiProvider: "openrouter",
 					newSetting: "test",
 				},
+				taskHistory: [],
+				cwd: "/test/workspace",
 			})
 
 			rerender(<ChatTextArea {...defaultProps} />)
@@ -407,6 +419,338 @@ describe("ChatTextArea", () => {
 
 			// Verify setInputValue was not called
 			expect(setInputValue).not.toHaveBeenCalled()
+		})
+
+		describe("prompt history navigation", () => {
+			const mockClineMessages = [
+				{ type: "say", say: "user_feedback", text: "First prompt", ts: 1000 },
+				{ type: "say", say: "user_feedback", text: "Second prompt", ts: 2000 },
+				{ type: "say", say: "user_feedback", text: "Third prompt", ts: 3000 },
+			]
+
+			beforeEach(() => {
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [],
+					clineMessages: mockClineMessages,
+					cwd: "/test/workspace",
+				})
+			})
+
+			it("should navigate to previous prompt on arrow up", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Simulate arrow up key press
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+
+				// Should set the newest conversation message (first in reversed array)
+				expect(setInputValue).toHaveBeenCalledWith("Third prompt")
+			})
+
+			it("should navigate through history with multiple arrow up presses", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// First arrow up - newest conversation message
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Third prompt")
+
+				// Update input value to simulate the state change
+				setInputValue.mockClear()
+
+				// Second arrow up - previous conversation message
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Second prompt")
+			})
+
+			it("should navigate forward with arrow down", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Go back in history first (index 0 -> "Third prompt", then index 1 -> "Second prompt")
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				setInputValue.mockClear()
+
+				// Navigate forward (from index 1 back to index 0)
+				fireEvent.keyDown(textarea, { key: "ArrowDown" })
+				expect(setInputValue).toHaveBeenCalledWith("Third prompt")
+			})
+
+			it("should preserve current input when starting navigation", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="Current input" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Navigate to history
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Third prompt")
+
+				setInputValue.mockClear()
+
+				// Navigate back to current input
+				fireEvent.keyDown(textarea, { key: "ArrowDown" })
+				expect(setInputValue).toHaveBeenCalledWith("Current input")
+			})
+
+			it("should reset history navigation when user types", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Navigate to history
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				setInputValue.mockClear()
+
+				// Type something
+				fireEvent.change(textarea, { target: { value: "New input", selectionStart: 9 } })
+
+				// Should reset history navigation
+				expect(setInputValue).toHaveBeenCalledWith("New input")
+			})
+
+			it("should reset history navigation when sending message", () => {
+				const onSend = jest.fn()
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea
+						{...defaultProps}
+						onSend={onSend}
+						setInputValue={setInputValue}
+						inputValue="Test message"
+					/>,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Navigate to history first
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				setInputValue.mockClear()
+
+				// Send message
+				fireEvent.keyDown(textarea, { key: "Enter" })
+
+				expect(onSend).toHaveBeenCalled()
+			})
+
+			it("should navigate history when cursor is at first line", () => {
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Clear any calls from initial render
+				setInputValue.mockClear()
+
+				// With empty input, cursor is at first line by default
+				// Arrow up should navigate history
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Third prompt")
+			})
+
+			it("should filter history by current workspace", () => {
+				const mixedClineMessages = [
+					{ type: "say", say: "user_feedback", text: "Workspace 1 prompt", ts: 1000 },
+					{ type: "say", say: "user_feedback", text: "Other workspace prompt", ts: 2000 },
+					{ type: "say", say: "user_feedback", text: "Workspace 1 prompt 2", ts: 3000 },
+				]
+
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [],
+					clineMessages: mixedClineMessages,
+					cwd: "/test/workspace",
+				})
+
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Should show conversation messages newest first (after reverse)
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Workspace 1 prompt 2")
+
+				setInputValue.mockClear()
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Other workspace prompt")
+			})
+
+			it("should handle empty conversation history gracefully", () => {
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [],
+					clineMessages: [],
+					cwd: "/test/workspace",
+				})
+
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Should not crash or call setInputValue
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).not.toHaveBeenCalled()
+			})
+
+			it("should ignore empty or whitespace-only messages", () => {
+				const clineMessagesWithEmpty = [
+					{ type: "say", say: "user_feedback", text: "Valid prompt", ts: 1000 },
+					{ type: "say", say: "user_feedback", text: "", ts: 2000 },
+					{ type: "say", say: "user_feedback", text: "   ", ts: 3000 },
+					{ type: "say", say: "user_feedback", text: "Another valid prompt", ts: 4000 },
+				]
+
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [],
+					clineMessages: clineMessagesWithEmpty,
+					cwd: "/test/workspace",
+				})
+
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Should skip empty messages, newest first for conversation
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Another valid prompt")
+
+				setInputValue.mockClear()
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Valid prompt")
+			})
+
+			it("should use task history (oldest first) when no conversation messages exist", () => {
+				const mockTaskHistory = [
+					{ task: "First task", workspace: "/test/workspace" },
+					{ task: "Second task", workspace: "/test/workspace" },
+					{ task: "Third task", workspace: "/test/workspace" },
+				]
+
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: mockTaskHistory,
+					clineMessages: [], // No conversation messages
+					cwd: "/test/workspace",
+				})
+
+				const setInputValue = jest.fn()
+				const { container } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				const textarea = container.querySelector("textarea")!
+
+				// Should show task history oldest first (chronological order)
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("First task")
+
+				setInputValue.mockClear()
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Second task")
+			})
+
+			it("should reset navigation position when switching between history sources", () => {
+				const setInputValue = jest.fn()
+				const { rerender } = render(
+					<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />,
+				)
+
+				// Start with task history
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [
+						{ task: "Task 1", workspace: "/test/workspace" },
+						{ task: "Task 2", workspace: "/test/workspace" },
+					],
+					clineMessages: [],
+					cwd: "/test/workspace",
+				})
+
+				rerender(<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />)
+
+				const textarea = document.querySelector("textarea")!
+
+				// Navigate in task history
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Task 1")
+
+				// Switch to conversation messages
+				;(useExtensionState as jest.Mock).mockReturnValue({
+					filePaths: [],
+					openedTabs: [],
+					apiConfiguration: {
+						apiProvider: "anthropic",
+					},
+					taskHistory: [],
+					clineMessages: [
+						{ type: "say", say: "user_feedback", text: "Message 1", ts: 1000 },
+						{ type: "say", say: "user_feedback", text: "Message 2", ts: 2000 },
+					],
+					cwd: "/test/workspace",
+				})
+
+				setInputValue.mockClear()
+				rerender(<ChatTextArea {...defaultProps} setInputValue={setInputValue} inputValue="" />)
+
+				// Should start from beginning of conversation history (newest first)
+				fireEvent.keyDown(textarea, { key: "ArrowUp" })
+				expect(setInputValue).toHaveBeenCalledWith("Message 2")
+			})
 		})
 	})
 
