@@ -203,7 +203,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			// Update the original state to reflect the saved changes
 			originalState.current = {
 				apiConfiguration,
-				customInstructions,
 				telemetrySetting,
 				planActSeparateModelsSetting,
 				enableCheckpointsSetting,
