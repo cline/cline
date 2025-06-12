@@ -1,5 +1,29 @@
 # Roo Code Changelog
 
+## [3.20.0] - 2025-06-12
+
+- Add experimental Marketplace for extensions and modes (thanks @Smartsheet-JB-Brown, @elianiva, @monkeyDluffy6017, @NamesMT, @daniel-lxs, and more!)
+- Add experimental multi-file edits (thanks @samhvw8!)
+- Move concurrent reads setting to context settings with default of 5
+- Improve MCP execution UX (thanks @samhvw8!)
+- Add magic variables support for MCPs with `workspaceFolder` injection (thanks @NamesMT!)
+- Add prompt history navigation via arrow up/down in prompt field
+- Add support for escaping context mentions (thanks @KJ7LNW!)
+- Add DeepSeek R1 support to Chutes provider
+- Add reasoning budget support to Bedrock models for extended thinking
+- Add mermaid diagram support buttons (thanks @qdaxb!)
+- Update XAI models and pricing (thanks @edwin-truthsearch-io!)
+- Update O3 model pricing
+- Add manual OpenAI-compatible format specification and parsing (thanks @dflatline!)
+- Add core tools integration tests for comprehensive coverage
+- Add JSDoc documentation for ClineAsk and ClineSay types (thanks @hannesrudolph!)
+- Populate whenToUse descriptions for built-in modes
+- Fix file write tool with early relPath & newContent validation checks (thanks @Ruakij!)
+- Fix TaskItem display and copy issues with HTML tags in task messages (thanks @forestyoo!)
+- Fix OpenRouter cost calculation with BYOK (thanks @chrarnoldus!)
+- Fix terminal busy state reset after manual commands complete
+- Fix undefined output on multi-file apply_diff operations (thanks @daniel-lxs!)
+
 ## [3.19.7] - 2025-06-11
 
 - Fix McpHub sidebar focus behavior to prevent unwanted focus grabbing
