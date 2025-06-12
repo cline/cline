@@ -1475,11 +1475,6 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
-		case "focusPanelRequest": {
-			// Execute the focusPanel command to focus the WebView
-			await vscode.commands.executeCommand(getCommand("focusPanel"))
-			break
-		}
 		case "filterMarketplaceItems": {
 			// Check if marketplace is enabled before making API calls
 			const { experiments } = await provider.getState()

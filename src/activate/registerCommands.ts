@@ -8,7 +8,6 @@ import { Package } from "../shared/package"
 import { getCommand } from "../utils/commands"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { ContextProxy } from "../core/config/ContextProxy"
-import { focusPanel } from "../utils/focusPanel"
 
 import { registerHumanRelayCallback, unregisterHumanRelayCallback, handleHumanRelayResponse } from "./humanRelay"
 import { handleNewTask } from "./handleTask"
@@ -173,21 +172,18 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 	},
 	focusInput: async () => {
 		try {
-			await focusPanel(tabPanel, sidebarPanel)
+			const panel = getPanel()
 
-			// Send focus input message only for sidebar panels
-			if (sidebarPanel && getPanel() === sidebarPanel) {
+			if (!panel) {
+				await vscode.commands.executeCommand(`workbench.view.extension.${Package.name}-ActivityBar`)
+			} else if (panel === tabPanel) {
+				panel.reveal(vscode.ViewColumn.Active, false)
+			} else if (panel === sidebarPanel) {
+				await vscode.commands.executeCommand(`${ClineProvider.sideBarId}.focus`)
 				provider.postMessageToWebview({ type: "action", action: "focusInput" })
 			}
 		} catch (error) {
 			outputChannel.appendLine(`Error focusing input: ${error}`)
-		}
-	},
-	focusPanel: async () => {
-		try {
-			await focusPanel(tabPanel, sidebarPanel)
-		} catch (error) {
-			outputChannel.appendLine(`Error focusing panel: ${error}`)
 		}
 	},
 	acceptInput: () => {

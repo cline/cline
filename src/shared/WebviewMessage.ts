@@ -150,7 +150,6 @@ export interface WebviewMessage {
 		| "clearIndexData"
 		| "indexingStatusUpdate"
 		| "indexCleared"
-		| "focusPanelRequest"
 		| "codebaseIndexConfig"
 		| "setHistoryPreviewCollapsed"
 		| "openExternal"
