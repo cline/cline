@@ -113,7 +113,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
-import { isClaude4ModelFamily } from "@/utils/model-utils"
+import { isClaude4ModelFamily } from "@utils/model-utils"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 

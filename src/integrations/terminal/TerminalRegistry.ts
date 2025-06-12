@@ -5,6 +5,8 @@ export interface TerminalInfo {
 	busy: boolean
 	lastCommand: string
 	id: number
+	shellPath?: string
+	lastActive: number
 	pendingCwdChange?: string
 	cwdResolved?: {
 		resolve: () => void
@@ -36,6 +38,8 @@ export class TerminalRegistry {
 			busy: false,
 			lastCommand: "",
 			id: this.nextTerminalId++,
+			shellPath,
+			lastActive: Date.now(),
 		}
 		this.terminals.push(newInfo)
 		return newInfo
