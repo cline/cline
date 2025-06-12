@@ -1,17 +1,18 @@
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import MermaidBlock from "@/components/common/MermaidBlock"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
-import type { ComponentProps } from "react"
 import React, { memo, useEffect, useRef, useState } from "react"
+import type { ComponentProps } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import rehypeKatex from "rehype-katex"
 import remarkMath from "remark-math"
 import styled from "styled-components"
-import type { Node } from "unist"
 import { visit } from "unist-util-visit"
+import type { Node } from "unist"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MermaidBlock from "@/components/common/MermaidBlock"
+import { WithCopyButton } from "./CopyButton"
+import { StateServiceClient } from "@/services/grpc-client"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => (
@@ -178,24 +179,6 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-
-const CopyButton = styled(VSCodeButton)`
-	position: absolute;
-	top: 5px;
-	right: 5px;
-	z-index: 1;
-	opacity: 0;
-`
-
-const CodeBlockContainer = styled.div`
-	position: relative;
-
-	&:hover ${CopyButton} {
-		opacity: 1;
-	}
-`
-
 const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
@@ -337,7 +320,6 @@ const PreWithCopyButton = ({
 	...preProps
 }: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
 	const preRef = useRef<HTMLPreElement>(null)
-	const [copied, setCopied] = useState(false)
 
 	const handleCopy = () => {
 		if (preRef.current) {
@@ -345,22 +327,19 @@ const PreWithCopyButton = ({
 			const textToCopy = codeElement ? codeElement.textContent : preRef.current.textContent
 
 			if (!textToCopy) return
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				setCopied(true)
-				setTimeout(() => setCopied(false), 1500)
-			})
+			return textToCopy
 		}
+		return null
 	}
 
+	const styledPreProps = theme ? { ...preProps, theme } : preProps
+
 	return (
-		<CodeBlockContainer>
-			<CopyButton appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
-				<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
-			</CopyButton>
-			<StyledPre {...preProps} theme={theme} ref={preRef}>
+		<WithCopyButton onCopy={handleCopy} position="top-right" ariaLabel="Copy code">
+			<StyledPre {...styledPreProps} ref={preRef}>
 				{children}
 			</StyledPre>
-		</CodeBlockContainer>
+		</WithCopyButton>
 	)
 }
 
