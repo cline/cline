@@ -440,6 +440,18 @@ const ApiOptions = ({
 						/>
 					)}
 
+					<VSCodeCheckbox
+						checked={!!apiConfiguration?.geminiEnableThoughts}
+						onChange={(e: any) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								geminiEnableThoughts: (e.target as HTMLInputElement).checked,
+							} as ApiConfiguration)
+						}}
+						style={{ display: "block", marginTop: "5px" }}>
+						Enable thoughts
+					</VSCodeCheckbox>
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -1039,6 +1051,18 @@ const ApiOptions = ({
 						/>
 					)}
 
+					<VSCodeCheckbox
+						checked={!!apiConfiguration?.geminiEnableThoughts}
+						onChange={(e: any) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								geminiEnableThoughts: (e.target as HTMLInputElement).checked,
+							} as ApiConfiguration)
+						}}
+						style={{ display: "block", marginTop: "5px" }}>
+						Enable thoughts
+					</VSCodeCheckbox>
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -1058,14 +1082,16 @@ const ApiOptions = ({
 						)}
 					</p>
 
-					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
-					{selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17" && (
-						<ThinkingBudgetSlider
-							apiConfiguration={apiConfiguration}
-							setApiConfiguration={setApiConfiguration}
-							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-						/>
-					)}
+					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview models */}
+					{selectedProvider === "gemini" &&
+						(selectedModelId === "gemini-2.5-flash-preview-04-17" ||
+							selectedModelId === "gemini-2.5-flash-preview-05-20") && (
+							<ThinkingBudgetSlider
+								apiConfiguration={apiConfiguration}
+								setApiConfiguration={setApiConfiguration}
+								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+							/>
+						)}
 				</div>
 			)}
 
