@@ -31,7 +31,7 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 
 	protected readonly options: ApiHandlerOptions
 
-	private client: OpenAI
+	protected client: OpenAI
 
 	constructor({
 		providerName,
