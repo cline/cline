@@ -124,5 +124,8 @@
 			"emojiName": "Los caracteres emoji pueden causar problemas de visualización",
 			"maxSources": "Máximo de {{max}} fuentes permitidas"
 		}
+	},
+	"footer": {
+		"issueText": "¿Encontraste un problema con un elemento del marketplace o tienes sugerencias para nuevos? ¡<0>Abre un issue en GitHub</0> para hacérnoslo saber!"
 	}
 }

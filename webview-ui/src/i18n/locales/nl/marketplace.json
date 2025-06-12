@@ -124,5 +124,8 @@
 			"emojiName": "Emoji-tekens kunnen weergaveproblemen veroorzaken",
 			"maxSources": "Maximaal {{max}} bronnen toegestaan"
 		}
+	},
+	"footer": {
+		"issueText": "Heb je een probleem gevonden met een marketplace-item of heb je suggesties voor nieuwe items? <0>Open een GitHub issue</0> om het ons te laten weten!"
 	}
 }

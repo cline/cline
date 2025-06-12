@@ -124,5 +124,8 @@
 			"emojiName": "表情符號字元可能導致顯示問題",
 			"maxSources": "最多允許 {{max}} 個來源"
 		}
+	},
+	"footer": {
+		"issueText": "發現 marketplace 項目問題或有新項目建議？<0>在 GitHub 開啟 issue</0> 告訴我們！"
 	}
 }

@@ -124,5 +124,8 @@
 			"emojiName": "이모지 문자는 표시 문제를 일으킬 수 있습니다",
 			"maxSources": "최대 {{max}}개의 소스가 허용됩니다"
 		}
+	},
+	"footer": {
+		"issueText": "Marketplace 아이템에 문제가 있거나 새로운 아이템에 대한 제안이 있나요? <0>GitHub issue를 열어서</0> 알려주세요!"
 	}
 }

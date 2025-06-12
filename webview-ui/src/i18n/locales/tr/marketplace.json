@@ -124,5 +124,8 @@
 			"emojiName": "Emoji karakterleri görüntüleme sorunlarına neden olabilir",
 			"maxSources": "Maksimum {{max}} kaynak izin verilir"
 		}
+	},
+	"footer": {
+		"issueText": "Bir marketplace öğesi ile ilgili sorun bulduğun veya yeni öğeler için önerilerin var mı? <0>GitHub'da issue aç</0> ve bize bildir!"
 	}
 }

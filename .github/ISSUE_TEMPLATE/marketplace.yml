@@ -1,0 +1,62 @@
+name: Marketplace Feedback
+description: Report issues or suggest improvements for marketplace items (custom modes and MCP servers)
+labels: ["marketplace"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thanks for your feedback!** Please check existing issues first: https://github.com/RooCodeInc/Roo-Code/issues
+
+  - type: dropdown
+    id: feedback-type
+    attributes:
+      label: What kind of feedback?
+      options:
+        - Problem with existing marketplace item
+        - Suggestion for new custom mode
+        - Suggestion for new MCP server
+        - General marketplace issue
+    validations:
+      required: true
+
+  - type: dropdown
+    id: item-type
+    attributes:
+      label: Item Type (if applicable)
+      options:
+        - Custom Mode
+        - MCP Server
+        - Marketplace UI/Functionality
+        - Not Applicable
+    validations:
+      required: false
+
+  - type: input
+    id: item-name
+    attributes:
+      label: Item Name (if applicable)
+      placeholder: e.g., "Debug Mode", "Weather API Server", "Code Formatter"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's the issue or what would you like to see?
+      placeholder: Clear description of the problem or suggestion
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Details (optional)
+      description: Steps to reproduce, expected behavior, screenshots, etc.
+      placeholder: Any other helpful information
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I've searched existing issues for duplicates
+          required: true

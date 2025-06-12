@@ -9,6 +9,7 @@ import { MarketplaceViewStateManager } from "./MarketplaceViewStateManager"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useStateManager } from "./useStateManager"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { IssueFooter } from "./IssueFooter"
 
 export interface MarketplaceListViewProps {
 	stateManager: MarketplaceViewStateManager
@@ -212,6 +213,8 @@ export function MarketplaceListView({ stateManager, allTags, filteredTags, filte
 					))}
 				</div>
 			)}
+
+			<IssueFooter />
 		</>
 	)
 }
