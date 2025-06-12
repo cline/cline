@@ -156,6 +156,7 @@
 		"didRead": "Roo read this file:",
 		"wantsToEdit": "Roo wants to edit this file:",
 		"wantsToEditOutsideWorkspace": "Roo wants to edit this file outside of the workspace:",
+		"wantsToApplyBatchChanges": "Roo wants to apply changes to multiple files:",
 		"wantsToCreate": "Roo wants to create a new file:",
 		"wantsToSearchReplace": "Roo wants to search and replace in this file:",
 		"didSearchReplace": "Roo performed search and replace on this file:",

@@ -147,7 +147,8 @@
 		"wantsToInsertWithLineNumber": "Roo wil inhoud invoegen in dit bestand op regel {{lineNumber}}:",
 		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:",
 		"wantsToReadAndXMore": "Roo wil dit bestand en nog {{count}} andere lezen:",
-		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen:"
+		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen:",
+		"wantsToApplyBatchChanges": "Roo wil wijzigingen toepassen op meerdere bestanden:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken:",

@@ -11,7 +11,7 @@ import { fetchInstructionsTool } from "../tools/fetchInstructionsTool"
 import { listFilesTool } from "../tools/listFilesTool"
 import { getReadFileToolDescription, readFileTool } from "../tools/readFileTool"
 import { writeToFileTool } from "../tools/writeToFileTool"
-import { applyDiffTool } from "../tools/applyDiffTool"
+import { applyDiffTool } from "../tools/multiApplyDiffTool"
 import { insertContentTool } from "../tools/insertContentTool"
 import { searchAndReplaceTool } from "../tools/searchAndReplaceTool"
 import { listCodeDefinitionNamesTool } from "../tools/listCodeDefinitionNamesTool"
@@ -31,6 +31,8 @@ import { formatResponse } from "../prompts/responses"
 import { validateToolUse } from "../tools/validateToolUse"
 import { Task } from "../task/Task"
 import { codebaseSearchTool } from "../tools/codebaseSearchTool"
+import { experiments, EXPERIMENT_IDS } from "../../shared/experiments"
+import { applyDiffToolLegacy } from "../tools/applyDiffTool"
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -384,9 +386,33 @@ export async function presentAssistantMessage(cline: Task) {
 				case "write_to_file":
 					await writeToFileTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					break
-				case "apply_diff":
-					await applyDiffTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
+				case "apply_diff": {
+					// Get the provider and state to check experiment settings
+					const provider = cline.providerRef.deref()
+					let isMultiFileApplyDiffEnabled = false
+
+					if (provider) {
+						const state = await provider.getState()
+						isMultiFileApplyDiffEnabled = experiments.isEnabled(
+							state.experiments ?? {},
+							EXPERIMENT_IDS.MULTI_FILE_APPLY_DIFF,
+						)
+					}
+
+					if (isMultiFileApplyDiffEnabled) {
+						await applyDiffTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
+					} else {
+						await applyDiffToolLegacy(
+							cline,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+					}
 					break
+				}
 				case "insert_content":
 					await insertContentTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					break

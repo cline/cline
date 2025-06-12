@@ -147,7 +147,8 @@
 		"wantsToInsertWithLineNumber": "Roo хочет вставить содержимое в этот файл на строку {{lineNumber}}:",
 		"wantsToInsertAtEnd": "Roo хочет добавить содержимое в конец этого файла:",
 		"wantsToReadAndXMore": "Roo хочет прочитать этот файл и еще {{count}}:",
-		"wantsToReadMultiple": "Roo хочет прочитать несколько файлов:"
+		"wantsToReadMultiple": "Roo хочет прочитать несколько файлов:",
+		"wantsToApplyBatchChanges": "Roo хочет применить изменения к нескольким файлам:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo хочет просмотреть файлы верхнего уровня в этой директории:",

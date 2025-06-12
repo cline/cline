@@ -500,6 +500,10 @@
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Desactivar la ejecución de comandos en attempt_completion",
 			"description": "Cuando está activado, la herramienta attempt_completion no ejecutará comandos. Esta es una función experimental para preparar la futura eliminación de la ejecución de comandos en la finalización de tareas."
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "Habilitar ediciones de archivos concurrentes",
+			"description": "Cuando está habilitado, Roo puede editar múltiples archivos en una sola solicitud. Cuando está deshabilitado, Roo debe editar archivos de uno en uno. Deshabilitar esto puede ayudar cuando trabajas con modelos menos capaces o cuando quieres más control sobre las modificaciones de archivos."
 		}
 	},
 	"promptCaching": {

@@ -500,6 +500,10 @@
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "Commando-uitvoering in attempt_completion uitschakelen",
 			"description": "Indien ingeschakeld, zal de attempt_completion tool geen commando's uitvoeren. Dit is een experimentele functie ter voorbereiding op het afschaffen van commando-uitvoering bij taakvoltooiing."
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "Gelijktijdige bestandsbewerkingen inschakelen",
+			"description": "Wanneer ingeschakeld, kan Roo meerdere bestanden in één verzoek bewerken. Wanneer uitgeschakeld, moet Roo bestanden één voor één bewerken. Het uitschakelen hiervan kan helpen wanneer je werkt met minder capabele modellen of wanneer je meer controle wilt over bestandswijzigingen."
 		}
 	},
 	"promptCaching": {

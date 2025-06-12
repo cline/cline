@@ -152,7 +152,8 @@
 		"wantsToInsertWithLineNumber": "Roo 想要在此檔案第 {{lineNumber}} 行插入內容：",
 		"wantsToInsertAtEnd": "Roo 想要在此檔案末尾新增內容：",
 		"wantsToReadAndXMore": "Roo 想要讀取此檔案以及另外 {{count}} 個檔案：",
-		"wantsToReadMultiple": "Roo 想要讀取多個檔案："
+		"wantsToReadMultiple": "Roo 想要讀取多個檔案：",
+		"wantsToApplyBatchChanges": "Roo 想要對多個檔案套用變更："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案：",

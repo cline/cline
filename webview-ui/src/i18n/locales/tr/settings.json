@@ -500,6 +500,10 @@
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "attempt_completion'da komut yürütmeyi devre dışı bırak",
 			"description": "Etkinleştirildiğinde, attempt_completion aracı komutları yürütmez. Bu, görev tamamlandığında komut yürütmenin kullanımdan kaldırılmasına hazırlanmak için deneysel bir özelliktir."
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "Eşzamanlı dosya düzenlemelerini etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo tek bir istekte birden fazla dosyayı düzenleyebilir. Devre dışı bırakıldığında, Roo dosyaları tek tek düzenlemek zorundadır. Bunu devre dışı bırakmak, daha az yetenekli modellerle çalışırken veya dosya değişiklikleri üzerinde daha fazla kontrol istediğinde yardımcı olabilir."
 		}
 	},
 	"promptCaching": {

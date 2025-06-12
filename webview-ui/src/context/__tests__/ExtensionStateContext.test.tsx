@@ -225,6 +225,7 @@ describe("mergeExtensionState", () => {
 				marketplace: false,
 				concurrentFileReads: true,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: true,
 			} as Record<ExperimentId, boolean>,
 		}
 
@@ -240,6 +241,7 @@ describe("mergeExtensionState", () => {
 			marketplace: false,
 			concurrentFileReads: true,
 			disableCompletionCommand: false,
+			multiFileApplyDiff: true,
 		})
 	})
 })

@@ -500,6 +500,10 @@
 		"DISABLE_COMPLETION_COMMAND": {
 			"name": "attempt_completionでのコマンド実行を無効にする",
 			"description": "有効にすると、attempt_completionツールはコマンドを実行しません。これは、タスク完了時のコマンド実行の非推奨化に備えるための実験的な機能です。"
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "同時ファイル編集を有効にする",
+			"description": "有効にすると、Rooは単一のリクエストで複数のファイルを編集できます。無効にすると、Rooはファイルを一つずつ編集する必要があります。これを無効にすることで、能力の低いモデルで作業する場合や、ファイル変更をより細かく制御したい場合に役立ちます。"
 		}
 	},
 	"promptCaching": {

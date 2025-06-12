@@ -276,6 +276,17 @@ export interface ClineSayTool {
 		lineSnippet: string
 		isOutsideWorkspace?: boolean
 		key: string
+		content?: string
+	}>
+	batchDiffs?: Array<{
+		path: string
+		changeCount: number
+		key: string
+		content: string
+		diffs?: Array<{
+			content: string
+			startLine?: number
+		}>
 	}>
 	question?: string
 }

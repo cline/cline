@@ -12,7 +12,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
 
-export async function applyDiffTool(
+export async function applyDiffToolLegacy(
 	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,

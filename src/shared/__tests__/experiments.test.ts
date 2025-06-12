@@ -14,6 +14,15 @@ describe("experiments", () => {
 		})
 	})
 
+	describe("MULTI_FILE_APPLY_DIFF", () => {
+		it("is configured correctly", () => {
+			expect(EXPERIMENT_IDS.MULTI_FILE_APPLY_DIFF).toBe("multiFileApplyDiff")
+			expect(experimentConfigsMap.MULTI_FILE_APPLY_DIFF).toMatchObject({
+				enabled: false,
+			})
+		})
+	})
+
 	describe("isEnabled", () => {
 		it("returns false when POWER_STEERING experiment is not enabled", () => {
 			const experiments: Record<ExperimentId, boolean> = {
@@ -21,6 +30,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -31,6 +41,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(true)
 		})
@@ -41,6 +52,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -51,6 +63,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.CONCURRENT_FILE_READS)).toBe(false)
 		})
@@ -61,6 +74,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: true,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.CONCURRENT_FILE_READS)).toBe(true)
 		})
@@ -81,6 +95,7 @@ describe("experiments", () => {
 				marketplace: false,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.MARKETPLACE)).toBe(false)
 		})
@@ -91,6 +106,7 @@ describe("experiments", () => {
 				marketplace: true,
 				concurrentFileReads: false,
 				disableCompletionCommand: false,
+				multiFileApplyDiff: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.MARKETPLACE)).toBe(true)
 		})

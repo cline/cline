@@ -149,7 +149,8 @@
 		"wantsToInsertWithLineNumber": "Roo veut insérer du contenu dans ce fichier à la ligne {{lineNumber}} :",
 		"wantsToInsertAtEnd": "Roo veut ajouter du contenu à la fin de ce fichier :",
 		"wantsToReadAndXMore": "Roo veut lire ce fichier et {{count}} de plus :",
-		"wantsToReadMultiple": "Roo souhaite lire plusieurs fichiers :"
+		"wantsToReadMultiple": "Roo souhaite lire plusieurs fichiers :",
+		"wantsToApplyBatchChanges": "Roo veut appliquer des modifications à plusieurs fichiers :"
 	},
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"

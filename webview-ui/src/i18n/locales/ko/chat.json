@@ -152,7 +152,8 @@
 		"wantsToInsertWithLineNumber": "Roo가 이 파일의 {{lineNumber}}번 줄에 내용을 삽입하고 싶어합니다:",
 		"wantsToInsertAtEnd": "Roo가 이 파일의 끝에 내용을 추가하고 싶어합니다:",
 		"wantsToReadAndXMore": "Roo가 이 파일과 {{count}}개의 파일을 더 읽으려고 합니다:",
-		"wantsToReadMultiple": "Roo가 여러 파일을 읽으려고 합니다:"
+		"wantsToReadMultiple": "Roo가 여러 파일을 읽으려고 합니다:",
+		"wantsToApplyBatchChanges": "Roo가 여러 파일에 변경 사항을 적용하고 싶어합니다:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo가 이 디렉토리의 최상위 파일을 보고 싶어합니다:",

@@ -31,6 +31,7 @@ import { Mention } from "./Mention"
 import { CheckpointSaved } from "./checkpoints/CheckpointSaved"
 import { FollowUpSuggest } from "./FollowUpSuggest"
 import { BatchFilePermission } from "./BatchFilePermission"
+import { BatchDiffApproval } from "./BatchDiffApproval"
 import { ProgressIndicator } from "./ProgressIndicator"
 import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
@@ -293,6 +294,22 @@ export const ChatRowContent = ({
 		switch (tool.tool) {
 			case "editedExistingFile":
 			case "appliedDiff":
+				// Check if this is a batch diff request
+				if (message.type === "ask" && tool.batchDiffs && Array.isArray(tool.batchDiffs)) {
+					return (
+						<>
+							<div style={headerStyle}>
+								{toolIcon("diff")}
+								<span style={{ fontWeight: "bold" }}>
+									{t("chat:fileOperations.wantsToApplyBatchChanges")}
+								</span>
+							</div>
+							<BatchDiffApproval files={tool.batchDiffs} ts={message.ts} />
+						</>
+					)
+				}
+
+				// Regular single file diff
 				return (
 					<>
 						<div style={headerStyle}>

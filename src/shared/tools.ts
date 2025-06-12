@@ -62,6 +62,7 @@ export const toolParamNames = [
 	"start_line",
 	"end_line",
 	"query",
+	"args",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -241,6 +242,11 @@ export type DiffResult =
 			failParts?: DiffResult[]
 	  } & ({ error: string } | { failParts: DiffResult[] }))
 
+export interface DiffItem {
+	content: string
+	startLine?: number
+}
+
 export interface DiffStrategy {
 	/**
 	 * Get the name of this diff strategy for analytics and debugging
@@ -258,12 +264,17 @@ export interface DiffStrategy {
 	/**
 	 * Apply a diff to the original content
 	 * @param originalContent The original file content
-	 * @param diffContent The diff content in the strategy's format
+	 * @param diffContent The diff content in the strategy's format (string for legacy, DiffItem[] for new)
 	 * @param startLine Optional line number where the search block starts. If not provided, searches the entire file.
 	 * @param endLine Optional line number where the search block ends. If not provided, searches the entire file.
 	 * @returns A DiffResult object containing either the successful result or error details
 	 */
-	applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): Promise<DiffResult>
+	applyDiff(
+		originalContent: string,
+		diffContent: string | DiffItem[],
+		startLine?: number,
+		endLine?: number,
+	): Promise<DiffResult>
 
 	getProgressStatus?(toolUse: ToolUse, result?: any): ToolProgressStatus
 }

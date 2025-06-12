@@ -1,6 +1,6 @@
 import { addCustomInstructions } from "../sections/custom-instructions"
 import { getCapabilitiesSection } from "../sections/capabilities"
-import { DiffStrategy, DiffResult } from "../../../shared/tools"
+import { DiffStrategy, DiffResult, DiffItem } from "../../../shared/tools"
 
 describe("addCustomInstructions", () => {
 	test("adds vscode language to custom instructions", async () => {
@@ -35,7 +35,7 @@ describe("getCapabilitiesSection", () => {
 	const mockDiffStrategy: DiffStrategy = {
 		getName: () => "MockStrategy",
 		getToolDescription: () => "apply_diff tool description",
-		applyDiff: async (_originalContent: string, _diffContent: string): Promise<DiffResult> => {
+		async applyDiff(_originalContent: string, _diffContents: string | DiffItem[]): Promise<DiffResult> {
 			return { success: true, content: "mock result" }
 		},
 	}

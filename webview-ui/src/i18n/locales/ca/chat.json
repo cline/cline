@@ -152,7 +152,8 @@
 		"wantsToInsertWithLineNumber": "Roo vol inserir contingut a la línia {{lineNumber}} d'aquest fitxer:",
 		"wantsToInsertAtEnd": "Roo vol afegir contingut al final d'aquest fitxer:",
 		"wantsToReadAndXMore": "En Roo vol llegir aquest fitxer i {{count}} més:",
-		"wantsToReadMultiple": "Roo vol llegir diversos fitxers:"
+		"wantsToReadMultiple": "Roo vol llegir diversos fitxers:",
+		"wantsToApplyBatchChanges": "Roo vol aplicar canvis a múltiples fitxers:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo vol veure els fitxers de nivell superior en aquest directori:",

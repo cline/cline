@@ -500,6 +500,10 @@
 		"MARKETPLACE": {
 			"name": "Włącz Marketplace",
 			"description": "Gdy włączone, możesz instalować MCP i niestandardowe tryby z Marketplace."
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "Włącz równoczesne edycje plików",
+			"description": "Gdy włączone, Roo może edytować wiele plików w jednym żądaniu. Gdy wyłączone, Roo musi edytować pliki jeden po drugim. Wyłączenie tego może pomóc podczas pracy z mniej zdolnymi modelami lub gdy chcesz mieć większą kontrolę nad modyfikacjami plików."
 		}
 	},
 	"promptCaching": {
