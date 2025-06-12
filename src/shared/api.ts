@@ -119,7 +119,6 @@ export interface ModelInfo {
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
-	supportsComputerUse?: boolean
 	inputPrice?: number // Keep for non-tiered input models
 	outputPrice?: number // Keep for non-tiered output models
 	thinkingConfig?: {
@@ -2419,7 +2418,6 @@ export const sapAiCoreModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		supportsComputerUse: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
@@ -2428,7 +2426,6 @@ export const sapAiCoreModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		supportsComputerUse: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
