@@ -89,7 +89,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, clas
 			appearance="icon"
 			onClick={handleCopy}
 			className={className}
-			aria-label={ariaLabel || (copied ? "Copied" : "Copy")}>
+			aria-label={copied ? "Copied" : ariaLabel || "Copy"}>
 			<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
 		</StyledButton>
 	)
@@ -121,7 +121,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 						<CopyButton
 							textToCopy={textToCopy}
 							onCopy={onCopy}
-							ariaLabel={ariaLabel || (textToCopy ? "Copied" : "Copy")} // Use passed ariaLabel or default
+							ariaLabel={ariaLabel} // Pass through the ariaLabel prop directly
 						/>
 					</ButtonContainer>
 				)}
