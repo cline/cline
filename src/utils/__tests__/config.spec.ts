@@ -1,5 +1,6 @@
 import { vitest, describe, it, expect, beforeEach, afterAll } from "vitest"
-import { injectEnv } from "../config"
+import { injectEnv, injectVariables } from "../config"
+
 
 describe("injectEnv", () => {
 	const originalEnv = process.env
@@ -30,14 +31,44 @@ describe("injectEnv", () => {
 			key: "${env:API_KEY}",
 			url: "${env:ENDPOINT}",
 			nested: {
-				value: "Keep this ${env:API_KEY}",
+				string: "Keep this ${env:API_KEY}",
+				number: 123,
+				boolean: true,
+				stringArr: ["${env:API_KEY}", "${env:ENDPOINT}"],
+				numberArr: [123, 456],
+				booleanArr: [true, false],
+			},
+			deeply: {
+				nested: {
+					string: "Keep this ${env:API_KEY}",
+					number: 123,
+					boolean: true,
+					stringArr: ["${env:API_KEY}", "${env:ENDPOINT}"],
+					numberArr: [123, 456],
+					booleanArr: [true, false],
+				},
 			},
 		}
 		const expectedObject = {
 			key: "12345",
 			url: "https://example.com",
 			nested: {
-				value: "Keep this 12345",
+				string: "Keep this 12345",
+				number: 123,
+				boolean: true,
+				stringArr: ["12345", "https://example.com"],
+				numberArr: [123, 456],
+				booleanArr: [true, false],
+			},
+			deeply: {
+				nested: {
+					string: "Keep this 12345",
+					number: 123,
+					boolean: true,
+					stringArr: ["12345", "https://example.com"],
+					numberArr: [123, 456],
+					booleanArr: [true, false],
+				},
 			},
 		}
 		const result = await injectEnv(configObject)
@@ -52,7 +83,7 @@ describe("injectEnv", () => {
 		const result = await injectEnv(configString, "NOT_FOUND")
 		expect(result).toBe(expectedString)
 		expect(consoleWarnSpy).toHaveBeenCalledWith(
-			"[injectEnv] env variable MISSING_VAR referenced but not found in process.env",
+			`[injectVariables] variable "MISSING_VAR" referenced but not found in "env"`,
 		)
 		consoleWarnSpy.mockRestore()
 	})
@@ -64,7 +95,7 @@ describe("injectEnv", () => {
 		const result = await injectEnv(configString)
 		expect(result).toBe(expectedString)
 		expect(consoleWarnSpy).toHaveBeenCalledWith(
-			"[injectEnv] env variable ANOTHER_MISSING referenced but not found in process.env",
+			`[injectVariables] variable "ANOTHER_MISSING" referenced but not found in "env"`,
 		)
 		consoleWarnSpy.mockRestore()
 	})
@@ -98,4 +129,23 @@ describe("injectEnv", () => {
 		const result = await injectEnv({})
 		expect(result).toEqual({})
 	})
+})
+
+describe("injectVariables", () => {
+	it("should replace singular variable", async () => {
+		const result = await injectVariables("Hello ${v}", { v: "Hola" })
+		expect(result).toEqual("Hello Hola")
+	})
+
+	it("should handle undefined singular variable input", async () => {
+		const result = await injectVariables("Hello ${v}", { v: undefined })
+		expect(result).toEqual("Hello ${v}")
+	})
+
+	it("should handle empty string singular variable input", async () => {
+		const result = await injectVariables("Hello ${v}", { v: "" })
+		expect(result).toEqual("Hello ")
+	})
+
+	// Variable maps are already tested by `injectEnv` tests above.
 })
