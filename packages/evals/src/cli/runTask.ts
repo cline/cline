@@ -294,8 +294,8 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 		data: {
 			configuration: {
 				...EVALS_SETTINGS,
-				...run.settings,
 				openRouterApiKey: process.env.OPENROUTER_API_KEY,
+				...run.settings, // Allow the provided settings to override `openRouterApiKey`.
 			},
 			text: prompt,
 			newTab: true,

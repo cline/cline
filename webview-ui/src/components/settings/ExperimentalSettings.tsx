@@ -1,7 +1,7 @@
 import { HTMLAttributes } from "react"
 import { FlaskConical } from "lucide-react"
 
-import type { ExperimentId, CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "@roo-code/types"
+import type { Experiments, CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "@roo-code/types"
 
 import { EXPERIMENT_IDS, experimentConfigsMap } from "@roo/experiments"
 
@@ -17,7 +17,7 @@ import { CodeIndexSettings } from "./CodeIndexSettings"
 import { ConcurrentFileReadsExperiment } from "./ConcurrentFileReadsExperiment"
 
 type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
-	experiments: Record<ExperimentId, boolean>
+	experiments: Experiments
 	setExperimentEnabled: SetExperimentEnabled
 	maxConcurrentFileReads?: number
 	setCachedStateField: SetCachedStateField<"codebaseIndexConfig" | "maxConcurrentFileReads">

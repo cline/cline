@@ -5,7 +5,7 @@ import type {
 	HistoryItem,
 	ModeConfig,
 	TelemetrySetting,
-	ExperimentId,
+	Experiments,
 	ClineMessage,
 	OrganizationAllowList,
 	CloudUserInfo,
@@ -208,7 +208,7 @@ export type ExtensionState = Pick<
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
 
-	experiments: Record<ExperimentId, boolean> // Map of experiment IDs to their enabled state
+	experiments: Experiments // Map of experiment IDs to their enabled state
 
 	mcpEnabled: boolean
 	enableMcpServerCreation: boolean
