@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
@@ -9,61 +8,23 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "apiConfiguration"
-		| "webviewDidLaunch"
-		| "newTask"
-		| "condense"
-		| "reportBug"
-		| "didShowAnnouncement"
-		| "openInBrowser"
-		| "openMention"
-		| "showChatView"
-		| "refreshClineRules"
-		| "openMcpSettings"
-		| "deleteMcpServer"
-		| "autoApprovalSettings"
-		| "browserRelaunchResult"
-		| "togglePlanActMode"
-		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "accountLogoutClicked"
-		| "showAccountViewClicked"
 		| "authStateChanged"
-		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
-		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
-		| "invoke"
-		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
-		| "optionsResponse"
-		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "scrollToSettings"
-		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleClineRule"
-		| "toggleCursorRule"
-		| "toggleWindsurfRule"
-		| "toggleWorkflow"
-		| "deleteClineRule"
-		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
@@ -79,13 +40,11 @@ export interface WebviewMessage {
 	// For auth
 	user?: UserInfo | null
 	customToken?: string
-	// For openInBrowser
-	url?: string
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
+	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
-	customInstructionsSetting?: string
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -109,6 +68,7 @@ export interface WebviewMessage {
 
 	offset?: number
 	shellIntegrationTimeout?: number
+	terminalReuseEnabled?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

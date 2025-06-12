@@ -1,5 +1,112 @@
 # Changelog
 
+## [3.17.12]
+
+-   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
+-   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output (Thanks @valinha!)
+-   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions (Thanks @abeatrix!)
+-   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
+-   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
+-   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
+
+## [3.17.11]
+
+-   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
+
+## [3.17.10]
+
+-   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
+-   Add new AskSage models: Claude 4 Sonnet, Claude 4 Opus, GPT 4.1, Gemini 2.5 Pro (Thanks @swhite24!)
+-   Add VSCode walkthrough to help new users get started with Cline
+-   Add support for streamable MCP servers
+-   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
+-   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
+-   Fix settings dialog applying changes even when cancel button is clicked
+
+## [3.17.9]
+
+-   Aligning Cline to work with Claude 4 model family (Experimental)
+-   Add task timeline scrolling feature
+-   Add support for uploading CSV and XLSX files for data analysis and processing
+-   Add stable Grok-3 models to xAI provider (grok-3, grok-3-fast, grok-3-mini, grok-3-mini-fast) and update default model from grok-3-beta to grok-3 (Thanks @PeterDaveHello!)
+-   Add new models to Vertex AI provider
+-   Add new model to Nebius AI Studio
+-   Remove hard-coded temperature from LM Studio API requests and add support for reasoning_content in LM Studio responses
+-   Display delay information when retrying API calls for better user feedback
+-   Fix AWS Bedrock credential caching issue where externally updated credentials (e.g., by AWS Identity Manager) were not detected, requiring extension restart (Thanks @DaveFres!)
+-   Fix search tool overloading conversation with massive outputs by setting maximum byte limit for responses
+-   Fix checkpoints functionality
+-   Fix token counting for xAI provider
+-   Fix Ollama provider issues
+-   Fix window title display for Windows users
+-   Improve chat box UI
+
+## [3.17.8]
+
+-   Fix bug where terminal would get stuck and output "capture failure"
+
+## [3.17.7]
+
+-   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
+
+## [3.17.6]
+
+-   Add Cerebras as a new API provider with 5 high-performance models including reasoning-capable models (Thanks @kevint-cerebras!)
+-   Add support for uploading various file types (XML, JSON, TXT, LOG, MD, DOCX, IPYNB, PDF) alongside images
+-   Add improved onboarding experience for new users with guided setup
+-   Add prompt cache indicator for Gemini 2.5 Flash models
+-   Update SambaNova provider with new model list and documentation links (Thanks @luisfucros!)
+-   Fix diff editing support for Claude 4 family of models
+-   Improve telemetry and analytics for better user experience insights
+
+## [3.17.5]
+
+-   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
+
+## [3.17.4]
+
+-   Fix thinking budget slider for Claude 4
+
+## [3.17.3]
+
+-   Fix diff edit errors with Claude 4 models
+
+## [3.17.2]
+
+-   Add support for Claude 4 models (Sonnet 4 and Opus 4) in AWS Bedrock and Vertex AI providers
+-   Add support for global workflows, allowing workflows to be shared across workspaces with local workflows taking precedence
+-   Fix settings page z-index UI issues that caused display problems
+-   Fix AWS Bedrock environment variable handling to properly restore process.env after API calls (Thanks @DaveFres!)
+
+## [3.17.1]
+
+-   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
+-   Increase max tokens for Claude Opus 4 from 4096 to 8192
+
+## [3.17.0]
+
+-   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
+-   Add integration with Nebius AI Studio as a new provider (Thanks @Aktsvigun!)
+-   Add custom highlight and hotkey suggestion when the assistant prompts to switch to Act mode
+-   Update settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
+-   Fix MCP Server configuration bug
+-   Fix model listing for Requesty provider
+-   Move all advanced settings to settings page
+
+## [3.16.3]
+
+-   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
+-   Add documentation links to rules & workflows UI
+-   Add support for Streameable HTTP Transport for MCPs (Thanks @alejandropta!)
+-   Improve error handling for Mistral SDK API
+
+## [3.16.2]
+
+-   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
+-   Add keyboard shortcut (Cmd+') to quickly focus Cline from anywhere in VS Code
+-   Add lightbulb actions for selected text with options to "Add to Cline", "Explain with Cline", and "Improve with Cline"
+-   Automatically focus Cline window after extension updates
+
 ## [3.16.1]
 
 -   Add Enable auto approve toggle switch, allowing users to easily turn auto-approve functionality on or off without losing their action settings

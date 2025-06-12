@@ -101,7 +101,11 @@ export class DiffViewProvider {
 		})
 	}
 
-	async update(accumulatedContent: string, isFinal: boolean) {
+	async update(
+		accumulatedContent: string,
+		isFinal: boolean,
+		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
+	) {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
 		}
@@ -148,29 +152,36 @@ export class DiffViewProvider {
 			this.activeLineController.setActiveLine(currentLine)
 			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
 
-			// Scroll to the last changed line only if the user hasn't scrolled up
+			// Scroll to the actual change location if provided, otherwise use the old logic
 			if (this.shouldAutoScroll) {
-				if (diffLines.length <= 5) {
-					// For small changes, just jump directly to the line
-					this.scrollEditorToLine(currentLine)
+				if (changeLocation) {
+					// We have the actual location of the change, scroll to it
+					const targetLine = changeLocation.startLine
+					this.scrollEditorToLine(targetLine)
 				} else {
-					// For larger changes, create a quick scrolling animation
-					const startLine = this.streamedLines.length
-					const endLine = currentLine
-					const totalLines = endLine - startLine
-					const numSteps = 10 // Adjust this number to control animation speed
-					const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+					// Fallback to the old logic for non-replacement updates
+					if (diffLines.length <= 5) {
+						// For small changes, just jump directly to the line
+						this.scrollEditorToLine(currentLine)
+					} else {
+						// For larger changes, create a quick scrolling animation
+						const startLine = this.streamedLines.length
+						const endLine = currentLine
+						const totalLines = endLine - startLine
+						const numSteps = 10 // Adjust this number to control animation speed
+						const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
 
-					// Create and await the smooth scrolling animation
-					for (let line = startLine; line <= endLine; line += stepSize) {
-						this.activeDiffEditor?.revealRange(
-							new vscode.Range(line, 0, line, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-						await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+						// Create and await the smooth scrolling animation
+						for (let line = startLine; line <= endLine; line += stepSize) {
+							this.activeDiffEditor?.revealRange(
+								new vscode.Range(line, 0, line, 0),
+								vscode.TextEditorRevealType.InCenter,
+							)
+							await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+						}
+						// Ensure we end at the final line
+						this.scrollEditorToLine(currentLine)
 					}
-					// Ensure we end at the final line
-					this.scrollEditorToLine(currentLine)
 				}
 			}
 		}

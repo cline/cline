@@ -200,3 +200,39 @@ describe("OpenApiInfoOptions", () => {
 		expect(modelInput).toBeInTheDocument()
 	})
 })
+
+describe("ApiOptions Component", () => {
+	vi.clearAllMocks()
+	const mockPostMessage = vi.fn()
+
+	beforeEach(() => {
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
+
+		mockExtensionState({
+			apiProvider: "nebius",
+			nebiusApiKey: "",
+		})
+	})
+
+	it("renders Nebius API Key input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		expect(apiKeyInput).toBeInTheDocument()
+	})
+
+	it("renders Nebius Model ID select with a default model", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const modelIdSelect = screen.getByLabelText("Model")
+		expect(modelIdSelect).toBeInTheDocument()
+		expect(modelIdSelect).toHaveValue("Qwen/Qwen2.5-32B-Instruct-fast")
+	})
+})

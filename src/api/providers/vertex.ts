@@ -41,7 +41,10 @@ export class VertexHandler implements ApiHandler {
 
 		// Claude implementation
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) && budget_tokens !== 0
+				? true
+				: false
 
 		// maxTokens
 		let maxTokens = model.info.maxTokens || 8192
@@ -52,6 +55,8 @@ export class VertexHandler implements ApiHandler {
 		let stream
 
 		switch (modelId) {
+			case "claude-sonnet-4@20250514":
+			case "claude-opus-4@20250514":
 			case "claude-3-7-sonnet@20250219":
 			case "claude-3-5-sonnet-v2@20241022":
 			case "claude-3-5-sonnet@20240620":
@@ -156,7 +161,7 @@ export class VertexHandler implements ApiHandler {
 		}
 
 		for await (const chunk of stream) {
-			switch (chunk.type) {
+			switch (chunk?.type) {
 				case "message_start":
 					const usage = chunk.message.usage
 					yield {

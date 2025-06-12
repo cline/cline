@@ -1,9 +1,9 @@
-import React from "react"
-import { vscode } from "@/utils/vscode"
-import DOMPurify from "dompurify"
-import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { WebServiceClient } from "@/services/grpc-client"
+import { StringRequest } from "@shared/proto/common"
+import DOMPurify from "dompurify"
+import React from "react"
+import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 
 interface OpenGraphData {
 	title?: string
@@ -110,9 +110,11 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 			this.setState({ fetchStartTime: startTime })
 
 			// Use the gRPC client to fetch Open Graph data
-			const response = await WebServiceClient.fetchOpenGraphData({
-				value: this.props.url,
-			})
+			const response = await WebServiceClient.fetchOpenGraphData(
+				StringRequest.create({
+					value: this.props.url,
+				}),
+			)
 
 			// Process the response
 			if (response) {
@@ -238,11 +240,16 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 						maxWidth: "512px",
 						overflow: "auto",
 					}}
-					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
-							url: DOMPurify.sanitize(url),
-						})
+					onClick={async () => {
+						try {
+							await WebServiceClient.openInBrowser(
+								StringRequest.create({
+									value: DOMPurify.sanitize(url),
+								}),
+							)
+						} catch (err) {
+							console.error("Error opening URL in browser:", err)
+						}
 					}}>
 					<div style={{ fontWeight: "bold" }}>{errorDisplay}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -275,11 +282,16 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					height: "128px",
 					maxWidth: "512px",
 				}}
-				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
-						url: DOMPurify.sanitize(url),
-					})
+				onClick={async () => {
+					try {
+						await WebServiceClient.openInBrowser(
+							StringRequest.create({
+								value: DOMPurify.sanitize(url),
+							}),
+						)
+					} catch (err) {
+						console.error("Error opening URL in browser:", err)
+					}
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>

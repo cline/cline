@@ -18,5 +18,5 @@ export async function checkpointRestore(controller: Controller, request: Checkpo
 		// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
 		await controller.task?.restoreCheckpoint(request.number, request.restoreType as ClineCheckpointRestore, request.offset)
 	}
-	return {}
+	return Empty.create({})
 }

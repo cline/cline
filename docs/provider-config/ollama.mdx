@@ -1,0 +1,78 @@
+---
+title: "Ollama"
+---
+
+Cline supports running models locally using Ollama. This approach offers privacy, offline access, and potentially reduced costs. It requires some initial setup and a sufficiently powerful computer. Because of the present state of consumer hardware, it's not recommended to use Ollama with Cline as performance will likely be poor for average hardware configurations.
+
+**Website:** [https://ollama.com/](https://ollama.com/)
+
+### Setting up Ollama
+
+1.  **Download and Install Ollama:**
+    Obtain the Ollama installer for your operating system from the [Ollama website](https://ollama.com/) and follow their installation guide. Ensure Ollama is running. You can typically start it with:
+
+    ```bash
+    ollama serve
+    ```
+
+2.  **Download a Model:**
+    Ollama supports a wide variety of models. A list of available models can be found on the [Ollama model library](https://ollama.com/library). Some models recommended for coding tasks include:
+
+    -   `codellama:7b-code` (a good, smaller starting point)
+    -   `codellama:13b-code` (offers better quality, larger size)
+    -   `codellama:34b-code` (provides even higher quality, very large)
+    -   `qwen2.5-coder:32b`
+    -   `mistralai/Mistral-7B-Instruct-v0.1` (a solid general-purpose model)
+    -   `deepseek-coder:6.7b-base` (effective for coding)
+    -   `llama3:8b-instruct-q5_1` (suitable for general tasks)
+
+    To download a model, open your terminal and execute:
+
+    ```bash
+    ollama pull <model_name>
+    ```
+
+    For instance:
+
+    ```bash
+    ollama pull qwen2.5-coder:32b
+    ```
+
+3.  **Configure the Model's Context Window:**
+    By default, Ollama models often use a context window of 2048 tokens, which can be insufficient for many Cline requests. A minimum of 12,000 tokens is advisable for decent results, with 32,000 tokens being ideal. To adjust this, you'll modify the model's parameters and save it as a new version.
+
+    First, load the model (using `qwen2.5-coder:32b` as an example):
+
+    ```bash
+    ollama run qwen2.5-coder:32b
+    ```
+
+    Once the model is loaded within the Ollama interactive session, set the context size parameter:
+
+    ```
+    /set parameter num_ctx 32768
+    ```
+
+    Then, save this configured model with a new name:
+
+    ```
+    /save your_custom_model_name
+    ```
+
+    (Replace `your_custom_model_name` with a name of your choice.)
+
+4.  **Configure Cline:**
+    -   Open the Cline sidebar (usually indicated by the Cline icon).
+    -   Click the settings gear icon (⚙️).
+    -   Select "ollama" as the API Provider.
+    -   Enter the Model name you saved in the previous step (e.g., `your_custom_model_name`).
+    -   (Optional) Adjust the base URL if Ollama is running on a different machine or port. The default is `http://localhost:11434`.
+    -   (Optional) Configure the Model context size in Cline's Advanced settings. This helps Cline manage its context window effectively with your customized Ollama model.
+
+### Tips and Notes
+
+-   **Resource Demands:** Running large language models locally can be demanding on system resources. Ensure your computer meets the requirements for your chosen model.
+-   **Model Choice:** Experiment with various models to discover which best fits your specific tasks and preferences.
+-   **Offline Capability:** After downloading a model, you can use Cline with that model even without an internet connection.
+-   **Token Usage Tracking:** Cline tracks token usage for models accessed via Ollama, allowing you to monitor consumption.
+-   **Ollama's Own Documentation:** For more detailed information, consult the official [Ollama documentation](https://ollama.com/docs).
