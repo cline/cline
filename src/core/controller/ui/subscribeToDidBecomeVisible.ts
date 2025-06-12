@@ -50,7 +50,7 @@ export async function sendDidBecomeVisibleEvent(controllerId: string): Promise<v
 	}
 
 	try {
-		const event: Empty = {}
+		const event: Empty = Empty.create({})
 		await responseStream(
 			event,
 			false, // Not the last message
