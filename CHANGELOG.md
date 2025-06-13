@@ -1,5 +1,17 @@
 # Roo Code Changelog
 
+## [3.20.2] - 2025-06-13
+
+- Limit search_files to only look within the workspace for improved security
+- Force tar-fs >=2.1.3 for security vulnerability fix
+- Add cache breakpoints for custom vertex models on Unbound (thanks @pugazhendhi-m!)
+- Reapply reasoning for bedrock with fix (thanks @daniel-lxs!)
+- Sync BatchDiffApproval styling with BatchFilePermission for UI consistency (thanks @samhvw8!)
+- Add max height constraint to MCP execution response for better UX (thanks @samhvw8!)
+- Prevent MCP 'installed' label from being squeezed #4630 (thanks @daniel-lxs!)
+- Allow a lower context condesning threshold (thanks @SECKainersdorfer!)
+- Avoid type system duplication for cleaner codebase (thanks @EamonNerbonne!)
+
 ## [3.20.1] - 2025-06-12
 
 - Temporarily revert thinking support for Bedrock models
