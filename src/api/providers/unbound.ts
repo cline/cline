@@ -9,6 +9,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addCacheBreakpoints as addAnthropicCacheBreakpoints } from "../transform/caching/anthropic"
 import { addCacheBreakpoints as addGeminiCacheBreakpoints } from "../transform/caching/gemini"
+import { addCacheBreakpoints as addVertexCacheBreakpoints } from "../transform/caching/vertex"
 
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
@@ -69,6 +70,10 @@ export class UnboundHandler extends RouterProvider implements SingleCompletionHa
 			} else if (modelId.startsWith("anthropic/")) {
 				addAnthropicCacheBreakpoints(systemPrompt, openAiMessages)
 			}
+		}
+		// Custom models from Vertex AI (no configuration) need to be handled differently.
+		if (modelId.startsWith("vertex-ai/google.") || modelId.startsWith("vertex-ai/anthropic.")) {
+			addVertexCacheBreakpoints(messages)
 		}
 
 		// Required by Anthropic; other providers default to max tokens allowed.
