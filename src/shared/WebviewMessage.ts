@@ -69,6 +69,7 @@ export interface WebviewMessage {
 	offset?: number
 	shellIntegrationTimeout?: number
 	terminalReuseEnabled?: boolean
+	defaultTerminalProfile?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

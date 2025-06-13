@@ -6,7 +6,7 @@ import { cn } from "@/utils/cn"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { PlanActMode, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
@@ -130,6 +130,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setShellIntegrationTimeout,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
+		defaultTerminalProfile,
+		setDefaultTerminalProfile,
 		mcpResponsesCollapsed,
 		setMcpResponsesCollapsed,
 		setApiConfiguration,
@@ -146,6 +148,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		defaultTerminalProfile,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -189,6 +192,27 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
 				}),
 			)
+
+			// Update default terminal profile if it has changed
+			if (defaultTerminalProfile !== originalState.current.defaultTerminalProfile) {
+				await StateServiceClient.updateDefaultTerminalProfile({
+					value: defaultTerminalProfile || "default",
+				} as StringRequest)
+			}
+
+			// Update the original state to reflect the saved changes
+			originalState.current = {
+				apiConfiguration,
+				telemetrySetting,
+				planActSeparateModelsSetting,
+				enableCheckpointsSetting,
+				mcpMarketplaceEnabled,
+				mcpResponsesCollapsed,
+				chatSettings,
+				shellIntegrationTimeout,
+				terminalReuseEnabled,
+				defaultTerminalProfile,
+			}
 		} catch (error) {
 			console.error("Failed to update settings:", error)
 		}
@@ -214,7 +238,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
-			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
+			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -227,6 +252,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		defaultTerminalProfile,
 	])
 
 	// Handle cancel button click
@@ -262,6 +288,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				}
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+				}
+				if (typeof setDefaultTerminalProfile === "function") {
+					setDefaultTerminalProfile(originalState.current.defaultTerminalProfile ?? "default")
 				}
 				if (typeof setMcpResponsesCollapsed === "function") {
 					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)

@@ -179,7 +179,113 @@ function getShellFromEnv(): string | null {
 }
 
 // -----------------------------------------------------
-// 4) Publicly Exposed Shell Getter
+// 4) Terminal Profile Interface and Utilities
+// -----------------------------------------------------
+
+import { TerminalProfile } from "../shared/proto/state"
+
+/** Gets available terminal profiles for the current platform */
+export function getAvailableTerminalProfiles(): TerminalProfile[] {
+	const profiles: TerminalProfile[] = [
+		{
+			id: "default",
+			name: "Default",
+			description: "Use VSCode's default terminal configuration",
+		},
+	]
+
+	if (process.platform === "win32") {
+		// Windows terminal profiles
+		profiles.push(
+			{
+				id: "powershell-7",
+				name: "PowerShell 7",
+				path: SHELL_PATHS.POWERSHELL_7,
+				description: "PowerShell 7 (pwsh.exe)",
+			},
+			{
+				id: "powershell-legacy",
+				name: "Windows PowerShell",
+				path: SHELL_PATHS.POWERSHELL_LEGACY,
+				description: "Windows PowerShell 5.x",
+			},
+			{
+				id: "cmd",
+				name: "Command Prompt",
+				path: SHELL_PATHS.CMD,
+				description: "Command Prompt (cmd.exe)",
+			},
+			{
+				id: "wsl-bash",
+				name: "WSL Bash",
+				path: SHELL_PATHS.WSL_BASH,
+				description: "Windows Subsystem for Linux Bash",
+			},
+		)
+	} else if (process.platform === "darwin") {
+		// macOS terminal profiles
+		profiles.push(
+			{
+				id: "zsh",
+				name: "zsh",
+				path: SHELL_PATHS.ZSH,
+				description: "Z shell (default on macOS)",
+			},
+			{
+				id: "bash",
+				name: "bash",
+				path: SHELL_PATHS.BASH,
+				description: "Bourne Again Shell",
+			},
+		)
+	} else if (process.platform === "linux") {
+		// Linux terminal profiles
+		profiles.push(
+			{
+				id: "bash",
+				name: "bash",
+				path: SHELL_PATHS.BASH,
+				description: "Bourne Again Shell (default on most Linux)",
+			},
+			{
+				id: "zsh",
+				name: "zsh",
+				path: SHELL_PATHS.ZSH,
+				description: "Z shell",
+			},
+			{
+				id: "dash",
+				name: "dash",
+				path: SHELL_PATHS.DASH,
+				description: "Debian Almquist Shell",
+			},
+		)
+	}
+
+	return profiles
+}
+
+/** Gets the shell path for a specific terminal profile */
+export function getShellForProfile(profileId: string): string {
+	// If it's the default profile, use the existing getShell() logic
+	if (profileId === "default") {
+		return getShell()
+	}
+
+	// Find the profile
+	const profiles = getAvailableTerminalProfiles()
+	const profile = profiles.find((p) => p.id === profileId)
+
+	if (profile?.path) {
+		return profile.path
+	}
+
+	// Fallback to default shell if profile not found
+	return getShell()
+}
+
+// -----------------------------------------------------
+// 5) Publicly Exposed Shell Getter
 // -----------------------------------------------------
 
 export function getShell(): string {

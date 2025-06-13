@@ -7,6 +7,10 @@ import "common.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
+  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+  rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
+  rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
+  rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(EmptyRequest) returns (Empty);
@@ -17,6 +21,23 @@ service StateService {
 
 message State {
   string state_json = 1;
+}
+
+message TerminalProfiles {
+  repeated TerminalProfile profiles = 1;
+}
+
+message TerminalProfile {
+  string id = 1;
+  string name = 2;
+  optional string path = 3;
+  optional string description = 4;
+}
+
+message TerminalProfileUpdateResponse {
+  int32 closed_count = 1;
+  int32 busy_terminals_count = 2;
+  bool has_busy_terminals = 3;
 }
 
 message TogglePlanActModeRequest {
@@ -42,10 +63,8 @@ message ChatContent {
   repeated string files = 3;
 }
 
-// Message for auto approval settings
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
-
   message Actions {
     bool read_files = 1;
     bool read_files_externally = 2;
@@ -56,7 +75,6 @@ message AutoApprovalSettingsRequest {
     bool use_browser = 7;
     bool use_mcp = 8;
   }
-
   int32 version = 2;
   bool enabled = 3;
   Actions actions = 4;
