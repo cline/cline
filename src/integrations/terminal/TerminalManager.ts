@@ -340,7 +340,7 @@ export class TerminalManager {
 			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
 		}
 		return outputLines.join("\n").trim()
-  }
+	}
 
 	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
 		// Only handle terminal change if profile actually changed

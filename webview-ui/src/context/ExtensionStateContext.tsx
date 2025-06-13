@@ -758,6 +758,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				terminalOutputLineLimit: value,
+			})),
 		setDefaultTerminalProfile: (value) =>
 			setState((prevState) => ({
 				...prevState,
