@@ -1,8 +1,10 @@
 <best_practices>
   - Always fetch and review the entire PR diff before commenting
+  - Check for and review any associated issue for context
   - Check out the PR locally for better context understanding
   - Review existing comments to avoid duplicate feedback
   - Focus on the changes made, not unrelated code
+  - Ensure all changes are directly related to the linked issue
   - Use a friendly, curious tone in all comments
   - Ask questions rather than making assumptions
   - Provide actionable feedback with specific suggestions

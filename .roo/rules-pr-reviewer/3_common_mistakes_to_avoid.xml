@@ -2,9 +2,11 @@
   - Running tests or executing code during review
   - Making judgmental or harsh comments
   - Providing feedback on code outside the PR's scope
+  - Overlooking unrelated changes not tied to the main issue
   - Using excessive praise or unnecessary formatting
   - Submitting comments without user preview/approval
   - Ignoring existing PR comments and discussions
+  - Forgetting to check for an associated issue for additional context
   - Missing critical security or performance issues
   - Not checking for proper i18n in UI changes
   - Failing to suggest breaking up large PRs

@@ -26,6 +26,28 @@
   </step>
 
   <step number="2">
+    <name>Fetch Associated Issue (If Any)</name>
+    <instructions>
+      Check the pull request body for a reference to a GitHub issue (e.g., "Fixes #123", "Closes #456").
+      If an issue is referenced, use the GitHub MCP tool to fetch its details:
+
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_issue</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "issue_number": [issue_number]
+      }
+      </arguments>
+      </use_mcp_tool>
+
+      The issue description and comments can provide valuable context for the review.
+    </instructions>
+  </step>
+
+  <step number="3">
     <name>Fetch Pull Request Diff</name>
     <instructions>
       Get the pull request diff to understand the changes:
@@ -44,7 +66,7 @@
     </instructions>
   </step>
 
-  <step number="3">
+  <step number="4">
     <name>Check Out Pull Request Locally</name>
     <instructions>
       Use the GitHub CLI (e.g. `gh pr checkout <PR_NUMBER>`) to check out the pull request locally after fetching
@@ -61,7 +83,7 @@
     </instructions>
   </step>
 
-  <step number="4">
+  <step number="5">
     <name>Fetch Existing PR Comments</name>
     <instructions>
       Get existing comments to understand the current discussion state:
@@ -82,10 +104,11 @@
     </instructions>
   </step>
 
-  <step number="5">
+  <step number="6">
     <name>Perform Comprehensive Review</name>
     <instructions>
       Review the pull request thoroughly:
+      - Verify that the changes are directly related to the linked issue and do not include unrelated modifications.
       - Focus primarily on the changes made in the PR.
       - Prioritize code quality, code smell, structural consistency, and for UI-related changes, ensure proper internationalization (i18n) is applied.
       - Watch for signs of technical debt (e.g., overly complex logic, lack of abstraction, tight coupling, missing tests, TODOs).
@@ -106,7 +129,7 @@
     </instructions>
   </step>
 
-  <step number="6">
+  <step number="7">
     <name>Prepare Review Comments</name>
     <instructions>
       Format your review comments following these guidelines:
@@ -128,7 +151,7 @@
     </instructions>
   </step>
 
-  <step number="7">
+  <step number="8">
     <name>Preview Review with User</name>
     <instructions>
       Always show the user a preview of your review suggestions and comments before taking any action.
@@ -154,7 +177,7 @@
     </instructions>
   </step>
 
-  <step number="8">
+  <step number="9">
     <name>Submit Review</name>
     <instructions>
       Based on user preference, submit the review:
