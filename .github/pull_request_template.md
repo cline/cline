@@ -1,16 +1,17 @@
-<!-- ⚠️ Important: Discussion Required Before PR (Community Contributors) -->
+<!--
+Thank you for contributing to Cline!
 
-**For community contributors, before submitting this PR, please ensure you have:**
+⚠️ Important: Before submitting this PR, please ensure you have:
+- Opened an issue and discussed your proposed changes with the community / contributors
+- Received approval from a core Cline contributor prior to proceeding with the implementation
+- Link the associated issue in the "Related Issue" section
 
-- [ ] **Opened an issue** to discuss your proposed changes with the community
-- [ ] **Received approval** from a core Cline contributor to proceed with the implementation
-- [ ] **Linked the issue below** in the "Related Issue" section
+Limited exceptions:
+Small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality may be submitted directly.
 
-**Exceptions:** Small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality may be submitted directly.
-
-**Why this requirement?** We deeply appreciate all community contributions - they are the core reason we're able to operate successfully and keep innovating! We welcome community input and want to make it as easy as possible for people to submit quality work. This process helps our core maintainers review new ideas faster and saves contributor time by ensuring you have the go-ahead before spending time on implementation.
-
----
+Why this requirement?
+We deeply appreciate all community contributions - they are the core reason we're able to operate successfully and keep innovating! We welcome community input and want to make it as easy as possible for people to submit quality work. This process helps our core maintainers review new ideas faster and saves contributor time by ensuring you have the go-ahead before spending time on implementation.
+-->
 
 ### Related Issue
 
