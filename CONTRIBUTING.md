@@ -20,7 +20,7 @@ If you're planning to work on a bigger feature, please create a [feature request
 
 ## Before Contributing
 
-All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality may be submitted directly.
+All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
 
 - **Check existing issues**: Search [GitHub Issues](https://github.com/cline/cline/issues).
 - **Create an issue**: Use appropriate templates:
