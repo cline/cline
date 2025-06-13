@@ -10,25 +10,24 @@ import os from "os"
 
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
-const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
-const __filename = fileURLToPath(import.meta.url)
-const SCRIPT_DIR = path.dirname(__filename)
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+
 const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
+const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-js")
+const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone", "proto")
 
 const isWindows = process.platform === "win32"
-const tsProtoPlugin = isWindows
+const TS_PROTO_PLUGIN = isWindows
 	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const TS_PROTO_OPTIONS = [
 	"env=node",
 	"esModuleInterop=true",
-
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
-	"outputServices=generic-definitions",
-
 	"useOptionals=messages", // Message fields are optional, scalars are not.
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
@@ -70,7 +69,9 @@ async function main() {
 	checkAppleSiliconCompatibility()
 
 	// Create output directories if they don't exist
-	await fs.mkdir(TS_OUT_DIR, { recursive: true })
+	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
+		await fs.mkdir(dir, { recursive: true })
+	}
 
 	await cleanup()
 
@@ -81,28 +82,12 @@ async function main() {
 	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR, realpath: true })
 	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), SCRIPT_DIR)
 
-	// Build the protoc command with proper path handling for cross-platform
-	const tsProtocCommand = [
-		protoc,
-		`--proto_path="${SCRIPT_DIR}"`,
-		`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
-		`--ts_proto_out="${TS_OUT_DIR}"`,
-		`--ts_proto_opt=${TS_PROTO_OPTIONS.join(",")} `,
-		...protoFiles,
-	].join(" ")
-	try {
-		log_verbose(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
-		execSync(tsProtocCommand, { stdio: "inherit" })
-	} catch (error) {
-		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
-		process.exit(1)
-	}
+	tsProtoc(TS_OUT_DIR, protoFiles, ["outputServices=generic-definitions", ...TS_PROTO_OPTIONS])
+	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
 
-	const descriptorOutDir = path.join(ROOT_DIR, "dist-standalone", "proto")
-	await fs.mkdir(descriptorOutDir, { recursive: true })
-	const descriptorFile = path.join(descriptorOutDir, "descriptor_set.pb")
+	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
 	const descriptorProtocCommand = [
-		protoc,
+		PROTOC,
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--descriptor_set_out="${descriptorFile}"`,
 		"--include_imports",
@@ -129,6 +114,25 @@ async function main() {
 	console.log(chalk.bold.blue("Finished Protocol Buffer code generation."))
 }
 
+async function tsProtoc(outDir, protoFiles, protoOptions) {
+	// Build the protoc command with proper path handling for cross-platform
+	const tsProtocCommand = [
+		PROTOC,
+		`--proto_path="${SCRIPT_DIR}"`,
+		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
+		`--ts_proto_out="${outDir}"`,
+		`--ts_proto_opt=${protoOptions.join(",")} `,
+		...protoFiles,
+	].join(" ")
+	try {
+		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
+		execSync(tsProtocCommand, { stdio: "inherit" })
+	} catch (error) {
+		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
+		process.exit(1)
+	}
+}
+
 /**
  * Generate a gRPC client configuration file for the webview
  * This eliminates the need for manual imports and client creation in grpc-client.ts
@@ -141,7 +145,7 @@ async function generateGrpcClientConfig() {
 	const serviceExports = []
 
 	// Process each service in the serviceNameMap
-	for (const [dirName, fullServiceName] of Object.entries(serviceNameMap)) {
+	for (const [dirName, _fullServiceName] of Object.entries(serviceNameMap)) {
 		const capitalizedName = dirName.charAt(0).toUpperCase() + dirName.slice(1)
 
 		// Add import statement
