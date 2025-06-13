@@ -252,6 +252,14 @@ export class Controller {
 				break
 			}
 
+			case "isCommandBlacklisted": {
+				if (message.text) {
+					// This message is handled by the webview directly using localStorage
+					// We don't need to do anything here
+				}
+				break
+			}
+
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}

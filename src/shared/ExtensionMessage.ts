@@ -23,6 +23,7 @@ export interface ExtensionMessage {
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
+		| "isCommandBlacklisted"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked"
@@ -141,6 +142,7 @@ export type ClineAsk =
 	| "new_task"
 	| "condense"
 	| "report_bug"
+	| "command_blacklist_check"
 
 export type ClineSay =
 	| "task"

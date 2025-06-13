@@ -1411,6 +1411,13 @@ export class Task {
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
+		// Check if command is blacklisted
+		const isBlacklisted = await this.isCommandBlacklisted(command)
+		if (isBlacklisted) {
+			await this.say("error", `Command '${command}' is blacklisted and cannot be executed.`)
+			return [false, `Command '${command}' is blacklisted and cannot be executed. The user has explicitly blocked this command from being run.`]
+		}
+
 		// Check if we're in test mode
 		if (isInTestMode()) {
 			// In test mode, execute the command directly in Node
@@ -1613,6 +1620,27 @@ export class Task {
 		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
 			return true
 		} else {
+			return false
+		}
+	}
+
+	// Check if a command is blacklisted by sending a message to the webview
+	async isCommandBlacklisted(command: string): Promise<boolean> {
+		try {
+			// Send a message to the webview to check if the command is blacklisted
+			await this.postMessageToWebview({
+				type: "isCommandBlacklisted",
+				text: command
+			})
+			
+			// Wait for the response
+			const { response } = await this.ask("command_blacklist_check", command)
+			
+			// If the response is "yesButtonClicked", the command is blacklisted
+			return response === "yesButtonClicked"
+		} catch (error) {
+			// If there's an error, assume the command is not blacklisted
+			console.error("Error checking if command is blacklisted:", error)
 			return false
 		}
 	}

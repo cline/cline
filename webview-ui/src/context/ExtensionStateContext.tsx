@@ -222,6 +222,30 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+			case "isCommandBlacklisted": {
+				const commandText = message.text || '';
+				if (commandText) {
+					// Dynamically import the utility to avoid type issues
+					import("../utils/commandBlacklist").then(({ isCommandBlacklisted }) => {
+						const isBlacklisted = isCommandBlacklisted(commandText);
+						// Send response back to extension
+						window.postMessage({
+							type: "isCommandBlacklistedResponse",
+							text: commandText,
+							isBlacklisted: isBlacklisted
+						});
+					}).catch(err => {
+						console.error("Failed to load commandBlacklist utility:", err);
+						// Default to not blacklisted on error
+						window.postMessage({
+							type: "isCommandBlacklistedResponse",
+							text: commandText,
+							isBlacklisted: false
+						});
+					});
+				}
+				break
+			}
 		}
 	}, [])
 
