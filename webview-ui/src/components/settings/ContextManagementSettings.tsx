@@ -225,7 +225,7 @@ export const ContextManagementSettings = ({
 						<div>
 							<div className="flex items-center gap-2">
 								<Slider
-									min={10}
+									min={5}
 									max={100}
 									step={1}
 									value={[autoCondenseContextPercent]}
