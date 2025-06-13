@@ -33,22 +33,24 @@ export const BatchDiffApproval = memo(({ files = [], ts }: BatchDiffApprovalProp
 
 	return (
 		<div className="pt-[5px]">
-			{files.map((file) => {
-				// Combine all diffs into a single diff string for this file
-				const combinedDiff = file.diffs?.map((diff) => diff.content).join("\n\n") || file.content
+			<div className="flex flex-col gap-0 border border-border rounded-md p-1">
+				{files.map((file) => {
+					// Combine all diffs into a single diff string for this file
+					const combinedDiff = file.diffs?.map((diff) => diff.content).join("\n\n") || file.content
 
-				return (
-					<div key={`${file.path}-${ts}`} className="mb-2">
-						<CodeAccordian
-							path={file.path}
-							code={combinedDiff}
-							language="diff"
-							isExpanded={expandedFiles[file.path] || false}
-							onToggleExpand={() => handleToggleExpand(file.path)}
-						/>
-					</div>
-				)
-			})}
+					return (
+						<div key={`${file.path}-${ts}`}>
+							<CodeAccordian
+								path={file.path}
+								code={combinedDiff}
+								language="diff"
+								isExpanded={expandedFiles[file.path] || false}
+								onToggleExpand={() => handleToggleExpand(file.path)}
+							/>
+						</div>
+					)
+				})}
+			</div>
 		</div>
 	)
 })
