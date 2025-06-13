@@ -7,5 +7,8 @@
 	"toolRepetitionLimitReached": "Roo bir döngüye takılmış gibi görünüyor, aynı eylemi ({{toolName}}) tekrar tekrar deniyor. Bu, mevcut stratejisinde bir sorun olduğunu gösterebilir. Görevi yeniden ifade etmeyi, daha spesifik talimatlar vermeyi veya onu farklı bir yaklaşıma yönlendirmeyi düşünün.",
 	"codebaseSearch": {
 		"approval": "Kod tabanında '{{query}}' aranıyor..."
+	},
+	"searchFiles": {
+		"workspaceBoundaryError": "Çalışma alanı dışında arama yapılamaz. '{{path}}' yolu mevcut çalışma alanının dışında."
 	}
 }

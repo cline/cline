@@ -7,5 +7,8 @@
 	"toolRepetitionLimitReached": "Wygląda na to, że Roo utknął w pętli, wielokrotnie próbując wykonać tę samą akcję ({{toolName}}). Może to wskazywać na problem z jego obecną strategią. Rozważ przeformułowanie zadania, podanie bardziej szczegółowych instrukcji lub nakierowanie go na inne podejście.",
 	"codebaseSearch": {
 		"approval": "Wyszukiwanie '{{query}}' w bazie kodu..."
+	},
+	"searchFiles": {
+		"workspaceBoundaryError": "Nie można wyszukiwać poza obszarem roboczym. Ścieżka '{{path}}' znajduje się poza bieżącym obszarem roboczym."
 	}
 }

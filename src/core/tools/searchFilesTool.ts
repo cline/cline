@@ -4,7 +4,9 @@ import { Task } from "../task/Task"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { getReadablePath } from "../../utils/path"
+import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { regexSearchFiles } from "../../services/ripgrep"
+import { t } from "../../i18n"
 
 export async function searchFilesTool(
 	cline: Task,
@@ -48,6 +50,17 @@ export async function searchFilesTool(
 			cline.consecutiveMistakeCount = 0
 
 			const absolutePath = path.resolve(cline.cwd, relDirPath)
+
+			// Check if path is outside workspace
+			if (isPathOutsideWorkspace(absolutePath)) {
+				const userErrorMessage = t("tools:searchFiles.workspaceBoundaryError", { path: relDirPath })
+				const llmErrorMessage = `Cannot search outside workspace. Path '${relDirPath}' is outside the current workspace.`
+				cline.consecutiveMistakeCount++
+				cline.recordToolError("search_files")
+				await cline.say("error", userErrorMessage)
+				pushToolResult(llmErrorMessage)
+				return
+			}
 
 			const results = await regexSearchFiles(
 				cline.cwd,
