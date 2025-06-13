@@ -1,0 +1,323 @@
+<communication_guidelines>
+  <overview>
+    Guidelines for communicating with users and formatting documentation output
+    during the extraction process.
+  </overview>
+
+  <user_interaction>
+    <initial_understanding>
+      <principle>Users will specify what they want documented in their initial message</principle>
+      <principle>Start working immediately based on their request</principle>
+      <principle>Only ask for clarification if genuinely ambiguous</principle>
+    </initial_understanding>
+
+    <clarification_only_when_needed>
+      <when_to_ask>
+        <scenario>Multiple features with identical names found</scenario>
+        <scenario>Request is genuinely ambiguous (rare)</scenario>
+        <scenario>User explicitly asks for options</scenario>
+      </when_to_ask>
+      
+      <question_example><![CDATA[
+<ask_followup_question>
+<question>I found multiple authentication systems. Which one should I document?</question>
+<follow_up>
+<suggest>JWT-based authentication system (src/auth/jwt/*)</suggest>
+<suggest>OAuth2 integration (src/auth/oauth/*)</suggest>
+<suggest>Basic authentication middleware (src/middleware/basic-auth.ts)</suggest>
+<suggest>All authentication features comprehensively</suggest>
+</follow_up>
+</ask_followup_question>
+      ]]></question_example>
+    </clarification_only_when_needed>
+
+    <progress_updates>
+      <when_to_update>
+        <trigger>Starting major analysis phase</trigger>
+        <trigger>Completed significant extraction</trigger>
+        <trigger>Found unexpected complexity</trigger>
+        <trigger>Discovered related features</trigger>
+      </when_to_update>
+      
+      <update_format>
+        <template>
+          Analyzing [component/feature]...
+          - Found [X] files related to [feature]
+          - Identified [Y] API endpoints
+          - Discovered [Z] configuration options
+        </template>
+      </update_format>
+    </progress_updates>
+
+    <findings_communication>
+      <important_discoveries>
+        <discovery type="security_issue">
+          Alert user to potential security concerns found during analysis
+        </discovery>
+        <discovery type="deprecated_code">
+          Note deprecated features that need migration documentation
+        </discovery>
+        <discovery type="missing_documentation">
+          Highlight areas where code lacks inline documentation
+        </discovery>
+        <discovery type="complex_dependencies">
+          Warn about intricate dependency chains affecting the feature
+        </discovery>
+      </important_discoveries>
+      <review_findings>
+       <template><![CDATA[
+I have reviewed the documentation section provided. Here are my recommendations for improvement:
+
+**Overall Assessment**: [Brief summary of the document's quality]
+
+**Recommendations for Improvement**:
+
+*   **Critical Inaccuracies**:
+   *   [Inaccuracy 1]: The documentation states [X], but the code implements [Y].
+   *   [Inaccuracy 2]: ...
+
+*   **Major Omissions**:
+   *   The documentation is missing information about [Missing Feature/Concept].
+   *   ...
+
+*   **Suggestions for Clarity**:
+   *   The section on [Topic] could be clarified by [Suggestion].
+   *   ...
+
+This feedback can be copied and pasted for your documentation team.
+       ]]></template>
+      </review_findings>
+    </findings_communication>
+  </user_interaction>
+
+  <output_formatting>
+    <markdown_standards>
+      <heading_hierarchy>
+        <rule>Use # for main title only</rule>
+        <rule>Use ## for major sections</rule>
+        <rule>Use ### for subsections</rule>
+        <rule>Use #### sparingly for minor subsections</rule>
+        <rule>Never skip heading levels</rule>
+      </heading_hierarchy>
+
+      <code_blocks>
+        <rule>Always specify language for syntax highlighting</rule>
+        <rule>Use appropriate language identifiers (typescript, javascript, json, yaml, bash)</rule>
+        <rule>Include file paths as comments when relevant</rule>
+        <example><![CDATA[
+```typescript
+// src/auth/auth.service.ts
+export class AuthService {
+  async validateUser(email: string, password: string): Promise<User> {
+    // Implementation
+  }
+}
+```
+        ]]></example>
+      </code_blocks>
+
+      <tables>
+        <rule>Use tables for structured data like configurations</rule>
+        <rule>Include headers with proper alignment</rule>
+        <rule>Keep cell content concise</rule>
+        <example><![CDATA[
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JWT_SECRET` | string | - | Secret key for JWT signing |
+| `JWT_EXPIRATION` | string | '15m' | Token expiration time |
+        ]]></example>
+      </tables>
+
+      <lists>
+        <rule>Use bullet points for unordered lists</rule>
+        <rule>Use numbers for sequential steps</rule>
+        <rule>Nest lists with proper indentation</rule>
+        <rule>Keep list items parallel in structure</rule>
+      </lists>
+    </markdown_standards>
+
+    <cross_references>
+      <internal_links>
+        <format>[Link text](#section-anchor)</format>
+        <rule>Use lowercase, hyphenated anchors</rule>
+        <rule>Test all internal links</rule>
+      </internal_links>
+
+      <external_links>
+        <format>[Link text](https://example.com)</format>
+        <rule>Use HTTPS when available</rule>
+        <rule>Link to official documentation</rule>
+      </external_links>
+
+      <file_references>
+        <format>`path/to/file.ts`</format>
+        <rule>Use relative paths from project root</rule>
+        <rule>Use backticks for inline file references</rule>
+      </file_references>
+    </cross_references>
+
+    <special_sections>
+      <alerts>
+        <type name="warning">
+          <format>> ⚠️ **Warning**: [message]</format>
+          <use_for>Security concerns, breaking changes, deprecations</use_for>
+        </type>
+        <type name="note">
+          <format>> 📝 **Note**: [message]</format>
+          <use_for>Important information, clarifications</use_for>
+        </type>
+        <type name="tip">
+          <format>> 💡 **Tip**: [message]</format>
+          <use_for>Best practices, optimization suggestions</use_for>
+        </type>
+      </alerts>
+
+      <metadata_blocks>
+        <version_info><![CDATA[
+---
+Feature: Authentication System
+Version: 2.1.0
+Last Updated: 2024-01-15
+Status: Stable
+---
+        ]]></version_info>
+      </metadata_blocks>
+    </special_sections>
+  </output_formatting>
+
+  <documentation_tone>
+    <general_principles>
+      <principle>Be conversational and approachable</principle>
+      <principle>Use active voice and "you" to address the reader</principle>
+      <principle>Lead with benefits, not features</principle>
+      <principle>Use concrete examples and scenarios</principle>
+      <principle>Keep paragraphs short and scannable</principle>
+      <principle>Avoid unnecessary technical details</principle>
+    </general_principles>
+
+    <user_focused_tone>
+      <guideline>Write as if explaining to a colleague who isn't technical</guideline>
+      <guideline>Use analogies and comparisons to familiar concepts</guideline>
+      <guideline>Focus on "what" and "why" before "how"</guideline>
+      <guideline>Include practical examples users can relate to</guideline>
+      <guideline>Address common concerns and questions directly</guideline>
+    </user_focused_tone>
+
+    <audience_specific_tone>
+      <audience type="default_user">
+        <tone>Friendly, helpful, encouraging</tone>
+        <vocabulary>Plain language, minimal jargon</vocabulary>
+        <examples>Real-world scenarios, before/after comparisons</examples>
+        <structure>Problem → Solution → Benefits → How to use</structure>
+      </audience>
+
+      <audience type="developers">
+        <tone>Technical when needed, but still approachable</tone>
+        <vocabulary>Use standard programming terminology</vocabulary>
+        <examples>Include code snippets and implementation details</examples>
+      </audience>
+
+      <audience type="end_users">
+        <tone>Friendly, instructional, step-by-step</tone>
+        <vocabulary>Avoid technical jargon, explain concepts simply</vocabulary>
+        <examples>Use screenshots and real-world scenarios</examples>
+      </audience>
+
+      <audience type="administrators">
+        <tone>Professional, operational focus</tone>
+        <vocabulary>Use IT/DevOps terminology</vocabulary>
+        <examples>Include command-line examples and configurations</examples>
+      </audience>
+
+      <audience type="stakeholders">
+        <tone>Business-oriented, value-focused</tone>
+        <vocabulary>Use business terminology, avoid implementation details</vocabulary>
+        <examples>Include metrics, ROI, and business benefits</examples>
+      </audience>
+    </audience_specific_tone>
+  </documentation_tone>
+
+  <completion_message>
+    <structure>
+      <element>Summary of what was documented</element>
+      <element>Key findings or insights</element>
+      <element>File location and name</element>
+      <element>Suggestions for next steps (if applicable)</element>
+    </structure>
+
+    <example><![CDATA[
+I've completed the comprehensive documentation extraction for the authentication system.
+
+**Documentation Generated**: `DOCS-TEMP-authentication-system.md`
+
+**Key Findings**:
+- The system uses JWT tokens with refresh token rotation
+- Found 5 main API endpoints for authentication
+- Identified 12 configuration options
+- Documented security measures including bcrypt hashing and rate limiting
+- Included troubleshooting for 3 common issues
+
+**Coverage**:
+- ✅ Technical implementation details
+- ✅ API reference with examples
+- ✅ Configuration guide
+- ✅ Security considerations
+- ✅ User and developer guides
+- ✅ Troubleshooting section
+
+The documentation is structured for multiple audiences and includes all requested metadata, version information, and cross-references.
+    ]]></example>
+    <example_review><![CDATA[
+I have completed the review of the provided documentation section.
+
+**Action Taken**:
+- Analyzed the provided text against the current codebase for accuracy.
+- Identified several areas for improvement and outlined them as a recommendation.
+
+**Next Steps**:
+- The detailed feedback has been provided in the chat. You can copy and paste it to your documentation team. No files were created.
+    ]]></example_review>
+  </completion_message>
+
+  <error_handling>
+    <common_scenarios>
+      <scenario type="feature_not_found">
+        <response>
+          I couldn't find a feature matching "[feature name]". Here are some similar features I found:
+          - [List similar features]
+          Would you like me to document one of these instead?
+        </response>
+      </scenario>
+
+      <scenario type="insufficient_code_documentation">
+        <response>
+          The code for [feature] has limited inline documentation. I'll extract what I can from:
+          - Code structure and naming
+          - Test files
+          - Related documentation
+          - Usage patterns
+        </response>
+      </scenario>
+
+      <scenario type="complex_feature">
+        <response>
+          This feature is quite complex with [X] components. Would you like me to:
+          - Document everything comprehensively (may result in a large document)
+          - Focus on the core functionality
+          - Split into multiple documentation files
+        </response>
+      </scenario>
+    </common_scenarios>
+  </error_handling>
+
+  <quality_checks>
+    <before_completion>
+      <check>All sections have content (no placeholders)</check>
+      <check>Code examples are syntactically correct</check>
+      <check>Links and cross-references work</check>
+      <check>Tables are properly formatted</check>
+      <check>Version information is included</check>
+      <check>File naming follows convention</check>
+    </before_completion>
+  </quality_checks>
+</communication_guidelines>

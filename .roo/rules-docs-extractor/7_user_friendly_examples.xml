@@ -1,0 +1,254 @@
+<user_friendly_examples>
+  <overview>
+    Examples and patterns for creating documentation that prioritizes user experience
+    and practical understanding over technical completeness.
+  </overview>
+
+  <writing_principles>
+    <principle name="lead_with_benefits">
+      <bad>The concurrent file read feature uses parallel processing to read multiple files.</bad>
+      <good>Read multiple files at once, saving time and reducing interruptions.</good>
+    </principle>
+
+    <principle name="use_scenarios">
+      <bad>This feature improves efficiency.</bad>
+      <good>Instead of approving 10 file reads one by one, approve them all at once and get your answer faster.</good>
+    </principle>
+
+    <principle name="avoid_implementation_details">
+      <bad>The feature uses a thread pool with configurable concurrency limits to process file I/O operations.</bad>
+      <good>Roo can read up to 100 files at once (you can change this limit in settings).</good>
+    </principle>
+
+    <principle name="conversational_tone">
+      <bad>Users must configure the concurrent file read limit parameter.</bad>
+      <good>You can adjust how many files Roo reads at once in the settings.</good>
+    </principle>
+  </writing_principles>
+
+  <structure_examples>
+    <example name="feature_introduction">
+      <template><![CDATA[
+# [Feature Name]
+
+[One-sentence description of what it does for the user]
+
+### Key Features
+- [Benefit 1 - what users can do]
+- [Benefit 2 - what problem it solves]  
+- [Benefit 3 - how it makes life easier]
+
+---
+      ]]></template>
+    </example>
+
+    <example name="why_it_matters">
+      <template><![CDATA[
+## Why This Matters
+
+**Without [feature]**: [Description of the painful old way]
+- [Specific pain point]
+- [Another pain point]
+- [Time/effort wasted]
+
+**With [feature]**: [Description of the better experience]
+      ]]></template>
+    </example>
+
+    <example name="configuration_section">
+      <template><![CDATA[
+## Configuration
+
+You can customize this feature in Roo's settings:
+
+1. **[Human-friendly setting name]**
+   - What it does: [Plain language explanation]
+   - Default: [Default value] (this works well for most users)
+   - When to change: [Specific scenarios when users might want to adjust this]
+
+2. **[Another setting]**
+   - What it does: [Plain language explanation]
+   - Default: [Default value]
+   - Try changing this if: [Specific use case]
+      ]]></template>
+    </example>
+
+    <example name="common_questions">
+      <template><![CDATA[
+## Common Questions
+
+**"[Actual question users ask]"**
+[Direct, helpful answer]
+[Optional: Additional tip or context]
+
+**"[Another real question]"**
+[Answer that addresses the concern]
+[Optional: Link to more info]
+
+**"[Technical question simplified]"**
+[Non-technical explanation]
+[Optional: "For developers:" with technical details]
+      ]]></template>
+    </example>
+
+    <example name="troubleshooting">
+      <template><![CDATA[
+## Troubleshooting
+
+### [Problem symptom users would recognize]
+**What's happening**: [Brief explanation]
+**Quick fix**: [Immediate solution]
+**If that doesn't work**: [Alternative solution]
+
+### [Another common issue]
+**You might see this when**: [Scenario]
+**Solution**: 
+1. [First step]
+2. [Second step]
+3. [If needed, third step]
+      ]]></template>
+    </example>
+
+    <example name="help_section">
+      <template><![CDATA[
+## Need Help?
+
+Still having issues? Here's how to get help:
+
+1. **Check our FAQ**: [Link to FAQ] - answers to common questions
+2. **Report a bug**: [GitHub Issues link] - we typically respond within 24 hours
+3. **Join the community**: [Discord/Forum link] - get help from other users
+
+When reporting an issue, please include:
+- What you were trying to do
+- What happened instead
+- Any error messages you saw
+      ]]></template>
+    </example>
+  </structure_examples>
+
+  <tone_examples>
+    <friendly_explanations>
+      <example context="explaining a limit">
+        <technical>The system imposes a hard limit of 100 concurrent operations.</technical>
+        <friendly>Roo can handle up to 100 files at once - more than enough for most projects!</friendly>
+      </example>
+
+      <example context="describing an error">
+        <technical>Error: Maximum concurrency threshold exceeded.</technical>
+        <friendly>Oops! That's too many files at once. Try lowering the file limit in settings.</friendly>
+      </example>
+
+      <example context="explaining a benefit">
+        <technical>Reduces API call overhead through request batching.</technical>
+        <friendly>Get answers faster by reading all the files Roo needs in one go.</friendly>
+      </example>
+    </friendly_explanations>
+
+    <visual_elements>
+      <use_emojis_sparingly>
+        <when>Error messages: ⚠️</when>
+        <when>Tips: 💡</when>
+        <when>Important notes: 📝</when>
+        <when>Security: 🔒</when>
+      </use_emojis_sparingly>
+
+      <use_formatting>
+        <bold>For emphasis on key points</bold>
+        <code>For settings names, file paths, or commands</code>
+        <blockquotes>For important callouts or warnings</blockquotes>
+      </use_formatting>
+    </visual_elements>
+  </tone_examples>
+
+  <real_world_example>
+    <title>Concurrent File Reads Documentation</title>
+    <content><![CDATA[
+# Concurrent File Reads
+
+The Concurrent File Reads feature allows Roo to read multiple files from your workspace in a single step. This significantly improves efficiency when working on tasks that require context from several files.
+
+### Key Features
+- Read up to 100 files in a single request
+- Enabled by default for a faster, more streamlined workflow
+- Configurable to match your preferences and system capabilities
+
+---
+
+## Why This Matters
+
+**Previously**: When Roo needed to understand your project, you'd see multiple requests like:
+- "Can I read `src/app.js`?" → You approve
+- "Now can I read `src/utils.js`?" → You approve
+- "And can I read `src/config.json`?" → You approve
+
+**With concurrent file reads**: Roo asks once to read all related files together, getting the full picture immediately and providing better assistance faster.
+
+## How it Works
+
+When you ask Roo to perform a task that involves multiple files, it will automatically identify the relevant files and read them together. This is especially useful for:
+
+- Understanding components split across multiple files
+- Refactoring code with dependencies
+- Answering questions that require broad project context
+
+The [`read_file`](/advanced-usage/available-tools/read-file) tool automatically accepts multiple files in a single request.
+
+---
+
+## Configuration
+
+You can customize this feature in Roo's settings:
+
+1. **Enable/Disable Concurrent File Reads**
+   - What it does: Controls whether Roo can read multiple files at once
+   - Default: Enabled (recommended for most users)
+   - When to disable: If using a less capable AI model or wanting more control
+
+2. **Concurrent File Reads Limit**
+   - What it does: Sets the maximum number of files Roo can read at once
+   - Default: 100 files
+   - When to adjust: Lower if you have memory constraints, raise for very large projects
+
+---
+
+## Benefits
+
+- **Faster Results**: Get comprehensive answers without multiple approval steps
+- **Better Context**: Roo understands file relationships immediately
+- **Less Interruption**: Approve once and continue working while Roo analyzes
+
+## Common Questions
+
+**"Roo is asking for too many files at once"**
+- Lower the concurrent file limit in settings
+- You can still approve or deny individual files in the batch dialog
+
+**"Some files were denied but others approved"**
+- This is normal - Roo works with the files you approve
+- Files might be blocked by your `.rooignore` settings
+
+**"Will this use more memory?"**
+- Yes, but the impact is usually minimal
+- If you notice slowdowns, try reducing the file limit
+
+## Need Help?
+
+If you run into issues:
+1. Check the [FAQ section](/faq) for common solutions
+2. Report problems on [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues)
+3. Include what you were trying to do and any error messages
+    ]]></content>
+  </real_world_example>
+
+  <checklist>
+    <item>Does it start with benefits, not features?</item>
+    <item>Are technical terms explained or avoided?</item>
+    <item>Does it use "you" to address the reader?</item>
+    <item>Are there practical examples or scenarios?</item>
+    <item>Is the tone conversational and friendly?</item>
+    <item>Are sections short and scannable?</item>
+    <item>Does it answer common user questions?</item>
+    <item>Is help easily accessible?</item>
+  </checklist>
+</user_friendly_examples>

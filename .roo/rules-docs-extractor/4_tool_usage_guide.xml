@@ -1,0 +1,398 @@
+<tool_usage_guide>
+  <overview>
+    Specific guidance on using tools effectively for comprehensive documentation extraction,
+    with emphasis on gathering complete information across all aspects of a feature.
+  </overview>
+
+  <tool_sequence>
+    <priority level="1">
+      <tool>codebase_search</tool>
+      <purpose>Initial discovery of feature-related code</purpose>
+      <usage_patterns>
+        <pattern>
+          <scenario>Finding feature entry points</scenario>
+          <example><![CDATA[
+<codebase_search>
+<query>authentication login user session JWT token</query>
+</codebase_search>
+          ]]></example>
+        </pattern>
+        <pattern>
+          <scenario>Locating business logic</scenario>
+          <example><![CDATA[
+<codebase_search>
+<query>calculate pricing discount tax invoice billing</query>
+</codebase_search>
+          ]]></example>
+        </pattern>
+        <pattern>
+          <scenario>Finding configuration</scenario>
+          <example><![CDATA[
+<codebase_search>
+<query>config settings environment variables .env process.env</query>
+</codebase_search>
+          ]]></example>
+        </pattern>
+      </usage_patterns>
+    </priority>
+
+    <priority level="2">
+      <tool>list_code_definition_names</tool>
+      <purpose>Understanding code structure and organization</purpose>
+      <best_practices>
+        <practice>Use on directories containing core feature logic</practice>
+        <practice>Analyze both implementation and test directories</practice>
+        <practice>Look for patterns in naming conventions</practice>
+      </best_practices>
+      <example><![CDATA[
+<list_code_definition_names>
+<path>src/features/authentication</path>
+</list_code_definition_names>
+      ]]></example>
+    </priority>
+
+    <priority level="3">
+      <tool>read_file</tool>
+      <purpose>Deep analysis of specific implementations</purpose>
+      <strategy>
+        <step>Read main feature files first</step>
+        <step>Follow imports to understand dependencies</step>
+        <step>Read test files to understand expected behavior</step>
+        <step>Examine configuration and type definition files</step>
+      </strategy>
+      <batch_reading><![CDATA[
+<read_file>
+<args>
+  <file>
+    <path>src/controllers/auth.controller.ts</path>
+  </file>
+  <file>
+    <path>src/services/auth.service.ts</path>
+  </file>
+  <file>
+    <path>src/models/user.model.ts</path>
+  </file>
+  <file>
+    <path>src/types/auth.types.ts</path>
+  </file>
+  <file>
+    <path>src/__tests__/auth.test.ts</path>
+  </file>
+</args>
+</read_file>
+      ]]></batch_reading>
+    </priority>
+
+    <priority level="4">
+      <tool>search_files</tool>
+      <purpose>Finding specific patterns and implementations</purpose>
+      <use_cases>
+        <use_case>
+          <description>Find all API endpoints</description>
+          <example><![CDATA[
+<search_files>
+<path>src</path>
+<regex>@(Get|Post|Put|Delete|Patch)\(['"]([^'"]+)['"]|router\.(get|post|put|delete|patch)\(['"]([^'"]+)['"]</regex>
+</search_files>
+          ]]></example>
+        </use_case>
+        <use_case>
+          <description>Find error handling patterns</description>
+          <example><![CDATA[
+<search_files>
+<path>src</path>
+<regex>throw new \w+Error|catch \(|\.catch\(|try \{</regex>
+</search_files>
+          ]]></example>
+        </use_case>
+        <use_case>
+          <description>Find configuration usage</description>
+          <example><![CDATA[
+<search_files>
+<path>src</path>
+<regex>process\.env\.\w+|config\.get\(['"]([^'"]+)['"]|getConfig\(\)</regex>
+</search_files>
+          ]]></example>
+        </use_case>
+      </use_cases>
+    </priority>
+  </tool_sequence>
+
+  <documentation_generation_tools>
+    <tool name="write_to_file">
+      <purpose>Create the final documentation file when generating new documentation from scratch.</purpose>
+      <note>This tool is NOT used when reviewing a user-provided document section. In that scenario, feedback is provided directly in the chat.</note>
+      <file_naming>DOCS-TEMP-[feature-name].md</file_naming>
+      <best_practices>
+        <practice>Use descriptive feature names in filename</practice>
+        <practice>Include table of contents with anchors</practice>
+        <practice>Use consistent markdown formatting</practice>
+        <practice>Include code examples with syntax highlighting</practice>
+      </best_practices>
+      <example><![CDATA[
+<write_to_file>
+<path>DOCS-TEMP-authentication-system.md</path>
+<content>
+# Authentication System Documentation
+
+## Table of Contents
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+...
+
+## Overview
+The authentication system provides secure user authentication using JWT tokens...
+</content>
+<line_count>...</line_count>
+</write_to_file>
+      ]]></example>
+    </tool>
+    
+    <tool name="ask_followup_question">
+      <purpose>Clarify requirements when multiple interpretations exist</purpose>
+      <when_to_use>
+        <scenario>Multiple features with similar names exist</scenario>
+        <scenario>Documentation depth needs clarification</scenario>
+        <scenario>Target audience priorities need definition</scenario>
+      </when_to_use>
+      <examples>
+        <example><![CDATA[
+<ask_followup_question>
+<question>Which aspects of the authentication system should I focus on?</question>
+<follow_up>
+<suggest>Complete authentication flow including JWT tokens, session management, and OAuth integration</suggest>
+<suggest>Only the JWT token implementation and validation</suggest>
+<suggest>OAuth2 integration with external providers</suggest>
+<suggest>Password reset and account recovery workflows</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></example>
+        <example><![CDATA[
+<ask_followup_question>
+<question>What level of technical detail should the documentation include?</question>
+<follow_up>
+<suggest>High-level overview suitable for all audiences</suggest>
+<suggest>Detailed technical implementation for developers</suggest>
+<suggest>API reference with code examples</suggest>
+<suggest>Complete coverage for all audience types</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></example>
+      </examples>
+    </tool>
+  </documentation_generation_tools>
+
+  <analysis_strategies>
+    <strategy name="comprehensive_file_discovery">
+      <description>
+        Systematic approach to finding all files related to a feature
+      </description>
+      <steps>
+        <step>
+          <action>Start with semantic search</action>
+          <tool_use><![CDATA[
+<codebase_search>
+<query>feature implementation main logic core functionality</query>
+</codebase_search>
+          ]]></tool_use>
+        </step>
+        <step>
+          <action>List directory structure</action>
+          <tool_use><![CDATA[
+<list_files>
+<path>src/features</path>
+<recursive>true</recursive>
+</list_files>
+          ]]></tool_use>
+        </step>
+        <step>
+          <action>Find related tests</action>
+          <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>describe\(['"].*Feature.*['"]|test\(['"].*feature.*['"]</regex>
+<file_pattern>*.test.ts</file_pattern>
+</search_files>
+          ]]></tool_use>
+        </step>
+        <step>
+          <action>Locate configuration files</action>
+          <tool_use><![CDATA[
+<search_files>
+<path>.</path>
+<regex>feature.*config|settings.*feature</regex>
+<file_pattern>*.json</file_pattern>
+</search_files>
+          ]]></tool_use>
+        </step>
+      </steps>
+    </strategy>
+
+    <strategy name="dependency_chain_analysis">
+      <description>
+        Follow import chains to understand all dependencies
+      </description>
+      <process>
+        <step>Read main feature file</step>
+        <step>Extract all imports</step>
+        <step>Read each imported file</step>
+        <step>Recursively analyze their imports</step>
+        <step>Build dependency graph</step>
+      </process>
+      <import_patterns><![CDATA[
+<!-- TypeScript/JavaScript imports -->
+<search_files>
+<path>src/feature</path>
+<regex>import\s+(?:{[^}]+}|\*\s+as\s+\w+|\w+)\s+from\s+['"]([^'"]+)['"]</regex>
+</search_files>
+
+<!-- CommonJS requires -->
+<search_files>
+<path>src/feature</path>
+<regex>require\(['"]([^'"]+)['"]\)</regex>
+</search_files>
+      ]]></import_patterns>
+    </strategy>
+
+    <strategy name="api_documentation_extraction">
+      <description>
+        Extract complete API documentation from code
+      </description>
+      <extraction_points>
+        <point>Route definitions</point>
+        <point>Request/response schemas</point>
+        <point>Authentication requirements</point>
+        <point>Rate limiting rules</point>
+        <point>Error responses</point>
+      </extraction_points>
+      <tools_sequence>
+        <sequence>
+          <step>Find all route files</step>
+          <step>Extract route definitions</step>
+          <step>Find associated controllers</step>
+          <step>Analyze request validation</step>
+          <step>Document response formats</step>
+        </sequence>
+      </tools_sequence>
+    </strategy>
+
+    <strategy name="test_driven_documentation">
+      <description>
+        Use tests to understand expected behavior
+      </description>
+      <benefits>
+        <benefit>Tests show real usage examples</benefit>
+        <benefit>Test descriptions explain functionality</benefit>
+        <benefit>Edge cases are often tested</benefit>
+        <benefit>Expected outputs are documented</benefit>
+      </benefits>
+      <extraction_approach><![CDATA[
+<!-- Find test descriptions -->
+<search_files>
+<path>__tests__</path>
+<regex>(describe|it|test)\(['"]([^'"]+)['"]</regex>
+</search_files>
+
+<!-- Extract test scenarios -->
+<read_file>
+<path>__tests__/feature.test.ts</path>
+</read_file>
+      ]]></extraction_approach>
+    </strategy>
+  </analysis_strategies>
+
+  <common_patterns>
+    <pattern name="configuration_documentation">
+      <search_locations>
+        <location>.env.example</location>
+        <location>config/*.json</location>
+        <location>src/config/*</location>
+        <location>README.md (configuration section)</location>
+      </search_locations>
+      <extraction_regex><![CDATA[
+# Environment variables
+process\.env\.(\w+)
+
+# Config object access
+config\.(\w+)\.(\w+)
+
+# Default values
+\w+\s*=\s*process\.env\.\w+\s*\|\|\s*['"]([^'"]+)['"]
+      ]]></extraction_regex>
+    </pattern>
+
+    <pattern name="error_documentation">
+      <error_patterns>
+        <pattern>Custom error classes</pattern>
+        <pattern>Error code constants</pattern>
+        <pattern>Error message templates</pattern>
+        <pattern>HTTP status codes</pattern>
+      </error_patterns>
+      <search_approach><![CDATA[
+<search_files>
+<path>src</path>
+<regex>class\s+\w*Error\s+extends|new Error\(|throw new|ERROR_CODE|HTTP_STATUS</regex>
+</search_files>
+      ]]></search_approach>
+    </pattern>
+
+    <pattern name="security_documentation">
+      <security_aspects>
+        <aspect>Authentication methods</aspect>
+        <aspect>Authorization rules</aspect>
+        <aspect>Data encryption</aspect>
+        <aspect>Input validation</aspect>
+        <aspect>Rate limiting</aspect>
+      </security_aspects>
+      <indicators><![CDATA[
+<search_files>
+<path>src</path>
+<regex>@Authorized|requireAuth|checkPermission|encrypt|decrypt|sanitize|validate|rateLimit</regex>
+</search_files>
+      ]]></indicators>
+    </pattern>
+  </common_patterns>
+
+  <output_optimization>
+    <guideline name="structured_sections">
+      <description>Organize output for easy navigation</description>
+      <structure>
+        - Clear hierarchy with numbered sections
+        - Consistent heading levels
+        - Table of contents with links
+        - Cross-references between sections
+      </structure>
+    </guideline>
+
+    <guideline name="code_examples">
+      <description>Include relevant code examples</description>
+      <best_practices>
+        - Use syntax highlighting
+        - Show both request and response
+        - Include error cases
+        - Provide language-specific examples
+      </best_practices>
+    </guideline>
+
+    <guideline name="visual_aids">
+      <description>Suggest where diagrams would help</description>
+      <diagram_types>
+        - Architecture diagrams
+        - Sequence diagrams
+        - Data flow diagrams
+        - State machines
+      </diagram_types>
+    </guideline>
+
+    <guideline name="metadata_inclusion">
+      <description>Always include important metadata</description>
+      <required_metadata>
+        - Version compatibility
+        - Last updated date
+        - Feature status (stable/beta/deprecated)
+        - Performance characteristics
+        - Security considerations
+      </required_metadata>
+    </guideline>
+  </output_optimization>
+</tool_usage_guide>

@@ -1,0 +1,943 @@
+<complete_extraction_examples>
+  <overview>
+    Complete examples demonstrating the full documentation extraction workflow
+    for different types of features and components.
+  </overview>
+
+  <example name="authentication_system_extraction">
+    <scenario>
+      Extract comprehensive documentation for a JWT-based authentication system
+      including login, logout, token refresh, and role-based access control.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Initial feature discovery</description>
+        <tool_use><![CDATA[
+<codebase_search>
+<query>authentication JWT login logout token refresh auth middleware</query>
+</codebase_search>
+        ]]></tool_use>
+        <expected_findings>
+          - Auth controller files
+          - JWT service implementations
+          - Middleware functions
+          - User model with auth fields
+          - Auth route definitions
+        </expected_findings>
+      </step>
+
+      <step number="2">
+        <description>Analyze authentication structure</description>
+        <tool_use><![CDATA[
+<list_code_definition_names>
+<path>src/auth</path>
+</list_code_definition_names>
+        ]]></tool_use>
+        <analysis>
+          - Identify main classes and functions
+          - Map authentication flow
+          - Find token generation/validation logic
+        </analysis>
+      </step>
+
+      <step number="3">
+        <description>Read core implementation files</description>
+        <tool_use><![CDATA[
+<read_file>
+<args>
+  <file>
+    <path>src/auth/auth.controller.ts</path>
+  </file>
+  <file>
+    <path>src/auth/auth.service.ts</path>
+  </file>
+  <file>
+    <path>src/auth/jwt.strategy.ts</path>
+  </file>
+  <file>
+    <path>src/auth/auth.guard.ts</path>
+  </file>
+  <file>
+    <path>src/models/user.model.ts</path>
+  </file>
+</args>
+</read_file>
+        ]]></tool_use>
+      </step>
+
+      <step number="4">
+        <description>Extract API endpoints</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/auth</path>
+<regex>@(Post|Get)\(['"]\/auth\/[^'"]+['"]|router\.(post|get)\(['"]\/auth\/[^'"]+['"]</regex>
+</search_files>
+        ]]></tool_use>
+        <findings>
+          - POST /auth/login
+          - POST /auth/logout
+          - POST /auth/refresh
+          - GET /auth/profile
+          - POST /auth/register
+        </findings>
+      </step>
+
+      <step number="5">
+        <description>Document configuration</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>JWT_SECRET|JWT_EXPIRATION|AUTH_.*|process\.env\.\w*AUTH\w*</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="6">
+        <description>Analyze security measures</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/auth</path>
+<regex>bcrypt|hash|salt|encrypt|sanitize|validate|@IsEmail|@MinLength</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="7">
+        <description>Generate documentation</description>
+        <tool_use><![CDATA[
+<write_to_file>
+<path>DOCS-TEMP-authentication-system.md</path>
+<content>
+# Authentication System Documentation
+
+## Table of Contents
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Architecture](#architecture)
+4. [API Reference](#api-reference)
+5. [Configuration](#configuration)
+6. [Security](#security)
+7. [User Guide](#user-guide)
+8. [Developer Guide](#developer-guide)
+9. [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+
+### Purpose
+The authentication system provides secure user authentication using JWT (JSON Web Tokens) with support for:
+- User registration and login
+- Token-based authentication
+- Refresh token rotation
+- Role-based access control (RBAC)
+- Session management
+- Password reset functionality
+
+### Key Features
+- **JWT Authentication**: Stateless authentication using signed tokens
+- **Refresh Tokens**: Long-lived tokens for seamless user experience
+- **Role-Based Access**: Fine-grained permission control
+- **Security**: bcrypt password hashing, rate limiting, CSRF protection
+- **Multi-device Support**: Token management across devices
+
+### Version Information
+- **Current Version**: 2.1.0
+- **Minimum Node.js**: 14.0.0
+- **Dependencies**: 
+  - jsonwebtoken: ^9.0.0
+  - bcrypt: ^5.1.0
+  - passport: ^0.6.0
+
+---
+
+## Quick Start
+
+### For Users
+1. Register a new account:
+   ```bash
+   POST /api/auth/register
+   {
+     "email": "user@example.com",
+     "password": "SecurePassword123!",
+     "name": "John Doe"
+   }
+   ```
+
+2. Login to receive tokens:
+   ```bash
+   POST /api/auth/login
+   {
+     "email": "user@example.com",
+     "password": "SecurePassword123!"
+   }
+   ```
+
+3. Use the access token in subsequent requests:
+   ```bash
+   Authorization: Bearer <access_token>
+   ```
+
+### For Developers
+```typescript
+// Import authentication module
+import { AuthModule } from './auth/auth.module';
+
+// Configure in app module
+@Module({
+  imports: [
+    AuthModule.forRoot({
+      jwtSecret: process.env.JWT_SECRET,
+      jwtExpiration: '15m',
+      refreshExpiration: '7d'
+    })
+  ]
+})
+export class AppModule {}
+```
+
+---
+
+## Architecture
+
+### System Overview
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Client    │────▶│ Auth Guard   │────▶│   Service   │
+└─────────────┘     └──────────────┘     └─────────────┘
+                            │                     │
+                            ▼                     ▼
+                    ┌──────────────┐     ┌─────────────┐
+                    │ JWT Strategy │     │  Database   │
+                    └──────────────┘     └─────────────┘
+```
+
+### Components
+- **AuthController**: Handles HTTP requests for authentication endpoints
+- **AuthService**: Core authentication logic and token management
+- **JwtStrategy**: Passport strategy for JWT validation
+- **AuthGuard**: Route protection middleware
+- **UserService**: User management and database operations
+
+### Token Flow
+1. User provides credentials
+2. System validates credentials against database
+3. Generate access token (short-lived) and refresh token (long-lived)
+4. Client stores tokens securely
+5. Access token used for API requests
+6. Refresh token used to obtain new access token
+
+---
+
+## API Reference
+
+### Authentication Endpoints
+
+#### `POST /api/auth/register`
+Register a new user account.
+
+**Request Body**:
+```json
+{
+  "email": "string (required)",
+  "password": "string (required, min 8 chars)",
+  "name": "string (required)",
+  "role": "string (optional, default: 'user')"
+}
+```
+
+**Response** (201 Created):
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "user",
+    "createdAt": "2024-01-01T00:00:00Z"
+  },
+  "tokens": {
+    "accessToken": "jwt_token",
+    "refreshToken": "refresh_token",
+    "expiresIn": 900
+  }
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: Invalid input data
+- `409 Conflict`: Email already exists
+
+#### `POST /api/auth/login`
+Authenticate user and receive tokens.
+
+**Request Body**:
+```json
+{
+  "email": "string (required)",
+  "password": "string (required)"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "user"
+  },
+  "tokens": {
+    "accessToken": "jwt_token",
+    "refreshToken": "refresh_token",
+    "expiresIn": 900
+  }
+}
+```
+
+**Error Responses**:
+- `401 Unauthorized`: Invalid credentials
+- `429 Too Many Requests`: Rate limit exceeded
+
+#### `POST /api/auth/refresh`
+Refresh access token using refresh token.
+
+**Request Body**:
+```json
+{
+  "refreshToken": "string (required)"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "accessToken": "new_jwt_token",
+  "expiresIn": 900
+}
+```
+
+#### `POST /api/auth/logout`
+Invalidate refresh token.
+
+**Headers**:
+- `Authorization: Bearer <access_token>`
+
+**Request Body**:
+```json
+{
+  "refreshToken": "string (required)"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `JWT_SECRET` | string | - | Secret key for signing JWT tokens (required) |
+| `JWT_EXPIRATION` | string | '15m' | Access token expiration time |
+| `REFRESH_TOKEN_EXPIRATION` | string | '7d' | Refresh token expiration time |
+| `BCRYPT_ROUNDS` | number | 10 | Number of bcrypt hashing rounds |
+| `AUTH_RATE_LIMIT` | number | 5 | Max login attempts per minute |
+| `ENABLE_2FA` | boolean | false | Enable two-factor authentication |
+
+### Configuration File (auth.config.ts)
+```typescript
+export const authConfig = {
+  jwt: {
+    secret: process.env.JWT_SECRET,
+    signOptions: {
+      expiresIn: process.env.JWT_EXPIRATION || '15m',
+      issuer: 'your-app-name',
+      audience: 'your-app-users'
+    }
+  },
+  bcrypt: {
+    rounds: parseInt(process.env.BCRYPT_ROUNDS || '10')
+  },
+  session: {
+    maxDevices: 5,
+    inactivityTimeout: '30d'
+  }
+};
+```
+
+---
+
+## Security
+
+### Authentication Flow
+1. **Password Storage**: Passwords hashed using bcrypt with configurable rounds
+2. **Token Security**: JWT tokens signed with RS256 algorithm
+3. **Refresh Token Rotation**: New refresh token issued on each refresh
+4. **Rate Limiting**: Prevents brute force attacks on login endpoint
+
+### Security Best Practices
+- Store tokens securely (httpOnly cookies recommended)
+- Implement CSRF protection for cookie-based auth
+- Use HTTPS in production
+- Rotate JWT secrets periodically
+- Implement account lockout after failed attempts
+- Enable 2FA for sensitive accounts
+
+### Common Vulnerabilities Addressed
+- **SQL Injection**: Parameterized queries
+- **XSS**: Input sanitization and validation
+- **CSRF**: Token validation
+- **Brute Force**: Rate limiting and account lockout
+- **Token Hijacking**: Short expiration times and refresh rotation
+
+---
+
+## User Guide
+
+### Registration Process
+1. Navigate to registration page
+2. Enter email, password, and name
+3. Verify email (if enabled)
+4. Login with credentials
+
+### Managing Sessions
+- View active sessions in account settings
+- Revoke sessions from other devices
+- Set session timeout preferences
+
+### Password Management
+- Change password from profile settings
+- Reset forgotten password via email
+- Password requirements:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one number
+  - At least one special character
+
+---
+
+## Developer Guide
+
+### Protecting Routes
+```typescript
+// Use AuthGuard decorator
+@UseGuards(AuthGuard('jwt'))
+@Get('protected')
+async getProtectedData() {
+  return { data: 'This is protected' };
+}
+
+// Role-based protection
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('admin')
+@Get('admin')
+async getAdminData() {
+  return { data: 'Admin only' };
+}
+```
+
+### Custom Authentication Logic
+```typescript
+// Extend AuthService
+export class CustomAuthService extends AuthService {
+  async validateUser(email: string, password: string): Promise<User> {
+    // Add custom validation logic
+    const user = await super.validateUser(email, password);
+    
+    // Additional checks
+    if (user.suspended) {
+      throw new UnauthorizedException('Account suspended');
+    }
+    
+    return user;
+  }
+}
+```
+
+### Testing Authentication
+```typescript
+describe('AuthController', () => {
+  it('should login user', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'test@example.com',
+        password: 'TestPass123!'
+      })
+      .expect(200);
+    
+    expect(response.body).toHaveProperty('tokens.accessToken');
+  });
+});
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### Invalid Token Error
+**Problem**: "JsonWebTokenError: invalid token"
+**Solutions**:
+- Verify token format (Bearer prefix)
+- Check token expiration
+- Ensure JWT_SECRET matches
+
+#### Login Rate Limit
+**Problem**: "429 Too Many Requests"
+**Solutions**:
+- Wait for rate limit window to reset
+- Check AUTH_RATE_LIMIT configuration
+- Implement exponential backoff
+
+#### CORS Issues
+**Problem**: "Access blocked by CORS policy"
+**Solutions**:
+- Configure CORS middleware
+- Add origin to allowed list
+- Check preflight requests
+
+### Debug Mode
+Enable debug logging:
+```bash
+DEBUG=auth:* npm start
+```
+
+### Support
+- GitHub Issues: [github.com/yourapp/issues](https://github.com/yourapp/issues)
+- Documentation: [docs.yourapp.com/auth](https://docs.yourapp.com/auth)
+- Email: support@yourapp.com
+
+---
+
+## Changelog
+
+### v2.1.0 (2024-01-15)
+- Added refresh token rotation
+- Improved rate limiting
+- Fixed security vulnerability in password reset
+
+### v2.0.0 (2023-12-01)
+- Breaking: Changed token format
+- Added 2FA support
+- Improved session management
+
+### Migration Guide (v1.x to v2.x)
+1. Update JWT_SECRET format
+2. Run token migration script
+3. Update client-side token handling
+
+---
+
+## References
+- [JWT.io](https://jwt.io) - JWT Documentation
+- [OWASP Authentication Guide](https://owasp.org/www-project-cheat-sheets/cheatsheets/Authentication_Cheat_Sheet)
+- [Passport.js Documentation](http://www.passportjs.org/docs/)
+</content>
+<line_count>450</line_count>
+</write_to_file>
+        ]]></tool_use>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Start with semantic search to find all related files</takeaway>
+      <takeaway>Read multiple files together for context</takeaway>
+      <takeaway>Extract API documentation from route definitions</takeaway>
+      <takeaway>Use tests to understand expected behavior</takeaway>
+      <takeaway>Document security measures comprehensively</takeaway>
+      <takeaway>Include troubleshooting based on common errors</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="database_schema_extraction">
+    <scenario>
+      Extract documentation for database models, relationships, migrations,
+      and data access patterns.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Find database-related files</description>
+        <tool_use><![CDATA[
+<codebase_search>
+<query>database schema model entity migration table column relationship</query>
+</codebase_search>
+        ]]></tool_use>
+      </step>
+
+      <step number="2">
+        <description>Analyze model definitions</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/models</path>
+<regex>@(Entity|Table|Model)|class\s+\w+\s+extends\s+(Model|BaseEntity)</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="3">
+        <description>Extract relationships</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/models</path>
+<regex>@(OneToMany|ManyToOne|OneToOne|ManyToMany|BelongsTo|HasMany)</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="4">
+        <description>Document migrations</description>
+        <tool_use><![CDATA[
+<list_files>
+<path>migrations</path>
+<recursive>true</recursive>
+</list_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="5">
+        <description>Generate schema documentation</description>
+        <output>
+          - Entity relationship diagrams
+          - Table schemas with column types
+          - Index definitions
+          - Foreign key constraints
+          - Migration history
+          - Query patterns and optimizations
+        </output>
+      </step>
+    </workflow>
+  </example>
+
+  <example name="api_endpoint_extraction">
+    <scenario>
+      Extract comprehensive API documentation including all endpoints,
+      request/response formats, authentication, and examples.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Find all API routes</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>(app|router)\.(get|post|put|patch|delete|all)\s*\(\s*['"`]([^'"`]+)['"`]</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="2">
+        <description>Extract request validation</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>@(Body|Query|Param|Headers)\(|joi\.object|yup\.object|zod\.object</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="3">
+        <description>Find response schemas</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>@ApiResponse|swagger|openapi|response\.json\(|res\.send\(</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="4">
+        <description>Document authentication requirements</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>@(UseGuards|Authorized|Public)|passport\.authenticate|requireAuth</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="5">
+        <description>Generate OpenAPI/Swagger documentation</description>
+        <output_format>
+          - OpenAPI 3.0 specification
+          - Postman collection
+          - API client examples
+          - cURL commands
+          - SDK usage examples
+        </output_format>
+      </step>
+    </workflow>
+  </example>
+
+  <example name="frontend_component_extraction">
+    <scenario>
+      Document React/Vue/Angular components including props, events,
+      slots, styling, and usage examples.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Find component files</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/components</path>
+<regex>export\s+(default\s+)?(function|class|const)\s+\w+|@Component</regex>
+<file_pattern>*.tsx</file_pattern>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="2">
+        <description>Extract component props/inputs</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/components</path>
+<regex>interface\s+\w+Props|type\s+\w+Props|@Input\(\)|props:\s*{</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="3">
+        <description>Find component usage examples</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex><ComponentName|import.*ComponentName</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="4">
+        <description>Document styling and themes</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/components</path>
+<regex>styled\.|makeStyles|@apply|className=|style=</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="5">
+        <description>Extract Storybook stories</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>export\s+default\s+{.*title:|\.stories\.</regex>
+<file_pattern>*.stories.tsx</file_pattern>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="6">
+        <description>Generate component documentation</description>
+        <output>
+          - Component API reference
+          - Props table with types and defaults
+          - Event documentation
+          - Styling guidelines
+          - Usage examples
+          - Accessibility notes
+          - Browser compatibility
+        </output>
+      </step>
+    </workflow>
+  </example>
+
+  <example name="configuration_system_extraction">
+    <scenario>
+      Document all configuration options, environment variables,
+      feature flags, and their impacts on system behavior.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Find configuration files</description>
+        <tool_use><![CDATA[
+<list_files>
+<path>.</path>
+<recursive>false</recursive>
+</list_files>
+        ]]></tool_use>
+        <look_for>
+          - .env.example
+          - config/
+          - settings.json
+          - app.config.ts
+        </look_for>
+      </step>
+
+      <step number="2">
+        <description>Extract environment variables</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>.</path>
+<regex>process\.env\.(\w+)|getenv\(['"](\w+)['"]\)</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="3">
+        <description>Find feature flags</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>feature\.|featureFlag|isEnabled\(['"]|flags\.</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="4">
+        <description>Document configuration impacts</description>
+        <analysis>
+          - How each config affects behavior
+          - Dependencies between configs
+          - Performance implications
+          - Security considerations
+          - Default values and overrides
+        </analysis>
+      </step>
+
+      <step number="5">
+        <description>Generate configuration guide</description>
+        <output>
+          - Complete configuration reference
+          - Environment setup guide
+          - Docker/Kubernetes configs
+          - CI/CD pipeline variables
+          - Production deployment checklist
+        </output>
+      </step>
+    </workflow>
+  </example>
+  <example name="documentation_review_example">
+    <scenario>
+      Review a user-provided documentation section for accuracy against the codebase
+      and provide recommendations for improvement in the chat.
+    </scenario>
+    <workflow>
+      <step number="1">
+        <description>User provides documentation for review</description>
+        <user_input>
+          "Here's our current draft for the JWT_SECRET setting. Can you check it for accuracy? 'The `JWT_SECRET` is an optional key for enhancing security.'"
+        </user_input>
+      </step>
+      <step number="2">
+        <description>Analyze relevant code</description>
+        <tool_use><![CDATA[
+<codebase_search>
+<query>JWT_SECRET configuration implementation</query>
+</codebase_search>
+        ]]></tool_use>
+        <expected_findings>
+          - Code where `JWT_SECRET` is read (e.g., `process.env.JWT_SECRET`)
+          - Logic that fails if the secret is missing
+          - Default values or error handling related to the secret
+        </expected_findings>
+      </step>
+      <step number="3">
+        <description>Formulate and provide feedback in chat</description>
+        <tool_use><![CDATA[
+<attempt_completion>
+<result>
+I have reviewed the documentation section provided for the `JWT_SECRET` setting. Here are my recommendations for improvement:
+
+**Overall Assessment**: The current draft is critically inaccurate and could lead to security vulnerabilities if followed.
+
+**Recommendations for Improvement**:
+
+*   **Critical Inaccuracy**:
+    *   The documentation states that `JWT_SECRET` is optional. However, the application will fail to start if it is not provided. It is a **required** setting for the application to function securely.
+    *   **Suggestion**: "The `JWT_SECRET` is a **required** environment variable used to sign and verify JSON Web Tokens. The application will not run without it."
+
+This feedback can be copied and pasted for your documentation team.
+</result>
+</attempt_completion>
+        ]]></tool_use>
+        <note>No file is written. The feedback is provided directly to the user in the chat interface.</note>
+      </step>
+    </workflow>
+  </example>
+ 
+   <best_practices>
+     <practice name="comprehensive_coverage">
+       <description>Ensure all aspects are documented</description>
+      <checklist>
+        <item>Technical implementation details</item>
+        <item>Business logic and rules</item>
+        <item>User workflows and journeys</item>
+        <item>API specifications</item>
+        <item>Configuration options</item>
+        <item>Security measures</item>
+        <item>Performance characteristics</item>
+        <item>Error handling</item>
+        <item>Testing strategies</item>
+        <item>Deployment procedures</item>
+      </checklist>
+    </practice>
+
+    <practice name="multi_audience_writing">
+      <description>Tailor content for different readers</description>
+      <audiences>
+        <audience type="end_users">
+          Focus on how-to guides and troubleshooting
+        </audience>
+        <audience type="developers">
+          Include code examples and technical details
+        </audience>
+        <audience type="administrators">
+          Emphasize configuration and maintenance
+        </audience>
+        <audience type="stakeholders">
+          Highlight business value and metrics
+        </audience>
+      </audiences>
+    </practice>
+
+    <practice name="maintainable_documentation">
+      <description>Create documentation that's easy to update</description>
+      <guidelines>
+        <guideline>Use clear section headers</guideline>
+        <guideline>Include version information</guideline>
+        <guideline>Add last-updated timestamps</guideline>
+        <guideline>Cross-reference related sections</guideline>
+        <guideline>Provide migration guides</guideline>
+      </guidelines>
+    </practice>
+
+    <practice name="example_driven">
+      <description>Include practical examples throughout</description>
+      <example_types>
+        <type>Code snippets with syntax highlighting</type>
+        <type>API request/response pairs</type>
+        <type>Configuration examples</type>
+        <type>Command-line usage</type>
+        <type>Error scenarios and solutions</type>
+      </example_types>
+    </practice>
+  </best_practices>
+
+  <output_validation>
+    <checklist>
+      <item>Table of contents with working links</item>
+      <item>All sections properly formatted</item>
+      <item>Code examples are syntactically correct</item>
+      <item>No placeholder text remaining</item>
+      <item>Version information included</item>
+      <item>Cross-references are valid</item>
+      <item>Metadata is complete</item>
+      <item>File follows naming convention</item>
+    </checklist>
+  </output_validation>
+</complete_extraction_examples>

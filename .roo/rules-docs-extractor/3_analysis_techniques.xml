@@ -1,0 +1,410 @@
+<analysis_techniques>
+  <overview>
+    Comprehensive techniques for analyzing code and extracting documentation-worthy
+    information from various aspects of a codebase.
+  </overview>
+
+  <code_analysis_techniques>
+    <technique name="entry_point_analysis">
+      <description>
+        Identify and analyze main entry points to understand feature flow
+      </description>
+      <steps>
+        <step>Search for main functions, controllers, or route handlers</step>
+        <step>Trace execution flow from entry to exit</step>
+        <step>Map decision branches and conditionals</step>
+        <step>Document input validation and preprocessing</step>
+      </steps>
+      <tools><![CDATA[
+<!-- Find entry points -->
+<codebase_search>
+<query>main function app.listen server.start router controller handler</query>
+</codebase_search>
+
+<!-- Analyze specific entry point -->
+<read_file>
+<path>src/controllers/feature.controller.ts</path>
+</read_file>
+
+<!-- Find all routes -->
+<search_files>
+<path>src</path>
+<regex>(app\.(get|post|put|delete)|@(Get|Post|Put|Delete)|router\.(get|post|put|delete))</regex>
+</search_files>
+      ]]></tools>
+    </technique>
+
+    <technique name="api_extraction">
+      <description>
+        Extract API specifications from code implementations
+      </description>
+      <patterns>
+        <pattern type="rest">
+          <search_regex><![CDATA[
+(app|router)\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]
+          ]]></search_regex>
+          <extraction>
+            - HTTP method
+            - Route path
+            - Path parameters
+            - Query parameters
+            - Request body schema
+            - Response schemas
+            - Status codes
+          </extraction>
+        </pattern>
+        <pattern type="graphql">
+          <search_regex><![CDATA[
+type\s+(Query|Mutation|Subscription)\s*{[^}]+}|@(Query|Mutation|Resolver)
+          ]]></search_regex>
+          <extraction>
+            - Schema types
+            - Resolvers
+            - Input types
+            - Return types
+            - Field arguments
+          </extraction>
+        </pattern>
+      </patterns>
+    </technique>
+
+    <technique name="dependency_mapping">
+      <description>
+        Map all dependencies and integration points
+      </description>
+      <analysis_points>
+        <point>Import statements and require calls</point>
+        <point>Package.json dependencies</point>
+        <point>External API calls</point>
+        <point>Database connections</point>
+        <point>Message queue integrations</point>
+        <point>File system operations</point>
+      </analysis_points>
+      <tools><![CDATA[
+<!-- Find all imports -->
+<search_files>
+<path>src</path>
+<regex>^import\s+.*from\s+['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\)</regex>
+</search_files>
+
+<!-- Analyze package dependencies -->
+<read_file>
+<path>package.json</path>
+</read_file>
+
+<!-- Find external API calls -->
+<search_files>
+<path>src</path>
+<regex>(fetch|axios|http\.request|request\(|\.get\(|\.post\()</regex>
+</search_files>
+      ]]></tools>
+    </technique>
+
+    <technique name="data_model_extraction">
+      <description>
+        Extract data models, schemas, and type definitions
+      </description>
+      <sources>
+        <source type="typescript">
+          <patterns>
+            - interface definitions
+            - type aliases
+            - class declarations
+            - enum definitions
+          </patterns>
+        </source>
+        <source type="database">
+          <patterns>
+            - Schema definitions
+            - Migration files
+            - Model definitions (ORM)
+            - SQL CREATE statements
+          </patterns>
+        </source>
+        <source type="validation">
+          <patterns>
+            - JSON Schema
+            - Joi/Yup schemas
+            - Validation decorators
+            - Custom validators
+          </patterns>
+        </source>
+      </sources>
+      <extraction_example><![CDATA[
+<!-- Find TypeScript interfaces -->
+<search_files>
+<path>src</path>
+<regex>^export\s+(interface|type|class|enum)\s+(\w+)</regex>
+</search_files>
+
+<!-- Find database models -->
+<search_files>
+<path>src/models</path>
+<regex>@(Entity|Table|Model)|class\s+\w+\s+extends\s+(Model|BaseEntity)</regex>
+</search_files>
+      ]]></extraction_example>
+    </technique>
+
+    <technique name="business_logic_extraction">
+      <description>
+        Identify and document business rules and logic
+      </description>
+      <indicators>
+        <indicator>Complex conditional statements</indicator>
+        <indicator>Calculation functions</indicator>
+        <indicator>Validation rules</indicator>
+        <indicator>State machines</indicator>
+        <indicator>Business-specific constants</indicator>
+        <indicator>Domain-specific algorithms</indicator>
+      </indicators>
+      <documentation_focus>
+        <focus>Why the logic exists (business requirement)</focus>
+        <focus>When the logic applies (conditions)</focus>
+        <focus>What the logic does (transformation)</focus>
+        <focus>Edge cases and exceptions</focus>
+        <focus>Business impact of changes</focus>
+      </documentation_focus>
+    </technique>
+
+    <technique name="error_handling_analysis">
+      <description>
+        Document error handling strategies and recovery mechanisms
+      </description>
+      <analysis_areas>
+        <area>Try-catch blocks and error boundaries</area>
+        <area>Custom error classes and types</area>
+        <area>Error codes and messages</area>
+        <area>Logging strategies</area>
+        <area>Fallback mechanisms</area>
+        <area>Retry logic</area>
+        <area>Circuit breakers</area>
+      </analysis_areas>
+      <search_patterns><![CDATA[
+<!-- Find error handling -->
+<search_files>
+<path>src</path>
+<regex>try\s*{|catch\s*\(|throw\s+new|class\s+\w*Error\s+extends</regex>
+</search_files>
+
+<!-- Find error constants -->
+<search_files>
+<path>src</path>
+<regex>ERROR_|_ERROR|ErrorCode|errorCode</regex>
+</search_files>
+      ]]></search_patterns>
+    </technique>
+
+    <technique name="security_analysis">
+      <description>
+        Identify security measures and potential vulnerabilities
+      </description>
+      <security_checks>
+        <check category="authentication">
+          <patterns>
+            - JWT implementation
+            - Session management
+            - OAuth flows
+            - API key handling
+          </patterns>
+        </check>
+        <check category="authorization">
+          <patterns>
+            - Role-based access control
+            - Permission checks
+            - Resource ownership validation
+            - Access control lists
+          </patterns>
+        </check>
+        <check category="data_protection">
+          <patterns>
+            - Encryption usage
+            - Hashing algorithms
+            - Sensitive data handling
+            - PII protection
+          </patterns>
+        </check>
+        <check category="input_validation">
+          <patterns>
+            - Input sanitization
+            - SQL injection prevention
+            - XSS protection
+            - CSRF tokens
+          </patterns>
+        </check>
+      </security_checks>
+    </technique>
+
+    <technique name="performance_analysis">
+      <description>
+        Identify performance characteristics and optimization opportunities
+      </description>
+      <analysis_points>
+        <point>Database query patterns (N+1 queries)</point>
+        <point>Caching strategies</point>
+        <point>Async/await usage</point>
+        <point>Batch processing</point>
+        <point>Resource pooling</point>
+        <point>Memory management</point>
+        <point>Algorithm complexity</point>
+      </analysis_points>
+      <metrics_to_document>
+        <metric>Time complexity of algorithms</metric>
+        <metric>Space complexity</metric>
+        <metric>Database query counts</metric>
+        <metric>API response times</metric>
+        <metric>Memory usage patterns</metric>
+        <metric>Concurrent request handling</metric>
+      </metrics_to_document>
+    </technique>
+
+    <technique name="test_coverage_analysis">
+      <description>
+        Analyze test coverage and quality
+      </description>
+      <test_types>
+        <type name="unit_tests">
+          <location>__tests__, *.test.ts, *.spec.ts</location>
+          <analysis>Function-level coverage</analysis>
+        </type>
+        <type name="integration_tests">
+          <location>integration/, e2e/</location>
+          <analysis>Feature workflow coverage</analysis>
+        </type>
+        <type name="api_tests">
+          <location>api-tests/, *.api.test.ts</location>
+          <analysis>Endpoint coverage</analysis>
+        </type>
+      </test_types>
+      <coverage_analysis><![CDATA[
+<!-- Find test files -->
+<search_files>
+<path>src</path>
+<regex>\.(test|spec)\.(ts|js|tsx|jsx)$</regex>
+<file_pattern>*.test.ts</file_pattern>
+</search_files>
+
+<!-- Analyze test descriptions -->
+<search_files>
+<path>src</path>
+<regex>(describe|it|test)\s*\(\s*['"`]([^'"`]+)['"`]</regex>
+</search_files>
+      ]]></coverage_analysis>
+    </technique>
+
+    <technique name="configuration_extraction">
+      <description>
+        Extract all configuration options and their impacts
+      </description>
+      <configuration_sources>
+        <source>Environment variables (.env files)</source>
+        <source>Configuration files (config.json, settings.yml)</source>
+        <source>Command-line arguments</source>
+        <source>Feature flags</source>
+        <source>Build-time constants</source>
+      </configuration_sources>
+      <documentation_requirements>
+        <requirement>Default values</requirement>
+        <requirement>Valid value ranges</requirement>
+        <requirement>Impact on behavior</requirement>
+        <requirement>Dependencies between configs</requirement>
+        <requirement>Security implications</requirement>
+      </documentation_requirements>
+    </technique>
+  </code_analysis_techniques>
+
+  <workflow_analysis>
+    <technique name="user_journey_mapping">
+      <description>
+        Map complete user workflows through the feature
+      </description>
+      <steps>
+        <step>Identify user entry points (UI, API, CLI)</step>
+        <step>Trace user actions through the system</step>
+        <step>Document decision points and branches</step>
+        <step>Map data transformations at each step</step>
+        <step>Identify exit points and outcomes</step>
+      </steps>
+      <deliverables>
+        <deliverable>User flow diagrams</deliverable>
+        <deliverable>Step-by-step procedures</deliverable>
+        <deliverable>Decision trees</deliverable>
+        <deliverable>State transition diagrams</deliverable>
+      </deliverables>
+    </technique>
+
+    <technique name="integration_flow_analysis">
+      <description>
+        Document how the feature integrates with other systems
+      </description>
+      <integration_types>
+        <type>Synchronous API calls</type>
+        <type>Asynchronous messaging</type>
+        <type>Event-driven interactions</type>
+        <type>Batch processing</type>
+        <type>Real-time streaming</type>
+      </integration_types>
+      <documentation_focus>
+        <focus>Integration protocols and formats</focus>
+        <focus>Authentication mechanisms</focus>
+        <focus>Error handling and retries</focus>
+        <focus>Data transformation requirements</focus>
+        <focus>SLA and performance expectations</focus>
+      </documentation_focus>
+    </technique>
+  </workflow_analysis>
+
+  <metadata_extraction>
+    <technique name="version_compatibility">
+      <sources>
+        <source>Package.json engines field</source>
+        <source>README compatibility sections</source>
+        <source>Migration guides</source>
+        <source>Breaking change documentation</source>
+      </sources>
+      <extraction_pattern><![CDATA[
+<!-- Find version requirements -->
+<search_files>
+<path>.</path>
+<regex>"engines":|"peerDependencies":|requires?\s+\w+\s+version|compatible\s+with</regex>
+</search_files>
+      ]]></extraction_pattern>
+    </technique>
+
+    <technique name="deprecation_tracking">
+      <indicators>
+        <indicator>@deprecated annotations</indicator>
+        <indicator>TODO: deprecate comments</indicator>
+        <indicator>Legacy code markers</indicator>
+        <indicator>Migration warnings</indicator>
+      </indicators>
+      <documentation_requirements>
+        <requirement>Deprecation date</requirement>
+        <requirement>Removal timeline</requirement>
+        <requirement>Migration path</requirement>
+        <requirement>Alternative solutions</requirement>
+      </documentation_requirements>
+    </technique>
+  </metadata_extraction>
+
+  <quality_indicators>
+    <indicator name="documentation_completeness">
+      <checks>
+        <check>All public APIs documented</check>
+        <check>Examples provided for complex features</check>
+        <check>Error scenarios covered</check>
+        <check>Configuration options explained</check>
+        <check>Security considerations addressed</check>
+      </checks>
+    </indicator>
+
+    <indicator name="code_quality_metrics">
+      <metrics>
+        <metric>Cyclomatic complexity</metric>
+        <metric>Code duplication</metric>
+        <metric>Test coverage percentage</metric>
+        <metric>Documentation coverage</metric>
+        <metric>Technical debt indicators</metric>
+      </metrics>
+    </indicator>
+  </quality_indicators>
+</analysis_techniques>
