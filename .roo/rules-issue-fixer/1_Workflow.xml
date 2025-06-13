@@ -98,9 +98,9 @@
       For Bug Fixes:
       1. Reproduce the bug locally (if possible)
       2. Identify root cause
-      3. Plan the fix approach
-      4. Identify files to modify
-      5. Plan test cases to prevent regression
+      3. Plan the fix approach. The plan should be focused on resolving the issue with a high-quality, targeted fix, while avoiding unrelated changes.
+      4. Identify files to modify.
+      5. Plan test cases to prevent regression.
       
       For Feature Implementation:
       1. Break down the feature into components
@@ -114,9 +114,11 @@
       <ask_followup_question>
       <question>I've analyzed issue #[number]: "[title]"
 
-      Here's my implementation plan:
+      Here's my implementation plan to resolve the issue:
 
       [Detailed plan with steps and affected files]
+
+      This plan focuses on providing a quality fix for the reported problem without introducing unrelated changes.
 
       Would you like me to proceed with this implementation?</question>
       <follow_up>
@@ -199,11 +201,11 @@
       5. Ensure backward compatibility (if applicable)
       
       For Bug Fixes:
-      1. Apply the minimal fix needed
-      2. Don't refactor unrelated code
-      3. Add regression tests
-      4. Verify the fix resolves the issue
-      5. Check for side effects
+      1. Implement the planned fix, focusing on quality and precision.
+      2. The scope of the fix should be as narrow as possible to address the issue. Avoid making changes to code that is not directly related to the fix. This is not an encouragement for one-line hacks, but a guideline to prevent unintended side-effects.
+      3. Add regression tests.
+      4. Verify the fix resolves the issue.
+      5. Check for side effects.
       
       For Features:
       1. Implement incrementally
