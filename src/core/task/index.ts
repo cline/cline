@@ -90,8 +90,6 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	GlobalFileNames,
-	saveApiConversationHistory,
-	saveClineMessages,
 } from "@core/storage/disk"
 import {
 	getGlobalClineRules,
@@ -114,7 +112,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
 import { isClaude4ModelFamily } from "@/utils/model-utils"
-import { saveClineMessagesAndUpdateHistory } from "./message-state"
+import { cleanupMessageHistory, MessageStateHandler, saveClineMessagesAndUpdateHistory } from "./message-state"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -149,7 +147,6 @@ export class Task {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private clineIgnoreController: ClineIgnoreController
 	private askResponse?: ClineAskResponse
@@ -188,6 +185,7 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
+	private messageStateHandler: MessageStateHandler
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -248,6 +246,8 @@ export class Task {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+
+		this.messageStateHandler = new MessageStateHandler(context, this.taskId)
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(context, this.taskId)
@@ -327,21 +327,11 @@ export class Task {
 		return context
 	}
 
-	// Storing task to disk for history
-	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
-	}
-
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
-		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
-	}
-
 	private async addToClineMessages(message: ClineMessage) {
 		// these values allow us to reconstruct the conversation history at the time this cline message was created
 		// it's important that apiConversationHistory is initialized before we add cline messages
-		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
+		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+		message.conversationHistoryIndex = apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
 		this.clineMessages.push(message)
 		await saveClineMessagesAndUpdateHistory(
@@ -434,11 +424,9 @@ export class Task {
 				case "task":
 				case "taskAndWorkspace":
 					this.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
-					const newConversationHistory = this.apiConversationHistory.slice(
-						0,
-						(message.conversationHistoryIndex || 0) + 2,
-					) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
-					await this.overwriteApiConversationHistory(newConversationHistory)
+					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
+					await this.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
 
 					// update the context history state
 					await this.contextManager.truncateContextHistory(
@@ -970,7 +958,7 @@ export class Task {
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
-		this.apiConversationHistory = []
+		this.messageStateHandler.setApiConversationHistory([])
 
 		await this.postStateToWebview()
 
@@ -1015,38 +1003,39 @@ export class Task {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
 
-		const modifiedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
-			modifiedClineMessages,
+			savedClineMessages,
 			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
 		)
 		if (lastRelevantMessageIndex !== -1) {
-			modifiedClineMessages.splice(lastRelevantMessageIndex + 1)
+			savedClineMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
-		const lastApiReqStartedIndex = findLastIndex(
-			modifiedClineMessages,
-			(m) => m.type === "say" && m.say === "api_req_started",
-		)
+		const lastApiReqStartedIndex = findLastIndex(savedClineMessages, (m) => m.type === "say" && m.say === "api_req_started")
 		if (lastApiReqStartedIndex !== -1) {
-			const lastApiReqStarted = modifiedClineMessages[lastApiReqStartedIndex]
+			const lastApiReqStarted = savedClineMessages[lastApiReqStartedIndex]
 			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
 			if (cost === undefined && cancelReason === undefined) {
-				modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
+				savedClineMessages.splice(lastApiReqStartedIndex, 1)
 			}
 		}
 
-		await this.overwriteClineMessages(modifiedClineMessages)
+		await this.overwriteClineMessages(savedClineMessages)
 		this.clineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
-		this.apiConversationHistory = await getSavedApiConversationHistory(this.getContext(), this.taskId)
+		const context = this.getContext()
+		const savedApiConversationHistory = await getSavedApiConversationHistory(context, this.taskId)
+		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
 
 		// load the context history state
+
+		const taskDir = await ensureTaskDirectoryExists(context, this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
 
 		const lastClineMessage = this.clineMessages
@@ -1163,7 +1152,7 @@ export class Task {
 			}
 		}
 
-		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
+		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
 		await this.initiateTaskLoop(newUserContent)
 	}
 
@@ -1714,7 +1703,7 @@ export class Task {
 			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
-			this.apiConversationHistory,
+			this.messageStateHandler.getApiConversationHistory(),
 			this.clineMessages,
 			this.api,
 			this.conversationHistoryDeletedRange,
@@ -1753,7 +1742,7 @@ export class Task {
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.didAutomaticallyRetryFailedApiRequest) {
 				this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-					this.apiConversationHistory,
+					this.messageStateHandler.getApiConversationHistory(),
 					this.conversationHistoryDeletedRange,
 					"quarter", // Force aggressive truncation
 				)
@@ -1775,7 +1764,7 @@ export class Task {
 			} else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
 				if (isOpenRouterContextWindowError) {
 					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-						this.apiConversationHistory,
+						this.messageStateHandler.getApiConversationHistory(),
 						this.conversationHistoryDeletedRange,
 						"quarter", // Force aggressive truncation
 					)
@@ -1803,7 +1792,7 @@ export class Task {
 
 				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
-						this.apiConversationHistory,
+						this.messageStateHandler.getApiConversationHistory(),
 						this.conversationHistoryDeletedRange,
 					)
 
@@ -3680,14 +3669,14 @@ export class Task {
 								} else {
 									// If no response, the user accepted the condensed version
 									pushToolResult(formatResponse.toolResult(formatResponse.condense()))
-
-									const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+									const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+									const lastMessage = apiConversationHistory[apiConversationHistory.length - 1]
 									const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
 									const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
 
 									// clear the context history at this point in time
 									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-										this.apiConversationHistory,
+										apiConversationHistory,
 										this.conversationHistoryDeletedRange,
 										keepStrategy,
 									)
@@ -4441,7 +4430,7 @@ export class Task {
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
 
-		await this.addToApiConversationHistory({
+		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
 			content: userContent,
 		})
@@ -4514,7 +4503,7 @@ export class Task {
 				}
 
 				// Let assistant know their response was interrupted for when task is resumed
-				await this.addToApiConversationHistory({
+				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [
 						{
@@ -4721,7 +4710,7 @@ export class Task {
 					true,
 				)
 
-				await this.addToApiConversationHistory({
+				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
@@ -4756,7 +4745,7 @@ export class Task {
 					"error",
 					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
 				)
-				await this.addToApiConversationHistory({
+				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [
 						{
