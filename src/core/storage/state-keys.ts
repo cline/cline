@@ -33,7 +33,6 @@ export type GlobalStateKey =
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
-	| "customInstructions"
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
@@ -68,8 +67,10 @@ export type GlobalStateKey =
 	| "shellIntegrationTimeout"
 	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
+	| "defaultTerminalProfile"
 	| "isNewUser"
 	| "terminalOutputLineLimit"
+	| "mcpRichDisplayEnabled"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"

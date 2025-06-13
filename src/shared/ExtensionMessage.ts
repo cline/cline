@@ -81,8 +81,8 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
+	mcpRichDisplayEnabled: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
@@ -92,6 +92,7 @@ export interface ExtensionState {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
+	defaultTerminalProfile?: string
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

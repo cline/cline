@@ -25,12 +25,12 @@ message Uri {
   string path = 3;
   string query = 4;
   string fragment = 5;
-  string fsPath = 6;
+  string fs_path = 6;
 }
 
 // Request for joining path segments to a URI
 message JoinPathRequest {
   cline.Metadata metadata = 1;
   Uri base = 2;
-  repeated string pathSegments = 3;
+  repeated string path_segments = 3;
 }

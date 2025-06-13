@@ -96,7 +96,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.options = options
 	}
 
-	@withRetry()
+	@withRetry({ maxRetries: 4 })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const modelId = await this.getModelId()
