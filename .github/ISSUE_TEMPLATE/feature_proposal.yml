@@ -118,10 +118,6 @@ body:
           options:
               - label: I’ve checked for existing issues or related proposals
                 required: true
-              - label: The problem and solution are clearly described
-                required: true
-              - label: Acceptance criteria are clearly defined
-                required: true
               - label: I understand this needs review before implementation can start
                 required: true
 
