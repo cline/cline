@@ -115,8 +115,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const {
 		apiConfiguration,
 		version,
-		customInstructions,
-		setCustomInstructions,
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
@@ -140,7 +138,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Store the original state to detect changes
 	const originalState = useRef({
 		apiConfiguration,
-		customInstructions,
 		telemetrySetting,
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
@@ -163,10 +160,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		if (!apiValidationResult && !modelIdValidationResult) {
 			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			// vscode.postMessage({
-			// 	type: "customInstructions",
-			// 	text: customInstructions,
-			// })
-			// vscode.postMessage({
 			// 	type: "telemetrySetting",
 			// 	text: telemetrySetting,
 			// })
@@ -184,7 +177,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			await StateServiceClient.updateSettings(
 				UpdateSettingsRequest.create({
 					planActSeparateModelsSetting,
-					customInstructionsSetting: customInstructions,
 					telemetrySetting,
 					enableCheckpointsSetting,
 					mcpMarketplaceEnabled,
@@ -215,7 +207,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	useEffect(() => {
 		const hasChanges =
 			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
-			customInstructions !== originalState.current.customInstructions ||
 			telemetrySetting !== originalState.current.telemetrySetting ||
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
@@ -228,7 +219,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setHasUnsavedChanges(hasChanges)
 	}, [
 		apiConfiguration,
-		customInstructions,
 		telemetrySetting,
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
@@ -246,7 +236,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			setIsUnsavedChangesDialogOpen(true)
 			pendingAction.current = () => {
 				// Reset all tracked state to original values
-				setCustomInstructions(originalState.current.customInstructions)
 				setTelemetrySetting(originalState.current.telemetrySetting)
 				setPlanActSeparateModelsSetting(originalState.current.planActSeparateModelsSetting)
 				setChatSettings(originalState.current.chatSettings)
@@ -287,7 +276,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	}, [
 		hasUnsavedChanges,
 		onDone,
-		setCustomInstructions,
 		setTelemetrySetting,
 		setPlanActSeparateModelsSetting,
 		setChatSettings,
@@ -583,24 +571,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												Switching between Plan and Act mode will persist the API and model used in the
 												previous mode. This may be helpful e.g. when using a strong reasoning model to
 												architect a plan for a cheaper coding model to act on.
-											</p>
-										</div>
-
-										<div className="mb-[5px]">
-											<VSCodeTextArea
-												value={customInstructions ?? ""}
-												className="w-full"
-												resize="vertical"
-												rows={4}
-												placeholder={
-													'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-												}
-												onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-												<span className="font-medium">Custom Instructions</span>
-											</VSCodeTextArea>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												These instructions are added to the end of the system prompt sent with every
-												request.
 											</p>
 										</div>
 									</Section>

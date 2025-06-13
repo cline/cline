@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.17.12",
+	"version": "3.17.13",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -358,6 +358,11 @@
 		"docs:rename-file": "cd docs && mintlify rename",
 		"report-issue": "node scripts/report-issue.js"
 	},
+	"lint-staged": {
+		"*": [
+			"prettier --write --ignore-unknown --log-level=log"
+		]
+	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
@@ -384,6 +389,7 @@
 		"eslint-plugin-eslint-rules": "file:eslint-rules",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
+		"lint-staged": "^16.1.0",
 		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
@@ -404,7 +410,7 @@
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/genai": "^0.13.0",
+		"@google/genai": "1.0.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",

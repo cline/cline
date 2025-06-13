@@ -69,15 +69,14 @@ message AutoApprovalSettingsRequest {
 message UpdateSettingsRequest {
   Metadata metadata = 1;
   optional ApiConfiguration api_configuration = 2;
-  optional string custom_instructions_setting = 3;
-  optional string telemetry_setting = 4;
-  optional bool plan_act_separate_models_setting = 5;
-  optional bool enable_checkpoints_setting = 6;
-  optional bool mcp_marketplace_enabled = 7;
-  optional ChatSettings chat_settings = 8;
-  optional int64 shell_integration_timeout = 9;
-  optional bool terminal_reuse_enabled = 10;
-  optional bool mcp_responses_collapsed = 11;
+  optional string telemetry_setting = 3;
+  optional bool plan_act_separate_models_setting = 4;
+  optional bool enable_checkpoints_setting = 5;
+  optional bool mcp_marketplace_enabled = 6;
+  optional ChatSettings chat_settings = 7;
+  optional int64 shell_integration_timeout = 8;
+  optional bool terminal_reuse_enabled = 9;
+  optional bool mcp_responses_collapsed = 10;
 }
 
 // Complete API Configuration message
