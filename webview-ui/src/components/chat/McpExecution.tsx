@@ -53,7 +53,7 @@ export const McpExecution = ({
 	const [isResponseExpanded, setIsResponseExpanded] = useState(false)
 
 	// Try to parse JSON and return both the result and formatted text
-	const tryParseJson = (text: string): { isJson: boolean; formatted: string } => {
+	const tryParseJson = useCallback((text: string): { isJson: boolean; formatted: string } => {
 		if (!text) return { isJson: false, formatted: "" }
 
 		try {
@@ -68,10 +68,51 @@ export const McpExecution = ({
 				formatted: text,
 			}
 		}
-	}
+	}, [])
 
-	const responseData = useMemo(() => tryParseJson(responseText), [responseText])
-	const argumentsData = useMemo(() => tryParseJson(argumentsText), [argumentsText])
+	// Only parse response data when expanded AND complete to avoid parsing partial JSON
+	const responseData = useMemo(() => {
+		if (!isResponseExpanded) {
+			return { isJson: false, formatted: responseText }
+		}
+		// Only try to parse JSON if the response is complete
+		if (status && status.status === "completed") {
+			return tryParseJson(responseText)
+		}
+		// For partial responses, just return as-is without parsing
+		return { isJson: false, formatted: responseText }
+	}, [responseText, isResponseExpanded, tryParseJson, status])
+
+	// Only parse arguments data when complete to avoid parsing partial JSON
+	const argumentsData = useMemo(() => {
+		if (!argumentsText) {
+			return { isJson: false, formatted: "" }
+		}
+
+		// For arguments, we don't have a streaming status, so we check if it looks like complete JSON
+		const trimmed = argumentsText.trim()
+
+		// Basic check for complete JSON structure
+		if (
+			trimmed &&
+			((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]")))
+		) {
+			// Try to parse, but if it fails, return as-is
+			try {
+				const parsed = JSON.parse(trimmed)
+				return {
+					isJson: true,
+					formatted: JSON.stringify(parsed, null, 2),
+				}
+			} catch {
+				// JSON structure looks complete but is invalid, return as-is
+				return { isJson: false, formatted: argumentsText }
+			}
+		}
+
+		// For non-JSON or incomplete data, just return as-is
+		return { isJson: false, formatted: argumentsText }
+	}, [argumentsText])
 
 	const formattedResponseText = responseData.formatted
 	const formattedArgumentsText = argumentsData.formatted
@@ -99,16 +140,8 @@ export const McpExecution = ({
 
 							if (data.status === "output" && data.response) {
 								setResponseText((prev) => prev + data.response)
-								// Keep the arguments when we get output
-								if (isArguments && argumentsText === responseText) {
-									setArgumentsText(responseText)
-								}
 							} else if (data.status === "completed" && data.response) {
 								setResponseText(data.response)
-								// Keep the arguments when we get completed response
-								if (isArguments && argumentsText === responseText) {
-									setArgumentsText(responseText)
-								}
 							}
 						}
 					}
@@ -117,30 +150,16 @@ export const McpExecution = ({
 				}
 			}
 		},
-		[argumentsText, executionId, isArguments, responseText],
+		[executionId],
 	)
 
 	useEvent("message", onMessage)
 
 	// Initialize with text if provided and parse command/response sections
 	useEffect(() => {
-		// Handle arguments text
+		// Handle arguments text - don't parse JSON here as it might be incomplete
 		if (text) {
-			try {
-				// Try to parse the text as JSON for arguments
-				const jsonObj = safeJsonParse<any>(text, null)
-
-				if (jsonObj && typeof jsonObj === "object") {
-					// Format the JSON for display
-					setArgumentsText(JSON.stringify(jsonObj, null, 2))
-				} else {
-					// If not valid JSON, use as is
-					setArgumentsText(text)
-				}
-			} catch (_e) {
-				// If parsing fails, use text as is
-				setArgumentsText(text)
-			}
+			setArgumentsText(text)
 		}
 
 		// Handle response text
@@ -258,6 +277,7 @@ export const McpExecution = ({
 					response={formattedResponseText}
 					isJson={responseIsJson}
 					hasArguments={!!(isArguments || useMcpServer?.arguments || argumentsText)}
+					isPartial={status ? status.status !== "completed" : false}
 				/>
 			</div>
 		</>
@@ -271,21 +291,38 @@ const ResponseContainerInternal = ({
 	response,
 	isJson,
 	hasArguments,
+	isPartial = false,
 }: {
 	isExpanded: boolean
 	response: string
 	isJson: boolean
 	hasArguments?: boolean
-}) => (
-	<div
-		className={cn("overflow-hidden", {
-			"max-h-0": !isExpanded,
-			"max-h-[100%] mt-1 pt-1 border-t border-border/25": isExpanded && hasArguments,
-			"max-h-[100%] mt-1 pt-1": isExpanded && !hasArguments,
-		})}>
-		{response.length > 0 &&
-			(isJson ? <CodeBlock source={response} language="json" /> : <Markdown markdown={response} partial={false} />)}
-	</div>
-)
+	isPartial?: boolean
+}) => {
+	// Only render content when expanded to prevent performance issues with large responses
+	if (!isExpanded || response.length === 0) {
+		return (
+			<div
+				className={cn("overflow-hidden", {
+					"max-h-0": !isExpanded,
+				})}
+			/>
+		)
+	}
+
+	return (
+		<div
+			className={cn("overflow-hidden", {
+				"max-h-[100%] mt-1 pt-1 border-t border-border/25": hasArguments,
+				"max-h-[100%] mt-1 pt-1": !hasArguments,
+			})}>
+			{isJson ? (
+				<CodeBlock source={response} language="json" />
+			) : (
+				<Markdown markdown={response} partial={isPartial} />
+			)}
+		</div>
+	)
+}
 
 const ResponseContainer = memo(ResponseContainerInternal)
