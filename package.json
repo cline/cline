@@ -336,7 +336,7 @@
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run compile-standalone && npm run lint",
 		"check-types": "npm run protos && tsc --noEmit",
-		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && cd webview-ui && npm run lint",
+		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && buf lint && cd webview-ui && npm run lint",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "npm-run-all test:unit test:integration",
@@ -364,6 +364,7 @@
 		]
 	},
 	"devDependencies": {
+		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",
