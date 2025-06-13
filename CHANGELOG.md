@@ -2,7 +2,7 @@
 
 ## [3.20.0] - 2025-06-12
 
-- Add experimental Marketplace for extensions and modes (thanks @Smartsheet-JB-Brown, @elianiva, @monkeyDluffy6017, @NamesMT, @daniel-lxs, and more!)
+- Add experimental Marketplace for extensions and modes (thanks @Smartsheet-JB-Brown, @elianiva, @monkeyDluffy6017, @NamesMT, @daniel-lxs, Cline, and more!)
 - Add experimental multi-file edits (thanks @samhvw8!)
 - Move concurrent reads setting to context settings with default of 5
 - Improve MCP execution UX (thanks @samhvw8!)
