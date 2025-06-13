@@ -133,11 +133,20 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		const customSelected = this.options.awsBedrockCustomSelected
 		const baseModel = this.options.awsBedrockCustomModelBaseId
-		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
-			// Use the user-input model ID but inherit capabilities from the base model
+
+		// Handle custom models
+		if (customSelected && modelId) {
+			// If base model is provided and valid, use its capabilities
+			if (baseModel && baseModel in bedrockModels) {
+				return {
+					id: modelId,
+					info: bedrockModels[baseModel],
+				}
+			}
+			// For custom models without base model, use default model's capabilities
 			return {
 				id: modelId,
-				info: bedrockModels[baseModel],
+				info: bedrockModels[bedrockDefaultModelId],
 			}
 		}
 
