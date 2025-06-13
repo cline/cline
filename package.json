@@ -45,5 +45,10 @@
 		"*.{js,jsx,ts,tsx,json,css,md}": [
 			"prettier --write"
 		]
+	},
+	"pnpm": {
+		"overrides": {
+			"tar-fs": ">=2.1.3"
+		}
 	}
 }
