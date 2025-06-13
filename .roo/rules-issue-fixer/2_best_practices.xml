@@ -1,7 +1,8 @@
 <best_practices>
   - Always read the entire issue and all comments before starting
   - Follow the project's coding standards and patterns
-  - Make minimal changes for bug fixes (don't refactor unnecessarily)
+  - Focus exclusively on addressing the issue's requirements.
+  - Make minimal, high-quality changes for bug fixes. The goal is a narrow, targeted fix, not a one-line hack.
   - Test thoroughly - both automated and manual testing
   - Document complex logic with comments
   - Keep commits focused and well-described
