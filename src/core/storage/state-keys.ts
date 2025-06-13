@@ -25,6 +25,7 @@ export type SecretKey =
 
 export type GlobalStateKey =
 	| "awsRegion"
+	| "awsRegions"
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"

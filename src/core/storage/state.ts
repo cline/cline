@@ -183,6 +183,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		awsSecretKey,
 		awsSessionToken,
 		awsRegion,
+		awsRegions,
 		awsUseCrossRegionInference,
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
@@ -248,6 +249,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "awsSecretKey") as Promise<string | undefined>,
 		getSecret(context, "awsSessionToken") as Promise<string | undefined>,
 		getGlobalState(context, "awsRegion") as Promise<string | undefined>,
+		getGlobalState(context, "awsRegions") as Promise<string[] | undefined>,
 		getGlobalState(context, "awsUseCrossRegionInference") as Promise<boolean | undefined>,
 		getGlobalState(context, "awsBedrockUsePromptCache") as Promise<boolean | undefined>,
 		getGlobalState(context, "awsBedrockEndpoint") as Promise<string | undefined>,
@@ -415,6 +417,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			awsSecretKey,
 			awsSessionToken,
 			awsRegion,
+			awsRegions,
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
@@ -516,6 +519,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		awsSecretKey,
 		awsSessionToken,
 		awsRegion,
+		awsRegions,
 		awsUseCrossRegionInference,
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
@@ -597,6 +601,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 
 	// Global state updates
 	await updateGlobalState(context, "awsRegion", awsRegion)
+	await updateGlobalState(context, "awsRegions", awsRegions)
 	await updateGlobalState(context, "awsUseCrossRegionInference", awsUseCrossRegionInference)
 	await updateGlobalState(context, "awsBedrockUsePromptCache", awsBedrockUsePromptCache)
 	await updateGlobalState(context, "awsBedrockEndpoint", awsBedrockEndpoint)
