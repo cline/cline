@@ -40,16 +40,7 @@ interface CodeIndexSettingsProps {
 	areSettingsCommitted: boolean
 }
 
-interface IndexingStatusUpdateMessage {
-	type: "indexingStatusUpdate"
-	values: {
-		systemStatus: string
-		message?: string
-		processedItems: number
-		totalItems: number
-		currentItemUnit?: string
-	}
-}
+import type { IndexingStatusUpdateMessage } from "@roo/ExtensionMessage"
 
 export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 	codebaseIndexModels,

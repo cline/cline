@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "모두 거부"
 		}
+	},
+	"indexingStatus": {
+		"ready": "인덱스 준비됨",
+		"indexing": "인덱싱 중 {{percentage}}%",
+		"indexed": "인덱싱 완료",
+		"error": "인덱스 오류",
+		"status": "인덱스 상태"
 	}
 }

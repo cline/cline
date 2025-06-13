@@ -18,6 +18,20 @@ import { Mode } from "./modes"
 import { RouterModels } from "./api"
 import { MarketplaceItem } from "../services/marketplace/types"
 
+// Indexing status types
+export interface IndexingStatus {
+	systemStatus: string
+	message?: string
+	processedItems: number
+	totalItems: number
+	currentItemUnit?: string
+}
+
+export interface IndexingStatusUpdateMessage {
+	type: "indexingStatusUpdate"
+	values: IndexingStatus
+}
+
 export interface LanguageModelChatSelector {
 	vendor?: string
 	family?: string

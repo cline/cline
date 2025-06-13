@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "Denegar todo"
 		}
+	},
+	"indexingStatus": {
+		"ready": "Índice listo",
+		"indexing": "Indexando {{percentage}}%",
+		"indexed": "Indexado",
+		"error": "Error de índice",
+		"status": "Estado del índice"
 	}
 }

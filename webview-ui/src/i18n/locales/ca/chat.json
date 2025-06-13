@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "Denegar tot"
 		}
+	},
+	"indexingStatus": {
+		"ready": "Índex preparat",
+		"indexing": "Indexant {{percentage}}%",
+		"indexed": "Indexat",
+		"error": "Error d'índex",
+		"status": "Estat de l'índex"
 	}
 }

@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "Alles weigeren"
 		}
+	},
+	"indexingStatus": {
+		"ready": "Index gereed",
+		"indexing": "Indexeren {{percentage}}%",
+		"indexed": "Geïndexeerd",
+		"error": "Index fout",
+		"status": "Index status"
 	}
 }

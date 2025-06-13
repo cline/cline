@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "全部拒绝"
 		}
+	},
+	"indexingStatus": {
+		"ready": "索引就绪",
+		"indexing": "索引中 {{percentage}}%",
+		"indexed": "已索引",
+		"error": "索引错误",
+		"status": "索引状态"
 	}
 }

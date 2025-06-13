@@ -279,5 +279,12 @@
 		"deny": {
 			"title": "Từ chối tất cả"
 		}
+	},
+	"indexingStatus": {
+		"ready": "Chỉ mục sẵn sàng",
+		"indexing": "Đang lập chỉ mục {{percentage}}%",
+		"indexed": "Đã lập chỉ mục",
+		"error": "Lỗi chỉ mục",
+		"status": "Trạng thái chỉ mục"
 	}
 }
