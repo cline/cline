@@ -126,6 +126,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		setMcpRichDisplayEnabled,
 		shellIntegrationTimeout,
 		setShellIntegrationTimeout,
 		terminalReuseEnabled,
@@ -144,6 +146,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
@@ -183,6 +186,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					telemetrySetting,
 					enableCheckpointsSetting,
 					mcpMarketplaceEnabled,
+					mcpRichDisplayEnabled,
 					shellIntegrationTimeout,
 					terminalReuseEnabled,
 					mcpResponsesCollapsed,
@@ -235,6 +239,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
+			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
@@ -248,6 +254,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
@@ -282,6 +289,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				if (typeof setMcpRichDisplayEnabled === "function") {
+					setMcpRichDisplayEnabled(
+						typeof originalState.current.mcpRichDisplayEnabled === "boolean"
+							? originalState.current.mcpRichDisplayEnabled
+							: true,
+					)
+				}
 				// Reset terminal settings
 				if (typeof setShellIntegrationTimeout === "function") {
 					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
@@ -311,6 +325,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpRichDisplayEnabled,
 		setMcpResponsesCollapsed,
 	])
 
