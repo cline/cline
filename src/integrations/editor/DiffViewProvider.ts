@@ -349,10 +349,7 @@ export class DiffViewProvider {
 			// Remove only the directories we created, in reverse order.
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
-				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 			}
-
-			console.log(`File ${absolutePath} has been deleted.`)
 		} else {
 			// Revert document.
 			const edit = new vscode.WorkspaceEdit()
@@ -369,7 +366,6 @@ export class DiffViewProvider {
 			// changes and saved during the edit.
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
-			console.log(`File ${absolutePath} has been reverted to its original content.`)
 
 			if (this.documentWasOpen) {
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
@@ -408,7 +404,9 @@ export class DiffViewProvider {
 
 	private async openDiffEditor(): Promise<vscode.TextEditor> {
 		if (!this.relPath) {
-			throw new Error("No file path set")
+			throw new Error(
+				"No file path set for opening diff editor. Ensure open() was called before openDiffEditor()",
+			)
 		}
 
 		const uri = vscode.Uri.file(path.resolve(this.cwd, this.relPath))
@@ -434,29 +432,81 @@ export class DiffViewProvider {
 		return new Promise<vscode.TextEditor>((resolve, reject) => {
 			const fileName = path.basename(uri.fsPath)
 			const fileExists = this.editType === "modify"
+			const DIFF_EDITOR_TIMEOUT = 10_000 // ms
 
-			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-				if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
-					disposable.dispose()
-					resolve(editor)
+			let timeoutId: NodeJS.Timeout | undefined
+			const disposables: vscode.Disposable[] = []
+
+			const cleanup = () => {
+				if (timeoutId) {
+					clearTimeout(timeoutId)
+					timeoutId = undefined
 				}
-			})
+				disposables.forEach((d) => d.dispose())
+				disposables.length = 0
+			}
 
-			vscode.commands.executeCommand(
-				"vscode.diff",
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
-					query: Buffer.from(this.originalContent ?? "").toString("base64"),
+			// Set timeout for the entire operation
+			timeoutId = setTimeout(() => {
+				cleanup()
+				reject(
+					new Error(
+						`Failed to open diff editor for ${uri.fsPath} within ${DIFF_EDITOR_TIMEOUT / 1000} seconds. The editor may be blocked or VS Code may be unresponsive.`,
+					),
+				)
+			}, DIFF_EDITOR_TIMEOUT)
+
+			// Listen for document open events - more efficient than scanning all tabs
+			disposables.push(
+				vscode.workspace.onDidOpenTextDocument(async (document) => {
+					if (arePathsEqual(document.uri.fsPath, uri.fsPath)) {
+						// Wait a tick for the editor to be available
+						await new Promise((r) => setTimeout(r, 0))
+
+						// Find the editor for this document
+						const editor = vscode.window.visibleTextEditors.find((e) =>
+							arePathsEqual(e.document.uri.fsPath, uri.fsPath),
+						)
+
+						if (editor) {
+							cleanup()
+							resolve(editor)
+						}
+					}
 				}),
-				uri,
-				`${fileName}: ${fileExists ? "Original ↔ Roo's Changes" : "New File"} (Editable)`,
-				{ preserveFocus: true },
 			)
 
-			// This may happen on very slow machines i.e. project idx.
-			setTimeout(() => {
-				disposable.dispose()
-				reject(new Error("Failed to open diff editor, please try again..."))
-			}, 10_000)
+			// Also listen for visible editor changes as a fallback
+			disposables.push(
+				vscode.window.onDidChangeVisibleTextEditors((editors) => {
+					const editor = editors.find((e) => arePathsEqual(e.document.uri.fsPath, uri.fsPath))
+					if (editor) {
+						cleanup()
+						resolve(editor)
+					}
+				}),
+			)
+
+			// Execute the diff command
+			vscode.commands
+				.executeCommand(
+					"vscode.diff",
+					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+						query: Buffer.from(this.originalContent ?? "").toString("base64"),
+					}),
+					uri,
+					`${fileName}: ${fileExists ? "Original ↔ Roo's Changes" : "New File"} (Editable)`,
+					{ preserveFocus: true },
+				)
+				.then(
+					() => {
+						// Command executed successfully, now wait for the editor to appear
+					},
+					(err: any) => {
+						cleanup()
+						reject(new Error(`Failed to execute diff command for ${uri.fsPath}: ${err.message}`))
+					},
+				)
 		})
 	}
 
