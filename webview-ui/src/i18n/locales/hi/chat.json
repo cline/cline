@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo इस निर्देशिका में उपयोग किए गए सोर्स कोड परिभाषा नामों को देखना चाहता है:",
 		"didViewDefinitions": "Roo ने इस निर्देशिका में उपयोग किए गए सोर्स कोड परिभाषा नामों को देखा:",
 		"wantsToSearch": "Roo इस निर्देशिका में <code>{{regex}}</code> के लिए खोज करना चाहता है:",
-		"didSearch": "Roo ने इस निर्देशिका में <code>{{regex}}</code> के लिए खोज की:"
+		"didSearch": "Roo ने इस निर्देशिका में <code>{{regex}}</code> के लिए खोज की:",
+		"wantsToSearchOutsideWorkspace": "Roo इस निर्देशिका (कार्यक्षेत्र के बाहर) में <code>{{regex}}</code> के लिए खोज करना चाहता है:",
+		"didSearchOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में <code>{{regex}}</code> के लिए खोज की:"
 	},
 	"commandOutput": "कमांड आउटपुट",
 	"response": "प्रतिक्रिया",

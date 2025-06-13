@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo muốn xem tên định nghĩa mã nguồn được sử dụng trong thư mục này:",
 		"didViewDefinitions": "Roo đã xem tên định nghĩa mã nguồn được sử dụng trong thư mục này:",
 		"wantsToSearch": "Roo muốn tìm kiếm trong thư mục này cho <code>{{regex}}</code>:",
-		"didSearch": "Roo đã tìm kiếm trong thư mục này cho <code>{{regex}}</code>:"
+		"didSearch": "Roo đã tìm kiếm trong thư mục này cho <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo muốn tìm kiếm trong thư mục này (ngoài không gian làm việc) cho <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo đã tìm kiếm trong thư mục này (ngoài không gian làm việc) cho <code>{{regex}}</code>:"
 	},
 	"commandOutput": "Kết quả lệnh",
 	"response": "Phản hồi",

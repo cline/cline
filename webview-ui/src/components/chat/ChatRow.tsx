@@ -560,13 +560,21 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<Trans
-										i18nKey="chat:directoryOperations.wantsToSearch"
+										i18nKey={
+											tool.isOutsideWorkspace
+												? "chat:directoryOperations.wantsToSearchOutsideWorkspace"
+												: "chat:directoryOperations.wantsToSearch"
+										}
 										components={{ code: <code>{tool.regex}</code> }}
 										values={{ regex: tool.regex }}
 									/>
 								) : (
 									<Trans
-										i18nKey="chat:directoryOperations.didSearch"
+										i18nKey={
+											tool.isOutsideWorkspace
+												? "chat:directoryOperations.didSearchOutsideWorkspace"
+												: "chat:directoryOperations.didSearch"
+										}
 										components={{ code: <code>{tool.regex}</code> }}
 										values={{ regex: tool.regex }}
 									/>

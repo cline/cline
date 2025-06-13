@@ -172,7 +172,9 @@
 		"wantsToViewDefinitions": "Roo wants to view source code definition names used in this directory:",
 		"didViewDefinitions": "Roo viewed source code definition names used in this directory:",
 		"wantsToSearch": "Roo wants to search this directory for <code>{{regex}}</code>:",
-		"didSearch": "Roo searched this directory for <code>{{regex}}</code>:"
+		"didSearch": "Roo searched this directory for <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo wants to search this directory (outside workspace) for <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo searched this directory (outside workspace) for <code>{{regex}}</code>:"
 	},
 	"codebaseSearch": {
 		"wantsToSearch": "Roo wants to search the codebase for <code>{{query}}</code>:",

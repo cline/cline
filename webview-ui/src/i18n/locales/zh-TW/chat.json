@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo 想要檢視此目錄中使用的原始碼定義名稱：",
 		"didViewDefinitions": "Roo 已檢視此目錄中使用的原始碼定義名稱：",
 		"wantsToSearch": "Roo 想要在此目錄中搜尋 <code>{{regex}}</code>：",
-		"didSearch": "Roo 已在此目錄中搜尋 <code>{{regex}}</code>："
+		"didSearch": "Roo 已在此目錄中搜尋 <code>{{regex}}</code>：",
+		"wantsToSearchOutsideWorkspace": "Roo 想要在此目錄（工作區外）中搜尋 <code>{{regex}}</code>：",
+		"didSearchOutsideWorkspace": "Roo 已在此目錄（工作區外）中搜尋 <code>{{regex}}</code>："
 	},
 	"commandOutput": "命令輸出",
 	"response": "回應",

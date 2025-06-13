@@ -7,8 +7,5 @@
 	"toolRepetitionLimitReached": "Roo scheint in einer Schleife festzustecken und versucht wiederholt dieselbe Aktion ({{toolName}}). Dies könnte auf ein Problem mit der aktuellen Strategie hindeuten. Überlege dir, die Aufgabe umzuformulieren, genauere Anweisungen zu geben oder Roo zu einem anderen Ansatz zu führen.",
 	"codebaseSearch": {
 		"approval": "Suche nach '{{query}}' im Codebase..."
-	},
-	"searchFiles": {
-		"workspaceBoundaryError": "Kann nicht außerhalb des Arbeitsbereichs suchen. Pfad '{{path}}' liegt außerhalb des aktuellen Arbeitsbereichs."
 	}
 }

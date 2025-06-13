@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo möchte Quellcode-Definitionsnamen in diesem Verzeichnis anzeigen:",
 		"didViewDefinitions": "Roo hat Quellcode-Definitionsnamen in diesem Verzeichnis angezeigt:",
 		"wantsToSearch": "Roo möchte dieses Verzeichnis nach <code>{{regex}}</code> durchsuchen:",
-		"didSearch": "Roo hat dieses Verzeichnis nach <code>{{regex}}</code> durchsucht:"
+		"didSearch": "Roo hat dieses Verzeichnis nach <code>{{regex}}</code> durchsucht:",
+		"wantsToSearchOutsideWorkspace": "Roo möchte dieses Verzeichnis (außerhalb des Arbeitsbereichs) nach <code>{{regex}}</code> durchsuchen:",
+		"didSearchOutsideWorkspace": "Roo hat dieses Verzeichnis (außerhalb des Arbeitsbereichs) nach <code>{{regex}}</code> durchsucht:"
 	},
 	"commandOutput": "Befehlsausgabe",
 	"response": "Antwort",

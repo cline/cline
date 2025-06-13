@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo想查看此目录中使用的源代码定义名称:",
 		"didViewDefinitions": "Roo已查看此目录中使用的源代码定义名称:",
 		"wantsToSearch": "需要搜索内容: {{regex}}",
-		"didSearch": "已完成内容搜索: {{regex}}"
+		"didSearch": "已完成内容搜索: {{regex}}",
+		"wantsToSearchOutsideWorkspace": "需要搜索内容（工作区外）: {{regex}}",
+		"didSearchOutsideWorkspace": "已完成内容搜索（工作区外）: {{regex}}"
 	},
 	"commandOutput": "命令输出",
 	"response": "响应",

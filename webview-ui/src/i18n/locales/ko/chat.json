@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo가 이 디렉토리에서 사용된 소스 코드 정의 이름을 보고 싶어합니다:",
 		"didViewDefinitions": "Roo가 이 디렉토리에서 사용된 소스 코드 정의 이름을 보았습니다:",
 		"wantsToSearch": "Roo가 이 디렉토리에서 <code>{{regex}}</code>을(를) 검색하고 싶어합니다:",
-		"didSearch": "Roo가 이 디렉토리에서 <code>{{regex}}</code>을(를) 검색했습니다:"
+		"didSearch": "Roo가 이 디렉토리에서 <code>{{regex}}</code>을(를) 검색했습니다:",
+		"wantsToSearchOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 <code>{{regex}}</code>을(를) 검색하고 싶어합니다:",
+		"didSearchOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 <code>{{regex}}</code>을(를) 검색했습니다:"
 	},
 	"commandOutput": "명령 출력",
 	"response": "응답",

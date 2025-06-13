@@ -7,8 +7,5 @@
 	"toolRepetitionLimitReached": "Roo sembla estar atrapat en un bucle, intentant la mateixa acció ({{toolName}}) repetidament. Això podria indicar un problema amb la seva estratègia actual. Considera reformular la tasca, proporcionar instruccions més específiques o guiar-lo cap a un enfocament diferent.",
 	"codebaseSearch": {
 		"approval": "Cercant '{{query}}' a la base de codi..."
-	},
-	"searchFiles": {
-		"workspaceBoundaryError": "No es pot cercar fora de l'espai de treball. El camí '{{path}}' està fora de l'espai de treball actual."
 	}
 }

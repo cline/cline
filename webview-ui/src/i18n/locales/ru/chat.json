@@ -158,7 +158,9 @@
 		"wantsToViewDefinitions": "Roo хочет просмотреть имена определений исходного кода в этой директории:",
 		"didViewDefinitions": "Roo просмотрел имена определений исходного кода в этой директории:",
 		"wantsToSearch": "Roo хочет выполнить поиск в этой директории по <code>{{regex}}</code>:",
-		"didSearch": "Roo выполнил поиск в этой директории по <code>{{regex}}</code>:"
+		"didSearch": "Roo выполнил поиск в этой директории по <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo хочет выполнить поиск в этой директории (вне рабочего пространства) по <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo выполнил поиск в этой директории (вне рабочего пространства) по <code>{{regex}}</code>:"
 	},
 	"commandOutput": "Вывод команды",
 	"response": "Ответ",

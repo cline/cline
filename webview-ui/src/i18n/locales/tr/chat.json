@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo bu dizinde kullanılan kaynak kod tanımlama isimlerini görüntülemek istiyor:",
 		"didViewDefinitions": "Roo bu dizinde kullanılan kaynak kod tanımlama isimlerini görüntüledi:",
 		"wantsToSearch": "Roo bu dizinde <code>{{regex}}</code> için arama yapmak istiyor:",
-		"didSearch": "Roo bu dizinde <code>{{regex}}</code> için arama yaptı:"
+		"didSearch": "Roo bu dizinde <code>{{regex}}</code> için arama yaptı:",
+		"wantsToSearchOutsideWorkspace": "Roo bu dizinde (çalışma alanı dışında) <code>{{regex}}</code> için arama yapmak istiyor:",
+		"didSearchOutsideWorkspace": "Roo bu dizinde (çalışma alanı dışında) <code>{{regex}}</code> için arama yaptı:"
 	},
 	"commandOutput": "Komut Çıktısı",
 	"response": "Yanıt",

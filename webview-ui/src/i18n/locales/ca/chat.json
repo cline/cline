@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo vol veure noms de definicions de codi font utilitzats en aquest directori:",
 		"didViewDefinitions": "Roo ha vist noms de definicions de codi font utilitzats en aquest directori:",
 		"wantsToSearch": "Roo vol cercar en aquest directori <code>{{regex}}</code>:",
-		"didSearch": "Roo ha cercat en aquest directori <code>{{regex}}</code>:"
+		"didSearch": "Roo ha cercat en aquest directori <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo vol cercar en aquest directori (fora de l'espai de treball) <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo ha cercat en aquest directori (fora de l'espai de treball) <code>{{regex}}</code>:"
 	},
 	"commandOutput": "Sortida de l'ordre",
 	"response": "Resposta",

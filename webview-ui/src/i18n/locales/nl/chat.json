@@ -158,7 +158,9 @@
 		"wantsToViewDefinitions": "Roo wil broncode-definitienamen bekijken die in deze map worden gebruikt:",
 		"didViewDefinitions": "Roo heeft broncode-definitienamen bekeken die in deze map worden gebruikt:",
 		"wantsToSearch": "Roo wil deze map doorzoeken op <code>{{regex}}</code>:",
-		"didSearch": "Roo heeft deze map doorzocht op <code>{{regex}}</code>:"
+		"didSearch": "Roo heeft deze map doorzocht op <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo wil deze map (buiten werkruimte) doorzoeken op <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo heeft deze map (buiten werkruimte) doorzocht op <code>{{regex}}</code>:"
 	},
 	"commandOutput": "Commando-uitvoer",
 	"response": "Antwoord",

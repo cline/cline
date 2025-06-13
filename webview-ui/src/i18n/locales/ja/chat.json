@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示したい:",
 		"didViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示しました:",
 		"wantsToSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索したい:",
-		"didSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索しました:"
+		"didSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索しました:",
+		"wantsToSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索したい:",
+		"didSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索しました:"
 	},
 	"commandOutput": "コマンド出力",
 	"response": "応答",

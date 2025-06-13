@@ -163,7 +163,9 @@
 		"wantsToViewDefinitions": "Roo vuole visualizzare i nomi delle definizioni di codice sorgente utilizzate in questa directory:",
 		"didViewDefinitions": "Roo ha visualizzato i nomi delle definizioni di codice sorgente utilizzate in questa directory:",
 		"wantsToSearch": "Roo vuole cercare in questa directory <code>{{regex}}</code>:",
-		"didSearch": "Roo ha cercato in questa directory <code>{{regex}}</code>:"
+		"didSearch": "Roo ha cercato in questa directory <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo vuole cercare in questa directory (fuori dall'area di lavoro) <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo ha cercato in questa directory (fuori dall'area di lavoro) <code>{{regex}}</code>:"
 	},
 	"commandOutput": "Output del comando",
 	"response": "Risposta",
