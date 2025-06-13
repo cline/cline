@@ -25,11 +25,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
-		// Update custom instructions
-		if (request.customInstructionsSetting !== undefined) {
-			await controller.updateCustomInstructions(request.customInstructionsSetting)
-		}
-
 		// Update telemetry setting
 		if (request.telemetrySetting) {
 			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)
@@ -53,6 +48,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
 			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
+		}
+
+		// Update MCP responses collapsed setting
+		if (request.mcpRichDisplayEnabled !== undefined) {
+			await controller.context.globalState.update("mcpRichDisplayEnabled", request.mcpRichDisplayEnabled)
 		}
 
 		// Update chat settings
