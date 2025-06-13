@@ -108,24 +108,24 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 				{t("settings:providers.awsCrossRegion")}
 			</Checkbox>
 			{selectedModelInfo?.supportsPromptCache && (
-				<>
-					<Checkbox
-						checked={apiConfiguration?.awsUsePromptCache || false}
-						onChange={handleInputChange("awsUsePromptCache", noTransform)}>
-						<div className="flex items-center gap-1">
-							<span>{t("settings:providers.enablePromptCaching")}</span>
-							<i
-								className="codicon codicon-info text-vscode-descriptionForeground"
-								title={t("settings:providers.enablePromptCachingTitle")}
-								style={{ fontSize: "12px" }}
-							/>
-						</div>
-					</Checkbox>
-					<div className="text-sm text-vscode-descriptionForeground ml-6 mt-1">
-						{t("settings:providers.cacheUsageNote")}
+				<Checkbox
+					checked={apiConfiguration?.awsUsePromptCache || false}
+					onChange={handleInputChange("awsUsePromptCache", noTransform)}>
+					<div className="flex items-center gap-1">
+						<span>{t("settings:providers.enablePromptCaching")}</span>
+						<i
+							className="codicon codicon-info text-vscode-descriptionForeground"
+							title={t("settings:providers.enablePromptCachingTitle")}
+							style={{ fontSize: "12px" }}
+						/>
 					</div>
-				</>
+				</Checkbox>
 			)}
+			<div>
+				<div className="text-sm text-vscode-descriptionForeground ml-6 mt-1">
+					{t("settings:providers.cacheUsageNote")}
+				</div>
+			</div>
 			<Checkbox
 				checked={awsEndpointSelected}
 				onChange={(isChecked) => {
