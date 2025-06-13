@@ -56,6 +56,9 @@ export async function writeToFileTool(
 		return
 	}
 
+	// Check if file is write-protected
+	const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
+
 	// Check if file exists using cached map or fs.access
 	let fileExists: boolean
 
@@ -90,6 +93,7 @@ export async function writeToFileTool(
 		path: getReadablePath(cline.cwd, removeClosingTag("path", relPath)),
 		content: newContent,
 		isOutsideWorkspace,
+		isProtected: isWriteProtected,
 	}
 
 	try {
@@ -201,7 +205,7 @@ export async function writeToFileTool(
 					: undefined,
 			} satisfies ClineSayTool)
 
-			const didApprove = await askApproval("tool", completeMessage)
+			const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
 
 			if (!didApprove) {
 				await cline.diffViewProvider.revertChanges()

@@ -16,6 +16,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowReadOnlyOutsideWorkspace?: boolean
 	alwaysAllowWrite?: boolean
 	alwaysAllowWriteOutsideWorkspace?: boolean
+	alwaysAllowWriteProtected?: boolean
 	writeDelayMs: number
 	alwaysAllowBrowser?: boolean
 	alwaysApproveResubmit?: boolean
@@ -30,6 +31,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "alwaysAllowReadOnlyOutsideWorkspace"
 		| "alwaysAllowWrite"
 		| "alwaysAllowWriteOutsideWorkspace"
+		| "alwaysAllowWriteProtected"
 		| "writeDelayMs"
 		| "alwaysAllowBrowser"
 		| "alwaysApproveResubmit"
@@ -47,6 +49,7 @@ export const AutoApproveSettings = ({
 	alwaysAllowReadOnlyOutsideWorkspace,
 	alwaysAllowWrite,
 	alwaysAllowWriteOutsideWorkspace,
+	alwaysAllowWriteProtected,
 	writeDelayMs,
 	alwaysAllowBrowser,
 	alwaysApproveResubmit,
@@ -138,8 +141,21 @@ export const AutoApproveSettings = ({
 									{t("settings:autoApprove.write.outsideWorkspace.label")}
 								</span>
 							</VSCodeCheckbox>
-							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-3">
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
 								{t("settings:autoApprove.write.outsideWorkspace.description")}
+							</div>
+						</div>
+						<div>
+							<VSCodeCheckbox
+								checked={alwaysAllowWriteProtected}
+								onChange={(e: any) =>
+									setCachedStateField("alwaysAllowWriteProtected", e.target.checked)
+								}
+								data-testid="always-allow-write-protected-checkbox">
+								<span className="font-medium">{t("settings:autoApprove.write.protected.label")}</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-3">
+								{t("settings:autoApprove.write.protected.description")}
 							</div>
 						</div>
 						<div>

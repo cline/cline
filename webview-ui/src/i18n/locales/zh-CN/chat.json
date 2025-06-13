@@ -145,6 +145,7 @@
 		"didRead": "已读取文件:",
 		"wantsToEdit": "需要编辑文件:",
 		"wantsToEditOutsideWorkspace": "需要编辑外部文件:",
+		"wantsToEditProtected": "需要编辑受保护的配置文件:",
 		"wantsToCreate": "需要新建文件:",
 		"wantsToSearchReplace": "需要在此文件中搜索和替换:",
 		"didSearchReplace": "已完成搜索和替换:",

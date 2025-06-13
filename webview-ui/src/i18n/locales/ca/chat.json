@@ -145,6 +145,7 @@
 		"didRead": "Roo ha llegit aquest fitxer:",
 		"wantsToEdit": "Roo vol editar aquest fitxer:",
 		"wantsToEditOutsideWorkspace": "Roo vol editar aquest fitxer fora de l'espai de treball:",
+		"wantsToEditProtected": "Roo vol editar un fitxer de configuració protegit:",
 		"wantsToCreate": "Roo vol crear un nou fitxer:",
 		"wantsToSearchReplace": "Roo vol realitzar cerca i substitució en aquest fitxer:",
 		"didSearchReplace": "Roo ha realitzat cerca i substitució en aquest fitxer:",

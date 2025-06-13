@@ -155,6 +155,10 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("alwaysAllowWriteOutsideWorkspace", message.bool ?? undefined)
 			await provider.postStateToWebview()
 			break
+		case "alwaysAllowWriteProtected":
+			await updateGlobalState("alwaysAllowWriteProtected", message.bool ?? undefined)
+			await provider.postStateToWebview()
+			break
 		case "alwaysAllowExecute":
 			await updateGlobalState("alwaysAllowExecute", message.bool ?? undefined)
 			await provider.postStateToWebview()

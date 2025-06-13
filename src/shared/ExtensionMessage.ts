@@ -151,6 +151,7 @@ export type ExtensionState = Pick<
 	| "alwaysAllowReadOnlyOutsideWorkspace"
 	| "alwaysAllowWrite"
 	| "alwaysAllowWriteOutsideWorkspace"
+	| "alwaysAllowWriteProtected"
 	// | "writeDelayMs" // Optional in GlobalSettings, required here.
 	| "alwaysAllowBrowser"
 	| "alwaysApproveResubmit"
@@ -276,6 +277,7 @@ export interface ClineSayTool {
 	mode?: string
 	reason?: string
 	isOutsideWorkspace?: boolean
+	isProtected?: boolean
 	additionalFileCount?: number // Number of additional files in the same read_file request
 	search?: string
 	replace?: string

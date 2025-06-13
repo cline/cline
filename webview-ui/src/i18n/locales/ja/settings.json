@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "ワークスペース外のファイルを含める",
 				"description": "Rooが承認なしで現在のワークスペース外のファイルを作成・編集することを許可します。"
+			},
+			"protected": {
+				"label": "保護されたファイルを含める",
+				"description": "Rooが保護されたファイル（.rooignoreや.roo/設定ファイルなど）を承認なしで作成・編集することを許可します。"
 			}
 		},
 		"browser": {

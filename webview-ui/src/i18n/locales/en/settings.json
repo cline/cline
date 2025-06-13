@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "Include files outside workspace",
 				"description": "Allow Roo to create and edit files outside the current workspace without requiring approval."
+			},
+			"protected": {
+				"label": "Include protected files",
+				"description": "Allow Roo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"browser": {

@@ -145,6 +145,7 @@
 		"didRead": "Roo đã đọc tệp này:",
 		"wantsToEdit": "Roo muốn chỉnh sửa tệp này:",
 		"wantsToEditOutsideWorkspace": "Roo muốn chỉnh sửa tệp này bên ngoài không gian làm việc:",
+		"wantsToEditProtected": "Roo muốn chỉnh sửa tệp cấu hình được bảo vệ:",
 		"wantsToCreate": "Roo muốn tạo một tệp mới:",
 		"wantsToSearchReplace": "Roo muốn thực hiện tìm kiếm và thay thế trong tệp này:",
 		"didSearchReplace": "Roo đã thực hiện tìm kiếm và thay thế trong tệp này:",

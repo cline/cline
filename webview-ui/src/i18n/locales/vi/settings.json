@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "Bao gồm các tệp ngoài không gian làm việc",
 				"description": "Cho phép Roo tạo và chỉnh sửa các tệp bên ngoài không gian làm việc hiện tại mà không yêu cầu phê duyệt."
+			},
+			"protected": {
+				"label": "Bao gồm các tệp được bảo vệ",
+				"description": "Cho phép Roo tạo và chỉnh sửa các tệp được bảo vệ (như .rooignore và các tệp cấu hình .roo/) mà không yêu cầu phê duyệt."
 			}
 		},
 		"browser": {

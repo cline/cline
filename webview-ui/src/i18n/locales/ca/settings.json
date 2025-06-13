@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "Incloure fitxers fora de l'espai de treball",
 				"description": "Permetre a Roo crear i editar fitxers fora de l'espai de treball actual sense requerir aprovació."
+			},
+			"protected": {
+				"label": "Incloure fitxers protegits",
+				"description": "Permetre a Roo crear i editar fitxers protegits (com .rooignore i fitxers de configuració .roo/) sense requerir aprovació."
 			}
 		},
 		"browser": {

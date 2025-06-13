@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
 import * as diff from "diff"
 import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/RooIgnoreController"
+import { RooProtectedController } from "../protect/RooProtectedController"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -95,6 +96,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		didHitLimit: boolean,
 		rooIgnoreController: RooIgnoreController | undefined,
 		showRooIgnoredFiles: boolean,
+		rooProtectedController?: RooProtectedController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -143,7 +145,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 					// Otherwise, mark it with a lock symbol
 					rooIgnoreParsed.push(LOCK_TEXT_SYMBOL + " " + filePath)
 				} else {
-					rooIgnoreParsed.push(filePath)
+					// Check if file is write-protected (only for non-ignored files)
+					const isWriteProtected = rooProtectedController?.isWriteProtected(absoluteFilePath) || false
+					if (isWriteProtected) {
+						rooIgnoreParsed.push("🛡️ " + filePath)
+					} else {
+						rooIgnoreParsed.push(filePath)
+					}
 				}
 			}
 		}

@@ -161,7 +161,6 @@ Expected structure:
 Original error: ${errorMessage}`
 			throw new Error(detailedError)
 		}
-
 	} else if (legacyPath && typeof legacyDiffContent === "string") {
 		// Handle legacy parameters (old way)
 		usingLegacyParams = true
@@ -236,6 +235,9 @@ Original error: ${errorMessage}`
 				continue
 			}
 
+			// Check if file is write-protected
+			const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
+
 			// Verify file exists
 			const absolutePath = path.resolve(cline.cwd, relPath)
 			const fileExists = await fileExistsAtPath(absolutePath)
@@ -258,6 +260,11 @@ Original error: ${errorMessage}`
 
 		// Handle batch approval if there are multiple files
 		if (operationsToApprove.length > 1) {
+			// Check if any files are write-protected
+			const hasProtectedFiles = operationsToApprove.some(
+				(opResult) => cline.rooProtectedController?.isWriteProtected(opResult.path) || false,
+			)
+
 			// Prepare batch diff data
 			const batchDiffs = operationsToApprove.map((opResult) => {
 				const readablePath = getReadablePath(cline.cwd, opResult.path)
@@ -279,9 +286,10 @@ Original error: ${errorMessage}`
 			const completeMessage = JSON.stringify({
 				tool: "appliedDiff",
 				batchDiffs,
+				isProtected: hasProtectedFiles,
 			} satisfies ClineSayTool)
 
-			const { response, text, images } = await cline.ask("tool", completeMessage, false)
+			const { response, text, images } = await cline.ask("tool", completeMessage, hasProtectedFiles)
 
 			// Process batch response
 			if (response === "yesButtonClicked") {
@@ -485,9 +493,11 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 				await cline.diffViewProvider.scrollToFirstDiff()
 
 				// For batch operations, we've already gotten approval
+				const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
 				const sharedMessageProps: ClineSayTool = {
 					tool: "appliedDiff",
 					path: getReadablePath(cline.cwd, relPath),
+					isProtected: isWriteProtected,
 				}
 
 				// If single file, ask for approval
@@ -511,7 +521,9 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 						)
 					}
 
-					didApprove = await askApproval("tool", operationMessage, toolProgressStatus)
+					// Check if file is write-protected
+					const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
+					didApprove = await askApproval("tool", operationMessage, toolProgressStatus, isWriteProtected)
 				}
 
 				if (!didApprove) {

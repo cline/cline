@@ -153,6 +153,7 @@ export const clineMessageSchema = z.object({
 	checkpoint: z.record(z.string(), z.unknown()).optional(),
 	progressStatus: toolProgressStatusSchema.optional(),
 	contextCondense: contextCondenseSchema.optional(),
+	isProtected: z.boolean().optional(),
 })
 
 export type ClineMessage = z.infer<typeof clineMessageSchema>

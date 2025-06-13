@@ -140,6 +140,7 @@
 		"didRead": "Roo heeft dit bestand gelezen:",
 		"wantsToEdit": "Roo wil dit bestand bewerken:",
 		"wantsToEditOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte bewerken:",
+		"wantsToEditProtected": "Roo wil een beveiligd configuratiebestand bewerken:",
 		"wantsToCreate": "Roo wil een nieuw bestand aanmaken:",
 		"wantsToSearchReplace": "Roo wil zoeken en vervangen in dit bestand:",
 		"didSearchReplace": "Roo heeft zoeken en vervangen uitgevoerd op dit bestand:",

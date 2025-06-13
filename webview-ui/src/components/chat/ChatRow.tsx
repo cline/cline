@@ -313,11 +313,20 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon(tool.tool === "appliedDiff" ? "diff" : "edit")}
+							{tool.isProtected ? (
+								<span
+									className="codicon codicon-lock"
+									style={{ color: "var(--vscode-editorWarning-foreground)", marginBottom: "-1.5px" }}
+								/>
+							) : (
+								toolIcon(tool.tool === "appliedDiff" ? "diff" : "edit")
+							)}
 							<span style={{ fontWeight: "bold" }}>
-								{tool.isOutsideWorkspace
-									? t("chat:fileOperations.wantsToEditOutsideWorkspace")
-									: t("chat:fileOperations.wantsToEdit")}
+								{tool.isProtected
+									? t("chat:fileOperations.wantsToEditProtected")
+									: tool.isOutsideWorkspace
+										? t("chat:fileOperations.wantsToEditOutsideWorkspace")
+										: t("chat:fileOperations.wantsToEdit")}
 							</span>
 						</div>
 						<CodeAccordian
@@ -335,15 +344,24 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("insert")}
+							{tool.isProtected ? (
+								<span
+									className="codicon codicon-lock"
+									style={{ color: "var(--vscode-editorWarning-foreground)", marginBottom: "-1.5px" }}
+								/>
+							) : (
+								toolIcon("insert")
+							)}
 							<span style={{ fontWeight: "bold" }}>
-								{tool.isOutsideWorkspace
-									? t("chat:fileOperations.wantsToEditOutsideWorkspace")
-									: tool.lineNumber === 0
-										? t("chat:fileOperations.wantsToInsertAtEnd")
-										: t("chat:fileOperations.wantsToInsertWithLineNumber", {
-												lineNumber: tool.lineNumber,
-											})}
+								{tool.isProtected
+									? t("chat:fileOperations.wantsToEditProtected")
+									: tool.isOutsideWorkspace
+										? t("chat:fileOperations.wantsToEditOutsideWorkspace")
+										: tool.lineNumber === 0
+											? t("chat:fileOperations.wantsToInsertAtEnd")
+											: t("chat:fileOperations.wantsToInsertWithLineNumber", {
+													lineNumber: tool.lineNumber,
+												})}
 							</span>
 						</div>
 						<CodeAccordian
@@ -361,11 +379,20 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("replace")}
+							{tool.isProtected ? (
+								<span
+									className="codicon codicon-lock"
+									style={{ color: "var(--vscode-editorWarning-foreground)", marginBottom: "-1.5px" }}
+								/>
+							) : (
+								toolIcon("replace")
+							)}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? t("chat:fileOperations.wantsToSearchReplace")
-									: t("chat:fileOperations.didSearchReplace")}
+								{tool.isProtected && message.type === "ask"
+									? t("chat:fileOperations.wantsToEditProtected")
+									: message.type === "ask"
+										? t("chat:fileOperations.wantsToSearchReplace")
+										: t("chat:fileOperations.didSearchReplace")}
 							</span>
 						</div>
 						<CodeAccordian
@@ -405,8 +432,19 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>{t("chat:fileOperations.wantsToCreate")}</span>
+							{tool.isProtected ? (
+								<span
+									className="codicon codicon-lock"
+									style={{ color: "var(--vscode-editorWarning-foreground)", marginBottom: "-1.5px" }}
+								/>
+							) : (
+								toolIcon("new-file")
+							)}
+							<span style={{ fontWeight: "bold" }}>
+								{tool.isProtected
+									? t("chat:fileOperations.wantsToEditProtected")
+									: t("chat:fileOperations.wantsToCreate")}
+							</span>
 						</div>
 						<CodeAccordian
 							path={tool.path}

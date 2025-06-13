@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "워크스페이스 외부 파일 포함",
 				"description": "Roo가 승인 없이 현재 워크스페이스 외부의 파일을 생성하고 편집할 수 있도록 허용합니다."
+			},
+			"protected": {
+				"label": "보호된 파일 포함",
+				"description": "Roo가 보호된 파일(.rooignore 및 .roo/ 구성 파일 등)을 승인 없이 생성하고 편집할 수 있도록 허용합니다."
 			}
 		},
 		"browser": {

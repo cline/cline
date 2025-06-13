@@ -261,8 +261,15 @@ export async function presentAssistantMessage(cline: Task) {
 				type: ClineAsk,
 				partialMessage?: string,
 				progressStatus?: ToolProgressStatus,
+				isProtected?: boolean,
 			) => {
-				const { response, text, images } = await cline.ask(type, partialMessage, false, progressStatus)
+				const { response, text, images } = await cline.ask(
+					type,
+					partialMessage,
+					false,
+					progressStatus,
+					isProtected || false,
+				)
 
 				if (response !== "yesButtonClicked") {
 					// Handle both messageResponse and noButtonClicked with text.

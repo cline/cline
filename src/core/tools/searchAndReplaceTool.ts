@@ -123,6 +123,9 @@ export async function searchAndReplaceTool(
 			return
 		}
 
+		// Check if file is write-protected
+		const isWriteProtected = cline.rooProtectedController?.isWriteProtected(validRelPath) || false
+
 		const absolutePath = path.resolve(cline.cwd, validRelPath)
 		const fileExists = await fileExistsAtPath(absolutePath)
 
@@ -207,9 +210,13 @@ export async function searchAndReplaceTool(
 		await cline.diffViewProvider.update(newContent, true)
 
 		// Request user approval for changes
-		const completeMessage = JSON.stringify({ ...sharedMessageProps, diff } satisfies ClineSayTool)
+		const completeMessage = JSON.stringify({
+			...sharedMessageProps,
+			diff,
+			isProtected: isWriteProtected,
+		} satisfies ClineSayTool)
 		const didApprove = await cline
-			.ask("tool", completeMessage, false)
+			.ask("tool", completeMessage, isWriteProtected)
 			.then((response) => response.response === "yesButtonClicked")
 
 		if (!didApprove) {

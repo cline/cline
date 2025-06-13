@@ -29,6 +29,7 @@ export interface WebviewMessage {
 		| "alwaysAllowReadOnlyOutsideWorkspace"
 		| "alwaysAllowWrite"
 		| "alwaysAllowWriteOutsideWorkspace"
+		| "alwaysAllowWriteProtected"
 		| "alwaysAllowExecute"
 		| "webviewDidLaunch"
 		| "newTask"

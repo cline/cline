@@ -140,6 +140,7 @@
 		"didRead": "Roo прочитал этот файл:",
 		"wantsToEdit": "Roo хочет отредактировать этот файл:",
 		"wantsToEditOutsideWorkspace": "Roo хочет отредактировать этот файл вне рабочей области:",
+		"wantsToEditProtected": "Roo хочет отредактировать защищённый файл конфигурации:",
 		"wantsToCreate": "Roo хочет создать новый файл:",
 		"wantsToSearchReplace": "Roo хочет выполнить поиск и замену в этом файле:",
 		"didSearchReplace": "Roo выполнил поиск и замену в этом файле:",

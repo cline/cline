@@ -145,6 +145,7 @@
 		"didRead": "Rooはこのファイルを読みました:",
 		"wantsToEdit": "Rooはこのファイルを編集したい:",
 		"wantsToEditOutsideWorkspace": "Rooはワークスペース外のこのファイルを編集したい:",
+		"wantsToEditProtected": "Rooは保護された設定ファイルを編集したい:",
 		"wantsToCreate": "Rooは新しいファイルを作成したい:",
 		"wantsToSearchReplace": "Rooはこのファイルで検索と置換を行う:",
 		"didSearchReplace": "Rooはこのファイルで検索と置換を実行しました:",

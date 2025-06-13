@@ -64,6 +64,7 @@ export async function listFilesTool(
 				didHitLimit,
 				cline.rooIgnoreController,
 				showRooIgnoredFiles,
+				cline.rooProtectedController,
 			)
 
 			const completeMessage = JSON.stringify({ ...sharedMessageProps, content: result } satisfies ClineSayTool)

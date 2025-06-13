@@ -146,6 +146,7 @@
 		"didRead": "Roo hat diese Datei gelesen:",
 		"wantsToEdit": "Roo möchte diese Datei bearbeiten:",
 		"wantsToEditOutsideWorkspace": "Roo möchte diese Datei außerhalb des Arbeitsbereichs bearbeiten:",
+		"wantsToEditProtected": "Roo möchte eine geschützte Konfigurationsdatei bearbeiten:",
 		"wantsToCreate": "Roo möchte eine neue Datei erstellen:",
 		"wantsToSearchReplace": "Roo möchte in dieser Datei suchen und ersetzen:",
 		"didSearchReplace": "Roo hat Suchen und Ersetzen in dieser Datei durchgeführt:",

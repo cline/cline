@@ -8,6 +8,7 @@ export type AskApproval = (
 	type: ClineAsk,
 	partialMessage?: string,
 	progressStatus?: ToolProgressStatus,
+	forceApproval?: boolean,
 ) => Promise<boolean>
 
 export type HandleError = (action: string, error: Error) => Promise<void>

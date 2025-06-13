@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "包含工作区外的文件",
 				"description": "允许 Roo 创建和编辑当前工作区外的文件，无需批准。"
+			},
+			"protected": {
+				"label": "包含受保护的文件",
+				"description": "允许 Roo 创建和编辑受保护的文件（如 .rooignore 和 .roo/ 配置文件），无需批准。"
 			}
 		},
 		"browser": {
