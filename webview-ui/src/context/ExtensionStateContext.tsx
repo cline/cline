@@ -60,6 +60,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
+	setMcpRichDisplayEnabled: (value: boolean) => void
 	setMcpResponsesCollapsed: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
@@ -184,6 +185,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
+		mcpRichDisplayEnabled: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
@@ -723,6 +725,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
+		setMcpRichDisplayEnabled: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				mcpRichDisplayEnabled: value,
+			})),
 		setMcpResponsesCollapsed: (value) => {
 			setState((prevState) => ({
 				...prevState,
@@ -760,7 +767,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				chatSettings: value,
 			}))
-
 			try {
 				// Import the conversion functions
 				const { convertApiConfigurationToProtoApiConfiguration } = await import(
@@ -780,6 +786,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 						enableCheckpointsSetting: state.enableCheckpointsSetting,
 						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+						mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
 						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 					}),
 				)
