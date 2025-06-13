@@ -114,10 +114,10 @@ export const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({ item, 
 
 				{/* Installation status badges and tags in the same row */}
 				{(isInstalled || (item.tags && item.tags.length > 0)) && (
-					<div className="relative flex gap-1 my-2 overflow-x-auto scrollbar-hide">
+					<div className="relative flex flex-wrap gap-1 my-2">
 						{/* Installation status badge on the left */}
 						{isInstalled && (
-							<span className="text-xs px-2 py-0.5 rounded-sm h-5 flex items-center bg-green-600/20 text-green-400 border border-green-600/30">
+							<span className="text-xs px-2 py-0.5 rounded-sm h-5 flex items-center bg-green-600/20 text-green-400 border border-green-600/30 shrink-0">
 								{t("marketplace:items.card.installed")}
 							</span>
 						)}
