@@ -358,6 +358,11 @@
 		"docs:rename-file": "cd docs && mintlify rename",
 		"report-issue": "node scripts/report-issue.js"
 	},
+	"lint-staged": {
+		"*": [
+			"prettier --write --ignore-unknown --log-level=log"
+		]
+	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
@@ -384,6 +389,7 @@
 		"eslint-plugin-eslint-rules": "file:eslint-rules",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
+		"lint-staged": "^16.1.0",
 		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
