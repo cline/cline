@@ -1,0 +1,22 @@
+version: v2
+modules:
+    - path: proto
+      name: cline/cline/lint
+
+lint:
+    use:
+        - STANDARD
+
+    except: # Add exceptions for current patterns that contradict STANDARD settings
+        - RPC_PASCAL_CASE # rpcs are camel case (start with lowercase)
+        - PACKAGE_DIRECTORY_MATCH # the protos in the cline package are not in a dir named cline.
+        - RPC_REQUEST_RESPONSE_UNIQUE # request messages are not unique.
+        - RPC_REQUEST_STANDARD_NAME # request messages dont all end with Request
+        - RPC_RESPONSE_STANDARD_NAME # response messages dont all end with Response
+        - PACKAGE_VERSION_SUFFIX # package name does not contain version.
+        - ENUM_VALUE_PREFIX # enum values dont start with the enum name.
+        - ENUM_ZERO_VALUE_SUFFIX # first value does not have to be UNSPECIFIED.
+
+# breaking:
+#   use:
+#     - WIRE_JSON # Detect changes that break the json wire format (this is the minimum recommended level.)
