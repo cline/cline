@@ -429,7 +429,7 @@ export async function readFileTool(
 
 			const relPath = fileResult.path
 			const fullPath = path.resolve(cline.cwd, relPath)
-			const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
+			const { maxReadFileLine = -1 } = (await cline.providerRef.deref()?.getState()) ?? {}
 
 			// Process approved files
 			try {
