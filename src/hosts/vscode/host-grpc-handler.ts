@@ -20,13 +20,13 @@ export interface StreamingCallbacks<T = any> {
 }
 
 /**
- * Handles gRPC requests from the webview
+ * Handles gRPC requests for the host bridge.
  */
 export class GrpcHandler {
 	constructor() {}
 
 	/**
-	 * Handle a gRPC request from the webview
+	 * Handle a gRPC request for the host bridge.
 	 * @param service The service name
 	 * @param method The method name
 	 * @param message The request message
