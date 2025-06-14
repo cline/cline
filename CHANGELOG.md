@@ -2,16 +2,11 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   5e55a7a: Fix list_files tool to return files if the targeted directory is a hidden directory
 -   a6c33af: add ability to constrain size of terminal output
 -   10a223f: Added a configurable default terminal profile setting
 -   741b1ed: update the copy button functionality
 -   d27b199: Adding MCP Rich Display settings in cline's settings page, to enable users to change it in a persistent manner
-
-### Patch Changes
-
 -   6a11c78: chore(bedrock): remove @anthropic-ai/bedrock-sdk
 
 ## [3.17.13]
