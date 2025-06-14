@@ -23,20 +23,84 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private command: string = ""
+	private gracePeriodTimer: NodeJS.Timeout | null = null
+	private hasEmittedCompleted: boolean = false
 
 	// constructor() {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
+		// Clear any existing grace period timer from previous commands
+		if (this.gracePeriodTimer) {
+			clearTimeout(this.gracePeriodTimer)
+			this.gracePeriodTimer = null
+			console.log(`[TerminalProcess] Cleared existing grace period timer before starting new command`)
+		}
+
+		// Clear any existing hot timer
+		if (this.hotTimer) {
+			clearTimeout(this.hotTimer)
+			this.hotTimer = null
+		}
+
+		// Reset state for new command
+		this.hasEmittedCompleted = false
+		this.buffer = ""
+		this.fullOutput = ""
+		this.lastRetrievedIndex = 0
+		this.isListening = true
+		this.isHot = false
+
+		this.command = command
+		console.log(`[TerminalProcess] Starting command: "${command}"`)
+		console.log(`[TerminalProcess] Shell integration available: ${!!terminal.shellIntegration?.executeCommand}`)
+		console.log(`[TerminalProcess] Terminal ID: ${terminal.name}`)
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			const execution = terminal.shellIntegration.executeCommand(command)
-			const stream = execution.read()
+			let execution
+			let stream
+
+			try {
+				execution = terminal.shellIntegration.executeCommand(command)
+				stream = execution.read()
+			} catch (error) {
+				console.error(`[TerminalProcess] Failed to execute command: ${error}`)
+				this.emit("error", error as Error)
+				return
+			}
+
 			// todo: need to handle errors
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+			let receivedFirstChunk = false
+
+			// Set up a timeout to emit empty line if no output is received within 3 seconds
+			// This ensures the "proceed while running" button appears even for commands with no/delayed output
+			const firstChunkTimeout = setTimeout(() => {
+				if (!receivedFirstChunk && !didEmitEmptyLine) {
+					console.log(`[TerminalProcess] First chunk timeout fired - no output received within 3s for: "${command}"`)
+					this.emit("line", "") // empty line to show proceed button
+					didEmitEmptyLine = true
+
+					// Also emit a message indicating the command might be running without output
+					this.emit("line", "[Command is running but producing no output]")
+				}
+			}, 3000) // 3 second timeout
 
 			for await (let data of stream) {
+				// Clear the timeout since we received output
+				if (!receivedFirstChunk) {
+					clearTimeout(firstChunkTimeout)
+					receivedFirstChunk = true
+					console.log(`[TerminalProcess] First chunk received for command: "${command}"`)
+				}
+
+				// Log raw data length
+				console.log(`[TerminalProcess] Raw data chunk received: ${data.length} chars`)
+				if (!data || data.trim() === "") {
+					console.log(`[TerminalProcess] WARNING: Received empty or whitespace-only chunk`)
+				}
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -176,14 +240,79 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.emitRemainingBufferIfListening()
 
+			// Clean up the first chunk timeout if it's still active
+			if (!receivedFirstChunk) {
+				clearTimeout(firstChunkTimeout)
+				console.log(`[TerminalProcess] WARNING: Stream ended without receiving any chunks for command: "${command}"`)
+
+				// If we never received any chunks and haven't emitted anything yet, emit now
+				if (!didEmitEmptyLine) {
+					console.log(`[TerminalProcess] Emitting fallback empty line for no-output command`)
+					this.emit("line", "") // empty line to show proceed button
+					this.emit("line", "[Command completed with no output]")
+					didEmitEmptyLine = true
+				}
+			}
+
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
 			if (this.hotTimer) {
 				clearTimeout(this.hotTimer)
 			}
 			this.isHot = false
 
-			this.emit("completed")
-			this.emit("continue")
+			console.log(`[TerminalProcess] Stream ended for command: "${command}"`)
+			console.log(`[TerminalProcess] Final output length: ${this.fullOutput.length} characters`)
+
+			// Check if this looks like a command that completed vs one that's still running
+			const quickCommands = ["cd ", "pwd", "ls ", "echo ", "mkdir ", "touch ", "rm ", "cp ", "mv "]
+			const isQuickCommand = quickCommands.some((cmd) => command.startsWith(cmd) || command.includes(" && " + cmd))
+
+			// Check if output suggests a long-running process
+			const longRunningIndicators = [
+				"listening on",
+				"server running",
+				"started on",
+				"watching for",
+				"compiled successfully",
+				"webpack",
+				"vite",
+				"nodemon",
+				"dev server",
+				"press ctrl",
+				"to quit",
+				"to exit",
+				"to stop",
+			]
+			const hasLongRunningOutput = longRunningIndicators.some((indicator) =>
+				this.fullOutput.toLowerCase().includes(indicator),
+			)
+
+			// Check if this is likely a command that starts a server or long-running process
+			const longRunningCommands = ["npm run", "npm start", "yarn", "node ", "python ", "serve", "dev", "watch"]
+			const isLongRunningCommand = longRunningCommands.some((cmd) => command.includes(cmd))
+
+			if (this.fullOutput.length === 0) {
+				console.log(`[TerminalProcess] WARNING: Process completed but no output was captured`)
+				// Ensure we emit at least one line for UI feedback
+				if (!didEmitEmptyLine) {
+					this.emit("line", "[Command completed silently]")
+				}
+			}
+
+			// Only skip grace period for truly quick commands that have no output or are known to complete instantly
+			if ((this.fullOutput.length === 0 || isQuickCommand) && !isLongRunningCommand && !hasLongRunningOutput) {
+				console.log(`[TerminalProcess] Command appears to have completed immediately, skipping grace period`)
+				this.emit("completed")
+				this.emit("continue")
+			} else {
+				console.log(
+					`[TerminalProcess] Command may still be running (longRunningCommand: ${isLongRunningCommand}, longRunningOutput: ${hasLongRunningOutput})`,
+				)
+				console.log(`[TerminalProcess] Starting grace period to detect true completion...`)
+				// Start grace period - wait 2.5 seconds to see if more output comes
+				// This prevents premature "proceed while running" for commands that clearly finished
+				this.startGracePeriod()
+			}
 		} else {
 			terminal.sendText(command, true)
 			// For terminals without shell integration, we can't know when the command completes
@@ -202,14 +331,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private emitIfEol(chunk: string) {
 		this.buffer += chunk
 		let lineEndIndex: number
+		let lineCount = 0
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
 			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
 			// }
+			if (!line || line.trim() === "") {
+				console.log(`[TerminalProcess] Emitting empty line`)
+			} else {
+				console.log(`[TerminalProcess] Emitting line: ${line.substring(0, 100)}${line.length > 100 ? "..." : ""}`)
+			}
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
+			lineCount++
+		}
+		if (lineCount === 0 && chunk.length > 0) {
+			console.log(`[TerminalProcess] Buffering partial line, buffer size: ${this.buffer.length}`)
 		}
 	}
 
@@ -224,7 +363,41 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		}
 	}
 
+	private startGracePeriod() {
+		// Clear any existing grace period timer
+		if (this.gracePeriodTimer) {
+			clearTimeout(this.gracePeriodTimer)
+		}
+
+		// Emit completed event for UI to show "proceed while running" button
+		console.log(`[TerminalProcess] Emitting completed event for UI (grace period active)`)
+		this.emit("completed")
+
+		// Wait 2.5 seconds to see if the command is truly finished
+		this.gracePeriodTimer = setTimeout(() => {
+			// Double-check the timer hasn't been cleared
+			if (this.gracePeriodTimer && !this.hasEmittedCompleted) {
+				console.log(`[TerminalProcess] Grace period completed - command appears truly finished: "${this.command}"`)
+				console.log(`[TerminalProcess] Auto-continuing without user intervention`)
+				this.hasEmittedCompleted = true
+				this.gracePeriodTimer = null
+				// Only emit continue after the grace period, not immediately
+				this.emit("continue")
+			}
+		}, 2500) // 2.5 second grace period
+	}
+
 	continue() {
+		console.log(`[TerminalProcess] Manual continue() called for: "${this.command}"`)
+
+		// Clear grace period since user manually continued
+		if (this.gracePeriodTimer) {
+			console.log(`[TerminalProcess] Clearing grace period timer due to manual continue`)
+			clearTimeout(this.gracePeriodTimer)
+			this.gracePeriodTimer = null
+		}
+
+		this.hasEmittedCompleted = true
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
