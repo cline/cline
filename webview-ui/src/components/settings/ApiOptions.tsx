@@ -16,7 +16,6 @@ import {
 	internationalQwenModels,
 	liteLlmModelInfoSaneDefaults,
 	mainlandQwenModels,
-	mistralModels,
 	ModelInfo,
 	nebiusModels,
 	openAiModelInfoSaneDefaults,
@@ -2070,6 +2069,7 @@ const ApiOptions = ({
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
 				selectedProvider !== "bedrock" &&
+				selectedProvider !== "mistral" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
