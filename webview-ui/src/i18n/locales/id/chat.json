@@ -162,6 +162,7 @@
 		"didRead": "Roo membaca file ini:",
 		"wantsToEdit": "Roo ingin mengedit file ini:",
 		"wantsToEditOutsideWorkspace": "Roo ingin mengedit file ini di luar workspace:",
+		"wantsToEditProtected": "Roo ingin mengedit file konfigurasi yang dilindungi:",
 		"wantsToApplyBatchChanges": "Roo ingin menerapkan perubahan ke beberapa file:",
 		"wantsToCreate": "Roo ingin membuat file baru:",
 		"wantsToSearchReplace": "Roo ingin mencari dan mengganti di file ini:",
@@ -178,7 +179,9 @@
 		"wantsToViewDefinitions": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini:",
 		"didViewDefinitions": "Roo melihat nama definisi source code yang digunakan di direktori ini:",
 		"wantsToSearch": "Roo ingin mencari direktori ini untuk <code>{{regex}}</code>:",
-		"didSearch": "Roo mencari direktori ini untuk <code>{{regex}}</code>:"
+		"didSearch": "Roo mencari direktori ini untuk <code>{{regex}}</code>:",
+		"wantsToSearchOutsideWorkspace": "Roo ingin mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>:",
+		"didSearchOutsideWorkspace": "Roo mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>:"
 	},
 	"codebaseSearch": {
 		"wantsToSearch": "Roo ingin mencari codebase untuk <code>{{query}}</code>:",

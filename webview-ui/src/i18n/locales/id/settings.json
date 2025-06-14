@@ -83,6 +83,10 @@
 			"outsideWorkspace": {
 				"label": "Sertakan file di luar workspace",
 				"description": "Izinkan Roo membuat dan mengedit file di luar workspace saat ini tanpa memerlukan persetujuan."
+			},
+			"protected": {
+				"label": "Sertakan file yang dilindungi",
+				"description": "Izinkan Roo membuat dan mengedit file yang dilindungi (seperti .rooignore dan file konfigurasi .roo/) tanpa memerlukan persetujuan."
 			}
 		},
 		"browser": {
