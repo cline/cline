@@ -11,11 +11,14 @@ import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { MessageSquare } from "lucide-react"
 
-const PromptsSettings = () => {
-	const { t } = useAppTranslation()
+interface PromptsSettingsProps {
+	customSupportPrompts: Record<string, string | undefined>
+	setCustomSupportPrompts: (prompts: Record<string, string | undefined>) => void
+}
 
-	const { customSupportPrompts, listApiConfigMeta, enhancementApiConfigId, setEnhancementApiConfigId } =
-		useExtensionState()
+const PromptsSettings = ({ customSupportPrompts, setCustomSupportPrompts }: PromptsSettingsProps) => {
+	const { t } = useAppTranslation()
+	const { listApiConfigMeta, enhancementApiConfigId, setEnhancementApiConfigId } = useExtensionState()
 
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
@@ -37,19 +40,14 @@ const PromptsSettings = () => {
 	}, [])
 
 	const updateSupportPrompt = (type: SupportPromptType, value: string | undefined) => {
-		vscode.postMessage({
-			type: "updateSupportPrompt",
-			values: {
-				[type]: value,
-			},
-		})
+		const updatedPrompts = { ...customSupportPrompts, [type]: value }
+		setCustomSupportPrompts(updatedPrompts)
 	}
 
 	const handleSupportReset = (type: SupportPromptType) => {
-		vscode.postMessage({
-			type: "resetSupportPrompt",
-			text: type,
-		})
+		const updatedPrompts = { ...customSupportPrompts }
+		delete updatedPrompts[type]
+		setCustomSupportPrompts(updatedPrompts)
 	}
 
 	const getSupportPromptValue = (type: SupportPromptType): string => {

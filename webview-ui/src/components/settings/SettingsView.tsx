@@ -171,6 +171,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		customCondensingPrompt,
 		codebaseIndexConfig,
 		codebaseIndexModels,
+		customSupportPrompts,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -242,6 +243,17 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		})
 	}, [])
 
+	const setCustomSupportPromptsField = useCallback((prompts: Record<string, string | undefined>) => {
+		setCachedState((prevState) => {
+			if (JSON.stringify(prevState.customSupportPrompts) === JSON.stringify(prompts)) {
+				return prevState
+			}
+
+			setChangeDetected(true)
+			return { ...prevState, customSupportPrompts: prompts }
+		})
+	}, [])
+
 	const isSettingValid = !errorMessage
 
 	const handleSubmit = () => {
@@ -299,6 +311,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "alwaysAllowSubtasks", bool: alwaysAllowSubtasks })
 			vscode.postMessage({ type: "condensingApiConfigId", text: condensingApiConfigId || "" })
 			vscode.postMessage({ type: "updateCondensingPrompt", text: customCondensingPrompt || "" })
+			vscode.postMessage({ type: "updateSupportPrompt", values: customSupportPrompts || {} })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
 			vscode.postMessage({ type: "codebaseIndexConfig", values: codebaseIndexConfig })
@@ -653,7 +666,12 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					)}
 
 					{/* Prompts Section */}
-					{activeTab === "prompts" && <PromptsSettings />}
+					{activeTab === "prompts" && (
+						<PromptsSettings
+							customSupportPrompts={customSupportPrompts || {}}
+							setCustomSupportPrompts={setCustomSupportPromptsField}
+						/>
+					)}
 
 					{/* Experimental Section */}
 					{activeTab === "experimental" && (

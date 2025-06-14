@@ -829,37 +829,18 @@ export const webviewMessageHandler = async (
 			break
 		case "updateSupportPrompt":
 			try {
-				if (Object.keys(message?.values ?? {}).length === 0) {
+				if (!message?.values) {
 					return
 				}
 
-				const existingPrompts = getGlobalState("customSupportPrompts") ?? {}
-				const updatedPrompts = { ...existingPrompts, ...message.values }
-				await updateGlobalState("customSupportPrompts", updatedPrompts)
+				// Replace all prompts with the new values from the cached state
+				await updateGlobalState("customSupportPrompts", message.values)
 				await provider.postStateToWebview()
 			} catch (error) {
 				provider.log(
 					`Error update support prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 				)
 				vscode.window.showErrorMessage(t("common:errors.update_support_prompt"))
-			}
-			break
-		case "resetSupportPrompt":
-			try {
-				if (!message?.text) {
-					return
-				}
-
-				const existingPrompts = getGlobalState("customSupportPrompts") ?? {}
-				const updatedPrompts = { ...existingPrompts }
-				updatedPrompts[message.text] = undefined
-				await updateGlobalState("customSupportPrompts", updatedPrompts)
-				await provider.postStateToWebview()
-			} catch (error) {
-				provider.log(
-					`Error reset support prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
-				)
-				vscode.window.showErrorMessage(t("common:errors.reset_support_prompt"))
 			}
 			break
 		case "updatePrompt":
