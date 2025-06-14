@@ -317,6 +317,7 @@ export const ExtensionStateContextProvider: React.FC<{
 										config.asksageApiKey,
 										config.xaiApiKey,
 										config.sambanovaApiKey,
+										config.sapAiCoreClientId,
 									].some((key) => key !== undefined)
 								: false
 

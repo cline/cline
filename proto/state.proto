@@ -205,4 +205,11 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 71;
+
+  // SAP AI Core specific
+  optional string sap_ai_core_client_id = 72;
+  optional string sap_ai_core_client_secret = 73;
+  optional string sap_ai_core_base_url = 74;
+  optional string sap_ai_core_token_url = 75;
+  optional string sap_ai_resource_group = 76;
 }

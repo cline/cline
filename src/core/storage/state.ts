@@ -240,6 +240,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		terminalReuseEnabled,
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
+		sapAiCoreClientId,
+		sapAiCoreClientSecret,
+		sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl,
+		sapAiResourceGroup,
+		sapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
@@ -306,6 +312,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "terminalOutputLineLimit") as Promise<number | undefined>,
 		getGlobalState(context, "defaultTerminalProfile") as Promise<string | undefined>,
+		getSecret(context, "sapAiCoreClientId") as Promise<string | undefined>,
+		getSecret(context, "sapAiCoreClientSecret") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreBaseUrl") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -339,6 +351,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
+		previousModeSapAiCoreClientId,
+		previousModeSapAiCoreClientSecret,
+		previousModeSapAiCoreBaseUrl,
+		previousModeSapAiCoreTokenUrl,
+		previousModeSapAiCoreResourceGroup,
+		previousModeSapAiCoreModelId,
 	] = await Promise.all([
 		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -368,6 +386,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getWorkspaceState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientId") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -474,6 +498,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			nebiusApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
+			sapAiCoreClientId,
+			sapAiCoreClientSecret,
+			sapAiCoreBaseUrl,
+			sapAiCoreTokenUrl,
+			sapAiResourceGroup,
+			sapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
 		lastShownAnnouncementId,
@@ -495,6 +525,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
+		previousModeSapAiCoreClientId,
+		previousModeSapAiCoreClientSecret,
+		previousModeSapAiCoreBaseUrl,
+		previousModeSapAiCoreTokenUrl,
+		previousModeSapAiCoreResourceGroup,
+		previousModeSapAiCoreModelId,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
@@ -576,6 +612,12 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		fireworksModelId,
 		fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens,
+		sapAiCoreClientId,
+		sapAiCoreClientSecret,
+		sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl,
+		sapAiResourceGroup,
+		sapAiCoreModelId,
 	} = apiConfiguration
 	// Workspace state updates
 	await updateWorkspaceState(context, "apiProvider", apiProvider)
@@ -624,6 +666,12 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
 	await updateGlobalState(context, "fireworksModelMaxTokens", fireworksModelMaxTokens)
+	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
+	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await updateGlobalState(context, "sapAiCoreBaseUrl", sapAiCoreBaseUrl)
+	await updateGlobalState(context, "sapAiCoreTokenUrl", sapAiCoreTokenUrl)
+	await updateGlobalState(context, "sapAiResourceGroup", sapAiResourceGroup)
+	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
 
 	// Secret updates
 	await storeSecret(context, "apiKey", apiKey)
@@ -648,6 +696,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
+	await storeSecret(context, "sapAiCoreClientId", sapAiCoreClientId)
+	await storeSecret(context, "sapAiCoreClientSecret", sapAiCoreClientSecret)
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {
