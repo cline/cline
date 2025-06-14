@@ -1014,7 +1014,7 @@ export class Task {
 			}
 		}
 
-			await this.initiateTaskLoop(userContent)
+		await this.initiateTaskLoop(userContent)
 	}
 
 	private async resumeTaskFromHistory() {
@@ -1271,21 +1271,20 @@ export class Task {
 				if (commitHash) {
 					await this.say("checkpoint_created")
 					const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-						if (lastCheckpointMessage) {
-							lastCheckpointMessage.lastCheckpointHash = commitHash
-							await saveClineMessagesAndUpdateHistory(
-								this.getContext(),
-								this.taskId,
-								this.clineMessages,
-								this.taskIsFavorited ?? false,
-								this.conversationHistoryDeletedRange,
-								this.checkpointTracker,
-								this.updateTaskHistory,
-							)
-						}
-					} 
-				} // silently fails for now
-
+					if (lastCheckpointMessage) {
+						lastCheckpointMessage.lastCheckpointHash = commitHash
+						await saveClineMessagesAndUpdateHistory(
+							this.getContext(),
+							this.taskId,
+							this.clineMessages,
+							this.taskIsFavorited ?? false,
+							this.conversationHistoryDeletedRange,
+							this.checkpointTracker,
+							this.updateTaskHistory,
+						)
+					}
+				}
+			} // silently fails for now
 
 			//
 		} else {
