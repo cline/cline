@@ -5,6 +5,7 @@ import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { formatResponse } from "../prompts/responses"
 import { listFiles } from "../../services/glob/list-files"
 import { getReadablePath } from "../../utils/path"
+import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 
 /**
@@ -34,9 +35,14 @@ export async function listFilesTool(
 	const recursiveRaw: string | undefined = block.params.recursive
 	const recursive = recursiveRaw?.toLowerCase() === "true"
 
+	// Calculate if the path is outside workspace
+	const absolutePath = relDirPath ? path.resolve(cline.cwd, relDirPath) : cline.cwd
+	const isOutsideWorkspace = isPathOutsideWorkspace(absolutePath)
+
 	const sharedMessageProps: ClineSayTool = {
 		tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
 		path: getReadablePath(cline.cwd, removeClosingTag("path", relDirPath)),
+		isOutsideWorkspace,
 	}
 
 	try {
@@ -54,7 +60,6 @@ export async function listFilesTool(
 
 			cline.consecutiveMistakeCount = 0
 
-			const absolutePath = path.resolve(cline.cwd, relDirPath)
 			const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 			const { showRooIgnoredFiles = true } = (await cline.providerRef.deref()?.getState()) ?? {}
 

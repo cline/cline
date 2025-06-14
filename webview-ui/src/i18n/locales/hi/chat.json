@@ -166,7 +166,13 @@
 		"wantsToSearch": "Roo इस निर्देशिका में <code>{{regex}}</code> के लिए खोज करना चाहता है:",
 		"didSearch": "Roo ने इस निर्देशिका में <code>{{regex}}</code> के लिए खोज की:",
 		"wantsToSearchOutsideWorkspace": "Roo इस निर्देशिका (कार्यक्षेत्र के बाहर) में <code>{{regex}}</code> के लिए खोज करना चाहता है:",
-		"didSearchOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में <code>{{regex}}</code> के लिए खोज की:"
+		"didSearchOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में <code>{{regex}}</code> के लिए खोज की:",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo इस निर्देशिका (कार्यक्षेत्र के बाहर) में शीर्ष स्तर की फ़ाइलें देखना चाहता है:",
+		"didViewTopLevelOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में शीर्ष स्तर की फ़ाइलें देखीं:",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo इस निर्देशिका (कार्यक्षेत्र के बाहर) में सभी फ़ाइलों को पुनरावर्ती रूप से देखना चाहता है:",
+		"didViewRecursiveOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में सभी फ़ाइलों को पुनरावर्ती रूप से देखा:",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo इस निर्देशिका (कार्यक्षेत्र के बाहर) में उपयोग किए गए सोर्स कोड परिभाषा नामों को देखना चाहता है:",
+		"didViewDefinitionsOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में उपयोग किए गए सोर्स कोड परिभाषा नामों को देखा:"
 	},
 	"commandOutput": "कमांड आउटपुट",
 	"response": "प्रतिक्रिया",

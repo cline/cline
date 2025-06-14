@@ -537,8 +537,12 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? t("chat:directoryOperations.wantsToViewTopLevel")
-									: t("chat:directoryOperations.didViewTopLevel")}
+									? tool.isOutsideWorkspace
+										? t("chat:directoryOperations.wantsToViewTopLevelOutsideWorkspace")
+										: t("chat:directoryOperations.wantsToViewTopLevel")
+									: tool.isOutsideWorkspace
+										? t("chat:directoryOperations.didViewTopLevelOutsideWorkspace")
+										: t("chat:directoryOperations.didViewTopLevel")}
 							</span>
 						</div>
 						<CodeAccordian
@@ -557,8 +561,12 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? t("chat:directoryOperations.wantsToViewRecursive")
-									: t("chat:directoryOperations.didViewRecursive")}
+									? tool.isOutsideWorkspace
+										? t("chat:directoryOperations.wantsToViewRecursiveOutsideWorkspace")
+										: t("chat:directoryOperations.wantsToViewRecursive")
+									: tool.isOutsideWorkspace
+										? t("chat:directoryOperations.didViewRecursiveOutsideWorkspace")
+										: t("chat:directoryOperations.didViewRecursive")}
 							</span>
 						</div>
 						<CodeAccordian
@@ -577,8 +585,12 @@ export const ChatRowContent = ({
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? t("chat:directoryOperations.wantsToViewDefinitions")
-									: t("chat:directoryOperations.didViewDefinitions")}
+									? tool.isOutsideWorkspace
+										? t("chat:directoryOperations.wantsToViewDefinitionsOutsideWorkspace")
+										: t("chat:directoryOperations.wantsToViewDefinitions")
+									: tool.isOutsideWorkspace
+										? t("chat:directoryOperations.didViewDefinitionsOutsideWorkspace")
+										: t("chat:directoryOperations.didViewDefinitions")}
 							</span>
 						</div>
 						<CodeAccordian

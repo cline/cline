@@ -166,7 +166,13 @@
 		"wantsToSearch": "需要搜索内容: {{regex}}",
 		"didSearch": "已完成内容搜索: {{regex}}",
 		"wantsToSearchOutsideWorkspace": "需要搜索内容（工作区外）: {{regex}}",
-		"didSearchOutsideWorkspace": "已完成内容搜索（工作区外）: {{regex}}"
+		"didSearchOutsideWorkspace": "已完成内容搜索（工作区外）: {{regex}}",
+		"wantsToViewTopLevelOutsideWorkspace": "需要查看目录文件列表（工作区外）:",
+		"didViewTopLevelOutsideWorkspace": "已查看目录文件列表（工作区外）:",
+		"wantsToViewRecursiveOutsideWorkspace": "需要查看目录所有文件（工作区外）:",
+		"didViewRecursiveOutsideWorkspace": "已查看目录所有文件（工作区外）:",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo想查看此目录中使用的源代码定义名称（工作区外）:",
+		"didViewDefinitionsOutsideWorkspace": "Roo已查看此目录中使用的源代码定义名称（工作区外）:"
 	},
 	"commandOutput": "命令输出",
 	"response": "响应",

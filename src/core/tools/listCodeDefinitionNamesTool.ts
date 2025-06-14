@@ -5,6 +5,7 @@ import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } f
 import { Task } from "../task/Task"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { getReadablePath } from "../../utils/path"
+import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { parseSourceCodeForDefinitionsTopLevel, parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 
@@ -18,9 +19,14 @@ export async function listCodeDefinitionNamesTool(
 ) {
 	const relPath: string | undefined = block.params.path
 
+	// Calculate if the path is outside workspace
+	const absolutePath = relPath ? path.resolve(cline.cwd, relPath) : cline.cwd
+	const isOutsideWorkspace = isPathOutsideWorkspace(absolutePath)
+
 	const sharedMessageProps: ClineSayTool = {
 		tool: "listCodeDefinitionNames",
 		path: getReadablePath(cline.cwd, removeClosingTag("path", relPath)),
+		isOutsideWorkspace,
 	}
 
 	try {
@@ -38,7 +44,6 @@ export async function listCodeDefinitionNamesTool(
 
 			cline.consecutiveMistakeCount = 0
 
-			const absolutePath = path.resolve(cline.cwd, relPath)
 			let result: string
 
 			try {

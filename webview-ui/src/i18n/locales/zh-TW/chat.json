@@ -166,7 +166,13 @@
 		"wantsToSearch": "Roo 想要在此目錄中搜尋 <code>{{regex}}</code>：",
 		"didSearch": "Roo 已在此目錄中搜尋 <code>{{regex}}</code>：",
 		"wantsToSearchOutsideWorkspace": "Roo 想要在此目錄（工作區外）中搜尋 <code>{{regex}}</code>：",
-		"didSearchOutsideWorkspace": "Roo 已在此目錄（工作區外）中搜尋 <code>{{regex}}</code>："
+		"didSearchOutsideWorkspace": "Roo 已在此目錄（工作區外）中搜尋 <code>{{regex}}</code>：",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中最上層的檔案：",
+		"didViewTopLevelOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中最上層的檔案：",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo 想要遞迴檢視此目錄（工作區外）中的所有檔案：",
+		"didViewRecursiveOutsideWorkspace": "Roo 已遞迴檢視此目錄（工作區外）中的所有檔案：",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中使用的原始碼定義名稱：",
+		"didViewDefinitionsOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中使用的原始碼定義名稱："
 	},
 	"commandOutput": "命令輸出",
 	"response": "回應",

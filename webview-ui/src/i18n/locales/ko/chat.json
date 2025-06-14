@@ -166,7 +166,13 @@
 		"wantsToSearch": "Roo가 이 디렉토리에서 <code>{{regex}}</code>을(를) 검색하고 싶어합니다:",
 		"didSearch": "Roo가 이 디렉토리에서 <code>{{regex}}</code>을(를) 검색했습니다:",
 		"wantsToSearchOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 <code>{{regex}}</code>을(를) 검색하고 싶어합니다:",
-		"didSearchOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 <code>{{regex}}</code>을(를) 검색했습니다:"
+		"didSearchOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 <code>{{regex}}</code>을(를) 검색했습니다:",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)의 최상위 파일을 보고 싶어합니다:",
+		"didViewTopLevelOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)의 최상위 파일을 보았습니다:",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)의 모든 파일을 재귀적으로 보고 싶어합니다:",
+		"didViewRecursiveOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)의 모든 파일을 재귀적으로 보았습니다:",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 사용된 소스 코드 정의 이름을 보고 싶어합니다:",
+		"didViewDefinitionsOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 사용된 소스 코드 정의 이름을 보았습니다:"
 	},
 	"commandOutput": "명령 출력",
 	"response": "응답",

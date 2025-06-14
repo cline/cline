@@ -166,7 +166,13 @@
 		"wantsToSearch": "Roo quer pesquisar neste diretório por <code>{{regex}}</code>:",
 		"didSearch": "Roo pesquisou neste diretório por <code>{{regex}}</code>:",
 		"wantsToSearchOutsideWorkspace": "Roo quer pesquisar neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>:",
-		"didSearchOutsideWorkspace": "Roo pesquisou neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>:"
+		"didSearchOutsideWorkspace": "Roo pesquisou neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>:",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo quer visualizar os arquivos de nível superior neste diretório (fora do espaço de trabalho):",
+		"didViewTopLevelOutsideWorkspace": "Roo visualizou os arquivos de nível superior neste diretório (fora do espaço de trabalho):",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo quer visualizar recursivamente todos os arquivos neste diretório (fora do espaço de trabalho):",
+		"didViewRecursiveOutsideWorkspace": "Roo visualizou recursivamente todos os arquivos neste diretório (fora do espaço de trabalho):",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho):",
+		"didViewDefinitionsOutsideWorkspace": "Roo visualizou nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho):"
 	},
 	"commandOutput": "Saída do comando",
 	"response": "Resposta",
