@@ -9,6 +9,7 @@ import {
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
+	ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -328,6 +329,12 @@ export class McpHub {
 
 			// Connect
 			await client.connect(transport)
+
+			client.setNotificationHandler(ToolListChangedNotificationSchema, async (notification) => {
+				console.log(`[MCP] Notification for "${name}":`, notification)
+				connection.server.tools = await this.fetchToolsList(name)
+				this.notifyWebviewOfServerChanges()
+			})
 
 			connection.server.status = "connected"
 			connection.server.error = ""
