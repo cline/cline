@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "@shared/api"
-import { ApiKeyField } from "../common/ApiKeyField"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useState } from "react"

@@ -54,22 +54,3 @@ export const supportsPromptCache = (modelInfo: ModelInfo): boolean => {
 export const formatTokenLimit = (limit: number): string => {
 	return limit.toLocaleString()
 }
-
-/**
- * Helper function to create a tiered pricing description
- */
-export const describeTieredPricing = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
-	if (!tiers || tiers.length === 0) {
-		return []
-	}
-
-	return tiers.map((tier, index, arr) => {
-		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
-
-		if (tier.tokenLimit === Number.POSITIVE_INFINITY) {
-			return `${formatPrice(tier.price)}/million tokens (> ${prevLimit.toLocaleString()} tokens)`
-		} else {
-			return `${formatPrice(tier.price)}/million tokens (<= ${tier.tokenLimit.toLocaleString()} tokens)`
-		}
-	})
-}
