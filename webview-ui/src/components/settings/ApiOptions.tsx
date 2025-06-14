@@ -44,13 +44,15 @@ import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
-import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
+
+import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import { MistralProvider } from "./providers/MistralProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -561,35 +563,13 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "mistral" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.mistralApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("mistralApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Mistral API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.mistralApiKey && (
-							<VSCodeLink
-								href="https://console.mistral.ai/codestral"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Mistral API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "mistral" && (
+				<MistralProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openrouter" && (
@@ -2107,7 +2087,6 @@ const ApiOptions = ({
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
 							{selectedProvider === "doubao" && createDropdown(doubaoModels)}
-							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
