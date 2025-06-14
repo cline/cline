@@ -23,10 +23,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 	const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
 	const { onRelinquishControl } = useExtensionState()
 
-	// Debounce timer
+	// Debounce
 	const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-	// Debounce functions
 	const scheduleCloseRestore = useCallback(() => {
 		if (closeMenuTimeoutRef.current) {
 			clearTimeout(closeMenuTimeoutRef.current)
@@ -43,6 +41,23 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 		}
 	}, [])
 
+	// Debounce cleanup
+	useEffect(() => {
+		return () => {
+			if (closeMenuTimeoutRef.current) {
+				clearTimeout(closeMenuTimeoutRef.current)
+				closeMenuTimeoutRef.current = null
+			}
+		}
+	}, [showRestoreConfirm])
+
+	// Clear "Restore Files" button when checkpoint is no longer checked out
+	useEffect(() => {
+		if (!isCheckpointCheckedOut && restoreWorkspaceDisabled) {
+			setRestoreWorkspaceDisabled(false)
+		}
+	}, [isCheckpointCheckedOut, restoreWorkspaceDisabled])
+
 	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
 		middleware: [
@@ -54,16 +69,6 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			shift(),
 		],
 	})
-
-	// Debounce cleanup
-	useEffect(() => {
-		return () => {
-			if (closeMenuTimeoutRef.current) {
-				clearTimeout(closeMenuTimeoutRef.current)
-				closeMenuTimeoutRef.current = null
-			}
-		}
-	}, [showRestoreConfirm])
 
 	useEffect(() => {
 		const handleScroll = () => {
@@ -212,9 +217,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								<RestoreOption>
 									<VSCodeButton
 										onClick={handleRestoreWorkspace}
-										disabled={restoreWorkspaceDisabled}
+										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
 										style={{
-											cursor: restoreWorkspaceDisabled ? "wait" : "pointer",
+											cursor: restoreWorkspaceDisabled || isCheckpointCheckedOut ? "wait" : "pointer",
 											width: "100%",
 											marginBottom: "10px",
 										}}>
