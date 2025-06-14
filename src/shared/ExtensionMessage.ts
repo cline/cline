@@ -16,7 +16,7 @@ import { GitCommit } from "../utils/git"
 import { McpServer } from "./mcp"
 import { Mode } from "./modes"
 import { RouterModels } from "./api"
-import { MarketplaceItem } from "../services/marketplace/types"
+import type { MarketplaceItem } from "@roo-code/types"
 
 // Indexing status types
 export interface IndexingStatus {

@@ -1,5 +1,5 @@
 import { MarketplaceManager } from "../MarketplaceManager"
-import { MarketplaceItem } from "../types"
+import type { MarketplaceItem } from "@roo-code/types"
 
 // Mock axios
 jest.mock("axios")
@@ -116,6 +116,7 @@ describe("MarketplaceManager", () => {
 					name: "Test MCP",
 					description: "A test MCP",
 					type: "mcp",
+					url: "https://example.com/mcp",
 					content: '{"command": "node", "args": ["server.js"]}',
 				},
 			]
@@ -204,6 +205,7 @@ describe("MarketplaceManager", () => {
 				name: "Test MCP",
 				description: "A test MCP",
 				type: "mcp",
+				url: "https://example.com/mcp",
 				content: '{"command": "node", "args": ["server.js"]}',
 			}
 
@@ -244,6 +246,7 @@ describe("MarketplaceManager", () => {
 				name: "Test MCP",
 				description: "A test MCP",
 				type: "mcp",
+				url: "https://example.com/mcp",
 				content: '{"command": "node", "args": ["server.js"]}',
 			}
 

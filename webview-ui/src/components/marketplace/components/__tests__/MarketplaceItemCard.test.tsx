@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MarketplaceItemCard } from "../MarketplaceItemCard"
 import { vscode } from "@/utils/vscode"
-import { MarketplaceItem } from "../../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 import { TooltipProvider } from "@/components/ui/tooltip"
 // Mock vscode API
 jest.mock("@/utils/vscode", () => ({

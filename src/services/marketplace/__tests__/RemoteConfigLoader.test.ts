@@ -1,6 +1,6 @@
 import axios from "axios"
 import { RemoteConfigLoader } from "../RemoteConfigLoader"
-import { MarketplaceItemType } from "../types"
+import type { MarketplaceItemType } from "@roo-code/types"
 
 // Mock axios
 jest.mock("axios")

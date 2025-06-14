@@ -1,7 +1,7 @@
 import React from "react"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { MarketplaceInstallModal } from "../MarketplaceInstallModal"
-import { MarketplaceItem } from "../../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 
 // Mock the vscode module before importing the component
 jest.mock("@/utils/vscode", () => ({
@@ -44,6 +44,7 @@ describe("MarketplaceInstallModal - Nested Parameters", () => {
 		name: "Test MCP Server",
 		description: "A test MCP server",
 		type: "mcp",
+		url: "https://example.com/test-mcp",
 		author: "Test Author",
 		tags: ["test"],
 		// Global parameters

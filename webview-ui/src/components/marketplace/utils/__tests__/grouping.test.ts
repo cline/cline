@@ -1,5 +1,5 @@
 import { groupItemsByType, formatItemText, getTotalItemCount, getUniqueTypes } from "../grouping"
-import { MarketplaceItem } from "../../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 
 describe("grouping utilities", () => {
 	const mockItems: MarketplaceItem[] = [
@@ -8,6 +8,7 @@ describe("grouping utilities", () => {
 			name: "Test Server",
 			description: "A test MCP server",
 			type: "mcp",
+			url: "https://example.com/test-server",
 			content: "test content",
 		},
 		{
@@ -22,6 +23,7 @@ describe("grouping utilities", () => {
 			name: "Another Server",
 			description: "Another test MCP server",
 			type: "mcp",
+			url: "https://example.com/another-server",
 			content: "test content",
 		},
 	]
@@ -50,6 +52,7 @@ describe("grouping utilities", () => {
 					name: "",
 					description: "",
 					type: "mcp",
+					url: "https://example.com/test-item",
 					content: "test content",
 				},
 			]

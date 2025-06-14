@@ -1,4 +1,4 @@
-import { MarketplaceItem } from "../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 
 export interface GroupedItems {
 	[type: string]: {

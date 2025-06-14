@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react"
-import { MarketplaceItem, McpParameter, McpInstallationMethod } from "../../../../../src/services/marketplace/types"
+import { MarketplaceItem, McpParameter, McpInstallationMethod } from "@roo-code/types"
 import { vscode } from "@/utils/vscode"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import {
@@ -61,7 +61,7 @@ export const MarketplaceInstallModal: React.FC<MarketplaceInstallModalProps> = (
 	const effectiveParameters = useMemo(() => {
 		if (!item) return []
 
-		const globalParams = item.parameters || []
+		const globalParams = item.type === "mcp" ? item.parameters || [] : []
 		let methodParams: McpParameter[] = []
 
 		// Get method-specific parameters if content is an array
@@ -100,7 +100,7 @@ export const MarketplaceInstallModal: React.FC<MarketplaceInstallModalProps> = (
 	React.useEffect(() => {
 		if (item) {
 			// Get effective parameters for current method
-			const globalParams = item.parameters || []
+			const globalParams = item.type === "mcp" ? item.parameters || [] : []
 			let methodParams: McpParameter[] = []
 
 			if (Array.isArray(item.content)) {

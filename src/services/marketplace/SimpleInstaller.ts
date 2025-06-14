@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
 import * as yaml from "yaml"
-import { MarketplaceItem, MarketplaceItemType, InstallMarketplaceItemOptions, McpParameter } from "./types"
+import type { MarketplaceItem, MarketplaceItemType, InstallMarketplaceItemOptions, McpParameter } from "@roo-code/types"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
 
@@ -23,7 +23,7 @@ export class SimpleInstaller {
 			case "mcp":
 				return await this.installMcp(item, target, options)
 			default:
-				throw new Error(`Unsupported item type: ${item.type}`)
+				throw new Error(`Unsupported item type: ${(item as any).type}`)
 		}
 	}
 
@@ -135,7 +135,8 @@ export class SimpleInstaller {
 		}
 
 		// Merge parameters (method-specific override global)
-		const allParameters = [...(item.parameters || []), ...methodParameters]
+		const itemParameters = item.type === "mcp" ? item.parameters || [] : []
+		const allParameters = [...itemParameters, ...methodParameters]
 		const uniqueParameters = Array.from(new Map(allParameters.map((p) => [p.key, p])).values())
 
 		// Replace parameters if provided
@@ -158,7 +159,8 @@ export class SimpleInstaller {
 				methodParameters = method.parameters || []
 
 				// Re-merge parameters with the newly selected method
-				const allParametersForNewMethod = [...(item.parameters || []), ...methodParameters]
+				const itemParametersForNewMethod = item.type === "mcp" ? item.parameters || [] : []
+				const allParametersForNewMethod = [...itemParametersForNewMethod, ...methodParameters]
 				const uniqueParametersForNewMethod = Array.from(
 					new Map(allParametersForNewMethod.map((p) => [p.key, p])).values(),
 				)
@@ -239,7 +241,7 @@ export class SimpleInstaller {
 				await this.removeMcp(item, target)
 				break
 			default:
-				throw new Error(`Unsupported item type: ${item.type}`)
+				throw new Error(`Unsupported item type: ${(item as any).type}`)
 		}
 	}
 

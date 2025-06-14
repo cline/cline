@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { mcpParameterSchema } from "../schemas"
-import { McpParameter } from "../types"
+import { mcpParameterSchema } from "@roo-code/types"
+import type { McpParameter } from "@roo-code/types"
 
 describe("Optional Parameters", () => {
 	describe("McpParameter Schema", () => {
@@ -65,25 +65,6 @@ describe("Optional Parameters", () => {
 					optional: true,
 				})
 			}).toThrow()
-		})
-	})
-
-	describe("Type Definitions", () => {
-		it("should allow optional field in McpParameter interface", () => {
-			const requiredParam: McpParameter = {
-				name: "Required Param",
-				key: "required_key",
-			}
-
-			const optionalParam: McpParameter = {
-				name: "Optional Param",
-				key: "optional_key",
-				optional: true,
-			}
-
-			// These should compile without errors
-			expect(requiredParam.optional).toBeUndefined()
-			expect(optionalParam.optional).toBe(true)
 		})
 	})
 })

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react"
-import { MarketplaceItem } from "../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 import { vscode } from "@/utils/vscode"
 import { ViewState } from "../MarketplaceViewStateManager"
 import { useAppTranslation } from "@/i18n/TranslationContext"
@@ -54,7 +54,7 @@ export const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({ item, 
 					<div className="flex gap-2 items-start">
 						<div>
 							<h3 className="text-lg font-semibold text-vscode-foreground mt-0 mb-1 leading-none">
-								{item.url && isValidUrl(item.url) ? (
+								{item.type === "mcp" && item.url && isValidUrl(item.url) ? (
 									<Button
 										variant="link"
 										className="p-0 h-auto text-lg font-semibold text-vscode-foreground hover:underline"

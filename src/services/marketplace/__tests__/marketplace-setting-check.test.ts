@@ -75,6 +75,7 @@ describe("Marketplace Setting Check", () => {
 				type: "mcp" as const,
 				description: "Test description",
 				content: "test content",
+				url: "https://example.com/test-mcp",
 			},
 			mpInstallOptions: { target: "project" as const },
 		}

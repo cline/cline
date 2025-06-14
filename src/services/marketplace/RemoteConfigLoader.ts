@@ -2,8 +2,8 @@ import axios from "axios"
 import * as yaml from "yaml"
 import { z } from "zod"
 import { getRooCodeApiUrl } from "@roo-code/cloud"
-import { MarketplaceItem, MarketplaceItemType } from "./types"
-import { modeMarketplaceItemSchema, mcpMarketplaceItemSchema } from "./schemas"
+import type { MarketplaceItem, MarketplaceItemType } from "@roo-code/types"
+import { modeMarketplaceItemSchema, mcpMarketplaceItemSchema } from "@roo-code/types"
 
 // Response schemas for YAML API responses
 const modeMarketplaceResponse = z.object({
@@ -43,8 +43,8 @@ export class RemoteConfigLoader {
 		const yamlData = yaml.parse(data)
 		const validated = modeMarketplaceResponse.parse(yamlData)
 
-		const items = validated.items.map((item) => ({
-			type: "mode" as MarketplaceItemType,
+		const items: MarketplaceItem[] = validated.items.map((item) => ({
+			type: "mode" as const,
 			...item,
 		}))
 
@@ -63,8 +63,8 @@ export class RemoteConfigLoader {
 		const yamlData = yaml.parse(data)
 		const validated = mcpMarketplaceResponse.parse(yamlData)
 
-		const items = validated.items.map((item) => ({
-			type: "mcp" as MarketplaceItemType,
+		const items: MarketplaceItem[] = validated.items.map((item) => ({
+			type: "mcp" as const,
 			...item,
 		}))
 

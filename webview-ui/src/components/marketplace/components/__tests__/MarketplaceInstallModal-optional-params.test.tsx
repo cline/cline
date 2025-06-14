@@ -1,7 +1,7 @@
 import React from "react"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { MarketplaceInstallModal } from "../MarketplaceInstallModal"
-import { MarketplaceItem } from "../../../../../../src/services/marketplace/types"
+import { MarketplaceItem } from "@roo-code/types"
 
 // Mock vscode
 const mockPostMessage = jest.fn()
@@ -39,6 +39,7 @@ describe("MarketplaceInstallModal - Optional Parameters", () => {
 		name: "Test MCP",
 		description: "Test MCP with parameters",
 		type: "mcp",
+		url: "https://example.com/test-mcp",
 		content: '{"test-server": {"command": "test", "args": ["--key", "{{api_key}}", "--endpoint", "{{endpoint}}"]}}',
 		parameters,
 	})

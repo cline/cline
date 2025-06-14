@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { mcpInstallationMethodSchema, mcpMarketplaceItemYamlSchema } from "../schemas"
-import { McpInstallationMethod, McpMarketplaceItem } from "../types"
+import { mcpInstallationMethodSchema, mcpMarketplaceItemSchema } from "@roo-code/types"
+import type { McpInstallationMethod, McpMarketplaceItem } from "@roo-code/types"
 
 describe("Nested Parameters", () => {
 	describe("McpInstallationMethod Schema", () => {
@@ -95,7 +95,7 @@ describe("Nested Parameters", () => {
 				],
 			}
 
-			const result = mcpMarketplaceItemYamlSchema.parse(item)
+			const result = mcpMarketplaceItemSchema.parse(item)
 			expect(result.parameters).toHaveLength(1)
 			expect(result.parameters![0].key).toBe("api_key")
 
@@ -131,7 +131,7 @@ describe("Nested Parameters", () => {
 				],
 			}
 
-			const result = mcpMarketplaceItemYamlSchema.parse(item)
+			const result = mcpMarketplaceItemSchema.parse(item)
 			expect(result.parameters).toHaveLength(1)
 
 			const methods = result.content as McpInstallationMethod[]
@@ -160,7 +160,7 @@ describe("Nested Parameters", () => {
 				],
 			}
 
-			const result = mcpMarketplaceItemYamlSchema.parse(item)
+			const result = mcpMarketplaceItemSchema.parse(item)
 			expect(result.parameters).toBeUndefined()
 
 			const methods = result.content as McpInstallationMethod[]
@@ -182,7 +182,7 @@ describe("Nested Parameters", () => {
 				],
 			}
 
-			const result = mcpMarketplaceItemYamlSchema.parse(item)
+			const result = mcpMarketplaceItemSchema.parse(item)
 			expect(result.parameters).toBeUndefined()
 
 			const methods = result.content as McpInstallationMethod[]
@@ -221,7 +221,7 @@ describe("Nested Parameters", () => {
 			}
 
 			// This should validate successfully - the conflict resolution happens at runtime
-			const result = mcpMarketplaceItemYamlSchema.parse(item)
+			const result = mcpMarketplaceItemSchema.parse(item)
 			expect(result.parameters![0].key).toBe("version")
 
 			const methods = result.content as McpInstallationMethod[]
