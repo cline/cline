@@ -6,7 +6,7 @@ import { useState } from "react"
 import { getOpenRouterAuthUrl } from "../utils/providerUtils"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import VSCodeButtonLink from "../../common/VSCodeButtonLink"
-import OpenRouterModelPicker from "../OpenRouterModelPicker"
+import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
 
 /**
@@ -67,9 +67,6 @@ export const OpenRouterProvider = ({
 	uriScheme,
 }: OpenRouterProviderProps) => {
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
-
-	// Define the open router z-index constants
-	const OPENROUTER_MODEL_PICKER_Z_INDEX = 1000
 
 	// Create a wrapper for handling field changes more directly
 	const handleFieldChange = (field: keyof ApiConfiguration) => (value: any) => {

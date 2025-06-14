@@ -66,8 +66,9 @@ import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
+import OpenRouterProvider from "./providers/OpenRouterProvider"
 import OllamaModelPicker from "./OllamaModelPicker"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
@@ -77,44 +78,6 @@ interface ApiOptionsProps {
 	modelIdErrorMessage?: string
 	isPopup?: boolean
 	saveImmediately?: boolean // Add prop to control immediate saving
-}
-
-const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
-	const { data: keyInfo, isLoading, error } = useOpenRouterKeyInfo(apiKey)
-
-	if (isLoading) {
-		return <span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
-	}
-
-	if (error || !keyInfo || keyInfo.limit === null) {
-		// Don't show anything if there's an error, no info, or no limit set
-		return null
-	}
-
-	// Calculate remaining balance
-	const remainingBalance = keyInfo.limit - keyInfo.usage
-	const formattedBalance = remainingBalance.toLocaleString("en-US", {
-		style: "currency",
-		currency: "USD",
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 4,
-	})
-
-	return (
-		<VSCodeLink
-			href="https://openrouter.ai/settings/keys"
-			title={`Remaining balance: ${formattedBalance}\nLimit: ${keyInfo.limit.toLocaleString("en-US", { style: "currency", currency: "USD" })}\nUsage: ${keyInfo.usage.toLocaleString("en-US", { style: "currency", currency: "USD" })}`}
-			style={{
-				fontSize: "12px",
-				color: "var(--vscode-foreground)",
-				textDecoration: "none",
-				fontWeight: 500,
-				paddingLeft: 4,
-				cursor: "pointer",
-			}}>
-			Balance: {formattedBalance}
-		</VSCodeLink>
-	)
 }
 
 const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
@@ -649,44 +612,14 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "openrouter" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.openRouterApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("openRouterApiKey")}
-						placeholder="Enter API Key...">
-						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-							<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
-							{apiConfiguration?.openRouterApiKey && (
-								<OpenRouterBalanceDisplay apiKey={apiConfiguration.openRouterApiKey} />
-							)}
-						</div>
-					</VSCodeTextField>
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(uriScheme)}
-							style={{ margin: "5px 0 0 0" }}
-							appearance="secondary">
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.{" "}
-						{/* {!apiConfiguration?.openRouterApiKey && (
-							<span style={{ color: "var(--vscode-charts-green)" }}>
-								(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter is recommended for high rate
-								limits, prompt caching, and wider selection of models.)
-							</span>
-						)} */}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "openrouter" && (
+				<OpenRouterProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+					uriScheme={uriScheme}
+				/>
 			)}
 
 			{selectedProvider === "bedrock" && (
@@ -2117,7 +2050,7 @@ const ApiOptions = ({
 				</>
 			)}
 
-			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+			{selectedProvider === "cline" && showModelOptions && (
 				<>
 					<VSCodeCheckbox
 						style={{ marginTop: -10 }}
@@ -2271,9 +2204,7 @@ const ApiOptions = ({
 					</>
 				)}
 
-			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
-				<OpenRouterModelPicker isPopup={isPopup} />
-			)}
+			{selectedProvider === "cline" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
