@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
-import { hostServiceHandlers } from "./host-grpc-service-config"
+import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
 /**
@@ -37,90 +37,71 @@ export class GrpcHandler {
 	async handleRequest<T = any>(
 		service: string,
 		method: string,
-		message: any,
+		request: any,
 		requestId: string,
 		streamingCallbacks?: StreamingCallbacks<T>,
-	): Promise<
-		| {
-				message?: any
-				error?: string
-				request_id: string
-		  }
-		| (() => void)
-	> {
+	): Promise<any | (() => void)> {
+		if (!streamingCallbacks) {
+			return this.handleUnaryRequest(service, method, request)
+		}
+
 		// If streaming callbacks are provided, handle as a streaming request
-		if (streamingCallbacks) {
-			let completionCalled = false
+		let completionCalled = false
 
-			// Create a response handler that will call the client's callbacks
-			const responseHandler: StreamingResponseHandler = async (response, isLast = false, sequenceNumber) => {
-				try {
-					// Call the client's onResponse callback with the response
-					streamingCallbacks.onResponse(response)
-
-					// If this is the last response, call the onComplete callback
-					if (isLast && streamingCallbacks.onComplete && !completionCalled) {
-						completionCalled = true
-						streamingCallbacks.onComplete()
-					}
-				} catch (error) {
-					// If there's an error in the callback, call the onError callback
-					if (streamingCallbacks.onError) {
-						streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
-					}
-				}
-			}
-
-			// Register the response handler with the registry
-			requestRegistry.registerRequest(
-				requestId,
-				() => {
-					console.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
-					if (streamingCallbacks.onComplete && !completionCalled) {
-						completionCalled = true
-						streamingCallbacks.onComplete()
-					}
-				},
-				{ type: "streaming_request", service, method },
-				responseHandler,
-			)
-
-			// Call the streaming handler directly
-			console.log(`[DEBUG] Streaming gRPC host call to ${service}.${method} req:${requestId}`)
+		// Create a response handler that will call the client's callbacks
+		const responseHandler: StreamingResponseHandler = async (response, isLast = false, sequenceNumber) => {
 			try {
-				await this.handleStreamingRequest(service, method, message, requestId)
+				// Call the client's onResponse callback with the response
+				streamingCallbacks.onResponse(response)
+
+				// If this is the last response, call the onComplete callback
+				if (isLast && streamingCallbacks.onComplete && !completionCalled) {
+					completionCalled = true
+					streamingCallbacks.onComplete()
+				}
 			} catch (error) {
+				// If there's an error in the callback, call the onError callback
 				if (streamingCallbacks.onError) {
 					streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
 				}
 			}
-
-			// Return a function to cancel the stream
-			return () => {
-				console.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
-				this.cancelRequest(requestId)
-			}
 		}
 
-		// Handle as a unary request
+		// Register the response handler with the registry
+		requestRegistry.registerRequest(
+			requestId,
+			() => {
+				console.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
+				if (streamingCallbacks.onComplete && !completionCalled) {
+					completionCalled = true
+					streamingCallbacks.onComplete()
+				}
+			},
+			{ type: "streaming_request", service, method },
+			responseHandler,
+		)
+
+		// Call the streaming handler directly
+		console.log(`[DEBUG] Streaming gRPC host call to ${service}.${method} req:${requestId}`)
 		try {
-			// Get the service handler from the config
-			const serviceConfig = hostServiceHandlers[service]
-			if (!serviceConfig) {
-				throw new Error(`Unknown service: ${service}`)
-			}
-
-			// Handle unary request
-			return {
-				message: await serviceConfig.requestHandler(method, message),
-				request_id: requestId,
-			}
+			await this.handleStreamingRequest(service, method, request, requestId)
 		} catch (error) {
-			return {
-				error: error instanceof Error ? error.message : String(error),
-				request_id: requestId,
+			if (streamingCallbacks.onError) {
+				streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
 			}
 		}
+
+		// Return a function to cancel the stream
+		return () => {
+			console.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
+			this.cancelRequest(requestId)
+		}
+	}
+
+	private async handleUnaryRequest(service: string, method: string, request: any): Promise<any> {
+		const serviceConfig = this.getServiceHandlerConfig(service)
+		const response = await serviceConfig.requestHandler(method, request)
+		return response
 	}
 
 	/**
@@ -160,11 +141,7 @@ export class GrpcHandler {
 	 * @param requestId The request ID for response correlation
 	 */
 	private async handleStreamingRequest(service: string, method: string, message: any, requestId: string): Promise<void> {
-		// Get the service handler from the config
-		const serviceConfig = hostServiceHandlers[service]
-		if (!serviceConfig) {
-			throw new Error(`Unknown service: ${service}`)
-		}
+		const serviceConfig = this.getServiceHandlerConfig(service)
 
 		// Check if the service supports streaming
 		if (!serviceConfig.streamingHandler) {
@@ -185,6 +162,13 @@ export class GrpcHandler {
 
 		// Don't send a final message here - the stream should stay open for future updates
 		// The stream will be closed when the client disconnects or when the service explicitly ends it
+	}
+
+	private getServiceHandlerConfig(serviceName: string): HostServiceHandlerConfig {
+		if (!(serviceName in hostServiceHandlers)) {
+			throw new Error(`Unknown service: ${serviceName}`)
+		}
+		return hostServiceHandlers[serviceName]
 	}
 }
 
