@@ -585,6 +585,23 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
+			case "moveLines":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("file-code")}
+							{tool.operationIsLocatedInWorkspace === false &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+							<span style={{ fontWeight: "bold" }}>Cline wants to move lines:</span>
+						</div>
+						<CodeAccordian
+							code={tool.content!}
+							path={tool.path!}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
 			case "listFilesTopLevel":
 				return (
 					<>
