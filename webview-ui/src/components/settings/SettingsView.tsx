@@ -211,6 +211,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				planActSeparateModelsSetting,
 				enableCheckpointsSetting,
 				mcpMarketplaceEnabled,
+				mcpRichDisplayEnabled,
 				mcpResponsesCollapsed,
 				chatSettings,
 				shellIntegrationTimeout,
