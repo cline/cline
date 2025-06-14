@@ -13,7 +13,7 @@ interface ApiKeyFieldProps {
 }
 
 /**
- * A reusable component for API key input fields with standard styling and help text
+ * A reusable component for API key input fields with standard styling and help text for signing up for key
  */
 export const ApiKeyField = ({
 	value,

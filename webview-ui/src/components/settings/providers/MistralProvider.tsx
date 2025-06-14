@@ -30,15 +30,6 @@ export const MistralProvider = ({ apiConfiguration, handleInputChange, showModel
 				signupUrl="https://console.mistral.ai/codestral"
 			/>
 
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: 3,
-					color: "var(--vscode-descriptionForeground)",
-				}}>
-				This key is stored locally and only used to make API requests from this extension.
-			</p>
-
 			{showModelOptions && (
 				<>
 					<ModelSelector
