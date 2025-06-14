@@ -1,0 +1,142 @@
+<mode_creation_workflow>
+  <overview>
+    This workflow guides you through creating a new custom mode to be used in the Roo Code Software,
+    from initial requirements gathering to final implementation.
+  </overview>
+
+  <detailed_steps>
+    <step number="1">
+      <title>Gather Requirements</title>
+      <description>
+        Understand what the user wants the mode to accomplish
+      </description>
+      <actions>
+        <action>Ask about the mode's primary purpose and use cases</action>
+        <action>Identify what types of tasks the mode should handle</action>
+        <action>Determine what tools and file access the mode needs</action>
+        <action>Clarify any special behaviors or restrictions</action>
+      </actions>
+      <example>
+        <ask_followup_question>
+          <question>What is the primary purpose of this new mode? What types of tasks should it handle?</question>
+          <follow_up>
+            <suggest>A mode for writing and maintaining documentation</suggest>
+            <suggest>A mode for database schema design and migrations</suggest>
+            <suggest>A mode for API endpoint development and testing</suggest>
+            <suggest>A mode for performance optimization and profiling</suggest>
+          </follow_up>
+        </ask_followup_question>
+      </example>
+    </step>
+
+    <step number="2">
+      <title>Design Mode Configuration</title>
+      <description>
+        Create the mode definition with all required fields
+      </description>
+      <required_fields>
+        <field name="slug">
+          <description>Unique identifier (lowercase, hyphens allowed)</description>
+          <best_practice>Keep it short and descriptive (e.g., "api-dev", "docs-writer")</best_practice>
+        </field>
+        <field name="name">
+          <description>Display name with optional emoji</description>
+          <best_practice>Use an emoji that represents the mode's purpose</best_practice>
+        </field>
+        <field name="roleDefinition">
+          <description>Detailed description of the mode's role and expertise</description>
+          <best_practice>
+            Start with "You are Roo Code, a [specialist type]..."
+            List specific areas of expertise
+            Mention key technologies or methodologies
+          </best_practice>
+        </field>
+        <field name="groups">
+          <description>Tool groups the mode can access</description>
+          <options>
+            <option name="read">File reading and searching tools</option>
+            <option name="edit">File editing tools (can be restricted by regex)</option>
+            <option name="command">Command execution tools</option>
+            <option name="browser">Browser interaction tools</option>
+            <option name="mcp">MCP server tools</option>
+          </options>
+        </field>
+      </required_fields>
+      <recommended_fields>
+        <field name="whenToUse">
+          <description>Clear description for the Orchestrator</description>
+          <best_practice>Explain specific scenarios and task types</best_practice>
+        </field>
+      </recommended_fields>
+      <important_note>
+        Do not include customInstructions in the .roomodes configuration.
+        All detailed instructions should be placed in XML files within
+        the .roo/rules-[mode-slug]/ directory instead.
+      </important_note>
+    </step>
+
+    <step number="3">
+      <title>Implement File Restrictions</title>
+      <description>
+        Configure appropriate file access permissions
+      </description>
+      <example>
+        <comment>Restrict edit access to specific file types</comment>
+        <code>
+groups:
+  - read
+  - - edit
+    - fileRegex: \.(md|txt|rst)$
+      description: Documentation files only
+  - command
+        </code>
+      </example>
+      <guidelines>
+        <guideline>Use regex patterns to limit file editing scope</guideline>
+        <guideline>Provide clear descriptions for restrictions</guideline>
+        <guideline>Consider the principle of least privilege</guideline>
+      </guidelines>
+    </step>
+
+    <step number="4">
+      <title>Create XML Instruction Files</title>
+      <description>
+        Design structured instruction files in .roo/rules-[mode-slug]/
+      </description>
+      <file_structure>
+        <file name="1_workflow.xml">Main workflow and step-by-step processes</file>
+        <file name="2_best_practices.xml">Guidelines and conventions</file>
+        <file name="3_common_patterns.xml">Reusable code patterns and examples</file>
+        <file name="4_tool_usage.xml">Specific tool usage instructions</file>
+        <file name="5_examples.xml">Complete workflow examples</file>
+      </file_structure>
+      <xml_best_practices>
+        <practice>Use semantic tag names that describe content</practice>
+        <practice>Nest tags hierarchically for better organization</practice>
+        <practice>Include code examples in CDATA sections when needed</practice>
+        <practice>Add comments to explain complex sections</practice>
+      </xml_best_practices>
+    </step>
+
+    <step number="5">
+      <title>Test and Refine</title>
+      <description>
+        Verify the mode works as intended
+      </description>
+      <checklist>
+        <item>Mode appears in the mode list</item>
+        <item>File restrictions work correctly</item>
+        <item>Instructions are clear and actionable</item>
+        <item>Mode integrates well with Orchestrator</item>
+        <item>All examples are accurate and helpful</item>
+      </checklist>
+    </step>
+  </detailed_steps>
+
+  <quick_reference>
+    <command>Create mode in .roomodes for project-specific modes</command>
+    <command>Create mode in global custom_modes.yaml for system-wide modes</command>
+    <command>Use list_files to verify .roo folder structure</command>
+    <command>Test file regex patterns with search_files</command>
+  </quick_reference>
+</mode_creation_workflow>

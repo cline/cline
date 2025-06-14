@@ -1,0 +1,367 @@
+<instruction_file_templates>
+  <overview>
+    Templates and examples for creating XML instruction files that provide
+    detailed guidance for each mode's behavior and workflows.
+  </overview>
+
+  <file_organization>
+    <principle>Number files to indicate execution order</principle>
+    <principle>Use descriptive names that indicate content</principle>
+    <principle>Keep related instructions together</principle>
+    <standard_structure>
+      <file>1_workflow.xml - Main workflow and processes</file>
+      <file>2_best_practices.xml - Guidelines and conventions</file>
+      <file>3_common_patterns.xml - Reusable code patterns</file>
+      <file>4_tool_usage.xml - Specific tool instructions</file>
+      <file>5_examples.xml - Complete workflow examples</file>
+      <file>6_error_handling.xml - Error scenarios and recovery</file>
+      <file>7_communication.xml - User interaction guidelines</file>
+    </standard_structure>
+  </file_organization>
+
+  <workflow_file_template>
+    <description>Template for main workflow files (1_workflow.xml)</description>
+    <template><![CDATA[
+<workflow_instructions>
+  <mode_overview>
+    Brief description of what this mode does and its primary purpose
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Understand the user's request</action>
+      <details>
+        Parse the user's input to identify:
+        - Primary objective
+        - Specific requirements
+        - Constraints or limitations
+      </details>
+    </step>
+    
+    <step number="2">
+      <action>Gather necessary context</action>
+      <tools>
+        <tool>codebase_search - Find relevant existing code</tool>
+        <tool>list_files - Understand project structure</tool>
+        <tool>read_file - Examine specific implementations</tool>
+      </tools>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="analysis">
+      <description>Analyze the current state and requirements</description>
+      <steps>
+        <step>Identify affected components</step>
+        <step>Assess impact of changes</step>
+        <step>Plan implementation approach</step>
+      </steps>
+    </phase>
+
+    <phase name="implementation">
+      <description>Execute the planned changes</description>
+      <steps>
+        <step>Create/modify necessary files</step>
+        <step>Ensure consistency across codebase</step>
+        <step>Add appropriate documentation</step>
+      </steps>
+    </phase>
+
+    <phase name="validation">
+      <description>Verify the implementation</description>
+      <steps>
+        <step>Check for errors or inconsistencies</step>
+        <step>Validate against requirements</step>
+        <step>Ensure no regressions</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>All requirements have been addressed</criterion>
+    <criterion>Code follows project conventions</criterion>
+    <criterion>Changes are properly documented</criterion>
+    <criterion>No breaking changes introduced</criterion>
+  </completion_criteria>
+</workflow_instructions>
+    ]]></template>
+  </workflow_file_template>
+
+  <best_practices_template>
+    <description>Template for best practices files (2_best_practices.xml)</description>
+    <template><![CDATA[
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Principle Name</name>
+      <description>Detailed explanation of the principle</description>
+      <rationale>Why this principle is important</rationale>
+      <example>
+        <scenario>When this applies</scenario>
+        <good>Correct approach</good>
+        <bad>What to avoid</bad>
+      </example>
+    </principle>
+  </general_principles>
+
+  <code_conventions>
+    <convention category="naming">
+      <rule>Specific naming convention</rule>
+      <examples>
+        <good>goodExampleName</good>
+        <bad>bad_example-name</bad>
+      </examples>
+    </convention>
+    
+    <convention category="structure">
+      <rule>How to structure code/files</rule>
+      <template>
+        // Example structure
+      </template>
+    </convention>
+  </code_conventions>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Common mistake to avoid</description>
+      <why_problematic>Explanation of issues it causes</why_problematic>
+      <correct_approach>How to do it properly</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_starting">
+      <item>Understand requirements fully</item>
+      <item>Check existing implementations</item>
+    </category>
+    <category name="during_implementation">
+      <item>Follow established patterns</item>
+      <item>Write clear documentation</item>
+    </category>
+    <category name="before_completion">
+      <item>Review all changes</item>
+      <item>Verify requirements met</item>
+    </category>
+  </quality_checklist>
+</best_practices>
+    ]]></template>
+  </best_practices_template>
+
+  <tool_usage_template>
+    <description>Template for tool usage files (4_tool_usage.xml)</description>
+    <template><![CDATA[
+<tool_usage_guide>
+  <tool_priorities>
+    <priority level="1">
+      <tool>codebase_search</tool>
+      <when>Always use first to find relevant code</when>
+      <why>Semantic search finds functionality better than keywords</why>
+    </priority>
+    <priority level="2">
+      <tool>read_file</tool>
+      <when>After identifying files with codebase_search</when>
+      <why>Get full context of implementations</why>
+    </priority>
+  </tool_priorities>
+
+  <tool_specific_guidance>
+    <tool name="apply_diff">
+      <best_practices>
+        <practice>Always read file first to ensure exact content match</practice>
+        <practice>Make multiple changes in one diff when possible</practice>
+        <practice>Include line numbers for accuracy</practice>
+      </best_practices>
+      <example><![CDATA[
+<apply_diff>
+<path>src/config.ts</path>
+<diff>
+<<<<<<< SEARCH
+:start_line:10
+-------
+export const config = {
+  apiUrl: 'http://localhost:3000',
+  timeout: 5000
+};
+=======
+export const config = {
+  apiUrl: process.env.API_URL || 'http://localhost:3000',
+  timeout: parseInt(process.env.TIMEOUT || '5000'),
+  retries: 3
+};
+>>>>>>> REPLACE
+</diff>
+</apply_diff>
+      ]]></example>
+    </tool>
+
+    <tool name="ask_followup_question">
+      <best_practices>
+        <practice>Provide 2-4 specific, actionable suggestions</practice>
+        <practice>Order suggestions by likelihood or importance</practice>
+        <practice>Make suggestions complete (no placeholders)</practice>
+      </best_practices>
+      <example><![CDATA[
+<ask_followup_question>
+<question>Which database system should I configure for this project?</question>
+<follow_up>
+<suggest>PostgreSQL with the default configuration</suggest>
+<suggest>MySQL 8.0 with InnoDB storage engine</suggest>
+<suggest>SQLite for local development only</suggest>
+<suggest>MongoDB for document-based storage</suggest>
+</follow_up>
+</ask_followup_question>
+      ]]></example>
+    </tool>
+  </tool_specific_guidance>
+
+  <tool_combination_patterns>
+    <pattern name="explore_then_modify">
+      <sequence>
+        <step>codebase_search - Find relevant files</step>
+        <step>list_code_definition_names - Understand structure</step>
+        <step>read_file - Get full context</step>
+        <step>apply_diff or write_to_file - Make changes</step>
+      </sequence>
+    </pattern>
+    
+    <pattern name="verify_then_proceed">
+      <sequence>
+        <step>list_files - Check file exists</step>
+        <step>read_file - Verify current content</step>
+        <step>ask_followup_question - Confirm approach</step>
+        <step>apply_diff - Implement changes</step>
+      </sequence>
+    </pattern>
+  </tool_combination_patterns>
+</tool_usage_guide>
+    ]]></template>
+  </tool_usage_template>
+
+  <examples_file_template>
+    <description>Template for example files (5_examples.xml)</description>
+    <template><![CDATA[
+<complete_examples>
+  <example name="descriptive_example_name">
+    <scenario>
+      Detailed description of the use case this example covers
+    </scenario>
+    
+    <user_request>
+      The initial request from the user
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>First step description</description>
+        <tool_use><![CDATA[
+<codebase_search>
+<query>search query here</query>
+</codebase_search>
+        ]]></tool_use>
+        <expected_outcome>What we learn from this step</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Second step description</description>
+        <tool_use><![CDATA[
+<read_file>
+<path>path/to/file.ts</path>
+</read_file>
+        ]]></tool_use>
+        <analysis>How we interpret the results</analysis>
+      </step>
+
+      <step number="3">
+        <description>Implementation step</description>
+        <tool_use><![CDATA[
+<apply_diff>
+<path>path/to/file.ts</path>
+<diff>
+<<<<<<< SEARCH
+:start_line:1
+-------
+original content
+=======
+new content
+>>>>>>> REPLACE
+</diff>
+</apply_diff>
+        ]]></tool_use>
+      </step>
+    </workflow>
+
+    <completion><![CDATA[
+<attempt_completion>
+<result>
+Summary of what was accomplished and how it addresses the user's request
+</result>
+</attempt_completion>
+    ]]></completion>
+
+    <key_takeaways>
+      <takeaway>Important lesson from this example</takeaway>
+      <takeaway>Pattern that can be reused</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>
+    ]]></template>
+  </examples_file_template>
+
+  <communication_template>
+    <description>Template for communication guidelines (7_communication.xml)</description>
+    <template><![CDATA[
+<communication_guidelines>
+  <tone_and_style>
+    <principle>Be direct and technical, not conversational</principle>
+    <principle>Focus on actions taken and results achieved</principle>
+    <avoid>
+      <phrase>Great! I'll help you with that...</phrase>
+      <phrase>Certainly! Let me...</phrase>
+      <phrase>Sure thing!</phrase>
+    </avoid>
+    <prefer>
+      <phrase>I'll analyze the codebase to...</phrase>
+      <phrase>Implementing the requested changes...</phrase>
+      <phrase>The analysis shows...</phrase>
+    </prefer>
+  </tone_and_style>
+
+  <user_interaction>
+    <when_to_ask_questions>
+      <scenario>Missing critical information</scenario>
+      <scenario>Multiple valid approaches exist</scenario>
+      <scenario>Potential breaking changes</scenario>
+    </when_to_ask_questions>
+    
+    <question_format>
+      <guideline>Be specific about what you need</guideline>
+      <guideline>Provide actionable options</guideline>
+      <guideline>Explain implications of choices</guideline>
+    </question_format>
+  </user_interaction>
+
+  <progress_updates>
+    <when>During long-running operations</when>
+    <format>
+      <update>Analyzing [X] files for [purpose]...</update>
+      <update>Implementing [feature] in [location]...</update>
+      <update>Validating changes against [criteria]...</update>
+    </format>
+  </progress_updates>
+
+  <completion_messages>
+    <structure>
+      <element>What was accomplished</element>
+      <element>Key changes made</element>
+      <element>Any important notes or warnings</element>
+    </structure>
+    <avoid>
+      <element>Questions at the end</element>
+      <element>Offers for further assistance</element>
+      <element>Conversational closings</element>
+    </avoid>
+  </completion_messages>
+</communication_guidelines>
+    ]]></template>
+  </communication_template>
+</instruction_file_templates>

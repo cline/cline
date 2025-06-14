@@ -1,0 +1,96 @@
+<![CDATA[
+<api_documentation_example>
+  <scenario>
+    Generate OpenAPI documentation for a REST API with user management endpoints
+  </scenario>
+
+  <workflow>
+    <step number="1">
+      <description>Discover API endpoints</description>
+      <tool_use><![CDATA[
+<codebase_search>
+<query>express router app.get app.post app.put app.delete @Route @Get @Post</query>
+</codebase_search>
+      ]]></tool_use>
+      <result>Found routes in src/routes/users.ts</result>
+    </step>
+
+    <step number="2">
+      <description>Analyze endpoint implementation</description>
+      <tool_use><![CDATA[
+<read_file>
+<path>src/routes/users.ts</path>
+</read_file>
+      ]]></tool_use>
+    </step>
+
+    <step number="3">
+      <description>Generate OpenAPI specification</description>
+      <tool_use><![CDATA[
+<write_to_file>
+<path>docs/api/openapi.yaml</path>
+<content>
+openapi: 3.0.0
+info:
+  title: User Management API
+  version: 1.0.0
+  description: API for managing user accounts
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: http://localhost:3000/v1
+    description: Development server
+
+paths:
+  /users:
+    get:
+      summary: List all users
+      operationId: listUsers
+      tags:
+        - Users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

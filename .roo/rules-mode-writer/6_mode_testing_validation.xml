@@ -1,0 +1,207 @@
+<mode_testing_validation>
+  <overview>
+    Guidelines for testing and validating newly created modes to ensure they function correctly and integrate well with the Roo Code ecosystem.
+  </overview>
+
+  <validation_checklist>
+    <category name="configuration_validation">
+      <item priority="critical">
+        <check>Mode slug is unique and follows naming conventions</check>
+        <validation>No spaces, lowercase, hyphens only</validation>
+      </item>
+      <item priority="critical">
+        <check>All required fields are present and non-empty</check>
+        <fields>slug, name, roleDefinition, groups</fields>
+      </item>
+      <item priority="critical">
+        <check>No customInstructions field in .roomodes</check>
+        <validation>All instructions must be in XML files in .roo/rules-[slug]/</validation>
+      </item>
+      <item priority="high">
+        <check>File restrictions use valid regex patterns</check>
+        <test_method><![CDATA[
+<search_files>
+<path>.</path>
+<regex>your_file_regex_here</regex>
+</search_files>
+        ]]></test_method>
+      </item>
+      <item priority="high">
+        <check>whenToUse clearly differentiates from other modes</check>
+        <validation>Compare with existing mode descriptions</validation>
+      </item>
+    </category>
+
+    <category name="instruction_validation">
+      <item>
+        <check>XML files are well-formed and valid</check>
+        <validation>No syntax errors, proper closing tags</validation>
+      </item>
+      <item>
+        <check>Instructions follow XML best practices</check>
+        <validation>Semantic tag names, proper nesting</validation>
+      </item>
+      <item>
+        <check>Examples use correct tool syntax</check>
+        <validation>Tool parameters match current API</validation>
+      </item>
+      <item>
+        <check>File paths in examples are consistent</check>
+        <validation>Use project-relative paths</validation>
+      </item>
+    </category>
+
+    <category name="functional_testing">
+      <item>
+        <check>Mode appears in mode list</check>
+        <test>Switch to the new mode and verify it loads</test>
+      </item>
+      <item>
+        <check>Tool permissions work as expected</check>
+        <test>Try using each tool group and verify access</test>
+      </item>
+      <item>
+        <check>File restrictions are enforced</check>
+        <test>Attempt to edit allowed and restricted files</test>
+      </item>
+      <item>
+        <check>Mode handles edge cases gracefully</check>
+        <test>Test with minimal input, errors, edge cases</test>
+      </item>
+    </category>
+  </validation_checklist>
+
+  <testing_workflow>
+    <step number="1">
+      <title>Configuration Testing</title>
+      <actions>
+        <action>Verify mode appears in available modes list</action>
+        <action>Check that mode metadata displays correctly</action>
+        <action>Confirm mode can be activated</action>
+      </actions>
+      <verification><![CDATA[
+<ask_followup_question>
+<question>I've created the mode configuration. Can you see the new mode in your mode list?</question>
+<follow_up>
+<suggest>Yes, I can see the new mode and switch to it</suggest>
+<suggest>No, the mode doesn't appear in the list</suggest>
+<suggest>The mode appears but has errors when switching</suggest>
+</follow_up>
+</ask_followup_question>
+      ]]></verification>
+    </step>
+
+    <step number="2">
+      <title>Permission Testing</title>
+      <test_cases>
+        <test case="read_permissions">
+          <action>Use read tools on various files</action>
+          <expected>All read operations should work</expected>
+        </test>
+        <test case="edit_restrictions">
+          <action>Try editing allowed file types</action>
+          <expected>Edits succeed for matching patterns</expected>
+        </test>
+        <test case="edit_restrictions_negative">
+          <action>Try editing restricted file types</action>
+          <expected>FileRestrictionError for non-matching files</expected>
+        </test>
+      </test_cases>
+    </step>
+
+    <step number="3">
+      <title>Workflow Testing</title>
+      <actions>
+        <action>Execute main workflow from start to finish</action>
+        <action>Test each decision point</action>
+        <action>Verify error handling</action>
+        <action>Check completion criteria</action>
+      </actions>
+    </step>
+
+    <step number="4">
+      <title>Integration Testing</title>
+      <areas>
+        <area>Orchestrator mode compatibility</area>
+        <area>Mode switching functionality</area>
+        <area>Tool handoff between modes</area>
+        <area>Consistent behavior with other modes</area>
+      </areas>
+    </step>
+  </testing_workflow>
+
+  <common_issues>
+    <issue type="configuration">
+      <problem>Mode doesn't appear in list</problem>
+      <causes>
+        <cause>Syntax error in YAML</cause>
+        <cause>Invalid mode slug</cause>
+        <cause>File not saved</cause>
+      </causes>
+      <solution>Check YAML syntax, validate slug format</solution>
+    </issue>
+
+    <issue type="permissions">
+      <problem>File restriction not working</problem>
+      <causes>
+        <cause>Invalid regex pattern</cause>
+        <cause>Escaping issues in regex</cause>
+        <cause>Wrong file path format</cause>
+      </causes>
+      <solution>Test regex pattern, use proper escaping</solution>
+      <example><![CDATA[
+# Wrong: *.ts (glob pattern)
+# Right: .*\.ts$ (regex pattern)
+      ]]></example>
+    </issue>
+
+    <issue type="behavior">
+      <problem>Mode not following instructions</problem>
+      <causes>
+        <cause>Instructions not in .roo/rules-[slug]/ folder</cause>
+        <cause>XML parsing errors</cause>
+        <cause>Conflicting instructions</cause>
+      </causes>
+      <solution>Verify file locations and XML validity</solution>
+    </issue>
+  </common_issues>
+
+  <debugging_tools>
+    <tool name="list_files">
+      <usage>Verify instruction files exist in correct location</usage>
+      <command><![CDATA[
+<list_files>
+<path>.roo</path>
+<recursive>true</recursive>
+</list_files>
+      ]]></command>
+    </tool>
+
+    <tool name="read_file">
+      <usage>Check mode configuration syntax</usage>
+      <command><![CDATA[
+<read_file>
+<path>.roomodes</path>
+</read_file>
+      ]]></command>
+    </tool>
+
+    <tool name="search_files">
+      <usage>Test file restriction patterns</usage>
+      <command><![CDATA[
+<search_files>
+<path>.</path>
+<regex>your_file_pattern_here</regex>
+</search_files>
+      ]]></command>
+    </tool>
+  </debugging_tools>
+
+  <best_practices>
+    <practice>Test incrementally as you build the mode</practice>
+    <practice>Start with minimal configuration and add complexity</practice>
+    <practice>Document any special requirements or dependencies</practice>
+    <practice>Consider edge cases and error scenarios</practice>
+    <practice>Get feedback from potential users of the mode</practice>
+  </best_practices>
+</mode_testing_validation>

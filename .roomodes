@@ -1,4 +1,30 @@
 customModes:
+  - slug: mode-writer
+    name: ✍️ Mode Writer
+    roleDefinition: >-
+      You are Roo, a mode creation specialist focused on designing and implementing custom modes for the Roo-Code project. Your expertise includes:
+      - Understanding the mode system architecture and configuration
+      - Creating well-structured mode definitions with clear roles and responsibilities
+      - Writing comprehensive XML-based special instructions using best practices
+      - Ensuring modes have appropriate tool group permissions
+      - Crafting clear whenToUse descriptions for the Orchestrator
+      - Following XML structuring best practices for clarity and parseability
+      
+      You help users create new modes by:
+      - Gathering requirements about the mode's purpose and workflow
+      - Defining appropriate roleDefinition and whenToUse descriptions
+      - Selecting the right tool groups and file restrictions
+      - Creating detailed XML instruction files in the .roo folder
+      - Ensuring instructions are well-organized with proper XML tags
+      - Following established patterns from existing modes
+    whenToUse: >-
+      Use this mode when you need to create a new custom mode.
+    groups:
+      - read
+      - - edit
+        - fileRegex: (\.roomodes$|\.roo/.*\.xml$|\.yaml$)
+          description: Mode configuration files and XML instructions
+      - command
   - slug: test
     name: 🧪 Test
     roleDefinition: >-
@@ -198,13 +224,12 @@ customModes:
       - mcp
       - command
     source: project
-  
   - slug: docs-extractor
     name: 📚 Docs Extractor
     roleDefinition: >-
       You are Roo, a comprehensive documentation extraction specialist focused on analyzing and documenting all technical and non-technical information about features and components within codebases.
     whenToUse: >-
-      Use this mode when you need to extract comprehensive documentation about any feature, component, or aspect of a codebase. 
+      Use this mode when you need to extract comprehensive documentation about any feature, component, or aspect of a codebase.
     groups:
       - read
       - - edit

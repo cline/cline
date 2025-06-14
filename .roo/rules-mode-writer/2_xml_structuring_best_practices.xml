@@ -1,0 +1,220 @@
+<xml_structuring_best_practices>
+  <overview>
+    XML tags help Claude parse prompts more accurately, leading to higher-quality outputs.
+    This guide covers best practices for structuring mode instructions using XML.
+  </overview>
+
+  <why_use_xml_tags>
+    <benefit type="clarity">
+      Clearly separate different parts of your instructions and ensure well-structured content
+    </benefit>
+    <benefit type="accuracy">
+      Reduce errors caused by Claude misinterpreting parts of your instructions
+    </benefit>
+    <benefit type="flexibility">
+      Easily find, add, remove, or modify parts of instructions without rewriting everything
+    </benefit>
+    <benefit type="parseability">
+      Having Claude use XML tags in its output makes it easier to extract specific parts of responses
+    </benefit>
+  </why_use_xml_tags>
+
+  <core_principles>
+    <principle name="consistency">
+      <description>Use the same tag names throughout your instructions</description>
+      <example>
+        Always use <step> for workflow steps, not sometimes <action> or <task>
+      </example>
+    </principle>
+    
+    <principle name="semantic_naming">
+      <description>Tag names should clearly describe their content</description>
+      <good_examples>
+        <tag>detailed_steps</tag>
+        <tag>error_handling</tag>
+        <tag>validation_rules</tag>
+      </good_examples>
+      <bad_examples>
+        <tag>stuff</tag>
+        <tag>misc</tag>
+        <tag>data1</tag>
+      </bad_examples>
+    </principle>
+
+    <principle name="hierarchical_nesting">
+      <description>Nest tags to show relationships and structure</description>
+      <example>
+        <workflow>
+          <phase name="preparation">
+            <step>Gather requirements</step>
+            <step>Validate inputs</step>
+          </phase>
+          <phase name="execution">
+            <step>Process data</step>
+            <step>Generate output</step>
+          </phase>
+        </workflow>
+      </example>
+    </principle>
+  </core_principles>
+
+  <common_tag_patterns>
+    <pattern name="workflow_structure">
+      <usage>For step-by-step processes</usage>
+      <template><![CDATA[
+<workflow>
+  <overview>High-level description</overview>
+  <prerequisites>
+    <prerequisite>Required condition 1</prerequisite>
+    <prerequisite>Required condition 2</prerequisite>
+  </prerequisites>
+  <steps>
+    <step number="1">
+      <title>Step Title</title>
+      <description>What this step accomplishes</description>
+      <actions>
+        <action>Specific action to take</action>
+      </actions>
+      <validation>How to verify success</validation>
+    </step>
+  </steps>
+</workflow>
+      ]]></template>
+    </pattern>
+
+    <pattern name="examples_structure">
+      <usage>For providing code examples and demonstrations</usage>
+      <template><![CDATA[
+<examples>
+  <example name="descriptive_name">
+    <description>What this example demonstrates</description>
+    <context>When to use this approach</context>
+    <code language="typescript">
+      // Your code example here
+    </code>
+    <explanation>
+      Key points about the implementation
+    </explanation>
+  </example>
+</examples>
+      ]]></template>
+    </pattern>
+
+    <pattern name="guidelines_structure">
+      <usage>For rules and best practices</usage>
+      <template><![CDATA[
+<guidelines category="category_name">
+  <guideline priority="high">
+    <rule>The specific rule or guideline</rule>
+    <rationale>Why this is important</rationale>
+    <exceptions>When this doesn't apply</exceptions>
+  </guideline>
+</guidelines>
+      ]]></template>
+    </pattern>
+
+    <pattern name="tool_usage_structure">
+      <usage>For documenting how to use specific tools</usage>
+      <template><![CDATA[
+<tool_usage tool="tool_name">
+  <purpose>What this tool accomplishes</purpose>
+  <when_to_use>Specific scenarios for this tool</when_to_use>
+  <syntax>
+    <command>The exact command format</command>
+    <parameters>
+      <parameter name="param1" required="true">
+        <description>What this parameter does</description>
+        <type>string|number|boolean</type>
+        <example>example_value</example>
+      </parameter>
+    </parameters>
+  </syntax>
+  <examples>
+    <example scenario="common_use_case">
+      <code>Actual usage example</code>
+      <output>Expected output</output>
+    </example>
+  </examples>
+</tool_usage>
+      ]]></template>
+    </pattern>
+  </common_tag_patterns>
+
+  <formatting_guidelines>
+    <guideline name="indentation">
+      Use consistent indentation (2 or 4 spaces) for nested elements
+    </guideline>
+    <guideline name="line_breaks">
+      Add line breaks between major sections for readability
+    </guideline>
+    <guideline name="comments">
+      Use XML comments <!-- like this --> to explain complex sections
+    </guideline>
+    <guideline name="cdata_sections">
+      Use CDATA for code blocks or content with special characters:
+      <![CDATA[<code><![CDATA[your code here]]></code>]]>
+    </guideline>
+    <guideline name="attributes_vs_elements">
+      Use attributes for metadata, elements for content:
+      <example type="good">
+        <step number="1" priority="high">
+          <description>The actual step content</description>
+        </step>
+      </example>
+    </guideline>
+  </formatting_guidelines>
+
+  <anti_patterns>
+    <anti_pattern name="flat_structure">
+      <description>Avoid completely flat structures without hierarchy</description>
+      <bad><![CDATA[
+<instructions>
+<item1>Do this</item1>
+<item2>Then this</item2>
+<item3>Finally this</item3>
+</instructions>
+      ]]></bad>
+      <good><![CDATA[
+<instructions>
+  <steps>
+    <step order="1">Do this</step>
+    <step order="2">Then this</step>
+    <step order="3">Finally this</step>
+  </steps>
+</instructions>
+      ]]></good>
+    </anti_pattern>
+
+    <anti_pattern name="inconsistent_naming">
+      <description>Don't mix naming conventions</description>
+      <bad>
+        Mixing camelCase, snake_case, and kebab-case in tag names
+      </bad>
+      <good>
+        Pick one convention (preferably snake_case for XML) and stick to it
+      </good>
+    </anti_pattern>
+
+    <anti_pattern name="overly_generic_tags">
+      <description>Avoid tags that don't convey meaning</description>
+      <bad>data, info, stuff, thing, item</bad>
+      <good>user_input, validation_result, error_message, configuration</good>
+    </anti_pattern>
+  </anti_patterns>
+
+  <integration_tips>
+    <tip>
+      Reference XML content in instructions:
+      "Using the workflow defined in &lt;workflow&gt; tags..."
+    </tip>
+    <tip>
+      Combine XML structure with other techniques like multishot prompting
+    </tip>
+    <tip>
+      Use XML tags in expected outputs to make parsing easier
+    </tip>
+    <tip>
+      Create reusable XML templates for common patterns
+    </tip>
+  </integration_tips>
+</xml_structuring_best_practices>

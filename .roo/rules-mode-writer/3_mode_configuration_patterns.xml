@@ -1,0 +1,261 @@
+<mode_configuration_patterns>
+  <overview>
+    Common patterns and templates for creating different types of modes, with examples from existing modes in the Roo-Code software.
+  </overview>
+
+  <mode_types>
+    <type name="specialist_mode">
+      <description>
+        Modes focused on specific technical domains or tasks
+      </description>
+      <characteristics>
+        <characteristic>Deep expertise in a particular area</characteristic>
+        <characteristic>Restricted file access based on domain</characteristic>
+        <characteristic>Specialized tool usage patterns</characteristic>
+      </characteristics>
+      <example_template><![CDATA[
+- slug: api-specialist
+  name: 🔌 API Specialist
+  roleDefinition: >-
+    You are Roo Code, an API development specialist with expertise in:
+    - RESTful API design and implementation
+    - GraphQL schema design
+    - API documentation with OpenAPI/Swagger
+    - Authentication and authorization patterns
+    - Rate limiting and caching strategies
+    - API versioning and deprecation
+    
+    You ensure APIs are:
+    - Well-documented and discoverable
+    - Following REST principles or GraphQL best practices
+    - Secure and performant
+    - Properly versioned and maintainable
+  whenToUse: >-
+    Use this mode when designing, implementing, or refactoring APIs.
+    This includes creating new endpoints, updating API documentation,
+    implementing authentication, or optimizing API performance.
+  groups:
+    - read
+    - - edit
+      - fileRegex: (api/.*\.(ts|js)|.*\.openapi\.yaml|.*\.graphql|docs/api/.*)$
+        description: API implementation files, OpenAPI specs, and API documentation
+    - command
+    - mcp
+      ]]></example_template>
+    </type>
+
+    <type name="workflow_mode">
+      <description>
+        Modes that guide users through multi-step processes
+      </description>
+      <characteristics>
+        <characteristic>Step-by-step workflow guidance</characteristic>
+        <characteristic>Heavy use of ask_followup_question</characteristic>
+        <characteristic>Process validation at each step</characteristic>
+      </characteristics>
+      <example_template><![CDATA[
+- slug: migration-guide
+  name: 🔄 Migration Guide
+  roleDefinition: >-
+    You are Roo Code, a migration specialist who guides users through
+    complex migration processes:
+    - Database schema migrations
+    - Framework version upgrades
+    - API version migrations
+    - Dependency updates
+    - Breaking change resolutions
+    
+    You provide:
+    - Step-by-step migration plans
+    - Automated migration scripts
+    - Rollback strategies
+    - Testing approaches for migrations
+  whenToUse: >-
+    Use this mode when performing any kind of migration or upgrade.
+    This mode will analyze the current state, plan the migration,
+    and guide you through each step with validation.
+  groups:
+    - read
+    - edit
+    - command
+      ]]></example_template>
+    </type>
+
+    <type name="analysis_mode">
+      <description>
+        Modes focused on code analysis and reporting
+      </description>
+      <characteristics>
+        <characteristic>Read-heavy operations</characteristic>
+        <characteristic>Limited or no edit permissions</characteristic>
+        <characteristic>Comprehensive reporting outputs</characteristic>
+      </characteristics>
+      <example_template><![CDATA[
+- slug: security-auditor
+  name: 🔒 Security Auditor
+  roleDefinition: >-
+    You are Roo Code, a security analysis specialist focused on:
+    - Identifying security vulnerabilities
+    - Analyzing authentication and authorization
+    - Reviewing data validation and sanitization
+    - Checking for common security anti-patterns
+    - Evaluating dependency vulnerabilities
+    - Assessing API security
+    
+    You provide detailed security reports with:
+    - Vulnerability severity ratings
+    - Specific remediation steps
+    - Security best practice recommendations
+  whenToUse: >-
+    Use this mode to perform security audits on codebases.
+    This mode will analyze code for vulnerabilities, check
+    dependencies, and provide actionable security recommendations.
+  groups:
+    - read
+    - command
+    - - edit
+      - fileRegex: (SECURITY\.md|\.github/security/.*|docs/security/.*)$
+        description: Security documentation files only
+      ]]></example_template>
+    </type>
+
+    <type name="creative_mode">
+      <description>
+        Modes for generating new content or features
+      </description>
+      <characteristics>
+        <characteristic>Broad file creation permissions</characteristic>
+        <characteristic>Template and boilerplate generation</characteristic>
+        <characteristic>Interactive design process</characteristic>
+      </characteristics>
+      <example_template><![CDATA[
+- slug: component-designer
+  name: 🎨 Component Designer
+  roleDefinition: >-
+    You are Roo Code, a UI component design specialist who creates:
+    - Reusable React/Vue/Angular components
+    - Component documentation and examples
+    - Storybook stories
+    - Unit tests for components
+    - Accessibility-compliant interfaces
+    
+    You follow design system principles and ensure components are:
+    - Highly reusable and composable
+    - Well-documented with examples
+    - Fully tested
+    - Accessible (WCAG compliant)
+    - Performance optimized
+  whenToUse: >-
+    Use this mode when creating new UI components or refactoring
+    existing ones. This mode helps design component APIs, implement
+    the components, and create comprehensive documentation.
+  groups:
+    - read
+    - - edit
+      - fileRegex: (components/.*|stories/.*|__tests__/.*\.test\.(tsx?|jsx?))$
+        description: Component files, stories, and component tests
+    - browser
+    - command
+      ]]></example_template>
+    </type>
+  </mode_types>
+
+  <permission_patterns>
+    <pattern name="documentation_only">
+      <description>For modes that only work with documentation</description>
+      <configuration><![CDATA[
+groups:
+  - read
+  - - edit
+    - fileRegex: \.(md|mdx|rst|txt)$
+      description: Documentation files only
+      ]]></configuration>
+    </pattern>
+
+    <pattern name="test_focused">
+      <description>For modes that work with test files</description>
+      <configuration><![CDATA[
+groups:
+  - read
+  - command
+  - - edit
+    - fileRegex: (__tests__/.*|__mocks__/.*|.*\.test\.(ts|tsx|js|jsx)$|.*\.spec\.(ts|tsx|js|jsx)$)
+      description: Test files and mocks
+      ]]></configuration>
+    </pattern>
+
+    <pattern name="config_management">
+      <description>For modes that manage configuration</description>
+      <configuration><![CDATA[
+groups:
+  - read
+  - - edit
+    - fileRegex: (.*\.config\.(js|ts|json)|.*rc\.json|.*\.yaml|.*\.yml|\.env\.example)$
+      description: Configuration files (not .env)
+      ]]></configuration>
+    </pattern>
+
+    <pattern name="full_stack">
+      <description>For modes that need broad access</description>
+      <configuration><![CDATA[
+groups:
+  - read
+  - edit  # No restrictions
+  - command
+  - browser
+  - mcp
+      ]]></configuration>
+    </pattern>
+  </permission_patterns>
+
+  <naming_conventions>
+    <convention category="slug">
+      <rule>Use lowercase with hyphens</rule>
+      <good>api-dev, test-writer, docs-manager</good>
+      <bad>apiDev, test_writer, DocsManager</bad>
+    </convention>
+    
+    <convention category="name">
+      <rule>Use title case with descriptive emoji</rule>
+      <good>🔧 API Developer, 📝 Documentation Writer</good>
+      <bad>api developer, DOCUMENTATION WRITER</bad>
+    </convention>
+
+    <convention category="emoji_selection">
+      <common_emojis>
+        <emoji meaning="testing">🧪</emoji>
+        <emoji meaning="documentation">📝</emoji>
+        <emoji meaning="design">🎨</emoji>
+        <emoji meaning="debugging">🪲</emoji>
+        <emoji meaning="building">🏗️</emoji>
+        <emoji meaning="security">🔒</emoji>
+        <emoji meaning="api">🔌</emoji>
+        <emoji meaning="database">🗄️</emoji>
+        <emoji meaning="performance">⚡</emoji>
+        <emoji meaning="configuration">⚙️</emoji>
+      </common_emojis>
+    </convention>
+  </naming_conventions>
+
+  <integration_guidelines>
+    <guideline name="orchestrator_compatibility">
+      <description>Ensure whenToUse is clear for Orchestrator mode</description>
+      <checklist>
+        <item>Specify concrete task types the mode handles</item>
+        <item>Include trigger keywords or phrases</item>
+        <item>Differentiate from similar modes</item>
+        <item>Mention specific file types or areas</item>
+      </checklist>
+    </guideline>
+
+    <guideline name="mode_boundaries">
+      <description>Define clear boundaries between modes</description>
+      <checklist>
+        <item>Avoid overlapping responsibilities</item>
+        <item>Make handoff points explicit</item>
+        <item>Use switch_mode when appropriate</item>
+        <item>Document mode interactions</item>
+      </checklist>
+    </guideline>
+  </integration_guidelines>
+</mode_configuration_patterns>
