@@ -1,9 +1,4 @@
 {
-	"recentTasks": "Tasks",
-	"viewAll": "View All Tasks",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "Cache: +{{writes}} → {{reads}}",
-	"apiCost": "API Cost: ${{cost}}",
 	"history": "History",
 	"exitSelectionMode": "Exit Selection Mode",
 	"enterSelectionMode": "Enter Selection Mode",
@@ -15,9 +10,6 @@
 	"mostTokens": "Most Tokens",
 	"mostRelevant": "Most Relevant",
 	"deleteTaskTitle": "Delete Task (Shift + Click to skip confirmation)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "Cache:",
-	"apiCostLabel": "API Cost:",
 	"copyPrompt": "Copy Prompt",
 	"exportTask": "Export Task",
 	"deleteTask": "Delete Task",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Are you sure you want to delete {{count}} tasks?",
 	"deleteTasksWarning": "Deleted tasks cannot be recovered. Please make sure you want to proceed.",
 	"deleteItems": "Delete {{count}} Items",
-	"showAllWorkspaces": "Show tasks from all workspaces"
+	"workspace": {
+		"prefix": "Workspace:",
+		"current": "Current",
+		"all": "All"
+	},
+	"sort": {
+		"prefix": "Sort:",
+		"newest": "Newest",
+		"oldest": "Oldest",
+		"mostExpensive": "Most Expensive",
+		"mostTokens": "Most Tokens",
+		"mostRelevant": "Most Relevant"
+	}
 }

@@ -1,9 +1,4 @@
 {
-	"recentTasks": "Görevler",
-	"viewAll": "Tümünü Gör",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "Önbellek: +{{writes}} → {{reads}}",
-	"apiCost": "API Maliyeti: ${{cost}}",
 	"history": "Geçmiş",
 	"exitSelectionMode": "Seçim Modundan Çık",
 	"enterSelectionMode": "Seçim Moduna Gir",
@@ -15,9 +10,6 @@
 	"mostTokens": "En Çok Token",
 	"mostRelevant": "En İlgili",
 	"deleteTaskTitle": "Görevi Sil (Onayı atlamak için Shift + Tıkla)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "Önbellek:",
-	"apiCostLabel": "API Maliyeti:",
 	"copyPrompt": "Promptu Kopyala",
 	"exportTask": "Görevi Dışa Aktar",
 	"deleteTask": "Görevi Sil",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "{{count}} görevi silmek istediğinizden emin misiniz?",
 	"deleteTasksWarning": "Silinen görevler geri alınamaz. Lütfen devam etmek istediğinizden emin olun.",
 	"deleteItems": "{{count}} Öğeyi Sil",
-	"showAllWorkspaces": "Tüm çalışma alanlarından görevleri göster"
+	"workspace": {
+		"prefix": "Çalışma Alanı:",
+		"current": "Mevcut",
+		"all": "Tümü"
+	},
+	"sort": {
+		"prefix": "Sırala:",
+		"newest": "En Yeni",
+		"oldest": "En Eski",
+		"mostExpensive": "En Pahalı",
+		"mostTokens": "En Çok Token",
+		"mostRelevant": "En İlgili"
+	}
 }

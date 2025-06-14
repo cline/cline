@@ -37,6 +37,17 @@
 	"deleteTaskFavoritedWarning": "Tugas ini telah ditandai sebagai favorit. Apakah kamu yakin ingin menghapusnya?",
 	"deleteTasksFavoritedWarning": "{{count}} tugas yang dipilih telah ditandai sebagai favorit. Apakah kamu yakin ingin menghapusnya?",
 	"deleteItems": "Hapus {{count}} Item",
-	"showAllWorkspaces": "Tampilkan tugas dari semua workspace",
-	"showFavoritesOnly": "Tampilkan hanya favorit"
+	"workspace": {
+		"prefix": "Ruang Kerja:",
+		"current": "Saat Ini",
+		"all": "Semua"
+	},
+	"sort": {
+		"prefix": "Urutkan:",
+		"newest": "Terbaru",
+		"oldest": "Terlama",
+		"mostExpensive": "Termahal",
+		"mostTokens": "Token Terbanyak",
+		"mostRelevant": "Paling Relevan"
+	}
 }

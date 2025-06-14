@@ -35,5 +35,17 @@
 	"confirmDeleteTasks": "¿Estás seguro de que quieres eliminar {{count}} tareas?",
 	"deleteTasksWarning": "Las tareas eliminadas no se pueden recuperar. Por favor, asegúrate de que quieres continuar.",
 	"deleteItems": "Eliminar {{count}} elementos",
-	"showAllWorkspaces": "Mostrar tareas de todos los espacios de trabajo"
+	"workspace": {
+		"prefix": "Espacio de trabajo:",
+		"current": "Actual",
+		"all": "Todos"
+	},
+	"sort": {
+		"prefix": "Ordenar:",
+		"newest": "Más recientes",
+		"oldest": "Más antiguas",
+		"mostExpensive": "Más costosas",
+		"mostTokens": "Más tokens",
+		"mostRelevant": "Más relevantes"
+	}
 }

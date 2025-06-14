@@ -1,9 +1,4 @@
 {
-	"recentTasks": "Недавние задачи",
-	"viewAll": "Просмотреть все задачи",
-	"tokens": "Токены: ↑{{in}} ↓{{out}}",
-	"cache": "Кэш: +{{writes}} → {{reads}}",
-	"apiCost": "Стоимость API: ${{cost}}",
 	"history": "История",
 	"exitSelectionMode": "Выйти из режима выбора",
 	"enterSelectionMode": "Войти в режим выбора",
@@ -15,9 +10,6 @@
 	"mostTokens": "Больше всего токенов",
 	"mostRelevant": "Наиболее релевантные",
 	"deleteTaskTitle": "Удалить задачу (Shift + клик для пропуска подтверждения)",
-	"tokensLabel": "Токены:",
-	"cacheLabel": "Кэш:",
-	"apiCostLabel": "Стоимость API:",
 	"copyPrompt": "Скопировать запрос",
 	"exportTask": "Экспортировать задачу",
 	"deleteTask": "Удалить задачу",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Вы уверены, что хотите удалить {{count}} задач?",
 	"deleteTasksWarning": "Удалённые задачи не могут быть восстановлены. Пожалуйста, убедитесь, что хотите продолжить.",
 	"deleteItems": "Удалить {{count}} элементов",
-	"showAllWorkspaces": "Показать задачи из всех рабочих пространств"
+	"workspace": {
+		"prefix": "Рабочая область:",
+		"current": "Текущая",
+		"all": "Все"
+	},
+	"sort": {
+		"prefix": "Сортировать:",
+		"newest": "Самые новые",
+		"oldest": "Самые старые",
+		"mostExpensive": "Самые дорогие",
+		"mostTokens": "Больше всего токенов",
+		"mostRelevant": "Наиболее релевантные"
+	}
 }

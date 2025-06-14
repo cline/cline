@@ -35,5 +35,17 @@
 	"confirmDeleteTasks": "Êtes-vous sûr de vouloir supprimer {{count}} tâches ?",
 	"deleteTasksWarning": "Les tâches supprimées ne peuvent pas être récupérées. Veuillez confirmer que vous souhaitez continuer.",
 	"deleteItems": "Supprimer {{count}} éléments",
-	"showAllWorkspaces": "Afficher les tâches de tous les espaces de travail"
+	"workspace": {
+		"prefix": "Espace de travail :",
+		"current": "Actuel",
+		"all": "Tous"
+	},
+	"sort": {
+		"prefix": "Trier :",
+		"newest": "Plus récentes",
+		"oldest": "Plus anciennes",
+		"mostExpensive": "Plus coûteuses",
+		"mostTokens": "Plus de tokens",
+		"mostRelevant": "Plus pertinentes"
+	}
 }

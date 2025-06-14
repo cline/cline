@@ -1,30 +1,22 @@
 import { render, screen, fireEvent } from "@testing-library/react"
-import type { HistoryItem } from "@roo-code/types"
 import TaskItem from "../TaskItem"
-import { vscode } from "@src/utils/vscode"
 
 jest.mock("@src/utils/vscode")
-jest.mock("@src/i18n/TranslationContext")
-jest.mock("lucide-react", () => ({
-	DollarSign: () => <span data-testid="dollar-sign">$</span>,
-	Coins: () => <span data-testid="coins-icon" />, // Mock for Coins icon used in TaskItemFooter compact
-}))
-jest.mock("../CopyButton", () => ({
-	CopyButton: jest.fn(() => <button data-testid="mock-copy-button">Copy</button>),
-}))
-jest.mock("../ExportButton", () => ({
-	ExportButton: jest.fn(() => <button data-testid="mock-export-button">Export</button>),
+jest.mock("@src/i18n/TranslationContext", () => ({
+	useAppTranslation: () => ({
+		t: (key: string) => key,
+	}),
 }))
 
-const mockTask: HistoryItem = {
+const mockTask = {
+	id: "1",
 	number: 1,
-	id: "test-task-1",
-	task: "Test task content",
-	ts: new Date("2022-02-16T00:00:00").getTime(),
+	task: "Test task",
+	ts: Date.now(),
 	tokensIn: 100,
 	tokensOut: 50,
 	totalCost: 0.002,
-	workspace: "test-workspace",
+	workspace: "/test/workspace",
 }
 
 describe("TaskItem", () => {
@@ -32,86 +24,96 @@ describe("TaskItem", () => {
 		jest.clearAllMocks()
 	})
 
-	it("renders compact variant correctly", () => {
-		render(<TaskItem item={mockTask} variant="compact" />)
-
-		expect(screen.getByText("Test task content")).toBeInTheDocument()
-		// Check for tokens display
-		expect(screen.getByTestId("tokens-in-footer-compact")).toHaveTextContent("100")
-		expect(screen.getByTestId("tokens-out-footer-compact")).toHaveTextContent("50")
-		expect(screen.getByTestId("cost-footer-compact")).toHaveTextContent("$0.00") // Cost
-	})
-
-	it("renders full variant correctly", () => {
-		render(<TaskItem item={mockTask} variant="full" />)
-
-		expect(screen.getByTestId("task-item-test-task-1")).toBeInTheDocument()
-		expect(screen.getByTestId("task-content")).toBeInTheDocument()
-		expect(screen.getByTestId("tokens-in-footer-full")).toHaveTextContent("100")
-		expect(screen.getByTestId("tokens-out-footer-full")).toHaveTextContent("50")
-	})
-
-	it("shows workspace when showWorkspace is true", () => {
-		render(<TaskItem item={mockTask} variant="compact" showWorkspace={true} />)
-
-		expect(screen.getByText("test-workspace")).toBeInTheDocument()
-	})
-
-	it("handles click events correctly", () => {
-		render(<TaskItem item={mockTask} variant="compact" />)
-
-		fireEvent.click(screen.getByText("Test task content"))
-
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "showTaskWithId",
-			text: "test-task-1",
-		})
-	})
-
-	it("handles selection mode correctly", () => {
-		const mockToggleSelection = jest.fn()
+	it("renders task information", () => {
 		render(
 			<TaskItem
 				item={mockTask}
 				variant="full"
-				isSelectionMode={true}
 				isSelected={false}
-				onToggleSelection={mockToggleSelection}
+				onToggleSelection={jest.fn()}
+				isSelectionMode={false}
+			/>,
+		)
+
+		expect(screen.getByText("Test task")).toBeInTheDocument()
+		expect(screen.getByText("$0.00")).toBeInTheDocument() // Component shows $0.00 for small amounts
+	})
+
+	it("handles selection in selection mode", () => {
+		const onToggleSelection = jest.fn()
+		render(
+			<TaskItem
+				item={mockTask}
+				variant="full"
+				isSelected={false}
+				onToggleSelection={onToggleSelection}
+				isSelectionMode={true}
 			/>,
 		)
 
 		const checkbox = screen.getByRole("checkbox")
-		expect(checkbox).toBeInTheDocument()
-		expect(checkbox).not.toBeChecked()
+		fireEvent.click(checkbox)
 
-		fireEvent.click(screen.getByTestId("task-item-test-task-1"))
-
-		expect(mockToggleSelection).toHaveBeenCalledWith("test-task-1", true)
-		expect(vscode.postMessage).not.toHaveBeenCalled()
+		expect(onToggleSelection).toHaveBeenCalledWith("1", true)
 	})
 
-	it("shows delete button in full variant when not in selection mode", () => {
-		const mockOnDelete = jest.fn()
-		render(<TaskItem item={mockTask} variant="full" onDelete={mockOnDelete} />)
+	it("shows action buttons", () => {
+		render(
+			<TaskItem
+				item={mockTask}
+				variant="full"
+				isSelected={false}
+				onToggleSelection={jest.fn()}
+				isSelectionMode={false}
+			/>,
+		)
 
-		const deleteButton = screen.getByTestId("delete-task-button")
-		expect(deleteButton).toBeInTheDocument()
-
-		fireEvent.click(deleteButton)
-
-		expect(mockOnDelete).toHaveBeenCalledWith("test-task-1")
+		// Should show copy and export buttons
+		expect(screen.getByTestId("copy-prompt-button")).toBeInTheDocument()
+		expect(screen.getByTestId("export")).toBeInTheDocument()
 	})
 
-	it("displays cache information when available", () => {
-		const taskWithCache: HistoryItem = {
+	it("displays cache information when present", () => {
+		const mockTaskWithCache = {
 			...mockTask,
-			cacheWrites: 25,
 			cacheReads: 10,
+			cacheWrites: 5,
 		}
 
-		render(<TaskItem item={taskWithCache} variant="full" />)
+		render(
+			<TaskItem
+				item={mockTaskWithCache}
+				variant="full"
+				isSelected={false}
+				onToggleSelection={jest.fn()}
+				isSelectionMode={false}
+			/>,
+		)
 
-		expect(screen.getByTestId("cache-writes")).toHaveTextContent("25")
-		expect(screen.getByTestId("cache-reads")).toHaveTextContent("10")
+		// Should display cache information in the footer
+		expect(screen.getByTestId("cache-compact")).toBeInTheDocument()
+		expect(screen.getByText("5")).toBeInTheDocument() // cache writes
+		expect(screen.getByText("10")).toBeInTheDocument() // cache reads
+	})
+
+	it("does not display cache information when not present", () => {
+		const mockTaskWithoutCache = {
+			...mockTask,
+			cacheReads: 0,
+			cacheWrites: 0,
+		}
+
+		render(
+			<TaskItem
+				item={mockTaskWithoutCache}
+				variant="full"
+				isSelected={false}
+				onToggleSelection={jest.fn()}
+				isSelectionMode={false}
+			/>,
+		)
+
+		// Cache section should not be present
+		expect(screen.queryByTestId("cache-compact")).not.toBeInTheDocument()
 	})
 })

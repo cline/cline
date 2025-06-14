@@ -1,9 +1,4 @@
 {
-	"recentTasks": "कार्य",
-	"viewAll": "सभी देखें",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "कैश: +{{writes}} → {{reads}}",
-	"apiCost": "API लागत: ${{cost}}",
 	"history": "इतिहास",
 	"exitSelectionMode": "चयन मोड से बाहर निकलें",
 	"enterSelectionMode": "चयन मोड में प्रवेश करें",
@@ -15,9 +10,6 @@
 	"mostTokens": "सबसे अधिक टोकन",
 	"mostRelevant": "सबसे प्रासंगिक",
 	"deleteTaskTitle": "कार्य हटाएं (Shift + क्लिक पुष्टि छोड़ने के लिए)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "कैश:",
-	"apiCostLabel": "API लागत:",
 	"copyPrompt": "प्रॉम्प्ट कॉपी करें",
 	"exportTask": "कार्य निर्यात करें",
 	"deleteTask": "कार्य हटाएं",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "क्या आप वाकई {{count}} कार्य हटाना चाहते हैं?",
 	"deleteTasksWarning": "हटाए गए कार्य पुनर्प्राप्त नहीं किए जा सकते। कृपया सुनिश्चित करें कि आप आगे बढ़ना चाहते हैं।",
 	"deleteItems": "{{count}} आइटम हटाएं",
-	"showAllWorkspaces": "सभी वर्कस्पेस से कार्य दिखाएं"
+	"workspace": {
+		"prefix": "कार्यस्थान:",
+		"current": "वर्तमान",
+		"all": "सभी"
+	},
+	"sort": {
+		"prefix": "क्रमबद्ध करें:",
+		"newest": "नवीनतम",
+		"oldest": "सबसे पुराना",
+		"mostExpensive": "सबसे महंगा",
+		"mostTokens": "सबसे अधिक टोकन",
+		"mostRelevant": "सबसे प्रासंगिक"
+	}
 }

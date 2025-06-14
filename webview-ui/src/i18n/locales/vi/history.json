@@ -1,10 +1,7 @@
 {
-	"recentTasks": "Nhiệm vụ",
-	"viewAll": "Xem tất cả",
-	"tokens": "Token: ↑{{in}} ↓{{out}}",
-	"cache": "Bộ nhớ đệm: +{{writes}} → {{reads}}",
-	"apiCost": "Chi phí API: ${{cost}}",
 	"history": "Lịch sử",
+	"exitSelectionMode": "Thoát chế độ chọn",
+	"enterSelectionMode": "Vào chế độ chọn",
 	"done": "Hoàn thành",
 	"searchPlaceholder": "Tìm kiếm lịch sử...",
 	"newest": "Mới nhất",
@@ -13,17 +10,12 @@
 	"mostTokens": "Nhiều token nhất",
 	"mostRelevant": "Liên quan nhất",
 	"deleteTaskTitle": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)",
-	"tokensLabel": "Token:",
-	"cacheLabel": "Bộ nhớ đệm:",
-	"apiCostLabel": "Chi phí API:",
 	"copyPrompt": "Sao chép lời nhắc",
 	"exportTask": "Xuất nhiệm vụ",
 	"deleteTask": "Xóa nhiệm vụ",
 	"deleteTaskMessage": "Bạn có chắc chắn muốn xóa nhiệm vụ này không? Hành động này không thể hoàn tác.",
 	"cancel": "Hủy",
 	"delete": "Xóa",
-	"exitSelectionMode": "Thoát chế độ chọn",
-	"enterSelectionMode": "Vào chế độ chọn",
 	"exitSelection": "Thoát chọn",
 	"selectionMode": "Chế độ chọn",
 	"deselectAll": "Bỏ chọn tất cả",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Bạn có chắc chắn muốn xóa {{count}} nhiệm vụ không?",
 	"deleteTasksWarning": "Các nhiệm vụ đã xóa không thể khôi phục. Vui lòng chắc chắn bạn muốn tiếp tục.",
 	"deleteItems": "Xóa {{count}} mục",
-	"showAllWorkspaces": "Hiển thị nhiệm vụ từ tất cả không gian làm việc"
+	"workspace": {
+		"prefix": "Không gian làm việc:",
+		"current": "Hiện tại",
+		"all": "Tất cả"
+	},
+	"sort": {
+		"prefix": "Sắp xếp:",
+		"newest": "Mới nhất",
+		"oldest": "Cũ nhất",
+		"mostExpensive": "Đắt nhất",
+		"mostTokens": "Nhiều token nhất",
+		"mostRelevant": "Liên quan nhất"
+	}
 }

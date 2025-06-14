@@ -1,9 +1,4 @@
 {
-	"recentTasks": "작업",
-	"viewAll": "모두 보기",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "캐시: +{{writes}} → {{reads}}",
-	"apiCost": "API 비용: ${{cost}}",
 	"history": "기록",
 	"exitSelectionMode": "선택 모드 종료",
 	"enterSelectionMode": "선택 모드 진입",
@@ -15,9 +10,6 @@
 	"mostTokens": "토큰 많은순",
 	"mostRelevant": "관련성 높은순",
 	"deleteTaskTitle": "작업 삭제 (Shift + 클릭으로 확인 생략)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "캐시:",
-	"apiCostLabel": "API 비용:",
 	"copyPrompt": "프롬프트 복사",
 	"exportTask": "작업 내보내기",
 	"deleteTask": "작업 삭제",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "{{count}}개의 작업을 삭제하시겠습니까?",
 	"deleteTasksWarning": "삭제된 작업은 복구할 수 없습니다. 계속 진행하시겠습니까?",
 	"deleteItems": "{{count}}개 항목 삭제",
-	"showAllWorkspaces": "모든 워크스페이스의 작업 표시"
+	"workspace": {
+		"prefix": "워크스페이스:",
+		"current": "현재",
+		"all": "모두"
+	},
+	"sort": {
+		"prefix": "정렬:",
+		"newest": "최신순",
+		"oldest": "오래된순",
+		"mostExpensive": "가장 비싼순",
+		"mostTokens": "토큰 많은순",
+		"mostRelevant": "관련성 높은순"
+	}
 }

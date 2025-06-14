@@ -3,10 +3,9 @@ import { DeleteTaskDialog } from "./DeleteTaskDialog"
 import { BatchDeleteTaskDialog } from "./BatchDeleteTaskDialog"
 import { Virtuoso } from "react-virtuoso"
 
-import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { cn } from "@/lib/utils"
-import { Button, Checkbox } from "@/components/ui"
+import { Button, Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
@@ -95,7 +94,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				</div>
 				<div className="flex flex-col gap-2">
 					<VSCodeTextField
-						style={{ width: "100%" }}
+						className="w-full"
 						placeholder={t("history:searchPlaceholder")}
 						value={searchQuery}
 						data-testid="history-search-input"
@@ -107,62 +106,83 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								setSortOption("mostRelevant")
 							}
 						}}>
-						<div
-							slot="start"
-							className="codicon codicon-search"
-							style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}
-						/>
+						<div slot="start" className="codicon codicon-search mt-0.5 opacity-80 text-sm!" />
 						{searchQuery && (
 							<div
-								className="input-icon-button codicon codicon-close"
+								className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
 								aria-label="Clear search"
 								onClick={() => setSearchQuery("")}
 								slot="end"
-								style={{
-									display: "flex",
-									justifyContent: "center",
-									alignItems: "center",
-									height: "100%",
-								}}
 							/>
 						)}
 					</VSCodeTextField>
-					<VSCodeRadioGroup
-						style={{ display: "flex", flexWrap: "wrap" }}
-						value={sortOption}
-						role="radiogroup"
-						onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
-						<VSCodeRadio value="newest" data-testid="radio-newest">
-							{t("history:newest")}
-						</VSCodeRadio>
-						<VSCodeRadio value="oldest" data-testid="radio-oldest">
-							{t("history:oldest")}
-						</VSCodeRadio>
-						<VSCodeRadio value="mostExpensive" data-testid="radio-most-expensive">
-							{t("history:mostExpensive")}
-						</VSCodeRadio>
-						<VSCodeRadio value="mostTokens" data-testid="radio-most-tokens">
-							{t("history:mostTokens")}
-						</VSCodeRadio>
-						<VSCodeRadio
-							value="mostRelevant"
-							disabled={!searchQuery}
-							data-testid="radio-most-relevant"
-							style={{ opacity: searchQuery ? 1 : 0.5 }}>
-							{t("history:mostRelevant")}
-						</VSCodeRadio>
-					</VSCodeRadioGroup>
-
-					<div className="flex items-center gap-2">
-						<Checkbox
-							id="show-all-workspaces-view"
-							checked={showAllWorkspaces}
-							onCheckedChange={(checked) => setShowAllWorkspaces(checked === true)}
-							variant="description"
-						/>
-						<label htmlFor="show-all-workspaces-view" className="text-vscode-foreground cursor-pointer">
-							{t("history:showAllWorkspaces")}
-						</label>
+					<div className="flex gap-2">
+						<Select
+							value={showAllWorkspaces ? "all" : "current"}
+							onValueChange={(value) => setShowAllWorkspaces(value === "all")}>
+							<SelectTrigger className="flex-1">
+								<SelectValue>
+									{t("history:workspace.prefix")}{" "}
+									{t(`history:workspace.${showAllWorkspaces ? "all" : "current"}`)}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="current">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-folder" />
+										{t("history:workspace.current")}
+									</div>
+								</SelectItem>
+								<SelectItem value="all">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-folder-opened" />
+										{t("history:workspace.all")}
+									</div>
+								</SelectItem>
+							</SelectContent>
+						</Select>
+						<Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
+							<SelectTrigger className="flex-1">
+								<SelectValue>
+									{t("history:sort.prefix")} {t(`history:sort.${sortOption}`)}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="newest" data-testid="select-newest">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-arrow-down" />
+										{t("history:newest")}
+									</div>
+								</SelectItem>
+								<SelectItem value="oldest" data-testid="select-oldest">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-arrow-up" />
+										{t("history:oldest")}
+									</div>
+								</SelectItem>
+								<SelectItem value="mostExpensive" data-testid="select-most-expensive">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-credit-card" />
+										{t("history:mostExpensive")}
+									</div>
+								</SelectItem>
+								<SelectItem value="mostTokens" data-testid="select-most-tokens">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-symbol-numeric" />
+										{t("history:mostTokens")}
+									</div>
+								</SelectItem>
+								<SelectItem
+									value="mostRelevant"
+									disabled={!searchQuery}
+									data-testid="select-most-relevant">
+									<div className="flex items-center gap-2">
+										<span className="codicon codicon-search" />
+										{t("history:mostRelevant")}
+									</div>
+								</SelectItem>
+							</SelectContent>
+						</Select>
 					</div>
 
 					{/* Select all control in selection mode */}
@@ -193,10 +213,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 			<TabContent className="p-0">
 				<Virtuoso
-					style={{
-						flexGrow: 1,
-						overflowY: "scroll",
-					}}
+					className="flex-1 overflow-y-scroll"
 					data={tasks}
 					data-testid="virtuoso-container"
 					initialTopMostItemIndex={0}
@@ -205,7 +222,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<div {...props} ref={ref} data-testid="virtuoso-item-list" />
 						)),
 					}}
-					itemContent={(index, item) => (
+					itemContent={(_index, item) => (
 						<TaskItem
 							key={item.id}
 							item={item}
@@ -215,9 +232,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							isSelected={selectedTaskIds.includes(item.id)}
 							onToggleSelection={toggleTaskSelection}
 							onDelete={setDeleteTaskId}
-							className={cn({
-								"border-b border-vscode-panel-border": index < tasks.length - 1,
-							})}
+							className="m-2 mr-0"
 						/>
 					)}
 				/>

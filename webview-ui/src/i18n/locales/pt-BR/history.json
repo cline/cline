@@ -1,23 +1,15 @@
 {
-	"recentTasks": "Tarefas",
-	"viewAll": "Ver todas",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "Cache: +{{writes}} → {{reads}}",
-	"apiCost": "Custo da API: ${{cost}}",
 	"history": "Histórico",
 	"exitSelectionMode": "Sair do modo de seleção",
 	"enterSelectionMode": "Entrar no modo de seleção",
 	"done": "Concluído",
-	"searchPlaceholder": "Pesquisar no histórico...",
+	"searchPlaceholder": "Pesquisar histórico...",
 	"newest": "Mais recentes",
 	"oldest": "Mais antigas",
 	"mostExpensive": "Mais caras",
 	"mostTokens": "Mais tokens",
 	"mostRelevant": "Mais relevantes",
 	"deleteTaskTitle": "Excluir tarefa (Shift + Clique para pular confirmação)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "Cache:",
-	"apiCostLabel": "Custo da API:",
 	"copyPrompt": "Copiar prompt",
 	"exportTask": "Exportar tarefa",
 	"deleteTask": "Excluir tarefa",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Tem certeza que deseja excluir {{count}} tarefas?",
 	"deleteTasksWarning": "As tarefas excluídas não podem ser recuperadas. Por favor, certifique-se de que deseja prosseguir.",
 	"deleteItems": "Excluir {{count}} itens",
-	"showAllWorkspaces": "Mostrar tarefas de todos os espaços de trabalho"
+	"workspace": {
+		"prefix": "Espaço de trabalho:",
+		"current": "Atual",
+		"all": "Todos"
+	},
+	"sort": {
+		"prefix": "Ordenar:",
+		"newest": "Mais recentes",
+		"oldest": "Mais antigas",
+		"mostExpensive": "Mais caras",
+		"mostTokens": "Mais tokens",
+		"mostRelevant": "Mais relevantes"
+	}
 }

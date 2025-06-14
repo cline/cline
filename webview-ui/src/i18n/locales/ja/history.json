@@ -1,9 +1,4 @@
 {
-	"recentTasks": "Recent Tasks",
-	"viewAll": "すべて表示",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "キャッシュ: +{{writes}} → {{reads}}",
-	"apiCost": "API コスト: ${{cost}}",
 	"history": "履歴",
 	"exitSelectionMode": "選択モードを終了",
 	"enterSelectionMode": "選択モードに入る",
@@ -15,9 +10,6 @@
 	"mostTokens": "最多トークン",
 	"mostRelevant": "最も関連性の高い",
 	"deleteTaskTitle": "タスクを削除（Shift + クリックで確認をスキップ）",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "キャッシュ:",
-	"apiCostLabel": "API コスト:",
 	"copyPrompt": "プロンプトをコピー",
 	"exportTask": "タスクをエクスポート",
 	"deleteTask": "タスクを削除",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "{{count}} 件のタスクを削除してもよろしいですか？",
 	"deleteTasksWarning": "削除されたタスクは復元できません。続行してもよろしいですか？",
 	"deleteItems": "{{count}} 項目を削除",
-	"showAllWorkspaces": "すべてのワークスペースのタスクを表示"
+	"workspace": {
+		"prefix": "ワークスペース:",
+		"current": "現在",
+		"all": "すべて"
+	},
+	"sort": {
+		"prefix": "ソート:",
+		"newest": "最新",
+		"oldest": "最古",
+		"mostExpensive": "最も高価",
+		"mostTokens": "最多トークン",
+		"mostRelevant": "最も関連性の高い"
+	}
 }

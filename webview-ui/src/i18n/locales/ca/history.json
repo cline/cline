@@ -35,5 +35,17 @@
 	"confirmDeleteTasks": "Estàs segur que vols eliminar {{count}} tasques?",
 	"deleteTasksWarning": "Les tasques eliminades no es poden recuperar. Si us plau, assegura't que vols continuar.",
 	"deleteItems": "Eliminar {{count}} elements",
-	"showAllWorkspaces": "Mostrar tasques de tots els espais de treball"
+	"workspace": {
+		"prefix": "Espai de treball:",
+		"current": "Actual",
+		"all": "Tots"
+	},
+	"sort": {
+		"prefix": "Ordenar:",
+		"newest": "Més recents",
+		"oldest": "Més antigues",
+		"mostExpensive": "Més cares",
+		"mostTokens": "Més tokens",
+		"mostRelevant": "Més rellevants"
+	}
 }

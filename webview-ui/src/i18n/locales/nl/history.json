@@ -1,9 +1,4 @@
 {
-	"recentTasks": "Taken",
-	"viewAll": "Alle taken weergeven",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "Cache: +{{writes}} → {{reads}}",
-	"apiCost": "API-kosten: ${{cost}}",
 	"history": "Geschiedenis",
 	"exitSelectionMode": "Selectiemodus verlaten",
 	"enterSelectionMode": "Selectiemodus starten",
@@ -15,9 +10,6 @@
 	"mostTokens": "Meeste tokens",
 	"mostRelevant": "Meest relevant",
 	"deleteTaskTitle": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "Cache:",
-	"apiCostLabel": "API-kosten:",
 	"copyPrompt": "Prompt kopiëren",
 	"exportTask": "Taak exporteren",
 	"deleteTask": "Taak verwijderen",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Weet je zeker dat je {{count}} taken wilt verwijderen?",
 	"deleteTasksWarning": "Verwijderde taken kunnen niet worden hersteld. Zorg ervoor dat je wilt doorgaan.",
 	"deleteItems": "Verwijder {{count}} items",
-	"showAllWorkspaces": "Toon taken van alle werkruimtes"
+	"workspace": {
+		"prefix": "Werkruimte:",
+		"current": "Huidig",
+		"all": "Alle"
+	},
+	"sort": {
+		"prefix": "Sorteren:",
+		"newest": "Nieuwste",
+		"oldest": "Oudste",
+		"mostExpensive": "Duurste",
+		"mostTokens": "Meeste tokens",
+		"mostRelevant": "Meest relevant"
+	}
 }

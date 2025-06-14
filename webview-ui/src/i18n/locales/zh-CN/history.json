@@ -1,23 +1,15 @@
 {
-	"recentTasks": "任务",
-	"viewAll": "查看全部",
-	"tokens": "Token用量: ↑{{in}} ↓{{out}}",
-	"cache": "缓存操作: +{{writes}} → {{reads}}",
-	"apiCost": "API费用: ${{cost}}",
 	"history": "历史记录",
 	"exitSelectionMode": "退出多选模式",
 	"enterSelectionMode": "进入多选模式",
 	"done": "完成",
-	"searchPlaceholder": "请输入搜索关键词",
-	"newest": "时间↓",
-	"oldest": "时间↑",
-	"mostExpensive": "费用↓",
-	"mostTokens": "上下文↓",
-	"mostRelevant": "相关性↓",
+	"searchPlaceholder": "模糊搜索历史记录...",
+	"newest": "最新",
+	"oldest": "最旧",
+	"mostExpensive": "费用最高",
+	"mostTokens": "最多 Token",
+	"mostRelevant": "最相关",
 	"deleteTaskTitle": "删除任务（Shift + 点击跳过确认）",
-	"tokensLabel": "Token用量:",
-	"cacheLabel": "缓存操作:",
-	"apiCostLabel": "API费用:",
 	"copyPrompt": "复制提示词",
 	"exportTask": "导出任务",
 	"deleteTask": "删除任务",
@@ -25,7 +17,7 @@
 	"cancel": "取消",
 	"delete": "删除",
 	"exitSelection": "退出多选",
-	"selectionMode": "多选",
+	"selectionMode": "多选模式",
 	"deselectAll": "取消全选",
 	"selectAll": "全选",
 	"selectedItems": "已选 {{selected}}/{{total}} 项",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "确认删除 {{count}} 项任务？",
 	"deleteTasksWarning": "删除后将无法恢复，请谨慎操作。",
 	"deleteItems": "删除 {{count}} 项",
-	"showAllWorkspaces": "显示所有工作区的任务"
+	"workspace": {
+		"prefix": "工作区:",
+		"current": "当前",
+		"all": "所有"
+	},
+	"sort": {
+		"prefix": "排序:",
+		"newest": "最新",
+		"oldest": "最旧",
+		"mostExpensive": "费用最高",
+		"mostTokens": "最多 Token",
+		"mostRelevant": "最相关"
+	}
 }

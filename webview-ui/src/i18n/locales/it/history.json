@@ -1,23 +1,15 @@
 {
-	"recentTasks": "Compiti",
-	"viewAll": "Vedi tutto",
-	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
-	"cache": "Cache: +{{writes}} → {{reads}}",
-	"apiCost": "Costo API: ${{cost}}",
 	"history": "Cronologia",
 	"exitSelectionMode": "Esci dalla modalità selezione",
 	"enterSelectionMode": "Entra in modalità selezione",
 	"done": "Fatto",
-	"searchPlaceholder": "Ricerca nella cronologia...",
+	"searchPlaceholder": "Ricerca sfocata nella cronologia...",
 	"newest": "Più recenti",
 	"oldest": "Più vecchie",
 	"mostExpensive": "Più costose",
 	"mostTokens": "Più token",
 	"mostRelevant": "Più rilevanti",
 	"deleteTaskTitle": "Elimina attività (Shift + Clic per saltare conferma)",
-	"tokensLabel": "Tokens:",
-	"cacheLabel": "Cache:",
-	"apiCostLabel": "Costo API:",
 	"copyPrompt": "Copia prompt",
 	"exportTask": "Esporta attività",
 	"deleteTask": "Elimina attività",
@@ -35,5 +27,17 @@
 	"confirmDeleteTasks": "Sei sicuro di voler eliminare {{count}} attività?",
 	"deleteTasksWarning": "Le attività eliminate non possono essere recuperate. Assicurati di voler continuare.",
 	"deleteItems": "Elimina {{count}} elementi",
-	"showAllWorkspaces": "Mostra attività da tutti gli spazi di lavoro"
+	"workspace": {
+		"prefix": "Spazio di lavoro:",
+		"current": "Attuale",
+		"all": "Tutti"
+	},
+	"sort": {
+		"prefix": "Ordina:",
+		"newest": "Più recenti",
+		"oldest": "Più vecchie",
+		"mostExpensive": "Più costose",
+		"mostTokens": "Più token",
+		"mostRelevant": "Più rilevanti"
+	}
 }
