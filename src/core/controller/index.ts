@@ -135,6 +135,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			terminalOutputLineLimit,
 			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
@@ -171,6 +172,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
+			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			task,
@@ -959,6 +961,7 @@ export class Controller {
 			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1006,6 +1009,7 @@ export class Controller {
 			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		}
 	}
 

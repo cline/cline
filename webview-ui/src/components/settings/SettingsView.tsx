@@ -130,6 +130,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setMcpRichDisplayEnabled,
 		shellIntegrationTimeout,
 		setShellIntegrationTimeout,
+		terminalOutputLineLimit,
+		setTerminalOutputLineLimit,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
 		defaultTerminalProfile,
@@ -151,6 +153,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
 		defaultTerminalProfile,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -194,6 +197,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
 						: undefined,
 					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
+					terminalOutputLineLimit,
 				}),
 			)
 
@@ -211,10 +215,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				planActSeparateModelsSetting,
 				enableCheckpointsSetting,
 				mcpMarketplaceEnabled,
+				mcpRichDisplayEnabled,
 				mcpResponsesCollapsed,
 				chatSettings,
 				shellIntegrationTimeout,
 				terminalReuseEnabled,
+				terminalOutputLineLimit,
 				defaultTerminalProfile,
 			}
 		} catch (error) {
@@ -244,6 +250,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
+			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
 			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
 
@@ -259,6 +266,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
 		defaultTerminalProfile,
 	])
 
@@ -299,6 +307,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				// Reset terminal settings
 				if (typeof setShellIntegrationTimeout === "function") {
 					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+				}
+				if (typeof setTerminalOutputLineLimit === "function") {
+					setTerminalOutputLineLimit(originalState.current.terminalOutputLineLimit)
 				}
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)

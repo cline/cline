@@ -96,6 +96,7 @@ message UpdateSettingsRequest {
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional bool mcp_rich_display_enabled = 11;
+  optional int64 terminal_output_line_limit = 12;
 }
 
 // Complete API Configuration message
