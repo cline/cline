@@ -1,0 +1,14 @@
+{
+	"readFile": {
+		"linesRange": " (baris {{start}}-{{end}})",
+		"definitionsOnly": " (hanya definisi)",
+		"maxLines": " (maks {{max}} baris)"
+	},
+	"toolRepetitionLimitReached": "Roo tampaknya terjebak dalam loop, mencoba aksi yang sama ({{toolName}}) berulang kali. Ini mungkin menunjukkan masalah dengan strategi saat ini. Pertimbangkan untuk mengubah frasa tugas, memberikan instruksi yang lebih spesifik, atau mengarahkannya ke pendekatan yang berbeda.",
+	"codebaseSearch": {
+		"approval": "Mencari '{{query}}' di codebase..."
+	},
+	"searchFiles": {
+		"workspaceBoundaryError": "Tidak dapat mencari di luar workspace. Path '{{path}}' berada di luar workspace saat ini."
+	}
+}

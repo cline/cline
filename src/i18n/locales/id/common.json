@@ -1,0 +1,100 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Tim pengembang AI lengkap di editor kamu."
+	},
+	"number_format": {
+		"thousand_suffix": "rb",
+		"million_suffix": "jt",
+		"billion_suffix": "m"
+	},
+	"welcome": "Selamat datang, {{name}}! Kamu punya {{count}} notifikasi.",
+	"items": {
+		"zero": "Tidak ada item",
+		"one": "Satu item",
+		"other": "{{count}} item"
+	},
+	"confirmation": {
+		"reset_state": "Apakah kamu yakin ingin mereset semua state dan secret storage di ekstensi? Ini tidak dapat dibatalkan.",
+		"delete_config_profile": "Apakah kamu yakin ingin menghapus profil konfigurasi ini?",
+		"delete_custom_mode": "Apakah kamu yakin ingin menghapus mode kustom ini?",
+		"delete_message": "Apa yang ingin kamu hapus?",
+		"just_this_message": "Hanya pesan ini",
+		"this_and_subsequent": "Ini dan semua pesan selanjutnya"
+	},
+	"errors": {
+		"invalid_data_uri": "Format data URI tidak valid",
+		"error_copying_image": "Error menyalin gambar: {{errorMessage}}",
+		"error_opening_image": "Error membuka gambar: {{error}}",
+		"error_saving_image": "Error menyimpan gambar: {{errorMessage}}",
+		"could_not_open_file": "Tidak dapat membuka file: {{errorMessage}}",
+		"could_not_open_file_generic": "Tidak dapat membuka file!",
+		"checkpoint_timeout": "Timeout saat mencoba memulihkan checkpoint.",
+		"checkpoint_failed": "Gagal memulihkan checkpoint.",
+		"no_workspace": "Silakan buka folder proyek terlebih dahulu",
+		"update_support_prompt": "Gagal memperbarui support prompt",
+		"reset_support_prompt": "Gagal mereset support prompt",
+		"enhance_prompt": "Gagal meningkatkan prompt",
+		"get_system_prompt": "Gagal mendapatkan system prompt",
+		"search_commits": "Gagal mencari commit",
+		"save_api_config": "Gagal menyimpan konfigurasi api",
+		"create_api_config": "Gagal membuat konfigurasi api",
+		"rename_api_config": "Gagal mengganti nama konfigurasi api",
+		"load_api_config": "Gagal memuat konfigurasi api",
+		"delete_api_config": "Gagal menghapus konfigurasi api",
+		"list_api_config": "Gagal mendapatkan daftar konfigurasi api",
+		"update_server_timeout": "Gagal memperbarui timeout server",
+		"hmr_not_running": "Server pengembangan lokal tidak berjalan, HMR tidak akan bekerja. Silakan jalankan 'npm run dev' sebelum meluncurkan ekstensi untuk mengaktifkan HMR.",
+		"retrieve_current_mode": "Error: gagal mengambil mode saat ini dari state.",
+		"failed_delete_repo": "Gagal menghapus shadow repository atau branch yang terkait: {{error}}",
+		"failed_remove_directory": "Gagal menghapus direktori tugas: {{error}}",
+		"custom_storage_path_unusable": "Path penyimpanan kustom \"{{path}}\" tidak dapat digunakan, akan menggunakan path default",
+		"cannot_access_path": "Tidak dapat mengakses path {{path}}: {{error}}",
+		"settings_import_failed": "Impor pengaturan gagal: {{error}}.",
+		"mistake_limit_guidance": "Ini mungkin menunjukkan kegagalan dalam proses pemikiran model atau ketidakmampuan untuk menggunakan tool dengan benar, yang dapat diatasi dengan beberapa panduan pengguna (misalnya \"Coba bagi tugas menjadi langkah-langkah yang lebih kecil\").",
+		"violated_organization_allowlist": "Gagal menjalankan tugas: profil saat ini melanggar pengaturan organisasi kamu",
+		"condense_failed": "Gagal mengompres konteks",
+		"condense_not_enough_messages": "Tidak cukup pesan untuk mengompres konteks",
+		"condensed_recently": "Konteks baru saja dikompres; melewati percobaan ini",
+		"condense_handler_invalid": "Handler API untuk mengompres konteks tidak valid",
+		"condense_context_grew": "Ukuran konteks bertambah saat mengompres; melewati percobaan ini",
+		"share_task_failed": "Gagal membagikan tugas. Silakan coba lagi.",
+		"share_no_active_task": "Tidak ada tugas aktif untuk dibagikan"
+	},
+	"warnings": {
+		"no_terminal_content": "Tidak ada konten terminal yang dipilih",
+		"missing_task_files": "File tugas ini hilang. Apakah kamu ingin menghapusnya dari daftar tugas?"
+	},
+	"info": {
+		"no_changes": "Tidak ada perubahan ditemukan.",
+		"clipboard_copy": "System prompt berhasil disalin ke clipboard",
+		"history_cleanup": "Membersihkan {{count}} tugas dengan file yang hilang dari riwayat.",
+		"custom_storage_path_set": "Path penyimpanan kustom diatur: {{path}}",
+		"default_storage_path": "Kembali menggunakan path penyimpanan default",
+		"settings_imported": "Pengaturan berhasil diimpor.",
+		"share_link_copied": "Link bagikan disalin ke clipboard",
+		"image_copied_to_clipboard": "Data URI gambar disalin ke clipboard",
+		"image_saved": "Gambar disimpan ke {{path}}"
+	},
+	"answers": {
+		"yes": "Ya",
+		"no": "Tidak",
+		"cancel": "Batal",
+		"remove": "Hapus",
+		"keep": "Simpan"
+	},
+	"tasks": {
+		"canceled": "Error tugas: Dihentikan dan dibatalkan oleh pengguna.",
+		"deleted": "Kegagalan tugas: Dihentikan dan dihapus oleh pengguna."
+	},
+	"storage": {
+		"prompt_custom_path": "Masukkan path penyimpanan riwayat percakapan kustom, biarkan kosong untuk menggunakan lokasi default",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Silakan masukkan path absolut (misalnya D:\\RooCodeStorage atau /home/user/storage)",
+		"enter_valid_path": "Silakan masukkan path yang valid"
+	},
+	"input": {
+		"task_prompt": "Apa yang harus Roo lakukan?",
+		"task_placeholder": "Ketik tugas kamu di sini"
+	}
+}

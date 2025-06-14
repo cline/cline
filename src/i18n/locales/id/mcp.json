@@ -1,0 +1,22 @@
+{
+	"errors": {
+		"invalid_settings_format": "Format JSON pengaturan MCP tidak valid. Pastikan pengaturan kamu mengikuti format JSON yang benar.",
+		"invalid_settings_syntax": "Format JSON pengaturan MCP tidak valid. Periksa file pengaturan kamu untuk kesalahan sintaks.",
+		"invalid_settings_validation": "Format pengaturan MCP tidak valid: {{errorMessages}}",
+		"create_json": "Gagal membuat atau membuka .roo/mcp.json: {{error}}",
+		"failed_update_project": "Gagal memperbarui server MCP proyek",
+		"invalidJsonArgument": "Roo mencoba menggunakan {{toolName}} dengan argumen JSON yang tidak valid. Mencoba lagi..."
+	},
+	"info": {
+		"server_restarting": "Merestart server MCP {{serverName}}...",
+		"server_connected": "Server MCP {{serverName}} terhubung",
+		"server_deleted": "Server MCP dihapus: {{serverName}}",
+		"server_not_found": "Server \"{{serverName}}\" tidak ditemukan dalam konfigurasi",
+		"global_servers_active": "Server MCP Global Aktif: {{mcpServers}}",
+		"project_servers_active": "Server MCP Proyek Aktif: {{mcpServers}}",
+		"already_refreshing": "Server MCP sudah sedang di-refresh.",
+		"refreshing_all": "Me-refresh semua server MCP...",
+		"all_refreshed": "Semua server MCP telah di-refresh.",
+		"project_config_deleted": "File konfigurasi MCP proyek dihapus. Semua server MCP proyek telah diputus koneksinya."
+	}
+}

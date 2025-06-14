@@ -1,0 +1,159 @@
+{
+	"title": "Mode",
+	"done": "Selesai",
+	"modes": {
+		"title": "Mode",
+		"createNewMode": "Buat mode baru",
+		"editModesConfig": "Edit konfigurasi mode",
+		"editGlobalModes": "Edit Mode Global",
+		"editProjectModes": "Edit Mode Proyek (.roomodes)",
+		"createModeHelpText": "Mode adalah persona khusus yang menyesuaikan perilaku Roo Code. <0>Pelajari tentang Menggunakan Mode</0> atau <1>Menyesuaikan Mode.</1>",
+		"selectMode": "Cari mode"
+	},
+	"apiConfiguration": {
+		"title": "Konfigurasi API",
+		"select": "Pilih konfigurasi API mana yang akan digunakan untuk mode ini"
+	},
+	"tools": {
+		"title": "Tools yang Tersedia",
+		"builtInModesText": "Tools untuk mode bawaan tidak dapat dimodifikasi",
+		"editTools": "Edit tools",
+		"doneEditing": "Selesai mengedit",
+		"allowedFiles": "File yang diizinkan:",
+		"toolNames": {
+			"read": "Baca File",
+			"edit": "Edit File",
+			"browser": "Gunakan Browser",
+			"command": "Jalankan Perintah",
+			"mcp": "Gunakan MCP"
+		},
+		"noTools": "Tidak Ada"
+	},
+	"roleDefinition": {
+		"title": "Definisi Peran",
+		"resetToDefault": "Reset ke default",
+		"description": "Tentukan keahlian dan kepribadian Roo untuk mode ini. Deskripsi ini membentuk bagaimana Roo mempresentasikan dirinya dan mendekati tugas."
+	},
+	"whenToUse": {
+		"title": "Kapan Menggunakan (opsional)",
+		"description": "Jelaskan kapan mode ini harus digunakan. Ini membantu Orchestrator memilih mode yang tepat untuk suatu tugas.",
+		"resetToDefault": "Reset ke deskripsi default 'Kapan Menggunakan'"
+	},
+	"customInstructions": {
+		"title": "Instruksi Kustom Khusus Mode (opsional)",
+		"resetToDefault": "Reset ke default",
+		"description": "Tambahkan panduan perilaku khusus untuk mode {{modeName}}.",
+		"loadFromFile": "Instruksi kustom khusus untuk mode {{mode}} juga dapat dimuat dari folder <span>.roo/rules-{{slug}}/</span> di workspace Anda (.roomodes-{{slug}} dan .clinerules-{{slug}} sudah deprecated dan akan segera berhenti bekerja)."
+	},
+	"globalCustomInstructions": {
+		"title": "Instruksi Kustom untuk Semua Mode",
+		"description": "Instruksi ini berlaku untuk semua mode. Mereka menyediakan set dasar perilaku yang dapat ditingkatkan oleh instruksi khusus mode di bawah. <0>Pelajari lebih lanjut</0>",
+		"loadFromFile": "Instruksi juga dapat dimuat dari folder <span>.roo/rules/</span> di workspace Anda (.roorules dan .clinerules sudah deprecated dan akan segera berhenti bekerja)."
+	},
+	"systemPrompt": {
+		"preview": "Pratinjau System Prompt",
+		"copy": "Salin system prompt ke clipboard",
+		"title": "System Prompt (mode {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Support Prompts",
+		"resetPrompt": "Reset prompt {{promptType}} ke default",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "Konfigurasi API",
+			"apiConfigDescription": "Anda dapat memilih konfigurasi API untuk selalu digunakan untuk meningkatkan prompt, atau gunakan yang sedang dipilih saat ini",
+			"useCurrentConfig": "Gunakan konfigurasi API yang sedang dipilih",
+			"testPromptPlaceholder": "Masukkan prompt untuk menguji peningkatan",
+			"previewButton": "Pratinjau Peningkatan Prompt",
+			"testEnhancement": "Uji Peningkatan"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Tingkatkan Prompt",
+				"description": "Gunakan peningkatan prompt untuk mendapatkan saran atau perbaikan yang disesuaikan untuk input Anda. Ini memastikan Roo memahami maksud Anda dan memberikan respons terbaik. Tersedia melalui ikon ✨ di chat."
+			},
+			"EXPLAIN": {
+				"label": "Jelaskan Kode",
+				"description": "Dapatkan penjelasan detail tentang snippet kode, fungsi, atau seluruh file. Berguna untuk memahami kode kompleks atau mempelajari pola baru. Tersedia di code actions (ikon lightbulb di editor) dan menu konteks editor (klik kanan pada kode yang dipilih)."
+			},
+			"FIX": {
+				"label": "Perbaiki Masalah",
+				"description": "Dapatkan bantuan mengidentifikasi dan menyelesaikan bug, error, atau masalah kualitas kode. Memberikan panduan langkah demi langkah untuk memperbaiki masalah. Tersedia di code actions (ikon lightbulb di editor) dan menu konteks editor (klik kanan pada kode yang dipilih)."
+			},
+			"IMPROVE": {
+				"label": "Tingkatkan Kode",
+				"description": "Terima saran untuk optimisasi kode, praktik yang lebih baik, dan perbaikan arsitektur sambil mempertahankan fungsionalitas. Tersedia di code actions (ikon lightbulb di editor) dan menu konteks editor (klik kanan pada kode yang dipilih)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Tambahkan ke Konteks",
+				"description": "Tambahkan konteks ke tugas atau percakapan saat ini. Berguna untuk memberikan informasi tambahan atau klarifikasi. Tersedia di code actions (ikon lightbulb di editor) dan menu konteks editor (klik kanan pada kode yang dipilih)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Tambahkan Konten Terminal ke Konteks",
+				"description": "Tambahkan output terminal ke tugas atau percakapan saat ini. Berguna untuk memberikan output perintah atau log. Tersedia di menu konteks terminal (klik kanan pada konten terminal yang dipilih)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Perbaiki Perintah Terminal",
+				"description": "Dapatkan bantuan memperbaiki perintah terminal yang gagal atau perlu perbaikan. Tersedia di menu konteks terminal (klik kanan pada konten terminal yang dipilih)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Jelaskan Perintah Terminal",
+				"description": "Dapatkan penjelasan detail tentang perintah terminal dan outputnya. Tersedia di menu konteks terminal (klik kanan pada konten terminal yang dipilih)."
+			},
+			"NEW_TASK": {
+				"label": "Mulai Tugas Baru",
+				"description": "Mulai tugas baru dengan input pengguna. Tersedia di Command Palette."
+			}
+		}
+	},
+	"advancedSystemPrompt": {
+		"title": "Lanjutan: Override System Prompt",
+		"description": "<2>⚠️ Peringatan:</2> Fitur lanjutan ini melewati pengamanan. <1>BACA INI SEBELUM MENGGUNAKAN!</1>Override system prompt default dengan membuat file di <span>.roo/system-prompt-{{slug}}</span>."
+	},
+	"createModeDialog": {
+		"title": "Buat Mode Baru",
+		"close": "Tutup",
+		"name": {
+			"label": "Nama",
+			"placeholder": "Masukkan nama mode"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Slug digunakan dalam URL dan nama file. Harus huruf kecil dan hanya berisi huruf, angka, dan tanda hubung."
+		},
+		"saveLocation": {
+			"label": "Lokasi Penyimpanan",
+			"description": "Pilih di mana menyimpan mode ini. Mode khusus proyek lebih diutamakan daripada mode global.",
+			"global": {
+				"label": "Global",
+				"description": "Tersedia di semua workspace"
+			},
+			"project": {
+				"label": "Khusus proyek (.roomodes)",
+				"description": "Hanya tersedia di workspace ini, lebih diutamakan daripada global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Definisi Peran",
+			"description": "Tentukan keahlian dan kepribadian Roo untuk mode ini."
+		},
+		"whenToUse": {
+			"label": "Kapan Menggunakan (opsional)",
+			"description": "Berikan deskripsi yang jelas tentang kapan mode ini paling efektif dan jenis tugas apa yang unggul."
+		},
+		"tools": {
+			"label": "Tools yang Tersedia",
+			"description": "Pilih tools mana yang dapat digunakan mode ini."
+		},
+		"customInstructions": {
+			"label": "Instruksi Kustom (opsional)",
+			"description": "Tambahkan panduan perilaku khusus untuk mode ini."
+		},
+		"buttons": {
+			"cancel": "Batal",
+			"create": "Buat Mode"
+		},
+		"deleteMode": "Hapus mode"
+	},
+	"allFiles": "semua file"
+}

@@ -1,0 +1,63 @@
+{
+	"type-group": {
+		"modes": "Mode",
+		"mcps": "Server MCP",
+		"match": "cocok"
+	},
+	"item-card": {
+		"type-mode": "Mode",
+		"type-mcp": "Server MCP",
+		"type-other": "Lainnya",
+		"by-author": "oleh {{author}}",
+		"authors-profile": "Profil Penulis",
+		"remove-tag-filter": "Hapus filter tag: {{tag}}",
+		"filter-by-tag": "Filter berdasarkan tag: {{tag}}",
+		"component-details": "Detail Komponen",
+		"view": "Lihat",
+		"source": "Sumber"
+	},
+	"filters": {
+		"search": {
+			"placeholder": "Cari marketplace..."
+		},
+		"type": {
+			"label": "Tipe",
+			"all": "Semua Tipe",
+			"mode": "Mode",
+			"mcpServer": "Server MCP"
+		},
+		"sort": {
+			"label": "Urutkan Berdasarkan",
+			"name": "Nama",
+			"lastUpdated": "Terakhir Diperbarui"
+		},
+		"tags": {
+			"label": "Tag",
+			"clear": "Hapus tag",
+			"placeholder": "Cari tag...",
+			"noResults": "Tidak ada tag ditemukan.",
+			"selected": "Menampilkan item dengan salah satu tag yang dipilih"
+		},
+		"title": "Marketplace"
+	},
+	"done": "Selesai",
+	"tabs": {
+		"installed": "Terinstal",
+		"browse": "Jelajahi",
+		"settings": "Pengaturan"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Tidak ada item marketplace ditemukan.",
+			"emptyHint": "Coba sesuaikan filter atau kata kunci pencarian kamu"
+		}
+	},
+	"installation": {
+		"installing": "Menginstal item: \"{{itemName}}\"",
+		"installSuccess": "\"{{itemName}}\" berhasil diinstal",
+		"installError": "Gagal menginstal \"{{itemName}}\": {{errorMessage}}",
+		"removing": "Menghapus item: \"{{itemName}}\"",
+		"removeSuccess": "\"{{itemName}}\" berhasil dihapus",
+		"removeError": "Gagal menghapus \"{{itemName}}\": {{errorMessage}}"
+	}
+}

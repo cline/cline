@@ -1,0 +1,642 @@
+{
+	"common": {
+		"save": "Simpan",
+		"done": "Selesai",
+		"cancel": "Batal",
+		"reset": "Reset",
+		"select": "Pilih",
+		"add": "Tambah Header",
+		"remove": "Hapus"
+	},
+	"header": {
+		"title": "Pengaturan",
+		"saveButtonTooltip": "Simpan perubahan",
+		"nothingChangedTooltip": "Tidak ada yang berubah",
+		"doneButtonTooltip": "Buang perubahan yang belum disimpan dan tutup panel pengaturan"
+	},
+	"unsavedChangesDialog": {
+		"title": "Perubahan Belum Disimpan",
+		"description": "Apakah kamu ingin membuang perubahan dan melanjutkan?",
+		"cancelButton": "Batal",
+		"discardButton": "Buang perubahan"
+	},
+	"sections": {
+		"providers": "Provider",
+		"autoApprove": "Auto-Approve",
+		"browser": "Browser",
+		"checkpoints": "Checkpoint",
+		"notifications": "Notifikasi",
+		"contextManagement": "Konteks",
+		"terminal": "Terminal",
+		"prompts": "Prompt",
+		"experimental": "Eksperimental",
+		"language": "Bahasa",
+		"about": "Tentang Roo Code"
+	},
+	"prompts": {
+		"description": "Konfigurasi support prompt yang digunakan untuk aksi cepat seperti meningkatkan prompt, menjelaskan kode, dan memperbaiki masalah. Prompt ini membantu Roo memberikan bantuan yang lebih baik untuk tugas pengembangan umum."
+	},
+	"codeIndex": {
+		"title": "Pengindeksan Codebase",
+		"enableLabel": "Aktifkan Pengindeksan Codebase",
+		"enableDescription": "<0>Pengindeksan Codebase</0> adalah fitur eksperimental yang membuat indeks pencarian semantik dari proyek kamu menggunakan AI embeddings. Ini memungkinkan Roo Code untuk lebih memahami dan menavigasi codebase besar dengan menemukan kode yang relevan berdasarkan makna daripada hanya kata kunci.",
+		"providerLabel": "Provider Embeddings",
+		"selectProviderPlaceholder": "Pilih provider",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openaiKeyLabel": "OpenAI Key:",
+		"openaiCompatibleBaseUrlLabel": "Base URL:",
+		"openaiCompatibleApiKeyLabel": "API Key:",
+		"openaiCompatibleModelDimensionLabel": "Dimensi Embedding:",
+		"openaiCompatibleModelDimensionPlaceholder": "misalnya, 1536",
+		"openaiCompatibleModelDimensionDescription": "Dimensi embedding (ukuran output) untuk model kamu. Periksa dokumentasi provider kamu untuk nilai ini. Nilai umum: 384, 768, 1536, 3072.",
+		"modelLabel": "Model",
+		"selectModelPlaceholder": "Pilih model",
+		"ollamaUrlLabel": "Ollama URL:",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"startIndexingButton": "Mulai Pengindeksan",
+		"clearIndexDataButton": "Hapus Data Indeks",
+		"unsavedSettingsMessage": "Silakan simpan pengaturan kamu sebelum memulai proses pengindeksan.",
+		"clearDataDialog": {
+			"title": "Apakah kamu yakin?",
+			"description": "Tindakan ini tidak dapat dibatalkan. Ini akan menghapus data indeks codebase kamu secara permanen.",
+			"cancelButton": "Batal",
+			"confirmButton": "Hapus Data"
+		}
+	},
+	"autoApprove": {
+		"description": "Izinkan Roo untuk secara otomatis melakukan operasi tanpa memerlukan persetujuan. Aktifkan pengaturan ini hanya jika kamu sepenuhnya mempercayai AI dan memahami risiko keamanan yang terkait.",
+		"readOnly": {
+			"label": "Baca",
+			"description": "Ketika diaktifkan, Roo akan secara otomatis melihat konten direktori dan membaca file tanpa memerlukan kamu mengklik tombol Setujui.",
+			"outsideWorkspace": {
+				"label": "Sertakan file di luar workspace",
+				"description": "Izinkan Roo membaca file di luar workspace saat ini tanpa memerlukan persetujuan."
+			}
+		},
+		"write": {
+			"label": "Tulis",
+			"description": "Secara otomatis membuat dan mengedit file tanpa memerlukan persetujuan",
+			"delayLabel": "Delay setelah menulis untuk memungkinkan diagnostik mendeteksi masalah potensial",
+			"outsideWorkspace": {
+				"label": "Sertakan file di luar workspace",
+				"description": "Izinkan Roo membuat dan mengedit file di luar workspace saat ini tanpa memerlukan persetujuan."
+			}
+		},
+		"browser": {
+			"label": "Browser",
+			"description": "Secara otomatis melakukan aksi browser tanpa memerlukan persetujuan. Catatan: Hanya berlaku ketika model mendukung computer use"
+		},
+		"retry": {
+			"label": "Coba Lagi",
+			"description": "Secara otomatis mencoba ulang permintaan API yang gagal ketika server mengembalikan respons error",
+			"delayLabel": "Delay sebelum mencoba ulang permintaan"
+		},
+		"mcp": {
+			"label": "MCP",
+			"description": "Aktifkan auto-approval tool MCP individual di tampilan Server MCP (memerlukan pengaturan ini dan checkbox \"Selalu izinkan\" tool tersebut)"
+		},
+		"modeSwitch": {
+			"label": "Mode",
+			"description": "Secara otomatis beralih antara mode yang berbeda tanpa memerlukan persetujuan"
+		},
+		"subtasks": {
+			"label": "Subtugas",
+			"description": "Izinkan pembuatan dan penyelesaian subtugas tanpa memerlukan persetujuan"
+		},
+		"execute": {
+			"label": "Eksekusi",
+			"description": "Secara otomatis mengeksekusi perintah terminal yang diizinkan tanpa memerlukan persetujuan",
+			"allowedCommands": "Perintah Auto-Execute yang Diizinkan",
+			"allowedCommandsDescription": "Prefix perintah yang dapat di-auto-execute ketika \"Selalu setujui operasi eksekusi\" diaktifkan. Tambahkan * untuk mengizinkan semua perintah (gunakan dengan hati-hati).",
+			"commandPlaceholder": "Masukkan prefix perintah (misalnya, 'git ')",
+			"addButton": "Tambah"
+		},
+		"showMenu": {
+			"label": "Tampilkan menu auto-approve di tampilan chat",
+			"description": "Ketika diaktifkan, menu auto-approve akan ditampilkan di bagian bawah tampilan chat, memungkinkan akses cepat ke pengaturan auto-approve"
+		},
+		"apiRequestLimit": {
+			"title": "Permintaan Maks",
+			"description": "Secara otomatis membuat sejumlah permintaan API ini sebelum meminta persetujuan untuk melanjutkan tugas.",
+			"unlimited": "Tidak terbatas"
+		}
+	},
+	"providers": {
+		"providerDocumentation": "Dokumentasi {{provider}}",
+		"configProfile": "Profil Konfigurasi",
+		"description": "Simpan konfigurasi API yang berbeda untuk beralih dengan cepat antara provider dan pengaturan.",
+		"apiProvider": "Provider API",
+		"model": "Model",
+		"nameEmpty": "Nama tidak boleh kosong",
+		"nameExists": "Profil dengan nama ini sudah ada",
+		"deleteProfile": "Hapus Profil",
+		"invalidArnFormat": "Format ARN tidak valid. Silakan periksa contoh di atas.",
+		"enterNewName": "Masukkan nama baru",
+		"addProfile": "Tambah Profil",
+		"renameProfile": "Ganti Nama Profil",
+		"newProfile": "Profil Konfigurasi Baru",
+		"enterProfileName": "Masukkan nama profil",
+		"createProfile": "Buat Profil",
+		"cannotDeleteOnlyProfile": "Tidak dapat menghapus satu-satunya profil",
+		"searchPlaceholder": "Cari profil",
+		"noMatchFound": "Tidak ada profil yang cocok ditemukan",
+		"vscodeLmDescription": " API Model Bahasa VS Code memungkinkan kamu menjalankan model yang disediakan oleh ekstensi VS Code lainnya (termasuk namun tidak terbatas pada GitHub Copilot). Cara termudah untuk memulai adalah menginstal ekstensi Copilot dan Copilot Chat dari VS Code Marketplace.",
+		"awsCustomArnUse": "Masukkan ARN Amazon Bedrock yang valid untuk model yang ingin kamu gunakan. Contoh format:",
+		"awsCustomArnDesc": "Pastikan region di ARN cocok dengan AWS Region yang kamu pilih di atas.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Dapatkan OpenRouter API Key",
+		"apiKeyStorageNotice": "API key disimpan dengan aman di Secret Storage VSCode",
+		"glamaApiKey": "Glama API Key",
+		"getGlamaApiKey": "Dapatkan Glama API Key",
+		"useCustomBaseUrl": "Gunakan base URL kustom",
+		"useReasoning": "Aktifkan reasoning",
+		"useHostHeader": "Gunakan Host header kustom",
+		"useLegacyFormat": "Gunakan format API OpenAI legacy",
+		"customHeaders": "Header Kustom",
+		"headerName": "Nama header",
+		"headerValue": "Nilai header",
+		"noCustomHeaders": "Tidak ada header kustom yang didefinisikan. Klik tombol + untuk menambahkan satu.",
+		"requestyApiKey": "Requesty API Key",
+		"refreshModels": {
+			"label": "Refresh Model",
+			"hint": "Silakan buka kembali pengaturan untuk melihat model terbaru.",
+			"loading": "Merefresh daftar model...",
+			"success": "Daftar model berhasil direfresh!",
+			"error": "Gagal merefresh daftar model. Silakan coba lagi."
+		},
+		"getRequestyApiKey": "Dapatkan Requesty API Key",
+		"openRouterTransformsText": "Kompres prompt dan rantai pesan ke ukuran konteks (<a>OpenRouter Transforms</a>)",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Dapatkan Anthropic API Key",
+		"anthropicUseAuthToken": "Kirim Anthropic API Key sebagai Authorization header alih-alih X-Api-Key",
+		"chutesApiKey": "Chutes API Key",
+		"getChutesApiKey": "Dapatkan Chutes API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Dapatkan DeepSeek API Key",
+		"geminiApiKey": "Gemini API Key",
+		"getGroqApiKey": "Dapatkan Groq API Key",
+		"groqApiKey": "Groq API Key",
+		"getGeminiApiKey": "Dapatkan Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Dapatkan OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Dapatkan Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Opsional)",
+		"codestralBaseUrlDesc": "Atur URL alternatif untuk model Codestral.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Dapatkan xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
+		"awsProfile": "AWS Profile",
+		"awsProfileName": "Nama AWS Profile",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS Session Token",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Gunakan cross-region inference",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Gunakan VPC endpoint kustom",
+			"vpcEndpointUrlPlaceholder": "Masukkan VPC Endpoint URL (opsional)",
+			"examples": "Contoh:"
+		},
+		"enablePromptCaching": "Aktifkan prompt caching",
+		"enablePromptCachingTitle": "Aktifkan prompt caching untuk meningkatkan performa dan mengurangi biaya untuk model yang didukung.",
+		"cacheUsageNote": "Catatan: Jika kamu tidak melihat penggunaan cache, coba pilih model yang berbeda lalu pilih model yang kamu inginkan lagi.",
+		"vscodeLmModel": "Model Bahasa",
+		"vscodeLmWarning": "Catatan: Ini adalah integrasi yang sangat eksperimental dan dukungan provider akan bervariasi. Jika kamu mendapat error tentang model yang tidak didukung, itu adalah masalah di sisi provider.",
+		"googleCloudSetup": {
+			"title": "Untuk menggunakan Google Cloud Vertex AI, kamu perlu:",
+			"step1": "1. Buat akun Google Cloud, aktifkan Vertex AI API & aktifkan model Claude yang diinginkan.",
+			"step2": "2. Instal Google Cloud CLI & konfigurasi application default credentials.",
+			"step3": "3. Atau buat service account dengan credentials."
+		},
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudKeyFile": "Path File Key Google Cloud",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
+		"lmStudio": {
+			"baseUrl": "Base URL (opsional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Aktifkan Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model harus dari keluarga model yang sama agar speculative decoding bekerja dengan benar.",
+			"selectDraftModel": "Pilih Draft Model",
+			"noModelsFound": "Tidak ada draft model ditemukan. Pastikan LM Studio berjalan dengan Server Mode diaktifkan.",
+			"description": "LM Studio memungkinkan kamu menjalankan model secara lokal di komputer. Untuk instruksi cara memulai, lihat <a>panduan quickstart</a> mereka. Kamu juga perlu memulai fitur <b>local server</b> LM Studio untuk menggunakannya dengan ekstensi ini. <span>Catatan:</span> Roo Code menggunakan prompt kompleks dan bekerja terbaik dengan model Claude. Model yang kurang mampu mungkin tidak bekerja seperti yang diharapkan."
+		},
+		"ollama": {
+			"baseUrl": "Base URL (opsional)",
+			"modelId": "Model ID",
+			"description": "Ollama memungkinkan kamu menjalankan model secara lokal di komputer. Untuk instruksi cara memulai, lihat panduan quickstart mereka.",
+			"warning": "Catatan: Roo Code menggunakan prompt kompleks dan bekerja terbaik dengan model Claude. Model yang kurang mampu mungkin tidak bekerja seperti yang diharapkan."
+		},
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Dapatkan Unbound API Key",
+		"unboundRefreshModelsSuccess": "Daftar model diperbarui! Kamu sekarang dapat memilih dari model terbaru.",
+		"unboundInvalidApiKey": "API key tidak valid. Silakan periksa API key kamu dan coba lagi.",
+		"humanRelay": {
+			"description": "Tidak diperlukan API key, tetapi pengguna perlu membantu menyalin dan menempel informasi ke web chat AI.",
+			"instructions": "Selama penggunaan, kotak dialog akan muncul dan pesan saat ini akan disalin ke clipboard secara otomatis. Kamu perlu menempel ini ke versi web AI (seperti ChatGPT atau Claude), lalu salin balasan AI kembali ke kotak dialog dan klik tombol konfirmasi."
+		},
+		"openRouter": {
+			"providerRouting": {
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter mengarahkan permintaan ke provider terbaik yang tersedia untuk model kamu. Secara default, permintaan diseimbangkan beban di seluruh provider teratas untuk memaksimalkan uptime. Namun, kamu dapat memilih provider spesifik untuk digunakan untuk model ini.",
+				"learnMore": "Pelajari lebih lanjut tentang provider routing"
+			}
+		},
+		"customModel": {
+			"capabilities": "Konfigurasi kemampuan dan harga untuk model kustom yang kompatibel dengan OpenAI. Hati-hati saat menentukan kemampuan model, karena dapat mempengaruhi performa Roo Code.",
+			"maxTokens": {
+				"label": "Token Output Maksimum",
+				"description": "Jumlah maksimum token yang dapat dihasilkan model dalam respons. (Tentukan -1 untuk membiarkan server mengatur token maksimum.)"
+			},
+			"contextWindow": {
+				"label": "Ukuran Context Window",
+				"description": "Total token (input + output) yang dapat diproses model."
+			},
+			"imageSupport": {
+				"label": "Dukungan Gambar",
+				"description": "Apakah model ini mampu memproses dan memahami gambar?"
+			},
+			"computerUse": {
+				"label": "Computer Use",
+				"description": "Apakah model ini mampu berinteraksi dengan browser? (misalnya Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Prompt Caching",
+				"description": "Apakah model ini mampu melakukan caching prompt?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Harga Input",
+					"description": "Biaya per juta token dalam input/prompt. Ini mempengaruhi biaya mengirim konteks dan instruksi ke model."
+				},
+				"output": {
+					"label": "Harga Output",
+					"description": "Biaya per juta token dalam respons model. Ini mempengaruhi biaya konten yang dihasilkan dan completion."
+				},
+				"cacheReads": {
+					"label": "Harga Cache Reads",
+					"description": "Biaya per juta token untuk membaca dari cache. Ini adalah harga yang dikenakan ketika respons yang di-cache diambil."
+				},
+				"cacheWrites": {
+					"label": "Harga Cache Writes",
+					"description": "Biaya per juta token untuk menulis ke cache. Ini adalah harga yang dikenakan ketika prompt di-cache untuk pertama kalinya."
+				}
+			},
+			"resetDefaults": "Reset ke Default"
+		},
+		"rateLimitSeconds": {
+			"label": "Rate limit",
+			"description": "Waktu minimum antara permintaan API."
+		},
+		"reasoningEffort": {
+			"label": "Upaya Reasoning Model",
+			"high": "Tinggi",
+			"medium": "Sedang",
+			"low": "Rendah"
+		},
+		"setReasoningLevel": "Aktifkan Upaya Reasoning"
+	},
+	"browser": {
+		"enable": {
+			"label": "Aktifkan tool browser",
+			"description": "Ketika diaktifkan, Roo dapat menggunakan browser untuk berinteraksi dengan website ketika menggunakan model yang mendukung computer use. <0>Pelajari lebih lanjut</0>"
+		},
+		"viewport": {
+			"label": "Ukuran viewport",
+			"description": "Pilih ukuran viewport untuk interaksi browser. Ini mempengaruhi bagaimana website ditampilkan dan berinteraksi.",
+			"options": {
+				"largeDesktop": "Desktop Besar (1280x800)",
+				"smallDesktop": "Desktop Kecil (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobile (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Kualitas screenshot",
+			"description": "Sesuaikan kualitas WebP screenshot browser. Nilai yang lebih tinggi memberikan screenshot yang lebih jelas tetapi meningkatkan penggunaan token."
+		},
+		"remote": {
+			"label": "Gunakan koneksi browser remote",
+			"description": "Hubungkan ke browser Chrome yang berjalan dengan remote debugging diaktifkan (--remote-debugging-port=9222).",
+			"urlPlaceholder": "URL Kustom (misalnya, http://localhost:9222)",
+			"testButton": "Test Koneksi",
+			"testingButton": "Testing...",
+			"instructions": "Masukkan alamat host DevTools Protocol atau biarkan kosong untuk auto-discover instance Chrome lokal. Tombol Test Koneksi akan mencoba URL kustom jika disediakan, atau auto-discover jika field kosong."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Aktifkan checkpoint otomatis",
+			"description": "Ketika diaktifkan, Roo akan secara otomatis membuat checkpoint selama eksekusi tugas, memudahkan untuk meninjau perubahan atau kembali ke state sebelumnya. <0>Pelajari lebih lanjut</0>"
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Aktifkan efek suara",
+			"description": "Ketika diaktifkan, Roo akan memutar efek suara untuk notifikasi dan event.",
+			"volumeLabel": "Volume"
+		},
+		"tts": {
+			"label": "Aktifkan text-to-speech",
+			"description": "Ketika diaktifkan, Roo akan membacakan responnya menggunakan text-to-speech.",
+			"speedLabel": "Kecepatan"
+		}
+	},
+	"contextManagement": {
+		"description": "Kontrol informasi apa yang disertakan dalam context window AI, mempengaruhi penggunaan token dan kualitas respons",
+		"autoCondenseContextPercent": {
+			"label": "Ambang batas untuk memicu kondensasi konteks cerdas",
+			"description": "Ketika context window mencapai ambang batas ini, Roo akan secara otomatis mengondensasikannya."
+		},
+		"condensingApiConfiguration": {
+			"label": "Konfigurasi API untuk Kondensasi Konteks",
+			"description": "Pilih konfigurasi API mana yang akan digunakan untuk operasi kondensasi konteks. Biarkan tidak dipilih untuk menggunakan konfigurasi aktif saat ini.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "Prompt Kondensasi Konteks Kustom",
+			"description": "Kustomisasi system prompt yang digunakan untuk kondensasi konteks. Biarkan kosong untuk menggunakan prompt default.",
+			"placeholder": "Masukkan prompt kondensasi kustom kamu di sini...\n\nKamu dapat menggunakan struktur yang sama dengan prompt default:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset ke Default",
+			"hint": "Kosong = gunakan prompt default"
+		},
+		"autoCondenseContext": {
+			"name": "Secara otomatis memicu kondensasi konteks cerdas"
+		},
+		"openTabs": {
+			"label": "Batas konteks tab terbuka",
+			"description": "Jumlah maksimum tab VSCode terbuka yang disertakan dalam konteks. Nilai yang lebih tinggi memberikan lebih banyak konteks tetapi meningkatkan penggunaan token."
+		},
+		"workspaceFiles": {
+			"label": "Batas konteks file workspace",
+			"description": "Jumlah maksimum file yang disertakan dalam detail direktori kerja saat ini. Nilai yang lebih tinggi memberikan lebih banyak konteks tetapi meningkatkan penggunaan token."
+		},
+		"rooignore": {
+			"label": "Tampilkan file .rooignore'd dalam daftar dan pencarian",
+			"description": "Ketika diaktifkan, file yang cocok dengan pola di .rooignore akan ditampilkan dalam daftar dengan simbol kunci. Ketika dinonaktifkan, file ini akan sepenuhnya disembunyikan dari daftar file dan pencarian."
+		},
+		"maxConcurrentFileReads": {
+			"label": "Batas pembacaan file bersamaan",
+			"description": "Jumlah maksimum file yang dapat diproses oleh tool 'read_file' secara bersamaan. Nilai yang lebih tinggi dapat mempercepat pembacaan beberapa file kecil tetapi meningkatkan penggunaan memori."
+		},
+		"maxReadFile": {
+			"label": "Ambang batas auto-truncate pembacaan file",
+			"description": "Roo membaca sejumlah baris ini ketika model menghilangkan nilai start/end. Jika angka ini kurang dari total file, Roo menghasilkan indeks nomor baris dari definisi kode. Kasus khusus: -1 menginstruksikan Roo untuk membaca seluruh file (tanpa indexing), dan 0 menginstruksikannya untuk tidak membaca baris dan hanya menyediakan indeks baris untuk konteks minimal. Nilai yang lebih rendah meminimalkan penggunaan konteks awal, memungkinkan pembacaan rentang baris yang tepat selanjutnya. Permintaan start/end eksplisit tidak dibatasi oleh pengaturan ini.",
+			"lines": "baris",
+			"always_full_read": "Selalu baca seluruh file"
+		}
+	},
+	"terminal": {
+		"basic": {
+			"label": "Pengaturan Terminal: Dasar",
+			"description": "Pengaturan terminal dasar"
+		},
+		"advanced": {
+			"label": "Pengaturan Terminal: Lanjutan",
+			"description": "Opsi berikut mungkin memerlukan restart terminal untuk menerapkan pengaturan."
+		},
+		"outputLineLimit": {
+			"label": "Batas output terminal",
+			"description": "Jumlah maksimum baris yang disertakan dalam output terminal saat mengeksekusi perintah. Ketika terlampaui, baris akan dihapus dari tengah, menghemat token. <0>Pelajari lebih lanjut</0>"
+		},
+		"shellIntegrationTimeout": {
+			"label": "Timeout integrasi shell terminal",
+			"description": "Waktu maksimum untuk menunggu integrasi shell menginisialisasi sebelum mengeksekusi perintah. Untuk pengguna dengan waktu startup shell yang lama, nilai ini mungkin perlu ditingkatkan jika kamu melihat error \"Shell Integration Unavailable\" di terminal. <0>Pelajari lebih lanjut</0>"
+		},
+		"shellIntegrationDisabled": {
+			"label": "Nonaktifkan integrasi shell terminal",
+			"description": "Aktifkan ini jika perintah terminal tidak bekerja dengan benar atau kamu melihat error 'Shell Integration Unavailable'. Ini menggunakan metode yang lebih sederhana untuk menjalankan perintah, melewati beberapa fitur terminal lanjutan. <0>Pelajari lebih lanjut</0>"
+		},
+		"commandDelay": {
+			"label": "Delay perintah terminal",
+			"description": "Delay dalam milidetik untuk ditambahkan setelah eksekusi perintah. Pengaturan default 0 menonaktifkan delay sepenuhnya. Ini dapat membantu memastikan output perintah sepenuhnya ditangkap di terminal dengan masalah timing. Di sebagian besar terminal ini diimplementasikan dengan mengatur `PROMPT_COMMAND='sleep N'` dan Powershell menambahkan `start-sleep` di akhir setiap perintah. Awalnya adalah workaround untuk VSCode bug#237208 dan mungkin tidak diperlukan. <0>Pelajari lebih lanjut</0>"
+		},
+		"compressProgressBar": {
+			"label": "Kompres output progress bar",
+			"description": "Ketika diaktifkan, memproses output terminal dengan carriage return (\\r) untuk mensimulasikan bagaimana terminal nyata akan menampilkan konten. Ini menghapus state progress bar intermediate, hanya mempertahankan state final, yang menghemat ruang konteks untuk informasi yang lebih relevan. <0>Pelajari lebih lanjut</0>"
+		},
+		"powershellCounter": {
+			"label": "Aktifkan workaround counter PowerShell",
+			"description": "Ketika diaktifkan, menambahkan counter ke perintah PowerShell untuk memastikan eksekusi perintah yang tepat. Ini membantu dengan terminal PowerShell yang mungkin memiliki masalah dengan penangkapan output perintah. <0>Pelajari lebih lanjut</0>"
+		},
+		"zshClearEolMark": {
+			"label": "Hapus ZSH EOL mark",
+			"description": "Ketika diaktifkan, menghapus ZSH end-of-line mark dengan mengatur PROMPT_EOL_MARK=''. Ini mencegah masalah dengan interpretasi output perintah ketika output berakhir dengan karakter khusus seperti '%'. <0>Pelajari lebih lanjut</0>"
+		},
+		"zshOhMy": {
+			"label": "Aktifkan integrasi Oh My Zsh",
+			"description": "Ketika diaktifkan, mengatur ITERM_SHELL_INTEGRATION_INSTALLED=Yes untuk mengaktifkan fitur integrasi shell Oh My Zsh. Menerapkan pengaturan ini mungkin memerlukan restart IDE. <0>Pelajari lebih lanjut</0>"
+		},
+		"zshP10k": {
+			"label": "Aktifkan integrasi Powerlevel10k",
+			"description": "Ketika diaktifkan, mengatur POWERLEVEL9K_TERM_SHELL_INTEGRATION=true untuk mengaktifkan fitur integrasi shell Powerlevel10k. <0>Pelajari lebih lanjut</0>"
+		},
+		"zdotdir": {
+			"label": "Aktifkan penanganan ZDOTDIR",
+			"description": "Ketika diaktifkan, membuat direktori sementara untuk ZDOTDIR untuk menangani integrasi shell zsh dengan benar. Ini memastikan integrasi shell VSCode bekerja dengan benar dengan zsh sambil mempertahankan konfigurasi zsh kamu. <0>Pelajari lebih lanjut</0>"
+		},
+		"inheritEnv": {
+			"label": "Warisi variabel environment",
+			"description": "Ketika diaktifkan, terminal akan mewarisi variabel environment dari proses parent VSCode, seperti pengaturan integrasi shell yang didefinisikan user-profile. Ini secara langsung mengalihkan pengaturan global VSCode `terminal.integrated.inheritEnv`. <0>Pelajari lebih lanjut</0>"
+		}
+	},
+	"advanced": {
+		"diff": {
+			"label": "Aktifkan editing melalui diff",
+			"description": "Ketika diaktifkan, Roo akan dapat mengedit file lebih cepat dan akan secara otomatis menolak penulisan file penuh yang terpotong. Bekerja terbaik dengan model Claude 3.7 Sonnet terbaru.",
+			"strategy": {
+				"label": "Strategi diff",
+				"options": {
+					"standard": "Standard (Single block)",
+					"multiBlock": "Eksperimental: Multi-block diff",
+					"unified": "Eksperimental: Unified diff"
+				},
+				"descriptions": {
+					"standard": "Strategi diff standard menerapkan perubahan ke satu blok kode pada satu waktu.",
+					"unified": "Strategi unified diff mengambil beberapa pendekatan untuk menerapkan diff dan memilih pendekatan terbaik.",
+					"multiBlock": "Strategi multi-block diff memungkinkan memperbarui beberapa blok kode dalam file dalam satu permintaan."
+				}
+			},
+			"matchPrecision": {
+				"label": "Presisi pencocokan",
+				"description": "Slider ini mengontrol seberapa tepat bagian kode harus cocok saat menerapkan diff. Nilai yang lebih rendah memungkinkan pencocokan yang lebih fleksibel tetapi meningkatkan risiko penggantian yang salah. Gunakan nilai di bawah 100% dengan sangat hati-hati."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Ambang batas untuk memicu kondensasi konteks cerdas",
+			"description": "Ketika context window mencapai ambang batas ini, Roo akan secara otomatis mengondensasikannya."
+		},
+		"condensingApiConfiguration": {
+			"label": "Konfigurasi API untuk Kondensasi Konteks",
+			"description": "Pilih konfigurasi API mana yang akan digunakan untuk operasi kondensasi konteks. Biarkan tidak dipilih untuk menggunakan konfigurasi aktif saat ini.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "Prompt Kondensasi Konteks Kustom",
+			"description": "Kustomisasi system prompt yang digunakan untuk kondensasi konteks. Biarkan kosong untuk menggunakan prompt default.",
+			"placeholder": "Masukkan prompt kondensasi kustom kamu di sini...\n\nKamu dapat menggunakan struktur yang sama dengan prompt default:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset ke Default",
+			"hint": "Kosong = gunakan prompt default"
+		},
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Secara cerdas mengondensasi context window",
+			"description": "Kondensasi konteks cerdas menggunakan panggilan LLM untuk merangkum percakapan masa lalu ketika context window tugas mencapai ambang batas yang telah ditetapkan, daripada menghapus pesan lama ketika konteks penuh."
+		},
+		"DIFF_STRATEGY_UNIFIED": {
+			"name": "Gunakan strategi unified diff eksperimental",
+			"description": "Aktifkan strategi unified diff eksperimental. Strategi ini mungkin mengurangi jumlah retry yang disebabkan oleh error model tetapi dapat menyebabkan perilaku yang tidak terduga atau edit yang salah. Hanya aktifkan jika kamu memahami risikonya dan bersedia meninjau semua perubahan dengan hati-hati."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Gunakan tool search and replace eksperimental",
+			"description": "Aktifkan tool search and replace eksperimental, memungkinkan Roo mengganti beberapa instance dari term pencarian dalam satu permintaan."
+		},
+		"INSERT_BLOCK": {
+			"name": "Gunakan tool insert content eksperimental",
+			"description": "Aktifkan tool insert content eksperimental, memungkinkan Roo menyisipkan konten pada nomor baris spesifik tanpa perlu membuat diff."
+		},
+		"POWER_STEERING": {
+			"name": "Gunakan mode \"power steering\" eksperimental",
+			"description": "Ketika diaktifkan, Roo akan mengingatkan model tentang detail definisi mode saat ini lebih sering. Ini akan menghasilkan kepatuhan yang lebih kuat terhadap definisi peran dan instruksi kustom, tetapi akan menggunakan lebih banyak token per pesan."
+		},
+		"AUTOCOMPLETE": {
+			"name": "Gunakan fitur \"autocomplete\" eksperimental",
+			"description": "Ketika diaktifkan, Roo akan memberikan saran kode inline saat kamu mengetik. Memerlukan Roo Code API Provider."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Aktifkan pembacaan file bersamaan",
+			"description": "Ketika diaktifkan, Roo dapat membaca beberapa file dalam satu permintaan. Ketika dinonaktifkan, Roo harus membaca file satu per satu. Menonaktifkan ini dapat membantu saat bekerja dengan model yang kurang mampu atau ketika kamu ingin kontrol lebih terhadap akses file."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Gunakan tool multi block diff eksperimental",
+			"description": "Ketika diaktifkan, Roo akan menggunakan tool multi block diff. Ini akan mencoba memperbarui beberapa blok kode dalam file dalam satu permintaan."
+		},
+		"MARKETPLACE": {
+			"name": "Aktifkan Marketplace",
+			"description": "Ketika diaktifkan, kamu dapat menginstal MCP dan mode kustom dari Marketplace."
+		},
+		"DISABLE_COMPLETION_COMMAND": {
+			"name": "Nonaktifkan eksekusi perintah di attempt_completion",
+			"description": "Ketika diaktifkan, tool attempt_completion tidak akan mengeksekusi perintah. Ini adalah fitur eksperimental untuk mempersiapkan penghentian eksekusi perintah dalam penyelesaian tugas."
+		},
+		"MULTI_FILE_APPLY_DIFF": {
+			"name": "Aktifkan edit file bersamaan",
+			"description": "Ketika diaktifkan, Roo dapat mengedit beberapa file dalam satu permintaan. Ketika dinonaktifkan, Roo harus mengedit file satu per satu. Menonaktifkan ini dapat membantu saat bekerja dengan model yang kurang mampu atau ketika kamu ingin kontrol lebih terhadap modifikasi file."
+		}
+	},
+	"promptCaching": {
+		"label": "Nonaktifkan prompt caching",
+		"description": "Ketika dicentang, Roo tidak akan menggunakan prompt caching untuk model ini."
+	},
+	"temperature": {
+		"useCustom": "Gunakan temperature kustom",
+		"description": "Mengontrol keacakan dalam respons model.",
+		"rangeDescription": "Nilai yang lebih tinggi membuat output lebih acak, nilai yang lebih rendah membuatnya lebih deterministik."
+	},
+	"modelInfo": {
+		"supportsImages": "Mendukung gambar",
+		"noImages": "Tidak mendukung gambar",
+		"supportsComputerUse": "Mendukung computer use",
+		"noComputerUse": "Tidak mendukung computer use",
+		"supportsPromptCache": "Mendukung prompt caching",
+		"noPromptCache": "Tidak mendukung prompt caching",
+		"maxOutput": "Output maksimum",
+		"inputPrice": "Harga input",
+		"outputPrice": "Harga output",
+		"cacheReadsPrice": "Harga cache reads",
+		"cacheWritesPrice": "Harga cache writes",
+		"enableStreaming": "Aktifkan streaming",
+		"enableR1Format": "Aktifkan parameter model R1",
+		"enableR1FormatTips": "Harus diaktifkan saat menggunakan model R1 seperti QWQ untuk mencegah error 400",
+		"useAzure": "Gunakan Azure",
+		"azureApiVersion": "Atur versi API Azure",
+		"gemini": {
+			"freeRequests": "* Gratis hingga {{count}} permintaan per menit. Setelah itu, penagihan tergantung pada ukuran prompt.",
+			"pricingDetails": "Untuk info lebih lanjut, lihat detail harga.",
+			"billingEstimate": "* Penagihan adalah estimasi - biaya sebenarnya tergantung pada ukuran prompt."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "Ekstensi secara otomatis mengambil daftar model terbaru yang tersedia di <serviceLink>{{serviceName}}</serviceLink>. Jika kamu tidak yakin model mana yang harus dipilih, Roo Code bekerja terbaik dengan <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Kamu juga dapat mencoba mencari \"free\" untuk opsi tanpa biaya yang saat ini tersedia.",
+		"label": "Model",
+		"searchPlaceholder": "Cari",
+		"noMatchFound": "Tidak ada yang cocok ditemukan",
+		"useCustomModel": "Gunakan kustom: {{modelId}}"
+	},
+	"footer": {
+		"feedback": "Jika kamu punya pertanyaan atau feedback, jangan ragu untuk membuka issue di <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> atau bergabung <redditLink>reddit.com/r/RooCode</redditLink> atau <discordLink>discord.gg/roocode</discordLink>",
+		"telemetry": {
+			"label": "Izinkan pelaporan error dan penggunaan anonim",
+			"description": "Bantu tingkatkan Roo Code dengan mengirim data penggunaan anonim dan laporan error. Tidak ada kode, prompt, atau informasi pribadi yang pernah dikirim. Lihat kebijakan privasi kami untuk detail lebih lanjut."
+		},
+		"settings": {
+			"import": "Impor",
+			"export": "Ekspor",
+			"reset": "Reset"
+		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Token Maksimum",
+		"maxThinkingTokens": "Token Thinking Maksimum"
+	},
+	"validation": {
+		"apiKey": "Kamu harus menyediakan API key yang valid.",
+		"awsRegion": "Kamu harus memilih region untuk digunakan dengan Amazon Bedrock.",
+		"googleCloud": "Kamu harus menyediakan Google Cloud Project ID dan Region yang valid.",
+		"modelId": "Kamu harus menyediakan model ID yang valid.",
+		"modelSelector": "Kamu harus menyediakan model selector yang valid.",
+		"openAi": "Kamu harus menyediakan base URL, API key, dan model ID yang valid.",
+		"arn": {
+			"invalidFormat": "Format ARN tidak valid. Silakan periksa persyaratan format.",
+			"regionMismatch": "Peringatan: Region di ARN kamu ({{arnRegion}}) tidak cocok dengan region yang kamu pilih ({{region}}). Ini dapat menyebabkan masalah akses. Provider akan menggunakan region dari ARN."
+		},
+		"modelAvailability": "Model ID ({{modelId}}) yang kamu berikan tidak tersedia. Silakan pilih model yang berbeda.",
+		"providerNotAllowed": "Provider '{{provider}}' tidak diizinkan oleh organisasi kamu",
+		"modelNotAllowed": "Model '{{model}}' tidak diizinkan untuk provider '{{provider}}' oleh organisasi kamu",
+		"profileInvalid": "Profil ini berisi provider atau model yang tidak diizinkan oleh organisasi kamu"
+	},
+	"placeholders": {
+		"apiKey": "Masukkan API Key...",
+		"profileName": "Masukkan nama profil",
+		"accessKey": "Masukkan Access Key...",
+		"secretKey": "Masukkan Secret Key...",
+		"sessionToken": "Masukkan Session Token...",
+		"credentialsJson": "Masukkan Credentials JSON...",
+		"keyFilePath": "Masukkan Path File Key...",
+		"projectId": "Masukkan Project ID...",
+		"customArn": "Masukkan ARN (misalnya arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Masukkan base URL...",
+		"modelId": {
+			"lmStudio": "misalnya meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "misalnya lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "misalnya llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "misalnya 4096",
+			"contextWindow": "misalnya 128000",
+			"inputPrice": "misalnya 0.0001",
+			"outputPrice": "misalnya 0.0002",
+			"cacheWritePrice": "misalnya 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "ARN Kustom",
+		"useCustomArn": "Gunakan ARN kustom..."
+	}
+}

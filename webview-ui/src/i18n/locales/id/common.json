@@ -1,0 +1,55 @@
+{
+	"answers": {
+		"yes": "Ya",
+		"no": "Tidak",
+		"cancel": "Batal",
+		"remove": "Hapus",
+		"keep": "Simpan"
+	},
+	"number_format": {
+		"thousand_suffix": "rb",
+		"million_suffix": "jt",
+		"billion_suffix": "m"
+	},
+	"ui": {
+		"search_placeholder": "Cari..."
+	},
+	"mermaid": {
+		"loading": "Membuat diagram mermaid...",
+		"render_error": "Tidak Dapat Merender Diagram",
+		"buttons": {
+			"zoom": "Zoom",
+			"zoomIn": "Perbesar",
+			"zoomOut": "Perkecil",
+			"copy": "Salin",
+			"save": "Simpan Gambar",
+			"viewCode": "Lihat Kode",
+			"viewDiagram": "Lihat Diagram",
+			"close": "Tutup"
+		},
+		"modal": {
+			"codeTitle": "Kode Mermaid"
+		},
+		"tabs": {
+			"diagram": "Diagram",
+			"code": "Kode"
+		},
+		"feedback": {
+			"imageCopied": "Gambar disalin ke clipboard",
+			"copyError": "Error menyalin gambar"
+		}
+	},
+	"file": {
+		"errors": {
+			"invalidDataUri": "Format data URI tidak valid",
+			"copyingImage": "Error menyalin gambar: {{error}}",
+			"openingImage": "Error membuka gambar: {{error}}",
+			"pathNotExists": "Path tidak ada: {{path}}",
+			"couldNotOpen": "Tidak dapat membuka file: {{error}}",
+			"couldNotOpenGeneric": "Tidak dapat membuka file!"
+		},
+		"success": {
+			"imageDataUriCopied": "Data URI gambar disalin ke clipboard"
+		}
+	}
+}

@@ -1,0 +1,131 @@
+{
+	"title": "Marketplace",
+	"tabs": {
+		"installed": "Terinstal",
+		"settings": "Pengaturan",
+		"browse": "Jelajahi"
+	},
+	"done": "Selesai",
+	"refresh": "Refresh",
+	"filters": {
+		"search": {
+			"placeholder": "Cari item marketplace...",
+			"placeholderMcp": "Cari MCP...",
+			"placeholderMode": "Cari Mode..."
+		},
+		"type": {
+			"label": "Filter berdasarkan tipe:",
+			"all": "Semua tipe",
+			"mode": "Mode",
+			"mcpServer": "Server MCP"
+		},
+		"sort": {
+			"label": "Urutkan berdasarkan:",
+			"name": "Nama",
+			"author": "Penulis",
+			"lastUpdated": "Terakhir Diperbarui"
+		},
+		"tags": {
+			"label": "Filter berdasarkan tag:",
+			"clear": "Hapus tag",
+			"placeholder": "Ketik untuk mencari dan memilih tag...",
+			"noResults": "Tidak ada tag yang cocok",
+			"selected": "Menampilkan item dengan tag yang dipilih",
+			"clickToFilter": "Klik tag untuk memfilter item"
+		},
+		"none": "Tidak Ada"
+	},
+	"type-group": {
+		"modes": "Mode",
+		"mcps": "Server MCP"
+	},
+	"items": {
+		"empty": {
+			"noItems": "Tidak ada item marketplace ditemukan",
+			"withFilters": "Coba sesuaikan filter Anda",
+			"noSources": "Coba tambahkan sumber di tab Sumber",
+			"adjustFilters": "Coba sesuaikan filter atau kata kunci pencarian Anda",
+			"clearAllFilters": "Hapus semua filter"
+		},
+		"count": "{{count}} item ditemukan",
+		"components": "{{count}} komponen",
+		"matched": "{{count}} cocok",
+		"refresh": {
+			"button": "Refresh",
+			"refreshing": "Merefresh...",
+			"mayTakeMoment": "Ini mungkin membutuhkan waktu sebentar."
+		},
+		"card": {
+			"by": "oleh {{author}}",
+			"from": "dari {{source}}",
+			"install": "Instal",
+			"installProject": "Instal",
+			"installGlobal": "Instal (Global)",
+			"remove": "Hapus",
+			"removeProject": "Hapus",
+			"removeGlobal": "Hapus (Global)",
+			"viewSource": "Lihat",
+			"viewOnSource": "Lihat di {{source}}",
+			"noWorkspaceTooltip": "Buka workspace untuk menginstal item marketplace",
+			"installed": "Terinstal",
+			"removeProjectTooltip": "Hapus dari proyek saat ini",
+			"removeGlobalTooltip": "Hapus dari konfigurasi global",
+			"actionsMenuLabel": "Aksi lainnya"
+		}
+	},
+	"install": {
+		"title": "Instal {{name}}",
+		"titleMode": "Instal Mode {{name}}",
+		"titleMcp": "Instal MCP {{name}}",
+		"scope": "Cakupan Instalasi",
+		"project": "Proyek (workspace saat ini)",
+		"global": "Global (semua workspace)",
+		"method": "Metode Instalasi",
+		"prerequisites": "Prasyarat",
+		"configuration": "Konfigurasi",
+		"configurationDescription": "Konfigurasi parameter yang diperlukan untuk server MCP ini",
+		"button": "Instal",
+		"successTitle": "{{name}} Terinstal",
+		"successDescription": "Instalasi berhasil diselesaikan",
+		"installed": "Berhasil diinstal!",
+		"whatNextMcp": "Anda sekarang dapat mengkonfigurasi dan menggunakan server MCP ini. Klik ikon MCP di sidebar untuk beralih tab.",
+		"whatNextMode": "Anda sekarang dapat menggunakan mode ini. Klik ikon Mode di sidebar untuk beralih tab.",
+		"done": "Selesai",
+		"goToMcp": "Ke Tab MCP",
+		"goToModes": "Ke Tab Mode",
+		"moreInfoMcp": "Lihat dokumentasi MCP {{name}}",
+		"validationRequired": "Silakan berikan nilai untuk {{paramName}}"
+	},
+	"sources": {
+		"title": "Konfigurasi Sumber Marketplace",
+		"description": "Tambahkan repositori Git yang berisi item marketplace. Repositori ini akan diambil saat menjelajahi marketplace.",
+		"add": {
+			"title": "Tambah Sumber Baru",
+			"urlPlaceholder": "URL repositori Git (misalnya, https://github.com/username/repo)",
+			"urlFormats": "Format yang didukung: HTTPS (https://github.com/username/repo), SSH (git@github.com:username/repo.git), atau protokol Git (git://github.com/username/repo.git)",
+			"namePlaceholder": "Nama tampilan (maks 20 karakter)",
+			"button": "Tambah Sumber"
+		},
+		"current": {
+			"title": "Sumber Saat Ini",
+			"empty": "Tidak ada sumber yang dikonfigurasi. Tambahkan sumber untuk memulai.",
+			"refresh": "Refresh sumber ini",
+			"remove": "Hapus sumber"
+		},
+		"errors": {
+			"emptyUrl": "URL tidak boleh kosong",
+			"invalidUrl": "Format URL tidak valid",
+			"nonVisibleChars": "URL mengandung karakter tidak terlihat selain spasi",
+			"invalidGitUrl": "URL harus berupa URL repositori Git yang valid (misalnya, https://github.com/username/repo)",
+			"duplicateUrl": "URL ini sudah ada dalam daftar (pencocokan tidak peka huruf besar/kecil dan spasi)",
+			"nameTooLong": "Nama harus 20 karakter atau kurang",
+			"nonVisibleCharsName": "Nama mengandung karakter tidak terlihat selain spasi",
+			"duplicateName": "Nama ini sudah digunakan (pencocokan tidak peka huruf besar/kecil dan spasi)",
+			"emojiName": "Karakter emoji dapat menyebabkan masalah tampilan",
+			"maxSources": "Maksimal {{max}} sumber diizinkan"
+		}
+	},
+	"footer": {
+		"issueText": "Menemukan masalah dengan item marketplace atau punya saran untuk yang baru? <0>Buka GitHub issue</0> untuk memberi tahu kami!"
+	}
+}

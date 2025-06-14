@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "Human Relay - Mohon Bantu Salin/Tempel Informasi",
+	"dialogDescription": "Silakan salin prompt berikut ke web AI, lalu tempel respons AI di kotak input di bawah.",
+	"copiedToClipboard": "Disalin ke clipboard",
+	"aiResponse": {
+		"label": "Silakan masukkan respons AI:",
+		"placeholder": "Tempel respons AI di sini..."
+	},
+	"actions": {
+		"cancel": "Batal",
+		"submit": "Kirim"
+	}
+}

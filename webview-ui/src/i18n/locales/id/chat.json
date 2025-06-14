@@ -1,0 +1,296 @@
+{
+	"greeting": "Selamat datang di Roo Code",
+	"task": {
+		"title": "Tugas",
+		"seeMore": "Lihat lebih banyak",
+		"seeLess": "Lihat lebih sedikit",
+		"tokens": "Token:",
+		"cache": "Cache:",
+		"apiCost": "Biaya API:",
+		"condenseContext": "Kondensasi konteks secara cerdas",
+		"contextWindow": "Panjang Konteks:",
+		"closeAndStart": "Tutup tugas dan mulai yang baru",
+		"export": "Ekspor riwayat tugas",
+		"share": "Bagikan tugas",
+		"delete": "Hapus Tugas (Shift + Klik untuk lewati konfirmasi)"
+	},
+	"history": {
+		"title": "Riwayat"
+	},
+	"unpin": "Lepas Pin",
+	"pin": "Pin",
+	"retry": {
+		"title": "Coba Lagi",
+		"tooltip": "Coba operasi lagi"
+	},
+	"startNewTask": {
+		"title": "Mulai Tugas Baru",
+		"tooltip": "Mulai tugas baru"
+	},
+	"reportBug": {
+		"title": "Laporkan Bug"
+	},
+	"proceedAnyways": {
+		"title": "Lanjutkan Saja",
+		"tooltip": "Lanjutkan saat perintah dijalankan"
+	},
+	"save": {
+		"title": "Simpan",
+		"tooltip": "Simpan perubahan file"
+	},
+	"tokenProgress": {
+		"availableSpace": "Ruang tersedia: {{amount}} token",
+		"tokensUsed": "Token digunakan: {{used}} dari {{total}}",
+		"reservedForResponse": "Dicadangkan untuk respons model: {{amount}} token"
+	},
+	"reject": {
+		"title": "Tolak",
+		"tooltip": "Tolak aksi ini"
+	},
+	"completeSubtaskAndReturn": "Selesaikan Subtugas dan Kembali",
+	"approve": {
+		"title": "Setujui",
+		"tooltip": "Setujui aksi ini"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Setujui Semua"
+		},
+		"deny": {
+			"title": "Tolak Semua"
+		}
+	},
+	"runCommand": {
+		"title": "Jalankan Perintah",
+		"tooltip": "Eksekusi perintah ini"
+	},
+	"proceedWhileRunning": {
+		"title": "Lanjutkan Saat Berjalan",
+		"tooltip": "Lanjutkan meskipun ada peringatan"
+	},
+	"killCommand": {
+		"title": "Hentikan Perintah",
+		"tooltip": "Hentikan perintah saat ini"
+	},
+	"resumeTask": {
+		"title": "Lanjutkan Tugas",
+		"tooltip": "Lanjutkan tugas saat ini"
+	},
+	"terminate": {
+		"title": "Hentikan",
+		"tooltip": "Akhiri tugas saat ini"
+	},
+	"cancel": {
+		"title": "Batal",
+		"tooltip": "Batalkan operasi saat ini"
+	},
+	"scrollToBottom": "Gulir ke bawah chat",
+	"about": "Buat, refaktor, dan debug kode dengan bantuan AI.<br />Lihat <DocsLink>dokumentasi</DocsLink> kami untuk mempelajari lebih lanjut.",
+	"onboarding": "Daftar tugas di workspace ini kosong.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Tugas Boomerang",
+			"description": "Bagi tugas menjadi bagian-bagian kecil yang dapat dikelola"
+		},
+		"stickyModels": {
+			"title": "Model Sticky",
+			"description": "Setiap mode mengingat model terakhir yang kamu gunakan"
+		},
+		"tools": {
+			"title": "Tools",
+			"description": "Izinkan AI menyelesaikan masalah dengan browsing web, menjalankan perintah, dan lainnya"
+		},
+		"customizableModes": {
+			"title": "Mode yang Dapat Disesuaikan",
+			"description": "Persona khusus dengan perilaku dan model yang ditugaskan sendiri"
+		}
+	},
+	"selectMode": "Pilih mode untuk interaksi",
+	"selectApiConfig": "Pilih konfigurasi API",
+	"enhancePrompt": "Tingkatkan prompt dengan konteks tambahan",
+	"enhancePromptDescription": "Tombol 'Tingkatkan Prompt' membantu memperbaiki prompt kamu dengan memberikan konteks tambahan, klarifikasi, atau penyusunan ulang. Coba ketik prompt di sini dan klik tombol lagi untuk melihat cara kerjanya.",
+	"addImages": "Tambahkan gambar ke pesan",
+	"sendMessage": "Kirim pesan",
+	"typeMessage": "Ketik pesan...",
+	"typeTask": "Bangun, cari, tanya sesuatu",
+	"addContext": "@ untuk menambah konteks, / untuk ganti mode",
+	"dragFiles": "tahan shift untuk drag file",
+	"dragFilesImages": "tahan shift untuk drag file/gambar",
+	"errorReadingFile": "Error membaca file:",
+	"noValidImages": "Tidak ada gambar valid yang diproses",
+	"separator": "Pemisah",
+	"edit": "Edit...",
+	"forNextMode": "untuk mode selanjutnya",
+	"apiRequest": {
+		"title": "Permintaan API",
+		"failed": "Permintaan API Gagal",
+		"streaming": "Permintaan API...",
+		"cancelled": "Permintaan API Dibatalkan",
+		"streamingFailed": "Streaming API Gagal"
+	},
+	"checkpoint": {
+		"initial": "Checkpoint Awal",
+		"regular": "Checkpoint",
+		"initializingWarning": "Masih menginisialisasi checkpoint... Jika ini terlalu lama, kamu bisa menonaktifkan checkpoint di <settingsLink>pengaturan</settingsLink> dan restart tugas.",
+		"menu": {
+			"viewDiff": "Lihat Diff",
+			"restore": "Pulihkan Checkpoint",
+			"restoreFiles": "Pulihkan File",
+			"restoreFilesDescription": "Mengembalikan file proyek kamu ke snapshot yang diambil pada titik ini.",
+			"restoreFilesAndTask": "Pulihkan File & Tugas",
+			"confirm": "Konfirmasi",
+			"cancel": "Batal",
+			"cannotUndo": "Aksi ini tidak dapat dibatalkan.",
+			"restoreFilesAndTaskDescription": "Mengembalikan file proyek kamu ke snapshot yang diambil pada titik ini dan menghapus semua pesan setelah titik ini."
+		},
+		"current": "Saat Ini"
+	},
+	"contextCondense": {
+		"title": "Konteks Dikondensasi",
+		"condensing": "Mengondensasi konteks...",
+		"errorHeader": "Gagal mengondensasi konteks",
+		"tokens": "token"
+	},
+	"instructions": {
+		"wantsToFetch": "Roo ingin mengambil instruksi detail untuk membantu tugas saat ini"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo ingin membaca file ini:",
+		"wantsToReadMultiple": "Roo ingin membaca beberapa file:",
+		"wantsToReadAndXMore": "Roo ingin membaca file ini dan {{count}} lainnya:",
+		"wantsToReadOutsideWorkspace": "Roo ingin membaca file ini di luar workspace:",
+		"didRead": "Roo membaca file ini:",
+		"wantsToEdit": "Roo ingin mengedit file ini:",
+		"wantsToEditOutsideWorkspace": "Roo ingin mengedit file ini di luar workspace:",
+		"wantsToApplyBatchChanges": "Roo ingin menerapkan perubahan ke beberapa file:",
+		"wantsToCreate": "Roo ingin membuat file baru:",
+		"wantsToSearchReplace": "Roo ingin mencari dan mengganti di file ini:",
+		"didSearchReplace": "Roo melakukan pencarian dan penggantian pada file ini:",
+		"wantsToInsert": "Roo ingin menyisipkan konten ke file ini:",
+		"wantsToInsertWithLineNumber": "Roo ingin menyisipkan konten ke file ini di baris {{lineNumber}}:",
+		"wantsToInsertAtEnd": "Roo ingin menambahkan konten ke akhir file ini:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo ingin melihat file tingkat atas di direktori ini:",
+		"didViewTopLevel": "Roo melihat file tingkat atas di direktori ini:",
+		"wantsToViewRecursive": "Roo ingin melihat semua file secara rekursif di direktori ini:",
+		"didViewRecursive": "Roo melihat semua file secara rekursif di direktori ini:",
+		"wantsToViewDefinitions": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini:",
+		"didViewDefinitions": "Roo melihat nama definisi source code yang digunakan di direktori ini:",
+		"wantsToSearch": "Roo ingin mencari direktori ini untuk <code>{{regex}}</code>:",
+		"didSearch": "Roo mencari direktori ini untuk <code>{{regex}}</code>:"
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo ingin mencari codebase untuk <code>{{query}}</code>:",
+		"wantsToSearchWithPath": "Roo ingin mencari codebase untuk <code>{{query}}</code> di <code>{{path}}</code>:",
+		"didSearch": "Ditemukan {{count}} hasil untuk <code>{{query}}</code>:"
+	},
+	"commandOutput": "Output Perintah",
+	"response": "Respons",
+	"arguments": "Argumen",
+	"mcp": {
+		"wantsToUseTool": "Roo ingin menggunakan tool di server MCP {{serverName}}:",
+		"wantsToAccessResource": "Roo ingin mengakses resource di server MCP {{serverName}}:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo ingin beralih ke mode {{mode}}",
+		"wantsToSwitchWithReason": "Roo ingin beralih ke mode {{mode}} karena: {{reason}}",
+		"didSwitch": "Roo beralih ke mode {{mode}}",
+		"didSwitchWithReason": "Roo beralih ke mode {{mode}} karena: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo ingin membuat subtugas baru dalam mode {{mode}}:",
+		"wantsToFinish": "Roo ingin menyelesaikan subtugas ini",
+		"newTaskContent": "Instruksi Subtugas",
+		"completionContent": "Subtugas Selesai",
+		"resultContent": "Hasil Subtugas",
+		"defaultResult": "Silakan lanjutkan ke tugas berikutnya.",
+		"completionInstructions": "Subtugas selesai! Kamu bisa meninjau hasilnya dan menyarankan koreksi atau langkah selanjutnya. Jika semuanya terlihat baik, konfirmasi untuk mengembalikan hasil ke tugas induk."
+	},
+	"questions": {
+		"hasQuestion": "Roo punya pertanyaan:"
+	},
+	"taskCompleted": "Tugas Selesai",
+	"error": "Error",
+	"diffError": {
+		"title": "Edit Tidak Berhasil"
+	},
+	"troubleMessage": "Roo mengalami masalah...",
+	"powershell": {
+		"issues": "Sepertinya kamu mengalami masalah Windows PowerShell, silakan lihat ini"
+	},
+	"autoApprove": {
+		"title": "Auto-approve:",
+		"none": "Tidak Ada",
+		"description": "Auto-approve memungkinkan Roo Code melakukan aksi tanpa meminta izin. Hanya aktifkan untuk aksi yang benar-benar kamu percayai. Konfigurasi lebih detail tersedia di <settingsLink>Pengaturan</settingsLink>."
+	},
+	"announcement": {
+		"title": "🎉 Roo Code {{version}} Dirilis",
+		"description": "Roo Code {{version}} menghadirkan fitur baru yang powerful dan perbaikan berdasarkan feedback kamu.",
+		"whatsNew": "Apa yang Baru",
+		"feature1": "<bold>Model Pratinjau Gemini 2.5 Flash</bold>: Akses model Gemini Flash terbaru untuk respons yang lebih cepat dan efisien",
+		"feature2": "<bold>Kondensasi Konteks Cerdas</bold>: Tombol baru di header tugas memungkinkan kamu mengondensasi konten secara cerdas dengan umpan balik visual",
+		"feature3": "<bold>Dukungan YAML untuk Definisi Mode</bold>: Buat dan sesuaikan mode lebih mudah dengan dukungan YAML",
+		"hideButton": "Sembunyikan pengumuman",
+		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
+	},
+	"reasoning": {
+		"thinking": "Berpikir",
+		"seconds": "{{count}}d"
+	},
+	"followUpSuggest": {
+		"copyToInput": "Salin ke input (sama dengan shift + klik)"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo ingin menggunakan browser:",
+		"consoleLogs": "Log Konsol",
+		"noNewLogs": "(Tidak ada log baru)",
+		"screenshot": "Screenshot browser",
+		"cursor": "kursor",
+		"navigation": {
+			"step": "Langkah {{current}} dari {{total}}",
+			"previous": "Sebelumnya",
+			"next": "Selanjutnya"
+		},
+		"sessionStarted": "Sesi Browser Dimulai",
+		"actions": {
+			"title": "Aksi Browse: ",
+			"launch": "Luncurkan browser di {{url}}",
+			"click": "Klik ({{coordinate}})",
+			"type": "Ketik \"{{text}}\"",
+			"scrollDown": "Gulir ke bawah",
+			"scrollUp": "Gulir ke atas",
+			"close": "Tutup browser"
+		}
+	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Perluas blok kode",
+			"collapse": "Tutup blok kode",
+			"enable_wrap": "Aktifkan word wrap",
+			"disable_wrap": "Nonaktifkan word wrap",
+			"copy_code": "Salin kode"
+		}
+	},
+	"systemPromptWarning": "PERINGATAN: Override system prompt kustom aktif. Ini dapat merusak fungsionalitas secara serius dan menyebabkan perilaku yang tidak terduga.",
+	"profileViolationWarning": "Profil saat ini melanggar pengaturan organisasi kamu",
+	"shellIntegration": {
+		"title": "Peringatan Eksekusi Perintah",
+		"description": "Perintah kamu dijalankan tanpa integrasi shell terminal VSCode. Untuk menekan peringatan ini kamu bisa menonaktifkan integrasi shell di bagian <strong>Terminal</strong> dari <settingsLink>pengaturan Roo Code</settingsLink> atau troubleshoot integrasi terminal VSCode menggunakan link di bawah.",
+		"troubleshooting": "Klik di sini untuk dokumentasi integrasi shell."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Batas Permintaan yang Disetujui Otomatis Tercapai",
+			"description": "Roo telah mencapai batas {{count}} permintaan API yang disetujui otomatis. Apakah kamu ingin mengatur ulang hitungan dan melanjutkan tugas?",
+			"button": "Atur Ulang dan Lanjutkan"
+		}
+	},
+	"indexingStatus": {
+		"ready": "Indeks siap",
+		"indexing": "Mengindeks {{percentage}}%",
+		"indexed": "Terindeks",
+		"error": "Error indeks",
+		"status": "Status indeks"
+	}
+}

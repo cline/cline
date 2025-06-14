@@ -1,0 +1,28 @@
+{
+	"greeting": "Hai, saya Roo Code!",
+	"introduction": "<strong>Roo Code adalah agen coding otonom terdepan.</strong> Bersiaplah untuk merancang, coding, debug, dan meningkatkan produktivitas seperti yang belum pernah Anda lihat sebelumnya. Untuk melanjutkan, Roo Code memerlukan API key.",
+	"notice": "Untuk memulai, ekstensi ini memerlukan provider API.",
+	"start": "Ayo mulai!",
+	"chooseProvider": "Pilih provider API untuk memulai:",
+	"routers": {
+		"requesty": {
+			"description": "Router LLM yang dioptimalkan",
+			"incentive": "Kredit gratis $1"
+		},
+		"openrouter": {
+			"description": "Interface terpadu untuk LLM"
+		}
+	},
+	"startRouter": "Setup Ekspres Melalui Router",
+	"startCustom": "Bawa API Key Anda Sendiri",
+	"telemetry": {
+		"title": "Bantu Tingkatkan Roo Code",
+		"anonymousTelemetry": "Kirim data error dan penggunaan anonim untuk membantu kami memperbaiki bug dan meningkatkan ekstensi. Tidak ada kode, prompt, atau informasi pribadi yang pernah dikirim.",
+		"changeSettings": "Anda selalu dapat mengubah ini di bagian bawah <settingsLink>pengaturan</settingsLink>",
+		"settings": "pengaturan",
+		"allow": "Izinkan",
+		"deny": "Tolak"
+	},
+	"or": "atau",
+	"importSettings": "Impor Pengaturan"
+}
