@@ -3,10 +3,9 @@ import OpenAI from "openai"
 export class MorphClient {
 	private client: OpenAI
 
-	constructor() {
-		const apiKey = process.env.MORPH_API_KEY // TODO: Just been hardcoding this for now
+	constructor(apiKey?: string) {
 		if (!apiKey) {
-			throw new Error("MORPH_API_KEY environment variable is required")
+			throw new Error("Morph API key is required")
 		}
 
 		this.client = new OpenAI({

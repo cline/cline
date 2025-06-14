@@ -46,6 +46,8 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
+	morphModels,
+	morphDefaultModelId,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { OpenAiModelsRequest } from "@shared/proto/models"
@@ -340,6 +342,7 @@ const ApiOptions = ({
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="morph">Morph (Edit Files Only)</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1938,17 +1941,6 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{apiErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{apiErrorMessage}
-				</p>
-			)}
-
 			{selectedProvider === "xai" && (
 				<div>
 					<VSCodeTextField
@@ -2055,6 +2047,55 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "morph" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.morphApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("morphApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Morph API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used for file editing operations.
+						{!apiConfiguration?.morphApiKey && (
+							<VSCodeLink
+								href="https://docs.morphllm.com/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Morph API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					<div
+						style={{
+							marginTop: 8,
+							padding: 8,
+							backgroundColor: "var(--vscode-editorInfo-background)",
+							border: "1px solid var(--vscode-editorInfo-border)",
+							borderRadius: 4,
+						}}>
+						<p
+							style={{
+								fontSize: "12px",
+								margin: 0,
+								color: "var(--vscode-editorInfo-foreground)",
+							}}>
+							<strong>Note:</strong> Morph is specialized for file editing only and cannot be used for general chat. 
+							You'll need to select a different API provider for chat functionality.
+						</p>
+					</div>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -2151,6 +2192,7 @@ const ApiOptions = ({
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
 				selectedProvider !== "bedrock" &&
+				selectedProvider !== "morph" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -2610,6 +2652,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "morph":
+			return getProviderData(morphModels, morphDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

@@ -184,6 +184,7 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
+	private apiConfiguration: ApiConfiguration
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -227,6 +228,7 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+		this.apiConfiguration = apiConfiguration
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -4024,7 +4026,7 @@ export class Task {
 							const originalCode = await fs.readFile(absolutePath, "utf-8")
 
 							try {
-								const morphClient = new MorphClient()
+								const morphClient = new MorphClient(this.apiConfiguration.morphApiKey)
 								newContent = await morphClient.applyEdit(originalCode, codeEdit)
 							} catch (morphError) {
 								const errorMessage = morphError instanceof Error ? morphError.message : "Unknown error"

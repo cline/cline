@@ -25,6 +25,7 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 	| "cerebras"
+	| "morph"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -91,6 +92,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	morphApiKey?: string
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
@@ -2073,3 +2075,17 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
+
+// Morph
+// https://docs.morphllm.com/
+export type MorphModelId = keyof typeof morphModels
+export const morphDefaultModelId: MorphModelId = "morph-v2"
+export const morphModels = {
+	"morph-v2": {
+		maxTokens: 8192,
+		contextWindow: 32000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "Specialized model for intelligent code editing and transformations",
+	},
+} satisfies Record<string, ModelInfo>
