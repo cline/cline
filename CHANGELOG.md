@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.20.3] - 2025-06-13
+
+- Resolve diff editor race condition in multi-monitor setups (thanks @daniel-lxs!)
+- Add logic to prevent auto-approving edits of configuration files
+- Adjust searching and listing files outside of the workspace to respect the auto-approve settings
+- Add Indonesian translation support (thanks @chrarnoldus and @daniel-lxs!)
+- Fix multi-file diff error handling and UI feedback (thanks @daniel-lxs!)
+- Improve prompt history navigation to not interfere with text editing (thanks @daniel-lxs!)
+- Fix errant maxReadFileLine default
+
 ## [3.20.2] - 2025-06-13
 
 - Limit search_files to only look within the workspace for improved security
