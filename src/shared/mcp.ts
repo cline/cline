@@ -112,3 +112,23 @@ export interface McpDownloadResponse {
 }
 
 export type McpViewTab = "marketplace" | "addRemote" | "installed"
+
+/**
+ * Options for MCP OAuth client provider configuration
+ */
+export interface OAuthProviderOptions {
+	/** The server URL to connect to for OAuth authentication */
+	serverUrl: string
+	/** The server name for the OAuth client */
+	serverName: string
+	/** The callback path for OAuth redirect */
+	callbackPath: string
+	/** The name of the client application */
+	clientName: string
+	/** The URI of the client application */
+	clientUri: string
+	/** The software identifier */
+	softwareId: string
+	/** The software version */
+	softwareVersion: string
+}

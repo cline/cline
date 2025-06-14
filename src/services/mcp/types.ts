@@ -5,6 +5,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { z } from "zod"
 import { McpServer } from "@shared/mcp"
 import { ServerConfigSchema } from "./schemas"
+import { McpOAuthClientProvider } from "./McpOAuthClientProvider"
 
 export type Transport = StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
@@ -12,6 +13,7 @@ export type McpConnection = {
 	server: McpServer
 	client: Client
 	transport: Transport
+	authProvider?: McpOAuthClientProvider
 }
 
 export type McpTransportType = "stdio" | "sse" | "http"
