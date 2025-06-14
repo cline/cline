@@ -1,4 +1,4 @@
-import axios from "axios"
+import axios from "../../utils/http"
 import ogs from "open-graph-scraper"
 
 export interface OpenGraphData {
