@@ -1,6 +1,15 @@
-**English** • [Català](locales/ca/CODE_OF_CONDUCT.md) • [Deutsch](locales/de/CODE_OF_CONDUCT.md) • [Español](locales/es/CODE_OF_CONDUCT.md) • [Français](locales/fr/CODE_OF_CONDUCT.md) • [हिंदी](locales/hi/CODE_OF_CONDUCT.md) • [Italiano](locales/it/CODE_OF_CONDUCT.md) • [Nederlands](locales/nl/CODE_OF_CONDUCT.md) • [Русский](locales/ru/CODE_OF_CONDUCT.md)
+<div align="center">
+<sub>
 
-[日本語](locales/ja/CODE_OF_CONDUCT.md) • [한국어](locales/ko/CODE_OF_CONDUCT.md) • [Polski](locales/pl/CODE_OF_CONDUCT.md) • [Português (BR)](locales/pt-BR/CODE_OF_CONDUCT.md) • [Türkçe](locales/tr/CODE_OF_CONDUCT.md) • [Tiếng Việt](locales/vi/CODE_OF_CONDUCT.md) • [简体中文](locales/zh-CN/CODE_OF_CONDUCT.md) • [繁體中文](locales/zh-TW/CODE_OF_CONDUCT.md)
+<b>English</b> • [Català](locales/ca/CODE_OF_CONDUCT.md) • [Deutsch](locales/de/CODE_OF_CONDUCT.md) • [Español](locales/es/CODE_OF_CONDUCT.md) • [Français](locales/fr/CODE_OF_CONDUCT.md) • [हिंदी](locales/hi/CODE_OF_CONDUCT.md) • [Bahasa Indonesia](locales/id/CODE_OF_CONDUCT.md) • [Italiano](locales/it/CODE_OF_CONDUCT.md) • [日本語](locales/ja/CODE_OF_CONDUCT.md)
+
+</sub>
+<sub>
+
+[한국어](locales/ko/CODE_OF_CONDUCT.md) • [Nederlands](locales/nl/CODE_OF_CONDUCT.md) • [Polski](locales/pl/CODE_OF_CONDUCT.md) • [Português (BR)](locales/pt-BR/CODE_OF_CONDUCT.md) • [Русский](locales/ru/CODE_OF_CONDUCT.md) • [Türkçe](locales/tr/CODE_OF_CONDUCT.md) • [Tiếng Việt](locales/vi/CODE_OF_CONDUCT.md) • [简体中文](locales/zh-CN/CODE_OF_CONDUCT.md) • [繁體中文](locales/zh-TW/CODE_OF_CONDUCT.md)
+
+</sub>
+</div>
 
 # Contributor Covenant Code of Conduct
 

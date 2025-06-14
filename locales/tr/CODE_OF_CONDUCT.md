@@ -1,6 +1,15 @@
+<div align="center">
+<sub>
+
 [English](../../CODE_OF_CONDUCT.md) • [Català](../ca/CODE_OF_CONDUCT.md) • [Deutsch](../de/CODE_OF_CONDUCT.md) • [Español](../es/CODE_OF_CONDUCT.md) • [Français](../fr/CODE_OF_CONDUCT.md) • [हिंदी](../hi/CODE_OF_CONDUCT.md) • [Bahasa Indonesia](../id/CODE_OF_CONDUCT.md) • [Italiano](../it/CODE_OF_CONDUCT.md) • [日本語](../ja/CODE_OF_CONDUCT.md)
 
+</sub>
+<sub>
+
 [한국어](../ko/CODE_OF_CONDUCT.md) • [Nederlands](../nl/CODE_OF_CONDUCT.md) • [Polski](../pl/CODE_OF_CONDUCT.md) • [Português (BR)](../pt-BR/CODE_OF_CONDUCT.md) • [Русский](../ru/CODE_OF_CONDUCT.md) • <b>Türkçe</b> • [Tiếng Việt](../vi/CODE_OF_CONDUCT.md) • [简体中文](../zh-CN/CODE_OF_CONDUCT.md) • [繁體中文](../zh-TW/CODE_OF_CONDUCT.md)
+
+</sub>
+</div>
 
 # Katkıda Bulunan Sözleşmesi Davranış Kuralları
 
