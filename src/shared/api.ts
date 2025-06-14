@@ -223,7 +223,7 @@ export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -233,7 +233,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
