@@ -1,7 +1,7 @@
 <div align="center">
 <sub>
 
-[English](../../README.md) • <b>Català</b> • [Deutsch](../de/README.md) • [Español](../es/README.md) • [Français](../fr/README.md) • [हिन्दी](../hi/README.md) • [Bahasa Indonesia](../id/README.md) • [Italiano](../it/README.md) • [日本語](../ja/README.md)
+[English](../../README.md) • [Català](../ca/README.md) • [Deutsch](../de/README.md) • [Español](../es/README.md) • [Français](../fr/README.md) • [हिन्दी](../hi/README.md) • <b>Bahasa Indonesia</b> • [Italiano](../it/README.md) • [日本語](../ja/README.md)
 
 </sub>
 <sub>
@@ -12,173 +12,167 @@
 </div>
 <br>
 <div align="center">
-  <h2>Uniu-vos a la Comunitat Roo Code</h2>
-  <p>Connecteu-vos amb desenvolupadors, contribuïu amb idees i manteniu-vos al dia amb les últimes eines de programació amb IA.</p>
+  <h1>Roo Code (sebelumnya Roo Cline)</h1>
+  <p align="center">
+  <img src="https://media.githubusercontent.com/media/RooCodeInc/Roo-Code/main/src/assets/docs/demo.gif" width="100%" />
+  </p>
+  <p>Terhubung dengan developer, berkontribusi ide, dan tetap terdepan dengan tools coding bertenaga AI terbaru.</p>
   
-  <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Uniu%2Dvos%20a%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Uniu-vos a Discord"></a>
-  <a href="https://www.reddit.com/r/RooCode/" target="_blank"><img src="https://img.shields.io/badge/Uniu%2Dvos%20a%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Uniu-vos a Reddit"></a>
+  <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
+  <a href="https://www.reddit.com/r/RooCode/" target="_blank"><img src="https://img.shields.io/badge/Join%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Join Reddit"></a>
   
 </div>
 <br>
 <br>
 
 <div align="center">
-<h1>Roo Code (abans Roo Cline)</h1>
-<p align="center">
-<img src="https://media.githubusercontent.com/media/RooCodeInc/Roo-Code/main/src/assets/docs/demo.gif" width="100%" />
-</p>
 
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Descarregueu%20al%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Descarregueu al VS Marketplace"></a>
-<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Sol·licituds%20de%20funcions-yellow?style=for-the-badge" alt="Sol·licituds de funcions"></a>
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Valoreu%20%26%20Reviseu-green?style=for-the-badge" alt="Valoreu & Reviseu"></a>
-<a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentació-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentació"></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Download%20on%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download on VS Marketplace"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests"></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Rate%20%26%20Review-green?style=for-the-badge" alt="Rate & Review"></a>
+<a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 
 </div>
 
-**Roo Code** és un **agent de programació autònom** impulsat per IA que viu en el vostre editor. Pot:
+**Roo Code** adalah **agen coding otonom** bertenaga AI yang hidup di editor kamu. Ia dapat:
 
-- Comunicar-se en llenguatge natural
-- Llegir i escriure fitxers directament en el vostre espai de treball
-- Executar comandes de terminal
-- Automatitzar accions del navegador
-- Integrar-se amb qualsevol API/model compatible amb OpenAI o personalitzat
-- Adaptar la seva "personalitat" i capacitats mitjançant **Modes Personalitzats**
+- Berkomunikasi dalam bahasa alami
+- Membaca dan menulis file langsung di workspace kamu
+- Menjalankan perintah terminal
+- Mengotomatisasi aksi browser
+- Terintegrasi dengan API/model yang kompatibel dengan OpenAI atau custom
+- Menyesuaikan "kepribadian" dan kemampuannya melalui **Mode Kustom**
 
-Tant si busqueu un soci de programació flexible, un arquitecte de sistemes o rols especialitzats com un enginyer de control de qualitat o un gestor de producte, Roo Code us pot ajudar a construir programari de manera més eficient.
+Baik kamu mencari partner coding yang fleksibel, arsitek sistem, atau peran khusus seperti QA engineer atau product manager, Roo Code dapat membantu kamu membangun software dengan lebih efisien.
 
-Consulteu el [CHANGELOG](../../CHANGELOG.md) per a actualitzacions i correccions detallades.
-
----
-
-## 🎉 Roo Code 3.20 Llançat
-
-Roo Code 3.20 aporta noves funcionalitats majors i millores basades en els vostres comentaris!
-
-- **Marketplace Experimental** - Descobriu i instal·leu modes i MCPs des del nou marketplace (activeu-lo als Paràmetres Experimentals).
-- **Operacions de Fitxers Millorades** - Múltiples escriptures de fitxers simultànies ara disponibles als Paràmetres Experimentals, i múltiples lectures simultànies s'han graduat de l'experimental i ara viuen als Paràmetres de Context.
-- **Millores MCP i Més** - Suport MCP millorat, més controls Mermaid, suport de pensament a Amazon Bedrock, i molt més!
+Lihat [CHANGELOG](../../CHANGELOG.md) untuk update dan perbaikan detail.
 
 ---
 
-## Què pot fer Roo Code?
+## 🎉 Roo Code 3.20 Dirilis
 
-- 🚀 **Generar codi** a partir de descripcions en llenguatge natural
-- 🔧 **Refactoritzar i depurar** codi existent
-- 📝 **Escriure i actualitzar** documentació
-- 🤔 **Respondre preguntes** sobre el vostre codi
-- 🔄 **Automatitzar** tasques repetitives
-- 🏗️ **Crear** nous fitxers i projectes
+Roo Code 3.20 menghadirkan fitur baru utama dan perbaikan berdasarkan feedback kamu!
 
-## Inici ràpid
-
-1. [Instal·leu Roo Code](https://docs.roocode.com/getting-started/installing)
-2. [Connecteu el vostre proveïdor d'IA](https://docs.roocode.com/getting-started/connecting-api-provider)
-3. [Proveu la vostra primera tasca](https://docs.roocode.com/getting-started/your-first-task)
-
-## Característiques principals
-
-### Múltiples modes
-
-Roo Code s'adapta a les vostres necessitats amb [modes](https://docs.roocode.com/basic-usage/using-modes) especialitzats:
-
-- **Mode Codi:** Per a tasques de programació de propòsit general
-- **Mode Arquitecte:** Per a planificació i lideratge tècnic
-- **Mode Pregunta:** Per a respondre preguntes i proporcionar informació
-- **Mode Depuració:** Per a diagnòstic sistemàtic de problemes
-- **[Modes personalitzats](https://docs.roocode.com/advanced-usage/custom-modes):** Creeu personatges especialitzats il·limitats per a auditoria de seguretat, optimització de rendiment, documentació o qualsevol altra tasca
-
-### Eines intel·ligents
-
-Roo Code ve amb potents [eines](https://docs.roocode.com/basic-usage/how-tools-work) que poden:
-
-- Llegir i escriure fitxers en el vostre projecte
-- Executar comandes en el vostre terminal de VS Code
-- Controlar un navegador web
-- Utilitzar eines externes a través del [MCP (Model Context Protocol)](https://docs.roocode.com/advanced-usage/mcp)
-
-MCP amplia les capacitats de Roo Code permetent-vos afegir eines personalitzades il·limitades. Integreu amb APIs externes, connecteu-vos a bases de dades o creeu eines de desenvolupament especialitzades - MCP proporciona el marc per expandir la funcionalitat de Roo Code per satisfer les vostres necessitats específiques.
-
-### Personalització
-
-Feu que Roo Code funcioni a la vostra manera amb:
-
-- [Instruccions personalitzades](https://docs.roocode.com/advanced-usage/custom-instructions) per a comportament personalitzat
-- [Modes personalitzats](https://docs.roocode.com/advanced-usage/custom-modes) per a tasques especialitzades
-- [Models locals](https://docs.roocode.com/advanced-usage/local-models) per a ús offline
-- [Configuració d'aprovació automàtica](https://docs.roocode.com/advanced-usage/auto-approving-actions) per a fluxos de treball més ràpids
-
-## Recursos
-
-### Documentació
-
-- [Guia d'ús bàsic](https://docs.roocode.com/basic-usage/the-chat-interface)
-- [Funcionalitats avançades](https://docs.roocode.com/advanced-usage/auto-approving-actions)
-- [Preguntes freqüents](https://docs.roocode.com/faq)
-
-### Comunitat
-
-- **Discord:** [Uniu-vos al nostre servidor de Discord](https://discord.gg/roocode) per a ajuda en temps real i discussions
-- **Reddit:** [Visiteu el nostre subreddit](https://www.reddit.com/r/RooCode) per compartir experiències i consells
-- **GitHub:** [Informeu de problemes](https://github.com/RooCodeInc/Roo-Code/issues) o [sol·liciteu funcionalitats](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **Marketplace Eksperimental** - Temukan dan install mode serta MCP dari marketplace baru (aktifkan di Experimental Settings).
+- **Operasi File yang Ditingkatkan** - Multiple concurrent file writes kini tersedia di Experimental Settings, dan multiple concurrent reads telah lulus dari eksperimental dan sekarang berada di Context Settings.
+- **Perbaikan MCP & Lainnya** - Dukungan MCP yang ditingkatkan, kontrol Mermaid lebih banyak, dukungan thinking di Amazon Bedrock, dan masih banyak lagi!
 
 ---
 
-## Configuració i desenvolupament local
+## Apa yang Bisa Dilakukan Roo Code?
 
-1. **Cloneu** el repositori:
+- 🚀 **Generate Code** dari deskripsi bahasa alami
+- 🔧 **Refactor & Debug** kode yang ada
+- 📝 **Tulis & Update** dokumentasi
+- 🤔 **Jawab Pertanyaan** tentang codebase kamu
+- 🔄 **Otomatisasi** tugas berulang
+- 🏗️ **Buat** file dan proyek baru
+
+## Mulai Cepat
+
+1. [Install Roo Code](https://docs.roocode.com/getting-started/installing)
+2. [Hubungkan AI Provider Kamu](https://docs.roocode.com/getting-started/connecting-api-provider)
+3. [Coba Tugas Pertama Kamu](https://docs.roocode.com/getting-started/your-first-task)
+
+## Fitur Utama
+
+### Multiple Mode
+
+Roo Code beradaptasi dengan kebutuhan kamu dengan [mode](https://docs.roocode.com/basic-usage/using-modes) khusus:
+
+- **Code Mode:** Untuk tugas coding umum
+- **Architect Mode:** Untuk perencanaan dan kepemimpinan teknis
+- **Ask Mode:** Untuk menjawab pertanyaan dan memberikan informasi
+- **Debug Mode:** Untuk diagnosis masalah sistematis
+- **[Mode Kustom](https://docs.roocode.com/advanced-usage/custom-modes):** Buat persona khusus tak terbatas untuk audit keamanan, optimasi performa, dokumentasi, atau tugas lainnya
+
+### Tools Pintar
+
+Roo Code dilengkapi dengan [tools](https://docs.roocode.com/basic-usage/how-tools-work) powerful yang dapat:
+
+- Membaca dan menulis file di proyek kamu
+- Menjalankan perintah di terminal VS Code kamu
+- Mengontrol web browser
+- Menggunakan tools eksternal via [MCP (Model Context Protocol)](https://docs.roocode.com/advanced-usage/mcp)
+
+MCP memperluas kemampuan Roo Code dengan memungkinkan kamu menambahkan tools kustom tak terbatas. Integrasikan dengan API eksternal, hubungkan ke database, atau buat tools development khusus - MCP menyediakan framework untuk memperluas fungsionalitas Roo Code sesuai kebutuhan spesifik kamu.
+
+### Kustomisasi
+
+Buat Roo Code bekerja sesuai cara kamu dengan:
+
+- [Custom Instructions](https://docs.roocode.com/advanced-usage/custom-instructions) untuk perilaku yang dipersonalisasi
+- [Mode Kustom](https://docs.roocode.com/advanced-usage/custom-modes) untuk tugas khusus
+- [Model Lokal](https://docs.roocode.com/advanced-usage/local-models) untuk penggunaan offline
+- [Auto-Approval Settings](https://docs.roocode.com/advanced-usage/auto-approving-actions) untuk workflow yang lebih cepat
+
+## Sumber Daya
+
+### Dokumentasi
+
+- [Panduan Penggunaan Dasar](https://docs.roocode.com/basic-usage/the-chat-interface)
+- [Fitur Lanjutan](https://docs.roocode.com/advanced-usage/auto-approving-actions)
+- [Frequently Asked Questions](https://docs.roocode.com/faq)
+
+### Komunitas
+
+- **Discord:** [Bergabung dengan server Discord kami](https://discord.gg/roocode) untuk bantuan real-time dan diskusi
+- **Reddit:** [Kunjungi subreddit kami](https://www.reddit.com/r/RooCode) untuk berbagi pengalaman dan tips
+- **GitHub:** Laporkan [issues](https://github.com/RooCodeInc/Roo-Code/issues) atau request [fitur](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+
+---
+
+## Setup Lokal & Development
+
+1. **Clone** repo:
 
 ```sh
 git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
-2. **Instal·leu les dependències**:
+2. **Install dependencies**:
 
 ```sh
-npm run install:all
+pnpm install
 ```
 
-3. **Inicieu la vista web (aplicació Vite/React amb HMR)**:
+3. **Jalankan extension**:
+
+Tekan `F5` (atau **Run** → **Start Debugging**) di VSCode untuk membuka window baru dengan Roo Code berjalan.
+
+Perubahan pada webview akan muncul langsung. Perubahan pada core extension akan memerlukan restart extension host.
+
+Alternatifnya kamu bisa build .vsix dan install langsung di VSCode:
 
 ```sh
-npm run dev
+pnpm vsix
 ```
 
-4. **Depuració**:
-   Premeu `F5` (o **Execució** → **Inicia la depuració**) a VSCode per obrir una nova sessió amb Roo Code carregat.
-
-Els canvis a la vista web apareixeran immediatament. Els canvis a l'extensió principal requeriran reiniciar l'amfitrió de l'extensió.
-
-Alternativament, podeu crear un .vsix i instal·lar-lo directament a VSCode:
-
-```sh
-npm run build
-```
-
-Apareixerà un fitxer `.vsix` al directori `bin/` que es pot instal·lar amb:
+File `.vsix` akan muncul di direktori `bin/` yang bisa diinstall dengan:
 
 ```sh
 code --install-extension bin/roo-cline-<version>.vsix
 ```
 
-Utilitzem [changesets](https://github.com/changesets/changesets) per a la gestió de versions i publicació. Consulteu el nostre `CHANGELOG.md` per a notes de llançament.
+Kami menggunakan [changesets](https://github.com/changesets/changesets) untuk versioning dan publishing. Cek `CHANGELOG.md` kami untuk release notes.
 
 ---
 
-## Avís legal
+## Disclaimer
 
-**Tingueu en compte** que Roo Code, Inc **no** fa cap representació ni garantia pel que fa a qualsevol codi, model o altres eines proporcionades o posades a disposició en relació amb Roo Code, qualsevol eina de tercers associada, o qualsevol resultat. Assumiu **tots els riscos** associats amb l'ús de tals eines o resultats; aquestes eines es proporcionen "TAL COM ESTAN" i "SEGONS DISPONIBILITAT". Aquests riscos poden incloure, sense limitació, infraccions de propietat intel·lectual, vulnerabilitats o atacs cibernètics, biaixos, inexactituds, errors, defectes, virus, temps d'inactivitat, pèrdua o dany de propietat i/o lesions personals. Sou únicament responsables del vostre ús de tals eines o resultats (incloent, sense limitació, la legalitat, idoneïtat i resultats d'aquests).
-
----
-
-## Contribucions
-
-Ens encanten les contribucions de la comunitat! Comenceu llegint el nostre [CONTRIBUTING.md](CONTRIBUTING.md).
+**Harap dicatat** bahwa Roo Code, Inc **tidak** membuat representasi atau jaminan apapun mengenai kode, model, atau tools lain yang disediakan atau tersedia dalam hubungannya dengan Roo Code, tools pihak ketiga terkait, atau output yang dihasilkan. Kamu menanggung **semua risiko** yang terkait dengan penggunaan tools atau output tersebut; tools tersebut disediakan atas dasar **"SEBAGAIMANA ADANYA"** dan **"SEBAGAIMANA TERSEDIA"**. Risiko tersebut dapat mencakup, tanpa terbatas pada, pelanggaran kekayaan intelektual, kerentanan atau serangan siber, bias, ketidakakuratan, kesalahan, cacat, virus, downtime, kehilangan properti atau kerusakan, dan/atau cedera pribadi. Kamu bertanggung jawab penuh atas penggunaan tools atau output tersebut (termasuk, tanpa terbatas pada, legalitas, kesesuaian, dan hasilnya).
 
 ---
 
-## Col·laboradors
+## Berkontribusi
 
-Gràcies a tots els nostres col·laboradors que han ajudat a millorar Roo Code!
+Kami menyukai kontribusi komunitas! Mulai dengan membaca [CONTRIBUTING.md](CONTRIBUTING.md) kami.
+
+---
+
+## Kontributor
+
+Terima kasih kepada semua kontributor kami yang telah membantu membuat Roo Code lebih baik!
 
 <!-- START CONTRIBUTORS SECTION - AUTO-GENERATED, DO NOT EDIT MANUALLY -->
 
@@ -217,10 +211,10 @@ Gràcies a tots els nostres col·laboradors que han ajudat a millorar Roo Code!
 
 <!-- END CONTRIBUTORS SECTION -->
 
-## Llicència
+## License
 
-[Apache 2.0 © 2025 Roo Code, Inc.](../LICENSE)
+[Apache 2.0 © 2025 Roo Code, Inc.](./LICENSE)
 
 ---
 
-**Gaudiu de Roo Code!** Tant si el manteniu amb corretja curta com si el deixeu actuar de forma autònoma, estem impacients per veure què construïu. Si teniu preguntes o idees per a noves funcionalitats, passeu per la nostra [comunitat de Reddit](https://www.reddit.com/r/RooCode/) o [Discord](https://discord.gg/roocode). Feliç programació!
+**Nikmati Roo Code!** Baik kamu menggunakannya dengan ketat atau membiarkannya berjalan otonom, kami tidak sabar melihat apa yang kamu bangun. Jika kamu memiliki pertanyaan atau ide fitur, kunjungi [komunitas Reddit](https://www.reddit.com/r/RooCode/) atau [Discord](https://discord.gg/roocode) kami. Selamat coding!
