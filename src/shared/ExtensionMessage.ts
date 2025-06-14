@@ -172,6 +172,7 @@ export type ClineSay =
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
+	| "task_progress"
 
 export interface ClineSayTool {
 	tool:

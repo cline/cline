@@ -797,6 +797,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 				case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
+				case "task_progress": // updates provided by the model about the task's progress
 					return false
 				case "text":
 					// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
@@ -809,6 +810,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			return true
 		})
+	}, [modifiedMessages])
+
+	const lastProgressMessageText = useMemo(() => {
+		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
+		return lastProgressMessage?.text
 	}, [modifiedMessages])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
@@ -1158,6 +1164,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
 					lastApiReqTotalTokens={lastApiReqTotalTokens}
+					lastProgressMessageText={lastProgressMessageText}
 					onClose={handleTaskCloseButtonClick}
 					onScrollToMessage={scrollToMessage}
 				/>

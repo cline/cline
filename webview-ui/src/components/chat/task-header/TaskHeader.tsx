@@ -15,6 +15,8 @@ import TaskTimeline from "./TaskTimeline"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
+import MarkdownBlock from "@/components/common/MarkdownBlock"
+import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 
 const { IS_DEV } = process.env
 
@@ -27,6 +29,7 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	lastApiReqTotalTokens?: number
+	lastProgressMessageText?: string
 	onClose: () => void
 	onScrollToMessage?: (messageIndex: number) => void
 }
@@ -40,12 +43,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	lastApiReqTotalTokens,
+	lastProgressMessageText,
 	onClose,
 	onScrollToMessage,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [isProgressExpanded, setIsProgressExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -210,6 +215,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
+			{/* Main Task Header Card */}
 			<div
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
@@ -482,10 +488,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</div>
 								</div>
 							)}
-							<div className="flex flex-col">
-								<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
-								{ContextWindowComponent}
-							</div>
+							<div className="flex flex-col">{ContextWindowComponent}</div>
 							{checkpointTrackerErrorMessage && (
 								<div
 									style={{
@@ -538,6 +541,62 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								</div>
 							)}
 						</div>
+					</>
+				)}
+			</div>
+
+			{/* Progress Card with TaskTimeline */}
+			<div
+				style={{
+					backgroundColor: "var(--vscode-badge-background)",
+					color: "var(--vscode-badge-foreground)",
+					borderRadius: "3px",
+					padding: "9px 10px 9px 14px",
+					display: "flex",
+					flexDirection: "column",
+					gap: 6,
+					position: "relative",
+					zIndex: 1,
+					marginTop: "8px",
+				}}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						cursor: "pointer",
+						marginLeft: -2,
+						userSelect: "none",
+						WebkitUserSelect: "none",
+						MozUserSelect: "none",
+						msUserSelect: "none",
+					}}
+					onClick={() => setIsProgressExpanded(!isProgressExpanded)}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							flexShrink: 0,
+						}}>
+						<span className={`codicon codicon-chevron-${isProgressExpanded ? "down" : "right"}`}></span>
+					</div>
+					<div style={{ marginLeft: 6 }}>
+						<span style={{ fontWeight: "bold" }}>Progress</span>
+					</div>
+				</div>
+				{isProgressExpanded && (
+					<>
+						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
+						{lastProgressMessageText && (
+							<div
+								style={{
+									wordBreak: "break-word",
+									overflowWrap: "anywhere",
+									overflow: "hidden",
+									marginTop: -3,
+								}}>
+								<ChecklistRenderer text={lastProgressMessageText} />
+							</div>
+						)}
 					</>
 				)}
 			</div>

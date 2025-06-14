@@ -65,6 +65,7 @@ import {
 	parseAssistantMessageV2,
 	parseAssistantMessageV3,
 	ToolParamName,
+	ToolUse,
 	ToolUseName,
 } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
@@ -2222,6 +2223,13 @@ export class Task {
 					}
 				}
 
+				const updateTaskProgressIfProvided = async (block: ToolUse) => {
+					const task_progress = block.params.task_progress
+					if (task_progress) {
+						await this.say("task_progress", task_progress, undefined, undefined, false)
+					}
+				}
+
 				const handleError = async (action: string, error: Error, isClaude4Model: boolean = false) => {
 					if (this.abandoned) {
 						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
@@ -2601,9 +2609,8 @@ export class Task {
 								}
 
 								await this.diffViewProvider.reset()
-
 								await this.saveCheckpoint()
-
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -2696,6 +2703,7 @@ export class Task {
 
 								pushToolResult(content)
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -2784,6 +2792,7 @@ export class Task {
 								}
 								pushToolResult(result, isClaude4Model)
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -2866,6 +2875,7 @@ export class Task {
 								}
 								pushToolResult(result)
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -2967,6 +2977,7 @@ export class Task {
 								}
 								pushToolResult(results, isClaude4Model)
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3135,6 +3146,7 @@ export class Task {
 											),
 										)
 										await this.saveCheckpoint()
+										await updateTaskProgressIfProvided(block)
 										break
 									case "close":
 										pushToolResult(
@@ -3143,6 +3155,7 @@ export class Task {
 											),
 										)
 										await this.saveCheckpoint()
+										await updateTaskProgressIfProvided(block)
 										break
 								}
 
@@ -3266,7 +3279,7 @@ export class Task {
 								pushToolResult(result)
 
 								await this.saveCheckpoint()
-
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3418,7 +3431,7 @@ export class Task {
 								)
 
 								await this.saveCheckpoint()
-
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3499,6 +3512,7 @@ export class Task {
 								await this.say("mcp_server_response", resourceResultPretty)
 								pushToolResult(formatResponse.toolResult(resourceResultPretty))
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3578,6 +3592,7 @@ export class Task {
 									formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images, fileContentString),
 								)
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3632,6 +3647,7 @@ export class Task {
 									)
 								}
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3708,6 +3724,7 @@ export class Task {
 									)
 								}
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3843,6 +3860,7 @@ export class Task {
 									}
 								}
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -3940,6 +3958,7 @@ export class Task {
 
 								pushToolResult(formatResponse.toolResult(processedSummary))
 								await this.saveCheckpoint()
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -4051,6 +4070,7 @@ export class Task {
 										),
 									)
 								}
+								await updateTaskProgressIfProvided(block)
 
 								//
 								break
@@ -4069,6 +4089,7 @@ export class Task {
 							} else {
 								await this.say("load_mcp_documentation", "", undefined, undefined, false)
 								pushToolResult(await loadMcpDocumentation(this.mcpHub))
+								await updateTaskProgressIfProvided(block)
 								break
 							}
 						} catch (error) {
@@ -4261,7 +4282,7 @@ export class Task {
 										text: fileContentString,
 									})
 								}
-
+								await updateTaskProgressIfProvided(block)
 								//
 								break
 							}
@@ -5035,6 +5056,17 @@ export class Task {
 
 		details += "\n\n# Context Window Usage"
 		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+
+		// details += "\n\n# Last Reported Task Progress"
+		// const lastTaskProgressMessage = findLast(modifiedMessages, (msg) => {
+		// 	return msg.say === "task_progress"
+		// })
+		// if (lastTaskProgressMessage) {
+		// 	details += `\n${lastTaskProgressMessage.text}`
+		// } else {
+		// 	details +=
+		// 		"\n(No task progress was reported yet. Use the task_progress parameter in case you forgot and need to provide the user with an updated progress checklist.)"
+		// }
 
 		details += "\n\n# Current Mode"
 		if (this.chatSettings.mode === "plan") {
