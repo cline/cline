@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid"
 import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
@@ -111,26 +110,25 @@ export class GrpcHandler {
 	 */
 	public async cancelRequest(requestId: string): Promise<boolean> {
 		const cancelled = requestRegistry.cancelRequest(requestId)
-
-		if (cancelled) {
-			// Get the registered response handler from the registry
-			const requestInfo = requestRegistry.getRequestInfo(requestId)
-			if (requestInfo && requestInfo.responseStream) {
-				try {
-					// Send cancellation confirmation using the registered response handler
-					await requestInfo.responseStream(
-						{ cancelled: true },
-						true, // Mark as last message
-					)
-				} catch (e) {
-					console.error(`Error sending cancellation response for ${requestId}:`, e)
-				}
-			}
-		} else {
+		if (!cancelled) {
 			console.log(`[DEBUG] Request not found for cancellation: ${requestId}`)
+			return false
 		}
 
-		return cancelled
+		// Get the registered response handler from the registry
+		const requestInfo = requestRegistry.getRequestInfo(requestId)
+		if (requestInfo && requestInfo.responseStream) {
+			try {
+				// Send cancellation confirmation using the registered response handler
+				await requestInfo.responseStream(
+					{ cancelled: true },
+					true, // Mark as last message
+				)
+			} catch (e) {
+				console.error(`Error sending cancellation response for ${requestId}:`, e)
+			}
+		}
+		return true
 	}
 
 	/**
