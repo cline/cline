@@ -220,6 +220,7 @@ Original error: ${errorMessage}`
 	try {
 		// First validate all files and prepare for batch approval
 		const operationsToApprove: OperationResult[] = []
+		const allDiffErrors: string[] = [] // Collect all diff errors
 
 		for (const operation of operations) {
 			const { path: relPath, diff: diffItems } = operation
@@ -435,6 +436,9 @@ Original error: ${errorMessage}`
 								continue
 							}
 
+							// Collect error for later reporting
+							allDiffErrors.push(`${relPath} - Diff ${i + 1}: ${failPart.error}`)
+
 							const errorDetails = failPart.details ? JSON.stringify(failPart.details, null, 2) : ""
 							formattedError += `<error_details>
 Diff ${i + 1} failed for file: ${relPath}
@@ -479,6 +483,17 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 						}
 						cline.recordToolError("apply_diff", formattedError)
 						results.push(formattedError)
+
+						// For single file operations, we need to send a complete message to stop the spinner
+						if (operationsToApprove.length === 1) {
+							const sharedMessageProps: ClineSayTool = {
+								tool: "appliedDiff",
+								path: getReadablePath(cline.cwd, relPath),
+								diff: diffItems.map((item) => item.content).join("\n\n"),
+							}
+							// Send a complete message (partial: false) to update the UI and stop the spinner
+							await cline.ask("tool", JSON.stringify(sharedMessageProps), false).catch(() => {})
+						}
 					}
 					continue
 				}
@@ -569,6 +584,11 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 		// Add filtered operation errors to results
 		if (filteredOperationErrors.length > 0) {
 			results.push(...filteredOperationErrors)
+		}
+
+		// Report all diff errors at once if any
+		if (allDiffErrors.length > 0) {
+			await cline.say("diff_error", allDiffErrors.join("\n"))
 		}
 
 		// Push the final result combining all operation results

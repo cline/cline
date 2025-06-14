@@ -410,7 +410,13 @@ Each file requires its own path, start_line, and diff elements.
 					resultContent = singleResult.content
 					successCount++
 				} else {
-					allFailParts.push(singleResult)
+					// If singleResult has failParts, push those directly to avoid nesting
+					if (singleResult.failParts && singleResult.failParts.length > 0) {
+						allFailParts.push(...singleResult.failParts)
+					} else {
+						// Otherwise push the single result itself
+						allFailParts.push(singleResult)
+					}
 				}
 			}
 
