@@ -9,19 +9,12 @@ interface UsePromptHistoryProps {
 	setInputValue: (value: string) => void
 }
 
-interface CursorPositionState {
-	value: string
-	afterRender?: "SET_CURSOR_FIRST_LINE" | "SET_CURSOR_LAST_LINE" | "SET_CURSOR_START"
-}
-
 export interface UsePromptHistoryReturn {
 	historyIndex: number
 	setHistoryIndex: (index: number) => void
 	tempInput: string
 	setTempInput: (input: string) => void
 	promptHistory: string[]
-	inputValueWithCursor: CursorPositionState
-	setInputValueWithCursor: (state: CursorPositionState) => void
 	handleHistoryNavigation: (
 		event: React.KeyboardEvent<HTMLTextAreaElement>,
 		showContextMenu: boolean,
@@ -45,49 +38,35 @@ export const usePromptHistory = ({
 	const [historyIndex, setHistoryIndex] = useState(-1)
 	const [tempInput, setTempInput] = useState("")
 	const [promptHistory, setPromptHistory] = useState<string[]>([])
-	const [inputValueWithCursor, setInputValueWithCursor] = useState<CursorPositionState>({ value: inputValue })
 
 	// Initialize prompt history with hybrid approach: conversation messages if in task, otherwise task history
 	const filteredPromptHistory = useMemo(() => {
 		// First try to get conversation messages (user_feedback from clineMessages)
 		const conversationPrompts = clineMessages
-			?.filter((message) => {
-				// Filter for user_feedback messages that have text content
-				return (
-					message.type === "say" &&
-					message.say === "user_feedback" &&
-					message.text &&
-					message.text.trim() !== ""
-				)
-			})
+			?.filter((message) => message.type === "say" && message.say === "user_feedback" && message.text?.trim())
 			.map((message) => message.text!)
 
 		// If we have conversation messages, use those (newest first when navigating up)
-		if (conversationPrompts && conversationPrompts.length > 0) {
-			return conversationPrompts.slice(-MAX_PROMPT_HISTORY_SIZE).reverse() // newest first for conversation messages
+		if (conversationPrompts?.length) {
+			return conversationPrompts.slice(-MAX_PROMPT_HISTORY_SIZE).reverse()
 		}
 
 		// If we have clineMessages array (meaning we're in an active task), don't fall back to task history
 		// Only use task history when starting fresh (no active conversation)
-		if (clineMessages && clineMessages.length > 0) {
+		if (clineMessages?.length) {
 			return []
 		}
 
 		// Fall back to task history only when starting fresh (no active conversation)
-		if (!taskHistory || taskHistory.length === 0 || !cwd) {
+		if (!taskHistory?.length || !cwd) {
 			return []
 		}
 
 		// Extract user prompts from task history for the current workspace only
-		const taskPrompts = taskHistory
-			.filter((item) => {
-				// Filter by workspace and ensure task is not empty
-				return item.task && item.task.trim() !== "" && (!item.workspace || item.workspace === cwd)
-			})
+		return taskHistory
+			.filter((item) => item.task?.trim() && (!item.workspace || item.workspace === cwd))
 			.map((item) => item.task)
 			.slice(0, MAX_PROMPT_HISTORY_SIZE)
-
-		return taskPrompts
 	}, [clineMessages, taskHistory, cwd])
 
 	// Update prompt history when filtered history changes and reset navigation
@@ -106,76 +85,113 @@ export const usePromptHistory = ({
 		}
 	}, [historyIndex])
 
+	// Helper to set cursor position after React renders
+	const setCursorPosition = useCallback(
+		(textarea: HTMLTextAreaElement, position: number | "start" | "end", length?: number) => {
+			setTimeout(() => {
+				if (position === "start") {
+					textarea.setSelectionRange(0, 0)
+				} else if (position === "end") {
+					const len = length ?? textarea.value.length
+					textarea.setSelectionRange(len, len)
+				} else {
+					textarea.setSelectionRange(position, position)
+				}
+			}, 0)
+		},
+		[],
+	)
+
+	// Helper to navigate to a specific history entry
+	const navigateToHistory = useCallback(
+		(newIndex: number, textarea: HTMLTextAreaElement, cursorPos: "start" | "end" = "start"): boolean => {
+			if (newIndex < 0 || newIndex >= promptHistory.length) return false
+
+			const historicalPrompt = promptHistory[newIndex]
+			if (!historicalPrompt) return false
+
+			setHistoryIndex(newIndex)
+			setInputValue(historicalPrompt)
+			setCursorPosition(textarea, cursorPos, historicalPrompt.length)
+
+			return true
+		},
+		[promptHistory, setInputValue, setCursorPosition],
+	)
+
+	// Helper to return to current input
+	const returnToCurrentInput = useCallback(
+		(textarea: HTMLTextAreaElement, cursorPos: "start" | "end" = "end") => {
+			setHistoryIndex(-1)
+			setInputValue(tempInput)
+			setCursorPosition(textarea, cursorPos, tempInput.length)
+		},
+		[tempInput, setInputValue, setCursorPosition],
+	)
+
 	const handleHistoryNavigation = useCallback(
 		(event: React.KeyboardEvent<HTMLTextAreaElement>, showContextMenu: boolean, isComposing: boolean): boolean => {
 			// Handle prompt history navigation
 			if (!showContextMenu && promptHistory.length > 0 && !isComposing) {
 				const textarea = event.currentTarget
 				const { selectionStart, selectionEnd, value } = textarea
-				const lines = value.substring(0, selectionStart).split("\n")
-				const currentLineIndex = lines.length - 1
-				const totalLines = value.split("\n").length
-				const isAtFirstLine = currentLineIndex === 0
-				const isAtLastLine = currentLineIndex === totalLines - 1
 				const hasSelection = selectionStart !== selectionEnd
+				const isAtBeginning = selectionStart === 0 && selectionEnd === 0
+				const isAtEnd = selectionStart === value.length && selectionEnd === value.length
 
-				// Only navigate history if cursor is at first/last line and no text is selected
-				if (!hasSelection) {
-					if (event.key === "ArrowUp" && isAtFirstLine) {
-						event.preventDefault()
+				// Check for modifier keys (Alt or Cmd/Ctrl)
+				const hasModifier = event.altKey || event.metaKey || event.ctrlKey
 
+				// Handle explicit history navigation with Alt+Up/Down
+				if (hasModifier && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+					event.preventDefault()
+
+					if (event.key === "ArrowUp") {
 						// Save current input if starting navigation
-						if (historyIndex === -1 && inputValue.trim() !== "") {
+						if (historyIndex === -1) {
 							setTempInput(inputValue)
 						}
-
-						// Navigate to previous prompt
-						const newIndex = historyIndex + 1
-						if (newIndex < promptHistory.length) {
-							setHistoryIndex(newIndex)
-							const historicalPrompt = promptHistory[newIndex]
-							if (historicalPrompt) {
-								setInputValue(historicalPrompt)
-								setInputValueWithCursor({
-									value: historicalPrompt,
-									afterRender: "SET_CURSOR_FIRST_LINE",
-								})
-							}
+						return navigateToHistory(historyIndex + 1, textarea, "start")
+					} else {
+						// ArrowDown
+						if (historyIndex > 0) {
+							return navigateToHistory(historyIndex - 1, textarea, "end")
+						} else if (historyIndex === 0) {
+							returnToCurrentInput(textarea, "end")
+							return true
 						}
-						return true
+					}
+				}
+
+				// Handle smart navigation without modifiers
+				if (!hasSelection && !hasModifier) {
+					// Only navigate history with UP if cursor is at the very beginning
+					if (event.key === "ArrowUp" && isAtBeginning) {
+						event.preventDefault()
+						// Save current input if starting navigation
+						if (historyIndex === -1) {
+							setTempInput(inputValue)
+						}
+						return navigateToHistory(historyIndex + 1, textarea, "start")
 					}
 
-					if (event.key === "ArrowDown" && isAtLastLine) {
+					// Handle DOWN arrow - only in history navigation mode
+					if (event.key === "ArrowDown" && historyIndex >= 0 && (isAtBeginning || isAtEnd)) {
 						event.preventDefault()
 
-						// Navigate to next prompt
 						if (historyIndex > 0) {
-							const newIndex = historyIndex - 1
-							setHistoryIndex(newIndex)
-							const historicalPrompt = promptHistory[newIndex]
-							if (historicalPrompt) {
-								setInputValue(historicalPrompt)
-								setInputValueWithCursor({
-									value: historicalPrompt,
-									afterRender: "SET_CURSOR_LAST_LINE",
-								})
-							}
+							// Keep cursor position consistent with where we started
+							return navigateToHistory(historyIndex - 1, textarea, isAtBeginning ? "start" : "end")
 						} else if (historyIndex === 0) {
-							// Return to current input
-							setHistoryIndex(-1)
-							setInputValue(tempInput)
-							setInputValueWithCursor({
-								value: tempInput,
-								afterRender: "SET_CURSOR_START",
-							})
+							returnToCurrentInput(textarea, isAtBeginning ? "start" : "end")
+							return true
 						}
-						return true
 					}
 				}
 			}
 			return false
 		},
-		[promptHistory, historyIndex, inputValue, tempInput, setInputValue],
+		[promptHistory, historyIndex, inputValue, navigateToHistory, returnToCurrentInput],
 	)
 
 	const resetHistoryNavigation = useCallback(() => {
@@ -189,8 +205,6 @@ export const usePromptHistory = ({
 		tempInput,
 		setTempInput,
 		promptHistory,
-		inputValueWithCursor,
-		setInputValueWithCursor,
 		handleHistoryNavigation,
 		resetHistoryNavigation,
 		resetOnInputChange,
