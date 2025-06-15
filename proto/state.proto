@@ -13,7 +13,7 @@ service StateService {
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
-  rpc resetState(EmptyRequest) returns (Empty);
+  rpc resetState(ResetStateRequest) returns (Empty);
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
@@ -61,6 +61,11 @@ message ChatContent {
   optional string message = 1;
   repeated string images = 2;
   repeated string files = 3;
+}
+
+message ResetStateRequest {
+  Metadata metadata = 1;
+  optional bool global = 2;
 }
 
 message AutoApprovalSettingsRequest {
