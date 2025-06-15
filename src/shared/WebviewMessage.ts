@@ -15,6 +15,7 @@ export interface WebviewMessage {
 		| "telemetrySetting"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
+		| "isCommandBlacklisted"
 		| "grpc_request"
 		| "grpc_request_cancel"
 

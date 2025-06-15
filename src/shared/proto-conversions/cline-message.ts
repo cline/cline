@@ -1,6 +1,6 @@
 import { ClineMessage as AppClineMessage, ClineAsk as AppClineAsk, ClineSay as AppClineSay } from "@shared/ExtensionMessage"
 
-import { ClineMessage as ProtoClineMessage, ClineMessageType, ClineAsk, ClineSay } from "@shared/proto/ui"
+import { ClineMessage as ProtoClineMessage, ClineMessageType, ClineAsk, ClineSay } from "../proto/ui"
 
 // Helper function to convert ClineAsk string to enum
 function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | undefined {
@@ -25,6 +25,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
 		report_bug: ClineAsk.REPORT_BUG,
+		command_blacklist_check: ClineAsk.FOLLOWUP, // Fallback as this value is not in proto enum
 	}
 
 	const result = mapping[ask]
@@ -41,7 +42,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		return undefined
 	}
 
-	const mapping: Record<Exclude<ClineAsk, ClineAsk.UNRECOGNIZED>, AppClineAsk> = {
+	const mapping: Partial<Record<ClineAsk, AppClineAsk>> = {
 		[ClineAsk.FOLLOWUP]: "followup",
 		[ClineAsk.PLAN_MODE_RESPOND]: "plan_mode_respond",
 		[ClineAsk.COMMAND]: "command",
@@ -113,7 +114,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		return undefined
 	}
 
-	const mapping: Record<Exclude<ClineSay, ClineSay.UNRECOGNIZED>, AppClineSay> = {
+	const mapping: Partial<Record<ClineSay, AppClineSay>> = {
 		[ClineSay.TASK]: "task",
 		[ClineSay.ERROR]: "error",
 		[ClineSay.API_REQ_STARTED]: "api_req_started",
