@@ -650,7 +650,14 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 }
 
-export async function resetExtensionState(context: vscode.ExtensionContext) {
+export async function resetWorkspaceState(context: vscode.ExtensionContext) {
+	for (const key of context.workspaceState.keys()) {
+		await context.workspaceState.update(key, undefined)
+	}
+}
+
+export async function resetGlobalState(context: vscode.ExtensionContext) {
+	// TODO: Reset all workspace states?
 	for (const key of context.globalState.keys()) {
 		await context.globalState.update(key, undefined)
 	}
