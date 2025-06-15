@@ -74,6 +74,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		ignore: recursive ? buildIgnorePatterns(absolutePath) : undefined,
 		onlyFiles: false, // include directories in results
 		suppressErrors: true,
+		deep: 10,
 	}
 
 	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
