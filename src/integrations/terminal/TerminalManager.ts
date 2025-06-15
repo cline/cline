@@ -156,12 +156,16 @@ export class TerminalManager {
 	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+		console.log(`[TerminalManager] Running command on terminal ${terminalInfo.id}: "${command}"`)
+		console.log(`[TerminalManager] Terminal ${terminalInfo.id} busy state before: ${terminalInfo.busy}`)
+
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
+			console.log(`[TerminalManager] Terminal ${terminalInfo.id} completed, setting busy to false`)
 			terminalInfo.busy = false
 		})
 
@@ -225,8 +229,12 @@ export class TerminalManager {
 			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
 
 		// Find available terminal from our pool first (created for this task)
+		console.log(`[TerminalManager] Looking for terminal in cwd: ${cwd}`)
+		console.log(`[TerminalManager] Available terminals: ${terminals.length}`)
+
 		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
+				console.log(`[TerminalManager] Terminal ${t.id} is busy, skipping`)
 				return false
 			}
 			// Check if shell path matches current configuration
@@ -235,11 +243,15 @@ export class TerminalManager {
 			}
 			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
 			if (!terminalCwd) {
+				console.log(`[TerminalManager] Terminal ${t.id} has no cwd, skipping`)
 				return false
 			}
-			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+			const matches = arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+			console.log(`[TerminalManager] Terminal ${t.id} cwd: ${terminalCwd.fsPath}, matches: ${matches}`)
+			return matches
 		})
 		if (matchingTerminal) {
+			console.log(`[TerminalManager] Found matching terminal ${matchingTerminal.id} in correct cwd`)
 			this.terminalIds.add(matchingTerminal.id)
 			return matchingTerminal
 		}
@@ -255,7 +267,13 @@ export class TerminalManager {
 				})
 
 				// Navigate back to the desired directory
-				await this.runCommand(availableTerminal, `cd "${cwd}"`)
+				const cdProcess = this.runCommand(availableTerminal, `cd "${cwd}"`)
+
+				// Wait for the cd command to complete before proceeding
+				await cdProcess
+
+				// Add a small delay to ensure terminal is ready after cd
+				await new Promise((resolve) => setTimeout(resolve, 100))
 
 				// Either resolve immediately if CWD already updated or wait for event/timeout
 				if (this.isCwdMatchingExpected(availableTerminal)) {
