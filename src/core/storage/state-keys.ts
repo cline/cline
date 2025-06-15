@@ -22,6 +22,8 @@ export type SecretKey =
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
+	| "sapAiCoreClientId"
+	| "sapAiCoreClientSecret"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -71,6 +73,12 @@ export type GlobalStateKey =
 	| "isNewUser"
 	| "terminalOutputLineLimit"
 	| "mcpRichDisplayEnabled"
+	| "sapAiCoreTokenUrl"
+	| "sapAiCoreBaseUrl"
+	| "sapAiResourceGroup"
+	| "sapAiCoreClientId"
+	| "sapAiCoreClientSecret"
+	| "sapAiCoreModelId"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"
@@ -104,3 +112,9 @@ export type LocalStateKey =
 	| "previousModeReasoningEffort"
 	| "previousModeAwsBedrockCustomSelected"
 	| "previousModeAwsBedrockCustomModelBaseId"
+	| "previousModeSapAiCoreClientId"
+	| "previousModeSapAiCoreClientSecret"
+	| "previousModeSapAiCoreBaseUrl"
+	| "previousModeSapAiCoreTokenUrl"
+	| "previousModeSapAiCoreResourceGroup"
+	| "previousModeSapAiCoreModelId"
