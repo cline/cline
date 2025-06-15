@@ -72,14 +72,15 @@ export class TaskCheckpointManager {
 	/**
 	 * Creates a checkpoint of the current state
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
+	 * @param taskIsFavorited - Whether the task is favorited (passed from Task class)
 	 */
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (!this.enableCheckpoints) {
+	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, taskIsFavorited: boolean = false): Promise<void> {
+		if (!this.dependencies.enableCheckpoints) {
 			// If checkpoints are disabled, do nothing.
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.clineMessages.forEach((message) => {
+		this.state.clineMessages.forEach((message) => {
 			if (message.say === "checkpoint_created") {
 				message.isCheckpointCheckedOut = false
 			}
@@ -87,25 +88,25 @@ export class TaskCheckpointManager {
 
 		if (!isAttemptCompletionMessage) {
 			// ensure we aren't creating a duplicate checkpoint
-			const lastMessage = this.clineMessages.at(-1)
+			const lastMessage = this.state.clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
 			}
 
 			// For non-attempt completion we just say checkpoints
-			await this.say("checkpoint_created")
-			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+			await this.dependencies.say("checkpoint_created")
+			this.state.checkpointTracker?.commit().then(async (commitHash) => {
+				const lastCheckpointMessage = findLast(this.state.clineMessages, (m) => m.say === "checkpoint_created")
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
+						this.dependencies.taskId,
+						this.state.clineMessages,
+						taskIsFavorited,
+						this.state.conversationHistoryDeletedRange,
+						this.state.checkpointTracker,
+						this.dependencies.updateTaskHistory,
 					)
 				}
 			}) // silently fails for now
@@ -114,12 +115,12 @@ export class TaskCheckpointManager {
 		} else {
 			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
 			// Check if checkpoint tracker exists, if not, create it
-			if (!this.checkpointTracker) {
+			if (!this.state.checkpointTracker) {
 				try {
-					this.checkpointTracker = await CheckpointTracker.create(
-						this.taskId,
-						this.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
+					this.state.checkpointTracker = await CheckpointTracker.create(
+						this.dependencies.taskId,
+						this.dependencies.context.globalStorageUri.fsPath,
+						this.dependencies.enableCheckpoints,
 					)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -128,30 +129,31 @@ export class TaskCheckpointManager {
 				}
 			}
 
-			if (this.checkpointTracker) {
-				const commitHash = await this.checkpointTracker.commit()
+			if (this.state.checkpointTracker) {
+				const commitHash = await this.state.checkpointTracker.commit()
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
 				const lastCompletionResultMessage = findLast(
-					this.clineMessages,
+					this.state.clineMessages,
 					(m) => m.say === "completion_result" || m.ask === "completion_result",
 				)
 				if (lastCompletionResultMessage) {
 					lastCompletionResultMessage.lastCheckpointHash = commitHash
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
+						this.dependencies.taskId,
+						this.state.clineMessages,
+						taskIsFavorited,
+						this.state.conversationHistoryDeletedRange,
+						this.state.checkpointTracker,
+						this.dependencies.updateTaskHistory,
 					)
 				}
 			} else {
 				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
 			}
 		}
+	}
 
 	/**
 	 * Restores a checkpoint by message timestamp
