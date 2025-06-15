@@ -1,19 +1,25 @@
 import { Controller } from ".."
-import { Empty, EmptyRequest } from "../../../shared/proto/common"
-import { resetExtensionState } from "../../../core/storage/state"
+import { Empty } from "../../../shared/proto/common"
+import { ResetStateRequest } from "../../../shared/proto/state"
+import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Resets the extension state to its defaults
  * @param controller The controller instance
- * @param request An empty request (no parameters needed)
+ * @param request The reset state request containing the global flag
  * @returns An empty response
  */
-export async function resetState(controller: Controller, request: EmptyRequest): Promise<Empty> {
+export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
-		vscode.window.showInformationMessage("Resetting state...")
-		await resetExtensionState(controller.context)
+		if (request.global) {
+			vscode.window.showInformationMessage("Resetting global state...")
+			await resetGlobalState(controller.context)
+		} else {
+			vscode.window.showInformationMessage("Resetting workspace state...")
+			await resetWorkspaceState(controller.context)
+		}
 
 		if (controller.task) {
 			controller.task.abortTask()
