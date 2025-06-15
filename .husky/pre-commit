@@ -9,9 +9,9 @@ npm run lint || {
 
 # Run Prettier
 echo "Running Prettier..."
-npm run format || {
-    echo "❌ Prettier check failed. Run 'npm run format:fix' to automatically fix formatting issues."
-    exit 1
-}
+npx lint-staged --verbose || {
+     echo "❌ Prettier failed. Please fix the errors and try committing again."
+     exit 1
+ }
 
 echo "✅ All checks passed!"

@@ -15,7 +15,7 @@ enum WebviewProviderType {
 // Define a new message type for webview provider info
 message WebviewProviderTypeRequest {
   Metadata metadata = 1;
-  WebviewProviderType providerType = 2;
+  WebviewProviderType provider_type = 2;
 }
 
 // Enum for ClineMessage type
