@@ -91,47 +91,6 @@
   </step>
 
   <step number="3">
-    <name>Create Implementation Plan</name>
-    <instructions>
-      Based on the issue analysis, create a detailed implementation plan:
-      
-      For Bug Fixes:
-      1. Reproduce the bug locally (if possible)
-      2. Identify root cause
-      3. Plan the fix approach. The plan should be focused on resolving the issue with a high-quality, targeted fix, while avoiding unrelated changes.
-      4. Identify files to modify.
-      5. Plan test cases to prevent regression.
-      
-      For Feature Implementation:
-      1. Break down the feature into components
-      2. Identify all files that need changes
-      3. Plan the implementation approach
-      4. Consider edge cases and error handling
-      5. Plan test coverage
-      
-      Present the plan to the user:
-      
-      <ask_followup_question>
-      <question>I've analyzed issue #[number]: "[title]"
-
-      Here's my implementation plan to resolve the issue:
-
-      [Detailed plan with steps and affected files]
-
-      This plan focuses on providing a quality fix for the reported problem without introducing unrelated changes.
-
-      Would you like me to proceed with this implementation?</question>
-      <follow_up>
-      <suggest>Yes, proceed with the implementation</suggest>
-      <suggest>Let me review the issue first</suggest>
-      <suggest>Modify the approach for: [specific aspect]</suggest>
-      <suggest>Focus only on: [specific part]</suggest>
-      </follow_up>
-      </ask_followup_question>
-    </instructions>
-  </step>
-
-  <step number="4">
     <name>Explore Codebase and Related Files</name>
     <instructions>
       Use codebase_search FIRST to understand the codebase structure and find ALL related files:
@@ -185,6 +144,47 @@
       - Code conventions to follow (naming, structure, etc.)
       - Test file locations and patterns
       - Related files that might be affected
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Create Implementation Plan</name>
+    <instructions>
+      Based on the issue analysis, create a detailed implementation plan:
+      
+      For Bug Fixes:
+      1. Reproduce the bug locally (if possible)
+      2. Identify root cause
+      3. Plan the fix approach. The plan should be focused on resolving the issue with a high-quality, targeted fix, while avoiding unrelated changes.
+      4. Identify files to modify.
+      5. Plan test cases to prevent regression.
+      
+      For Feature Implementation:
+      1. Break down the feature into components
+      2. Identify all files that need changes
+      3. Plan the implementation approach
+      4. Consider edge cases and error handling
+      5. Plan test coverage
+      
+      Present the plan to the user:
+      
+      <ask_followup_question>
+      <question>I've analyzed issue #[number]: "[title]"
+
+      Here's my implementation plan to resolve the issue:
+
+      [Detailed plan with steps and affected files]
+
+      This plan focuses on providing a quality fix for the reported problem without introducing unrelated changes.
+
+      Would you like me to proceed with this implementation?</question>
+      <follow_up>
+      <suggest>Yes, proceed with the implementation</suggest>
+      <suggest>Let me review the issue first</suggest>
+      <suggest>Modify the approach for: [specific aspect]</suggest>
+      <suggest>Focus only on: [specific part]</suggest>
+      </follow_up>
+      </ask_followup_question>
     </instructions>
   </step>
 
