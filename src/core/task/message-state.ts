@@ -1,7 +1,7 @@
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import * as vscode from "vscode"
-import { ClineApiReqInfo, ClineMessage, ClineAsk } from "@/shared/ExtensionMessage"
+import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
 import { findLastIndex } from "@/shared/array"
@@ -10,7 +10,6 @@ import os from "os"
 import * as path from "path"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
-import { getGlobalState, updateGlobalState } from "../storage/state"
 import Anthropic from "@anthropic-ai/sdk"
 
 interface MessageStateHandlerParams {
