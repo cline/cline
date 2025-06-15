@@ -1,0 +1,119 @@
+---
+title: "Extended Thinking"
+sidebarTitle: "Extended Thinking"
+---
+
+Extended Thinking gives Claude the ability to work through complex problems methodically before responding. Instead of generating an immediate answer, Claude breaks down the problem, considers different approaches, and catches potential issues -- similar to how an experienced developer thinks through challenging problems.
+
+I find it particularly valuable for complex tasks where I need Claude to apply deeper reasoning and consideration.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/extended-thinking-interface.png"
+		alt="Extended thinking interface showing the thinking budget slider"
+	/>
+</Frame>
+
+#### Using Extended Thinking
+
+The interface is straightforward:
+
+- Enable the "Extended thinking" option in the sidebar
+- Use the slider to set your desired thinking budget (1K-128K tokens)
+- View the updated cost estimate in real-time
+- Submit your prompt and observe Claude's reasoning process
+
+For most tasks, I start with a moderate budget (4K tokens) and increase it only when working on particularly complex problems. The slider provides precise control over the depth-speed tradeoff based on your specific needs.
+
+> For additional technical details, see [Anthropic's Extended Thinking Documentation](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+
+#### Technical Implementation
+
+Important details about how Extended Thinking works:
+
+- **Claude 4 models** provide a concise summary of their thinking process (though you're billed for the full thinking)
+- **Claude 3.7** displays the complete reasoning chain in detail
+- **Context management**: Cline automatically removes previous thinking blocks to preserve context space
+- Previous thinking blocks include cryptographic signatures for verification
+- Thinking budgets above 21,333 tokens display real-time streaming
+
+#### Supported Models
+
+Extended Thinking works with the following Claude models:
+
+- **Claude Opus 4** (`claude-opus-4-20250514`) -- Optimal for architectural decisions and complex problem-solving where quality takes precedence over speed.
+- **Claude Sonnet 4** (`claude-sonnet-4-20250514`) -- A balanced option offering strong reasoning capabilities with reasonable response times.
+- **Claude Sonnet 3.7** (`claude-3-7-sonnet-20250219`) -- Provides full reasoning chains rather than summaries, which can be beneficial for understanding Claude's thought process.
+
+> The API implementation differs between Claude 3.7 and Claude 4 models. See [Anthropic's documentation](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions) if you're working with the API directly.
+
+#### Optimal Use Cases
+
+Through extensive usage, I've found Extended Thinking particularly effective for:
+
+- **Complex debugging** -- When standard approaches haven't identified the root cause
+- **System architecture** -- Designing robust, scalable systems with proper consideration of edge cases
+- **Performance optimization** -- Developing mathematically sound algorithm improvements
+- **Multi-domain problems** -- Tasks that require integrating knowledge from different technical areas
+
+Extended Thinking is less necessary for:
+
+- Simple formatting or syntax questions
+- Implementing standard design patterns
+- Time-sensitive requests requiring immediate responses
+- Basic maintenance tasks with clear solutions
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/extended-thinking-streaming.png"
+		alt="Extended thinking interface showing streaming in action"
+	/>
+</Frame>
+
+#### Measurable Intelligence Improvements
+
+The benefits of Extended Thinking are empirically demonstrated by the [ARC Prize leaderboard](https://arcprize.org/leaderboard), which measures AI system performance on abstract reasoning tasks:
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/docs/assets/arc-prize-leaderboard.png" alt="ARC Prize leaderboard showing performance improvements with extended thinking" />
+</Frame>
+
+The performance data is compelling:
+
+- **Claude Opus 4 with 16K thinking tokens** achieved 35.7% on ARC-AGI-1, compared to 22.5% without extended thinking -- a 58% relative improvement
+- **Claude Sonnet 4 with 16K thinking** reached 40.0%, versus 23.8% without -- representing a 68% improvement
+- Performance increases significantly from 1K to 8K tokens, with more incremental gains from 8K to 16K
+
+These results demonstrate that Extended Thinking substantially enhances Claude's reasoning capabilities on complex tasks.
+
+#### Technical Limitations
+
+There are several constraints to be aware of:
+
+- The minimum thinking budget is 1,024 tokens
+- Your thinking budget must not exceed your `max_tokens` setting (with a specific exception for tool use)
+- Network timeouts can occur with budgets exceeding 32K tokens
+- Token usage varies based on query complexity
+
+#### Cost Considerations
+
+Understanding the cost implications is important:
+
+- Billing includes all tokens in the thinking process, not just the summary
+- Claude 4 models show summarized thinking but charge for the full process
+- The cost-benefit ratio diminishes beyond 16K tokens for most use cases
+- Cline's [token dashboard](https://app.cline.ai/dashboard) helps monitor and manage usage
+
+#### Extended Thinking vs Sequential Thinking MCP
+
+Both approaches enhance Claude's reasoning capabilities, but serve different purposes:
+
+**Extended Thinking**
+I use this as my primary reasoning enhancement -- it requires no additional setup, integrates seamlessly with Claude, and generally produces more natural reasoning flows. It offers faster overall response times and more efficient context window usage, making it ideal for general reasoning tasks and coding challenges. The main limitation is that it doesn't support tool use during the thinking process.
+
+**Sequential Thinking MCP**
+This serves as a specialized tool for specific complex tasks, offering more granular control over the thought process and better visibility into each reasoning step. It allows for explicit revision of previous thoughts and can integrate with other MCP tools during thinking, which is particularly valuable. The trade-off is that it requires running an external MCP server.
+
+For most day-to-day tasks, Extended Thinking provides the reasoning enhancement I need. However, for multi-stage technical problems with complex dependencies, Sequential Thinking's structured approach and revision capabilities offer significant advantages.
+
+These tools complement each other well -- I sometimes use both for different aspects of complex projects or combine them sequentially for optimal results.
