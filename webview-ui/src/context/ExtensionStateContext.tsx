@@ -265,6 +265,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
+	const didBecomeVisibleUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -391,6 +392,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onError: (error) => {
 				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
+		// Subscribe to didBecomeVisible events
+		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
+			onResponse: () => {
+				console.log("[DEBUG] Received didBecomeVisible event from gRPC stream")
+				window.dispatchEvent(new CustomEvent("focusChatInput"))
+			},
+			onError: (error) => {
+				console.error("Error in didBecomeVisible subscription:", error)
 			},
 			onComplete: () => {},
 		})
@@ -648,6 +661,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
 				mcpServersSubscriptionRef.current = null
+			}
+			if (didBecomeVisibleUnsubscribeRef.current) {
+				didBecomeVisibleUnsubscribeRef.current()
+				didBecomeVisibleUnsubscribeRef.current = null
 			}
 		}
 	}, [])
