@@ -164,6 +164,16 @@ export const OpenAICompatible = ({
 				onChange={handleInputChange("openAiStreamingEnabled", noTransform)}>
 				{t("settings:modelInfo.enableStreaming")}
 			</Checkbox>
+			<div>
+				<Checkbox
+					checked={apiConfiguration?.includeMaxTokens ?? true}
+					onChange={handleInputChange("includeMaxTokens", noTransform)}>
+					{t("settings:includeMaxOutputTokens")}
+				</Checkbox>
+				<div className="text-sm text-vscode-descriptionForeground ml-6">
+					{t("settings:includeMaxOutputTokensDescription")}
+				</div>
+			</div>
 			<Checkbox
 				checked={apiConfiguration?.openAiUseAzure ?? false}
 				onChange={handleInputChange("openAiUseAzure", noTransform)}>

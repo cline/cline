@@ -613,5 +613,7 @@
 	"labels": {
 		"customArn": "Özel ARN",
 		"useCustomArn": "Özel ARN kullan..."
-	}
+	},
+	"includeMaxOutputTokens": "Maksimum çıktı tokenlerini dahil et",
+	"includeMaxOutputTokensDescription": "API isteklerinde maksimum çıktı token parametresini gönder. Bazı sağlayıcılar bunu desteklemeyebilir."
 }

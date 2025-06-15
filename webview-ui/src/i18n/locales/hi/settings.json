@@ -613,5 +613,7 @@
 	"labels": {
 		"customArn": "कस्टम ARN",
 		"useCustomArn": "कस्टम ARN का उपयोग करें..."
-	}
+	},
+	"includeMaxOutputTokens": "अधिकतम आउटपुट टोकन शामिल करें",
+	"includeMaxOutputTokensDescription": "API अनुरोधों में अधिकतम आउटपुट टोकन पैरामीटर भेजें। कुछ प्रदाता इसका समर्थन नहीं कर सकते हैं।"
 }

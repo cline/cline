@@ -613,5 +613,7 @@
 	"labels": {
 		"customArn": "ARN personalizado",
 		"useCustomArn": "Usar ARN personalizado..."
-	}
+	},
+	"includeMaxOutputTokens": "Incluir tokens máximos de saída",
+	"includeMaxOutputTokensDescription": "Enviar parâmetro de tokens máximos de saída nas solicitações de API. Alguns provedores podem não suportar isso."
 }

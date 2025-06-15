@@ -642,5 +642,7 @@
 	"labels": {
 		"customArn": "ARN Kustom",
 		"useCustomArn": "Gunakan ARN kustom..."
-	}
+	},
+	"includeMaxOutputTokens": "Sertakan token output maksimum",
+	"includeMaxOutputTokensDescription": "Kirim parameter token output maksimum dalam permintaan API. Beberapa provider mungkin tidak mendukung ini."
 }

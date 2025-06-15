@@ -613,5 +613,7 @@
 	"labels": {
 		"customArn": "Aangepaste ARN",
 		"useCustomArn": "Aangepaste ARN gebruiken..."
-	}
+	},
+	"includeMaxOutputTokens": "Maximale output tokens opnemen",
+	"includeMaxOutputTokensDescription": "Stuur maximale output tokens parameter in API-verzoeken. Sommige providers ondersteunen dit mogelijk niet."
 }

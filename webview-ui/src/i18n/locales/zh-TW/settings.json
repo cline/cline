@@ -613,5 +613,7 @@
 	"labels": {
 		"customArn": "自訂 ARN",
 		"useCustomArn": "使用自訂 ARN..."
-	}
+	},
+	"includeMaxOutputTokens": "包含最大輸出 Token 數",
+	"includeMaxOutputTokensDescription": "在 API 請求中傳送最大輸出 Token 參數。某些提供商可能不支援此功能。"
 }
