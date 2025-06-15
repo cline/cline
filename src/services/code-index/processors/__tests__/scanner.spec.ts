@@ -209,5 +209,38 @@ describe("DirectoryScanner", () => {
 			expect(mockVectorStore.deletePointsByFilePath).toHaveBeenCalledWith("old/file.js")
 			expect(mockCacheManager.deleteHash).toHaveBeenCalledWith("old/file.js")
 		})
+
+		it("should filter out files in hidden directories", async () => {
+			const { listFiles } = await import("../../../glob/list-files")
+			// Mock listFiles to return files including some in hidden directories
+			vi.mocked(listFiles).mockResolvedValue([
+				[
+					"test/file1.js",
+					"test/.hidden/file2.js",
+					".git/config",
+					"src/.next/static/file3.js",
+					"normal/file4.js",
+				],
+				false,
+			])
+
+			// Mock parseFile to track which files are actually processed
+			const processedFiles: string[] = []
+			;(mockCodeParser.parseFile as any).mockImplementation((filePath: string) => {
+				processedFiles.push(filePath)
+				return []
+			})
+
+			await scanner.scanDirectory("/test")
+
+			// Verify that only non-hidden files were processed
+			expect(processedFiles).toEqual(["test/file1.js", "normal/file4.js"])
+			expect(processedFiles).not.toContain("test/.hidden/file2.js")
+			expect(processedFiles).not.toContain(".git/config")
+			expect(processedFiles).not.toContain("src/.next/static/file3.js")
+
+			// Verify the stats
+			expect(mockCodeParser.parseFile).toHaveBeenCalledTimes(2)
+		})
 	})
 })

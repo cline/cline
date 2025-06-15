@@ -22,6 +22,7 @@ import {
 import { codeParser } from "./parser"
 import { CacheManager } from "../cache-manager"
 import { generateNormalizedAbsolutePath, generateRelativeFilePath } from "../shared/get-relative-path"
+import { isPathInIgnoredDirectory } from "../../glob/ignore-utils"
 
 /**
  * Implementation of the file watcher interface
@@ -453,6 +454,15 @@ export class FileWatcher implements IFileWatcher {
 	 */
 	async processFile(filePath: string): Promise<FileProcessingResult> {
 		try {
+			// Check if file is in an ignored directory
+			if (isPathInIgnoredDirectory(filePath)) {
+				return {
+					path: filePath,
+					status: "skipped" as const,
+					reason: "File is in an ignored directory",
+				}
+			}
+
 			// Check if file should be ignored
 			const relativeFilePath = generateRelativeFilePath(filePath)
 			if (

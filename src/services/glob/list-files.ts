@@ -5,29 +5,7 @@ import * as childProcess from "child_process"
 import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
 import { getBinPath } from "../../services/ripgrep"
-
-/**
- * List of directories that are typically large and should be ignored
- * when showing recursive file listings
- */
-const DIRS_TO_IGNORE = [
-	"node_modules",
-	"__pycache__",
-	"env",
-	"venv",
-	"target/dependency",
-	"build/dependencies",
-	"dist",
-	"out",
-	"bundle",
-	"vendor",
-	"tmp",
-	"temp",
-	"deps",
-	"pkg",
-	"Pods",
-	".*",
-]
+import { DIRS_TO_IGNORE } from "./constants"
 
 /**
  * List files in a directory, with optional recursive traversal

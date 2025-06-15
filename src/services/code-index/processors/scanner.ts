@@ -22,6 +22,7 @@ import {
 	PARSING_CONCURRENCY,
 	BATCH_PROCESSING_CONCURRENCY,
 } from "../constants"
+import { isPathInIgnoredDirectory } from "../../glob/ignore-utils"
 
 export class DirectoryScanner implements IDirectoryScanner {
 	constructor(
@@ -61,10 +62,16 @@ export class DirectoryScanner implements IDirectoryScanner {
 		// Filter paths using .rooignore
 		const allowedPaths = ignoreController.filterPaths(filePaths)
 
-		// Filter by supported extensions and ignore patterns
+		// Filter by supported extensions, ignore patterns, and excluded directories
 		const supportedPaths = allowedPaths.filter((filePath) => {
 			const ext = path.extname(filePath).toLowerCase()
 			const relativeFilePath = generateRelativeFilePath(filePath)
+
+			// Check if file is in an ignored directory using the shared helper
+			if (isPathInIgnoredDirectory(filePath)) {
+				return false
+			}
+
 			return scannerExtensions.includes(ext) && !this.ignoreInstance.ignores(relativeFilePath)
 		})
 
