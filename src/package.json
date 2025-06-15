@@ -176,7 +176,7 @@
 			"editor/context": [
 				{
 					"submenu": "roo-cline.contextMenu",
-					"group": "navigation"
+					"group": "1"
 				}
 			],
 			"roo-cline.contextMenu": [
@@ -196,7 +196,7 @@
 			"terminal/context": [
 				{
 					"submenu": "roo-cline.terminalMenu",
-					"group": "navigation"
+					"group": "2"
 				}
 			],
 			"roo-cline.terminalMenu": [
