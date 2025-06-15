@@ -285,6 +285,12 @@ export class Controller {
 			previousModeReasoningEffort: newReasoningEffort,
 			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
 			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
+			previousModeSapAiCoreClientId: newSapAiCoreClientId,
+			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
+			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
+			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
+			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -350,6 +356,23 @@ export class Controller {
 					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
+				case "sapaicore":
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreClientSecret",
+						apiConfiguration.sapAiCoreClientSecret,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreResourceGroup",
+						apiConfiguration.sapAiResourceGroup,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
+					break
 			}
 
 			// Restore the model used in previous mode
@@ -404,6 +427,9 @@ export class Controller {
 					case "requesty":
 						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
 						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "sapaicore":
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 				}
 
