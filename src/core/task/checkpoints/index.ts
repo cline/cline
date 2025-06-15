@@ -1,0 +1,260 @@
+import * as vscode from "vscode"
+import { findLast, findLastIndex } from "@shared/array"
+import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { ClineMessage, ClineApiReqInfo, COMPLETION_RESULT_CHANGES_FLAG, ClineSay } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { saveClineMessagesAndUpdateHistory } from "../message-state"
+import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
+
+// Type definitions for better code organization
+type SayFunction = (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
+type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryItem[]>
+
+interface CheckpointManagerDependencies {
+	readonly taskId: string
+	readonly context: vscode.ExtensionContext
+	readonly enableCheckpoints: boolean
+	readonly diffViewProvider: DiffViewProvider
+	readonly updateTaskHistory: UpdateTaskHistoryFunction
+	readonly say: SayFunction
+}
+
+interface CheckpointManagerState {
+	clineMessages: ClineMessage[]
+	conversationHistoryDeletedRange?: [number, number]
+	checkpointTracker?: CheckpointTracker
+	checkpointTrackerErrorMessage?: string
+}
+
+/**
+ * TaskCheckpointManager
+ * 
+ * A dedicated service for managing all checkpoint-related operations within a task.
+ * Provides a clean separation of concerns from the main Task class while maintaining
+ * full access to necessary dependencies and state.
+ * 
+ * Key Responsibilities:
+ * - Creating and saving checkpoints at strategic points
+ * - Restoring from checkpoints (task state and/or workspace files)
+ * - Presenting multi-file diffs between checkpoint states
+ * - Tracking changes since task completion for user feedback
+ * 
+ * Architecture Benefits:
+ * - Encapsulates complex checkpoint logic away from Task class
+ * - Provides type-safe interfaces for all dependencies
+ * - Maintains immutable dependencies while allowing state updates
+ * - Enables easier testing and maintenance of checkpoint features
+ */
+export class TaskCheckpointManager {
+	// Immutable dependencies - set once during construction
+	// These never change after the manager is created
+	private readonly dependencies: CheckpointManagerDependencies
+
+	// Mutable state - updated as task progresses
+	// This gets updated as the user works and checkpoints are created
+	private state: CheckpointManagerState
+
+	constructor(
+		dependencies: CheckpointManagerDependencies,
+		initialState: CheckpointManagerState
+	) {
+		this.dependencies = Object.freeze(dependencies)
+		this.state = { ...initialState }
+	}
+
+	// ============================================================================
+	// Public API - Core checkpoint operations
+	// ============================================================================
+
+	/**
+	 * Creates a checkpoint of the current state
+	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
+	 */
+	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
+		if (!this.enableCheckpoints) {
+			// If checkpoints are disabled, do nothing.
+			return
+		}
+		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
+		this.clineMessages.forEach((message) => {
+			if (message.say === "checkpoint_created") {
+				message.isCheckpointCheckedOut = false
+			}
+		})
+
+		if (!isAttemptCompletionMessage) {
+			// ensure we aren't creating a duplicate checkpoint
+			const lastMessage = this.clineMessages.at(-1)
+			if (lastMessage?.say === "checkpoint_created") {
+				return
+			}
+
+			// For non-attempt completion we just say checkpoints
+			await this.say("checkpoint_created")
+			this.checkpointTracker?.commit().then(async (commitHash) => {
+				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+				if (lastCheckpointMessage) {
+					lastCheckpointMessage.lastCheckpointHash = commitHash
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
+				}
+			}) // silently fails for now
+
+			//
+		} else {
+			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
+			// Check if checkpoint tracker exists, if not, create it
+			if (!this.checkpointTracker) {
+				try {
+					this.checkpointTracker = await CheckpointTracker.create(
+						this.taskId,
+						this.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					)
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
+					return
+				}
+			}
+
+			if (this.checkpointTracker) {
+				const commitHash = await this.checkpointTracker.commit()
+
+				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
+				const lastCompletionResultMessage = findLast(
+					this.clineMessages,
+					(m) => m.say === "completion_result" || m.ask === "completion_result",
+				)
+				if (lastCompletionResultMessage) {
+					lastCompletionResultMessage.lastCheckpointHash = commitHash
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
+				}
+			} else {
+				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
+			}
+		}
+
+	/**
+	 * Restores a checkpoint by message timestamp
+	 * @param messageTs - Timestamp of the message to restore to
+	 * @param restoreType - Type of restoration (task, workspace, or both)
+	 * @param offset - Optional offset for the message index
+	 */
+	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number): Promise<void> {
+		// TODO: Move restoreCheckpoint implementation here
+		throw new Error("restoreCheckpoint not yet implemented - move from Task class")
+	}
+
+	/**
+	 * Presents a multi-file diff view between checkpoints
+	 * @param messageTs - Timestamp of the message to show diff for
+	 * @param seeNewChangesSinceLastTaskCompletion - Whether to show changes since last completion
+	 */
+	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean): Promise<void> {
+		// TODO: Move presentMultifileDiff implementation here
+		throw new Error("presentMultifileDiff not yet implemented - move from Task class")
+	}
+
+	/**
+	 * Checks if the latest task completion has new changes
+	 * @returns Promise<boolean> - True if there are new changes since last completion
+	 */
+	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
+		// TODO: Move doesLatestTaskCompletionHaveNewChanges implementation here
+		throw new Error("doesLatestTaskCompletionHaveNewChanges not yet implemented - move from Task class")
+	}
+
+	// ============================================================================
+	// State management - Clean interface for updating internal state
+	// ============================================================================
+
+	/**
+	 * Updates the checkpoint tracker instance
+	 */
+	setCheckpointTracker(checkpointTracker: CheckpointTracker | undefined): void {
+		this.state.checkpointTracker = checkpointTracker
+	}
+
+	/**
+	 * Updates the checkpoint tracker error message
+	 */
+	setCheckpointTrackerErrorMessage(errorMessage: string | undefined): void {
+		this.state.checkpointTrackerErrorMessage = errorMessage
+	}
+
+	/**
+	 * Updates the cline messages reference
+	 */
+	updateClineMessages(clineMessages: ClineMessage[]): void {
+		this.state.clineMessages = clineMessages
+	}
+
+	/**
+	 * Updates the conversation history deleted range
+	 */
+	updateConversationHistoryDeletedRange(range: [number, number] | undefined): void {
+		this.state.conversationHistoryDeletedRange = range
+	}
+
+
+	// ============================================================================
+	// Internal utilities - Private helpers for checkpoint operations
+	// ============================================================================
+
+	/**
+	 * Gets the extension context with proper error handling
+	 */
+	private getContext(): vscode.ExtensionContext {
+		if (!this.dependencies.context) {
+			throw new Error("Unable to access extension context")
+		}
+		return this.dependencies.context
+	}
+
+	/**
+	 * Provides read-only access to current state for internal operations
+	 */
+	private get currentState(): Readonly<CheckpointManagerState> {
+		return Object.freeze({ ...this.state })
+	}
+
+	/**
+	 * Provides read-only access to dependencies for internal operations
+	 */
+	private get deps(): Readonly<CheckpointManagerDependencies> {
+		return this.dependencies
+	}
+}
+
+// ============================================================================
+// Factory function for clean instantiation
+// ============================================================================
+
+/**
+ * Creates a new TaskCheckpointManager instance with proper dependency injection
+ */
+export function createTaskCheckpointManager(
+	dependencies: CheckpointManagerDependencies,
+	initialState: CheckpointManagerState
+): TaskCheckpointManager {
+	return new TaskCheckpointManager(dependencies, initialState)
+}
