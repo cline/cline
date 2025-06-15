@@ -38,6 +38,8 @@ import {
 	nebiusDefaultModelId,
 	cerebrasModels,
 	cerebrasDefaultModelId,
+	sapAiCoreModels,
+	sapAiCoreDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -173,6 +175,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "sapaicore":
+			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

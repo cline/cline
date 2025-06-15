@@ -74,6 +74,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.context.globalState.update("terminalReuseEnabled", request.terminalReuseEnabled)
 		}
 
+		// Update terminal output line limit
+		if (request.terminalOutputLineLimit !== undefined) {
+			await controller.context.globalState.update("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

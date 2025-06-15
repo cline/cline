@@ -13,7 +13,7 @@ service StateService {
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
-  rpc resetState(EmptyRequest) returns (Empty);
+  rpc resetState(ResetStateRequest) returns (Empty);
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
@@ -63,6 +63,11 @@ message ChatContent {
   repeated string files = 3;
 }
 
+message ResetStateRequest {
+  Metadata metadata = 1;
+  optional bool global = 2;
+}
+
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
   message Actions {
@@ -96,6 +101,7 @@ message UpdateSettingsRequest {
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional bool mcp_rich_display_enabled = 11;
+  optional int64 terminal_output_line_limit = 12;
 }
 
 // Complete API Configuration message
@@ -204,4 +210,11 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 71;
+
+  // SAP AI Core specific
+  optional string sap_ai_core_client_id = 72;
+  optional string sap_ai_core_client_secret = 73;
+  optional string sap_ai_core_base_url = 74;
+  optional string sap_ai_core_token_url = 75;
+  optional string sap_ai_resource_group = 76;
 }
