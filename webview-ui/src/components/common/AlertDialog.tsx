@@ -1,5 +1,4 @@
 import React, { ReactNode } from "react"
-import { cn } from "@/utils/cn"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle } from "lucide-react"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
@@ -22,7 +21,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
 
 	return (
 		<div
-			className={cn(`fixed inset-0 bg-black/50 flex items-center justify-center`)}
+			className={`fixed inset-0 bg-black/50 flex items-center justify-center`}
 			onClick={handleBackdropClick}
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 50 }}>
 			{children}
@@ -33,10 +32,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
 export function AlertDialogContent({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
 	return (
 		<div
-			className={cn(
-				`fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%]`,
-				className,
-			)}
+			className={`fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] ${className}`}
 			onClick={(e) => e.stopPropagation()}
 			{...props}>
 			<div className="bg-[var(--vscode-editor-background)] rounded-sm  gap-3 border border-[var(--vscode-panel-border)] p-4 shadow-lg sm:max-w-md">
@@ -47,27 +43,24 @@ export function AlertDialogContent({ className, children, ...props }: React.HTML
 }
 
 export function AlertDialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-	return <div className={cn("flex flex-col gap-1 text-left", className)} {...props} />
+	return <div className={`flex flex-col gap-1 text-left ${className}`} {...props} />
 }
 
 export function AlertDialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-	return <div className={cn("flex flex-row justify-end gap-2 mt-4", className)} {...props} />
+	return <div className={`flex flex-row justify-end gap-2 mt-4 ${className}`} {...props} />
 }
 
 export function AlertDialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
 	return (
 		<h2
-			className={cn(
-				"text-base font-medium text-[var(--vscode-editor-foreground)] flex items-center gap-2 text-left",
-				className,
-			)}
+			className={`text-base font-medium text-[var(--vscode-editor-foreground)] flex items-center gap-2 text-left ${className}`}
 			{...props}
 		/>
 	)
 }
 
 export function AlertDialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-	return <p className={cn("text-[var(--vscode-descriptionForeground)] text-sm text-left", className)} {...props} />
+	return <p className={`text-[var(--vscode-descriptionForeground)] text-sm text-left ${className}`} {...props} />
 }
 
 export function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof VSCodeButton>) {
