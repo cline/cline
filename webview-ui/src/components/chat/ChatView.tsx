@@ -128,13 +128,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const [sendingDisabled, setSendingDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [selectedFiles, setSelectedFiles] = useState<string[]>([])
-
-	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
@@ -144,13 +139,174 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
 
-	// UI layout depends on the last 2 messages
-	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
+	// UI state is derived from the last two messages to determine button states and text area behavior
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
 
-	// Derive clineAsk directly from lastMessage to avoid race conditions
+	// Extract the current ask type from the last message if it's an ask message
 	const clineAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
+
+	// Compute all UI state synchronously from message state to ensure consistency
+	const uiState = useMemo(() => {
+		if (messages.length === 0) {
+			return {
+				sendingDisabled: false,
+				enableButtons: false,
+				primaryButtonText: "Approve" as string | undefined,
+				secondaryButtonText: "Reject" as string | undefined,
+			}
+		}
+
+		if (!lastMessage) {
+			return {
+				sendingDisabled: false,
+				enableButtons: false,
+				primaryButtonText: "Approve" as string | undefined,
+				secondaryButtonText: "Reject" as string | undefined,
+			}
+		}
+
+		if (lastMessage.type === "ask") {
+			const isPartial = lastMessage.partial === true
+			switch (lastMessage.ask) {
+				case "api_req_failed":
+					return {
+						sendingDisabled: true,
+						enableButtons: true,
+						primaryButtonText: "Retry" as string | undefined,
+						secondaryButtonText: "Start New Task" as string | undefined,
+					}
+				case "mistake_limit_reached":
+					return {
+						sendingDisabled: false,
+						enableButtons: true,
+						primaryButtonText: "Proceed Anyways" as string | undefined,
+						secondaryButtonText: "Start New Task" as string | undefined,
+					}
+				case "auto_approval_max_req_reached":
+					return {
+						sendingDisabled: true,
+						enableButtons: true,
+						primaryButtonText: "Proceed" as string | undefined,
+						secondaryButtonText: "Start New Task" as string | undefined,
+					}
+				case "followup":
+				case "plan_mode_respond":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: false,
+						primaryButtonText: "Approve" as string | undefined,
+						secondaryButtonText: "Reject" as string | undefined,
+					}
+				case "tool":
+					const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
+					const toolPrimaryText = ["editedExistingFile", "newFileCreated"].includes(tool.tool) ? "Save" : "Approve"
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: toolPrimaryText as string | undefined,
+						secondaryButtonText: "Reject" as string | undefined,
+					}
+				case "browser_action_launch":
+				case "use_mcp_server":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Approve" as string | undefined,
+						secondaryButtonText: "Reject" as string | undefined,
+					}
+				case "command":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Run Command" as string | undefined,
+						secondaryButtonText: "Reject" as string | undefined,
+					}
+				case "command_output":
+					return {
+						sendingDisabled: false,
+						enableButtons: true,
+						primaryButtonText: "Proceed While Running" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "completion_result":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Start New Task" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "resume_task":
+					return {
+						sendingDisabled: false,
+						enableButtons: true,
+						primaryButtonText: "Resume Task" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "resume_completed_task":
+					return {
+						sendingDisabled: false,
+						enableButtons: true,
+						primaryButtonText: "Start New Task" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "new_task":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Start New Task with Context" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "condense":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Condense Conversation" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				case "report_bug":
+					return {
+						sendingDisabled: isPartial,
+						enableButtons: !isPartial,
+						primaryButtonText: "Report GitHub issue" as string | undefined,
+						secondaryButtonText: undefined,
+					}
+				default:
+					return {
+						sendingDisabled: false,
+						enableButtons: false,
+						primaryButtonText: "Approve" as string | undefined,
+						secondaryButtonText: "Reject" as string | undefined,
+					}
+			}
+		} else if (lastMessage.type === "say") {
+			// Handle special case for command_output -> api_req_started transition
+			if (lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
+				return {
+					sendingDisabled: true,
+					enableButtons: false,
+					primaryButtonText: "Approve" as string | undefined,
+					secondaryButtonText: "Reject" as string | undefined,
+				}
+			}
+			// For other "say" messages, maintain current state or use defaults
+			return {
+				sendingDisabled: true,
+				enableButtons: false,
+				primaryButtonText: "Approve" as string | undefined,
+				secondaryButtonText: "Reject" as string | undefined,
+			}
+		}
+
+		return {
+			sendingDisabled: false,
+			enableButtons: false,
+			primaryButtonText: "Approve" as string | undefined,
+			secondaryButtonText: "Reject" as string | undefined,
+		}
+	}, [lastMessage, secondLastMessage, messages.length])
+
+	const { sendingDisabled, enableButtons, primaryButtonText, secondaryButtonText } = uiState
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -238,176 +394,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			document.removeEventListener("copy", handleCopy)
 		}
 	}, [])
+	// Clear input state when command finishes (command_output -> api_req_started transition)
 	useDeepCompareEffect(() => {
-		// if last message is an ask, show user ask UI
-		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
-		// basically as long as a task is active, the conversation history will be persisted
-		if (lastMessage) {
-			switch (lastMessage.type) {
-				case "ask":
-					const isPartial = lastMessage.partial === true
-					switch (lastMessage.ask) {
-						case "api_req_failed":
-							setSendingDisabled(true)
-							setEnableButtons(true)
-							setPrimaryButtonText("Retry")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "mistake_limit_reached":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed Anyways")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "auto_approval_max_req_reached":
-							setSendingDisabled(true)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "followup":
-							setSendingDisabled(isPartial)
-							setEnableButtons(false)
-							// setPrimaryButtonText(undefined)
-							// setSecondaryButtonText(undefined)
-							break
-						case "plan_mode_respond":
-							setSendingDisabled(isPartial)
-							setEnableButtons(false)
-							// setPrimaryButtonText(undefined)
-							// setSecondaryButtonText(undefined)
-							break
-						case "tool":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
-							switch (tool.tool) {
-								case "editedExistingFile":
-								case "newFileCreated":
-									setPrimaryButtonText("Save")
-									setSecondaryButtonText("Reject")
-									break
-								default:
-									setPrimaryButtonText("Approve")
-									setSecondaryButtonText("Reject")
-									break
-							}
-							break
-						case "browser_action_launch":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Reject")
-							break
-						case "command":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Run Command")
-							setSecondaryButtonText("Reject")
-							break
-						case "command_output":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed While Running")
-							setSecondaryButtonText(undefined)
-							break
-						case "use_mcp_server":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Reject")
-							break
-						case "completion_result":
-							// extension waiting for feedback. but we can just present a new task button
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Start New Task")
-							setSecondaryButtonText(undefined)
-							break
-						case "resume_task":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Resume Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false) // special case where we reset the cancel button state
-							break
-						case "resume_completed_task":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Start New Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false)
-							break
-						case "new_task":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Start New Task with Context")
-							setSecondaryButtonText(undefined)
-							break
-						case "condense":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Condense Conversation")
-							setSecondaryButtonText(undefined)
-							break
-						case "report_bug":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Report GitHub issue")
-							setSecondaryButtonText(undefined)
-							break
-					}
-					break
-				case "say":
-					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
-					switch (lastMessage.say) {
-						case "api_req_started":
-							if (secondLastMessage?.ask === "command_output") {
-								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
-								setInputValue("")
-								setSendingDisabled(true)
-								setSelectedImages([])
-								setSelectedFiles([])
-								setEnableButtons(false)
-							}
-							break
-						case "task":
-						case "error":
-						case "api_req_finished":
-						case "text":
-						case "browser_action":
-						case "browser_action_result":
-						case "browser_action_launch":
-						case "command":
-						case "use_mcp_server":
-						case "command_output":
-						case "mcp_server_request_started":
-						case "mcp_server_response":
-						case "completion_result":
-						case "tool":
-						case "load_mcp_documentation":
-							break
-					}
-					break
-			}
-		} else {
-			// this would get called after sending the first message, so we have to watch messages.length instead
-			// No messages, so user has to submit a task
-			// setTextAreaDisabled(false)
-			// setClineAsk(undefined)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
+		if (lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
+			// Command has finished executing, clear user input since it's no longer needed
+			setInputValue("")
+			setSelectedImages([])
+			setSelectedFiles([])
 		}
 	}, [lastMessage, secondLastMessage])
 
+	// Reset cancel button state for task resumption scenarios
 	useEffect(() => {
-		if (messages.length === 0) {
-			setSendingDisabled(false)
-			setEnableButtons(false)
-			setPrimaryButtonText("Approve")
-			setSecondaryButtonText("Reject")
+		if (lastMessage?.ask === "resume_task" || lastMessage?.ask === "resume_completed_task") {
+			setDidClickCancel(false)
 		}
-	}, [messages.length])
+	}, [lastMessage?.ask])
 
 	useEffect(() => {
 		setExpandedRows({})
@@ -484,12 +486,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 				setInputValue("")
 				setActiveQuote(null) // Clear quote when sending message
-				setSendingDisabled(true)
 				setSelectedImages([])
 				setSelectedFiles([])
-				setEnableButtons(false)
-				// setPrimaryButtonText(undefined)
-				// setSecondaryButtonText(undefined)
 				disableAutoScrollRef.current = false
 			}
 		},
@@ -565,10 +563,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)
 					break
 			}
-			setSendingDisabled(true)
-			setEnableButtons(false)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
 		[clineAsk, startNewTask, lastMessage],
@@ -617,10 +611,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					setSelectedFiles([])
 					break
 			}
-			setSendingDisabled(true)
-			setEnableButtons(false)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
 		[clineAsk, startNewTask, isStreaming],
