@@ -64,7 +64,8 @@ message ChatContent {
 }
 
 message ResetStateRequest {
-  optional bool global = 1;
+  Metadata metadata = 1;
+  optional bool global = 2;
 }
 
 message AutoApprovalSettingsRequest {
