@@ -112,7 +112,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
 import { isClaude4ModelFamily } from "@/utils/model-utils"
-import { cleanupMessageHistory, MessageStateHandler, saveClineMessagesAndUpdateHistory } from "./message-state"
+import { MessageStateHandler } from "./message-state"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -147,7 +147,6 @@ export class Task {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	clineMessages: ClineMessage[] = []
 	private clineIgnoreController: ClineIgnoreController
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
@@ -185,7 +184,7 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
-	private messageStateHandler: MessageStateHandler
+	messageStateHandler: MessageStateHandler
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -247,7 +246,13 @@ export class Task {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
 
-		this.messageStateHandler = new MessageStateHandler(context, this.taskId)
+		this.messageStateHandler = new MessageStateHandler({
+			context,
+			taskId: this.taskId,
+			conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+			taskIsFavorited: this.taskIsFavorited,
+			updateTaskHistory: this.updateTaskHistory,
+		})
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(context, this.taskId)
@@ -257,13 +262,12 @@ export class Task {
 		let effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
-			onRetryAttempt: (attempt: number, maxRetries: number, delay: number, error: any) => {
-				const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
 				if (lastApiReqStartedIndex !== -1) {
 					try {
-						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(
-							this.clineMessages[lastApiReqStartedIndex].text || "{}",
-						)
+						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
 						currentApiReqInfo.retryStatus = {
 							attempt: attempt, // attempt is already 1-indexed from retry.ts
 							maxAttempts: maxRetries, // total attempts
@@ -273,10 +277,12 @@ export class Task {
 						// Clear previous cancelReason and streamingFailedMessage if we are retrying
 						delete currentApiReqInfo.cancelReason
 						delete currentApiReqInfo.streamingFailedMessage
-						this.clineMessages[lastApiReqStartedIndex].text = JSON.stringify(currentApiReqInfo)
+						await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+							text: JSON.stringify(currentApiReqInfo),
+						})
 
 						// Post the updated state to the webview so the UI reflects the retry attempt
-						this.postStateToWebview().catch((e) =>
+						await this.postStateToWebview().catch((e) =>
 							console.error("Error posting state to webview in onRetryAttempt:", e),
 						)
 
@@ -327,46 +333,16 @@ export class Task {
 		return context
 	}
 
-	private async addToClineMessages(message: ClineMessage) {
-		// these values allow us to reconstruct the conversation history at the time this cline message was created
-		// it's important that apiConversationHistory is initialized before we add cline messages
-		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
-		message.conversationHistoryIndex = apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
-		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
-		this.clineMessages.push(message)
-		await saveClineMessagesAndUpdateHistory(
-			this.getContext(),
-			this.taskId,
-			this.clineMessages,
-			this.taskIsFavorited ?? false,
-			this.conversationHistoryDeletedRange,
-			this.checkpointTracker,
-			this.updateTaskHistory,
-		)
-	}
-
-	private async overwriteClineMessages(newMessages: ClineMessage[]) {
-		this.clineMessages = newMessages
-		await saveClineMessagesAndUpdateHistory(
-			this.getContext(),
-			this.taskId,
-			this.clineMessages,
-			this.taskIsFavorited ?? false,
-			this.conversationHistoryDeletedRange,
-			this.checkpointTracker,
-			this.updateTaskHistory,
-		)
-	}
-
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
-		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
-		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
-		const message = this.clineMessages[messageIndex]
-		const lastMessageWithHash = this.clineMessages[lastHashIndex]
+		const lastHashIndex = findLastIndex(clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
+		const message = clineMessages[messageIndex]
+		const lastMessageWithHash = clineMessages[lastHashIndex]
 
 		if (!message) {
-			console.error("Message not found", this.clineMessages)
+			console.error("Message not found", clineMessages)
 			return
 		}
 
@@ -390,6 +366,7 @@ export class Task {
 							this.context.globalStorageUri.fsPath,
 							this.enableCheckpoints,
 						)
+						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -435,11 +412,12 @@ export class Task {
 					)
 
 					// aggregate deleted api reqs info so we don't lose costs/tokens
-					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const deletedMessages = clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
-					const newClineMessages = this.clineMessages.slice(0, messageIndex + 1)
-					await this.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
+					const newClineMessages = clineMessages.slice(0, messageIndex + 1)
+					await this.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
 
 					await this.say(
 						"deleted_api_reqs",
@@ -471,7 +449,9 @@ export class Task {
 			if (restoreType !== "task") {
 				// Set isCheckpointCheckedOut flag on the message
 				// Find all checkpoint messages before this one
-				const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
+				const checkpointMessages = this.messageStateHandler
+					.getClineMessages()
+					.filter((m) => m.say === "checkpoint_created")
 				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
 
 				// Set isCheckpointCheckedOut to false for all checkpoint messages
@@ -480,15 +460,7 @@ export class Task {
 				})
 			}
 
-			await saveClineMessagesAndUpdateHistory(
-				this.getContext(),
-				this.taskId,
-				this.clineMessages,
-				this.taskIsFavorited ?? false,
-				this.conversationHistoryDeletedRange,
-				this.checkpointTracker,
-				this.updateTaskHistory,
-			)
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
@@ -507,8 +479,9 @@ export class Task {
 		}
 
 		console.log("presentMultifileDiff", messageTs)
-		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs)
-		const message = this.clineMessages[messageIndex]
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
+		const message = clineMessages[messageIndex]
 		if (!message) {
 			console.error("Message not found")
 			relinquishButton()
@@ -529,6 +502,7 @@ export class Task {
 					this.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
+				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -553,7 +527,7 @@ export class Task {
 			if (seeNewChangesSinceLastTaskCompletion) {
 				// Get last task completed
 				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.clineMessages.slice(0, messageIndex),
+					this.messageStateHandler.getClineMessages().slice(0, messageIndex),
 					(m) => m.say === "completion_result",
 				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 				// if undefined, then we get diff from beginning of git
@@ -562,9 +536,9 @@ export class Task {
 				// 	return
 				// }
 				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
-					(m) => m.say === "checkpoint_created",
-				)?.lastCheckpointHash
+				const firstCheckpointMessageCheckpointHash = this.messageStateHandler
+					.getClineMessages()
+					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
 				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
 
@@ -630,8 +604,9 @@ export class Task {
 			return false
 		}
 
-		const messageIndex = findLastIndex(this.clineMessages, (m) => m.say === "completion_result")
-		const message = this.clineMessages[messageIndex]
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
+		const message = clineMessages[messageIndex]
 		if (!message) {
 			console.error("Completion message not found")
 			return false
@@ -649,6 +624,7 @@ export class Task {
 					this.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
+				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -657,7 +633,10 @@ export class Task {
 		}
 
 		// Get last task completed
-		const lastTaskCompletedMessage = findLast(this.clineMessages.slice(0, messageIndex), (m) => m.say === "completion_result")
+		const lastTaskCompletedMessage = findLast(
+			this.messageStateHandler.getClineMessages().slice(0, messageIndex),
+			(m) => m.say === "completion_result",
+		)
 
 		try {
 			// Get last task completed
@@ -668,9 +647,9 @@ export class Task {
 			// 	return
 			// }
 			// This value *should* always exist
-			const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
-				(m) => m.say === "checkpoint_created",
-			)?.lastCheckpointHash
+			const firstCheckpointMessageCheckpointHash = this.messageStateHandler
+				.getClineMessages()
+				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
 			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
 
@@ -710,14 +689,18 @@ export class Task {
 		}
 		let askTs: number
 		if (partial !== undefined) {
-			const lastMessage = this.clineMessages.at(-1)
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastMessage = clineMessages.at(-1)
+			const lastMessageIndex = clineMessages.length - 1
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.partial = partial
+					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						text,
+						partial,
+					})
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
@@ -731,7 +714,7 @@ export class Task {
 					// this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClineMessages({
+					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
 						type: "ask",
 						ask: type,
@@ -759,17 +742,10 @@ export class Task {
 					askTs = lastMessage.ts
 					this.lastMessageTs = askTs
 					// lastMessage.ts = askTs
-					lastMessage.text = text
-					lastMessage.partial = false
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						text,
+						partial: false,
+					})
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
@@ -781,7 +757,7 @@ export class Task {
 					this.askResponseFiles = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClineMessages({
+					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
 						type: "ask",
 						ask: type,
@@ -799,7 +775,7 @@ export class Task {
 			this.askResponseFiles = undefined
 			askTs = Date.now()
 			this.lastMessageTs = askTs
-			await this.addToClineMessages({
+			await this.messageStateHandler.addToClineMessages({
 				ts: askTs,
 				type: "ask",
 				ask: type,
@@ -838,7 +814,7 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.clineMessages.at(-1)
+			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
@@ -854,7 +830,7 @@ export class Task {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClineMessages({
+					await this.messageStateHandler.addToClineMessages({
 						ts: sayTs,
 						type: "say",
 						say: type,
@@ -877,15 +853,7 @@ export class Task {
 					lastMessage.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
@@ -893,7 +861,7 @@ export class Task {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClineMessages({
+					await this.messageStateHandler.addToClineMessages({
 						ts: sayTs,
 						type: "say",
 						say: type,
@@ -908,7 +876,7 @@ export class Task {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
 			this.lastMessageTs = sayTs
-			await this.addToClineMessages({
+			await this.messageStateHandler.addToClineMessages({
 				ts: sayTs,
 				type: "say",
 				say: type,
@@ -931,18 +899,11 @@ export class Task {
 	}
 
 	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay) {
-		const lastMessage = this.clineMessages.at(-1)
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
-			this.clineMessages.pop()
-			await saveClineMessagesAndUpdateHistory(
-				this.getContext(),
-				this.taskId,
-				this.clineMessages,
-				this.taskIsFavorited ?? false,
-				this.conversationHistoryDeletedRange,
-				this.checkpointTracker,
-				this.updateTaskHistory,
-			)
+			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		}
 	}
 
@@ -957,7 +918,7 @@ export class Task {
 		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
-		this.clineMessages = []
+		this.messageStateHandler.setClineMessages([])
 		this.messageStateHandler.setApiConversationHistory([])
 
 		await this.postStateToWebview()
@@ -1024,8 +985,8 @@ export class Task {
 			}
 		}
 
-		await this.overwriteClineMessages(savedClineMessages)
-		this.clineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+		await this.messageStateHandler.overwriteClineMessages(savedClineMessages)
+		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.getContext(), this.taskId))
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
@@ -1038,7 +999,8 @@ export class Task {
 		const taskDir = await ensureTaskDirectoryExists(context, this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
 
-		const lastClineMessage = this.clineMessages
+		const lastClineMessage = this.messageStateHandler
+			.getClineMessages()
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
@@ -1208,7 +1170,7 @@ export class Task {
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.clineMessages.forEach((message) => {
+		this.messageStateHandler.getClineMessages().forEach((message) => {
 			if (message.say === "checkpoint_created") {
 				message.isCheckpointCheckedOut = false
 			}
@@ -1216,7 +1178,7 @@ export class Task {
 
 		if (!isAttemptCompletionMessage) {
 			// ensure we aren't creating a duplicate checkpoint
-			const lastMessage = this.clineMessages.at(-1)
+			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
 			}
@@ -1224,18 +1186,14 @@ export class Task {
 			// For non-attempt completion we just say checkpoints
 			await this.say("checkpoint_created")
 			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-				if (lastCheckpointMessage) {
-					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+				const lastCheckpointMessageIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "checkpoint_created",
+				)
+				if (lastCheckpointMessageIndex !== -1) {
+					await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+						lastCheckpointHash: commitHash,
+					})
 				}
 			}) // silently fails for now
 
@@ -1250,6 +1208,7 @@ export class Task {
 						this.context.globalStorageUri.fsPath,
 						this.enableCheckpoints,
 					)
+					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
 					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
@@ -1262,20 +1221,12 @@ export class Task {
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
 				const lastCompletionResultMessage = findLast(
-					this.clineMessages,
+					this.messageStateHandler.getClineMessages(),
 					(m) => m.say === "completion_result" || m.ask === "completion_result",
 				)
 				if (lastCompletionResultMessage) {
 					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			} else {
 				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
@@ -1704,7 +1655,7 @@ export class Task {
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
-			this.clineMessages,
+			this.messageStateHandler.getClineMessages(),
 			this.api,
 			this.conversationHistoryDeletedRange,
 			previousApiReqIndex,
@@ -1713,15 +1664,8 @@ export class Task {
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
 			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
-			await saveClineMessagesAndUpdateHistory(
-				this.getContext(),
-				this.taskId,
-				this.clineMessages,
-				this.taskIsFavorited ?? false,
-				this.conversationHistoryDeletedRange,
-				this.checkpointTracker,
-				this.updateTaskHistory,
-			) // saves task history item which we use to keep track of conversation history deleted range
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
 		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
@@ -1746,15 +1690,7 @@ export class Task {
 					this.conversationHistoryDeletedRange,
 					"quarter", // Force aggressive truncation
 				)
-				await saveClineMessagesAndUpdateHistory(
-					this.getContext(),
-					this.taskId,
-					this.clineMessages,
-					this.taskIsFavorited ?? false,
-					this.conversationHistoryDeletedRange,
-					this.checkpointTracker,
-					this.updateTaskHistory,
-				)
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 					Date.now(),
 					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -1768,15 +1704,7 @@ export class Task {
 						this.conversationHistoryDeletedRange,
 						"quarter", // Force aggressive truncation
 					)
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 						Date.now(),
 						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -1807,16 +1735,22 @@ export class Task {
 				const errorMessage = this.formatErrorWithStatusCode(error)
 
 				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
-				const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+				const lastApiReqStartedIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "api_req_started",
+				)
 				if (lastApiReqStartedIndex !== -1) {
-					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(this.clineMessages[lastApiReqStartedIndex].text || "{}")
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
 					delete currentApiReqInfo.retryStatus
 
-					this.clineMessages[lastApiReqStartedIndex].text = JSON.stringify({
-						...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-						cancelReason: "retries_exhausted", // Indicate that automatic retries failed
-						streamingFailedMessage: errorMessage,
-					} satisfies ClineApiReqInfo)
+					await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+						text: JSON.stringify({
+							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
+							cancelReason: "retries_exhausted", // Indicate that automatic retries failed
+							streamingFailedMessage: errorMessage,
+						} satisfies ClineApiReqInfo),
+					})
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
@@ -3534,21 +3468,16 @@ export class Task {
 								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
 									// Valid option selected, don't show user message in UI
 									// Update last followup message with selected option
-									const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup")
+									const lastFollowupMessage = findLast(
+										this.messageStateHandler.getClineMessages(),
+										(m) => m.ask === "followup",
+									)
 									if (lastFollowupMessage) {
 										lastFollowupMessage.text = JSON.stringify({
 											...sharedMessage,
 											selected: text,
 										} satisfies ClineAskQuestion)
-										await saveClineMessagesAndUpdateHistory(
-											this.getContext(),
-											this.taskId,
-											this.clineMessages,
-											this.taskIsFavorited ?? false,
-											this.conversationHistoryDeletedRange,
-											this.checkpointTracker,
-											this.updateTaskHistory,
-										)
+										await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -3680,15 +3609,7 @@ export class Task {
 										this.conversationHistoryDeletedRange,
 										keepStrategy,
 									)
-									await saveClineMessagesAndUpdateHistory(
-										this.getContext(),
-										this.taskId,
-										this.clineMessages,
-										this.taskIsFavorited ?? false,
-										this.conversationHistoryDeletedRange,
-										this.checkpointTracker,
-										this.updateTaskHistory,
-									)
+									await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 									await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 										Date.now(),
 										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -3983,21 +3904,16 @@ export class Task {
 								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
 									// Valid option selected, don't show user message in UI
 									// Update last followup message with selected option
-									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_respond")
+									const lastPlanMessage = findLast(
+										this.messageStateHandler.getClineMessages(),
+										(m) => m.ask === "plan_mode_respond",
+									)
 									if (lastPlanMessage) {
 										lastPlanMessage.text = JSON.stringify({
 											...sharedMessage,
 											selected: text,
 										} satisfies ClinePlanModeResponse)
-										await saveClineMessagesAndUpdateHistory(
-											this.getContext(),
-											this.taskId,
-											this.clineMessages,
-											this.taskIsFavorited ?? false,
-											this.conversationHistoryDeletedRange,
-											this.checkpointTracker,
-											this.updateTaskHistory,
-										)
+										await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -4091,27 +4007,31 @@ export class Task {
 							// Add newchanges flag if there are new changes to the workspace
 
 							const hasNewChanges = await this.doesLatestTaskCompletionHaveNewChanges()
-							const lastCompletionResultMessage = findLast(this.clineMessages, (m) => m.say === "completion_result")
+
+							const clineMessages = this.messageStateHandler.getClineMessages()
+
+							const lastCompletionResultMessageIndex = findLastIndex(
+								clineMessages,
+								(m) => m.say === "completion_result",
+							)
+							const lastCompletionResultMessage =
+								lastCompletionResultMessageIndex !== -1
+									? clineMessages[lastCompletionResultMessageIndex]
+									: undefined
 							if (
 								lastCompletionResultMessage &&
+								lastCompletionResultMessageIndex !== -1 &&
 								hasNewChanges &&
 								!lastCompletionResultMessage.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG)
 							) {
-								lastCompletionResultMessage.text += COMPLETION_RESULT_CHANGES_FLAG
+								await this.messageStateHandler.updateClineMessage(lastCompletionResultMessageIndex, {
+									text: lastCompletionResultMessage.text + COMPLETION_RESULT_CHANGES_FLAG,
+								})
 							}
-							await saveClineMessagesAndUpdateHistory(
-								this.getContext(),
-								this.taskId,
-								this.clineMessages,
-								this.taskIsFavorited ?? false,
-								this.conversationHistoryDeletedRange,
-								this.checkpointTracker,
-								this.updateTaskHistory,
-							)
 						}
 
 						try {
-							const lastMessage = this.clineMessages.at(-1)
+							const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 							if (block.partial) {
 								if (command) {
 									// the attempt_completion text is done, now we're getting command
@@ -4366,10 +4286,10 @@ export class Task {
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
-		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
 
 		// Save checkpoint if this is the first API request
-		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
+		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
@@ -4403,7 +4323,10 @@ export class Task {
 		if (isFirstRequest && this.enableCheckpoints && this.checkpointTracker) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const commitHash = await this.checkpointTracker.commit() // Actual commit
-			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+			const lastCheckpointMessage = findLast(
+				this.messageStateHandler.getClineMessages(),
+				(m) => m.say === "checkpoint_created",
+			)
 			if (lastCheckpointMessage) {
 				lastCheckpointMessage.lastCheckpointHash = commitHash
 				// saveClineMessagesAndUpdateHistory will be called later after API response,
@@ -4438,19 +4361,12 @@ export class Task {
 		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user", true)
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
-		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
-		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
-		} satisfies ClineApiReqInfo)
-		await saveClineMessagesAndUpdateHistory(
-			this.getContext(),
-			this.taskId,
-			this.clineMessages,
-			this.taskIsFavorited ?? false,
-			this.conversationHistoryDeletedRange,
-			this.checkpointTracker,
-			this.updateTaskHistory,
-		)
+		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
+		await this.messageStateHandler.updateClineMessage(lastApiReqIndex, {
+			text: JSON.stringify({
+				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+			} satisfies ClineApiReqInfo),
+		})
 		await this.postStateToWebview()
 
 		try {
@@ -4463,28 +4379,31 @@ export class Task {
 			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
 			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
 			// (it's worth removing a few months from now)
-			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
-				const currentApiReqInfo: ClineApiReqInfo = JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}")
+			const updateApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqIndex].text || "{}")
 				delete currentApiReqInfo.retryStatus // Clear retry status when request is finalized
 
-				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-					...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWrites: cacheWriteTokens,
-					cacheReads: cacheReadTokens,
-					cost:
-						totalCost ??
-						calculateApiCostAnthropic(
-							this.api.getModel().info,
-							inputTokens,
-							outputTokens,
-							cacheWriteTokens,
-							cacheReadTokens,
-						),
-					cancelReason,
-					streamingFailedMessage,
-				} satisfies ClineApiReqInfo)
+				await this.messageStateHandler.updateClineMessage(lastApiReqIndex, {
+					text: JSON.stringify({
+						...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWrites: cacheWriteTokens,
+						cacheReads: cacheReadTokens,
+						cost:
+							totalCost ??
+							calculateApiCostAnthropic(
+								this.api.getModel().info,
+								inputTokens,
+								outputTokens,
+								cacheWriteTokens,
+								cacheReadTokens,
+							),
+						cancelReason,
+						streamingFailedMessage,
+					} satisfies ClineApiReqInfo),
+				})
 			}
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
@@ -4493,7 +4412,7 @@ export class Task {
 				}
 
 				// if last message is a partial we need to update and save it
-				const lastMessage = this.clineMessages.at(-1)
+				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 				if (lastMessage && lastMessage.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
@@ -4520,16 +4439,8 @@ export class Task {
 				})
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				updateApiReqMsg(cancelReason, streamingFailedMessage)
-				await saveClineMessagesAndUpdateHistory(
-					this.getContext(),
-					this.taskId,
-					this.clineMessages,
-					this.taskIsFavorited ?? false,
-					this.conversationHistoryDeletedRange,
-					this.checkpointTracker,
-					this.updateTaskHistory,
-				)
+				await updateApiReqMsg(cancelReason, streamingFailedMessage)
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				telemetryService.captureConversationTurnEvent(
 					this.taskId,
@@ -4654,16 +4565,8 @@ export class Task {
 						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
 						totalCost = apiStreamUsage.totalCost
 					}
-					updateApiReqMsg()
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
-					)
+					await updateApiReqMsg()
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					await this.postStateToWebview()
 				})
 			}
@@ -4686,16 +4589,8 @@ export class Task {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
-			updateApiReqMsg()
-			await saveClineMessagesAndUpdateHistory(
-				this.getContext(),
-				this.taskId,
-				this.clineMessages,
-				this.taskIsFavorited ?? false,
-				this.conversationHistoryDeletedRange,
-				this.checkpointTracker,
-				this.updateTaskHistory,
-			)
+			await updateApiReqMsg()
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
 			// now add to apiconversationhistory
@@ -5009,7 +4904,8 @@ export class Task {
 			}
 		}
 
-		const modifiedMessages = combineApiRequests(combineCommandSequences(this.clineMessages.slice(1)))
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const modifiedMessages = combineApiRequests(combineCommandSequences(clineMessages.slice(1)))
 		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
 			if (msg.say !== "api_req_started") {
 				return false

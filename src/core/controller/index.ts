@@ -973,7 +973,7 @@ export class Controller {
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.clineMessages || [],
+			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
