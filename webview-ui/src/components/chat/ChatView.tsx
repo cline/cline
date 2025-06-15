@@ -1306,7 +1306,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
-				isWithinTask={!!task}
+				isTaskView={!!task}
 			/>
 		</div>
 	)
