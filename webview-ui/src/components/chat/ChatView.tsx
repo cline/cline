@@ -102,6 +102,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		apiConfiguration,
 		telemetrySetting,
 		navigateToChat,
+		currentTaskItem
 	} = useExtensionState()
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -386,6 +387,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "completion_result":
 						case "tool":
 						case "load_mcp_documentation":
+						case "new_child_task":
+						case "start_next_child_task":
 							break
 					}
 					break
@@ -1119,6 +1122,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					lastApiReqTotalTokens={lastApiReqTotalTokens}
 					onClose={handleTaskCloseButtonClick}
 					onScrollToMessage={scrollToMessage}
+					currentTaskItem={currentTaskItem}
+					allTasks={taskHistory}
 				/>
 			) : (
 				<div

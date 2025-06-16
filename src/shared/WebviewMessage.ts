@@ -1,3 +1,10 @@
+/*
+ * @Description: 
+ * @Author: 清园
+ * @Date: 2025-06-16 14:20:56
+ * @LastEditors: 清园
+ * @LastEditTime: 2025-06-16 14:27:05
+ */
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
@@ -17,6 +24,7 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
+		| "showTaskWithId"
 
 	text?: string
 	disabled?: boolean
@@ -71,6 +79,14 @@ export interface WebviewMessage {
 	shellIntegrationTimeout?: number
 	terminalReuseEnabled?: boolean
 	defaultTerminalProfile?: string
+
+	parentId?: string
+	childTaskId?: string
+	childTaskPrompt?: string
+	executeImmediately?: boolean
+	childId?: string 
+	resultSummary?: string
+	failureReason?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
