@@ -7,5 +7,10 @@
 	"toolRepetitionLimitReached": "Roo semble être bloqué dans une boucle, tentant la même action ({{toolName}}) de façon répétée. Cela pourrait indiquer un problème avec sa stratégie actuelle. Envisage de reformuler la tâche, de fournir des instructions plus spécifiques ou de le guider vers une approche différente.",
 	"codebaseSearch": {
 		"approval": "Recherche de '{{query}}' dans la base de code..."
+	},
+	"newTask": {
+		"errors": {
+			"policy_restriction": "Impossible de créer une nouvelle tâche en raison de restrictions de politique."
+		}
 	}
 }

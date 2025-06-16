@@ -102,5 +102,12 @@
 			"groqApiKey": "Khóa API Groq",
 			"getGroqApiKey": "Lấy khóa API Groq"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "Tổ chức của bạn yêu cầu xác thực Roo Code Cloud. Vui lòng đăng nhập để tiếp tục.",
+			"organization_mismatch": "Bạn phải được xác thực bằng tài khoản Roo Code Cloud của tổ chức.",
+			"verification_failed": "Không thể xác minh xác thực tổ chức."
+		}
 	}
 }

@@ -102,5 +102,12 @@
 			"groqApiKey": "ग्रोक एपीआई कुंजी",
 			"getGroqApiKey": "ग्रोक एपीआई कुंजी प्राप्त करें"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "आपके संगठन को Roo Code Cloud प्रमाणीकरण की आवश्यकता है। कृपया जारी रखने के लिए साइन इन करें।",
+			"organization_mismatch": "आपको अपने संगठन के Roo Code Cloud खाते से प्रमाणित होना होगा।",
+			"verification_failed": "संगठन प्रमाणीकरण सत्यापित करने में असमर्थ।"
+		}
 	}
 }

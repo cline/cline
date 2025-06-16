@@ -102,5 +102,12 @@
 			"groqApiKey": "Groq APIキー",
 			"getGroqApiKey": "Groq APIキーを取得"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "あなたの組織では Roo Code Cloud 認証が必要です。続行するにはサインインしてください。",
+			"organization_mismatch": "組織の Roo Code Cloud アカウントで認証する必要があります。",
+			"verification_failed": "組織認証の確認ができませんでした。"
+		}
 	}
 }

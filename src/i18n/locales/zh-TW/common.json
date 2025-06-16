@@ -102,5 +102,12 @@
 			"groqApiKey": "Groq API 金鑰",
 			"getGroqApiKey": "取得 Groq API 金鑰"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "您的組織需要 Roo Code Cloud 身份驗證。請登入以繼續。",
+			"organization_mismatch": "您必須使用組織的 Roo Code Cloud 帳戶進行身份驗證。",
+			"verification_failed": "無法驗證組織身份驗證。"
+		}
 	}
 }

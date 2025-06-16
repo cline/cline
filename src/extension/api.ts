@@ -132,11 +132,15 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		await provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
-		const { taskId } = await provider.initClineWithTask(text, images, undefined, {
+		const cline = await provider.initClineWithTask(text, images, undefined, {
 			consecutiveMistakeLimit: Number.MAX_SAFE_INTEGER,
 		})
 
-		return taskId
+		if (!cline) {
+			throw new Error("Failed to create task due to policy restrictions")
+		}
+
+		return cline.taskId
 	}
 
 	public async resumeTask(taskId: string): Promise<void> {

@@ -4,6 +4,7 @@ import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } f
 import { Task } from "../task/Task"
 import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
 import { formatResponse } from "../prompts/responses"
+import { t } from "../../i18n"
 
 export async function newTaskTool(
 	cline: Task,
@@ -43,7 +44,7 @@ export async function newTaskTool(
 
 			cline.consecutiveMistakeCount = 0
 			// Un-escape one level of backslashes before '@' for hierarchical subtasks
-// Un-escape one level: \\@ -> \@ (removes one backslash for hierarchical subtasks)
+			// Un-escape one level: \\@ -> \@ (removes one backslash for hierarchical subtasks)
 			const unescapedMessage = message.replace(/\\\\@/g, "\\@")
 
 			// Verify the mode exists
@@ -86,6 +87,10 @@ export async function newTaskTool(
 			await delay(500)
 
 			const newCline = await provider.initClineWithTask(unescapedMessage, undefined, cline)
+			if (!newCline) {
+				pushToolResult(t("tools:newTask.errors.policy_restriction"))
+				return
+			}
 			cline.emit("taskSpawned", newCline.taskId)
 
 			pushToolResult(`Successfully created new task in ${targetMode.name} mode with message: ${unescapedMessage}`)

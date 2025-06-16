@@ -107,5 +107,12 @@
 			"groqApiKey": "Groq API 密钥",
 			"getGroqApiKey": "获取 Groq API 密钥"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "您的组织需要 Roo Code Cloud 身份验证。请登录以继续。",
+			"organization_mismatch": "您必须使用组织的 Roo Code Cloud 账户进行身份验证。",
+			"verification_failed": "无法验证组织身份验证。"
+		}
 	}
 }

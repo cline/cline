@@ -102,5 +102,12 @@
 			"groqApiKey": "Chave de API Groq",
 			"getGroqApiKey": "Obter chave de API Groq"
 		}
+	},
+	"mdm": {
+		"errors": {
+			"cloud_auth_required": "Sua organização requer autenticação do Roo Code Cloud. Faça login para continuar.",
+			"organization_mismatch": "Você deve estar autenticado com a conta Roo Code Cloud da sua organização.",
+			"verification_failed": "Não foi possível verificar a autenticação da organização."
+		}
 	}
 }

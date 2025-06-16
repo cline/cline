@@ -7,5 +7,10 @@
 	"toolRepetitionLimitReached": "Roo parece estar atrapado en un bucle, intentando la misma acción ({{toolName}}) repetidamente. Esto podría indicar un problema con su estrategia actual. Considera reformular la tarea, proporcionar instrucciones más específicas o guiarlo hacia un enfoque diferente.",
 	"codebaseSearch": {
 		"approval": "Buscando '{{query}}' en la base de código..."
+	},
+	"newTask": {
+		"errors": {
+			"policy_restriction": "No se pudo crear una nueva tarea debido a restricciones de política."
+		}
 	}
 }

@@ -10,5 +10,10 @@
 	},
 	"searchFiles": {
 		"workspaceBoundaryError": "Tidak dapat mencari di luar workspace. Path '{{path}}' berada di luar workspace saat ini."
+	},
+	"newTask": {
+		"errors": {
+			"policy_restriction": "Gagal membuat tugas baru karena pembatasan kebijakan."
+		}
 	}
 }

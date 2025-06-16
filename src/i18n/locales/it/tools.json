@@ -7,5 +7,10 @@
 	"toolRepetitionLimitReached": "Roo sembra essere bloccato in un ciclo, tentando ripetutamente la stessa azione ({{toolName}}). Questo potrebbe indicare un problema con la sua strategia attuale. Considera di riformulare l'attività, fornire istruzioni più specifiche o guidarlo verso un approccio diverso.",
 	"codebaseSearch": {
 		"approval": "Ricerca di '{{query}}' nella base di codice..."
+	},
+	"newTask": {
+		"errors": {
+			"policy_restriction": "Impossibile creare una nuova attività a causa di restrizioni di policy."
+		}
 	}
 }

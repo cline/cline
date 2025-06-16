@@ -7,5 +7,10 @@
 	"toolRepetitionLimitReached": "Rooが同じ操作（{{toolName}}）を繰り返し試みるループに陥っているようです。これは現在の方法に問題がある可能性を示しています。タスクの言い換え、より具体的な指示の提供、または別のアプローチへの誘導を検討してください。",
 	"codebaseSearch": {
 		"approval": "コードベースで '{{query}}' を検索中..."
+	},
+	"newTask": {
+		"errors": {
+			"policy_restriction": "ポリシー制限により新しいタスクを作成できませんでした。"
+		}
 	}
 }
