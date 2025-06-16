@@ -157,8 +157,18 @@ export class Task {
 	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
-
-	// User chat state
+	private initTask: (task?: string, images?: string[], files?: string[], historyItem?: HistoryItem, parentTaskId?: string, childTaskId?: string) => void
+	private showTaskWithId: (taskId: string) => void
+	private getTaskWithId: (taskId: string) => Promise<{
+		historyItem: HistoryItem;
+		taskDirPath: string;
+		apiConversationHistoryFilePath: string;
+		uiMessagesFilePath: string;
+		contextHistoryFilePath: string;
+		taskMetadataFilePath: string;
+		apiConversationHistory: Anthropic.MessageParam[];
+	}>
+	private didEditFile: boolean = false
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
@@ -166,6 +176,32 @@ export class Task {
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 	conversationHistoryDeletedRange?: [number, number]
+	isInitialized = false
+	isAwaitingPlanResponse = false
+	didRespondToPlanAskBySwitchingMode = false
+	// streaming
+	isWaitingForFirstChunk = false
+	isStreaming = false
+	private parentId?: string
+	private childTaskIds: string[] = []
+	private status?: HistoryItem["status"] = "running"
+	private activeChildTaskId?: string
+	private pendingChildTasks: Array<{
+		id: string
+		prompt: string
+		files?: string[]
+		createdAt: number
+	}> = []
+	private currentStreamingContentIndex = 0
+	private assistantMessageContent: AssistantMessageContent[] = []
+	private presentAssistantMessageLocked = false
+	private presentAssistantMessageHasPendingUpdates = false
+	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	private userMessageContentReady = false
+	private didRejectTool = false
+	private didAlreadyUseTool = false
+	private didCompleteReadingStream = false
+	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -176,6 +212,17 @@ export class Task {
 		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
 		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
 		cancelTask: () => Promise<void>,
+		initTask: (task?: string, images?: string[], files?: string[], historyItem?: HistoryItem, parentTaskId?: string, childTaskId?: string) => void,
+		showTaskWithId: (taskId: string) => void,
+		getTaskWithId: (taskId: string) => Promise<{
+			historyItem: HistoryItem;
+			taskDirPath: string;
+			apiConversationHistoryFilePath: string;
+			uiMessagesFilePath: string;
+			contextHistoryFilePath: string;
+			taskMetadataFilePath: string;
+			apiConversationHistory: Anthropic.MessageParam[];
+		}>,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
@@ -189,6 +236,9 @@ export class Task {
 		images?: string[],
 		files?: string[],
 		historyItem?: HistoryItem,
+		// 新增参数，用于支持父子任务关系
+		parentId?: string,
+		childTaskId?: string,
 	) {
 		this.taskState = new TaskState()
 		this.context = context
@@ -199,6 +249,9 @@ export class Task {
 		this.postMessageToWebview = postMessageToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
+		this.showTaskWithId = showTaskWithId
+		this.initTask = initTask
+		this.getTaskWithId = getTaskWithId
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		// Initialization moved to startTask/resumeTaskFromHistory
 		this.terminalManager = new TerminalManager()
@@ -226,8 +279,19 @@ export class Task {
 			this.taskId = historyItem.id
 			this.taskIsFavorited = historyItem.isFavorited
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			// 从 historyItem 初始化父子关系字段
+			this.parentId = historyItem.parentId
+			this.status = historyItem.status
+			this.childTaskIds = historyItem.childTaskIds || []
+			this.activeChildTaskId = historyItem.activeChildTaskId
+			this.pendingChildTasks = historyItem.pendingChildTasks || []
 		} else if (task || images || files) {
-			this.taskId = Date.now().toString()
+			this.taskId = childTaskId || Date.now().toString()
+			// 从参数初始化父子关系字段
+			this.parentId = parentId
+			this.childTaskIds = []
+			this.activeChildTaskId = undefined
+			this.pendingChildTasks = []
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -317,6 +381,59 @@ export class Task {
 			throw new Error("Unable to access extension context")
 		}
 		return context
+	}
+	getTaskInfo() {
+		return {
+			taskId: this.taskId,
+			parentId: this.parentId,
+			childTaskIds: this.childTaskIds,
+			status: this.status,
+			activeChildTaskId: this.activeChildTaskId,
+			pendingChildTasks: this.pendingChildTasks,
+		}
+	}
+	isPaused() {
+		return this.status === "paused"
+	}
+	// Storing task to disk for history
+	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
+		this.apiConversationHistory.push(message)
+		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
+	}
+
+	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+		this.apiConversationHistory = newHistory
+		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
+	}
+
+	private async addToClineMessages(message: ClineMessage) {
+		// these values allow us to reconstruct the conversation history at the time this cline message was created
+		// it's important that apiConversationHistory is initialized before we add cline messages
+		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
+		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
+		this.clineMessages.push(message)
+		await saveClineMessagesAndUpdateHistory(
+			this.getContext(),
+			this.getTaskInfo,
+			this.clineMessages,
+			this.taskIsFavorited ?? false,
+			this.conversationHistoryDeletedRange,
+			this.checkpointTracker,
+			this.updateTaskHistory,
+		)
+	}
+
+	private async overwriteClineMessages(newMessages: ClineMessage[]) {
+		this.clineMessages = newMessages
+		await saveClineMessagesAndUpdateHistory(
+			this.getContext(),
+			this.getTaskInfo,
+			this.clineMessages,
+			this.taskIsFavorited ?? false,
+			this.conversationHistoryDeletedRange,
+			this.checkpointTracker,
+			this.updateTaskHistory,
+		)
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
@@ -526,11 +643,11 @@ export class Task {
 
 		let changedFiles:
 			| {
-					relativePath: string
-					absolutePath: string
-					before: string
-					after: string
-			  }[]
+				relativePath: string
+				absolutePath: string
+				before: string
+				after: string
+			}[]
 			| undefined
 
 		try {
@@ -821,6 +938,10 @@ export class Task {
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean): Promise<undefined> {
+		if (this.isPaused()) {
+			console.log("Cline instance is paused")
+			return
+		}
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -903,8 +1024,7 @@ export class Task {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -1148,6 +1268,13 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
+			// check if the task is paused
+			if (this.isPaused()) {
+				await pWaitFor(() => !this.isPaused() || this.taskState.abort, { interval: 100 })
+				if (this.taskState.abort) {
+					break
+				}
+			}
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1383,8 +1510,7 @@ export class Task {
 			// Format the result similar to terminal output
 			return [
 				false,
-				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
-					result.exitCode
+				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${result.exitCode
 				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
 			]
 		} catch (error) {
@@ -1519,8 +1645,7 @@ export class Task {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
 					fileContentString,
@@ -1533,8 +1658,7 @@ export class Task {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -1939,10 +2063,12 @@ export class Task {
 	}
 
 	async presentAssistantMessage() {
-		if (this.taskState.abort) {
+		if (this.taskState.abort && !this.isPaused()) {
 			throw new Error("Cline instance aborted")
 		}
-
+		if (this.isPaused()) {
+			return
+		}
 		if (this.taskState.presentAssistantMessageLocked) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
@@ -2030,9 +2156,8 @@ export class Task {
 						case "replace_in_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${
-								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-							}]`
+							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+								}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -2061,6 +2186,12 @@ export class Task {
 							return `[${block.name} for '${block.params.path}']`
 						case "web_fetch":
 							return `[${block.name} for '${block.params.url}']`
+						case "new_child_task":
+							return `[${block.name} for creating a sub-task with prompt: '${block.params.child_task_prompt}']`
+						case "start_next_child_task":
+							return `[${block.name}]`
+						case "view_pending_tasks":
+							return `[${block.name}]`
 					}
 				}
 
@@ -2309,7 +2440,7 @@ export class Task {
 										pushToolResult(
 											formatResponse.toolError(
 												`${(error as Error)?.message}\n\n` +
-													formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+												formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
 											),
 										)
 										await this.diffViewProvider.revertChanges()
@@ -2358,7 +2489,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
@@ -2406,7 +2537,7 @@ export class Task {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -2582,7 +2713,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -2677,7 +2808,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -2764,7 +2895,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -2853,7 +2984,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -2968,7 +3099,7 @@ export class Task {
 											"browser_action_launch",
 											removeClosingTag("url", url),
 											block.partial,
-										).catch(() => {})
+										).catch(() => { })
 									}
 								} else {
 									await this.say(
@@ -3088,8 +3219,7 @@ export class Task {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
-													browserActionResult.logs || "(No new logs)"
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
@@ -3132,7 +3262,7 @@ export class Task {
 									// ).catch(() => {})
 								} else {
 									// don't need to remove last partial since we couldn't have streamed a say
-									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
+									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -3194,7 +3324,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+										`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										await this.saveCheckpoint()
@@ -3255,7 +3385,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
 								}
 
 								break
@@ -3352,19 +3482,19 @@ export class Task {
 										.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
 								let toolResultText =
 									(toolResult?.isError ? "Error:\n" : "") +
-										toolResult?.content
-											.map((item) => {
-												if (item.type === "text") {
-													return item.text
-												}
-												if (item.type === "resource") {
-													const { blob, ...rest } = item.resource
-													return JSON.stringify(rest, null, 2)
-												}
-												return ""
-											})
-											.filter(Boolean)
-											.join("\n\n") || "(No response)"
+									toolResult?.content
+										.map((item) => {
+											if (item.type === "text") {
+												return item.text
+											}
+											if (item.type === "resource") {
+												const { blob, ...rest } = item.resource
+												return JSON.stringify(rest, null, 2)
+											}
+											return ""
+										})
+										.filter(Boolean)
+										.join("\n\n") || "(No response)"
 								// webview extracts images from the text response to display in the UI
 								const toolResultToDisplay =
 									toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
@@ -3407,7 +3537,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
 								}
 
 								break
@@ -3482,7 +3612,7 @@ export class Task {
 						} satisfies ClineAskQuestion
 						try {
 							if (block.partial) {
-								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => {})
+								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => { })
 								break
 							} else {
 								if (!question) {
@@ -3551,7 +3681,7 @@ export class Task {
 						const context: string | undefined = block.params.context
 						try {
 							if (block.partial) {
-								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => {})
+								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => { })
 								break
 							} else {
 								if (!context) {
@@ -3601,11 +3731,243 @@ export class Task {
 							break
 						}
 					}
+					case "new_child_task": {
+						console.log("Handling new_child_task tool block")
+						const childTaskPrompt: string | undefined = block.params.child_task_prompt
+						const childTaskFilesRaw: string | undefined = block.params.child_task_files
+						const executeImmediatelyRaw: string | undefined = block.params.execute_immediately
+						const executeImmediately = executeImmediatelyRaw?.toLowerCase() !== "false"
+
+						let childTaskFiles: string[] | undefined
+						if (childTaskFilesRaw) {
+							try {
+								const parsedFiles = JSON.parse(childTaskFilesRaw)
+								if (Array.isArray(parsedFiles) && parsedFiles.every((item) => typeof item === "string")) {
+									childTaskFiles = parsedFiles
+								}
+							} catch (e) {
+								// Handle parsing error
+							}
+						}
+
+						const sharedMessageProps: ClineSayTool = {
+							tool: "newChildTask",
+							prompt: removeClosingTag("child_task_prompt", childTaskPrompt),
+							files: childTaskFiles,
+							executeImmediately: executeImmediately,
+						}
+
+						if (block.partial) {
+							const partialMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", partialMessage, undefined, undefined, block.partial)
+							} else {
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+							}
+							break
+						} else {
+							if (!childTaskPrompt) {
+								this.taskState.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("new_child_task", "child_task_prompt"))
+								await this.saveCheckpoint()
+								break
+							}
+							this.taskState.consecutiveMistakeCount = 0
+
+							const completeMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", completeMessage, undefined, undefined, false)
+								this.taskState.consecutiveAutoApprovedRequestsCount++
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									true,
+									true,
+								)
+							} else {
+								showNotificationForApprovalIfAutoApprovalEnabled(
+									`Cline wants to create a child task: ${childTaskPrompt.substring(0, 50)}...`,
+								)
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										false,
+									)
+									await this.saveCheckpoint()
+									break
+								}
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									false,
+									true,
+								)
+							}
+							// 执行工具
+							const toolResponse = await this.executeNewChildTaskTool(
+								childTaskPrompt,
+								childTaskFiles,
+								executeImmediately,
+							)
+							this.say(
+								"new_child_task",
+								`Child Task: "${sharedMessageProps.prompt}" created.`,
+								undefined,
+								undefined,
+								false,
+							)
+							const isClaude4Model = await isClaude4ModelFamily(this.api)
+							pushToolResult(toolResponse, isClaude4Model)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+
+					case "start_next_child_task": {
+						const sharedMessageProps: ClineSayTool = {
+							tool: "startNextChildTask",
+						}
+
+						if (block.partial) {
+							const partialMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", partialMessage, undefined, undefined, block.partial)
+							} else {
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+							}
+							break
+						} else {
+							this.taskState.consecutiveMistakeCount = 0
+
+							const completeMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", completeMessage, undefined, undefined, false)
+								this.taskState.consecutiveAutoApprovedRequestsCount++
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									true,
+									true,
+								)
+							} else {
+								showNotificationForApprovalIfAutoApprovalEnabled(
+									`Cline wants to start the next pending child task`,
+								)
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										false,
+									)
+									await this.saveCheckpoint()
+									break
+								}
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									false,
+									true,
+								)
+							}
+
+							// 执行工具
+							const toolResponse = await this.executeStartNextChildTaskTool()
+							const isClaude4Model = await isClaude4ModelFamily(this.api)
+							this.say("start_next_child_task", `Starting Child Task...`, undefined, undefined, false)
+							pushToolResult(toolResponse, isClaude4Model)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+
+					case "view_pending_tasks": {
+						const sharedMessageProps: ClineSayTool = {
+							tool: "viewPendingChildTasks",
+						}
+
+						if (block.partial) {
+							const partialMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", partialMessage, undefined, undefined, block.partial)
+							} else {
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+							}
+							break
+						} else {
+							this.consecutiveMistakeCount = 0
+
+							const completeMessage = JSON.stringify(sharedMessageProps)
+							if (this.shouldAutoApproveTool(block.name)) {
+								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+								await this.say("tool", completeMessage, undefined, undefined, false)
+								this.consecutiveAutoApprovedRequestsCount++
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									true,
+									true,
+								)
+							} else {
+								showNotificationForApprovalIfAutoApprovalEnabled(`Cline wants to view pending child tasks`)
+								this.removeLastPartialMessageIfExistsWithType("say", "tool")
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										false,
+									)
+									await this.saveCheckpoint()
+									break
+								}
+								telemetryService.captureToolUsage(
+									this.taskId,
+									block.name,
+									this.api.getModel().id,
+									false,
+									true,
+								)
+							}
+
+							// 执行工具
+							const toolResponse = await this.executeViewPendingTasksTool()
+							const isClaude4Model = await isClaude4ModelFamily(this.api)
+							pushToolResult(toolResponse, isClaude4Model)
+							// this.say('new_child_task', `Child Task: "${sharedMessageProps.prompt}" created.`, undefined, undefined, false)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+
 					case "condense": {
 						const context: string | undefined = block.params.context
 						try {
 							if (block.partial) {
-								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => {})
+								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => { })
 								break
 							} else {
 								if (!context) {
@@ -3688,7 +4050,7 @@ export class Task {
 										additional_context: removeClosingTag("additional_context", additional_context),
 									}),
 									block.partial,
-								).catch(() => {})
+								).catch(() => { })
 								break
 							} else {
 								if (!title) {
@@ -3828,7 +4190,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -3915,7 +4277,7 @@ export class Task {
 						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => {})
+								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => { })
 								break
 							} else {
 								if (!response) {
@@ -3986,9 +4348,9 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolResult(
 											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
-												(text
-													? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
-													: ""),
+											(text
+												? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+												: ""),
 											images,
 											fileContentString,
 										),
@@ -4091,7 +4453,7 @@ export class Task {
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => {},
+											() => { },
 										)
 									} else {
 										// last message is completion_result
@@ -4106,7 +4468,7 @@ export class Task {
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => {},
+											() => { },
 										)
 									}
 								} else {
@@ -4168,6 +4530,46 @@ export class Task {
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
 									telemetryService.captureTaskCompleted(this.taskId)
+								}
+
+								this.status = "completed"
+								// 如果这是一个子任务，自动恢复父任务执行
+								if (this.parentId) {
+									// 获取父任务信息
+									const parentTask = await this.getTaskWithId(this.parentId)
+									if (!parentTask) {
+										console.error(`Parent task with ID ${this.parentId} not found.`)
+										return
+									}
+
+									await saveClineMessagesAndUpdateHistory(
+										this.getContext(),
+										this.getTaskInfo,
+										this.clineMessages,
+										this.taskIsFavorited ?? false,
+										this.conversationHistoryDeletedRange,
+										this.checkpointTracker,
+										this.updateTaskHistory,
+									)
+									const parentHistoryItem = parentTask.historyItem
+									// 更新父任务状态：清除当前活跃子任务
+									parentHistoryItem.activeChildTaskId = undefined
+									this.updateTaskHistory(parentTask.historyItem)
+									// 询问用户是否要切换到父任务
+									const { text } = await this.ask(
+										"followup",
+										JSON.stringify({
+											question: "当前子任务已完成，是否要返回父任务？",
+											options: ["是，立即回到父任务", "否，我还要继续处理"],
+										} satisfies ClineAskQuestion),
+									)
+
+									// 根据用户选择处理
+									if (text === "是，立即回到父任务") {
+										// 用户选择切换到父任务
+										await this.showTaskWithId(this.parentId)
+									}
+									break
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
@@ -4263,6 +4665,14 @@ export class Task {
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
+	
+		if (this.isPaused()) {
+			await pWaitFor(() => !this.isPaused() || this.taskState.abort, { interval: 100 })
+
+			if (this.taskState.abort) {
+				return false
+			}
+		}
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -4272,7 +4682,7 @@ export class Task {
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
-			} catch {}
+			} catch { }
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= 3) {
@@ -4460,10 +4870,9 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+								`\n\n[${cancelReason === "streaming_failed"
+									? "Response interrupted by API Error"
+									: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -4840,7 +5249,7 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch(() => { })
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
@@ -4987,5 +5396,149 @@ export class Task {
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
+	}
+	// 在 Task 类中添加这个新方法
+	async executeNewChildTaskTool(
+		childTaskPrompt: string,
+		childTaskFiles?: string[],
+		executeImmediately: boolean = true,
+	): Promise<ToolResponse> {
+		if (!this.context) {
+			return formatResponse.toolError("Task context is not available to create a child task.")
+		}
+		// Generate a unique ID for the child task
+		const childTaskId = Date.now().toString()
+
+		if (executeImmediately) {
+			setTimeout(() => {
+				// 立即执行模式：直接创建并启动子任务（保持原有行为）
+				this.initTask(
+					childTaskPrompt,
+					undefined, // images
+					childTaskFiles, // files
+					undefined, // historyItem
+					this.taskId, // parentIdForNewTask
+					childTaskId, // childTaskId
+				)
+			}, 200)
+
+			// Add child task ID to our list
+			this.childTaskIds.push(childTaskId)
+			// Update our status to paused
+			this.status = "paused"
+			this.activeChildTaskId = childTaskId
+			return formatResponse.toolResult(
+				`Child task created and started immediately (ID: ${childTaskId}). Parent task is now paused and will resume when the child task completes.`,
+			)
+		} else {
+			// 延迟执行模式：只存储子任务信息，不立即执行
+			const childTaskInfo = {
+				id: childTaskId,
+				prompt: childTaskPrompt,
+				files: childTaskFiles,
+				createdAt: Date.now(),
+			}
+			this.pendingChildTasks.push(childTaskInfo)
+
+			// Add child task ID to our list for tracking
+			this.childTaskIds.push(childTaskId)
+
+			return formatResponse.toolResult(
+				`Child task created and queued for later execution (ID: ${childTaskId}). It will be executed when the parent task completes. Total pending child tasks: ${this.pendingChildTasks?.length || 0}`,
+			)
+		}
+	}
+
+	/**
+	 * 获取待执行子任务的数量
+	 */
+	async getPendingChildTasksCount(): Promise<number> {
+		try {
+			const currentHistoryItem = await this.getTaskWithId(this.taskId)
+			return currentHistoryItem?.historyItem.pendingChildTasks?.length || 0
+		} catch (error) {
+			console.error("Failed to get pending child tasks count:", error)
+			return 0
+		}
+	}
+
+	/**
+	 * 启动下一个待执行的子任务
+	 */
+	async executeStartNextChildTaskTool(): Promise<ToolResponse> {
+		// 检查是否有待执行的子任务
+		if (!this.pendingChildTasks || this.pendingChildTasks.length === 0) {
+			return formatResponse.toolResult("No pending child tasks to execute.")
+		}
+
+		// 检查是否已有活动的子任务
+		if (this.activeChildTaskId) {
+			return formatResponse.toolResult(
+				`Cannot start new child task. There is already an active child task (ID: ${this.activeChildTaskId}). Please wait for it to complete first.`,
+			)
+		}
+
+		// 获取下一个待执行的子任务
+		const nextChildTask = this.pendingChildTasks.shift()
+		if (!nextChildTask) {
+			return formatResponse.toolResult("No pending child tasks available.")
+		}
+
+		try {
+			setTimeout(() => {
+				// start the child task after a short delay
+				this.initTask(
+					nextChildTask.prompt,
+					undefined, // images
+					nextChildTask.files, // files
+					undefined, // historyItem
+					this.taskId, // parentIdForNewTask
+					nextChildTask.id, // childTaskId
+				)
+
+			}, 100)
+			// update parent task status
+			this.status = "paused"
+			this.activeChildTaskId = nextChildTask.id
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			return formatResponse.toolResult(
+				`Child task started successfully (ID: ${nextChildTask.id}). Parent task is now paused. Remaining pending tasks: ${this.pendingChildTasks.length}`,
+			)
+		} catch (error) {
+			// 如果启动失败，将任务放回队列开头
+			this.pendingChildTasks.unshift(nextChildTask)
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			return formatResponse.toolError(`Failed to start child task: ${errorMessage}`)
+		}
+	}
+
+	/**
+	 * 查看待执行的子任务列表
+	 */
+	async executeViewPendingTasksTool(): Promise<ToolResponse> {
+		if (!this.pendingChildTasks || this.pendingChildTasks.length === 0) {
+			return "No pending child tasks."
+		}
+
+		let result = `Pending Child Tasks (${this.pendingChildTasks.length} total):\n\n`
+
+		this.pendingChildTasks.forEach((task, index) => {
+			const createdDate = new Date(task.createdAt).toLocaleString()
+			result += `${index + 1}. Task ID: ${task.id}\n`
+			result += `   Prompt: ${task.prompt.substring(0, 100)}${task.prompt.length > 100 ? "..." : ""}\n`
+			result += `   Created: ${createdDate}\n`
+			if (task.files && task.files.length > 0) {
+				result += `   Files: ${task.files.join(", ")}\n`
+			}
+			result += "\n"
+		})
+
+		// 添加当前活动子任务信息（如果有）
+		if (this.activeChildTaskId) {
+			result += `\nCurrently Active Child Task: ${this.activeChildTaskId}\n`
+			result += `Parent Task Status: ${this.status}\n`
+		}
+
+		return result
 	}
 }

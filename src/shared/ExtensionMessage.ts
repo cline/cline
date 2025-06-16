@@ -65,6 +65,12 @@ export interface ExtensionMessage {
 		is_streaming?: boolean // Whether this is part of a streaming response
 		sequence_number?: number // For ordering chunks in streaming responses
 	}
+	childTaskId?: string
+	childTaskPrompt?: string
+	executeImmediately?: boolean
+	parentId?: string
+	resultSummary?: string
+	failureReason?: string
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -144,6 +150,7 @@ export type ClineAsk =
 	| "new_task"
 	| "condense"
 	| "report_bug"
+	| "child_task_completed"
 
 export type ClineSay =
 	| "task"
@@ -173,6 +180,8 @@ export type ClineSay =
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
+	| "new_child_task"
+	| "start_next_child_task"
 
 export interface ClineSayTool {
 	tool:
@@ -184,12 +193,19 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "newChildTask"
+		| "startNextChildTask"
+		| "viewPendingChildTasks"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+	// 添加新的属性来支持 newChildTask
+	prompt?: string
+	files?: string[]
+	executeImmediately?: boolean
 }
 
 // must keep in sync with system prompt
