@@ -146,22 +146,22 @@ export class MdmService {
 	private getMdmConfigPath(): string {
 		const platform = os.platform()
 		const isProduction = process.env.NODE_ENV === "production"
-		const configFileName = isProduction ? "mcp.json" : "mcp.dev.json"
+		const configFileName = isProduction ? "mdm.json" : "mdm.dev.json"
 
 		switch (platform) {
 			case "win32": {
-				// Windows: %ProgramData%\RooCode\mcp.json or mcp.dev.json
+				// Windows: %ProgramData%\RooCode\mdm.json or mdm.dev.json
 				const programData = process.env.PROGRAMDATA || "C:\\ProgramData"
 				return path.join(programData, "RooCode", configFileName)
 			}
 
 			case "darwin":
-				// macOS: /Library/Application Support/RooCode/mcp.json or mcp.dev.json
+				// macOS: /Library/Application Support/RooCode/mdm.json or mdm.dev.json
 				return `/Library/Application Support/RooCode/${configFileName}`
 
 			case "linux":
 			default:
-				// Linux: /etc/roo-code/mcp.json or mcp.dev.json
+				// Linux: /etc/roo-code/mdm.json or mdm.dev.json
 				return `/etc/roo-code/${configFileName}`
 		}
 	}

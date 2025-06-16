@@ -148,7 +148,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith(path.join("C:\\ProgramData", "RooCode", "mcp.json"))
+			expect(mockFs.existsSync).toHaveBeenCalledWith(path.join("C:\\ProgramData", "RooCode", "mdm.json"))
 		})
 
 		it("should use correct path for Windows in development", async () => {
@@ -160,7 +160,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith(path.join("C:\\ProgramData", "RooCode", "mcp.dev.json"))
+			expect(mockFs.existsSync).toHaveBeenCalledWith(path.join("C:\\ProgramData", "RooCode", "mdm.dev.json"))
 		})
 
 		it("should use correct path for macOS in production", async () => {
@@ -171,7 +171,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mcp.json")
+			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mdm.json")
 		})
 
 		it("should use correct path for macOS in development", async () => {
@@ -182,7 +182,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mcp.dev.json")
+			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mdm.dev.json")
 		})
 
 		it("should use correct path for Linux in production", async () => {
@@ -193,7 +193,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith("/etc/roo-code/mcp.json")
+			expect(mockFs.existsSync).toHaveBeenCalledWith("/etc/roo-code/mdm.json")
 		})
 
 		it("should use correct path for Linux in development", async () => {
@@ -204,7 +204,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith("/etc/roo-code/mcp.dev.json")
+			expect(mockFs.existsSync).toHaveBeenCalledWith("/etc/roo-code/mdm.dev.json")
 		})
 
 		it("should default to dev config when NODE_ENV is not set", async () => {
@@ -215,7 +215,7 @@ describe("MdmService", () => {
 
 			await MdmService.createInstance()
 
-			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mcp.dev.json")
+			expect(mockFs.existsSync).toHaveBeenCalledWith("/Library/Application Support/RooCode/mdm.dev.json")
 		})
 	})
 
