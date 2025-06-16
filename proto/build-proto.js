@@ -15,18 +15,17 @@ const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
-const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
-const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-js")
-const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone", "proto")
+const TS_OUT_DIR = path.join(ROOT_DIR, "src/shared/proto")
+const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/grpc-js")
+const NICE_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/nice-grpc")
+const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone/proto")
 
 const isWindows = process.platform === "win32"
-const TS_PROTO_PLUGIN = isWindows
-	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
-	: require.resolve("ts-proto/protoc-gen-ts_proto")
-
+const TS_PROTO_PLUGIN = require.resolve("ts-proto/protoc-gen-ts_proto") + (isWindows ? ".cmd" : "")
 const TS_PROTO_OPTIONS = [
 	"env=node",
 	"esModuleInterop=true",
+	"outputServices=generic-definitions", // output generic ServiceDefinitions
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
 	"useOptionals=messages", // Message fields are optional, scalars are not.
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
@@ -49,7 +48,7 @@ const serviceNameMap = {
 	ui: "cline.UiService",
 	// Add new services here - no other code changes needed!
 }
-const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
+const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
 
 // List of host gRPC services (IDE API bridge)
 // These services are implemented in the IDE extension and called by the standalone Cline Core
@@ -58,9 +57,7 @@ const hostServiceNameMap = {
 	watch: "host.WatchService",
 	// Add new host services here
 }
-const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>
-	path.join(ROOT_DIR, "src", "hosts", "vscode", serviceKey),
-)
+const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/hosts/vscode", serviceKey))
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
@@ -69,7 +66,7 @@ async function main() {
 	checkAppleSiliconCompatibility()
 
 	// Create output directories if they don't exist
-	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
+	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, NICE_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
 		await fs.mkdir(dir, { recursive: true })
 	}
 
@@ -82,8 +79,11 @@ async function main() {
 	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR, realpath: true })
 	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), SCRIPT_DIR)
 
-	tsProtoc(TS_OUT_DIR, protoFiles, ["outputServices=generic-definitions", ...TS_PROTO_OPTIONS])
-	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
+	tsProtoc(TS_OUT_DIR, protoFiles, TS_PROTO_OPTIONS)
+	// grpc-js is used to generate service impls for the ProtoBus service.
+	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js,outputClientImpl=false", ...TS_PROTO_OPTIONS])
+	// nice-js is used for the Host Bridge client impls because it uses promises.
+	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
 
 	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
 	const descriptorProtocCommand = [
@@ -116,17 +116,18 @@ async function main() {
 
 async function tsProtoc(outDir, protoFiles, protoOptions) {
 	// Build the protoc command with proper path handling for cross-platform
-	const tsProtocCommand = [
+	const command = [
 		PROTOC,
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
 		`--ts_proto_out="${outDir}"`,
 		`--ts_proto_opt=${protoOptions.join(",")} `,
-		...protoFiles,
+		...protoFiles.map((s) => `"${s}"`),
 	].join(" ")
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
-		execSync(tsProtocCommand, { stdio: "inherit" })
+		log_verbose(command)
+		execSync(command, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
@@ -662,10 +663,13 @@ async function cleanup() {
 	}
 
 	// Clean up generated files that were moved.
-	await fs.rm(path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts"), { force: true })
-	await rmdir(path.join(ROOT_DIR, "src", "standalone", "services"))
-	await fs.rm(path.join(ROOT_DIR, "hosts", "vscode"), { force: true, recursive: true })
+	await fs.rm(path.join(ROOT_DIR, "src/standalone/services/host-grpc-client.ts"), { force: true })
+	await rmdir(path.join(ROOT_DIR, "src/standalone/services"))
+
+	await fs.rm(path.join(ROOT_DIR, "hosts/vscode"), { force: true, recursive: true })
 	await rmdir(path.join(ROOT_DIR, "hosts"))
+
+	await fs.rm(path.join(ROOT_DIR, "src/standalone/server-setup.ts"), { force: true })
 }
 
 /**
