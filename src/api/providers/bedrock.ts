@@ -143,7 +143,7 @@ export class AwsBedrockHandler implements ApiHandler {
 					info: bedrockModels[baseModel],
 				}
 			}
-			// For custom models without base model, use default model's capabilities
+			// For custom models without valid base model in bedrock model list, use default model's capabilities
 			return {
 				id: modelId,
 				info: bedrockModels[bedrockDefaultModelId],
