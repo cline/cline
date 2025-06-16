@@ -751,6 +751,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
+				case "child_task_completed":
+					return true
 				case "api_req_failed": // this message is used to update the latest api_req_started that the request failed
 				case "resume_task":
 				case "resume_completed_task":
