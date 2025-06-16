@@ -424,7 +424,7 @@ export class Task {
 		this.clineMessages.push(message)
 		await saveClineMessagesAndUpdateHistory(
 			this.getContext(),
-			this.getTaskInfo,
+			() => this.getTaskInfo(),
 			this.clineMessages,
 			this.taskIsFavorited ?? false,
 			this.conversationHistoryDeletedRange,
@@ -437,7 +437,7 @@ export class Task {
 		this.clineMessages = newMessages
 		await saveClineMessagesAndUpdateHistory(
 			this.getContext(),
-			this.getTaskInfo,
+			() => this.getTaskInfo(),
 			this.clineMessages,
 			this.taskIsFavorited ?? false,
 			this.conversationHistoryDeletedRange,
@@ -596,7 +596,7 @@ export class Task {
 
 			await saveClineMessagesAndUpdateHistory(
 				this.getContext(),
-				this.getTaskInfo,
+				() => this.getTaskInfo(),
 				this.clineMessages,
 				this.taskIsFavorited ?? false,
 				this.conversationHistoryDeletedRange,
@@ -877,7 +877,7 @@ export class Task {
 					lastMessage.partial = false
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -997,7 +997,7 @@ export class Task {
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -1054,7 +1054,7 @@ export class Task {
 			this.clineMessages.pop()
 			await saveClineMessagesAndUpdateHistory(
 				this.getContext(),
-				this.getTaskInfo,
+				() => this.getTaskInfo(),
 				this.clineMessages,
 				this.taskIsFavorited ?? false,
 				this.conversationHistoryDeletedRange,
@@ -1367,7 +1367,7 @@ export class Task {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -1407,7 +1407,7 @@ export class Task {
 					lastCompletionResultMessage.lastCheckpointHash = commitHash
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -1852,7 +1852,7 @@ export class Task {
 			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
 			await saveClineMessagesAndUpdateHistory(
 				this.getContext(),
-				this.getTaskInfo,
+				() => this.getTaskInfo(),
 				this.clineMessages,
 				this.taskIsFavorited ?? false,
 				this.conversationHistoryDeletedRange,
@@ -1885,7 +1885,7 @@ export class Task {
 				)
 				await saveClineMessagesAndUpdateHistory(
 					this.getContext(),
-					this.getTaskInfo,
+					() => this.getTaskInfo(),
 					this.clineMessages,
 					this.taskIsFavorited ?? false,
 					this.conversationHistoryDeletedRange,
@@ -1907,7 +1907,7 @@ export class Task {
 					)
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -3689,7 +3689,7 @@ export class Task {
 										} satisfies ClineAskQuestion)
 										await saveClineMessagesAndUpdateHistory(
 											this.getContext(),
-											this.getTaskInfo,
+											() => this.getTaskInfo(),
 											this.clineMessages,
 											this.taskIsFavorited ?? false,
 											this.conversationHistoryDeletedRange,
@@ -4025,7 +4025,7 @@ export class Task {
 									)
 									await saveClineMessagesAndUpdateHistory(
 										this.getContext(),
-										this.getTaskInfo,
+										() => this.getTaskInfo(),
 										this.clineMessages,
 										this.taskIsFavorited ?? false,
 										this.conversationHistoryDeletedRange,
@@ -4334,7 +4334,7 @@ export class Task {
 										} satisfies ClinePlanModeResponse)
 										await saveClineMessagesAndUpdateHistory(
 											this.getContext(),
-											this.getTaskInfo,
+											() => this.getTaskInfo(),
 											this.clineMessages,
 											this.taskIsFavorited ?? false,
 											this.conversationHistoryDeletedRange,
@@ -4444,7 +4444,7 @@ export class Task {
 							}
 							await saveClineMessagesAndUpdateHistory(
 								this.getContext(),
-								this.getTaskInfo,
+								() => this.getTaskInfo(),
 								this.clineMessages,
 								this.taskIsFavorited ?? false,
 								this.conversationHistoryDeletedRange,
@@ -4556,7 +4556,7 @@ export class Task {
 
 									await saveClineMessagesAndUpdateHistory(
 										this.getContext(),
-										this.getTaskInfo,
+										() => this.getTaskInfo(),
 										this.clineMessages,
 										this.taskIsFavorited ?? false,
 										this.conversationHistoryDeletedRange,
@@ -4834,7 +4834,7 @@ export class Task {
 		} satisfies ClineApiReqInfo)
 		await saveClineMessagesAndUpdateHistory(
 			this.getContext(),
-			this.getTaskInfo,
+			() => this.getTaskInfo(),
 			this.clineMessages,
 			this.taskIsFavorited ?? false,
 			this.conversationHistoryDeletedRange,
@@ -4913,7 +4913,7 @@ export class Task {
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await saveClineMessagesAndUpdateHistory(
 					this.getContext(),
-					this.getTaskInfo,
+					() => this.getTaskInfo(),
 					this.clineMessages,
 					this.taskIsFavorited ?? false,
 					this.conversationHistoryDeletedRange,
@@ -5047,7 +5047,7 @@ export class Task {
 					updateApiReqMsg()
 					await saveClineMessagesAndUpdateHistory(
 						this.getContext(),
-						this.getTaskInfo,
+						() => this.getTaskInfo(),
 						this.clineMessages,
 						this.taskIsFavorited ?? false,
 						this.conversationHistoryDeletedRange,
@@ -5079,7 +5079,7 @@ export class Task {
 			updateApiReqMsg()
 			await saveClineMessagesAndUpdateHistory(
 				this.getContext(),
-				this.getTaskInfo,
+				() => this.getTaskInfo(),
 				this.clineMessages,
 				this.taskIsFavorited ?? false,
 				this.conversationHistoryDeletedRange,
@@ -5527,7 +5527,7 @@ export class Task {
 			// 保存状态
 			await saveClineMessagesAndUpdateHistory(
 				this.getContext(),
-				this.getTaskInfo,
+				() => this.getTaskInfo(),
 				this.clineMessages,
 				this.taskIsFavorited ?? false,
 				this.conversationHistoryDeletedRange,
