@@ -149,13 +149,14 @@ Otherwise, if you have not completed the task and do not need additional informa
 		cwd: string,
 		wasRecent: boolean | 0 | undefined,
 		responseText?: string,
+		hasPendingFileContextWarnings?: boolean,
 	): [string, string] => {
 		const taskResumptionMessage = `[TASK RESUMPTION] ${
 			mode === "plan"
 				? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
 				: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
 		}${
-			wasRecent
+			wasRecent && !hasPendingFileContextWarnings
 				? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 				: ""
 		}`
@@ -240,6 +241,19 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	cursorRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
 		`# .cursor/rules\n\nThe following is provided by a root-level .cursor/rules directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+
+	fileContextWarning: (editedFiles: string[]): string => {
+		const fileCount = editedFiles.length
+		const fileVerb = fileCount === 1 ? "file has" : "files have"
+		const fileDemonstrativePronoun = fileCount === 1 ? "this file" : "these files"
+		const filePersonalPronoun = fileCount === 1 ? "it" : "they"
+
+		return (
+			`<explicit_instructions>\nCRITICAL FILE STATE ALERT: ${fileCount} ${fileVerb} been externally modified since your last interaction. Your cached understanding of ${fileDemonstrativePronoun} is now stale and unreliable. Before making ANY modifications to ${fileDemonstrativePronoun}, you must execute read_file to obtain the current state, as ${filePersonalPronoun} may contain completely different content than what you expect:\n` +
+			`${editedFiles.map((file) => ` ${path.resolve(file).toPosix()}`).join("\n")}\n` +
+			`Failure to re-read before editing will result in replace_in_file edit errors, requiring subsequent attempts and wasting tokens. You DO NOT need to re-read these files after subsequent edits, unless instructed to do so.\n</explicit_instructions>`
+		)
+	},
 }
 
 // to avoid circular dependency

@@ -1,7 +1,10 @@
 import * as path from "path"
 import * as vscode from "vscode"
 import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
+import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
+import { getGlobalState } from "@core/storage/state"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -11,10 +14,12 @@ import type { FileMetadataEntry } from "./ContextTrackerTypes"
 // a diff edit because the file was modified since Cline last read it.
 
 // FileContextTracker
-//
-// This class is responsible for tracking file operations.
-// If the full contents of a file are pass to Cline via a tool, mention, or edit, the file is marked as active.
-// If a file is modified outside of Cline, we detect and track this change to prevent stale context.
+/**
+This class is responsible for tracking file operations.
+If the full contents of a file are passed to Cline via a tool, mention, or edit, the file is marked as active.
+If a file is modified outside of Cline, we detect and track this change to prevent stale context.
+This is used when restoring a task (non-git "checkpoint" restore), and mid-task.
+*/
 export class FileContextTracker {
 	private context: vscode.ExtensionContext
 	readonly taskId: string
@@ -29,7 +34,9 @@ export class FileContextTracker {
 		this.taskId = taskId
 	}
 
-	// Gets the current working directory or returns undefined if it cannot be determined
+	/**
+	 * Gets the current working directory or returns undefined if it cannot be determined
+	 */
 	private getCwd(): string | undefined {
 		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 		if (!cwd) {
@@ -38,7 +45,9 @@ export class FileContextTracker {
 		return cwd
 	}
 
-	// File watchers are set up for each file that is tracked in the task metadata.
+	/**
+	 * File watchers are set up for each file that is tracked in the task metadata.
+	 */
 	async setupFileWatcher(filePath: string) {
 		// Only setup watcher if it doesn't already exist for this file
 		if (this.fileWatchers.has(filePath)) {
@@ -70,8 +79,10 @@ export class FileContextTracker {
 		this.fileWatchers.set(filePath, watcher)
 	}
 
-	// Tracks a file operation in metadata and sets up a watcher for the file
-	// This is the main entry point for FileContextTracker and is called when a file is passed to Cline via a tool, mention, or edit.
+	/**
+	 * Tracks a file operation in metadata and sets up a watcher for the file
+	 * This is the main entry point for FileContextTracker and is called when a file is passed to Cline via a tool, mention, or edit.
+	 */
 	async trackFileContext(filePath: string, operation: "read_tool" | "user_edited" | "cline_edited" | "file_mentioned") {
 		try {
 			const cwd = this.getCwd()
@@ -89,9 +100,11 @@ export class FileContextTracker {
 		}
 	}
 
-	// Adds a file to the metadata tracker
-	// This handles the business logic of determining if the file is new, stale, or active.
-	// It also updates the metadata with the latest read/edit dates.
+	/**
+	 * Adds a file to the metadata tracker
+	 * This handles the business logic of determining if the file is new, stale, or active.
+	 * It also updates the metadata with the latest read/edit dates.
+	 */
 	async addFileToFileContextTracker(
 		context: vscode.ExtensionContext,
 		taskId: string,
@@ -154,23 +167,149 @@ export class FileContextTracker {
 		}
 	}
 
-	// Returns (and then clears) the set of recently modified files
+	/**
+	 * Returns (and then clears) the set of recently modified files
+	 */
 	getAndClearRecentlyModifiedFiles(): string[] {
 		const files = Array.from(this.recentlyModifiedFiles)
 		this.recentlyModifiedFiles.clear()
 		return files
 	}
 
-	// Marks a file as edited by Cline to prevent false positives in file watchers
+	/**
+	 * Marks a file as edited by Cline to prevent false positives in file watchers
+	 */
 	markFileAsEditedByCline(filePath: string): void {
 		this.recentlyEditedByCline.add(filePath)
 	}
 
-	// Disposes all file watchers
+	/**
+	 * Disposes all file watchers
+	 */
 	dispose(): void {
 		for (const watcher of this.fileWatchers.values()) {
 			watcher.dispose()
 		}
 		this.fileWatchers.clear()
+	}
+
+	/**
+	 * Detects files that were edited by Cline or users after a specific message timestamp
+	 * This is used when restoring checkpoints to warn about potential file content mismatches
+	 */
+	async detectFilesEditedAfterMessage(messageTs: number, deletedMessages: ClineMessage[]): Promise<string[]> {
+		const editedFiles: string[] = []
+
+		try {
+			// Check task metadata for files that were edited by Cline or users after the message timestamp
+			const taskMetadata = await getTaskMetadata(this.context, this.taskId)
+
+			if (taskMetadata?.files_in_context) {
+				for (const fileEntry of taskMetadata.files_in_context) {
+					const clineEditedAfter = fileEntry.cline_edit_date && fileEntry.cline_edit_date > messageTs
+					const userEditedAfter = fileEntry.user_edit_date && fileEntry.user_edit_date > messageTs
+
+					if (clineEditedAfter || userEditedAfter) {
+						editedFiles.push(fileEntry.path)
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error checking file context metadata:", error)
+		}
+
+		// Also check deleted task messages for file operations
+		for (const message of deletedMessages) {
+			if (message.say === "tool" && message.text) {
+				try {
+					const toolData = JSON.parse(message.text)
+					if ((toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") && toolData.path) {
+						if (!editedFiles.includes(toolData.path)) {
+							editedFiles.push(toolData.path)
+						}
+					}
+				} catch (error) {
+					console.error("Error checking task messages:", error)
+				}
+			}
+		}
+		return [...new Set(editedFiles)]
+	}
+
+	/**
+	 * Stores pending file context warning in workspace state so it persists across task reinitialization
+	 */
+	async storePendingFileContextWarning(files: string[]): Promise<void> {
+		try {
+			const key = `pendingFileContextWarning_${this.taskId}`
+			await updateWorkspaceState(this.context, key, files)
+		} catch (error) {
+			console.error("Error storing pending file context warning:", error)
+		}
+	}
+
+	/**
+	 * Retrieves pending file context warning from workspace state (without clearing it)
+	 */
+	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
+		try {
+			const key = `pendingFileContextWarning_${this.taskId}`
+			const files = (await getWorkspaceState(this.context, key)) as string[]
+			return files
+		} catch (error) {
+			console.error("Error retrieving pending file context warning:", error)
+		}
+		return undefined
+	}
+
+	/**
+	 * Retrieves and clears pending file context warning from workspace state
+	 */
+	async retrieveAndClearPendingFileContextWarning(): Promise<string[] | undefined> {
+		try {
+			const files = await this.retrievePendingFileContextWarning()
+			if (files) {
+				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}`, undefined)
+				return files
+			}
+		} catch (error) {
+			console.error("Error retrieving pending file context warning:", error)
+		}
+		return undefined
+	}
+
+	/**
+	 * Static method to clean up orphaned pending file context warnings at startup
+	 * This removes warnings for tasks that may no longer exist
+	 */
+	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
+		const startTime = Date.now()
+		try {
+			const taskHistory = ((await getGlobalState(context, "taskHistory")) as Array<{ id: string }>) || []
+			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
+			const allStateKeys = context.workspaceState.keys()
+			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))
+
+			const orphanedPendingContextTasks: string[] = []
+			for (const key of pendingWarningKeys) {
+				const taskId = key.replace("pendingFileContextWarning_", "")
+				if (!existingTaskIds.has(taskId)) {
+					orphanedPendingContextTasks.push(key)
+				}
+			}
+
+			if (orphanedPendingContextTasks.length > 0) {
+				for (const key of orphanedPendingContextTasks) {
+					await updateWorkspaceState(context, key, undefined)
+				}
+			}
+
+			const duration = Date.now() - startTime
+			console.log(
+				`FileContextTracker: Processed ${existingTaskIds.size} tasks, found ${pendingWarningKeys.length} pending warnings, ${orphanedPendingContextTasks.length} orphaned, deleted ${orphanedPendingContextTasks.length}, took ${duration}ms`,
+			)
+		} catch (error) {
+			console.error("Error cleaning up orphaned file context warnings:", error)
+		}
 	}
 }
