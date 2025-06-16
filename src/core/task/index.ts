@@ -454,6 +454,18 @@ export class Task {
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
+					// Detect files edited after this message timestamp for file context warning
+					// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
+					if (restoreType === "task") {
+						const filesEditedAfterMessage = await this.fileContextTracker.detectFilesEditedAfterMessage(
+							messageTs,
+							deletedMessages,
+						)
+						if (filesEditedAfterMessage.length > 0) {
+							await this.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
+						}
+					}
+
 					const newClineMessages = this.clineMessages.slice(0, messageIndex + 1)
 					await this.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
 
@@ -1131,12 +1143,17 @@ export class Task {
 
 		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
 
+		// Check if there are pending file context warnings before calling taskResumption
+		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
+		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
+
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
 			this.chatSettings?.mode === "plan" ? "plan" : "act",
 			agoText,
 			cwd,
 			wasRecent,
 			responseText,
+			hasPendingFileContextWarnings,
 		)
 
 		if (taskResumptionMessage !== "") {
@@ -1165,6 +1182,15 @@ export class Task {
 					text: fileContentString,
 				})
 			}
+		}
+
+		// Inject file context warning if there were pending warnings from message editing
+		if (pendingContextWarning && pendingContextWarning.length > 0) {
+			const fileContextWarning = formatResponse.fileContextWarning(pendingContextWarning)
+			newUserContent.push({
+				type: "text",
+				text: fileContextWarning,
+			})
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)

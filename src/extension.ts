@@ -25,6 +25,7 @@ import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToA
 import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlobalRules } from "./core/storage/state"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -51,6 +52,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
+
+	// Clean up orphaned file context warnings (startup cleanup)
+	await FileContextTracker.cleanupOrphanedWarnings(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
