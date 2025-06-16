@@ -1147,6 +1147,12 @@ export class Task {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+		// resume the task from child messages
+		if (this.activeChildTaskId) {
+			const { historyItem, apiConversationHistory } = await this.getTaskWithId(this.activeChildTaskId)
+		}
+
+		this.activeChildTaskId = undefined // reset active child task id
 
 		// resume the task from child messages
 		let childResumeText: string | undefined
@@ -4502,7 +4508,7 @@ export class Task {
 										// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
 										await this.say(
 											"completion_result",
-											removeClosingTag("result", result),
+											composeResult,
 											undefined,
 											undefined,
 											false,
@@ -4518,7 +4524,7 @@ export class Task {
 									// no command, still outputting partial result
 									await this.say(
 										"completion_result",
-										removeClosingTag("result", result),
+										composeResult,
 										undefined,
 										undefined,
 										block.partial,
@@ -4545,7 +4551,7 @@ export class Task {
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// haven't sent a command message yet so first send completion_result then command
-										await this.say("completion_result", result, undefined, undefined, false)
+										await this.say("completion_result", composeResult, undefined, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										telemetryService.captureTaskCompleted(this.taskId)
@@ -4570,7 +4576,7 @@ export class Task {
 									// user didn't reject, but the command may have output
 									commandResult = execCommandResult
 								} else {
-									await this.say("completion_result", result, undefined, undefined, false)
+									await this.say("completion_result", composeResult, undefined, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
 									telemetryService.captureTaskCompleted(this.taskId)
