@@ -73,7 +73,7 @@ interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
 
 export const ProgressIndicator = () => (
 	<div
@@ -1452,6 +1452,38 @@ export const ChatRowContent = ({
 								}}>
 								{message.text}
 							</p>
+						</>
+					)
+				case "child_task_completed":
+					return (
+						<>
+							<div style={headerStyle}>
+								{icon}
+								{title}
+							</div>
+							<p style={{ paddingTop: 10 }}>
+								Child task completed. Click to switch back to the parent task
+							</p>
+							<VSCodeButton
+								className={`
+								!text-white
+								hover:!bg-[#197f31] 
+								hover:!border-[#197f31]
+								active:!bg-[#156528] 
+								active:!border-[#156528]`}
+								appearance="secondary"
+								disabled={seeNewChangesDisabled}
+								onClick={() => {
+									TaskServiceClient.showTaskWithId(
+										StringRequest.create({
+											value: message.text,
+										}),
+									).catch((err) =>
+										console.error("Failed to show task completion view changes:", err),
+									)
+								}}>
+								Back to parent task
+							</VSCodeButton>
 						</>
 					)
 				case "completion_result":
