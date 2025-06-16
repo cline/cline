@@ -1158,6 +1158,12 @@ export class Task {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+		// resume the task from child messages
+		if (this.activeChildTaskId) {
+			const { historyItem, apiConversationHistory } = await this.getTaskWithId(this.activeChildTaskId)
+		}
+
+		this.activeChildTaskId = undefined // reset active child task id
 
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
@@ -4424,6 +4430,7 @@ export class Task {
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
 
+						const composeResult = JSON.stringify({ text: removeClosingTag("result", result), parentId: this.parentId })
 						const addNewChangesFlagToLastCompletionResultMessage = async () => {
 							// Add newchanges flag if there are new changes to the workspace
 
@@ -4466,7 +4473,7 @@ export class Task {
 										// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
 										await this.say(
 											"completion_result",
-											removeClosingTag("result", result),
+											composeResult,
 											undefined,
 											undefined,
 											false,
@@ -4481,7 +4488,7 @@ export class Task {
 									// no command, still outputting partial result
 									await this.say(
 										"completion_result",
-										removeClosingTag("result", result),
+										composeResult,
 										undefined,
 										undefined,
 										block.partial,
@@ -4495,7 +4502,8 @@ export class Task {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-
+								// set status to completed, this is the last tool block in the task
+								this.status = "completed"
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
 										subtitle: "Task Completed",
@@ -4507,7 +4515,7 @@ export class Task {
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// haven't sent a command message yet so first send completion_result then command
-										await this.say("completion_result", result, undefined, undefined, false)
+										await this.say("completion_result", composeResult, undefined, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										telemetryService.captureTaskCompleted(this.taskId)
@@ -4532,43 +4540,11 @@ export class Task {
 									// user didn't reject, but the command may have output
 									commandResult = execCommandResult
 								} else {
-									await this.say("completion_result", result, undefined, undefined, false)
+									await this.say("completion_result", composeResult, undefined, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
 									telemetryService.captureTaskCompleted(this.taskId)
 								}
-
-								this.status = "completed"
-								// 如果这是一个子任务，自动恢复父任务执行
-								if (this.parentId) {
-									// 获取父任务信息
-									const parentTask = await this.getTaskWithId(this.parentId)
-									if (!parentTask) {
-										console.error(`Parent task with ID ${this.parentId} not found.`)
-										return
-									}
-
-									await saveClineMessagesAndUpdateHistory(
-										this.getContext(),
-										() => this.getTaskInfo(),
-										this.clineMessages,
-										this.taskIsFavorited ?? false,
-										this.conversationHistoryDeletedRange,
-										this.checkpointTracker,
-										this.updateTaskHistory,
-									)
-									const parentHistoryItem = parentTask.historyItem
-									parentHistoryItem.activeChildTaskId = undefined
-									this.updateTaskHistory(parentTask.historyItem)
-									const { response } = await this.ask("child_task_completed", String(this.parentId), false)
-									// 根据用户选择处理
-									if (response === "yesButtonClicked") {
-										// 用户选择切换到父任务
-										await this.showTaskWithId(this.parentId)
-									}
-									break
-								}
-
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
 								const {
 									response,

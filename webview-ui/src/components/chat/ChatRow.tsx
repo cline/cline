@@ -1291,8 +1291,15 @@ export const ChatRowContent = ({
 						</div>
 					)
 				case "completion_result":
-					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-					const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+					let parsedMessage = message
+					try {
+						parsedMessage = JSON.parse(message.text || "{}")
+					} catch (error) {
+						console.log("Failed to parse completion result message:", error)
+					}
+					const { text = "", parentId } = parsedMessage as any
+					const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+					const textDetail = hasChanges ? text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
 					return (
 						<>
 							<div
@@ -1317,13 +1324,13 @@ export const ChatRowContent = ({
 							<WithCopyButton
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
-								textToCopy={text}
+								textToCopy={textDetail}
 								position="bottom-right"
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
 								}}>
-								<Markdown markdown={text} />
+								<Markdown markdown={textDetail} />
 								{quoteButtonState.visible && (
 									<QuoteButton
 										top={quoteButtonState.top}
@@ -1353,6 +1360,26 @@ export const ChatRowContent = ({
 									</SuccessButton>
 								</div>
 							)}
+							{
+								parentId && (
+									<div style={{ marginTop: 10 }}>
+										<SuccessButton
+											appearance="secondary"
+											onClick={() => {
+												TaskServiceClient.showTaskWithId(
+													StringRequest.create({
+														value: parentId,
+													}),
+												).catch((err) =>
+													console.error("Failed to resume task:", err),
+												)
+											}}>
+											<i className="codicon codicon-left" style={{ marginRight: 6 }} />
+											Back to parent Task
+										</SuccessButton>
+									</div>
+								)
+							}
 						</>
 					)
 				case "shell_integration_warning":
@@ -1454,42 +1481,17 @@ export const ChatRowContent = ({
 							</p>
 						</>
 					)
-				case "child_task_completed":
-					return (
-						<>
-							<div style={headerStyle}>
-								{icon}
-								{title}
-							</div>
-							<p style={{ paddingTop: 10 }}>
-								Child task completed. Click to switch back to the parent task
-							</p>
-							<VSCodeButton
-								className={`
-								!text-white
-								hover:!bg-[#197f31] 
-								hover:!border-[#197f31]
-								active:!bg-[#156528] 
-								active:!border-[#156528]`}
-								appearance="secondary"
-								disabled={seeNewChangesDisabled}
-								onClick={() => {
-									TaskServiceClient.showTaskWithId(
-										StringRequest.create({
-											value: message.text,
-										}),
-									).catch((err) =>
-										console.error("Failed to show task completion view changes:", err),
-									)
-								}}>
-								Back to parent task
-							</VSCodeButton>
-						</>
-					)
 				case "completion_result":
-					if (message.text) {
-						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+					let parsedMessage = message
+					try {
+						parsedMessage = JSON.parse(message.text || "{}")
+					} catch (error) {
+						console.log("Failed to parse completion result message:", error)
+					}
+					const { text, parentId } = parsedMessage as any
+					if (text) {
+						const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const textDetail = hasChanges ? text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
 						return (
 							<div>
 								<div
@@ -1514,13 +1516,13 @@ export const ChatRowContent = ({
 								<WithCopyButton
 									ref={contentRef}
 									onMouseUp={handleMouseUp}
-									textToCopy={text}
+									textToCopy={textDetail}
 									position="bottom-right"
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
 									}}>
-									<Markdown markdown={text} />
+									<Markdown markdown={textDetail} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											top={quoteButtonState.top}
@@ -1555,6 +1557,26 @@ export const ChatRowContent = ({
 										</SuccessButton>
 									</div>
 								)}
+								{
+									parentId && (
+										<div style={{ marginTop: 10 }}>
+											<SuccessButton
+												appearance="secondary"
+												onClick={() => {
+													TaskServiceClient.showTaskWithId(
+														StringRequest.create({
+															value: parentId,
+														}),
+													).catch((err) =>
+														console.error("Failed to resume task:", err),
+													)
+												}}>
+												<i className="codicon codicon-left" style={{ marginRight: 6 }} />
+												Back to parent Task
+											</SuccessButton>
+										</div>
+									)
+								}
 							</div>
 						)
 					} else {
