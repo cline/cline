@@ -263,6 +263,37 @@ Usage:
 <context>context to preload new task with</context>
 </new_task>
 
+
+## new_child_task
+Description: create a child task for the current task. After creating a child task, the parent task will pause, and the child task will inherit some of the parent task's context and focus on a more specific goal.
+Important Notes:
+- Child tasks are designed to break down complex tasks into smaller, manageable pieces.
+Parameters:
+- child_task_prompt: (required) task description or command to execute.
+- child_task_files: (optional) files related to the child task. This is a list of paths to files.
+- execute_immediately: (optional) default is true. if execute_immediately is true, the child task will be executed immediately. if execute_immediately is false, the child task will be created in the parent's pending child task queue but not executed immediately.
+Usage:
+<new_child_task>
+<child_task_prompt>detail of the child task or command to execute</child_task_prompt>
+<child_task_files>["file1.js", "file2.js"]</child_task_files>
+<execute_immediately>true or false</execute_immediately>
+</new_child_task>
+<new_child_task>
+
+## start_next_child_task
+Description: Start the next pending child task from the queue. This will pause the current parent task and begin execution of the next queued child task. Use this tool when you want to manually control the execution timing of pending child tasks.
+Parameters: None
+Usage:
+<start_next_child_task>
+</start_next_child_task>
+
+## view_pending_tasks
+Description: View the list of pending child tasks that are queued for execution. Shows task details including prompts, creation time, and associated files. Use this tool to check what child tasks are waiting to be executed.
+Parameters: None
+Usage:
+<view_pending_tasks>
+</view_pending_tasks>
+
 ## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
