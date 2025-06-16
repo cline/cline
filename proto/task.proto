@@ -103,6 +103,7 @@ message TaskItem {
   repeated string child_task_ids = 12;
   optional string status = 13; // 'pending' | 'running' | 'paused' | 'completed' | 'failed'
   optional string active_child_task_id = 14;
+  optional string pending_child_tasks = 15;
 }
 
 // Request for ask response operation
