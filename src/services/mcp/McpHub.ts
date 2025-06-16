@@ -154,6 +154,7 @@ export class McpHub {
 						if (settings) {
 							try {
 								await this.updateServerConnections(settings.mcpServers)
+								vscode.window.showInformationMessage("MCP servers updated")
 							} catch (error) {
 								console.error("Failed to process MCP settings change:", error)
 							}
