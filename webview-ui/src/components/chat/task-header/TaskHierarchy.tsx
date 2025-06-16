@@ -13,10 +13,10 @@ interface TaskHierarchyProps {
 }
 
 export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTasks, onTaskClick, isTaskExpanded }) => {
-	// 获取当前任务的子任务
+	// get current task's child tasks from history
 	const existingChildTasks = allTasks.filter((task) => task.parentId === currentTask.id)
 
-	// 获取待执行的子任务，转换为统一格式
+	// get current task's pending child tasks from pendingChildTasks
 	const pendingChildTasks = (currentTask.pendingChildTasks || []).map((pendingTask) => ({
 		id: pendingTask.id,
 		ts: pendingTask.createdAt,
@@ -28,16 +28,13 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 		totalCost: 0,
 	}))
 
-	// 合并并排序所有子任务
+	// merge existing child tasks and pending child tasks
 	const childTasks = [...existingChildTasks, ...pendingChildTasks].sort((a, b) => a.ts - b.ts)
 	console.log("childTasks", childTasks, currentTask)
-	// 折叠展开配置
-	const COLLAPSE_THRESHOLD = 5 // 超过5个子任务时默认折叠
-	const COLLAPSED_SHOW_COUNT = 0 // 折叠时显示前3个
+	const COLLAPSE_THRESHOLD = 5
+	const COLLAPSED_SHOW_COUNT = 0 
 
-	// 状态管理
 	const [isExpanded, setIsExpanded] = useState(() => {
-		// 默认展开逻辑：子任务少于等于阈值时默认展开
 		return childTasks.length <= COLLAPSE_THRESHOLD
 	})
 
@@ -204,7 +201,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 						color: "var(--vscode-foreground)",
 					}}>
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ fontSize: "12px" }} />
-					<span>子任务 ({childTasks.length})</span>
+					<span>Child Task ({childTasks.length})</span>
 					{!isExpanded && hiddenCount > 0 && (
 						<span
 							style={{
@@ -212,7 +209,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 								color: "var(--vscode-descriptionForeground)",
 								fontWeight: "normal",
 							}}>
-							+{hiddenCount} 更多
+							+{hiddenCount} more
 						</span>
 					)}
 				</div>
@@ -298,17 +295,15 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 									textOverflow: "ellipsis",
 									whiteSpace: "nowrap",
 								}}>
-								{childTask.status === "pending" && (
-									<span
-										style={{
-											fontSize: "10px",
-											color: "var(--vscode-descriptionForeground)",
-											marginRight: "6px",
-											fontStyle: "italic",
-										}}>
-										[待执行]
-									</span>
-								)}
+								<span
+									style={{
+										fontSize: "10px",
+										color: "var(--vscode-descriptionForeground)",
+										marginRight: "6px",
+										fontStyle: "italic",
+									}}>
+									[{childTask.status}]
+								</span>
 								{childTask.task}
 							</span>
 
@@ -324,8 +319,6 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 					),
 				)}
 			</div>
-
-			{/* 展开更多提示（当折叠且有隐藏任务时显示） */}
 			{!isExpanded && hiddenCount > 0 && (
 				<div
 					style={{
@@ -346,7 +339,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 					onMouseLeave={(e) => {
 						e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)"
 					}}>
-					点击展开查看全部 {childTasks.length} 个子任务
+					Click to expand and view all tasks ({hiddenCount} hidden)
 				</div>
 			)}
 		</div>
