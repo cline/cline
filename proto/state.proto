@@ -219,5 +219,5 @@ message ApiConfiguration {
   optional string sap_ai_resource_group = 76;
 
   // Claude Code specific
-  optional string claudeCodePath = 77;
+  optional string claude_code_path = 77;
 }
