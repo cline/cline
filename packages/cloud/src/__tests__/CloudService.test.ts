@@ -184,6 +184,72 @@ describe("CloudService", () => {
 			expect(mockAuthService.getUserInfo).toHaveBeenCalled()
 		})
 
+		it("should return organization ID from user info", () => {
+			const mockUserInfo = {
+				name: "Test User",
+				email: "test@example.com",
+				organizationId: "org_123",
+				organizationName: "Test Org",
+				organizationRole: "admin",
+			}
+			mockAuthService.getUserInfo.mockReturnValue(mockUserInfo)
+
+			const result = cloudService.getOrganizationId()
+			expect(mockAuthService.getUserInfo).toHaveBeenCalled()
+			expect(result).toBe("org_123")
+		})
+
+		it("should return null when no organization ID available", () => {
+			mockAuthService.getUserInfo.mockReturnValue(null)
+
+			const result = cloudService.getOrganizationId()
+			expect(result).toBe(null)
+		})
+
+		it("should return organization name from user info", () => {
+			const mockUserInfo = {
+				name: "Test User",
+				email: "test@example.com",
+				organizationId: "org_123",
+				organizationName: "Test Org",
+				organizationRole: "admin",
+			}
+			mockAuthService.getUserInfo.mockReturnValue(mockUserInfo)
+
+			const result = cloudService.getOrganizationName()
+			expect(mockAuthService.getUserInfo).toHaveBeenCalled()
+			expect(result).toBe("Test Org")
+		})
+
+		it("should return null when no organization name available", () => {
+			mockAuthService.getUserInfo.mockReturnValue(null)
+
+			const result = cloudService.getOrganizationName()
+			expect(result).toBe(null)
+		})
+
+		it("should return organization role from user info", () => {
+			const mockUserInfo = {
+				name: "Test User",
+				email: "test@example.com",
+				organizationId: "org_123",
+				organizationName: "Test Org",
+				organizationRole: "admin",
+			}
+			mockAuthService.getUserInfo.mockReturnValue(mockUserInfo)
+
+			const result = cloudService.getOrganizationRole()
+			expect(mockAuthService.getUserInfo).toHaveBeenCalled()
+			expect(result).toBe("admin")
+		})
+
+		it("should return null when no organization role available", () => {
+			mockAuthService.getUserInfo.mockReturnValue(null)
+
+			const result = cloudService.getOrganizationRole()
+			expect(result).toBe(null)
+		})
+
 		it("should delegate getAuthState to AuthService", () => {
 			const result = cloudService.getAuthState()
 			expect(mockAuthService.getState).toHaveBeenCalled()

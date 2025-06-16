@@ -44,6 +44,11 @@ export const AccountView = ({ userInfo, isAuthenticated, onDone }: AccountViewPr
 							<h2 className="text-lg font-medium text-vscode-foreground mb-1">
 								{userInfo?.name || t("account:unknownUser")}
 							</h2>
+							{userInfo?.organizationName && (
+								<p className="text-sm text-vscode-descriptionForeground mb-1">
+									{userInfo.organizationName}
+								</p>
+							)}
 							<p className="text-sm text-vscode-descriptionForeground">{userInfo?.email || ""}</p>
 						</div>
 					)}

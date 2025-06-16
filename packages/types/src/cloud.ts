@@ -10,6 +10,32 @@ export interface CloudUserInfo {
 	name?: string
 	email?: string
 	picture?: string
+	organizationId?: string
+	organizationName?: string
+	organizationRole?: string
+}
+
+/**
+ * CloudOrganization Types
+ */
+
+export interface CloudOrganization {
+	id: string
+	name: string
+	slug?: string
+	image_url?: string
+	has_image?: boolean
+	created_at?: number
+	updated_at?: number
+}
+
+export interface CloudOrganizationMembership {
+	id: string
+	organization: CloudOrganization
+	role: string
+	permissions?: string[]
+	created_at?: number
+	updated_at?: number
 }
 
 /**

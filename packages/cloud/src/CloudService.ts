@@ -92,6 +92,24 @@ export class CloudService {
 		return this.authService!.getUserInfo()
 	}
 
+	public getOrganizationId(): string | null {
+		this.ensureInitialized()
+		const userInfo = this.authService!.getUserInfo()
+		return userInfo?.organizationId || null
+	}
+
+	public getOrganizationName(): string | null {
+		this.ensureInitialized()
+		const userInfo = this.authService!.getUserInfo()
+		return userInfo?.organizationName || null
+	}
+
+	public getOrganizationRole(): string | null {
+		this.ensureInitialized()
+		const userInfo = this.authService!.getUserInfo()
+		return userInfo?.organizationRole || null
+	}
+
 	public getAuthState(): string {
 		this.ensureInitialized()
 		return this.authService!.getState()
