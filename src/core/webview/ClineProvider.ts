@@ -1338,6 +1338,9 @@ export class ClineProvider
 			maxConcurrentFileReads,
 			condensingApiConfigId,
 			customCondensingPrompt,
+			contextOverflowContingencyEnabled,
+			contextOverflowContingencyMessage,
+			contextOverflowContingencyTriggerTools,
 			codebaseIndexConfig,
 			codebaseIndexModels,
 		} = await this.getState()
@@ -1449,6 +1452,9 @@ export class ClineProvider
 			organizationAllowList,
 			condensingApiConfigId,
 			customCondensingPrompt,
+			contextOverflowContingencyEnabled: contextOverflowContingencyEnabled ?? false,
+			contextOverflowContingencyMessage,
+			contextOverflowContingencyTriggerTools,
 			codebaseIndexModels: codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: codebaseIndexConfig ?? {
 				codebaseIndexEnabled: false,
@@ -1598,6 +1604,10 @@ export class ClineProvider
 			// Explicitly add condensing settings
 			condensingApiConfigId: stateValues.condensingApiConfigId,
 			customCondensingPrompt: stateValues.customCondensingPrompt,
+			// Context overflow contingency settings
+			contextOverflowContingencyEnabled: stateValues.contextOverflowContingencyEnabled ?? false,
+			contextOverflowContingencyMessage: stateValues.contextOverflowContingencyMessage,
+			contextOverflowContingencyTriggerTools: stateValues.contextOverflowContingencyTriggerTools,
 			codebaseIndexModels: stateValues.codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: stateValues.codebaseIndexConfig ?? {
 				codebaseIndexEnabled: false,

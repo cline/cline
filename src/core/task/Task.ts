@@ -1707,6 +1707,14 @@ export class Task extends EventEmitter<ClineEvents> {
 				customCondensingPrompt,
 				condensingApiHandler,
 			})
+
+			// Check if we should trigger context overflow contingency
+			if (truncateResult.shouldTriggerOverflowContingency) {
+				const { triggerContextOverflowContingency } = await import("../context-overflow")
+				await triggerContextOverflowContingency(this)
+				return // Exit early if contingency was triggered
+			}
+
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
 			}

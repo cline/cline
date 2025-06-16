@@ -103,6 +103,11 @@ export const globalSettingsSchema = z.object({
 	customSupportPrompts: customSupportPromptsSchema.optional(),
 	enhancementApiConfigId: z.string().optional(),
 	historyPreviewCollapsed: z.boolean().optional(),
+
+	// Context overflow contingency settings
+	contextOverflowContingencyEnabled: z.boolean().optional(),
+	contextOverflowContingencyMessage: z.string().optional(),
+	contextOverflowContingencyTriggerTools: z.array(z.string()).optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>

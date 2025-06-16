@@ -273,6 +273,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: totalTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 		})
 
@@ -311,6 +313,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: totalTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 		})
 
@@ -420,6 +424,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: baseTokensForSmall + smallContentTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			}) // No truncation
 
 			// Test case 2: Large content that will push us over the threshold
@@ -515,6 +521,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: totalTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 		})
 
@@ -626,6 +634,7 @@ describe("Sliding Window", () => {
 
 			// Verify it fell back to truncation
 			expect(result.messages).toEqual(expectedMessages)
+			expect(result.shouldTriggerOverflowContingency).toBe(true)
 			expect(result.summary).toBe("")
 			expect(result.prevContextTokens).toBe(totalTokens)
 			// The cost might be different than expected, so we don't check it
@@ -675,6 +684,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: totalTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 
 			// Clean up
@@ -780,6 +791,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: totalTokens,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 
 			// Clean up
@@ -835,6 +848,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: 39999,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 
 			// Above max tokens - truncate
@@ -884,6 +899,8 @@ describe("Sliding Window", () => {
 				summary: "",
 				cost: 0,
 				prevContextTokens: 69999,
+				error: undefined,
+				shouldTriggerOverflowContingency: false,
 			})
 
 			// Above max tokens - truncate

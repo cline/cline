@@ -97,7 +97,7 @@ export async function truncateConversationIfNeeded({
 	taskId,
 	customCondensingPrompt,
 	condensingApiHandler,
-}: TruncateOptions): Promise<TruncateResponse> {
+}: TruncateOptions): Promise<TruncateResponse & { shouldTriggerOverflowContingency?: boolean }> {
 	let error: string | undefined
 	let cost = 0
 	// Calculate the maximum tokens reserved for response
@@ -117,6 +117,10 @@ export async function truncateConversationIfNeeded({
 	// Truncate if we're within TOKEN_BUFFER_PERCENTAGE of the context window
 	const allowedTokens = contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - reservedTokens
 
+	// Check if we're approaching the context window limit and should trigger overflow contingency
+	const contextUsagePercent = (prevContextTokens / contextWindow) * 100
+	const shouldTriggerOverflowContingency = contextUsagePercent >= 90 // Trigger at 90% usage
+
 	if (autoCondenseContext) {
 		const contextPercent = (100 * prevContextTokens) / contextWindow
 		if (contextPercent >= autoCondenseContextPercent || prevContextTokens > allowedTokens) {
@@ -134,6 +138,8 @@ export async function truncateConversationIfNeeded({
 			if (result.error) {
 				error = result.error
 				cost = result.cost
+				// If condensation fails and we should trigger overflow contingency, return that flag
+				return { messages, summary: "", cost, prevContextTokens, error, shouldTriggerOverflowContingency }
 			} else {
 				return { ...result, prevContextTokens }
 			}
@@ -143,8 +149,15 @@ export async function truncateConversationIfNeeded({
 	// Fall back to sliding window truncation if needed
 	if (prevContextTokens > allowedTokens) {
 		const truncatedMessages = truncateConversation(messages, 0.5, taskId)
-		return { messages: truncatedMessages, prevContextTokens, summary: "", cost, error }
+		return {
+			messages: truncatedMessages,
+			prevContextTokens,
+			summary: "",
+			cost,
+			error,
+			shouldTriggerOverflowContingency,
+		}
 	}
 	// No truncation or condensation needed
-	return { messages, summary: "", cost, prevContextTokens, error }
+	return { messages, summary: "", cost, prevContextTokens, error, shouldTriggerOverflowContingency }
 }
