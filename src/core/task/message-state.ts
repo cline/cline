@@ -16,13 +16,28 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 // need to call getContext() from the task object when passing in context
 export async function saveClineMessagesAndUpdateHistory(
 	context: vscode.ExtensionContext,
-	taskId: string,
+	getTaskInfo:()=> {
+		taskId: string,
+		parentId?: string,
+		childTaskIds?: string[],
+		status?: "pending" | "running" | "paused" | "completed" | "failed",
+		activeChildTaskId?: string,
+		pendingChildTasks?: Array<{
+			id: string,
+			prompt: string,
+			files?: string[],
+			createdAt: number,
+		}>,
+	},
 	clineMessages: ClineMessage[],
 	taskIsFavorited: boolean,
 	conversationHistoryDeletedRange: [number, number] | undefined,
 	checkpointTracker: CheckpointTracker | undefined,
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
+
 ) {
+
+	const { taskId , parentId, childTaskIds, status, activeChildTaskId, pendingChildTasks } = getTaskInfo()
 	try {
 		await saveClineMessages(context, taskId, clineMessages)
 
@@ -31,10 +46,10 @@ export async function saveClineMessagesAndUpdateHistory(
 		const taskMessage = clineMessages[0] // first message is always the task say
 		const lastRelevantMessage =
 			clineMessages[
-				findLastIndex(
-					clineMessages,
-					(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-				)
+			findLastIndex(
+				clineMessages,
+				(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+			)
 			]
 		const taskDir = await ensureTaskDirectoryExists(context, taskId)
 		let taskDirSize = 0
@@ -59,6 +74,11 @@ export async function saveClineMessagesAndUpdateHistory(
 			cwdOnTaskInitialization: cwd,
 			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
 			isFavorited: taskIsFavorited,
+			parentId,
+			childTaskIds,
+			status,
+			activeChildTaskId,
+			pendingChildTasks,
 		})
 	} catch (error) {
 		console.error("Failed to save cline messages:", error)
