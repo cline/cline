@@ -1295,7 +1295,6 @@ export const ChatRowContent = ({
 					try {
 						parsedMessage = JSON.parse(message.text || "{}")
 					} catch (error) {
-						console.log("Failed to parse completion result message:", error)
 					}
 					const { text = "", parentId } = parsedMessage as any
 					const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
@@ -1486,7 +1485,6 @@ export const ChatRowContent = ({
 					try {
 						parsedMessage = JSON.parse(message.text || "{}")
 					} catch (error) {
-						console.log("Failed to parse completion result message:", error)
 					}
 					const { text, parentId } = parsedMessage as any
 					if (text) {
