@@ -39,6 +39,18 @@ export const groupEntrySchema = z.union([toolGroupsSchema, z.tuple([toolGroupsSc
 export type GroupEntry = z.infer<typeof groupEntrySchema>
 
 /**
+ * ContextOverflowContingency
+ */
+
+export const contextOverflowContingencySchema = z.object({
+	enabled: z.boolean().default(false),
+	message: z.string().optional(),
+	triggerTools: z.array(z.string()).optional(),
+})
+
+export type ContextOverflowContingency = z.infer<typeof contextOverflowContingencySchema>
+
+/**
  * ModeConfig
  */
 
@@ -69,6 +81,7 @@ export const modeConfigSchema = z.object({
 	customInstructions: z.string().optional(),
 	groups: groupEntryArraySchema,
 	source: z.enum(["global", "project"]).optional(),
+	contextOverflowContingency: contextOverflowContingencySchema.optional(),
 })
 
 export type ModeConfig = z.infer<typeof modeConfigSchema>

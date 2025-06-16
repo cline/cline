@@ -66,6 +66,7 @@ import { ToolRepetitionDetector } from "../tools/ToolRepetitionDetector"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { RooProtectedController } from "../protect/RooProtectedController"
+import { ContextOverflowHandler } from "../context-overflow/ContextOverflowHandler"
 import { type AssistantMessageContent, parseAssistantMessage, presentAssistantMessage } from "../assistant-message"
 import { truncateConversationIfNeeded } from "../sliding-window"
 import { ClineProvider } from "../webview/ClineProvider"
@@ -147,6 +148,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	rooIgnoreController?: RooIgnoreController
 	rooProtectedController?: RooProtectedController
 	fileContextTracker: FileContextTracker
+	contextOverflowHandler: ContextOverflowHandler
 	urlContentFetcher: UrlContentFetcher
 	terminalProcess?: RooTerminalProcess
 
@@ -274,6 +276,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		this.toolRepetitionDetector = new ToolRepetitionDetector(this.consecutiveMistakeLimit)
+		this.contextOverflowHandler = new ContextOverflowHandler(this)
 
 		onCreated?.(this)
 
@@ -1694,6 +1697,18 @@ export class Task extends EventEmitter<ClineEvents> {
 
 			const contextWindow = modelInfo.contextWindow
 
+			// Check for context overflow contingency before truncation
+			const shouldTriggerContingency = await this.contextOverflowHandler.shouldTriggerContingency(
+				contextTokens,
+				contextWindow,
+				maxTokens || undefined,
+			)
+
+			if (shouldTriggerContingency) {
+				await this.contextOverflowHandler.triggerContingency()
+				throw new Error("Context overflow contingency triggered")
+			}
+
 			const truncateResult = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
 				totalTokens: contextTokens,
@@ -1878,6 +1893,9 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		this.toolUsage[toolName].attempts++
+
+		// Record tool usage for context overflow tracking
+		this.contextOverflowHandler.recordToolUse(toolName)
 	}
 
 	public recordToolError(toolName: ToolName, error?: string) {

@@ -69,6 +69,12 @@ export const modes: readonly ModeConfig[] = [
 		whenToUse:
 			"Use this mode when you need to write, modify, or refactor code. Ideal for implementing features, fixing bugs, creating new files, or making code improvements across any programming language or framework.",
 		groups: ["read", "edit", "browser", "command", "mcp"],
+		contextOverflowContingency: {
+			enabled: false,
+			message:
+				"Task failed because of a context overflow, possibly because webpage returned from the browser was too big",
+			triggerTools: ["browser_action"],
+		},
 	},
 	{
 		slug: "architect",
