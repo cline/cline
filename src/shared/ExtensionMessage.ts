@@ -69,11 +69,6 @@ export interface ExtensionMessage {
 	childTaskPrompt?: string
 	executeImmediately?: boolean
 	parentId?: string
-<<<<<<< HEAD
-=======
-	resultSummary?: string
-	failureReason?: string
->>>>>>> cf69e4ea (feat: Add feature support parent & child task to split complex task to small independent ones.)
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -185,10 +180,7 @@ export type ClineSay =
 	| "info" // Added for general informational messages like retry status
 	| "new_child_task"
 	| "start_next_child_task"
-<<<<<<< HEAD
 	| "child_task_completed"
-=======
->>>>>>> cf69e4ea (feat: Add feature support parent & child task to split complex task to small independent ones.)
 
 export interface ClineSayTool {
 	tool:
