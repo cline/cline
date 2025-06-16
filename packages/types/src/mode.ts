@@ -43,7 +43,7 @@ export type GroupEntry = z.infer<typeof groupEntrySchema>
  */
 
 export const contextOverflowContingencySchema = z.object({
-	enabled: z.boolean().default(false),
+	enabled: z.boolean().optional().default(false),
 	message: z.string().optional(),
 	triggerTools: z.array(z.string()).optional(),
 })
