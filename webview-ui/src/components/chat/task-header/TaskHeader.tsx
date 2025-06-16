@@ -46,7 +46,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 	onScrollToMessage,
-	allTasks
+	allTasks,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()

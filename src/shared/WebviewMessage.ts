@@ -84,7 +84,7 @@ export interface WebviewMessage {
 	childTaskId?: string
 	childTaskPrompt?: string
 	executeImmediately?: boolean
-	childId?: string 
+	childId?: string
 	resultSummary?: string
 	failureReason?: string
 }
