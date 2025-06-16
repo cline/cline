@@ -30,7 +30,6 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 
 	// merge existing child tasks and pending child tasks
 	const childTasks = [...existingChildTasks, ...pendingChildTasks].sort((a, b) => a.ts - b.ts)
-	console.log("childTasks", childTasks, currentTask)
 	const COLLAPSE_THRESHOLD = 5
 	const COLLAPSED_SHOW_COUNT = 0 
 
@@ -339,7 +338,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 					onMouseLeave={(e) => {
 						e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)"
 					}}>
-					Click to expand and view all tasks ({hiddenCount} hidden)
+					Click to expand all tasks ({hiddenCount} hidden)
 				</div>
 			)}
 		</div>

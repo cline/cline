@@ -182,6 +182,7 @@ export type ClineSay =
 	| "info" // Added for general informational messages like retry status
 	| "new_child_task"
 	| "start_next_child_task"
+	| "child_task_completed"
 
 export interface ClineSayTool {
 	tool:
