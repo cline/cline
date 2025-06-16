@@ -64,17 +64,17 @@ export class GrpcRequestRegistry {
 	 */
 	public cancelRequest(requestId: string): boolean {
 		const requestInfo = this.activeRequests.get(requestId)
-		if (requestInfo) {
-			try {
-				requestInfo.cleanup()
-				console.log(`[DEBUG] Cleaned up request: ${requestId}`)
-			} catch (error) {
-				console.error(`Error cleaning up request ${requestId}:`, error)
-			}
-			this.activeRequests.delete(requestId)
-			return true
+		if (!requestInfo) {
+			return false
 		}
-		return false
+		try {
+			requestInfo.cleanup()
+			console.log(`[DEBUG] Cleaned up request: ${requestId}`)
+		} catch (error) {
+			console.error(`Error cleaning up request ${requestId}:`, error)
+		}
+		this.activeRequests.delete(requestId)
+		return true
 	}
 
 	/**
