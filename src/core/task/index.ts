@@ -428,7 +428,7 @@ export class Task {
 		this.clineMessages.push(message)
 		await saveClineMessagesAndUpdateHistory(
 			this.getContext(),
-			this.getTaskInfo,
+			() => this.getTaskInfo(),
 			this.clineMessages,
 			this.taskIsFavorited ?? false,
 			this.conversationHistoryDeletedRange,
@@ -441,7 +441,7 @@ export class Task {
 		this.clineMessages = newMessages
 		await saveClineMessagesAndUpdateHistory(
 			this.getContext(),
-			this.getTaskInfo,
+			() => this.getTaskInfo(),
 			this.clineMessages,
 			this.taskIsFavorited ?? false,
 			this.conversationHistoryDeletedRange,
@@ -4540,7 +4540,7 @@ export class Task {
 
 									await saveClineMessagesAndUpdateHistory(
 										this.getContext(),
-										this.getTaskInfo,
+										() => this.getTaskInfo(),
 										this.clineMessages,
 										this.taskIsFavorited ?? false,
 										this.conversationHistoryDeletedRange,
