@@ -15,6 +15,8 @@ import TaskTimeline from "./TaskTimeline"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
+import { HistoryItem } from "@shared/HistoryItem"
+import { TaskHierarchy } from "./TaskHierarchy"
 
 const { IS_DEV } = process.env
 
@@ -29,6 +31,8 @@ interface TaskHeaderProps {
 	lastApiReqTotalTokens?: number
 	onClose: () => void
 	onScrollToMessage?: (messageIndex: number) => void
+	currentTaskItem?: HistoryItem
+	allTasks?: HistoryItem[]
 }
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
@@ -42,6 +46,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 	onScrollToMessage,
+	allTasks
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()
@@ -208,6 +213,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		</>
 	)
 
+	const isChildTask = useMemo(() => {
+		return currentTaskItem?.parentId !== undefined && currentTaskItem?.parentId !== ""
+	}, [currentTaskItem?.parentId])
+	const navigateToTask = (taskId: string) => {
+		TaskServiceClient.showTaskWithId({ value: taskId })
+	}
+
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
@@ -286,6 +298,28 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
+					{isChildTask && (
+						<div
+							onClick={() => {
+								if (currentTaskItem?.parentId) {
+									navigateToTask(currentTaskItem.parentId)
+								}
+							}}
+							style={{
+								marginLeft: 10,
+								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
+								color: "var(--vscode-badge-background)",
+								padding: "2px 4px",
+								borderRadius: "500px",
+								fontSize: "11px",
+								fontWeight: 500,
+								display: "inline-block",
+								flexShrink: 0,
+								cursor: "pointer",
+							}}>
+							←
+						</div>
+					)}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
@@ -315,6 +349,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								}}>
 								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
 							</div>
+							{currentTaskItem && (
+								<TaskHierarchy
+									currentTask={currentTaskItem}
+									allTasks={allTasks || []}
+									onTaskClick={navigateToTask}
+									isTaskExpanded={isTaskExpanded}
+								/>
+							)}
 							{!isTextExpanded && showSeeMore && (
 								<div
 									style={{
