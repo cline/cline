@@ -95,7 +95,7 @@ function generateClientInterface(serviceName, serviceDefinition) {
 				return `	${methodName}(request: ${requestType}): Promise<${responseType}>;`
 			}
 			// Generate streaming method signature.
-			return `	${methodName}(request:  ${requestType}, callbacks: StreamingCallbacks<${responseType}>): () => void;`
+			return `	${methodName}(request: ${requestType}, callbacks: StreamingCallbacks<${responseType}>): () => void;`
 		})
 		.join("\n\n")
 
