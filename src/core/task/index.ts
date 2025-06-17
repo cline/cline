@@ -1147,9 +1147,22 @@ export class Task {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+
 		// resume the task from child messages
+		let childResumeText: string | undefined
 		if (this.activeChildTaskId) {
-			const { historyItem, apiConversationHistory } = await this.getTaskWithId(this.activeChildTaskId)
+			const childClineMessages = await getSavedClineMessages(this.getContext(), this.activeChildTaskId)
+			let completionResult = childClineMessages.find((m) => m.say === "completion_result")
+			if (completionResult) {
+				const parsedResult = JSON.parse(completionResult.text || "{}")
+				const { text } = parsedResult as any
+
+				childResumeText = `You are resumed from a child task. Child task ${this.activeChildTaskId} completed with result: ${text}.`
+				await this.say("child_task_completed", childResumeText)
+
+				this.userMessageContentReady = true
+				// Reset active child task id after processing
+			}
 		}
 
 		this.activeChildTaskId = undefined // reset active child task id

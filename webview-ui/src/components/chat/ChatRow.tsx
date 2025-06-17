@@ -1098,6 +1098,7 @@ export const ChatRowContent = ({
 							)}
 						</>
 					)
+<<<<<<< HEAD
 
 				case "child_task_completed":
 					return (
@@ -1116,6 +1117,25 @@ export const ChatRowContent = ({
 								</p>
 							</>
 						)
+=======
+				
+				case "child_task_completed":
+					console.log(" 'child_task_completed' message type in ClineChatRow",message)
+					return message.text && (
+						<>
+							<div style={headerStyle}>
+								{icon}
+								{title}
+							</div>
+							<p
+								style={{
+									...pStyle,
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								{message.text}
+							</p>
+						</>
+>>>>>>> 8d60dff3 (feat: modify resume logic to fix parent task state error resuming from child task)
 					)
 				case "start_next_child_task":
 				case "new_child_task":
