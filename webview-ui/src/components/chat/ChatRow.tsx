@@ -689,15 +689,22 @@ export const ChatRowContent = ({
 					</>
 				)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 2974c4be (feat: start_next_child_task)
 			case "startNextChildTask":
 				return (
 					<>
 						<div style={headerStyle}>
 							{toolIcon("split-horizontal")}
 							<span style={{ fontWeight: "bold" }}>
+<<<<<<< HEAD
 								{message.type === "ask"
 									? "Cline wants to start next child task:"
 									: "Cline completed next child task:"}
+=======
+								{message.type === "ask" ? "Cline wants to start next child task:" : "Cline completed next child task:"}
+>>>>>>> 2974c4be (feat: start_next_child_task)
 							</span>
 						</div>
 						<div
@@ -729,8 +736,11 @@ export const ChatRowContent = ({
 					</>
 				)
 
+<<<<<<< HEAD
 =======
 >>>>>>> a4cdb30f (feat: modify view_pending_task logic)
+=======
+>>>>>>> 2974c4be (feat: start_next_child_task)
 			case "viewPendingChildTasks":
 				console.log("viewPendingChildTasks tool content:", message)
 				return (
