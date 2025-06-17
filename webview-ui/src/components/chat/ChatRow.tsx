@@ -1102,6 +1102,7 @@ export const ChatRowContent = ({
 <<<<<<< HEAD
 
 				case "child_task_completed":
+<<<<<<< HEAD
 					return (
 						message.text && (
 							<>
@@ -1125,6 +1126,8 @@ export const ChatRowContent = ({
 >>>>>>> 119554cf (feat: modify parentid logic in task complete part)
 				case "child_task_completed":
 					console.log(" 'child_task_completed' message type in ClineChatRow", message)
+=======
+>>>>>>> 9bef4fa8 (feat: modify view_pending_task logic)
 					return message.text && (
 						<>
 							<div style={headerStyle}>

@@ -1156,8 +1156,19 @@ export class Task {
 			if (completionResult) {
 				const { text } = completionResult
 
-				childResumeText = `You are resumed from a child task. Child task ${this.activeChildTaskId} completed with result: ${text}.`
+				this.status = "running"
+				childResumeText = `Task resuming. Child task ${this.activeChildTaskId} completed with result: ${text}.`
 				await this.say("child_task_completed", childResumeText)
+				this.activeChildTaskId = undefined
+				await saveClineMessagesAndUpdateHistory(
+					this.getContext(),
+					() => this.getTaskInfo(),
+					this.clineMessages,
+					this.taskIsFavorited ?? false,
+					this.conversationHistoryDeletedRange,
+					this.checkpointTracker,
+					(historyItem) => this.updateTaskHistory(historyItem),
+				)
 			}
 		}
 
