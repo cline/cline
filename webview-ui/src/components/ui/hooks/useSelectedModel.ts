@@ -75,7 +75,10 @@ function getSelectedModel({
 	apiConfiguration: ProviderSettings
 	routerModels: RouterModels
 	openRouterModelProviders: Record<string, ModelInfo>
-}): { id: string; info: ModelInfo } {
+}): { id: string; info: ModelInfo | undefined } {
+	// the `undefined` case are used to show the invalid selection to prevent
+	// users from seeing the default model if their selection is invalid
+	// this gives a better UX than showing the default model
 	switch (provider) {
 		case "openrouter": {
 			const id = apiConfiguration.openRouterModelId ?? openRouterDefaultModelId
@@ -91,50 +94,42 @@ function getSelectedModel({
 					: openRouterModelProviders[specificProvider]
 			}
 
-			return info
-				? { id, info }
-				: { id: openRouterDefaultModelId, info: routerModels.openrouter[openRouterDefaultModelId] }
+			return { id, info }
 		}
 		case "requesty": {
 			const id = apiConfiguration.requestyModelId ?? requestyDefaultModelId
 			const info = routerModels.requesty[id]
-			return info
-				? { id, info }
-				: { id: requestyDefaultModelId, info: routerModels.requesty[requestyDefaultModelId] }
+			return { id, info }
 		}
 		case "glama": {
 			const id = apiConfiguration.glamaModelId ?? glamaDefaultModelId
 			const info = routerModels.glama[id]
-			return info ? { id, info } : { id: glamaDefaultModelId, info: routerModels.glama[glamaDefaultModelId] }
+			return { id, info }
 		}
 		case "unbound": {
 			const id = apiConfiguration.unboundModelId ?? unboundDefaultModelId
 			const info = routerModels.unbound[id]
-			return info
-				? { id, info }
-				: { id: unboundDefaultModelId, info: routerModels.unbound[unboundDefaultModelId] }
+			return { id, info }
 		}
 		case "litellm": {
 			const id = apiConfiguration.litellmModelId ?? litellmDefaultModelId
 			const info = routerModels.litellm[id]
-			return info
-				? { id, info }
-				: { id: litellmDefaultModelId, info: routerModels.litellm[litellmDefaultModelId] }
+			return { id, info }
 		}
 		case "xai": {
 			const id = apiConfiguration.apiModelId ?? xaiDefaultModelId
 			const info = xaiModels[id as keyof typeof xaiModels]
-			return info ? { id, info } : { id: xaiDefaultModelId, info: xaiModels[xaiDefaultModelId] }
+			return info ? { id, info } : { id, info: undefined }
 		}
 		case "groq": {
 			const id = apiConfiguration.apiModelId ?? groqDefaultModelId
 			const info = groqModels[id as keyof typeof groqModels]
-			return info ? { id, info } : { id: groqDefaultModelId, info: groqModels[groqDefaultModelId] }
+			return { id, info }
 		}
 		case "chutes": {
 			const id = apiConfiguration.apiModelId ?? chutesDefaultModelId
 			const info = chutesModels[id as keyof typeof chutesModels]
-			return info ? { id, info } : { id: chutesDefaultModelId, info: chutesModels[chutesDefaultModelId] }
+			return { id, info }
 		}
 		case "bedrock": {
 			const id = apiConfiguration.apiModelId ?? bedrockDefaultModelId
@@ -148,34 +143,32 @@ function getSelectedModel({
 				}
 			}
 
-			return info ? { id, info } : { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
+			return { id, info }
 		}
 		case "vertex": {
 			const id = apiConfiguration.apiModelId ?? vertexDefaultModelId
 			const info = vertexModels[id as keyof typeof vertexModels]
-			return info ? { id, info } : { id: vertexDefaultModelId, info: vertexModels[vertexDefaultModelId] }
+			return { id, info }
 		}
 		case "gemini": {
 			const id = apiConfiguration.apiModelId ?? geminiDefaultModelId
 			const info = geminiModels[id as keyof typeof geminiModels]
-			return info ? { id, info } : { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
+			return { id, info }
 		}
 		case "deepseek": {
 			const id = apiConfiguration.apiModelId ?? deepSeekDefaultModelId
 			const info = deepSeekModels[id as keyof typeof deepSeekModels]
-			return info ? { id, info } : { id: deepSeekDefaultModelId, info: deepSeekModels[deepSeekDefaultModelId] }
+			return { id, info }
 		}
 		case "openai-native": {
 			const id = apiConfiguration.apiModelId ?? openAiNativeDefaultModelId
 			const info = openAiNativeModels[id as keyof typeof openAiNativeModels]
-			return info
-				? { id, info }
-				: { id: openAiNativeDefaultModelId, info: openAiNativeModels[openAiNativeDefaultModelId] }
+			return { id, info }
 		}
 		case "mistral": {
 			const id = apiConfiguration.apiModelId ?? mistralDefaultModelId
 			const info = mistralModels[id as keyof typeof mistralModels]
-			return info ? { id, info } : { id: mistralDefaultModelId, info: mistralModels[mistralDefaultModelId] }
+			return { id, info }
 		}
 		case "openai": {
 			const id = apiConfiguration.openAiModelId ?? ""
@@ -206,7 +199,7 @@ function getSelectedModel({
 		default: {
 			const id = apiConfiguration.apiModelId ?? anthropicDefaultModelId
 			const info = anthropicModels[id as keyof typeof anthropicModels]
-			return info ? { id, info } : { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
+			return { id, info }
 		}
 	}
 }

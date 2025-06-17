@@ -20,6 +20,7 @@ type RequestyProps = {
 	routerModels?: RouterModels
 	refetchRouterModels: () => void
 	organizationAllowList: OrganizationAllowList
+	modelValidationError?: string
 }
 
 export const Requesty = ({
@@ -28,6 +29,7 @@ export const Requesty = ({
 	routerModels,
 	refetchRouterModels,
 	organizationAllowList,
+	modelValidationError,
 }: RequestyProps) => {
 	const { t } = useAppTranslation()
 
@@ -96,6 +98,7 @@ export const Requesty = ({
 				serviceName="Requesty"
 				serviceUrl="https://requesty.ai"
 				organizationAllowList={organizationAllowList}
+				errorMessage={modelValidationError}
 			/>
 		</>
 	)

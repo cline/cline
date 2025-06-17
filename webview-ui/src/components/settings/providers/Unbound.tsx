@@ -19,6 +19,7 @@ type UnboundProps = {
 	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	routerModels?: RouterModels
 	organizationAllowList: OrganizationAllowList
+	modelValidationError?: string
 }
 
 export const Unbound = ({
@@ -26,6 +27,7 @@ export const Unbound = ({
 	setApiConfigurationField,
 	routerModels,
 	organizationAllowList,
+	modelValidationError,
 }: UnboundProps) => {
 	const { t } = useAppTranslation()
 	const [didRefetch, setDidRefetch] = useState<boolean>()
@@ -176,6 +178,7 @@ export const Unbound = ({
 				serviceUrl="https://api.getunbound.ai/models"
 				setApiConfigurationField={setApiConfigurationField}
 				organizationAllowList={organizationAllowList}
+				errorMessage={modelValidationError}
 			/>
 		</>
 	)

@@ -30,6 +30,7 @@ type OpenRouterProps = {
 	uriScheme: string | undefined
 	fromWelcomeView?: boolean
 	organizationAllowList: OrganizationAllowList
+	modelValidationError?: string
 }
 
 export const OpenRouter = ({
@@ -40,6 +41,7 @@ export const OpenRouter = ({
 	uriScheme,
 	fromWelcomeView,
 	organizationAllowList,
+	modelValidationError,
 }: OpenRouterProps) => {
 	const { t } = useAppTranslation()
 
@@ -135,6 +137,7 @@ export const OpenRouter = ({
 				serviceName="OpenRouter"
 				serviceUrl="https://openrouter.ai/models"
 				organizationAllowList={organizationAllowList}
+				errorMessage={modelValidationError}
 			/>
 			{openRouterModelProviders && Object.keys(openRouterModelProviders).length > 0 && (
 				<div>

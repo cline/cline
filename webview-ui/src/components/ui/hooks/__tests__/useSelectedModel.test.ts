@@ -284,18 +284,8 @@ describe("useSelectedModel", () => {
 			const wrapper = createWrapper()
 			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(result.current.id).toBe("anthropic/claude-sonnet-4")
-			expect(result.current.info).toEqual({
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsComputerUse: true,
-				supportsPromptCache: true,
-				inputPrice: 3.0,
-				outputPrice: 15.0,
-				cacheWritesPrice: 3.75,
-				cacheReadsPrice: 0.3,
-			})
+			expect(result.current.id).toBe("non-existent-model")
+			expect(result.current.info).toBeUndefined()
 		})
 	})
 
