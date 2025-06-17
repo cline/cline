@@ -688,6 +688,7 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
+<<<<<<< HEAD
 			case "startNextChildTask":
 				return (
 					<>
@@ -728,6 +729,8 @@ export const ChatRowContent = ({
 					</>
 				)
 
+=======
+>>>>>>> a4cdb30f (feat: modify view_pending_task logic)
 			case "viewPendingChildTasks":
 				console.log("viewPendingChildTasks tool content:", message)
 				return (
@@ -740,6 +743,7 @@ export const ChatRowContent = ({
 									: "Cline viewed pending child tasks:"}
 							</span>
 						</div>
+<<<<<<< HEAD
 						{tool.content && (
 							<CodeAccordian
 								code={tool.content!}
@@ -749,6 +753,15 @@ export const ChatRowContent = ({
 								onToggleExpand={onToggleExpand}
 							/>
 						)}
+=======
+						{tool.content && <CodeAccordian
+							code={tool.content!}
+							path={tool.path!}
+							language="plaintext"
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>}
+>>>>>>> a4cdb30f (feat: modify view_pending_task logic)
 					</>
 				)
 			case "searchFiles":
