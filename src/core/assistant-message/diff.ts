@@ -9,10 +9,12 @@ const REPLACE_BLOCK_CHAR = "+"
 const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH$/
 const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
 const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE$/
+const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH$/
+const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE$/
 
 // Helper functions to check if a line matches the flexible patterns
 function isSearchBlockStart(line: string): boolean {
-	return SEARCH_BLOCK_START_REGEX.test(line)
+	return SEARCH_BLOCK_START_REGEX.test(line) || LEGACY_SEARCH_BLOCK_START_REGEX.test(line)
 }
 
 function isSearchBlockEnd(line: string): boolean {
@@ -20,7 +22,7 @@ function isSearchBlockEnd(line: string): boolean {
 }
 
 function isReplaceBlockEnd(line: string): boolean {
-	return REPLACE_BLOCK_END_REGEX.test(line)
+	return REPLACE_BLOCK_END_REGEX.test(line) || LEGACY_REPLACE_BLOCK_END_REGEX.test(line)
 }
 
 /**
