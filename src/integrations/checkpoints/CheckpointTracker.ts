@@ -5,6 +5,27 @@ import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
+import { getTaskMetadata } from "@core/storage/disk"
+
+/**
+ * Options for selective checkpoint restoration
+ */
+export interface SelectiveRestoreOptions {
+	restoreOnlyClineFiles: boolean
+	preserveUserEdits: boolean
+}
+
+/**
+ * Information about a file's restoration status
+ */
+export interface FileRestoreInfo {
+	relativePath: string
+	absolutePath: string
+	modifiedByCline: boolean
+	modifiedByUser: boolean
+	lastClineEdit: number | null
+	lastUserEdit: number | null
+}
 
 /**
  * CheckpointTracker Module
@@ -371,6 +392,155 @@ class CheckpointTracker {
 		telemetryService.captureCheckpointUsage(this.taskId, "diff_generated", durationMs)
 
 		return diffSummary.files.length
+	}
+
+	/**
+	 * Analyzes files between two checkpoints to determine restoration strategy
+	 * @param fromCommitHash - The checkpoint to restore to
+	 * @param toCommitHash - The current checkpoint (optional, defaults to HEAD)
+	 * @returns Array of files with restoration metadata
+	 */
+	public async getSelectiveRestoreInfo(
+		fromCommitHash: string,
+		toCommitHash?: string,
+		context?: vscode.ExtensionContext,
+	): Promise<FileRestoreInfo[]> {
+		const diffSet = await this.getDiffSet(fromCommitHash, toCommitHash)
+		const fileRestoreInfo: FileRestoreInfo[] = []
+
+		// Get task metadata to check file edit history - skip if no context available
+		if (!context) {
+			// If no context available, assume all files were modified by Cline for safety
+			for (const file of diffSet) {
+				fileRestoreInfo.push({
+					relativePath: file.relativePath,
+					absolutePath: file.absolutePath,
+					modifiedByCline: true,
+					modifiedByUser: false,
+					lastClineEdit: Date.now(),
+					lastUserEdit: null,
+				})
+			}
+			return fileRestoreInfo
+		}
+
+		const taskMetadata = await getTaskMetadata(context, this.taskId)
+
+		for (const file of diffSet) {
+			const fileEntries = taskMetadata.files_in_context.filter((entry) => entry.path === file.relativePath)
+
+			// Determine if file was modified by Cline or user in the time range
+			const checkpointTime = await this.getCommitTimestamp(fromCommitHash)
+			const currentTime = toCommitHash ? await this.getCommitTimestamp(toCommitHash) : Date.now()
+
+			const clineEditsInRange = fileEntries.filter(
+				(entry) =>
+					entry.cline_edit_date && entry.cline_edit_date > checkpointTime && entry.cline_edit_date <= currentTime,
+			)
+
+			const userEditsInRange = fileEntries.filter(
+				(entry) => entry.user_edit_date && entry.user_edit_date > checkpointTime && entry.user_edit_date <= currentTime,
+			)
+
+			fileRestoreInfo.push({
+				relativePath: file.relativePath,
+				absolutePath: file.absolutePath,
+				modifiedByCline: clineEditsInRange.length > 0,
+				modifiedByUser: userEditsInRange.length > 0,
+				lastClineEdit: clineEditsInRange[0]?.cline_edit_date || null,
+				lastUserEdit: userEditsInRange[0]?.user_edit_date || null,
+			})
+		}
+
+		return fileRestoreInfo
+	}
+
+	/**
+	 * Selectively resets files to a checkpoint, preserving user edits
+	 * @param commitHash - The checkpoint to restore to
+	 * @param options - Restoration options
+	 */
+	public async selectiveResetHead(
+		commitHash: string,
+		options: SelectiveRestoreOptions = {
+			restoreOnlyClineFiles: true,
+			preserveUserEdits: true,
+		},
+	): Promise<{
+		restoredFiles: string[]
+		preservedFiles: string[]
+		conflictFiles: string[]
+	}> {
+		console.info(`Performing selective reset to checkpoint: ${commitHash}`)
+		const startTime = performance.now()
+
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const git = simpleGit(path.dirname(gitPath))
+
+		// Get restoration analysis
+		const restoreInfo = await this.getSelectiveRestoreInfo(commitHash)
+
+		const restoredFiles: string[] = []
+		const preservedFiles: string[] = []
+		const conflictFiles: string[] = []
+
+		for (const fileInfo of restoreInfo) {
+			if (fileInfo.modifiedByCline && fileInfo.modifiedByUser) {
+				// Conflict: Both Cline and user modified the file
+				if (options.preserveUserEdits) {
+					// Check if user edit was more recent
+					if (fileInfo.lastUserEdit && fileInfo.lastClineEdit && fileInfo.lastUserEdit > fileInfo.lastClineEdit) {
+						preservedFiles.push(fileInfo.relativePath)
+					} else {
+						conflictFiles.push(fileInfo.relativePath)
+					}
+				} else {
+					// Restore Cline's version
+					await this.restoreFileFromCommit(git, commitHash, fileInfo.relativePath)
+					restoredFiles.push(fileInfo.relativePath)
+				}
+			} else if (fileInfo.modifiedByCline && !fileInfo.modifiedByUser) {
+				// Only Cline modified - safe to restore
+				await this.restoreFileFromCommit(git, commitHash, fileInfo.relativePath)
+				restoredFiles.push(fileInfo.relativePath)
+			} else if (!fileInfo.modifiedByCline && fileInfo.modifiedByUser) {
+				// Only user modified - preserve
+				preservedFiles.push(fileInfo.relativePath)
+			} else {
+				// Neither modified (shouldn't happen in diff, but handle gracefully)
+				preservedFiles.push(fileInfo.relativePath)
+			}
+		}
+
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
+
+		return { restoredFiles, preservedFiles, conflictFiles }
+	}
+
+	/**
+	 * Restores a single file from a specific commit
+	 */
+	private async restoreFileFromCommit(git: any, commitHash: string, relativePath: string): Promise<void> {
+		try {
+			const fileContent = await git.show([`${this.cleanCommitHash(commitHash)}:${relativePath}`])
+			const absolutePath = path.join(this.cwd, relativePath)
+			await fs.writeFile(absolutePath, fileContent, "utf8")
+		} catch (error) {
+			console.error(`Failed to restore file ${relativePath}:`, error)
+			throw error
+		}
+	}
+
+	/**
+	 * Gets the timestamp of a commit
+	 */
+	private async getCommitTimestamp(commitHash: string): Promise<number> {
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const git = simpleGit(path.dirname(gitPath))
+
+		const log = await git.log(["-1", "--format=%ct", this.cleanCommitHash(commitHash)])
+		return parseInt(log.latest?.hash || "0") * 1000 // Convert to milliseconds
 	}
 }
 

@@ -415,7 +415,7 @@ export class Task {
 				}
 				if (message.lastCheckpointHash && this.checkpointTracker) {
 					try {
-						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
+						await this.selectiveRestoreCheckpoint(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
@@ -423,7 +423,7 @@ export class Task {
 					}
 				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
 					try {
-						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+						await this.selectiveRestoreCheckpoint(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
@@ -433,7 +433,7 @@ export class Task {
 					// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
 					console.warn(`Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint`)
 					try {
-						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+						await this.selectiveRestoreCheckpoint(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
@@ -1251,6 +1251,52 @@ export class Task {
 
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
+	}
+
+	/**
+	 * Performs selective checkpoint restoration, preserving user edits while restoring Cline-modified files
+	 * @param commitHash - The checkpoint hash to restore to
+	 */
+	async selectiveRestoreCheckpoint(commitHash: string): Promise<void> {
+		if (!this.checkpointTracker) {
+			throw new Error("Checkpoint tracker not available")
+		}
+
+		try {
+			// Use selective restoration by default
+			const result = await this.checkpointTracker.selectiveResetHead(commitHash, {
+				restoreOnlyClineFiles: true,
+				preserveUserEdits: true,
+			})
+
+			console.log(`Selective checkpoint restoration completed:`)
+			console.log(`- Restored files: ${result.restoredFiles.length}`)
+			console.log(`- Preserved files: ${result.preservedFiles.length}`)
+			console.log(`- Conflict files: ${result.conflictFiles.length}`)
+
+			// If there are conflicts, log them for debugging
+			if (result.conflictFiles.length > 0) {
+				console.warn(`Files with conflicts (preserved user edits):`, result.conflictFiles)
+			}
+
+			// Show user-friendly message about what was restored
+			if (result.restoredFiles.length > 0) {
+				const message =
+					`Restored ${result.restoredFiles.length} Cline-modified file(s)` +
+					(result.preservedFiles.length > 0
+						? `, preserved ${result.preservedFiles.length} user-modified file(s)`
+						: "") +
+					(result.conflictFiles.length > 0
+						? `, ${result.conflictFiles.length} file(s) had conflicts (user edits preserved)`
+						: "")
+
+				console.info(`Selective restoration: ${message}`)
+			}
+		} catch (error) {
+			console.error("Selective checkpoint restoration failed, falling back to full restoration:", error)
+			// Fall back to full restoration if selective fails
+			await this.checkpointTracker.resetHead(commitHash)
+		}
 	}
 
 	// Checkpoints
@@ -2281,15 +2327,16 @@ export class Task {
 					}
 				}
 
-				const handleError = async (action: string, error: Error, isClaude4Model: boolean = false) => {
+				const handleError = async (action: string, error: unknown, isClaude4Model: boolean = false) => {
 					if (this.abandoned) {
 						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 						return
 					}
-					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
+					const errorObj = error instanceof Error ? error : new Error(String(error))
+					const errorString = `Error ${action}: ${JSON.stringify(serializeError(errorObj))}`
 					await this.say(
 						"error",
-						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
+						`Error ${action}:\n${errorObj.message ?? JSON.stringify(serializeError(errorObj), null, 2)}`,
 					)
 
 					pushToolResult(formatResponse.toolError(errorString), isClaude4Model)

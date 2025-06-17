@@ -222,11 +222,12 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					try {
 						await validateWorkspacePath(workspacePath)
 					} catch (error) {
-						Logger.log(`Workspace validation failed: ${error.message}`)
+						const errorObj = error instanceof Error ? error : new Error(String(error))
+						Logger.log(`Workspace validation failed: ${errorObj.message}`)
 						res.writeHead(500)
 						res.end(
 							JSON.stringify({
-								error: `Workspace validation failed: ${error.message}. Please open a workspace folder in VSCode before running the test.`,
+								error: `Workspace validation failed: ${errorObj.message}. Please open a workspace folder in VSCode before running the test.`,
 								workspacePath,
 							}),
 						)
@@ -247,10 +248,12 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 							const { stdout: lsOutput } = await execa("ls", ["-la", workspacePath])
 							Logger.log(`Directory contents before task start:\n${lsOutput}`)
 						} catch (lsError) {
-							Logger.log(`Warning: Failed to list directory contents: ${lsError.message}`)
+							const errorObj = lsError instanceof Error ? lsError : new Error(String(lsError))
+							Logger.log(`Warning: Failed to list directory contents: ${errorObj.message}`)
 						}
 					} catch (gitError) {
-						Logger.log(`Warning: Git initialization failed: ${gitError.message}`)
+						const errorObj = gitError instanceof Error ? gitError : new Error(String(gitError))
+						Logger.log(`Warning: Git initialization failed: ${errorObj.message}`)
 						Logger.log("Continuing without Git initialization")
 					}
 
@@ -383,7 +386,8 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 								const { stdout: lsOutput } = await execa("ls", ["-la", workspacePath])
 								Logger.log(`Directory contents after task completion:\n${lsOutput}`)
 							} catch (lsError) {
-								Logger.log(`Warning: Failed to list directory contents: ${lsError.message}`)
+								const errorObj = lsError instanceof Error ? lsError : new Error(String(lsError))
+								Logger.log(`Warning: Failed to list directory contents: ${errorObj.message}`)
 							}
 
 							// Get file changes using Git
@@ -412,12 +416,15 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 									fileChanges.created = files.map((file) => path.relative(workspacePath, file))
 									Logger.log(`Fallback found ${fileChanges.created.length} files`)
 								} catch (findError) {
-									Logger.log(`Warning: Fallback directory scan failed: ${findError.message}`)
+									const errorObj = findError instanceof Error ? findError : new Error(String(findError))
+									Logger.log(`Warning: Fallback directory scan failed: ${errorObj.message}`)
 								}
 							}
 						} catch (fileChangeError) {
-							Logger.log(`Error getting file changes: ${fileChangeError.message}`)
-							throw new Error(`Error getting file changes: ${fileChangeError.message}`)
+							const errorObj =
+								fileChangeError instanceof Error ? fileChangeError : new Error(String(fileChangeError))
+							Logger.log(`Error getting file changes: ${errorObj.message}`)
+							throw new Error(`Error getting file changes: ${errorObj.message}`)
 						}
 
 						// Get tool metrics
