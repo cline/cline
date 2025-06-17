@@ -269,10 +269,6 @@ export async function executeCommand(
 		let workingDirInfo = ` within working directory '${workingDir.toPosix()}'`
 		const newWorkingDir = terminal.getCurrentWorkingDirectory()
 
-		if (newWorkingDir !== workingDir) {
-			workingDirInfo += `\nNOTICE: Your command changed the working directory for this terminal to '${newWorkingDir.toPosix()}' so you MUST adjust future commands accordingly because they will be executed in this directory`
-		}
-
 		return [false, `Command executed in terminal ${workingDirInfo}. ${exitStatus}\nOutput:\n${result}`]
 	} else {
 		return [
