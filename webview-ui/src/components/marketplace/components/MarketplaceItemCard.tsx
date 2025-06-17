@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react"
-import { MarketplaceItem } from "@roo-code/types"
+import { MarketplaceItem, TelemetryEventName } from "@roo-code/types"
 import { vscode } from "@/utils/vscode"
+import { telemetryClient } from "@/utils/TelemetryClient"
 import { ViewState } from "../MarketplaceViewStateManager"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { isValidUrl } from "../../../utils/url"
@@ -43,6 +44,13 @@ export const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({ item, 
 	const isInstalled = isInstalledGlobally || isInstalledInProject
 
 	const handleInstallClick = () => {
+		// Send telemetry for install button click
+		telemetryClient.capture(TelemetryEventName.MARKETPLACE_INSTALL_BUTTON_CLICKED, {
+			itemId: item.id,
+			itemType: item.type,
+			itemName: item.name,
+		})
+
 		// Show modal for all item types (MCP and modes)
 		setShowInstallModal(true)
 	}

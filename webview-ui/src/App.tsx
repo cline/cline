@@ -8,6 +8,7 @@ import { MarketplaceViewStateManager } from "./components/marketplace/Marketplac
 
 import { vscode } from "./utils/vscode"
 import { telemetryClient } from "./utils/TelemetryClient"
+import { TelemetryEventName } from "@roo-code/types"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView, { ChatViewRef } from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
@@ -143,6 +144,13 @@ const App = () => {
 
 	// Tell the extension that we are ready to receive messages.
 	useEffect(() => vscode.postMessage({ type: "webviewDidLaunch" }), [])
+
+	// Track marketplace tab views
+	useEffect(() => {
+		if (tab === "marketplace" && experiments.marketplace) {
+			telemetryClient.capture(TelemetryEventName.MARKETPLACE_TAB_VIEWED)
+		}
+	}, [tab, experiments.marketplace])
 
 	if (!didHydrateState) {
 		return null

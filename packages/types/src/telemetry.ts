@@ -43,6 +43,8 @@ export enum TelemetryEventName {
 
 	MARKETPLACE_ITEM_INSTALLED = "Marketplace Item Installed",
 	MARKETPLACE_ITEM_REMOVED = "Marketplace Item Removed",
+	MARKETPLACE_TAB_VIEWED = "Marketplace Tab Viewed",
+	MARKETPLACE_INSTALL_BUTTON_CLICKED = "Marketplace Install Button Clicked",
 
 	SCHEMA_VALIDATION_ERROR = "Schema Validation Error",
 	DIFF_APPLICATION_ERROR = "Diff Application Error",
