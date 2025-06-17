@@ -59,6 +59,7 @@ describe("getEnvironmentDetails", () => {
 		getLastCommand: Mock
 		getProcessesWithOutput: Mock
 		cleanCompletedProcessQueue?: Mock
+		getCurrentWorkingDirectory: Mock
 	}
 
 	let mockCline: Partial<Task>
@@ -208,6 +209,7 @@ describe("getEnvironmentDetails", () => {
 			id: "terminal-1",
 			getLastCommand: vi.fn().mockReturnValue("npm test"),
 			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path/src"),
 		} as MockTerminal
 
 		;(TerminalRegistry.getTerminals as Mock).mockReturnValue([mockActiveTerminal])
@@ -216,7 +218,9 @@ describe("getEnvironmentDetails", () => {
 		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("# Actively Running Terminals")
-		expect(result).toContain("Original command: `npm test`")
+		expect(result).toContain("## Terminal terminal-1 (Active)")
+		expect(result).toContain("### Working Directory: `/test/path/src`")
+		expect(result).toContain("### Original command: `npm test`")
 		expect(result).toContain("Test output")
 
 		mockCline.didEditFile = true
@@ -234,8 +238,10 @@ describe("getEnvironmentDetails", () => {
 
 		const mockInactiveTerminal = {
 			id: "terminal-2",
+			getLastCommand: vi.fn().mockReturnValue("npm build"),
 			getProcessesWithOutput: vi.fn().mockReturnValue([mockProcess]),
 			cleanCompletedProcessQueue: vi.fn(),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path/build"),
 		} as MockTerminal
 
 		;(TerminalRegistry.getTerminals as Mock).mockImplementation((active: boolean) =>
@@ -245,11 +251,54 @@ describe("getEnvironmentDetails", () => {
 		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("# Inactive Terminals with Completed Process Output")
-		expect(result).toContain("Terminal terminal-2")
+		expect(result).toContain("## Terminal terminal-2 (Inactive)")
+		expect(result).toContain("### Working Directory: `/test/path/build`")
 		expect(result).toContain("Command: `npm build`")
 		expect(result).toContain("Build output")
 
 		expect(mockInactiveTerminal.cleanCompletedProcessQueue).toHaveBeenCalled()
+	})
+
+	it("should include working directory for terminals", async () => {
+		const mockActiveTerminal = {
+			id: "terminal-1",
+			getLastCommand: vi.fn().mockReturnValue("cd /some/path && npm start"),
+			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/some/path"),
+		} as MockTerminal
+
+		const mockProcess = {
+			command: "npm test",
+			getUnretrievedOutput: vi.fn().mockReturnValue("Test completed"),
+		}
+
+		const mockInactiveTerminal = {
+			id: "terminal-2",
+			getLastCommand: vi.fn().mockReturnValue("npm test"),
+			getProcessesWithOutput: vi.fn().mockReturnValue([mockProcess]),
+			cleanCompletedProcessQueue: vi.fn(),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/another/path"),
+		} as MockTerminal
+
+		;(TerminalRegistry.getTerminals as Mock).mockImplementation((active: boolean) =>
+			active ? [mockActiveTerminal] : [mockInactiveTerminal],
+		)
+		;(TerminalRegistry.getUnretrievedOutput as Mock).mockReturnValue("Server started")
+
+		const result = await getEnvironmentDetails(mockCline as Task)
+
+		// Check active terminal working directory
+		expect(result).toContain("## Terminal terminal-1 (Active)")
+		expect(result).toContain("### Working Directory: `/some/path`")
+		expect(result).toContain("### Original command: `cd /some/path && npm start`")
+
+		// Check inactive terminal working directory
+		expect(result).toContain("## Terminal terminal-2 (Inactive)")
+		expect(result).toContain("### Working Directory: `/another/path`")
+
+		// Verify the methods were called
+		expect(mockActiveTerminal.getCurrentWorkingDirectory).toHaveBeenCalled()
+		expect(mockInactiveTerminal.getCurrentWorkingDirectory).toHaveBeenCalled()
 	})
 
 	it("should include warning when file writing is not allowed", async () => {
@@ -310,6 +359,7 @@ describe("getEnvironmentDetails", () => {
 			id: "terminal-1",
 			getLastCommand: vi.fn().mockReturnValue("npm test"),
 			getProcessesWithOutput: vi.fn().mockReturnValue([]),
+			getCurrentWorkingDirectory: vi.fn().mockReturnValue("/test/path"),
 		} as MockTerminal
 
 		;(TerminalRegistry.getTerminals as Mock).mockReturnValue([mockErrorTerminal])
