@@ -31,7 +31,7 @@ importers:
         version: 9.1.7
       knip:
         specifier: ^5.44.4
-        version: 5.60.2(@types/node@22.15.29)(typescript@5.8.3)
+        version: 5.61.1(@types/node@22.15.29)(typescript@5.8.3)
       lint-staged:
         specifier: ^16.0.0
         version: 16.1.0
@@ -6811,8 +6811,8 @@ packages:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
 
-  knip@5.60.2:
-    resolution: {integrity: sha512-TsYqEsoL3802RmhGL5MN7RLI6/03kocMYx/4BpMmwo3dSwEJxmzV7HqRxMVZr6c1llbd25+MqjgA86bv1IwsPA==}
+  knip@5.61.1:
+    resolution: {integrity: sha512-keywAzpu8R9S50JRT3qxilb1i/pv3ztBHhZ3tRuHvRclqfhfPkY7kb/G6l4q7zozbyndidSr7IScvayG76HtkA==}
     engines: {node: '>=18.18.0'}
     hasBin: true
     peerDependencies:
@@ -9812,17 +9812,20 @@ packages:
       typescript: ^4.9.4 || ^5.0.2
       zod: ^3
 
-  zod-validation-error@3.4.1:
-    resolution: {integrity: sha512-1KP64yqDPQ3rupxNv7oXhf7KdhHHgaqbKuspVoiN93TT0xrBjql+Svjkdjq/Qh/7GSMmgQs3AfvBT0heE35thw==}
+  zod-validation-error@3.5.1:
+    resolution: {integrity: sha512-ozT8jy2nHaeKjaRIEThwgRXBwm16hAy0BaTRx1I2IY1xrezPegmlFmYKb5tcvYqZDQm0sfZtDr2IR7CdCJzTGw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^3.24.4
+      zod: ^3.25.0
 
   zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
 
   zod@3.25.61:
     resolution: {integrity: sha512-fzfJgUw78LTNnHujj9re1Ov/JJQkRZZGDMcYqSx7Hp4rPOkKywaFHq0S6GoHeXs0wGNE/sIOutkXgnwzrVOGCQ==}
+
+  zod@3.25.67:
+    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -13470,7 +13473,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.3(@types/debug@4.1.12)(@types/node@22.15.29)(@vitest/ui@3.2.3)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
+      vitest: 3.2.3(@types/debug@4.1.12)(@types/node@20.17.57)(@vitest/ui@3.2.3)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
 
   '@vitest/utils@3.2.3':
     dependencies:
@@ -16384,7 +16387,7 @@ snapshots:
 
   kind-of@6.0.3: {}
 
-  knip@5.60.2(@types/node@22.15.29)(typescript@5.8.3):
+  knip@5.61.1(@types/node@22.15.29)(typescript@5.8.3):
     dependencies:
       '@nodelib/fs.walk': 1.2.8
       '@types/node': 22.15.29
@@ -16399,8 +16402,8 @@ snapshots:
       smol-toml: 1.3.4
       strip-json-comments: 5.0.2
       typescript: 5.8.3
-      zod: 3.25.61
-      zod-validation-error: 3.4.1(zod@3.25.61)
+      zod: 3.25.67
+      zod-validation-error: 3.5.1(zod@3.25.67)
 
   knuth-shuffle-seeded@1.0.6:
     dependencies:
@@ -20048,12 +20051,14 @@ snapshots:
       typescript: 5.8.3
       zod: 3.25.61
 
-  zod-validation-error@3.4.1(zod@3.25.61):
+  zod-validation-error@3.5.1(zod@3.25.67):
     dependencies:
-      zod: 3.25.61
+      zod: 3.25.67
 
   zod@3.23.8: {}
 
   zod@3.25.61: {}
+
+  zod@3.25.67: {}
 
   zwitch@2.0.4: {}
