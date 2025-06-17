@@ -1,24 +1,22 @@
 # Changelog
 
-## 3.18.0
+## [3.17.14]
 
--   5e55a7a: Fix list_files tool to return files if the targeted directory is a hidden directory
--   a6c33af: add ability to constrain size of terminal output
--   10a223f: Added a configurable default terminal profile setting
--   741b1ed: update the copy button functionality
--   c332697: Add SAP AI Core as a provider for Cline
--   d27b199: Adding MCP Rich Display settings in cline's settings page, to enable users to change it in a persistent manner
--   8d133d9: Fixes a search and replace edge case bug where Cline would previously delete the whole file
-Making the search and replace algorithm more lenient to support models that prefer to use the <<<<<< and >>>>> format instead of ----- and +++++
--   54a7fed: Exclude clinerules from checkpoints
--   6a11c78: chore(bedrock): remove @anthropic-ai/bedrock-sdk
--   5d4594e: Update developer reset to allow for resetting workspace settings.
--   e8e8eac: Added file context warnings to reduce diff edit errors when resuming a task after it has been restored
--   d8e2926: Clear the chat input when the user changes mode within a task
--   60d9bd4: Fixed race condition where clineAsk was undefined, leading to task restoration and other downstream issues
--   189b91c: Fix where clineMessages were not saving checkpoint commitHash on some messages
--   689afc6: Integrate Claude Code
--   31de505: Better debounce on checkmark control menu
+-   Add SAP AI Core as a new API provider with support for Claude and GPT models (Thanks @schardosin!)
+-   Add configurable default terminal profile setting, allowing users to specify which terminal Cline should use (Thanks @valinha!)
+-   Add terminal output size constraint setting to limit how much terminal output is processed
+-   Add MCP Rich Display settings to the settings page for persistent configuration (Thanks @Vl4diC0de!)
+-   Improve copy button functionality with refactored reusable components (Thanks @shouhanzen!)
+-   Fix list_files tool to properly return files when targeting hidden directories
+-   Fix search and replace edge case that could cause file deletion, making the algorithm more lenient for models using different diff formats
+-   Fix race condition where clineAsk was undefined, causing task restoration issues
+-   Fix checkpoint saving to properly include commit hashes on all messages
+-   Improve file context warnings to reduce diff edit errors when resuming restored tasks
+-   Improve checkmark control menu with better debouncing
+-   Clear chat input when switching between Plan/Act modes within a task
+-   Exclude .clinerules files from checkpoint tracking
+-   Remove deprecated @anthropic-ai/bedrock-sdk dependency
+-   Update developer reset functionality to include workspace settings
 
 ## [3.17.13]
 
