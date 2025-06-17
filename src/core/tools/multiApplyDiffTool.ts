@@ -153,7 +153,7 @@ Expected structure:
     <path>relative/path/to/file.ext</path>
     <diff>
       <content>diff content here</content>
-      <start_line>optional line number</start_line>
+      <start_line>line number</start_line>
     </diff>
   </file>
 </args>
