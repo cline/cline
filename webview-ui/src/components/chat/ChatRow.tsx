@@ -74,7 +74,7 @@ interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -699,12 +699,18 @@ export const ChatRowContent = ({
 							{toolIcon("split-horizontal")}
 							<span style={{ fontWeight: "bold" }}>
 <<<<<<< HEAD
+<<<<<<< HEAD
 								{message.type === "ask"
 									? "Cline wants to start next child task:"
 									: "Cline completed next child task:"}
 =======
 								{message.type === "ask" ? "Cline wants to start next child task:" : "Cline completed next child task:"}
 >>>>>>> 2974c4be (feat: start_next_child_task)
+=======
+								{message.type === "ask"
+									? "Cline wants to start next child task:"
+									: "Cline completed next child task:"}
+>>>>>>> 00dcbf08 (feat: modify system prompts)
 							</span>
 						</div>
 						<div
@@ -754,6 +760,9 @@ export const ChatRowContent = ({
 							</span>
 						</div>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 00dcbf08 (feat: modify system prompts)
 						{tool.content && (
 							<CodeAccordian
 								code={tool.content!}
@@ -763,6 +772,7 @@ export const ChatRowContent = ({
 								onToggleExpand={onToggleExpand}
 							/>
 						)}
+<<<<<<< HEAD
 =======
 						{tool.content && <CodeAccordian
 							code={tool.content!}
@@ -772,6 +782,8 @@ export const ChatRowContent = ({
 							onToggleExpand={onToggleExpand}
 						/>}
 >>>>>>> a4cdb30f (feat: modify view_pending_task logic)
+=======
+>>>>>>> 00dcbf08 (feat: modify system prompts)
 					</>
 				)
 			case "searchFiles":
@@ -1126,6 +1138,9 @@ export const ChatRowContent = ({
 
 				case "child_task_completed":
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 00dcbf08 (feat: modify system prompts)
 					return (
 						message.text && (
 							<>
@@ -1142,6 +1157,7 @@ export const ChatRowContent = ({
 								</p>
 							</>
 						)
+<<<<<<< HEAD
 =======
 				
 =======
@@ -1166,6 +1182,8 @@ export const ChatRowContent = ({
 							</p>
 						</>
 >>>>>>> 8d60dff3 (feat: modify resume logic to fix parent task state error resuming from child task)
+=======
+>>>>>>> 00dcbf08 (feat: modify system prompts)
 					)
 				case "start_next_child_task":
 				case "new_child_task":

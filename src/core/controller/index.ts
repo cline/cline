@@ -128,7 +128,13 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem, parentTaskId?: string, childTaskId?: string,
+	async initTask(
+		task?: string,
+		images?: string[],
+		files?: string[],
+		historyItem?: HistoryItem,
+		parentTaskId?: string,
+		childTaskId?: string,
 	) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
@@ -169,7 +175,14 @@ export class Controller {
 			(message) => this.postMessageToWebview(message),
 			(taskId) => this.reinitExistingTaskFromId(taskId),
 			() => this.cancelTask(),
-			(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem, parentTaskId?: string, childTaskId?: string) => this.initTask(task, images, files, historyItem, parentTaskId, childTaskId),
+			(
+				task?: string,
+				images?: string[],
+				files?: string[],
+				historyItem?: HistoryItem,
+				parentTaskId?: string,
+				childTaskId?: string,
+			) => this.initTask(task, images, files, historyItem, parentTaskId, childTaskId),
 			(taskId: string) => showTaskWithId(this, StringRequest.create({ value: taskId })),
 			(taskId: string) => this.getTaskWithId(taskId),
 			apiConfiguration,

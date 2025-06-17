@@ -1035,7 +1035,8 @@ export class Task {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${
+				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -1577,7 +1578,8 @@ export class Task {
 			// Format the result similar to terminal output
 			return [
 				false,
-				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${result.exitCode
+				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
+					result.exitCode
 				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
 			]
 		} catch (error) {
@@ -1712,7 +1714,8 @@ export class Task {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
 					fileContentString,
@@ -1725,7 +1728,8 @@ export class Task {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${
+					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -2223,7 +2227,8 @@ export class Task {
 						case "replace_in_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+							return `[${block.name} for '${block.params.regex}'${
+								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
 							}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
@@ -3286,7 +3291,8 @@ export class Task {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || "(No new logs)"
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
+													browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
@@ -4907,7 +4913,8 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
+								`\n\n[${
+									cancelReason === "streaming_failed"
 										? "Response interrupted by API Error"
 										: "Response interrupted by user"
 								}]`,
