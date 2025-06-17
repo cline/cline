@@ -1,43 +1,43 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "law-aai",
+	"displayName": "Law.AAI",
+	"description": "AI-powered legal assistant right in your IDE, capable of creating/editing legal documents, running legal research, analyzing contracts, and more with your permission every step of the way.",
 	"version": "3.17.13",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Law.AAI Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "lawaai",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/a-ai-dev/law.aai"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://law.aai",
 	"categories": [
 		"AI",
 		"Chat",
-		"Programming Languages",
 		"Education",
-		"Snippets",
-		"Testing"
+		"Other"
 	],
 	"keywords": [
-		"cline",
-		"claude",
-		"dev",
-		"mcp",
-		"openrouter",
-		"coding",
-		"agent",
-		"autonomous",
-		"chatgpt",
-		"sonnet",
+		"law",
+		"legal",
+		"attorney",
+		"lawyer",
+		"contracts",
+		"legal-research",
+		"legal-documents",
 		"ai",
-		"llama"
+		"assistant",
+		"autonomous",
+		"claude",
+		"openai",
+		"legal-ai",
+		"document-analysis"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -48,22 +48,22 @@
 	"contributes": {
 		"walkthroughs": [
 			{
-				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
-				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"id": "LawAAIWalkthrough",
+				"title": "Meet Law.AAI, your new legal partner",
+				"description": "Law.AAI works like a legal professional because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
-						"title": "Start with a Goal, Not Just a Prompt",
-						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"title": "Start with a Legal Goal, Not Just a Prompt",
+						"description": "Tell Law.AAI what legal outcome you want to achieve. It plans, researches, and then drafts, like a true legal partner.",
 						"media": {
 							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
 						"id": "learn",
-						"title": "Let Cline Learn Your Codebase",
-						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"title": "Let Law.AAI Learn Your Legal Practice",
+						"description": "Point Law.AAI to your legal documents and cases. It builds understanding to make smart, context-aware legal analysis.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						}
@@ -71,15 +71,15 @@
 					{
 						"id": "advanced-features",
 						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"description": "Law.AAI empowers you with State-of-the-Art Legal AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
 					},
 					{
 						"id": "mcp",
-						"title": "Extend with Powerful Tools (MCP)",
-						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"title": "Extend with Powerful Legal Tools (MCP)",
+						"description": "Connect to legal databases, case law APIs, or discover new legal capabilities in the MCP Marketplace.",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
@@ -87,7 +87,7 @@
 					{
 						"id": "getting-started",
 						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"description": "Review Law.AAI's legal analysis and document drafts. Approve changes before they happen. No surprises.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						},
