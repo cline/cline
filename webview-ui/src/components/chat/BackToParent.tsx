@@ -1,10 +1,3 @@
-/*
- * @Description: 
- * @Author: 清园
- * @Date: 2025-06-17 10:58:15
- * @LastEditors: 清园
- * @LastEditTime: 2025-06-17 16:14:46
- */
 import SuccessButton from '@/components/common/SuccessButton';
 import { TaskServiceClient } from '@/services/grpc-client';
 import { StringRequest } from '@shared/proto/common';
