@@ -42,7 +42,6 @@ enum ClineAsk {
   NEW_TASK = 13;
   CONDENSE = 14;
   REPORT_BUG = 15;
-  CHILD_TASK_COMPLETED = 16;
 }
 
 // Enum for ClineSay types
@@ -76,6 +75,7 @@ enum ClineSay {
   INFO = 26;
   NEW_CHILD_TASK = 27;
   START_NEXT_CHILD_TASK = 28;
+  CHILD_TASK_COMPLETED = 29;
 }
 
 // Enum for ClineSayTool tool types
