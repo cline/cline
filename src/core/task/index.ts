@@ -3926,6 +3926,14 @@ export class Task {
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
 							this.say("start_next_child_task", `Starting Child Task...`, undefined, undefined, false)
 							pushToolResult(toolResponse, isClaude4Model)
+							
+							// 设置任务状态为已完成，恢复按钮状态为 Start New Task
+							this.status = "completed"
+							await this.say("completion_result", JSON.stringify({ text: "Child task has been started successfully. ", parentId: this.parentId }), undefined, undefined, false)
+							await this.saveCheckpoint(true)
+							
+							// 添加 completion_result ask 以显示 Start New Task 按钮
+							await this.ask("completion_result", "", false)
 							await this.saveCheckpoint()
 							break
 						}
@@ -5478,12 +5486,12 @@ export class Task {
 					nextChildTask.id, // childTaskId
 				)
 			}, 100)
-			// update parent task status
-			this.status = "paused"
+			// update parent task status - 设置为已完成而不是暂停
+			this.status = "completed"
 			this.activeChildTaskId = nextChildTask.id
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			return formatResponse.toolResult(
-				`Child task started successfully (ID: ${nextChildTask.id}). Parent task is now paused. Remaining pending tasks: ${this.pendingChildTasks.length}`,
+				`Child task started successfully (ID: ${nextChildTask.id}). Parent task is now completed. Remaining pending tasks: ${this.pendingChildTasks.length}`,
 			)
 		} catch (error) {
 			// 如果启动失败，将任务放回队列开头

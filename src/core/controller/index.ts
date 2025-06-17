@@ -44,7 +44,7 @@ import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
 import { showTaskWithId } from "./task/showTaskWithId"
-import { StringRequest } from "@/shared/proto/common"
+import { StringRequest } from "@/generated/grpc-js/common"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
