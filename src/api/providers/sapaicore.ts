@@ -227,25 +227,27 @@ export class SapAiCoreHandler implements ApiHandler {
 				yield* this.streamCompletion(response.data, model)
 			}
 		} catch (error) {
-			if (error.response) {
+			const axiosError = error as any // Type assertion for axios error
+			if (axiosError.response) {
 				// The request was made and the server responded with a status code
 				// that falls out of the range of 2xx
-				console.error("Error status:", error.response.status)
-				console.error("Error data:", error.response.data)
-				console.error("Error headers:", error.response.headers)
+				console.error("Error status:", axiosError.response.status)
+				console.error("Error data:", axiosError.response.data)
+				console.error("Error headers:", axiosError.response.headers)
 
-				if (error.response.status === 404) {
-					console.error("404 Error reason:", error.response.data)
-					throw new Error(`404 Not Found: ${error.response.data}`)
+				if (axiosError.response.status === 404) {
+					console.error("404 Error reason:", axiosError.response.data)
+					throw new Error(`404 Not Found: ${axiosError.response.data}`)
 				}
-			} else if (error.request) {
+			} else if (axiosError.request) {
 				// The request was made but no response was received
-				console.error("Error request:", error.request)
+				console.error("Error request:", axiosError.request)
 				throw new Error("No response received from server")
 			} else {
 				// Something happened in setting up the request that triggered an Error
-				console.error("Error message:", error.message)
-				throw new Error(`Error setting up request: ${error.message}`)
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				console.error("Error message:", errorMessage)
+				throw new Error(`Error setting up request: ${errorMessage}`)
 			}
 
 			throw new Error("Failed to create message")

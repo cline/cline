@@ -53,7 +53,8 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
 		await execa("touch", [testFile])
 		await execa("rm", [testFile])
 	} catch (error) {
-		throw new Error(`Workspace path is not writable: ${workspacePath}. Error: ${error.message}`)
+		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		throw new Error(`Workspace path is not writable: ${workspacePath}. Error: ${errorMessage}`)
 	}
 
 	Logger.log(`Validated workspace path: ${workspacePath}`)
@@ -81,7 +82,8 @@ export async function cleanupPreviousGit(workspacePath: string): Promise<void> {
 			Logger.log(`No existing Git repository found in ${workspacePath}`)
 		}
 	} catch (error) {
-		Logger.log(`Warning: Failed to remove existing Git repository: ${error.message}`)
+		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		Logger.log(`Warning: Failed to remove existing Git repository: ${errorMessage}`)
 	}
 }
 
@@ -125,19 +127,21 @@ export async function initializeGitRepository(workspacePath: string): Promise<bo
 					Logger.log("Created empty initial commit in " + workspacePath)
 				} catch (emptyCommitError) {
 					// Even empty commit failed, but we'll continue anyway
-					Logger.log(`Warning: Failed to create empty commit: ${emptyCommitError.message}`)
+					const errorMessage = emptyCommitError instanceof Error ? emptyCommitError.message : "Unknown error"
+					Logger.log(`Warning: Failed to create empty commit: ${errorMessage}`)
 				}
 			}
 		} catch (commitError) {
 			// Initial commit failed, but Git is still initialized
-			Logger.log(`Warning: Failed to create initial commit: ${commitError.message}`)
+			const errorMessage = commitError instanceof Error ? commitError.message : "Unknown error"
+			Logger.log(`Warning: Failed to create initial commit: ${errorMessage}`)
 			Logger.log("Continuing without initial commit")
 		}
 
 		return true
 	} catch (gitError) {
 		// Only throw if Git initialization itself failed
-		const errorMessage = `Failed to initialize Git repository: ${gitError.message}`
+		const errorMessage = `Failed to initialize Git repository: ${gitError instanceof Error ? gitError.message : "Unknown error"}`
 		Logger.log(errorMessage)
 		throw new Error(errorMessage)
 	}
@@ -172,7 +176,8 @@ export async function getFileChanges(workspacePath: string): Promise<{
 		await execa("git", ["add", "-A"], { cwd: workspacePath })
 		Logger.log("Staged all changes for diff")
 	} catch (error) {
-		Logger.log(`Warning: Failed to stage changes: ${error.message}`)
+		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		Logger.log(`Warning: Failed to stage changes: ${errorMessage}`)
 	}
 
 	try {
@@ -221,7 +226,7 @@ export async function getFileChanges(workspacePath: string): Promise<{
 		}
 	} catch (error) {
 		// Throw the error instead of returning a fallback
-		const errorMessage = `Error getting file changes: ${error.message}`
+		const errorMessage = `Error getting file changes: ${error instanceof Error ? error.message : "Unknown error"}`
 		Logger.log(errorMessage)
 		throw new Error(errorMessage)
 	}
