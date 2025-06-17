@@ -311,9 +311,12 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 					searchMatchIndex = 0
 					searchEndIndex = 0
 				} else {
-					// Complete file replacement scenario: treat the entire file as matched
-					searchMatchIndex = 0
-					searchEndIndex = originalContent.length
+					// ERROR: Empty search block with non-empty file indicates malformed SEARCH marker
+					throw new Error(
+						"Empty SEARCH block detected with non-empty file. This usually indicates a malformed SEARCH marker.\n" +
+							"Please ensure your SEARCH marker follows the correct format:\n" +
+							"- Use '------- SEARCH' (7+ dashes + space + SEARCH)\n",
+					)
 				}
 			} else {
 				// Add check for inefficient full-file search
