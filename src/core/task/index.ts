@@ -34,6 +34,7 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings } from "@shared/ChatSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import { isString } from "@shared/type-utils"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -418,8 +419,9 @@ export class Task {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
-						didWorkspaceRestoreFail = true
+						await this.say("error", `Error restoring checkpoint: ${errorMessage}`)
+						await this.saveCheckpoint()
+						break
 					}
 				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
 					try {
@@ -2666,7 +2668,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("writing file", error)
+							await handleError("writing file", error instanceof Error ? error : new Error(String(error)))
 							await this.diffViewProvider.revertChanges()
 							await this.diffViewProvider.reset()
 							await this.saveCheckpoint()
@@ -2758,7 +2760,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("reading file", error)
+							await handleError("reading file", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -2846,7 +2848,11 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("listing files", error, isClaude4Model)
+							await handleError(
+								"listing files",
+								error instanceof Error ? error : new Error(String(error)),
+								isClaude4Model,
+							)
 							await this.saveCheckpoint()
 							break
 						}
@@ -2928,7 +2934,10 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("parsing source code definitions", error)
+							await handleError(
+								"parsing source code definitions",
+								error instanceof Error ? error : new Error(String(error)),
+							)
 							await this.saveCheckpoint()
 							break
 						}
@@ -3029,7 +3038,11 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("searching files", error, isClaude4Model)
+							await handleError(
+								"searching files",
+								error instanceof Error ? error : new Error(String(error)),
+								isClaude4Model,
+							)
 							await this.saveCheckpoint()
 							break
 						}
@@ -3209,7 +3222,10 @@ export class Task {
 							}
 						} catch (error) {
 							await this.browserSession.closeBrowser() // if any error occurs, the browser session is terminated
-							await handleError("executing browser action", error)
+							await handleError(
+								"executing browser action",
+								error instanceof Error ? error : new Error(String(error)),
+							)
 							await this.saveCheckpoint()
 							break
 						}
@@ -3329,7 +3345,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("executing command", error)
+							await handleError("executing command", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -3481,7 +3497,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("executing MCP tool", error)
+							await handleError("executing MCP tool", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -3561,7 +3577,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("accessing MCP resource", error)
+							await handleError("accessing MCP resource", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -3640,7 +3656,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("asking question", error)
+							await handleError("asking question", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -3694,7 +3710,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("creating new task", error)
+							await handleError("creating new task", error instanceof Error ? error : new Error(String(error)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -3770,7 +3786,10 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("condensing context window", error)
+							await handleError(
+								"condensing context window",
+								error instanceof Error ? error : new Error(String(error)),
+							)
 							await this.saveCheckpoint()
 							break
 						}
@@ -3905,7 +3924,9 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("reporting bug", error)
+							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							await this.say("error", `Error reporting bug: ${errorMessage}`)
+							pushToolResult(formatResponse.toolError(`Error reporting bug: ${errorMessage}`))
 							await this.saveCheckpoint()
 							break
 						}
@@ -4003,7 +4024,9 @@ export class Task {
 							}
 						} catch (error) {
 							await this.urlContentFetcher.closeBrowser() // Ensure browser is closed on error
-							await handleError("fetching web content", error)
+							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							await this.say("error", `Error fetching web content: ${errorMessage}`)
+							pushToolResult(formatResponse.toolError(`Error fetching web content: ${errorMessage}`))
 							await this.saveCheckpoint()
 							break
 						}
@@ -4115,7 +4138,7 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("responding to inquiry", error)
+							await handleError("responding to inquiry", error instanceof Error ? error : new Error(String(error)))
 							//
 							break
 						}
@@ -4131,7 +4154,10 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("loading MCP documentation", error)
+							await handleError(
+								"loading MCP documentation",
+								error instanceof Error ? error : new Error(String(error)),
+							)
 							break
 						}
 					}
@@ -4325,7 +4351,9 @@ export class Task {
 								break
 							}
 						} catch (error) {
-							await handleError("attempting completion", error)
+							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							await this.say("error", `Error attempting completion: ${errorMessage}`)
+							pushToolResult(formatResponse.toolError(`Error attempting completion: ${errorMessage}`))
 							await this.saveCheckpoint()
 							break
 						}

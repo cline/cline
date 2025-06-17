@@ -59,7 +59,7 @@ export interface ExtensionMessage {
 	}>
 	tab?: McpViewTab
 	grpc_response?: {
-		message?: any // JSON serialized protobuf message
+		message?: Record<string, unknown> // JSON serialized protobuf message - type safe!
 		request_id: string // Same ID as the request
 		error?: string // Optional error message
 		is_streaming?: boolean // Whether this is part of a streaming response

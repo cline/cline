@@ -1,43 +1,43 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "law-aai",
+	"displayName": "Law.AAI",
+	"description": "AI-powered legal assistant right in your IDE, capable of creating/editing legal documents, running legal research, analyzing contracts, and more with your permission every step of the way.",
 	"version": "3.17.13",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Law.AAI Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "lawaai",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/a-ai-dev/law.aai"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://law.aai",
 	"categories": [
 		"AI",
 		"Chat",
-		"Programming Languages",
 		"Education",
-		"Snippets",
-		"Testing"
+		"Other"
 	],
 	"keywords": [
-		"cline",
-		"claude",
-		"dev",
-		"mcp",
-		"openrouter",
-		"coding",
-		"agent",
-		"autonomous",
-		"chatgpt",
-		"sonnet",
+		"law",
+		"legal",
+		"attorney",
+		"lawyer",
+		"contracts",
+		"legal-research",
+		"legal-documents",
 		"ai",
-		"llama"
+		"assistant",
+		"autonomous",
+		"claude",
+		"openai",
+		"legal-ai",
+		"document-analysis"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -48,22 +48,22 @@
 	"contributes": {
 		"walkthroughs": [
 			{
-				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
-				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"id": "LawAAIWalkthrough",
+				"title": "Meet Law.AAI, your new legal partner",
+				"description": "Law.AAI works like a legal professional because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
-						"title": "Start with a Goal, Not Just a Prompt",
-						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"title": "Start with a Legal Goal, Not Just a Prompt",
+						"description": "Tell Law.AAI what legal outcome you want to achieve. It plans, researches, and then drafts, like a true legal partner.",
 						"media": {
 							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
 						"id": "learn",
-						"title": "Let Cline Learn Your Codebase",
-						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"title": "Let Law.AAI Learn Your Legal Practice",
+						"description": "Point Law.AAI to your legal documents and cases. It builds understanding to make smart, context-aware legal analysis.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						}
@@ -71,15 +71,15 @@
 					{
 						"id": "advanced-features",
 						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"description": "Law.AAI empowers you with State-of-the-Art Legal AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
 					},
 					{
 						"id": "mcp",
-						"title": "Extend with Powerful Tools (MCP)",
-						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"title": "Extend with Powerful Legal Tools (MCP)",
+						"description": "Connect to legal databases, case law APIs, or discover new legal capabilities in the MCP Marketplace.",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
@@ -87,7 +87,7 @@
 					{
 						"id": "getting-started",
 						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"description": "Review Law.AAI's legal analysis and document drafts. Approve changes before they happen. No surprises.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						},
@@ -101,110 +101,110 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
+					"id": "law-aai-ActivityBar",
+					"title": "Law.AAI (⌘+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "isMac"
 				},
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
+					"id": "law-aai-ActivityBar",
+					"title": "Law.AAI (Ctrl+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "!isMac"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"law-aai-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "law-aai.SidebarProvider",
 					"name": ""
 				}
 			]
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
-				"title": "New Task",
+				"command": "lawaai.plusButtonClicked",
+				"title": "New Legal Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
-				"title": "MCP Servers",
+				"command": "lawaai.mcpButtonClicked",
+				"title": "Legal Tools (MCP)",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
-				"title": "History",
+				"command": "lawaai.historyButtonClicked",
+				"title": "Case History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
+				"command": "lawaai.popoutButtonClicked",
 				"title": "Open in Editor",
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
+				"command": "lawaai.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
+				"command": "lawaai.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.openInNewTab",
+				"command": "lawaai.openInNewTab",
 				"title": "Open In New Tab",
-				"category": "Cline"
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "lawaai.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "Law.AAI",
+				"when": "lawaai.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "lawaai.addToChat",
+				"title": "Add to Law.AAI",
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "lawaai.addTerminalOutputToChat",
+				"title": "Add to Law.AAI",
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.focusChatInput",
-				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"command": "lawaai.focusChatInput",
+				"title": "Jump to Legal Assistant",
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
+				"command": "lawaai.generateGitCommitMessage",
+				"title": "Generate Commit Message with Law.AAI",
+				"category": "Law.AAI",
 				"icon": "$(robot)"
 			},
 			{
-				"command": "cline.explainCode",
-				"title": "Explain with Cline",
-				"category": "Cline"
+				"command": "lawaai.explainCode",
+				"title": "Explain with Law.AAI",
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.improveCode",
-				"title": "Improve with Cline",
-				"category": "Cline"
+				"command": "lawaai.improveCode",
+				"title": "Improve with Law.AAI",
+				"category": "Law.AAI"
 			},
 			{
-				"command": "cline.openWalkthrough",
-				"title": "Open Walkthrough",
-				"category": "Cline"
+				"command": "lawaai.openWalkthrough",
+				"title": "Open Legal Assistant Walkthrough",
+				"category": "Law.AAI"
 			}
 		],
 		"keybindings": [
 			{
-				"command": "cline.addToChat",
+				"command": "lawaai.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -212,11 +212,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "lawaai.generateGitCommitMessage",
 				"when": "scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "lawaai.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -227,97 +227,97 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "lawaai.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "lawaai.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "lawaai.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "lawaai.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "lawaai.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "lawaai.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "lawaai.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "lawaai.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "lawaai.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "lawaai.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "lawaai.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "lawaai.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "lawaai.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "lawaai.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "lawaai.generateGitCommitMessage",
 					"group": "navigation",
 					"when": "scmProvider == git"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "lawaai.generateGitCommitMessage",
 					"when": "scmProvider == git"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Law.AAI",
 			"properties": {}
 		}
 	},

@@ -189,7 +189,8 @@ export async function processFilesIntoText(files: string[]): Promise<string> {
 			return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 		} catch (error) {
 			console.error(`Error processing file ${filePath}:`, error)
-			return `<file_content path="${filePath.toPosix()}">\nError fetching content: ${error.message}\n</file_content>`
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			return `<file_content path="${filePath.toPosix()}">\nError fetching content: ${errorMessage}\n</file_content>`
 		}
 	})
 

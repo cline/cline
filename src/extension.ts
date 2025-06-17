@@ -92,7 +92,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
+		const stackTrace = error instanceof Error ? error.stack : "No stack trace available"
+		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${stackTrace}`)
 	}
 
 	// backup id in case vscMachineID doesn't work
