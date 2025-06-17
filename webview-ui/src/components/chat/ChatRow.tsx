@@ -39,6 +39,7 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
+import BackToParent from "./BackToParent"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -1034,9 +1035,9 @@ export const ChatRowContent = ({
 							)}
 						</>
 					)
-				
+
 				case "child_task_completed":
-					console.log(" 'child_task_completed' message type in ClineChatRow",message)
+					console.log(" 'child_task_completed' message type in ClineChatRow", message)
 					return message.text && (
 						<>
 							<div style={headerStyle}>
@@ -1309,14 +1310,8 @@ export const ChatRowContent = ({
 						</div>
 					)
 				case "completion_result":
-					let parsedMessage = message
-					try {
-						parsedMessage = JSON.parse(message.text || "{}")
-					} catch (error) {
-					}
-					const { text = "", parentId } = parsedMessage as any
-					const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-					const textDetail = hasChanges ? text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
+					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+					const textDetail = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 					return (
 						<>
 							<div
@@ -1377,26 +1372,7 @@ export const ChatRowContent = ({
 									</SuccessButton>
 								</div>
 							)}
-							{
-								parentId && (
-									<div style={{ marginTop: 10 }}>
-										<SuccessButton
-											appearance="secondary"
-											onClick={() => {
-												TaskServiceClient.showTaskWithId(
-													StringRequest.create({
-														value: parentId,
-													}),
-												).catch((err) =>
-													console.error("Failed to resume task:", err),
-												)
-											}}>
-											<i className="codicon codicon-left" style={{ marginRight: 6 }} />
-											Back to parent Task
-										</SuccessButton>
-									</div>
-								)
-							}
+							<BackToParent />
 						</>
 					)
 				case "shell_integration_warning":
@@ -1499,15 +1475,9 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "completion_result":
-					let parsedMessage = message
-					try {
-						parsedMessage = JSON.parse(message.text || "{}")
-					} catch (error) {
-					}
-					const { text, parentId } = parsedMessage as any
-					if (text) {
-						const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const textDetail = hasChanges ? text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
+					if (message.text) {
+						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const textDetail = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
 							<div>
 								<div
@@ -1573,26 +1543,7 @@ export const ChatRowContent = ({
 										</SuccessButton>
 									</div>
 								)}
-								{
-									parentId && (
-										<div style={{ marginTop: 10 }}>
-											<SuccessButton
-												appearance="secondary"
-												onClick={() => {
-													TaskServiceClient.showTaskWithId(
-														StringRequest.create({
-															value: parentId,
-														}),
-													).catch((err) =>
-														console.error("Failed to resume task:", err),
-													)
-												}}>
-												<i className="codicon codicon-left" style={{ marginRight: 6 }} />
-												Back to parent Task
-											</SuccessButton>
-										</div>
-									)
-								}
+								<BackToParent />
 							</div>
 						)
 					} else {
