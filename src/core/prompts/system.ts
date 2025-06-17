@@ -265,7 +265,7 @@ Usage:
 
 
 ## new_child_task
-Description: create a child task for the current task. After creating a child task, the parent task will pause, and the child task will inherit some of the parent task's context and focus on a more specific goal.
+Description: create a child task for the current task. After creating a child task, the parent task will be paused, and the child task will inherit some of the parent task's context and focus on a more specific goal.
 Important Notes:
 - Child tasks are designed to break down complex tasks into smaller, manageable pieces.
 Parameters:
