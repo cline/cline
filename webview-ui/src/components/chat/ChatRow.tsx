@@ -688,6 +688,27 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
+			case "viewPendingChildTasks":
+				console.log("viewPendingChildTasks tool content:", message)
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("search")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Cline wants to view pending child tasks."
+									: "Cline viewed pending child tasks:"}
+							</span>
+						</div>
+						{tool.content && <CodeAccordian
+							code={tool.content!}
+							path={tool.path!}
+							language="plaintext"
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>}
+					</>
+				)
 			case "searchFiles":
 				return (
 					<>
