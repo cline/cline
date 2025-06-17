@@ -3926,7 +3926,7 @@ export class Task {
 								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 							}
 
-							const toolResponse = await this.executeStartNextChildTaskTool()
+							const toolResponse = await this.startNextChildTask()
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
 							this.say("start_next_child_task", `Starting Child Task...`, undefined, undefined, false)
 							pushToolResult(toolResponse, isClaude4Model)
@@ -3994,7 +3994,7 @@ export class Task {
 
 								if (continueResponse === "messageResponse" && text === "Yes, start child task") {
 									// 执行下一个子任务
-									const startNextResponse = await this.executeStartNextChildTaskTool()
+									const startNextResponse = await this.startNextChildTask()
 									pushToolResult(startNextResponse)
 								}
 							}
@@ -5449,36 +5449,17 @@ export class Task {
 		}
 	}
 
-	/**
-	 * 获取待执行子任务的数量
-	 */
-	async getPendingChildTasksCount(): Promise<number> {
-		try {
-			const currentHistoryItem = await this.getTaskWithId(this.taskId)
-			return currentHistoryItem?.historyItem.pendingChildTasks?.length || 0
-		} catch (error) {
-			console.error("Failed to get pending child tasks count:", error)
-			return 0
-		}
-	}
-
-	/**
-	 * 启动下一个待执行的子任务
-	 */
-	async executeStartNextChildTaskTool(): Promise<ToolResponse> {
-		// 检查是否有待执行的子任务
+	async startNextChildTask(): Promise<ToolResponse> {
 		if (!this.pendingChildTasks || this.pendingChildTasks.length === 0) {
 			return formatResponse.toolResult("No pending child tasks to execute.")
 		}
 
-		// 检查是否已有活动的子任务
 		if (this.activeChildTaskId) {
 			return formatResponse.toolResult(
 				`Cannot start new child task. There is already an active child task (ID: ${this.activeChildTaskId}). Please wait for it to complete first.`,
 			)
 		}
 
-		// 获取下一个待执行的子任务
 		const nextChildTask = this.pendingChildTasks.shift()
 		if (!nextChildTask) {
 			return formatResponse.toolResult("No pending child tasks available.")
@@ -5496,7 +5477,7 @@ export class Task {
 					nextChildTask.id, // childTaskId
 				)
 			}, 100)
-			// update parent task status - 设置为已完成而不是暂停
+			// update parent task status
 			this.status = this.pendingChildTasks.length > 0 ? "paused" : "completed"
 			this.activeChildTaskId = nextChildTask.id
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -5510,10 +5491,6 @@ export class Task {
 			return formatResponse.toolError(`Failed to start child task: ${errorMessage}`)
 		}
 	}
-
-	/**
-	 * 查看待执行的子任务列表
-	 */
 	async executeViewPendingTasksTool(): Promise<ToolResponse> {
 		if (!this.pendingChildTasks || this.pendingChildTasks.length === 0) {
 			return "No pending child tasks."
