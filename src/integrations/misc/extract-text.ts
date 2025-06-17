@@ -4,6 +4,7 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
+import { extractTextFromXLSX } from "./extract-text-from-xlsx"
 
 async function extractTextFromPDF(filePath: string): Promise<string> {
 	const dataBuffer = await fs.readFile(filePath)
@@ -37,6 +38,7 @@ const SUPPORTED_BINARY_FORMATS = {
 	".pdf": extractTextFromPDF,
 	".docx": extractTextFromDOCX,
 	".ipynb": extractTextFromIPYNB,
+	".xlsx": extractTextFromXLSX,
 } as const
 
 /**
