@@ -59,11 +59,11 @@ ARG PYTHON_EXT_VERSION=2025.6.1
 ARG RUST_EXT_VERSION=0.3.2482
 
 RUN mkdir -p /roo/.vscode-template \
-  && code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension golang.go@${GOLANG_EXT_VERSION} \
-  && code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension dbaeumer.vscode-eslint@${ESLINT_EXT_VERSION} \
-  && code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension redhat.java@${JAVA_EXT_VERSION} \
-  && code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension ms-python.python@${PYTHON_EXT_VERSION} \
-  && code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension rust-lang.rust-analyzer@${RUST_EXT_VERSION}
+  && yes | code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension golang.go@${GOLANG_EXT_VERSION} \
+  && yes | code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension dbaeumer.vscode-eslint@${ESLINT_EXT_VERSION} \
+  && yes | code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension redhat.java@${JAVA_EXT_VERSION} \
+  && yes | code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension ms-python.python@${PYTHON_EXT_VERSION} \
+  && yes | code --no-sandbox --user-data-dir /roo/.vscode-template --install-extension rust-lang.rust-analyzer@${RUST_EXT_VERSION}
 
 # Copy evals
 ARG EVALS_COMMIT=main
@@ -128,7 +128,7 @@ RUN cp -r /roo/.vscode-template /roo/.vscode
 
 # Build the Roo Code extension
 RUN pnpm vsix -- --out ../bin/roo-code.vsix \
-    && code --no-sandbox --user-data-dir /roo/.vscode --install-extension bin/roo-code.vsix
+    && yes | code --no-sandbox --user-data-dir /roo/.vscode --install-extension bin/roo-code.vsix
 
 # Copy entrypoint script
 COPY packages/evals/.docker/entrypoints/runner.sh /usr/local/bin/entrypoint.sh

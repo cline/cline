@@ -386,5 +386,5 @@ if ! nc -z localhost 3000; then
     echo "💡 You can start it anytime with 'pnpm --filter @roo-code/web-evals dev'."
   fi
 else
-  echo "👟 The evals web app is running at http://localhost:3000"
+  echo "👟 The evals web app is running at http://localhost:3000 (or http://localhost:3446 if using Docker)"
 fi

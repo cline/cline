@@ -56,7 +56,7 @@ services:
             context: ../../
             dockerfile: packages/evals/Dockerfile.web
         ports:
-            - "${EVALS_WEB_PORT:-3000}:3000"
+            - "${EVALS_WEB_PORT:-3446}:3000"
         environment:
             - HOST_EXECUTION_METHOD=docker
         volumes:
