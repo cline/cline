@@ -8,7 +8,8 @@
 		"dev": "scripts/check-services.sh && next dev",
 		"format": "prettier --write src",
 		"build": "next build",
-		"start": "next start"
+		"start": "next start",
+		"clean": "rimraf .next .turbo"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.1.1",
