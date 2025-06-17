@@ -19,6 +19,8 @@ vi.mock("@roo-code/cloud", () => ({
 			getOrganizationId: vi.fn(),
 		},
 	},
+	getClerkBaseUrl: vi.fn(),
+	PRODUCTION_CLERK_BASE_URL: "https://clerk.roocode.com",
 }))
 
 vi.mock("vscode", () => ({
@@ -44,12 +46,13 @@ import * as fs from "fs"
 import * as os from "os"
 import * as vscode from "vscode"
 import { MdmService } from "../MdmService"
-import { CloudService } from "@roo-code/cloud"
+import { CloudService, getClerkBaseUrl, PRODUCTION_CLERK_BASE_URL } from "@roo-code/cloud"
 
 const mockFs = fs as any
 const mockOs = os as any
 const mockCloudService = CloudService as any
 const mockVscode = vscode as any
+const mockGetClerkBaseUrl = getClerkBaseUrl as any
 
 describe("MdmService", () => {
 	let originalPlatform: string
@@ -64,6 +67,9 @@ describe("MdmService", () => {
 		// Set default platform for tests
 		mockOs.platform.mockReturnValue("darwin")
 
+		// Setup default mock for getClerkBaseUrl to return development URL
+		mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
+
 		// Setup VSCode mocks
 		const mockConfig = {
 			get: vi.fn().mockReturnValue(false),
@@ -73,6 +79,8 @@ describe("MdmService", () => {
 
 		// Reset mocks
 		vi.clearAllMocks()
+		// Re-setup the default after clearing
+		mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
 	})
 
 	afterEach(() => {
@@ -142,7 +150,7 @@ describe("MdmService", () => {
 		it("should use correct path for Windows in production", async () => {
 			mockOs.platform.mockReturnValue("win32")
 			process.env.PROGRAMDATA = "C:\\ProgramData"
-			process.env.NODE_ENV = "production"
+			mockGetClerkBaseUrl.mockReturnValue(PRODUCTION_CLERK_BASE_URL)
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -154,7 +162,7 @@ describe("MdmService", () => {
 		it("should use correct path for Windows in development", async () => {
 			mockOs.platform.mockReturnValue("win32")
 			process.env.PROGRAMDATA = "C:\\ProgramData"
-			process.env.NODE_ENV = "development"
+			mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -165,7 +173,7 @@ describe("MdmService", () => {
 
 		it("should use correct path for macOS in production", async () => {
 			mockOs.platform.mockReturnValue("darwin")
-			process.env.NODE_ENV = "production"
+			mockGetClerkBaseUrl.mockReturnValue(PRODUCTION_CLERK_BASE_URL)
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -176,7 +184,7 @@ describe("MdmService", () => {
 
 		it("should use correct path for macOS in development", async () => {
 			mockOs.platform.mockReturnValue("darwin")
-			process.env.NODE_ENV = "development"
+			mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -187,7 +195,7 @@ describe("MdmService", () => {
 
 		it("should use correct path for Linux in production", async () => {
 			mockOs.platform.mockReturnValue("linux")
-			process.env.NODE_ENV = "production"
+			mockGetClerkBaseUrl.mockReturnValue(PRODUCTION_CLERK_BASE_URL)
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -198,7 +206,7 @@ describe("MdmService", () => {
 
 		it("should use correct path for Linux in development", async () => {
 			mockOs.platform.mockReturnValue("linux")
-			process.env.NODE_ENV = "development"
+			mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -209,7 +217,7 @@ describe("MdmService", () => {
 
 		it("should default to dev config when NODE_ENV is not set", async () => {
 			mockOs.platform.mockReturnValue("darwin")
-			delete process.env.NODE_ENV
+			mockGetClerkBaseUrl.mockReturnValue("https://dev.clerk.roocode.com")
 
 			mockFs.existsSync.mockReturnValue(false)
 
@@ -248,6 +256,7 @@ describe("MdmService", () => {
 			mockFs.existsSync.mockReturnValue(true)
 			mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig))
 
+			// Mock CloudService to indicate no instance or no active session
 			mockCloudService.hasInstance.mockReturnValue(false)
 
 			const service = await MdmService.createInstance()
@@ -267,6 +276,7 @@ describe("MdmService", () => {
 			mockFs.existsSync.mockReturnValue(true)
 			mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig))
 
+			// Mock CloudService to have instance and active session but wrong org
 			mockCloudService.hasInstance.mockReturnValue(true)
 			mockCloudService.instance.hasActiveSession.mockReturnValue(true)
 			mockCloudService.instance.getOrganizationId.mockReturnValue("different-org-456")

@@ -42,6 +42,7 @@ const App = () => {
 		experiments,
 		cloudUserInfo,
 		cloudIsAuthenticated,
+		mdmCompliant,
 	} = useExtensionState()
 
 	// Create a persistent state manager
@@ -63,15 +64,23 @@ const App = () => {
 	const settingsRef = useRef<SettingsViewRef>(null)
 	const chatViewRef = useRef<ChatViewRef>(null)
 
-	const switchTab = useCallback((newTab: Tab) => {
-		setCurrentSection(undefined)
+	const switchTab = useCallback(
+		(newTab: Tab) => {
+			// Check MDM compliance before allowing tab switching
+			if (mdmCompliant === false && newTab !== "account") {
+				return
+			}
 
-		if (settingsRef.current?.checkUnsaveChanges) {
-			settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
-		} else {
-			setTab(newTab)
-		}
-	}, [])
+			setCurrentSection(undefined)
+
+			if (settingsRef.current?.checkUnsaveChanges) {
+				settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
+			} else {
+				setTab(newTab)
+			}
+		},
+		[mdmCompliant],
+	)
 
 	const [currentSection, setCurrentSection] = useState<string | undefined>(undefined)
 

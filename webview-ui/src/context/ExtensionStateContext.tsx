@@ -37,6 +37,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	cloudIsAuthenticated: boolean
 	sharingEnabled: boolean
 	maxConcurrentFileReads?: number
+	mdmCompliant?: boolean
 	condensingApiConfigId?: string
 	setCondensingApiConfigId: (value: string) => void
 	customCondensingPrompt?: string

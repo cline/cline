@@ -4,7 +4,7 @@ import * as os from "os"
 import * as vscode from "vscode"
 import { z } from "zod"
 
-import { CloudService } from "@roo-code/cloud"
+import { CloudService, getClerkBaseUrl, PRODUCTION_CLERK_BASE_URL } from "@roo-code/cloud"
 import { Package } from "../../shared/package"
 
 // MDM Configuration Schema
@@ -145,7 +145,7 @@ export class MdmService {
 	 */
 	private getMdmConfigPath(): string {
 		const platform = os.platform()
-		const isProduction = process.env.NODE_ENV === "production"
+		const isProduction = getClerkBaseUrl() === PRODUCTION_CLERK_BASE_URL
 		const configFileName = isProduction ? "mdm.json" : "mdm.dev.json"
 
 		switch (platform) {
