@@ -11,6 +11,8 @@
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": false,
+		"noUncheckedIndexedAccess": false,
+		"exactOptionalPropertyTypes": false,
 		"resolveJsonModule": true,
 		"rootDir": ".",
 		"skipLibCheck": true,
@@ -18,7 +20,7 @@
 		"strict": true,
 		"target": "es2022",
 		"useDefineForClassFields": true,
-		"useUnknownInCatchVariables": false,
+		"useUnknownInCatchVariables": true,
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["src/*"],
