@@ -4516,7 +4516,7 @@ export class Task {
 									if (this.pendingChildTasks.length > 0) {
 										await this.say(
 										"text",
-										`I've successfully created all ${this.pendingChildTasks.length} child tasks.`,
+										`There are ${this.pendingChildTasks.length} pending child tasks. We need to complete them before we can continue.`,
 										undefined,
 										undefined,
 										block.partial,
@@ -4581,7 +4581,7 @@ export class Task {
 									if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
 										this.userMessageContent.push({
 											type: "text",
-											text: `Found ${this.pendingChildTasks.length} pending child task(s). Please ask user to start the next child task.`,
+											text: `There are ${this.pendingChildTasks.length} pending child tasks. We need to use start_next_child_task tool to complete them before we can continue.`,
 										})
 										break
 									}
