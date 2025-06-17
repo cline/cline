@@ -1037,7 +1037,6 @@ export const ChatRowContent = ({
 					)
 
 				case "child_task_completed":
-					console.log(" 'child_task_completed' message type in ClineChatRow", message)
 					return message.text && (
 						<>
 							<div style={headerStyle}>
