@@ -1099,6 +1099,7 @@ export const ChatRowContent = ({
 						</>
 					)
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 				case "child_task_completed":
 					return (
@@ -1119,8 +1120,11 @@ export const ChatRowContent = ({
 						)
 =======
 				
+=======
+
+>>>>>>> 119554cf (feat: modify parentid logic in task complete part)
 				case "child_task_completed":
-					console.log(" 'child_task_completed' message type in ClineChatRow",message)
+					console.log(" 'child_task_completed' message type in ClineChatRow", message)
 					return message.text && (
 						<>
 							<div style={headerStyle}>
@@ -1394,14 +1398,8 @@ export const ChatRowContent = ({
 						</div>
 					)
 				case "completion_result":
-					let parsedMessage = message
-					try {
-						parsedMessage = JSON.parse(message.text || "{}")
-					} catch (error) {
-					}
-					const { text = "", parentId } = parsedMessage as any
-					const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-					const textDetail = hasChanges ? text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
+					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+					const textDetail = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 					return (
 						<>
 							<div
@@ -1565,15 +1563,9 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "completion_result":
-					let parsedMessage = message
-					try {
-						parsedMessage = JSON.parse(message.text || "{}")
-					} catch (error) {
-					}
-					const { text, parentId } = parsedMessage as any
-					if (text) {
-						const hasChanges = text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const textDetail = hasChanges ? text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : text
+					if (message.text) {
+						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const textDetail = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
 							<div>
 								<div

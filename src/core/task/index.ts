@@ -1154,14 +1154,10 @@ export class Task {
 			const childClineMessages = await getSavedClineMessages(this.getContext(), this.activeChildTaskId)
 			let completionResult = childClineMessages.find((m) => m.say === "completion_result")
 			if (completionResult) {
-				const parsedResult = JSON.parse(completionResult.text || "{}")
-				const { text } = parsedResult as any
+				const { text } = completionResult
 
 				childResumeText = `You are resumed from a child task. Child task ${this.activeChildTaskId} completed with result: ${text}.`
 				await this.say("child_task_completed", childResumeText)
-
-				this.userMessageContentReady = true
-				// Reset active child task id after processing
 			}
 		}
 
@@ -3954,7 +3950,7 @@ export class Task {
 							
 							// 设置任务状态为已完成，恢复按钮状态为 Start New Task
 							this.status = "completed"
-							await this.say("completion_result", JSON.stringify({ text: "Child task has been started successfully. ", parentId: this.parentId }), undefined, undefined, false)
+							await this.say("completion_result", "Child task has been started successfully. ", undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							
 							// 添加 completion_result ask 以显示 Start New Task 按钮
@@ -4529,7 +4525,7 @@ export class Task {
 										// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
 										await this.say(
 											"completion_result",
-											composeResult,
+											removeClosingTag("result", result),
 											undefined,
 											undefined,
 											false,
@@ -4545,7 +4541,7 @@ export class Task {
 									// no command, still outputting partial result
 									await this.say(
 										"completion_result",
-										composeResult,
+										removeClosingTag("result", result),
 										undefined,
 										undefined,
 										block.partial,
@@ -4572,7 +4568,7 @@ export class Task {
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// haven't sent a command message yet so first send completion_result then command
-										await this.say("completion_result", composeResult, undefined, undefined, false)
+										await this.say("completion_result", result, undefined, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										telemetryService.captureTaskCompleted(this.taskId)
@@ -4597,7 +4593,7 @@ export class Task {
 									// user didn't reject, but the command may have output
 									commandResult = execCommandResult
 								} else {
-									await this.say("completion_result", composeResult, undefined, undefined, false)
+									await this.say("completion_result", result, undefined, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
 									telemetryService.captureTaskCompleted(this.taskId)
