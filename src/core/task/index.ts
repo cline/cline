@@ -3972,7 +3972,23 @@ export class Task {
 							const toolResponse = await this.executeViewPendingTasksTool()
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
 							pushToolResult(toolResponse, isClaude4Model)
-							// this.say('new_child_task', `Child Task: "${sharedMessageProps.prompt}" created.`, undefined, undefined, false)
+							// 检查是否有待执行的子任务，如果有则询问用户是否继续
+							if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
+
+								const { response: continueResponse, text } = await this.ask(
+									"followup",
+									JSON.stringify({
+										question: `Found ${this.pendingChildTasks.length} pending child task(s). Would you like to start the next child task?`,
+										options: ["Yes, start next task", "No, keep current task active"]
+									} satisfies ClineAskQuestion)
+								)
+
+								if (continueResponse === "messageResponse" && text === "Yes, start next task") {
+									// 执行下一个子任务
+									const startNextResponse = await this.executeStartNextChildTaskTool()
+									pushToolResult(startNextResponse)
+								}
+							}
 							await this.saveCheckpoint()
 							break
 						}
