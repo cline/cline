@@ -74,7 +74,7 @@ interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -694,7 +694,9 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("split-horizontal")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to start next child task:" : "Cline completed next child task:"}
+								{message.type === "ask"
+									? "Cline wants to start next child task:"
+									: "Cline completed next child task:"}
 							</span>
 						</div>
 						<div
@@ -738,13 +740,15 @@ export const ChatRowContent = ({
 									: "Cline viewed pending child tasks:"}
 							</span>
 						</div>
-						{tool.content && <CodeAccordian
-							code={tool.content!}
-							path={tool.path!}
-							language="plaintext"
-							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
-						/>}
+						{tool.content && (
+							<CodeAccordian
+								code={tool.content!}
+								path={tool.path!}
+								language="plaintext"
+								isExpanded={isExpanded}
+								onToggleExpand={onToggleExpand}
+							/>
+						)}
 					</>
 				)
 			case "searchFiles":
@@ -1096,20 +1100,22 @@ export const ChatRowContent = ({
 					)
 
 				case "child_task_completed":
-					return message.text && (
-						<>
-							<div style={headerStyle}>
-								{icon}
-								{title}
-							</div>
-							<p
-								style={{
-									...pStyle,
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								{message.text}
-							</p>
-						</>
+					return (
+						message.text && (
+							<>
+								<div style={headerStyle}>
+									{icon}
+									{title}
+								</div>
+								<p
+									style={{
+										...pStyle,
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									{message.text}
+								</p>
+							</>
+						)
 					)
 				case "start_next_child_task":
 				case "new_child_task":

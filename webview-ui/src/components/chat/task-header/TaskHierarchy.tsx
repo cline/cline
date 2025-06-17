@@ -31,7 +31,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 	// merge existing child tasks and pending child tasks
 	const childTasks = [...existingChildTasks, ...pendingChildTasks].sort((a, b) => b.ts - a.ts)
 	const COLLAPSE_THRESHOLD = 5
-	const COLLAPSED_SHOW_COUNT = 0 
+	const COLLAPSED_SHOW_COUNT = 0
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		return childTasks.length <= COLLAPSE_THRESHOLD
@@ -158,7 +158,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 		setIsExpanded(!isExpanded)
 	}
 	if (childTasks.length === 0) {
-		return null 
+		return null
 	}
 	const renderListInContainer = (childTask: HistoryItem, children: ReactNode) => {
 		if (childTask.status === "pending") {
@@ -248,7 +248,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 								if (childTask.status === "pending") {
 									return
 								}
-								e.stopPropagation() 
+								e.stopPropagation()
 								onTaskClick?.(childTask.id)
 							}}
 							onMouseEnter={(e) => {
