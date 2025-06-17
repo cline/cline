@@ -1159,8 +1159,19 @@ export class Task {
 			if (completionResult) {
 				const { text } = completionResult
 
-				childResumeText = `You are resumed from a child task. Child task ${this.activeChildTaskId} completed with result: ${text}.`
+				this.status = "running"
+				childResumeText = `Task resuming. Child task ${this.activeChildTaskId} completed with result: ${text}.`
 				await this.say("child_task_completed", childResumeText)
+				this.activeChildTaskId = undefined
+				await saveClineMessagesAndUpdateHistory(
+					this.getContext(),
+					() => this.getTaskInfo(),
+					this.clineMessages,
+					this.taskIsFavorited ?? false,
+					this.conversationHistoryDeletedRange,
+					this.checkpointTracker,
+					(historyItem) => this.updateTaskHistory(historyItem),
+				)
 			}
 		}
 		let askType: ClineAsk
@@ -1183,8 +1194,6 @@ export class Task {
 			responseImages = images
 			responseFiles = files
 		}
-		this.activeChildTaskId = undefined
-		this.status = "running"
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
@@ -3979,11 +3988,11 @@ export class Task {
 									"followup",
 									JSON.stringify({
 										question: `Found ${this.pendingChildTasks.length} pending child task(s). Would you like to start the next child task?`,
-										options: ["Yes, start next task", "No, keep current task active"]
+										options: ["Yes, start child task", "No, keep current task active"]
 									} satisfies ClineAskQuestion)
 								)
 
-								if (continueResponse === "messageResponse" && text === "Yes, start next task") {
+								if (continueResponse === "messageResponse" && text === "Yes, start child task") {
 									// 执行下一个子任务
 									const startNextResponse = await this.executeStartNextChildTaskTool()
 									pushToolResult(startNextResponse)
