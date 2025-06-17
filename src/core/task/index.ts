@@ -6,7 +6,6 @@ import os from "os"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { Logger } from "@services/logging/Logger"
 import { ApiHandler, buildApiHandler } from "@api/index"
@@ -111,6 +110,8 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
 import { isClaude4ModelFamily } from "@utils/model-utils"
 import { MessageStateHandler } from "./message-state"
+import { formatErrorWithStatusCode, showNotificationForApprovalIfAutoApprovalEnabled, updateApiReqMsg } from "./utils"
+import { serializeError } from "serialize-error"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -121,68 +122,98 @@ type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlo
 type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Task {
-	private streamingJsonReplacer?: StreamingJsonReplacer
-	private lastProcessedJsonLength: number = 0
+	// Core task variables
+	readonly taskId: string
+	private taskIsFavorited?: boolean
 
-	// dependencies
+	// Task configuration
+	private enableCheckpoints: boolean
+
+	// Core dependencies
 	private context: vscode.ExtensionContext
 	private mcpHub: McpHub
 	private workspaceTracker: WorkspaceTracker
+
+	// Service handlers
+	api: ApiHandler
+	terminalManager: TerminalManager
+	private urlContentFetcher: UrlContentFetcher
+	browserSession: BrowserSession
+	contextManager: ContextManager
+	private diffViewProvider: DiffViewProvider
+	private checkpointTracker?: CheckpointTracker
+	private clineIgnoreController: ClineIgnoreController
+
+	// Metadata tracking
+	private fileContextTracker: FileContextTracker
+	private modelContextTracker: ModelContextTracker
+
+	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
 	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
-	readonly taskId: string
-	private taskIsFavorited?: boolean
-	api: ApiHandler
-	terminalManager: TerminalManager
-	private urlContentFetcher: UrlContentFetcher
-	browserSession: BrowserSession
-	contextManager: ContextManager
-	private didEditFile: boolean = false
+	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	private clineIgnoreController: ClineIgnoreController
+
+	// Message and conversation state
+	messageStateHandler: MessageStateHandler
+	conversationHistoryDeletedRange?: [number, number]
+
+	// Streaming flags
+	isStreaming = false
+	isWaitingForFirstChunk = false
+	private didCompleteReadingStream = false
+
+	// Content processing
+	private currentStreamingContentIndex = 0
+	private assistantMessageContent: AssistantMessageContent[] = []
+	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	private userMessageContentReady = false
+
+	// Presentation locks
+	private presentAssistantMessageLocked = false
+	private presentAssistantMessageHasPendingUpdates = false
+
+	// Claude 4 experimental JSON streaming
+	private streamingJsonReplacer?: StreamingJsonReplacer
+	private lastProcessedJsonLength: number = 0
+
+	// Ask/Response handling
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private askResponseFiles?: string[]
 	private lastMessageTs?: number
-	private consecutiveAutoApprovedRequestsCount: number = 0
-	private consecutiveMistakeCount: number = 0
-	private abort: boolean = false
-	didFinishAbortingStream = false
-	abandoned = false
-	private diffViewProvider: DiffViewProvider
-	private checkpointTracker?: CheckpointTracker
-	checkpointTrackerErrorMessage?: string
-	conversationHistoryDeletedRange?: [number, number]
-	isInitialized = false
+
+	// Plan mode specific state
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
-	// Metadata tracking
-	private fileContextTracker: FileContextTracker
-	private modelContextTracker: ModelContextTracker
-
-	// streaming
-	isWaitingForFirstChunk = false
-	isStreaming = false
-	private currentStreamingContentIndex = 0
-	private assistantMessageContent: AssistantMessageContent[] = []
-	private presentAssistantMessageLocked = false
-	private presentAssistantMessageHasPendingUpdates = false
-	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
-	private userMessageContentReady = false
+	// Tool execution flags
 	private didRejectTool = false
 	private didAlreadyUseTool = false
-	private didCompleteReadingStream = false
+	private didEditFile: boolean = false
+
+	// Consecutive request tracking
+	private consecutiveAutoApprovedRequestsCount: number = 0
+
+	// Error tracking
+	private consecutiveMistakeCount: number = 0
 	private didAutomaticallyRetryFailedApiRequest = false
-	private enableCheckpoints: boolean
-	messageStateHandler: MessageStateHandler
+	checkpointTrackerErrorMessage?: string
+
+	// Task Initialization
+	isInitialized = false
+
+	// Task Abort / Cancellation
+	private abort: boolean = false
+	didFinishAbortingStream = false
+	abandoned = false
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -1559,14 +1590,6 @@ export class Task {
 		}
 	}
 
-	private formatErrorWithStatusCode(error: any): string {
-		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
-		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
-
-		// Only prepend the statusCode if it's not already part of the message
-		return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
-	}
-
 	/**
 	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
 	 */
@@ -1734,7 +1757,7 @@ export class Task {
 					}
 				}
 
-				const errorMessage = this.formatErrorWithStatusCode(error)
+				const errorMessage = formatErrorWithStatusCode(error)
 
 				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
 				const lastApiReqStartedIndex = findLastIndex(
@@ -2136,15 +2159,6 @@ export class Task {
 					}
 				}
 
-				const showNotificationForApprovalIfAutoApprovalEnabled = (message: string) => {
-					if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
-						showSystemNotification({
-							subtitle: "Approval Required",
-							message,
-						})
-					}
-				}
-
 				const handleError = async (action: string, error: Error, isClaude4Model: boolean = false) => {
 					if (this.abandoned) {
 						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
@@ -2412,6 +2426,8 @@ export class Task {
 									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 
@@ -2589,6 +2605,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to read ${path.basename(absolutePath)}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -2683,6 +2701,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view directory ${path.basename(absolutePath)}/`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -2765,6 +2785,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -2866,6 +2888,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to search files in ${path.basename(absolutePath)}/`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -2968,6 +2992,8 @@ export class Task {
 									} else {
 										showNotificationForApprovalIfAutoApprovalEnabled(
 											`Cline wants to use a browser and launch ${url}`,
+											this.autoApprovalSettings.enabled,
+											this.autoApprovalSettings.enableNotifications,
 										)
 										this.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
 										const didApprove = await askApproval("browser_action_launch", url)
@@ -3150,6 +3176,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to execute a command: ${command}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									// this.removeLastPartialMessageIfExistsWithType("say", "command")
 									const didApprove = await askApproval(
@@ -3277,6 +3305,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to use ${tool_name} on ${server_name}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
@@ -3397,6 +3427,8 @@ export class Task {
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to access ${uri} on ${server_name}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
@@ -3814,7 +3846,11 @@ export class Task {
 										true,
 									)
 								} else {
-									showNotificationForApprovalIfAutoApprovalEnabled(`Cline wants to fetch content from ${url}`)
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to fetch content from ${url}`,
+										this.autoApprovalSettings.enabled,
+										this.autoApprovalSettings.enableNotifications,
+									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -4378,36 +4414,6 @@ export class Task {
 			let outputTokens = 0
 			let totalCost: number | undefined
 
-			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
-			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
-			// (it's worth removing a few months from now)
-			const updateApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
-				const clineMessages = this.messageStateHandler.getClineMessages()
-				const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqIndex].text || "{}")
-				delete currentApiReqInfo.retryStatus // Clear retry status when request is finalized
-
-				await this.messageStateHandler.updateClineMessage(lastApiReqIndex, {
-					text: JSON.stringify({
-						...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWrites: cacheWriteTokens,
-						cacheReads: cacheReadTokens,
-						cost:
-							totalCost ??
-							calculateApiCostAnthropic(
-								this.api.getModel().info,
-								inputTokens,
-								outputTokens,
-								cacheWriteTokens,
-								cacheReadTokens,
-							),
-						cancelReason,
-						streamingFailedMessage,
-					} satisfies ClineApiReqInfo),
-				})
-			}
-
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
@@ -4441,7 +4447,18 @@ export class Task {
 				})
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				await updateApiReqMsg(cancelReason, streamingFailedMessage)
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+					api: this.api,
+					cancelReason,
+					streamingFailedMessage,
+				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				telemetryService.captureConversationTurnEvent(
@@ -4547,7 +4564,7 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const errorMessage = this.formatErrorWithStatusCode(error)
+					const errorMessage = formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
 					await this.reinitExistingTaskFromId(this.taskId)
@@ -4567,7 +4584,16 @@ export class Task {
 						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
 						totalCost = apiStreamUsage.totalCost
 					}
-					await updateApiReqMsg()
+					await updateApiReqMsg({
+						messageStateHandler: this.messageStateHandler,
+						lastApiReqIndex,
+						inputTokens,
+						outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						api: this.api,
+						totalCost,
+					})
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					await this.postStateToWebview()
 				})
@@ -4591,7 +4617,16 @@ export class Task {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
-			await updateApiReqMsg()
+			await updateApiReqMsg({
+				messageStateHandler: this.messageStateHandler,
+				lastApiReqIndex,
+				inputTokens,
+				outputTokens,
+				cacheWriteTokens,
+				cacheReadTokens,
+				api: this.api,
+				totalCost,
+			})
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
