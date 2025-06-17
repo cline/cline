@@ -118,6 +118,10 @@ import { saveClineMessagesAndUpdateHistory } from "./message-state"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
+// Workspace refresh timing constants
+const FILE_CREATION_DELAY = 1000 // 1 second delay for file creation commands
+const EXTRA_REFRESH_DELAY = 2000 // 2 second additional delay for async operations
+
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -3357,7 +3361,7 @@ export class Task {
 								// Enhanced workspace refresh for file creation commands
 								if (this.isFileCreationCommand(command)) {
 									// Wait a bit longer for file operations to complete
-									await setTimeoutPromise(1000)
+									await setTimeoutPromise(FILE_CREATION_DELAY)
 
 									// Force workspace refresh for file creation commands
 									this.workspaceTracker.populateFilePaths()
@@ -3365,7 +3369,7 @@ export class Task {
 									// Additional refresh after a short delay to catch any delayed file operations
 									setTimeout(() => {
 										this.workspaceTracker.populateFilePaths()
-									}, 2000)
+									}, EXTRA_REFRESH_DELAY)
 								} else {
 									// Standard refresh for other commands
 									this.workspaceTracker.populateFilePaths()
