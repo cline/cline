@@ -25,7 +25,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
 		report_bug: ClineAsk.REPORT_BUG,
-		child_task_completed: ClineAsk.CHILD_TASK_COMPLETED,
 	}
 
 	const result = mapping[ask]
@@ -59,7 +58,6 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.NEW_TASK]: "new_task",
 		[ClineAsk.CONDENSE]: "condense",
 		[ClineAsk.REPORT_BUG]: "report_bug",
-		[ClineAsk.CHILD_TASK_COMPLETED]: "child_task_completed",
 	}
 
 	return mapping[ask]
@@ -101,6 +99,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		info: ClineSay.INFO,
 		new_child_task: ClineSay.NEW_CHILD_TASK,
 		start_next_child_task: ClineSay.START_NEXT_CHILD_TASK,
+		child_task_completed: ClineSay.CHILD_TASK_COMPLETED,
 	}
 
 	const result = mapping[say]
@@ -147,6 +146,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.INFO]: "info",
 		[ClineSay.NEW_CHILD_TASK]: "new_child_task",
 		[ClineSay.START_NEXT_CHILD_TASK]: "start_next_child_task",
+		[ClineSay.CHILD_TASK_COMPLETED]: "child_task_completed",
 	}
 
 	return mapping[say]
