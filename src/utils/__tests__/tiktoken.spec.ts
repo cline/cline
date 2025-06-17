@@ -1,6 +1,5 @@
 // npx vitest utils/__tests__/tiktoken.spec.ts
 
-import { describe, it, expect } from "vitest"
 import { tiktoken } from "../tiktoken"
 import { Anthropic } from "@anthropic-ai/sdk"
 

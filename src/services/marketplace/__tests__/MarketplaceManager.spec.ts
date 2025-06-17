@@ -1,18 +1,35 @@
-import { MarketplaceManager } from "../MarketplaceManager"
-import { vi } from "vitest"
+// npx vitest services/marketplace/__tests__/MarketplaceManager.spec.ts
 
-// Mock dependencies for vitest
-vi.mock("fs/promises", () => ({
-	readFile: vi.fn(),
+import type { MarketplaceItem } from "@roo-code/types"
+
+import { MarketplaceManager } from "../MarketplaceManager"
+
+// Mock axios
+vi.mock("axios")
+
+// Mock the cloud config
+vi.mock("@roo-code/cloud", () => ({
+	getRooCodeApiUrl: () => "https://test.api.com",
 }))
-vi.mock("yaml", () => ({
-	parse: vi.fn(),
+
+// Mock TelemetryService
+vi.mock("../../../../packages/telemetry/src/TelemetryService", () => ({
+	TelemetryService: {
+		instance: {
+			captureMarketplaceItemInstalled: vi.fn(),
+			captureMarketplaceItemRemoved: vi.fn(),
+		},
+	},
 }))
+
+// Mock vscode first
 vi.mock("vscode", () => ({
 	workspace: {
 		workspaceFolders: [
 			{
 				uri: { fsPath: "/test/workspace" },
+				name: "test",
+				index: 0,
 			},
 		],
 		openTextDocument: vi.fn(),
@@ -22,216 +39,237 @@ vi.mock("vscode", () => ({
 		showErrorMessage: vi.fn(),
 		showTextDocument: vi.fn(),
 	},
-	Range: class MockRange {
-		start: { line: number; character: number }
-		end: { line: number; character: number }
-
-		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number) {
-			this.start = { line: startLine, character: startCharacter }
-			this.end = { line: endLine, character: endCharacter }
-		}
-	},
-}))
-vi.mock("../../../shared/globalFileNames", () => ({
-	GlobalFileNames: {
-		mcpSettings: "mcp_settings.json",
-		customModes: "custom_modes.yaml",
-	},
-}))
-vi.mock("../../../utils/globalContext", () => ({
-	ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/global/settings"),
+	Range: vi.fn().mockImplementation((startLine, startChar, endLine, endChar) => ({
+		start: { line: startLine, character: startChar },
+		end: { line: endLine, character: endChar },
+	})),
 }))
 
-// Import the mocked modules
-import * as fs from "fs/promises"
-import * as yaml from "yaml"
-
-const mockFs = fs as any
-const mockYaml = yaml as any
-
-// Create a mock vscode module for type safety
-const mockVscode = {
-	workspace: {
-		workspaceFolders: [
-			{
-				uri: { fsPath: "/test/workspace" },
-			},
-		],
+const mockContext = {
+	subscriptions: [],
+	workspaceState: {
+		get: vi.fn(),
+		update: vi.fn(),
 	},
+	globalState: {
+		get: vi.fn(),
+		update: vi.fn(),
+	},
+	extensionUri: { fsPath: "/test/extension" },
 } as any
 
+// Mock fs
+vi.mock("fs/promises", () => ({
+	readFile: vi.fn(),
+	access: vi.fn(),
+	writeFile: vi.fn(),
+	mkdir: vi.fn(),
+}))
+
+// Mock yaml
+vi.mock("yaml", () => ({
+	parse: vi.fn(),
+	stringify: vi.fn(),
+}))
+
 describe("MarketplaceManager", () => {
-	let marketplaceManager: MarketplaceManager
-	let mockContext: any
+	let manager: MarketplaceManager
 
 	beforeEach(() => {
+		manager = new MarketplaceManager(mockContext)
 		vi.clearAllMocks()
-
-		// Mock VSCode workspace
-		mockVscode.workspace = {
-			workspaceFolders: [
-				{
-					uri: { fsPath: "/test/workspace" },
-				},
-			],
-		} as any
-
-		// Mock extension context
-		mockContext = {} as any
-
-		marketplaceManager = new MarketplaceManager(mockContext)
 	})
 
-	describe("getInstallationMetadata", () => {
-		it("should return empty metadata when no config files exist", async () => {
-			// Mock file read failures (files don't exist)
-			mockFs.readFile.mockRejectedValue(new Error("ENOENT: no such file or directory"))
-
-			const result = await marketplaceManager.getInstallationMetadata()
-
-			expect(result).toEqual({
-				project: {},
-				global: {},
-			})
-		})
-
-		it("should parse project MCP configuration correctly", async () => {
-			const mockMcpConfig = {
-				mcpServers: {
-					"test-mcp": {
-						command: "node",
-						args: ["test.js"],
-					},
+	describe("filterItems", () => {
+		it("should filter items by search term", () => {
+			const items: MarketplaceItem[] = [
+				{
+					id: "test-mode",
+					name: "Test Mode",
+					description: "A test mode for testing",
+					type: "mode",
+					content: "# Test Mode\nThis is a test mode.",
 				},
-			}
-
-			mockFs.readFile.mockImplementation((filePath: any) => {
-				// Normalize path separators for cross-platform compatibility
-				const normalizedPath = filePath.replace(/\\/g, "/")
-				if (normalizedPath.includes(".roo/mcp.json")) {
-					return Promise.resolve(JSON.stringify(mockMcpConfig))
-				}
-				return Promise.reject(new Error("ENOENT"))
-			})
-
-			const result = await marketplaceManager.getInstallationMetadata()
-
-			expect(result.project["test-mcp"]).toEqual({
-				type: "mcp",
-			})
-		})
-
-		it("should parse project modes configuration correctly", async () => {
-			const mockModesConfig = {
-				customModes: [
-					{
-						slug: "test-mode",
-						name: "Test Mode",
-						description: "A test mode",
-					},
-				],
-			}
-
-			mockFs.readFile.mockImplementation((filePath: any) => {
-				// Normalize path separators for cross-platform compatibility
-				const normalizedPath = filePath.replace(/\\/g, "/")
-				if (normalizedPath.includes(".roomodes")) {
-					return Promise.resolve("mock-yaml-content")
-				}
-				return Promise.reject(new Error("ENOENT"))
-			})
-
-			mockYaml.parse.mockReturnValue(mockModesConfig)
-
-			const result = await marketplaceManager.getInstallationMetadata()
-
-			expect(result.project["test-mode"]).toEqual({
-				type: "mode",
-			})
-		})
-
-		it("should parse global configurations correctly", async () => {
-			const mockGlobalMcp = {
-				mcpServers: {
-					"global-mcp": {
-						command: "node",
-						args: ["global.js"],
-					},
+				{
+					id: "other-mode",
+					name: "Other Mode",
+					description: "Another mode",
+					type: "mode",
+					content: "# Other Mode\nThis is another mode.",
 				},
-			}
+			]
 
-			const mockGlobalModes = {
-				customModes: [
-					{
-						slug: "global-mode",
-						name: "Global Mode",
-						description: "A global mode",
-					},
-				],
-			}
+			const filtered = manager.filterItems(items, { search: "test" })
 
-			mockFs.readFile.mockImplementation((filePath: any) => {
-				// Normalize path separators for cross-platform compatibility
-				const normalizedPath = filePath.replace(/\\/g, "/")
-				if (normalizedPath.includes("mcp_settings.json")) {
-					return Promise.resolve(JSON.stringify(mockGlobalMcp))
-				}
-				if (normalizedPath.includes("custom_modes.yaml")) {
-					return Promise.resolve("mock-yaml-content")
-				}
-				return Promise.reject(new Error("ENOENT"))
-			})
-
-			mockYaml.parse.mockReturnValue(mockGlobalModes)
-
-			const result = await marketplaceManager.getInstallationMetadata()
-
-			expect(result.global["global-mcp"]).toEqual({
-				type: "mcp",
-			})
-			expect(result.global["global-mode"]).toEqual({
-				type: "mode",
-			})
+			expect(filtered).toHaveLength(1)
+			expect(filtered[0].name).toBe("Test Mode")
 		})
 
-		it("should handle mixed project and global installations", async () => {
-			const mockProjectMcp = {
-				mcpServers: {
-					"project-mcp": { command: "node", args: ["project.js"] },
+		it("should filter items by type", () => {
+			const items: MarketplaceItem[] = [
+				{
+					id: "test-mode",
+					name: "Test Mode",
+					description: "A test mode",
+					type: "mode",
+					content: "# Test Mode",
 				},
-			}
+				{
+					id: "test-mcp",
+					name: "Test MCP",
+					description: "A test MCP",
+					type: "mcp",
+					url: "https://example.com/test-mcp",
+					content: '{"command": "node", "args": ["server.js"]}',
+				},
+			]
 
-			const mockGlobalModes = {
-				customModes: [
-					{
-						slug: "global-mode",
-						name: "Global Mode",
-					},
-				],
-			}
+			const filtered = manager.filterItems(items, { type: "mode" })
 
-			mockFs.readFile.mockImplementation((filePath: any) => {
-				// Normalize path separators for cross-platform compatibility
-				const normalizedPath = filePath.replace(/\\/g, "/")
-				if (normalizedPath.includes(".roo/mcp.json")) {
-					return Promise.resolve(JSON.stringify(mockProjectMcp))
-				}
-				if (normalizedPath.includes("custom_modes.yaml")) {
-					return Promise.resolve("mock-yaml-content")
-				}
-				return Promise.reject(new Error("ENOENT"))
-			})
+			expect(filtered).toHaveLength(1)
+			expect(filtered[0].type).toBe("mode")
+		})
 
-			mockYaml.parse.mockReturnValue(mockGlobalModes)
+		it("should return empty array when no items match", () => {
+			const items: MarketplaceItem[] = [
+				{
+					id: "test-mode",
+					name: "Test Mode",
+					description: "A test mode",
+					type: "mode",
+					content: "# Test Mode",
+				},
+			]
 
-			const result = await marketplaceManager.getInstallationMetadata()
+			const filtered = manager.filterItems(items, { search: "nonexistent" })
 
-			expect(result.project["project-mcp"]).toEqual({
-				type: "mcp",
-			})
-			expect(result.global["global-mode"]).toEqual({
+			expect(filtered).toHaveLength(0)
+		})
+	})
+
+	describe("getMarketplaceItems", () => {
+		it("should return items from API", async () => {
+			// Mock the config loader to return test data
+			const mockItems: MarketplaceItem[] = [
+				{
+					id: "test-mode",
+					name: "Test Mode",
+					description: "A test mode",
+					type: "mode",
+					content: "# Test Mode",
+				},
+			]
+
+			// Mock the loadAllItems method
+			vi.spyOn(manager["configLoader"], "loadAllItems").mockResolvedValue(mockItems)
+
+			const result = await manager.getMarketplaceItems()
+
+			expect(result.items).toHaveLength(1)
+			expect(result.items[0].name).toBe("Test Mode")
+		})
+
+		it("should handle API errors gracefully", async () => {
+			// Mock the config loader to throw an error
+			vi.spyOn(manager["configLoader"], "loadAllItems").mockRejectedValue(new Error("API request failed"))
+
+			const result = await manager.getMarketplaceItems()
+
+			expect(result.items).toHaveLength(0)
+			expect(result.errors).toEqual(["API request failed"])
+		})
+	})
+
+	describe("installMarketplaceItem", () => {
+		it("should install a mode item", async () => {
+			const item: MarketplaceItem = {
+				id: "test-mode",
+				name: "Test Mode",
+				description: "A test mode",
 				type: "mode",
+				content: "# Test Mode\nThis is a test mode.",
+			}
+
+			// Mock the installer
+			vi.spyOn(manager["installer"], "installItem").mockResolvedValue({
+				filePath: "/test/path/.roomodes",
+				line: 5,
 			})
+
+			const result = await manager.installMarketplaceItem(item)
+
+			expect(manager["installer"].installItem).toHaveBeenCalledWith(item, { target: "project" })
+			expect(result).toBe("/test/path/.roomodes")
+		})
+
+		it("should install an MCP item", async () => {
+			const item: MarketplaceItem = {
+				id: "test-mcp",
+				name: "Test MCP",
+				description: "A test MCP",
+				type: "mcp",
+				url: "https://example.com/test-mcp",
+				content: '{"command": "node", "args": ["server.js"]}',
+			}
+
+			// Mock the installer
+			vi.spyOn(manager["installer"], "installItem").mockResolvedValue({
+				filePath: "/test/path/.roo/mcp.json",
+				line: 3,
+			})
+
+			const result = await manager.installMarketplaceItem(item)
+
+			expect(manager["installer"].installItem).toHaveBeenCalledWith(item, { target: "project" })
+			expect(result).toBe("/test/path/.roo/mcp.json")
+		})
+	})
+
+	describe("removeInstalledMarketplaceItem", () => {
+		it("should remove a mode item", async () => {
+			const item: MarketplaceItem = {
+				id: "test-mode",
+				name: "Test Mode",
+				description: "A test mode",
+				type: "mode",
+				content: "# Test Mode",
+			}
+
+			// Mock the installer
+			vi.spyOn(manager["installer"], "removeItem").mockResolvedValue()
+
+			await manager.removeInstalledMarketplaceItem(item)
+
+			expect(manager["installer"].removeItem).toHaveBeenCalledWith(item, { target: "project" })
+		})
+
+		it("should remove an MCP item", async () => {
+			const item: MarketplaceItem = {
+				id: "test-mcp",
+				name: "Test MCP",
+				description: "A test MCP",
+				type: "mcp",
+				url: "https://example.com/test-mcp",
+				content: '{"command": "node", "args": ["server.js"]}',
+			}
+
+			// Mock the installer
+			vi.spyOn(manager["installer"], "removeItem").mockResolvedValue()
+
+			await manager.removeInstalledMarketplaceItem(item)
+
+			expect(manager["installer"].removeItem).toHaveBeenCalledWith(item, { target: "project" })
+		})
+	})
+
+	describe("cleanup", () => {
+		it("should clear API cache", async () => {
+			// Mock the clearCache method
+			vi.spyOn(manager["configLoader"], "clearCache")
+
+			await manager.cleanup()
+
+			expect(manager["configLoader"].clearCache).toHaveBeenCalled()
 		})
 	})
 })

@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"types": ["vitest/globals"],
 		"target": "es5",
 		"lib": ["dom", "dom.iterable", "esnext"],
 		"allowJs": true,

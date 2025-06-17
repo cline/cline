@@ -1,6 +1,5 @@
-import { describe, it, expect } from "vitest"
+import type { McpInstallationMethod } from "@roo-code/types"
 import { mcpInstallationMethodSchema, mcpMarketplaceItemSchema } from "@roo-code/types"
-import type { McpInstallationMethod, McpMarketplaceItem } from "@roo-code/types"
 
 describe("Nested Parameters", () => {
 	describe("McpInstallationMethod Schema", () => {

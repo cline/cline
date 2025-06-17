@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises"
 import { createHash } from "crypto"
 import * as path from "path"
-import * as treeSitter from "web-tree-sitter"
+import { Node } from "web-tree-sitter"
 import { LanguageParser, loadRequiredLanguageParsers } from "../../tree-sitter/languageParser"
 import { ICodeParser, CodeBlock } from "../interfaces"
 import { scannerExtensions } from "../shared/supported-extensions"
@@ -124,7 +124,8 @@ export class CodeParser implements ICodeParser {
 
 		// We don't need to get the query string from languageQueries since it's already loaded
 		// in the language object
-		const captures = language.query.captures(tree.rootNode)
+		const captures = tree ? language.query.captures(tree.rootNode) : []
+
 		// Check if captures are empty
 		if (captures.length === 0) {
 			if (content.length >= MIN_BLOCK_CHARS) {
@@ -140,7 +141,7 @@ export class CodeParser implements ICodeParser {
 		const results: CodeBlock[] = []
 
 		// Process captures if not empty
-		const queue: treeSitter.SyntaxNode[] = captures.map((capture: any) => capture.node)
+		const queue: Node[] = Array.from(captures).map((capture) => capture.node)
 
 		while (queue.length > 0) {
 			const currentNode = queue.shift()!
@@ -150,9 +151,9 @@ export class CodeParser implements ICodeParser {
 			if (currentNode.text.length >= MIN_BLOCK_CHARS) {
 				// If it also exceeds the maximum character limit, try to break it down
 				if (currentNode.text.length > MAX_BLOCK_CHARS * MAX_CHARS_TOLERANCE_FACTOR) {
-					if (currentNode.children.length > 0) {
+					if (currentNode.children.filter((child) => child !== null).length > 0) {
 						// If it has children, process them instead
-						queue.push(...currentNode.children)
+						queue.push(...currentNode.children.filter((child) => child !== null))
 					} else {
 						// If it's a leaf node, chunk it (passing MIN_BLOCK_CHARS as per Task 1 Step 5)
 						// Note: _chunkLeafNodeByLines logic might need further adjustment later
@@ -168,7 +169,7 @@ export class CodeParser implements ICodeParser {
 					// Node meets min chars and is within max chars, create a block
 					const identifier =
 						currentNode.childForFieldName("name")?.text ||
-						currentNode.children.find((c) => c.type === "identifier")?.text ||
+						currentNode.children.find((c) => c?.type === "identifier")?.text ||
 						null
 					const type = currentNode.type
 					const start_line = currentNode.startPosition.row + 1
@@ -353,7 +354,7 @@ export class CodeParser implements ICodeParser {
 	}
 
 	private _chunkLeafNodeByLines(
-		node: treeSitter.SyntaxNode,
+		node: Node,
 		filePath: string,
 		fileHash: string,
 		seenSegmentHashes: Set<string>,

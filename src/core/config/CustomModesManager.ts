@@ -7,7 +7,7 @@ import * as yaml from "yaml"
 import { type ModeConfig, customModesSettingsSchema } from "@roo-code/types"
 
 import { fileExistsAtPath } from "../../utils/fs"
-import { arePathsEqual, getWorkspacePath } from "../../utils/path"
+import { getWorkspacePath } from "../../utils/path"
 import { logger } from "../../utils/logging"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
@@ -132,7 +132,7 @@ export class CustomModesManager {
 
 	private async watchCustomModesFiles(): Promise<void> {
 		// Skip if test environment is detected
-		if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined) {
+		if (process.env.NODE_ENV === "test") {
 			return
 		}
 

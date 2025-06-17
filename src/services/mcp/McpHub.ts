@@ -242,9 +242,10 @@ export class McpHub {
 
 	public setupWorkspaceFoldersWatcher(): void {
 		// Skip if test environment is detected
-		if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined) {
+		if (process.env.NODE_ENV === "test") {
 			return
 		}
+
 		this.disposables.push(
 			vscode.workspace.onDidChangeWorkspaceFolders(async () => {
 				await this.updateProjectMcpServers()
@@ -314,11 +315,7 @@ export class McpHub {
 
 	private async watchProjectMcpFile(): Promise<void> {
 		// Skip if test environment is detected or VSCode APIs are not available
-		if (
-			process.env.NODE_ENV === "test" ||
-			process.env.JEST_WORKER_ID !== undefined ||
-			!vscode.workspace.createFileSystemWatcher
-		) {
+		if (process.env.NODE_ENV === "test" || !vscode.workspace.createFileSystemWatcher) {
 			return
 		}
 
@@ -451,11 +448,7 @@ export class McpHub {
 
 	private async watchMcpSettingsFile(): Promise<void> {
 		// Skip if test environment is detected or VSCode APIs are not available
-		if (
-			process.env.NODE_ENV === "test" ||
-			process.env.JEST_WORKER_ID !== undefined ||
-			!vscode.workspace.createFileSystemWatcher
-		) {
+		if (process.env.NODE_ENV === "test" || !vscode.workspace.createFileSystemWatcher) {
 			return
 		}
 

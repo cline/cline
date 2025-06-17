@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
 import { applyDiffTool } from "../multiApplyDiffTool"
-import { EXPERIMENT_IDS, experiments } from "../../../shared/experiments"
+import { EXPERIMENT_IDS } from "../../../shared/experiments"
 
 // Mock the applyDiffTool module
 vi.mock("../applyDiffTool", () => ({

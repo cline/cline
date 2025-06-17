@@ -1,4 +1,3 @@
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 import type { Mock } from "vitest"
 import * as vscode from "vscode"
 import { createHash } from "crypto"

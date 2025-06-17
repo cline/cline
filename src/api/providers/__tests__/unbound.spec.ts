@@ -1,6 +1,5 @@
 // npx vitest run src/api/providers/__tests__/unbound.spec.ts
 
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { ApiHandlerOptions } from "../../../shared/api"

@@ -1,6 +1,5 @@
 // npx vitest run src/api/transform/__tests__/simple-format.spec.ts
 
-import { describe, it, expect } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { convertToSimpleContent, convertToSimpleMessages } from "../simple-format"
 

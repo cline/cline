@@ -1,6 +1,5 @@
 // npx vitest run src/api/providers/__tests__/bedrock-custom-arn.spec.ts
 
-import { vitest, describe, it, expect } from "vitest"
 import { AwsBedrockHandler } from "../bedrock"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { logger } from "../../../utils/logging"

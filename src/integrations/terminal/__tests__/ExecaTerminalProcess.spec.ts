@@ -1,5 +1,4 @@
 // npx vitest run integrations/terminal/__tests__/ExecaTerminalProcess.spec.ts
-import { vitest, describe, it, expect, beforeEach, afterEach } from "vitest"
 
 const mockPid = 12345
 

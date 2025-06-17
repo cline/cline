@@ -95,6 +95,7 @@
 		"jest-simple-dot-reporter": "^1.0.5",
 		"ts-jest": "^29.2.5",
 		"typescript": "5.8.3",
-		"vite": "6.3.5"
+		"vite": "6.3.5",
+		"vitest": "^3.2.3"
 	}
 }

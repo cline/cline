@@ -1,5 +1,4 @@
 import * as vscode from "vscode"
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 
 import { diagnosticsToProblemsString } from "../index"
 

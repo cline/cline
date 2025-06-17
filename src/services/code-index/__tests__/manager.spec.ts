@@ -1,7 +1,4 @@
-import { vitest, describe, it, expect, beforeEach, afterEach } from "vitest"
-import * as vscode from "vscode"
 import { CodeIndexManager } from "../manager"
-import { ContextProxy } from "../../../core/config/ContextProxy"
 
 // Mock only the essential dependencies
 vitest.mock("../../../utils/path", () => ({

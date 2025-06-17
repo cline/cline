@@ -1,7 +1,6 @@
 // npx vitest run api/providers/__tests__/chutes.spec.ts
 
 import { Anthropic } from "@anthropic-ai/sdk"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import OpenAI from "openai"
 
 import { type ChutesModelId, chutesDefaultModelId, chutesModels, DEEP_SEEK_DEFAULT_TEMPERATURE } from "@roo-code/types"

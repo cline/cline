@@ -1,7 +1,5 @@
 // npx vitest run src/api/providers/__tests__/groq.spec.ts
 
-import { vitest, describe, it, expect, beforeEach } from "vitest"
-
 // Mock vscode first to avoid import errors
 vitest.mock("vscode", () => ({}))
 

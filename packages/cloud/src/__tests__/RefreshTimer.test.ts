@@ -1,6 +1,6 @@
 // npx vitest run src/__tests__/RefreshTimer.test.ts
 
-import { Mock } from "vitest"
+import type { Mock } from "vitest"
 
 import { RefreshTimer } from "../RefreshTimer"
 

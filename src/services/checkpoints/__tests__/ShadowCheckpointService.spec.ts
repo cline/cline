@@ -1,6 +1,5 @@
 // npx vitest run src/services/checkpoints/__tests__/ShadowCheckpointService.spec.ts
 
-import { vitest, describe, it, expect, beforeEach, afterEach, afterAll } from "vitest"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"

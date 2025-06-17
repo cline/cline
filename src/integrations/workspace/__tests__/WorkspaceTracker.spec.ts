@@ -1,4 +1,4 @@
-import { vitest, describe, it, expect, beforeEach, type Mock } from "vitest"
+import type { Mock } from "vitest"
 import * as vscode from "vscode"
 import WorkspaceTracker from "../WorkspaceTracker"
 import { ClineProvider } from "../../../core/webview/ClineProvider"

@@ -3,8 +3,8 @@ import i18next from "i18next"
 // Build translations object
 const translations: Record<string, Record<string, any>> = {}
 
-// Determine if running in test environment (jest)
-const isTestEnv = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined
+// Determine if running in test environment
+const isTestEnv = process.env.NODE_ENV === "test"
 
 // Load translations based on environment
 if (!isTestEnv) {

@@ -4,6 +4,8 @@
  * but is compatible with the parseFile function's capture processing
  */
 
+import { QueryCapture } from "web-tree-sitter"
+
 /**
  * Interface to mimic tree-sitter node structure
  */
@@ -24,6 +26,7 @@ interface MockNode {
 interface MockCapture {
 	node: MockNode
 	name: string
+	patternIndex: number
 }
 
 /**
@@ -32,7 +35,7 @@ interface MockCapture {
  * @param content - The content of the markdown file
  * @returns An array of mock captures compatible with tree-sitter captures
  */
-export function parseMarkdown(content: string): MockCapture[] {
+export function parseMarkdown(content: string): QueryCapture[] {
 	if (!content || content.trim() === "") {
 		return []
 	}
@@ -69,12 +72,14 @@ export function parseMarkdown(content: string): MockCapture[] {
 			captures.push({
 				node,
 				name: `name.definition.header.h${level}`,
+				patternIndex: 0,
 			})
 
 			// Also create a definition capture
 			captures.push({
 				node,
 				name: `definition.header.h${level}`,
+				patternIndex: 0,
 			})
 
 			continue
@@ -97,12 +102,14 @@ export function parseMarkdown(content: string): MockCapture[] {
 				captures.push({
 					node,
 					name: "name.definition.header.h1",
+					patternIndex: 0,
 				})
 
 				// Also create a definition capture
 				captures.push({
 					node,
 					name: "definition.header.h1",
+					patternIndex: 0,
 				})
 
 				continue
@@ -123,12 +130,14 @@ export function parseMarkdown(content: string): MockCapture[] {
 				captures.push({
 					node,
 					name: "name.definition.header.h2",
+					patternIndex: 0,
 				})
 
 				// Also create a definition capture
 				captures.push({
 					node,
 					name: "definition.header.h2",
+					patternIndex: 0,
 				})
 
 				continue
@@ -169,18 +178,20 @@ export function parseMarkdown(content: string): MockCapture[] {
 	}
 
 	// Flatten the grouped captures back to a single array
-	return headerCaptures.flat()
+	// Cast to QueryCapture[] since our MockCapture objects provide all the properties
+	// that are actually used by the consuming code (node.startPosition, node.endPosition, node.text, node.parent, name)
+	return headerCaptures.flat() as QueryCapture[]
 }
 
 /**
  * Format markdown captures into the same string format as parseFile
  * This is used for backward compatibility
  *
- * @param captures - The array of mock captures
+ * @param captures - The array of query captures
  * @param minSectionLines - Minimum number of lines for a section to be included
  * @returns A formatted string with headers and section line ranges
  */
-export function formatMarkdownCaptures(captures: MockCapture[], minSectionLines: number = 4): string | null {
+export function formatMarkdownCaptures(captures: QueryCapture[], minSectionLines: number = 4): string | null {
 	if (captures.length === 0) {
 		return null
 	}

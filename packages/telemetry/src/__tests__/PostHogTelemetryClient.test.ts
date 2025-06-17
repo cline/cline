@@ -2,7 +2,6 @@
 
 // npx vitest run src/__tests__/PostHogTelemetryClient.test.ts
 
-import { describe, it, expect, beforeEach, vi } from "vitest"
 import * as vscode from "vscode"
 import { PostHog } from "posthog-node"
 

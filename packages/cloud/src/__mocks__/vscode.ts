@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { vi } from "vitest"
 
 export const window = {
 	showInformationMessage: vi.fn(),

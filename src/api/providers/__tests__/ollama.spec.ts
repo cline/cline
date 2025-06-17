@@ -1,6 +1,5 @@
 // npx vitest run api/providers/__tests__/ollama.spec.ts
 
-import { vitest } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { OllamaHandler } from "../ollama"

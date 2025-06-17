@@ -1,6 +1,5 @@
 // npx vitest run api/providers/__tests__/openai-usage-tracking.spec.ts
 
-import { vitest } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { ApiHandlerOptions } from "../../../shared/api"

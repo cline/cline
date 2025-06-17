@@ -1,6 +1,5 @@
 // npx vitest run src/api/providers/__tests__/anthropic-vertex.spec.ts
 
-import { vitest, describe, it, expect } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 

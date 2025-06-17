@@ -1,8 +1,8 @@
 // npx vitest services/code-index/processors/__tests__/file-watcher.spec.ts
 
-import { vi, describe, it, expect, beforeEach } from "vitest"
-import { FileWatcher } from "../file-watcher"
 import * as vscode from "vscode"
+
+import { FileWatcher } from "../file-watcher"
 
 // Mock dependencies
 vi.mock("../../cache-manager")

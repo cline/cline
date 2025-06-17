@@ -47,6 +47,6 @@
 		"@types/ps-tree": "^1.1.6",
 		"drizzle-kit": "^0.31.1",
 		"tsx": "^4.19.3",
-		"vitest": "^3.2.0"
+		"vitest": "^3.2.3"
 	}
 }

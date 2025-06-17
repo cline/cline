@@ -1,5 +1,3 @@
-import { vitest, describe, it, expect, beforeEach } from "vitest"
-import { ContextProxy } from "../../../core/config/ContextProxy"
 import { CodeIndexConfigManager } from "../config-manager"
 
 describe("CodeIndexConfigManager", () => {

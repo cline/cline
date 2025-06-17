@@ -1,6 +1,6 @@
 // npx vitest run integrations/misc/__tests__/read-file-tool.spec.ts
 
-import { vitest, describe, it, expect, beforeEach, type Mock } from "vitest"
+import type { Mock } from "vitest"
 import * as path from "path"
 import { countFileLines } from "../line-counter"
 import { readLines } from "../read-lines"

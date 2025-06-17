@@ -1,6 +1,6 @@
-import { vitest, describe, it, expect, beforeEach, afterAll } from "vitest"
-import { injectEnv, injectVariables } from "../config"
+// npx vitest utils/__tests__/config.spec.ts
 
+import { injectEnv, injectVariables } from "../config"
 
 describe("injectEnv", () => {
 	const originalEnv = process.env

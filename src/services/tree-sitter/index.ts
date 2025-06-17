@@ -5,6 +5,7 @@ import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
 import { parseMarkdown } from "./markdownParser"
 import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
+import { QueryCapture } from "web-tree-sitter"
 
 // Private constant
 const DEFAULT_MIN_COMPONENT_LINES_VALUE = 4
@@ -262,7 +263,7 @@ This approach allows us to focus on the most relevant parts of the code (defined
  * @param minComponentLines - Minimum number of lines for a component to be included
  * @returns A formatted string with definitions
  */
-function processCaptures(captures: any[], lines: string[], language: string): string | null {
+function processCaptures(captures: QueryCapture[], lines: string[], language: string): string | null {
 	// Determine if HTML filtering is needed for this language
 	const needsHtmlFiltering = ["jsx", "tsx"].includes(language)
 
@@ -397,7 +398,7 @@ async function parseFile(
 		const tree = parser.parse(fileContent)
 
 		// Apply the query to the AST and get the captures
-		const captures = query.captures(tree.rootNode)
+		const captures = tree ? query.captures(tree.rootNode) : []
 
 		// Split the file content into individual lines
 		const lines = fileContent.split("\n")

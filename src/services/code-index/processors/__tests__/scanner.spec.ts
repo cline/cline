@@ -1,6 +1,5 @@
 // npx vitest services/code-index/processors/__tests__/scanner.spec.ts
 
-import { vi, describe, it, expect, beforeEach } from "vitest"
 import { DirectoryScanner } from "../scanner"
 import { stat } from "fs/promises"
 

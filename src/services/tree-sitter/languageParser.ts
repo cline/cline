@@ -1,5 +1,5 @@
 import * as path from "path"
-import Parser from "web-tree-sitter"
+import { Parser, Query, Language } from "web-tree-sitter"
 import {
 	javascriptQuery,
 	typescriptQuery,
@@ -33,12 +33,12 @@ import {
 export interface LanguageParser {
 	[key: string]: {
 		parser: Parser
-		query: Parser.Query
+		query: Query
 	}
 }
 
 async function loadLanguage(langName: string) {
-	return await Parser.Language.load(path.join(__dirname, `tree-sitter-${langName}.wasm`))
+	return await Language.load(path.join(__dirname, `tree-sitter-${langName}.wasm`))
 }
 
 let isParserInitialized = false
@@ -77,8 +77,8 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 	const extensionsToLoad = new Set(filesToParse.map((file) => path.extname(file).toLowerCase().slice(1)))
 	const parsers: LanguageParser = {}
 	for (const ext of extensionsToLoad) {
-		let language: Parser.Language
-		let query: Parser.Query
+		let language: Language
+		let query: Query
 		let parserKey = ext // Default to using extension as key
 		switch (ext) {
 			case "js":

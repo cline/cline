@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"types": ["vitest/globals"],
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,

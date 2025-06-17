@@ -1,7 +1,5 @@
 // npx vitest run src/core/tools/__tests__/executeCommandTool.spec.ts
 
-import { describe, expect, it, vitest, beforeEach } from "vitest"
-
 import type { ToolUsage } from "@roo-code/types"
 
 import { Task } from "../../task/Task"

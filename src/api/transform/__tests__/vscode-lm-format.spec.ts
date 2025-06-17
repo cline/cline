@@ -1,6 +1,5 @@
 // npx vitest run src/api/transform/__tests__/vscode-lm-format.spec.ts
 
-import { vitest, describe, it, expect } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { convertToVsCodeLmMessages, convertToAnthropicRole } from "../vscode-lm-format"

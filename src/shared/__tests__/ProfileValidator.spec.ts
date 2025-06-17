@@ -1,8 +1,8 @@
 // npx vitest run src/shared/__tests__/ProfileValidator.spec.ts
 
-import { describe, it, expect } from "vitest"
-import { ProfileValidator } from "../ProfileValidator"
 import { OrganizationAllowList, ProviderSettings } from "@roo-code/types"
+
+import { ProfileValidator } from "../ProfileValidator"
 
 describe("ProfileValidator", () => {
 	describe("isProfileAllowed", () => {

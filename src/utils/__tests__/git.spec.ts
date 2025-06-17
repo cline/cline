@@ -1,5 +1,4 @@
 import { ExecException } from "child_process"
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 
 import { searchCommits, getCommitInfo, getWorkingState } from "../git"
 

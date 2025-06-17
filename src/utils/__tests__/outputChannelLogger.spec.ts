@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { vitest, describe, it, expect, beforeEach } from "vitest"
+
 import { createOutputChannelLogger, createDualLogger } from "../outputChannelLogger"
 
 // Mock VSCode output channel

@@ -1,6 +1,5 @@
 // npx vitest run api/providers/__tests__/openai.spec.ts
 
-import { vitest, vi } from "vitest"
 import { OpenAiHandler } from "../openai"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"

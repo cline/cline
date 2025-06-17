@@ -1,11 +1,9 @@
-import { vitest, describe, it, expect, beforeEach } from "vitest"
-import { QdrantVectorStore } from "../qdrant-client"
 import { QdrantClient } from "@qdrant/js-client-rest"
 import { createHash } from "crypto"
-import * as path from "path"
+
+import { QdrantVectorStore } from "../qdrant-client"
 import { getWorkspacePath } from "../../../../utils/path"
 import { MAX_SEARCH_RESULTS, SEARCH_MIN_SCORE } from "../../constants"
-import { Payload, VectorStoreSearchResult } from "../../interfaces"
 
 // Mocks
 vitest.mock("@qdrant/js-client-rest")

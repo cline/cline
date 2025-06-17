@@ -2,8 +2,6 @@
 
 // npx vitest run src/__tests__/TelemetryClient.test.ts
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
-
 import { type TelemetryPropertiesProvider, TelemetryEventName } from "@roo-code/types"
 
 import { TelemetryClient } from "../TelemetryClient"

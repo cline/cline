@@ -1,6 +1,5 @@
 // npx vitest run api/providers/__tests__/requesty.spec.ts
 
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 

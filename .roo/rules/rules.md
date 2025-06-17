@@ -4,6 +4,8 @@
 
     - Before attempting completion, always make sure that any code changes have test coverage
     - Ensure all tests pass before submitting changes
+    - The vitest framework is used for testing; the `describe`, `test`, `it`, etc functions are defined by default in `tsconfig.json` and therefore don't need to be imported
+    - Tests must be run from the same directory as the `package.json` file that specifies `vitest` in `devDependencies`
 
 2. Lint Rules:
 

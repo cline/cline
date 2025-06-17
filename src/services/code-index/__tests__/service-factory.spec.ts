@@ -1,8 +1,5 @@
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 import type { MockedClass, MockedFunction } from "vitest"
 import { CodeIndexServiceFactory } from "../service-factory"
-import { CodeIndexConfigManager } from "../config-manager"
-import { CacheManager } from "../cache-manager"
 import { OpenAiEmbedder } from "../embedders/openai"
 import { CodeIndexOllamaEmbedder } from "../embedders/ollama"
 import { OpenAICompatibleEmbedder } from "../embedders/openai-compatible"

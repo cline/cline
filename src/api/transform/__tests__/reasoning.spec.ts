@@ -1,6 +1,5 @@
 // npx vitest run src/api/transform/__tests__/reasoning.spec.ts
 
-import { describe, it, expect } from "vitest"
 import type { ModelInfo, ProviderSettings } from "@roo-code/types"
 
 import {

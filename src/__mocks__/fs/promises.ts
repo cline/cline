@@ -1,3 +1,5 @@
+import { vi } from "vitest"
+
 // Mock file system data
 const mockFiles = new Map()
 const mockDirectories = new Set()
@@ -45,7 +47,7 @@ const ensureDirectoryExists = (path: string) => {
 }
 
 const mockFs = {
-	readFile: jest.fn().mockImplementation(async (filePath: string, _encoding?: string) => {
+	readFile: vi.fn().mockImplementation(async (filePath: string, _encoding?: string) => {
 		// Return stored content if it exists
 		if (mockFiles.has(filePath)) {
 			return mockFiles.get(filePath)
@@ -82,7 +84,7 @@ const mockFs = {
 		throw error
 	}),
 
-	writeFile: jest.fn().mockImplementation(async (path: string, content: string) => {
+	writeFile: vi.fn().mockImplementation(async (path: string, content: string) => {
 		// Ensure parent directory exists
 		const parentDir = path.split("/").slice(0, -1).join("/")
 		ensureDirectoryExists(parentDir)
@@ -90,7 +92,7 @@ const mockFs = {
 		return Promise.resolve()
 	}),
 
-	mkdir: jest.fn().mockImplementation(async (path: string, options?: { recursive?: boolean }) => {
+	mkdir: vi.fn().mockImplementation(async (path: string, options?: { recursive?: boolean }) => {
 		// Always handle recursive creation
 		const parts = path.split("/")
 		let currentPath = ""
@@ -122,7 +124,7 @@ const mockFs = {
 		return Promise.resolve()
 	}),
 
-	access: jest.fn().mockImplementation(async (path: string) => {
+	access: vi.fn().mockImplementation(async (path: string) => {
 		// Check if the path exists in either files or directories
 		if (mockFiles.has(path) || mockDirectories.has(path) || path.startsWith("/test")) {
 			return Promise.resolve()
@@ -132,7 +134,7 @@ const mockFs = {
 		throw error
 	}),
 
-	rename: jest.fn().mockImplementation(async (oldPath: string, newPath: string) => {
+	rename: vi.fn().mockImplementation(async (oldPath: string, newPath: string) => {
 		// Check if the old file exists
 		if (mockFiles.has(oldPath)) {
 			// Copy content to new path
@@ -148,7 +150,7 @@ const mockFs = {
 		throw error
 	}),
 
-	constants: jest.requireActual("fs").constants,
+	constants: require("fs").constants,
 
 	// Expose mock data for test assertions
 	_mockFiles: mockFiles,

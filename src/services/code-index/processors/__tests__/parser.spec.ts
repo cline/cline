@@ -1,10 +1,9 @@
 // npx vitest services/code-index/processors/__tests__/parser.spec.ts
 
-import { vi, describe, it, expect, beforeEach } from "vitest"
 import { CodeParser, codeParser } from "../parser"
-import Parser from "web-tree-sitter"
 import { loadRequiredLanguageParsers } from "../../../tree-sitter/languageParser"
 import { readFile } from "fs/promises"
+import { Node } from "web-tree-sitter"
 
 // Override Jest-based fs/promises mock with vitest-compatible version
 vi.mock("fs/promises", () => ({
@@ -203,7 +202,7 @@ describe("CodeParser", () => {
 				startPosition: { row: 10 },
 				endPosition: { row: 12 },
 				type: "function",
-			} as unknown as Parser.SyntaxNode
+			} as unknown as Node
 
 			const result = await parser["_chunkLeafNodeByLines"](mockNode, "test.js", "hash", new Set())
 			expect(result.length).toBeGreaterThan(0)

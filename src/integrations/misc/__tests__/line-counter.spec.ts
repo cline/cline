@@ -1,4 +1,4 @@
-import { vitest, describe, it, expect, beforeEach, type Mock } from "vitest"
+import type { Mock } from "vitest"
 import fs from "fs"
 import { countFileLines } from "../line-counter"
 

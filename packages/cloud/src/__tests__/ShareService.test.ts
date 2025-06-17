@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi, type MockedFunction } from "vitest"
+
+import type { MockedFunction } from "vitest"
 import axios from "axios"
 import * as vscode from "vscode"
 
