@@ -291,6 +291,7 @@ export class Controller {
 			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
 			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
 			previousModeSapAiCoreModelId: newSapAiCoreModelId,
+			previousModeVertexRegion: newVertexRegion,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -375,6 +376,11 @@ export class Controller {
 					break
 			}
 
+			// Save vertex region for all providers that use it
+			if (apiConfiguration.apiProvider === "vertex") {
+				await updateWorkspaceState(this.context, "previousModeVertexRegion", apiConfiguration.vertexRegion)
+			}
+
 			// Restore the model used in previous mode
 			if (
 				newApiProvider ||
@@ -431,6 +437,11 @@ export class Controller {
 					case "sapaicore":
 						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
+				}
+
+				// Restore vertex region if switching to vertex provider
+				if (newApiProvider === "vertex" && newVertexRegion) {
+					await updateGlobalState(this.context, "vertexRegion", newVertexRegion)
 				}
 
 				if (this.task) {

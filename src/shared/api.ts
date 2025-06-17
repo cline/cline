@@ -56,6 +56,7 @@ export interface ApiHandlerOptions {
 	awsBedrockCustomModelBaseId?: BedrockModelId
 	vertexProjectId?: string
 	vertexRegion?: string
+	previousModeVertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string

@@ -357,6 +357,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreTokenUrl,
 		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
+		previousModeVertexRegion,
 	] = await Promise.all([
 		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -392,6 +393,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getWorkspaceState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
 		getWorkspaceState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
 		getWorkspaceState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeVertexRegion") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -531,6 +533,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreTokenUrl,
 		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
+		previousModeVertexRegion,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
