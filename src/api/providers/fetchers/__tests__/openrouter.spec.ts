@@ -27,7 +27,16 @@ describe("OpenRouter API", () => {
 				.filter(([_, model]) => model.supportsPromptCache)
 				.map(([id, _]) => id)
 
-			const ourCachingModels = Array.from(OPEN_ROUTER_PROMPT_CACHING_MODELS)
+			// Define models that are intentionally excluded
+			const excludedModels = new Set([
+				"google/gemini-2.5-pro-preview", // Excluded due to lag issue (#4487)
+				"google/gemini-2.5-flash", // OpenRouter doesn't report this as supporting prompt caching
+				"google/gemini-2.5-flash-lite-preview-06-17", // OpenRouter doesn't report this as supporting prompt caching
+			])
+
+			const ourCachingModels = Array.from(OPEN_ROUTER_PROMPT_CACHING_MODELS).filter(
+				(id) => !excludedModels.has(id),
+			)
 
 			// Verify all our caching models are actually supported by OpenRouter
 			for (const modelId of ourCachingModels) {
@@ -35,7 +44,6 @@ describe("OpenRouter API", () => {
 			}
 
 			// Verify we have all supported models except intentionally excluded ones
-			const excludedModels = new Set(["google/gemini-2.5-pro-preview"]) // Excluded due to lag issue (#4487)
 			const expectedCachingModels = openRouterSupportedCaching.filter((id) => !excludedModels.has(id)).sort()
 
 			expect(ourCachingModels.sort()).toEqual(expectedCachingModels)
@@ -109,20 +117,36 @@ describe("OpenRouter API", () => {
 				"tngtech/deepseek-r1t-chimera:free",
 				"x-ai/grok-3-mini-beta",
 			])
+			// OpenRouter is taking a while to update their models, so we exclude some known models
+			const excludedReasoningBudgetModels = new Set([
+				"google/gemini-2.5-flash",
+				"google/gemini-2.5-flash-lite-preview-06-17",
+				"google/gemini-2.5-pro",
+			])
+
+			const expectedReasoningBudgetModels = Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS)
+				.filter((id) => !excludedReasoningBudgetModels.has(id))
+				.sort()
 
 			expect(
 				Object.entries(models)
 					.filter(([_, model]) => model.supportsReasoningBudget)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual(Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS).sort())
+			).toEqual(expectedReasoningBudgetModels)
+
+			const excludedRequiredReasoningBudgetModels = new Set(["google/gemini-2.5-pro"])
+
+			const expectedRequiredReasoningBudgetModels = Array.from(OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS)
+				.filter((id) => !excludedRequiredReasoningBudgetModels.has(id))
+				.sort()
 
 			expect(
 				Object.entries(models)
 					.filter(([_, model]) => model.requiredReasoningBudget)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual(Array.from(OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS).sort())
+			).toEqual(expectedRequiredReasoningBudgetModels)
 
 			expect(models["anthropic/claude-3.7-sonnet"]).toEqual({
 				maxTokens: 8192,
