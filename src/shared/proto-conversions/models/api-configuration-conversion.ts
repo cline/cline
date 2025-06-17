@@ -234,6 +234,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.SAMBANOVA
 		case "cerebras":
 			return ProtoApiProvider.CEREBRAS
+		case "sapaicore":
+			return ProtoApiProvider.SAPAICORE
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -290,6 +292,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "sambanova"
 		case ProtoApiProvider.CEREBRAS:
 			return "cerebras"
+		case ProtoApiProvider.SAPAICORE:
+			return "sapaicore"
 		default:
 			return "anthropic"
 	}
@@ -365,6 +369,11 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		requestTimeoutMs: config.requestTimeoutMs,
 		apiProvider: config.apiProvider ? convertApiProviderToProto(config.apiProvider) : undefined,
 		favoritedModelIds: config.favoritedModelIds || [],
+		sapAiCoreClientId: config.sapAiCoreClientId,
+		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
+		sapAiResourceGroup: config.sapAiResourceGroup,
+		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
+		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 	}
 }
 
@@ -438,5 +447,10 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
 		apiProvider: protoConfig.apiProvider !== undefined ? convertProtoToApiProvider(protoConfig.apiProvider) : undefined,
 		favoritedModelIds: protoConfig.favoritedModelIds.length > 0 ? protoConfig.favoritedModelIds : undefined,
+		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
+		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
+		sapAiResourceGroup: protoConfig.sapAiResourceGroup,
+		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
+		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 	}
 }

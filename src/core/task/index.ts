@@ -113,7 +113,8 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
-import { isClaude4ModelFamily } from "@/utils/model-utils"
+import { isClaude4ModelFamily } from "@utils/model-utils"
+import { saveClineMessagesAndUpdateHistory } from "./message-state"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -140,7 +141,7 @@ export class Task {
 	readonly taskId: string
 	private taskIsFavorited?: boolean
 	api: ApiHandler
-	private terminalManager: TerminalManager
+	terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -203,6 +204,8 @@ export class Task {
 		chatSettings: ChatSettings,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
+		terminalOutputLineLimit: number,
+		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		task?: string,
 		images?: string[],
@@ -222,6 +225,8 @@ export class Task {
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
+		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
@@ -343,52 +348,28 @@ export class Task {
 		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
 		this.clineMessages.push(message)
-		await this.saveClineMessagesAndUpdateHistory()
+		await saveClineMessagesAndUpdateHistory(
+			this.getContext(),
+			this.taskId,
+			this.clineMessages,
+			this.taskIsFavorited ?? false,
+			this.conversationHistoryDeletedRange,
+			this.checkpointTracker,
+			this.updateTaskHistory,
+		)
 	}
 
 	private async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
-		await this.saveClineMessagesAndUpdateHistory()
-	}
-
-	private async saveClineMessagesAndUpdateHistory() {
-		try {
-			await saveClineMessages(this.getContext(), this.taskId, this.clineMessages)
-
-			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(this.clineMessages, (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
-				]
-			const taskDir = await ensureTaskDirectoryExists(this.getContext(), this.taskId)
-			let taskDirSize = 0
-			try {
-				// getFolderSize.loose silently ignores errors
-				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
-			} catch (error) {
-				console.error("Failed to get task directory size:", taskDir, error)
-			}
-			await this.updateTaskHistory({
-				id: this.taskId,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
-				size: taskDirSize,
-				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
-				cwdOnTaskInitialization: cwd,
-				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
-				isFavorited: this.taskIsFavorited,
-			})
-		} catch (error) {
-			console.error("Failed to save cline messages:", error)
-		}
+		await saveClineMessagesAndUpdateHistory(
+			this.getContext(),
+			this.taskId,
+			this.clineMessages,
+			this.taskIsFavorited ?? false,
+			this.conversationHistoryDeletedRange,
+			this.checkpointTracker,
+			this.updateTaskHistory,
+		)
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
@@ -473,6 +454,18 @@ export class Task {
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
+					// Detect files edited after this message timestamp for file context warning
+					// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
+					if (restoreType === "task") {
+						const filesEditedAfterMessage = await this.fileContextTracker.detectFilesEditedAfterMessage(
+							messageTs,
+							deletedMessages,
+						)
+						if (filesEditedAfterMessage.length > 0) {
+							await this.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
+						}
+					}
+
 					const newClineMessages = this.clineMessages.slice(0, messageIndex + 1)
 					await this.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
 
@@ -515,9 +508,15 @@ export class Task {
 				})
 			}
 
-			await this.saveClineMessagesAndUpdateHistory()
-
-			sendRelinquishControlEvent()
+			await saveClineMessagesAndUpdateHistory(
+				this.getContext(),
+				this.taskId,
+				this.clineMessages,
+				this.taskIsFavorited ?? false,
+				this.conversationHistoryDeletedRange,
+				this.checkpointTracker,
+				this.updateTaskHistory,
+			)
 
 			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
@@ -790,7 +789,15 @@ export class Task {
 					// lastMessage.ts = askTs
 					lastMessage.text = text
 					lastMessage.partial = false
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
@@ -898,7 +905,15 @@ export class Task {
 					lastMessage.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
@@ -947,8 +962,15 @@ export class Task {
 		const lastMessage = this.clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
-			await this.saveClineMessagesAndUpdateHistory()
-			await this.postStateToWebview()
+			await saveClineMessagesAndUpdateHistory(
+				this.getContext(),
+				this.taskId,
+				this.clineMessages,
+				this.taskIsFavorited ?? false,
+				this.conversationHistoryDeletedRange,
+				this.checkpointTracker,
+				this.updateTaskHistory,
+			)
 		}
 	}
 
@@ -1121,12 +1143,17 @@ export class Task {
 
 		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
 
+		// Check if there are pending file context warnings before calling taskResumption
+		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
+		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
+
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
 			this.chatSettings?.mode === "plan" ? "plan" : "act",
 			agoText,
 			cwd,
 			wasRecent,
 			responseText,
+			hasPendingFileContextWarnings,
 		)
 
 		if (taskResumptionMessage !== "") {
@@ -1155,6 +1182,15 @@ export class Task {
 					text: fileContentString,
 				})
 			}
+		}
+
+		// Inject file context warning if there were pending warnings from message editing
+		if (pendingContextWarning && pendingContextWarning.length > 0) {
+			const fileContextWarning = formatResponse.fileContextWarning(pendingContextWarning)
+			newUserContent.push({
+				type: "text",
+				text: fileContextWarning,
+			})
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -1232,7 +1268,15 @@ export class Task {
 				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 				}
 			}) // silently fails for now
 
@@ -1264,7 +1308,15 @@ export class Task {
 				)
 				if (lastCompletionResultMessage) {
 					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 				}
 			} else {
 				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
@@ -1453,9 +1505,9 @@ export class Task {
 			chunkTimer = setTimeout(async () => await flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
-		let result = ""
+		const outputLines: string[] = []
 		process.on("line", async (line) => {
-			result += line + "\n"
+			outputLines.push(line)
 
 			if (!didContinue) {
 				outputBuffer.push(line)
@@ -1497,7 +1549,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		result = result.trim()
+		let result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1702,7 +1754,15 @@ export class Task {
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
 			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
-			await this.saveClineMessagesAndUpdateHistory() // saves task history item which we use to keep track of conversation history deleted range
+			await saveClineMessagesAndUpdateHistory(
+				this.getContext(),
+				this.taskId,
+				this.clineMessages,
+				this.taskIsFavorited ?? false,
+				this.conversationHistoryDeletedRange,
+				this.checkpointTracker,
+				this.updateTaskHistory,
+			) // saves task history item which we use to keep track of conversation history deleted range
 		}
 
 		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
@@ -1727,7 +1787,15 @@ export class Task {
 					this.conversationHistoryDeletedRange,
 					"quarter", // Force aggressive truncation
 				)
-				await this.saveClineMessagesAndUpdateHistory()
+				await saveClineMessagesAndUpdateHistory(
+					this.getContext(),
+					this.taskId,
+					this.clineMessages,
+					this.taskIsFavorited ?? false,
+					this.conversationHistoryDeletedRange,
+					this.checkpointTracker,
+					this.updateTaskHistory,
+				)
 				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 					Date.now(),
 					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -1741,7 +1809,15 @@ export class Task {
 						this.conversationHistoryDeletedRange,
 						"quarter", // Force aggressive truncation
 					)
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 						Date.now(),
 						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -3505,8 +3581,15 @@ export class Task {
 											...sharedMessage,
 											selected: text,
 										} satisfies ClineAskQuestion)
-										await this.saveClineMessagesAndUpdateHistory()
-										telemetryService.captureOptionSelected(this.taskId, options.length, "act")
+										await saveClineMessagesAndUpdateHistory(
+											this.getContext(),
+											this.taskId,
+											this.clineMessages,
+											this.taskIsFavorited ?? false,
+											this.conversationHistoryDeletedRange,
+											this.checkpointTracker,
+											this.updateTaskHistory,
+										)
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -3638,7 +3721,15 @@ export class Task {
 										this.conversationHistoryDeletedRange,
 										keepStrategy,
 									)
-									await this.saveClineMessagesAndUpdateHistory()
+									await saveClineMessagesAndUpdateHistory(
+										this.getContext(),
+										this.taskId,
+										this.clineMessages,
+										this.taskIsFavorited ?? false,
+										this.conversationHistoryDeletedRange,
+										this.checkpointTracker,
+										this.updateTaskHistory,
+									)
 									await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 										Date.now(),
 										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
@@ -3939,8 +4030,15 @@ export class Task {
 											...sharedMessage,
 											selected: text,
 										} satisfies ClinePlanModeResponse)
-										await this.saveClineMessagesAndUpdateHistory()
-										telemetryService.captureOptionSelected(this.taskId, options.length, "plan")
+										await saveClineMessagesAndUpdateHistory(
+											this.getContext(),
+											this.taskId,
+											this.clineMessages,
+											this.taskIsFavorited ?? false,
+											this.conversationHistoryDeletedRange,
+											this.checkpointTracker,
+											this.updateTaskHistory,
+										)
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -4042,7 +4140,15 @@ export class Task {
 							) {
 								lastCompletionResultMessage.text += COMPLETION_RESULT_CHANGES_FLAG
 							}
-							await this.saveClineMessagesAndUpdateHistory()
+							await saveClineMessagesAndUpdateHistory(
+								this.getContext(),
+								this.taskId,
+								this.clineMessages,
+								this.taskIsFavorited ?? false,
+								this.conversationHistoryDeletedRange,
+								this.checkpointTracker,
+								this.updateTaskHistory,
+							)
 						}
 
 						try {
@@ -4377,7 +4483,15 @@ export class Task {
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
-		await this.saveClineMessagesAndUpdateHistory()
+		await saveClineMessagesAndUpdateHistory(
+			this.getContext(),
+			this.taskId,
+			this.clineMessages,
+			this.taskIsFavorited ?? false,
+			this.conversationHistoryDeletedRange,
+			this.checkpointTracker,
+			this.updateTaskHistory,
+		)
 		await this.postStateToWebview()
 
 		try {
@@ -4448,7 +4562,15 @@ export class Task {
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
-				await this.saveClineMessagesAndUpdateHistory()
+				await saveClineMessagesAndUpdateHistory(
+					this.getContext(),
+					this.taskId,
+					this.clineMessages,
+					this.taskIsFavorited ?? false,
+					this.conversationHistoryDeletedRange,
+					this.checkpointTracker,
+					this.updateTaskHistory,
+				)
 
 				telemetryService.captureConversationTurnEvent(
 					this.taskId,
@@ -4574,7 +4696,15 @@ export class Task {
 						totalCost = apiStreamUsage.totalCost
 					}
 					updateApiReqMsg()
-					await this.saveClineMessagesAndUpdateHistory()
+					await saveClineMessagesAndUpdateHistory(
+						this.getContext(),
+						this.taskId,
+						this.clineMessages,
+						this.taskIsFavorited ?? false,
+						this.conversationHistoryDeletedRange,
+						this.checkpointTracker,
+						this.updateTaskHistory,
+					)
 					await this.postStateToWebview()
 				})
 			}
@@ -4598,7 +4728,15 @@ export class Task {
 			}
 
 			updateApiReqMsg()
-			await this.saveClineMessagesAndUpdateHistory()
+			await saveClineMessagesAndUpdateHistory(
+				this.getContext(),
+				this.taskId,
+				this.clineMessages,
+				this.taskIsFavorited ?? false,
+				this.conversationHistoryDeletedRange,
+				this.checkpointTracker,
+				this.updateTaskHistory,
+			)
 			await this.postStateToWebview()
 
 			// now add to apiconversationhistory

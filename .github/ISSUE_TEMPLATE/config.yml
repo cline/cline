@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
     - name: ✨ Feature Request
       url: https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop
@@ -6,6 +6,3 @@ contact_links:
     - name: 👋 Cline Discord
       url: https://discord.gg/cline
       about: Join our Discord community for discussions and support
-    - name: ❓ Other Questions?
-      url: https://x.com/sdrzn
-      about: Contact the developer on X @sdrzn for other inquiries
