@@ -223,11 +223,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",
-		"description": "Roo Code {{version}}は、あなたのフィードバックに基づく強力な新機能と改善をもたらします。",
+		"description": "Roo Code {{version}}は、あなたのフィードバックに基づく重要な新機能と改善をもたらします。",
 		"whatsNew": "新機能",
-		"feature1": "<bold>実験的マーケットプレイス</bold>: 新しいマーケットプレイスからモードとMCPを発見・インストール（<experimentalSettingsLink>実験的設定</experimentalSettingsLink>で有効化）",
-		"feature2": "<bold>ファイル操作の強化</bold>: 実験的設定での複数の同時ファイル書き込み、同時読み込みが<contextSettingsLink>コンテキスト設定</contextSettingsLink>で利用可能に",
-		"feature3": "<bold>MCP改善とその他</bold>: MCP サポートの強化、Mermaid コントロール、Amazon Bedrock thinking サポートなど！",
+		"feature1": "<bold>Roo マーケットプレイス開始</bold>: マーケットプレイスが開始されました！これまで以上に簡単にモードとMCPを発見・インストール。",
+		"feature2": "<bold>Gemini 2.5 モデル</bold>: 新しいGemini 2.5 Pro、Flash、Flash Liteモデルのサポートを追加。",
+		"feature3": "<bold>Excelファイルサポートなど</bold>: Excel (.xlsx) ファイルサポートと多数のバグ修正・改善を追加！",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},

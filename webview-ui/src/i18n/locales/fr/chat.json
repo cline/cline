@@ -223,11 +223,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} est sortie",
-		"description": "Roo Code {{version}} apporte de puissantes nouvelles fonctionnalités et améliorations basées sur vos retours.",
+		"description": "Roo Code {{version}} apporte de nouvelles fonctionnalités majeures et des améliorations basées sur vos retours.",
 		"whatsNew": "Quoi de neuf",
-		"feature1": "<bold>Marketplace Expérimental</bold> : Découvrez et installez des modes et des MCPs depuis le nouveau marketplace (à activer dans <experimentalSettingsLink>Paramètres Expérimentaux</experimentalSettingsLink>)",
-		"feature2": "<bold>Opérations de Fichiers Améliorées</bold> : Écritures de fichiers concurrentes multiples dans les paramètres expérimentaux, et lectures concurrentes maintenant dans <contextSettingsLink>Paramètres de Contexte</contextSettingsLink>",
-		"feature3": "<bold>Améliorations MCP et plus</bold> : Support MCP amélioré, contrôles Mermaid, support Amazon Bedrock thinking, et bien plus !",
+		"feature1": "<bold>Lancement du Marketplace Roo</bold> : Le marketplace est maintenant en ligne ! Découvrez et installez des modes et des MCPs plus facilement que jamais.",
+		"feature2": "<bold>Modèles Gemini 2.5</bold> : Ajout du support pour les nouveaux modèles Gemini 2.5 Pro, Flash et Flash Lite.",
+		"feature3": "<bold>Support des fichiers Excel et plus</bold> : Ajout du support des fichiers Excel (.xlsx) et de nombreuses corrections de bugs et améliorations !",
 		"hideButton": "Masquer l'annonce",
 		"detailsDiscussLinks": "Obtenez plus de détails et participez aux discussions sur <discordLink>Discord</discordLink> et <redditLink>Reddit</redditLink> 🚀"
 	},

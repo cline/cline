@@ -49,13 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.20 Released
+## 🎉 Roo Code 3.21 Released
 
-Roo Code 3.20 brings major new features and improvements based on your feedback!
+Roo Code 3.21 brings major new features and improvements based on your feedback!
 
-- **Experimental Marketplace** - Discover and install modes and MCPs from the new marketplace (enable in Experimental Settings).
-- **Enhanced File Operations** - Multiple concurrent file writes now available in Experimental Settings, and multiple concurrent reads has graduated from experimental and now lives in the Context Settings.
-- **MCP Improvements & More** - Enhanced MCP support, more Mermaid controls, thinking support in Amazon Bedrock, and much more!
+- **Roo Marketplace Launch** - The marketplace is now live! The marketplace is now live! Discover and install modes and MCPs easier than ever before.
+- **Gemini 2.5 Models** - Added support for new Gemini 2.5 Pro, Flash, and Flash Lite models.
+- **Excel File Support & More** - Added Excel (.xlsx) file support and numerous bug fixes and improvements!
 
 ---
 

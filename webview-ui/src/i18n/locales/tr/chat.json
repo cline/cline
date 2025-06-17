@@ -225,9 +225,9 @@
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
 		"description": "Roo Code {{version}} geri bildirimlerinize dayalı güçlü yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Deneysel Marketplace</bold>: Yeni marketplaceden modları ve MCP'leri keşfedin ve kurun (<experimentalSettingsLink>Deneysel Ayarlar</experimentalSettingsLink>'da etkinleştirin)",
-		"feature2": "<bold>Gelişmiş Dosya İşlemleri</bold>: Deneysel çoklu eşzamanlı dosya yazma işlemleri ve eşzamanlı okuma artık <contextSettingsLink>Bağlam Ayarları</contextSettingsLink>'nda mevcut",
-		"feature3": "<bold>MCP İyileştirmeleri ve Daha Fazlası</bold>: Gelişmiş MCP desteği, Mermaid kontrolleri, Amazon Bedrock thinking desteği ve daha fazlası!",
+		"feature1": "<bold>Roo Marketplace Lansmanı</bold> - Marketplace artık canlı! Modları ve MCP'leri her zamankinden daha kolay keşfedin ve kurun.",
+		"feature2": "<bold>Gemini 2.5 Modelleri</bold> - Yeni Gemini 2.5 Pro, Flash ve Flash Lite modelleri için destek eklendi.",
+		"feature3": "<bold>Excel Dosya Desteği ve Daha Fazlası</bold> - Excel (.xlsx) dosya desteği eklendi ve sayısız hata düzeltmesi ve iyileştirme!",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},

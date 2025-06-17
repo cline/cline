@@ -237,9 +237,9 @@
 		"title": "🎉 Roo Code {{version}} Dirilis",
 		"description": "Roo Code {{version}} menghadirkan fitur baru yang powerful dan perbaikan berdasarkan feedback kamu.",
 		"whatsNew": "Apa yang Baru",
-		"feature1": "<bold>Model Pratinjau Gemini 2.5 Flash</bold>: Akses model Gemini Flash terbaru untuk respons yang lebih cepat dan efisien",
-		"feature2": "<bold>Kondensasi Konteks Cerdas</bold>: Tombol baru di header tugas memungkinkan kamu mengondensasi konten secara cerdas dengan umpan balik visual",
-		"feature3": "<bold>Dukungan YAML untuk Definisi Mode</bold>: Buat dan sesuaikan mode lebih mudah dengan dukungan YAML",
+		"feature1": "<bold>Peluncuran Roo Marketplace</bold> - Marketplace sekarang sudah live! Temukan dan install mode serta MCP lebih mudah dari sebelumnya.",
+		"feature2": "<bold>Model Gemini 2.5</bold> - Menambahkan dukungan untuk model Gemini 2.5 Pro, Flash, dan Flash Lite yang baru.",
+		"feature3": "<bold>Dukungan File Excel & Lainnya</bold> - Menambahkan dukungan file Excel (.xlsx) dan banyak perbaikan bug serta peningkatan!",
 		"hideButton": "Sembunyikan pengumuman",
 		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
 	},

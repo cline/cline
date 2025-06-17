@@ -223,11 +223,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已发布",
-		"description": "Roo Code {{version}} 带来基于您反馈的强大新功能和改进。",
+		"description": "Roo Code {{version}} 带来基于您反馈的重要新功能和改进。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>实验性市场</bold>: 从新市场发现和安装模式及 MCP（在<experimentalSettingsLink>实验性设置</experimentalSettingsLink>中启用）",
-		"feature2": "<bold>增强文件操作</bold>: 实验性设置中的多个并发文件写入，并发读取现在在<contextSettingsLink>上下文设置</contextSettingsLink>中",
-		"feature3": "<bold>MCP 改进及更多</bold>: 增强的 MCP 支持、Mermaid 控制、Amazon Bedrock 思考支持等等！",
+		"feature1": "<bold>Roo 市场正式上线</bold>: 市场现已上线！比以往更轻松地发现和安装模式及 MCP。",
+		"feature2": "<bold>Gemini 2.5 模型</bold>: 新增对新版 Gemini 2.5 Pro、Flash 和 Flash Lite 模型的支持。",
+		"feature3": "<bold>Excel 文件支持及更多</bold>: 新增 Excel (.xlsx) 文件支持以及大量错误修复和改进！",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},

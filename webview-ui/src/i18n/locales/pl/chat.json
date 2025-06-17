@@ -225,9 +225,9 @@
 		"title": "🎉 Roo Code {{version}} wydany",
 		"description": "Roo Code {{version}} przynosi potężne nowe funkcje i ulepszenia na podstawie Twoich opinii.",
 		"whatsNew": "Co nowego",
-		"feature1": "<bold>Eksperymentalny Marketplace</bold>: Odkryj i instaluj tryby oraz MCP z nowego marketplace (włącz w <experimentalSettingsLink>Ustawieniach Eksperymentalnych</experimentalSettingsLink>)",
-		"feature2": "<bold>Ulepszone Operacje na Plikach</bold>: Eksperymentalne operacje wielowątkowego zapisu plików, a odczyt współbieżny jest teraz dostępny w <contextSettingsLink>Ustawieniach Kontekstu</contextSettingsLink>",
-		"feature3": "<bold>Ulepszenia MCP i Więcej</bold>: Ulepszona obsługa MCP, kontrola Mermaid, wsparcie dla Amazon Bedrock thinking i więcej!",
+		"feature1": "<bold>Uruchomienie Roo Marketplace</bold> - Marketplace jest już dostępny! Odkrywaj i instaluj tryby oraz MCP łatwiej niż kiedykolwiek wcześniej.",
+		"feature2": "<bold>Modele Gemini 2.5</bold> - Dodano wsparcie dla nowych modeli Gemini 2.5 Pro, Flash i Flash Lite.",
+		"feature3": "<bold>Wsparcie dla plików Excel i więcej</bold> - Dodano wsparcie dla plików Excel (.xlsx) oraz liczne poprawki błędów i ulepszenia!",
 		"hideButton": "Ukryj ogłoszenie",
 		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},
