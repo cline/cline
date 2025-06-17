@@ -3892,8 +3892,12 @@ export class Task {
 					}
 
 					case "start_next_child_task": {
+						const nextChildTask = this.pendingChildTasks[0];
 						const sharedMessageProps: ClineSayTool = {
 							tool: "startNextChildTask",
+							prompt: removeClosingTag("child_task_prompt", nextChildTask.prompt),
+							files: nextChildTask.files,
+							executeImmediately: false,
 						}
 
 						if (block.partial) {
@@ -3937,7 +3941,6 @@ export class Task {
 
 							const toolResponse = await this.startNextChildTask()
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
-							this.say("start_next_child_task", `Starting Child Task...`, undefined, undefined, false)
 							pushToolResult(toolResponse, isClaude4Model)
 							await this.saveCheckpoint()
 							break
