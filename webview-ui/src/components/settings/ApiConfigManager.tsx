@@ -54,6 +54,7 @@ const ApiConfigManager = ({
 	const inputRef = useRef<any>(null)
 	const newProfileInputRef = useRef<any>(null)
 	const searchInputRef = useRef<HTMLInputElement>(null)
+	const searchResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 	// Check if a profile is valid based on the organization allow list
 	const isProfileValid = (profile: ProviderSettingsEntry): boolean => {
@@ -127,15 +128,29 @@ const ApiConfigManager = ({
 		resetCreateState()
 		resetRenameState()
 		// Reset search value when current profile changes
-		setTimeout(() => setSearchValue(""), 100)
+		const timeoutId = setTimeout(() => setSearchValue(""), 100)
+		return () => clearTimeout(timeoutId)
 	}, [currentApiConfigName])
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (searchResetTimeoutRef.current) {
+				clearTimeout(searchResetTimeoutRef.current)
+			}
+		}
+	}, [])
 
 	const onOpenChange = (open: boolean) => {
 		setOpen(open)
 
 		// Reset search when closing the popover
 		if (!open) {
-			setTimeout(() => setSearchValue(""), 100)
+			// Clear any existing timeout
+			if (searchResetTimeoutRef.current) {
+				clearTimeout(searchResetTimeoutRef.current)
+			}
+			searchResetTimeoutRef.current = setTimeout(() => setSearchValue(""), 100)
 		}
 	}
 

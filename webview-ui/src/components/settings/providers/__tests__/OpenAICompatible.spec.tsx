@@ -4,7 +4,7 @@ import { OpenAICompatible } from "../OpenAICompatible"
 import { ProviderSettings } from "@roo-code/types"
 
 // Mock the vscrui Checkbox component
-jest.mock("vscrui", () => ({
+vi.mock("vscrui", () => ({
 	Checkbox: ({ children, checked, onChange }: any) => (
 		<label data-testid={`checkbox-${children?.toString().replace(/\s+/g, "-").toLowerCase()}`}>
 			<input
@@ -19,7 +19,7 @@ jest.mock("vscrui", () => ({
 }))
 
 // Mock the VSCodeTextField and VSCodeButton components
-jest.mock("@vscode/webview-ui-toolkit/react", () => ({
+vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeTextField: ({
 		children,
 		value,
@@ -55,44 +55,44 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 }))
 
 // Mock the translation hook
-jest.mock("@src/i18n/TranslationContext", () => ({
+vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
 	}),
 }))
 
 // Mock the UI components
-jest.mock("@src/components/ui", () => ({
+vi.mock("@src/components/ui", () => ({
 	Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
 }))
 
 // Mock other components
-jest.mock("../../ModelPicker", () => ({
+vi.mock("../../ModelPicker", () => ({
 	ModelPicker: () => <div data-testid="model-picker">Model Picker</div>,
 }))
 
-jest.mock("../../R1FormatSetting", () => ({
+vi.mock("../../R1FormatSetting", () => ({
 	R1FormatSetting: () => <div data-testid="r1-format-setting">R1 Format Setting</div>,
 }))
 
-jest.mock("../../ThinkingBudget", () => ({
+vi.mock("../../ThinkingBudget", () => ({
 	ThinkingBudget: () => <div data-testid="thinking-budget">Thinking Budget</div>,
 }))
 
 // Mock react-use
-jest.mock("react-use", () => ({
-	useEvent: jest.fn(),
+vi.mock("react-use", () => ({
+	useEvent: vi.fn(),
 }))
 
 describe("OpenAICompatible Component - includeMaxTokens checkbox", () => {
-	const mockSetApiConfigurationField = jest.fn()
+	const mockSetApiConfigurationField = vi.fn()
 	const mockOrganizationAllowList = {
 		allowAll: true,
 		providers: {},
 	}
 
 	beforeEach(() => {
-		jest.clearAllMocks()
+		vi.clearAllMocks()
 	})
 
 	describe("Checkbox Rendering", () => {

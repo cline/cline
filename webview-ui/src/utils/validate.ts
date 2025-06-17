@@ -109,7 +109,7 @@ function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): stri
 
 type ValidationError = {
 	message: string
-	code: 'PROVIDER_NOT_ALLOWED' | 'MODEL_NOT_ALLOWED'
+	code: "PROVIDER_NOT_ALLOWED" | "MODEL_NOT_ALLOWED"
 }
 
 function validateProviderAgainstOrganizationSettings(
@@ -124,7 +124,7 @@ function validateProviderAgainstOrganizationSettings(
 		if (!providerConfig) {
 			return {
 				message: i18next.t("settings:validation.providerNotAllowed", { provider }),
-				code: 'PROVIDER_NOT_ALLOWED'
+				code: "PROVIDER_NOT_ALLOWED",
 			}
 		}
 
@@ -138,7 +138,7 @@ function validateProviderAgainstOrganizationSettings(
 						model: modelId,
 						provider,
 					}),
-					code: 'MODEL_NOT_ALLOWED'
+					code: "MODEL_NOT_ALLOWED",
 				}
 			}
 		}
@@ -261,7 +261,7 @@ export function getModelValidationError(
 	}
 
 	const orgError = validateProviderAgainstOrganizationSettings(configWithModelId, organizationAllowList)
-	if (orgError && orgError.code === 'MODEL_NOT_ALLOWED') {
+	if (orgError && orgError.code === "MODEL_NOT_ALLOWED") {
 		return orgError.message
 	}
 
@@ -289,7 +289,7 @@ export function validateApiConfigurationExcludingModelErrors(
 	)
 
 	// only return organization errors if they're not model-specific
-	if (organizationAllowListError && organizationAllowListError.code === 'PROVIDER_NOT_ALLOWED') {
+	if (organizationAllowListError && organizationAllowListError.code === "PROVIDER_NOT_ALLOWED") {
 		return organizationAllowListError.message
 	}
 

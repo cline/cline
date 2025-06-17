@@ -61,7 +61,6 @@ __tests__
 # Ignore development config files
 .eslintrc*
 .prettierrc*
-jest.config*
 
 # Ignore most directories except what we need for the build
 apps/

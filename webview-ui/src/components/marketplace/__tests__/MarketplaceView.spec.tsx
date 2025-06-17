@@ -1,25 +1,24 @@
-import React from "react"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+
 import { MarketplaceView } from "../MarketplaceView"
 import { MarketplaceViewStateManager } from "../MarketplaceViewStateManager"
 
-// Mock all the dependencies to keep the test simple
-jest.mock("@/utils/vscode", () => ({
+vi.mock("@/utils/vscode", () => ({
 	vscode: {
-		postMessage: jest.fn(),
-		getState: jest.fn(() => ({})),
-		setState: jest.fn(),
+		postMessage: vi.fn(),
+		getState: vi.fn(() => ({})),
+		setState: vi.fn(),
 	},
 }))
 
-jest.mock("@/i18n/TranslationContext", () => ({
+vi.mock("@/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
 	}),
 }))
 
-jest.mock("../useStateManager", () => ({
+vi.mock("../useStateManager", () => ({
 	useStateManager: () => [
 		{
 			allItems: [],
@@ -29,20 +28,20 @@ jest.mock("../useStateManager", () => ({
 			filters: { type: "", search: "", tags: [] },
 		},
 		{
-			transition: jest.fn(),
-			onStateChange: jest.fn(() => jest.fn()),
+			transition: vi.fn(),
+			onStateChange: vi.fn(() => vi.fn()),
 		},
 	],
 }))
 
-jest.mock("../MarketplaceListView", () => ({
+vi.mock("../MarketplaceListView", () => ({
 	MarketplaceListView: ({ filterByType }: { filterByType: string }) => (
 		<div data-testid="marketplace-list-view">MarketplaceListView - {filterByType}</div>
 	),
 }))
 
 // Mock Tab components to avoid ExtensionStateContext dependency
-jest.mock("@/components/common/Tab", () => ({
+vi.mock("@/components/common/Tab", () => ({
 	Tab: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 	TabHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 	TabContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -50,20 +49,12 @@ jest.mock("@/components/common/Tab", () => ({
 	TabTrigger: ({ children, ...props }: any) => <button {...props}>{children}</button>,
 }))
 
-// Mock ResizeObserver
-class MockResizeObserver {
-	observe() {}
-	unobserve() {}
-	disconnect() {}
-}
-global.ResizeObserver = MockResizeObserver
-
 describe("MarketplaceView", () => {
-	const mockOnDone = jest.fn()
+	const mockOnDone = vi.fn()
 	const mockStateManager = new MarketplaceViewStateManager()
 
 	beforeEach(() => {
-		jest.clearAllMocks()
+		vi.clearAllMocks()
 	})
 
 	it("renders without crashing", () => {
