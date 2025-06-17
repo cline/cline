@@ -79,6 +79,7 @@ export type GlobalStateKey =
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
 	| "sapAiCoreModelId"
+	| "claudeCodePath"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"
