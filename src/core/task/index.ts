@@ -3947,14 +3947,6 @@ export class Task {
 							const toolResponse = await this.startNextChildTask()
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
 							pushToolResult(toolResponse, isClaude4Model)
-							
-							// 设置任务状态为已完成，恢复按钮状态为 Start New Task
-							this.status = "completed"
-							await this.say("completion_result", "Child task has been started successfully. ", undefined, undefined, false)
-							await this.saveCheckpoint(true)
-							
-							// 添加 completion_result ask 以显示 Start New Task 按钮
-							await this.ask("completion_result", "", false)
 							await this.saveCheckpoint()
 							break
 						}
