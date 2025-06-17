@@ -1470,6 +1470,41 @@ export class Task {
 		}
 	}
 
+	/**
+	 * Determines if a command is likely to create files that should trigger workspace refresh
+	 * Enhanced detection for git operations, package managers, and file creation commands
+	 */
+	private isFileCreationCommand(command: string): boolean {
+		const fileCreationPatterns = [
+			// Git operations
+			/^git\s+(clone|pull|fetch|checkout|merge|rebase|reset|cherry-pick)/i,
+			/^git\s+\w+.*--\w+/i, // Git commands with flags
+
+			// Package managers
+			/^(npm|yarn|pnpm)\s+(install|add|create|init|update)/i,
+			/^(pip|conda|poetry)\s+(install|add|create)/i,
+			/^(composer|bundle)\s+(install|add|create)/i,
+
+			// File/directory creation
+			/^(mkdir|mkdirs?|touch|cp|copy|mv|move)/i,
+			/^(wget|curl).*-[oO]/i, // Download with output
+			/^(tar|unzip|7z|rar)\s+(x|extract)/i,
+
+			// Build tools
+			/^(make|cmake|ninja|bazel|gradle|mvn)/i,
+			/^(cargo|go)\s+(build|install|get)/i,
+
+			// Scaffolding tools
+			/^(create-react-app|vue\s+create|ng\s+new)/i,
+			/^(rails\s+new|django-admin\s+startproject)/i,
+
+			// Archive extraction
+			/\.(zip|tar|gz|bz2|xz|7z|rar)(\s|$)/i,
+		]
+
+		return fileCreationPatterns.some((pattern) => pattern.test(command.trim()))
+	}
+
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
@@ -3319,8 +3354,22 @@ export class Task {
 									this.didRejectTool = true
 								}
 
-								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-								this.workspaceTracker.populateFilePaths()
+								// Enhanced workspace refresh for file creation commands
+								if (this.isFileCreationCommand(command)) {
+									// Wait a bit longer for file operations to complete
+									await setTimeoutPromise(1000)
+
+									// Force workspace refresh for file creation commands
+									this.workspaceTracker.populateFilePaths()
+
+									// Additional refresh after a short delay to catch any delayed file operations
+									setTimeout(() => {
+										this.workspaceTracker.populateFilePaths()
+									}, 2000)
+								} else {
+									// Standard refresh for other commands
+									this.workspaceTracker.populateFilePaths()
+								}
 
 								pushToolResult(result)
 
