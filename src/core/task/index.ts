@@ -431,6 +431,18 @@ export class Task {
 						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
+				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
+					// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
+					console.warn(`Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint`)
+					try {
+						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else {
+					vscode.window.showErrorMessage("Failed to restore checkpoint")
 				}
 				break
 		}
@@ -1264,23 +1276,43 @@ export class Task {
 				return
 			}
 
-			// For non-attempt completion we just say checkpoints
-			await this.say("checkpoint_created")
-			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-				if (lastCheckpointMessage) {
-					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
+			// Initialize checkpoint tracker if it doesn't exist
+			if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
+				try {
+					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						this.updateTaskHistory,
+						this.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
 					)
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					console.error("Failed to initialize checkpoint tracker:", errorMessage)
+					this.checkpointTrackerErrorMessage = errorMessage
+					await this.postStateToWebview()
+					return
 				}
-			}) // silently fails for now
+			}
+
+			// Create a checkpoint commit and update clineMessages with a commitHash
+			if (this.checkpointTracker) {
+				const commitHash = await this.checkpointTracker.commit()
+				if (commitHash) {
+					await this.say("checkpoint_created")
+					const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+					if (lastCheckpointMessage) {
+						lastCheckpointMessage.lastCheckpointHash = commitHash
+						await saveClineMessagesAndUpdateHistory(
+							this.getContext(),
+							this.taskId,
+							this.clineMessages,
+							this.taskIsFavorited ?? false,
+							this.conversationHistoryDeletedRange,
+							this.checkpointTracker,
+							this.updateTaskHistory,
+						)
+					}
+				}
+			} // silently fails for now
 
 			//
 		} else {
@@ -1742,7 +1774,6 @@ export class Task {
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
-			console.log("[INSTRUCTIONS] User instructions:", userInstructions)
 			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
@@ -4470,8 +4501,8 @@ export class Task {
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
 		if (isFirstRequest && this.enableCheckpoints && this.checkpointTracker) {
-			await this.say("checkpoint_created") // Now this is conditional
 			const commitHash = await this.checkpointTracker.commit() // Actual commit
+			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 			if (lastCheckpointMessage) {
 				lastCheckpointMessage.lastCheckpointHash = commitHash
