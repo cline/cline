@@ -4602,14 +4602,6 @@ export class Task {
 									// user didn't reject, but the command may have output
 									commandResult = execCommandResult
 								} else {
-									if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
-										this.userMessageContent.push({
-											type: "text",
-											text: `There are ${this.pendingChildTasks.length} pending child tasks. We need to use start_next_child_task tool to complete them before we can continue.`,
-										})
-										break
-									}
-
 									await this.say("completion_result", result, undefined, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
