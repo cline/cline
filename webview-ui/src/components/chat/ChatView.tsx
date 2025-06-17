@@ -37,6 +37,7 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
 import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
+import { useEditedCommand } from "@/context/EditedCommandContext"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -143,6 +144,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
+
+	// Get edited command from context
+	const { editedCommand, setEditedCommand } = useEditedCommand()
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -517,11 +521,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "resume_task":
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
-					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+					// For command approval, use edited command if available
+					let textToSend = trimmedInput
+					if (clineAsk === "command" && editedCommand) {
+						textToSend = editedCommand
+					}
+
+					if (textToSend || (images && images.length > 0) || (files && files.length > 0)) {
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
-								text: trimmedInput,
+								text: textToSend,
 								images: images,
 								files: files,
 							}),
@@ -538,6 +548,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					setActiveQuote(null) // Clear quote when using primary button
 					setSelectedImages([])
 					setSelectedFiles([])
+					// Clear edited command after use
+					if (clineAsk === "command") {
+						setEditedCommand(null)
+					}
 					break
 				case "completion_result":
 				case "resume_completed_task":

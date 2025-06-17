@@ -39,6 +39,8 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
+import EditableCommand from "./EditableCommand"
+import { useEditedCommand } from "@/context/EditedCommandContext"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -193,6 +195,9 @@ export const ChatRowContent = ({
 		selectedText: "",
 	})
 	const contentRef = useRef<HTMLDivElement>(null)
+
+	// Use context to track edited command globally (must be at top level)
+	const { setEditedCommand } = useEditedCommand()
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -767,40 +772,60 @@ export const ChatRowContent = ({
 		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
 
+		const handleCommandChange = (newCommand: string) => {
+			// Store the edited command in global context for approval buttons
+			setEditedCommand(newCommand)
+		}
+
 		return (
 			<>
 				<div style={headerStyle}>
 					{icon}
 					{title}
 				</div>
-				<div
-					style={{
-						borderRadius: 3,
-						border: "1px solid var(--vscode-editorGroup-border)",
-						overflow: "hidden",
-						backgroundColor: CODE_BLOCK_BG_COLOR,
-					}}>
-					<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
-					{output.length > 0 && (
-						<div style={{ width: "100%" }}>
-							<div
-								onClick={onToggleExpand}
-								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: "4px",
-									width: "100%",
-									justifyContent: "flex-start",
-									cursor: "pointer",
-									padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
-								}}>
-								<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-								<span style={{ fontSize: "0.8em" }}>Command Output</span>
-							</div>
-							{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
+
+				{/* Use EditableCommand component for command approval */}
+				{message.ask === "command" ? (
+					<EditableCommand command={command} onCommandChange={handleCommandChange} />
+				) : (
+					<div
+						style={{
+							borderRadius: 3,
+							border: "1px solid var(--vscode-editorGroup-border)",
+							overflow: "hidden",
+							backgroundColor: CODE_BLOCK_BG_COLOR,
+						}}>
+						<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
+					</div>
+				)}
+
+				{output.length > 0 && (
+					<div style={{ width: "100%", marginTop: message.ask === "command" ? 8 : 0 }}>
+						<div
+							onClick={onToggleExpand}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "4px",
+								width: "100%",
+								justifyContent: "flex-start",
+								cursor: "pointer",
+								padding: `8px 12px ${isExpanded ? 8 : 12}px 12px`,
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+								border: "1px solid var(--vscode-editorGroup-border)",
+								borderRadius: 3,
+							}}>
+							<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+							<span style={{ fontSize: "0.8em" }}>Command Output</span>
 						</div>
-					)}
-				</div>
+						{isExpanded && (
+							<div style={{ marginTop: 4 }}>
+								<CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />
+							</div>
+						)}
+					</div>
+				)}
+
 				{requestsApproval && (
 					<div
 						style={{
@@ -810,6 +835,7 @@ export const ChatRowContent = ({
 							padding: 8,
 							fontSize: "12px",
 							color: "var(--vscode-editorWarning-foreground)",
+							marginTop: 8,
 						}}>
 						<i className="codicon codicon-warning"></i>
 						<span>The model has determined this command requires explicit approval.</span>
