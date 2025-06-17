@@ -125,7 +125,9 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
 		}),
 	).then((contents) => contents.filter(Boolean).join("\n\n"))
-	return ruleFilesTotalContent
+
+	// Return undefined if no content, so the conditional check in task.ts works correctly
+	return ruleFilesTotalContent.trim() || undefined
 }
 
 /**
