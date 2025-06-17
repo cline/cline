@@ -1034,6 +1034,24 @@ export const ChatRowContent = ({
 							)}
 						</>
 					)
+				
+				case "child_task_completed":
+					console.log(" 'child_task_completed' message type in ClineChatRow",message)
+					return message.text && (
+						<>
+							<div style={headerStyle}>
+								{icon}
+								{title}
+							</div>
+							<p
+								style={{
+									...pStyle,
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								{message.text}
+							</p>
+						</>
+					)
 				case "start_next_child_task":
 				case "new_child_task":
 					return (
