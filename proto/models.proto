@@ -122,6 +122,7 @@ enum ApiProvider {
   SAMBANOVA = 22;
   CEREBRAS = 23;
   SAPAICORE = 24;
+  CLAUDE_CODE = 25;
 }
 
 // Model info for OpenAI-compatible models
@@ -234,4 +235,5 @@ message ModelsApiConfiguration {
   optional string sap_ai_resource_group = 70;
   optional string sap_ai_core_token_url = 71;
   optional string sap_ai_core_base_url = 72;
+  optional string claude_code_path = 73;
 }
