@@ -657,11 +657,11 @@ export class Task {
 
 		let changedFiles:
 			| {
-				relativePath: string
-				absolutePath: string
-				before: string
-				after: string
-			}[]
+					relativePath: string
+					absolutePath: string
+					before: string
+					after: string
+			  }[]
 			| undefined
 
 		try {
@@ -2198,7 +2198,7 @@ export class Task {
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
 							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-								}]`
+							}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -2481,7 +2481,7 @@ export class Task {
 										pushToolResult(
 											formatResponse.toolError(
 												`${(error as Error)?.message}\n\n` +
-												formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+													formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
 											),
 										)
 										await this.diffViewProvider.revertChanges()
@@ -3365,7 +3365,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-										`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										await this.saveCheckpoint()
@@ -3523,19 +3523,19 @@ export class Task {
 										.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
 								let toolResultText =
 									(toolResult?.isError ? "Error:\n" : "") +
-									toolResult?.content
-										.map((item) => {
-											if (item.type === "text") {
-												return item.text
-											}
-											if (item.type === "resource") {
-												const { blob, ...rest } = item.resource
-												return JSON.stringify(rest, null, 2)
-											}
-											return ""
-										})
-										.filter(Boolean)
-										.join("\n\n") || "(No response)"
+										toolResult?.content
+											.map((item) => {
+												if (item.type === "text") {
+													return item.text
+												}
+												if (item.type === "resource") {
+													const { blob, ...rest } = item.resource
+													return JSON.stringify(rest, null, 2)
+												}
+												return ""
+											})
+											.filter(Boolean)
+											.join("\n\n") || "(No response)"
 								// webview extracts images from the text response to display in the UI
 								const toolResultToDisplay =
 									toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
@@ -3986,7 +3986,6 @@ export class Task {
 							pushToolResult(toolResponse, isClaude4Model)
 							// 检查是否有待执行的子任务，如果有则询问用户是否继续
 							if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
-
 								const { response: continueResponse, text } = await this.ask(
 									"followup",
 									JSON.stringify({
@@ -4391,9 +4390,9 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolResult(
 											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
-											(text
-												? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
-												: ""),
+												(text
+													? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+													: ""),
 											images,
 											fileContentString,
 										),
@@ -4514,6 +4513,16 @@ export class Task {
 										)
 									}
 								} else {
+									if (this.pendingChildTasks.length > 0) {
+										await this.say(
+										"text",
+										`I've successfully created all ${this.pendingChildTasks.length} child tasks.`,
+										undefined,
+										undefined,
+										block.partial,
+									);
+										break
+									}
 									// no command, still outputting partial result
 									await this.say(
 										"completion_result",
@@ -4569,6 +4578,14 @@ export class Task {
 									// user didn't reject, but the command may have output
 									commandResult = execCommandResult
 								} else {
+									if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
+										this.userMessageContent.push({
+											type: "text",
+											text: `Found ${this.pendingChildTasks.length} pending child task(s). Please ask user to start the next child task.`,
+										})
+										break
+									}
+
 									await this.say("completion_result", result, undefined, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
@@ -4873,8 +4890,8 @@ export class Task {
 							text:
 								assistantMessage +
 								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],
