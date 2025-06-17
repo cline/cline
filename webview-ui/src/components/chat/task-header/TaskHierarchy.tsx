@@ -29,7 +29,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 	}))
 
 	// merge existing child tasks and pending child tasks
-	const childTasks = [...existingChildTasks, ...pendingChildTasks].sort((a, b) => a.ts - b.ts)
+	const childTasks = [...existingChildTasks, ...pendingChildTasks].sort((a, b) => b.ts - a.ts)
 	const COLLAPSE_THRESHOLD = 5
 	const COLLAPSED_SHOW_COUNT = 0 
 
