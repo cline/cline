@@ -104,7 +104,7 @@ describe("App", () => {
 			didHydrateState: true,
 			showWelcome: false,
 			shouldShowAnnouncement: false,
-			experiments: { marketplace: false },
+			experiments: {},
 			language: "en",
 		})
 	})
@@ -224,74 +224,35 @@ describe("App", () => {
 		expect(screen.queryByTestId(`${view}-view`)).not.toBeInTheDocument()
 	})
 
-	describe("marketplace experiment", () => {
-		it("does not switch to marketplace tab when experiment is disabled", async () => {
-			mockUseExtensionState.mockReturnValue({
-				didHydrateState: true,
-				showWelcome: false,
-				shouldShowAnnouncement: false,
-				experiments: { marketplace: false },
-				language: "en",
-			})
+	it("switches to marketplace view when receiving marketplaceButtonClicked action", async () => {
+		render(<AppWithProviders />)
 
-			render(<AppWithProviders />)
-
-			act(() => {
-				triggerMessage("marketplaceButtonClicked")
-			})
-
-			// Should remain on chat view
-			const chatView = screen.getByTestId("chat-view")
-			expect(chatView.getAttribute("data-hidden")).toBe("false")
-			expect(screen.queryByTestId("marketplace-view")).not.toBeInTheDocument()
+		act(() => {
+			triggerMessage("marketplaceButtonClicked")
 		})
 
-		it("switches to marketplace tab when experiment is enabled", async () => {
-			mockUseExtensionState.mockReturnValue({
-				didHydrateState: true,
-				showWelcome: false,
-				shouldShowAnnouncement: false,
-				experiments: { marketplace: true },
-				language: "en",
-			})
+		const marketplaceView = await screen.findByTestId("marketplace-view")
+		expect(marketplaceView).toBeInTheDocument()
 
-			render(<AppWithProviders />)
+		const chatView = screen.getByTestId("chat-view")
+		expect(chatView.getAttribute("data-hidden")).toBe("true")
+	})
 
-			act(() => {
-				triggerMessage("marketplaceButtonClicked")
-			})
+	it("returns to chat view when clicking done in marketplace view", async () => {
+		render(<AppWithProviders />)
 
-			const marketplaceView = await screen.findByTestId("marketplace-view")
-			expect(marketplaceView).toBeInTheDocument()
-
-			const chatView = screen.getByTestId("chat-view")
-			expect(chatView.getAttribute("data-hidden")).toBe("true")
+		act(() => {
+			triggerMessage("marketplaceButtonClicked")
 		})
 
-		it("returns to chat view when clicking done in marketplace view", async () => {
-			mockUseExtensionState.mockReturnValue({
-				didHydrateState: true,
-				showWelcome: false,
-				shouldShowAnnouncement: false,
-				experiments: { marketplace: true },
-				language: "en",
-			})
+		const marketplaceView = await screen.findByTestId("marketplace-view")
 
-			render(<AppWithProviders />)
-
-			act(() => {
-				triggerMessage("marketplaceButtonClicked")
-			})
-
-			const marketplaceView = await screen.findByTestId("marketplace-view")
-
-			act(() => {
-				marketplaceView.click()
-			})
-
-			const chatView = screen.getByTestId("chat-view")
-			expect(chatView.getAttribute("data-hidden")).toBe("false")
-			expect(screen.queryByTestId("marketplace-view")).not.toBeInTheDocument()
+		act(() => {
+			marketplaceView.click()
 		})
+
+		const chatView = screen.getByTestId("chat-view")
+		expect(chatView.getAttribute("data-hidden")).toBe("false")
+		expect(screen.queryByTestId("marketplace-view")).not.toBeInTheDocument()
 	})
 })

@@ -6,21 +6,22 @@ import { webviewMessageHandler } from "../../../core/webview/webviewMessageHandl
 const mockProvider = {
 	getState: vi.fn(),
 	postStateToWebview: vi.fn(),
+	postMessageToWebview: vi.fn(),
 } as any
 
 const mockMarketplaceManager = {
 	updateWithFilteredItems: vi.fn(),
 } as any
 
-describe("Marketplace Setting Check", () => {
+describe("Marketplace General Availability", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
 
-	it("should skip API calls when marketplace is disabled", async () => {
-		// Mock experiments with marketplace disabled
+	it("should allow marketplace API calls (marketplace is generally available)", async () => {
+		// Mock state without marketplace experiment (since it's now generally available)
 		mockProvider.getState.mockResolvedValue({
-			experiments: { marketplace: false },
+			experiments: {},
 		})
 
 		const message = {
@@ -30,25 +31,7 @@ describe("Marketplace Setting Check", () => {
 
 		await webviewMessageHandler(mockProvider, message, mockMarketplaceManager)
 
-		// Should not call marketplace manager methods
-		expect(mockMarketplaceManager.updateWithFilteredItems).not.toHaveBeenCalled()
-		expect(mockProvider.postStateToWebview).not.toHaveBeenCalled()
-	})
-
-	it("should allow API calls when marketplace is enabled", async () => {
-		// Mock experiments with marketplace enabled
-		mockProvider.getState.mockResolvedValue({
-			experiments: { marketplace: true },
-		})
-
-		const message = {
-			type: "filterMarketplaceItems" as const,
-			filters: { type: "mcp", search: "", tags: [] },
-		}
-
-		await webviewMessageHandler(mockProvider, message, mockMarketplaceManager)
-
-		// Should call marketplace manager methods
+		// Should call marketplace manager methods since marketplace is generally available
 		expect(mockMarketplaceManager.updateWithFilteredItems).toHaveBeenCalledWith({
 			type: "mcp",
 			search: "",
@@ -57,13 +40,13 @@ describe("Marketplace Setting Check", () => {
 		expect(mockProvider.postStateToWebview).toHaveBeenCalled()
 	})
 
-	it("should skip installation when marketplace is disabled", async () => {
-		// Mock experiments with marketplace disabled
+	it("should allow marketplace installation (marketplace is generally available)", async () => {
+		// Mock state without marketplace experiment (since it's now generally available)
 		mockProvider.getState.mockResolvedValue({
-			experiments: { marketplace: false },
+			experiments: {},
 		})
 
-		const mockInstallMarketplaceItem = vi.fn()
+		const mockInstallMarketplaceItem = vi.fn().mockResolvedValue(undefined)
 		const mockMarketplaceManagerWithInstall = {
 			installMarketplaceItem: mockInstallMarketplaceItem,
 		}
@@ -83,7 +66,7 @@ describe("Marketplace Setting Check", () => {
 
 		await webviewMessageHandler(mockProvider, message, mockMarketplaceManagerWithInstall as any)
 
-		// Should not call install method
-		expect(mockInstallMarketplaceItem).not.toHaveBeenCalled()
+		// Should call install method since marketplace is generally available
+		expect(mockInstallMarketplaceItem).toHaveBeenCalledWith(message.mpItem, message.mpInstallOptions)
 	})
 })

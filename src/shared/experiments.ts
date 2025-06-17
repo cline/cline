@@ -1,7 +1,6 @@
 import type { AssertEqual, Equals, Keys, Values, ExperimentId, Experiments } from "@roo-code/types"
 
 export const EXPERIMENT_IDS = {
-	MARKETPLACE: "marketplace",
 	MULTI_FILE_APPLY_DIFF: "multiFileApplyDiff",
 	DISABLE_COMPLETION_COMMAND: "disableCompletionCommand",
 	POWER_STEERING: "powerSteering",
@@ -16,7 +15,6 @@ interface ExperimentConfig {
 }
 
 export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
-	MARKETPLACE: { enabled: false },
 	MULTI_FILE_APPLY_DIFF: { enabled: false },
 	DISABLE_COMPLETION_COMMAND: { enabled: false },
 	POWER_STEERING: { enabled: false },

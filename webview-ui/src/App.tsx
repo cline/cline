@@ -40,7 +40,6 @@ const App = () => {
 		telemetrySetting,
 		telemetryKey,
 		machineId,
-		experiments,
 		cloudUserInfo,
 		cloudIsAuthenticated,
 		mdmCompliant,
@@ -93,10 +92,6 @@ const App = () => {
 				// Handle switchTab action with tab parameter
 				if (message.action === "switchTab" && message.tab) {
 					const targetTab = message.tab as Tab
-					// Don't switch to marketplace tab if the experiment is disabled
-					if (targetTab === "marketplace" && !experiments.marketplace) {
-						return
-					}
 					switchTab(targetTab)
 					setCurrentSection(undefined)
 				} else {
@@ -105,10 +100,6 @@ const App = () => {
 					const section = message.values?.section as string | undefined
 
 					if (newTab) {
-						// Don't switch to marketplace tab if the experiment is disabled
-						if (newTab === "marketplace" && !experiments.marketplace) {
-							return
-						}
 						switchTab(newTab)
 						setCurrentSection(section)
 					}
@@ -124,7 +115,7 @@ const App = () => {
 				chatViewRef.current?.acceptInput()
 			}
 		},
-		[switchTab, experiments],
+		[switchTab],
 	)
 
 	useEvent("message", onMessage)
@@ -147,10 +138,10 @@ const App = () => {
 
 	// Track marketplace tab views
 	useEffect(() => {
-		if (tab === "marketplace" && experiments.marketplace) {
+		if (tab === "marketplace") {
 			telemetryClient.capture(TelemetryEventName.MARKETPLACE_TAB_VIEWED)
 		}
-	}, [tab, experiments.marketplace])
+	}, [tab])
 
 	if (!didHydrateState) {
 		return null

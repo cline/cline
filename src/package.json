@@ -232,7 +232,7 @@
 				{
 					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@4",
-					"when": "view == roo-cline.SidebarProvider && roo-cline.marketplaceEnabled"
+					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
 					"command": "roo-cline.historyButtonClicked",
@@ -274,7 +274,7 @@
 				{
 					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider && roo-cline.marketplaceEnabled"
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
 					"command": "roo-cline.historyButtonClicked",

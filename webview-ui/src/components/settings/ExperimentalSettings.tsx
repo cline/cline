@@ -52,7 +52,7 @@ export const ExperimentalSettings = ({
 
 			<Section>
 				{Object.entries(experimentConfigsMap)
-					.filter((config) => config[0] !== "DIFF_STRATEGY" && config[0] !== "MULTI_SEARCH_AND_REPLACE")
+					.filter(([key]) => key in EXPERIMENT_IDS)
 					.map((config) => {
 						if (config[0] === "MULTI_FILE_APPLY_DIFF") {
 							return (
