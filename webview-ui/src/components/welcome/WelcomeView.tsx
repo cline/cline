@@ -5,8 +5,10 @@ import { validateApiConfiguration } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
-import { AccountServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 
 const WelcomeView = memo(() => {
 	const { apiConfiguration } = useExtensionState()
@@ -21,8 +23,18 @@ const WelcomeView = memo(() => {
 		)
 	}
 
-	const handleSubmit = () => {
-		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+	const handleSubmit = async () => {
+		if (apiConfiguration) {
+			try {
+				await ModelsServiceClient.updateApiConfigurationProto(
+					UpdateApiConfigurationRequest.create({
+						apiConfiguration: convertApiConfigurationToProto(apiConfiguration),
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to update API configuration:", error)
+			}
+		}
 	}
 
 	useEffect(() => {
@@ -38,7 +50,7 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
+					<VSCodeLink href="https://www.anthropic.com/news/claude-3-7-sonnet" className="inline">
 						Claude 3.7 Sonnet's
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use

@@ -1,8 +1,9 @@
-import React from "react"
-import { vscode } from "@/utils/vscode"
-import DOMPurify from "dompurify"
-import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import { WebServiceClient } from "@/services/grpc-client"
+import { StringRequest } from "@shared/proto/common"
+import DOMPurify from "dompurify"
+import React from "react"
+import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 
 interface OpenGraphData {
 	title?: string
@@ -102,45 +103,49 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 		}
 	}
 
-	private fetchOpenGraphData() {
+	private async fetchOpenGraphData() {
 		try {
 			// Record fetch start time
 			const startTime = Date.now()
 			this.setState({ fetchStartTime: startTime })
 
-			// Send a message to the extension to fetch Open Graph data
-			vscode.postMessage({
-				type: "fetchOpenGraphData",
-				text: this.props.url,
-			})
+			// Use the gRPC client to fetch Open Graph data
+			const response = await WebServiceClient.fetchOpenGraphData(
+				StringRequest.create({
+					value: this.props.url,
+				}),
+			)
 
-			// Set up a listener for the response
-			this.messageListener = (event: MessageEvent) => {
-				const message = event.data
-				if (message.type === "openGraphData" && message.url === this.props.url) {
-					// Check if there was an error in the response
-					if (message.error) {
-						this.setState({
-							error: "network",
-							errorMessage: message.error,
-							loading: false,
-							hasCompletedFetch: true,
-						})
-					} else {
-						this.setState({
-							ogData: message.openGraphData,
-							loading: false,
-							hasCompletedFetch: true, // Mark as completed
-						})
-					}
-					this.cleanup()
+			// Process the response
+			if (response) {
+				const ogData: OpenGraphData = {
+					title: response.title || undefined,
+					description: response.description || undefined,
+					image: response.image || undefined,
+					url: response.url || undefined,
+					siteName: response.siteName || undefined,
+					type: response.type || undefined,
 				}
+
+				this.setState({
+					ogData,
+					loading: false,
+					hasCompletedFetch: true,
+				})
+			} else {
+				this.setState({
+					error: "network",
+					errorMessage: "Failed to fetch Open Graph data",
+					loading: false,
+					hasCompletedFetch: true,
+				})
 			}
 
-			window.addEventListener("message", this.messageListener)
+			// Clean up the heartbeat interval
+			// (No message listener is needed with gRPC, unlike the previous message-based approach)
+			this.cleanup()
 
-			// Instead of a fixed timeout, use a heartbeat to update the loading message
-			// with the elapsed time, but don't actually timeout
+			// Set up heartbeat for loading indicator
 			this.heartbeatId = setInterval(() => {
 				const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
 				if (elapsedSeconds > 0) {
@@ -235,11 +240,16 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 						maxWidth: "512px",
 						overflow: "auto",
 					}}
-					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
-							url: DOMPurify.sanitize(url),
-						})
+					onClick={async () => {
+						try {
+							await WebServiceClient.openInBrowser(
+								StringRequest.create({
+									value: DOMPurify.sanitize(url),
+								}),
+							)
+						} catch (err) {
+							console.error("Error opening URL in browser:", err)
+						}
 					}}>
 					<div style={{ fontWeight: "bold" }}>{errorDisplay}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -272,11 +282,16 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					height: "128px",
 					maxWidth: "512px",
 				}}
-				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
-						url: DOMPurify.sanitize(url),
-					})
+				onClick={async () => {
+					try {
+						await WebServiceClient.openInBrowser(
+							StringRequest.create({
+								value: DOMPurify.sanitize(url),
+							}),
+						)
+					} catch (err) {
+						console.error("Error opening URL in browser:", err)
+					}
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>

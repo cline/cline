@@ -9,13 +9,16 @@ const FeatureSettingsSection = () => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		setMcpRichDisplayEnabled,
+		mcpResponsesCollapsed,
+		setMcpResponsesCollapsed,
 		chatSettings,
 		setChatSettings,
 	} = useExtensionState()
 
 	return (
-		<div style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Feature Settings</h3>
+		<div style={{ marginBottom: 20 }}>
 			<div>
 				<VSCodeCheckbox
 					checked={enableCheckpointsSetting}
@@ -41,6 +44,32 @@ const FeatureSettingsSection = () => {
 				</VSCodeCheckbox>
 				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Enables the MCP Marketplace tab for discovering and installing MCP servers.
+				</p>
+			</div>
+			<div style={{ marginTop: 10 }}>
+				<VSCodeCheckbox
+					checked={mcpRichDisplayEnabled}
+					onChange={(e: any) => {
+						const checked = e.target.checked === true
+						setMcpRichDisplayEnabled(checked)
+					}}>
+					Enable Rich MCP Display
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					Enables rich formatting for MCP responses. When disabled, responses will be shown in plain text.
+				</p>
+			</div>
+			<div style={{ marginTop: 10 }}>
+				<VSCodeCheckbox
+					checked={mcpResponsesCollapsed}
+					onChange={(e: any) => {
+						const checked = e.target.checked === true
+						setMcpResponsesCollapsed(checked)
+					}}>
+					Collapse MCP Responses
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					Sets the default display mode for MCP response panels
 				</p>
 			</div>
 			<div style={{ marginTop: 10 }}>

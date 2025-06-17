@@ -7,9 +7,19 @@ interface SlashCommandMenuProps {
 	setSelectedIndex: (index: number) => void
 	onMouseDown: () => void
 	query: string
+	localWorkflowToggles?: Record<string, boolean>
+	globalWorkflowToggles?: Record<string, boolean>
 }
 
-const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedIndex, setSelectedIndex, onMouseDown, query }) => {
+const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
+	onSelect,
+	selectedIndex,
+	setSelectedIndex,
+	onMouseDown,
+	query,
+	localWorkflowToggles = {},
+	globalWorkflowToggles = {},
+}) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	const handleClick = useCallback(
@@ -19,10 +29,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 		[onSelect],
 	)
 
-	// Auto-scroll logic remains the same...
 	useEffect(() => {
 		if (menuRef.current) {
-			const selectedElement = menuRef.current.children[selectedIndex] as HTMLElement
+			const selectedElement = menuRef.current.querySelector(`#slash-command-menu-item-${selectedIndex}`) as HTMLElement
 			if (selectedElement) {
 				const menuRect = menuRef.current.getBoundingClientRect()
 				const selectedRect = selectedElement.getBoundingClientRect()
@@ -37,7 +46,46 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 	}, [selectedIndex])
 
 	// Filter commands based on query
-	const filteredCommands = getMatchingSlashCommands(query)
+	const filteredCommands = getMatchingSlashCommands(query, localWorkflowToggles, globalWorkflowToggles)
+	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
+	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")
+
+	// Create a reusable function for rendering a command section
+	const renderCommandSection = (commands: SlashCommand[], title: string, indexOffset: number, showDescriptions: boolean) => {
+		if (commands.length === 0) return null
+
+		return (
+			<>
+				<div className="text-xs text-[var(--vscode-descriptionForeground)] px-3 py-1 font-bold border-b border-[var(--vscode-editorGroup-border)]">
+					{title}
+				</div>
+				{commands.map((command, index) => {
+					const itemIndex = index + indexOffset
+					return (
+						<div
+							key={command.name}
+							id={`slash-command-menu-item-${itemIndex}`}
+							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
+								itemIndex === selectedIndex
+									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
+									: ""
+							} hover:bg-[var(--vscode-list-hoverBackground)]`}
+							onClick={() => handleClick(command)}
+							onMouseEnter={() => setSelectedIndex(itemIndex)}>
+							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
+								<span className="ph-no-capture">/{command.name}</span>
+							</div>
+							{showDescriptions && command.description && (
+								<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)] whitespace-normal overflow-hidden text-ellipsis">
+									<span className="ph-no-capture">{command.description}</span>
+								</div>
+							)}
+						</div>
+					)
+				})}
+			</>
+		)
+	}
 
 	return (
 		<div
@@ -45,33 +93,15 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 			onMouseDown={onMouseDown}>
 			<div
 				ref={menuRef}
-				className="bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-editorGroup-border)] rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col max-h-[200px] overflow-y-auto" // Corrected rounded and shadow
-			>
+				className="bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-editorGroup-border)] rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto"
+				style={{ maxHeight: "min(200px, calc(50vh))", overscrollBehavior: "contain" }}>
 				{filteredCommands.length > 0 ? (
-					filteredCommands.map((command, index) => (
-						<div
-							key={command.name}
-							id={`slash-command-menu-item-${index}`}
-							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
-								// Corrected padding
-								index === selectedIndex
-									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
-									: "" // Removed bg-transparent
-							} hover:bg-[var(--vscode-list-hoverBackground)]`}
-							onClick={() => handleClick(command)}
-							onMouseEnter={() => setSelectedIndex(index)}>
-							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
-								<span className="ph-no-capture">/{command.name}</span>
-							</div>
-							<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)] whitespace-normal overflow-hidden text-ellipsis">
-								<span className="ph-no-capture">{command.description}</span>
-							</div>
-						</div>
-					))
+					<>
+						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
+						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
+					</>
 				) : (
 					<div className="py-2 px-3 cursor-default flex flex-col">
-						{" "}
-						{/* Corrected padding, removed border, changed cursor */}
 						<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)]">No matching commands found</div>
 					</div>
 				)}

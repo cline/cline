@@ -5,12 +5,14 @@ import * as health from "grpc-health-check"
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
-import { packageDefinition, proto, log, camelToSnakeCase, snakeToCamelCase } from "./utils"
+import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
-import { addServices } from "./server-setup"
+import { addProtobusServices } from "@/generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { UriServiceClient } from "@/hosts/host-bridge-client"
+import { StringRequest } from "@/shared/proto/common"
 
-function main() {
+async function main() {
 	log("Starting service...")
 
 	activate(extensionContext)
@@ -22,22 +24,21 @@ function main() {
 	healthImpl.addToServer(server)
 
 	// Add all the handlers for the ProtoBus services to the server.
-	addServices(server, proto, controller, wrapHandler, wrapStreamingResponseHandler)
+	addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
 
 	// Set up reflection.
-	const reflection = new ReflectionService(packageDefinition)
+	const reflection = new ReflectionService(getPackageDefinition())
 	reflection.addToServer(server)
 
 	// Start the server.
 	const host = "127.0.0.1:50051"
 	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
 		if (err) {
-			log(`Error: Failed to bind to ${host}, port may be unavailable ${err.message}`)
+			log(`Error: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
 			process.exit(1)
-		} else {
-			server.start()
-			log(`gRPC server listening on ${host}`)
 		}
+		server.start()
+		log(`gRPC server listening on ${host}`)
 	})
 }
 
@@ -59,10 +60,8 @@ function wrapHandler<TRequest, TResponse>(
 	return async (call: grpc.ServerUnaryCall<TRequest, TResponse>, callback: grpc.sendUnaryData<TResponse>) => {
 		try {
 			log(`gRPC request: ${call.getPath()}`)
-			const result = await handler(controller, snakeToCamelCase(call.request))
-			// The grpc-js serializer expects the proto message to be in the same
-			// case as the proto file. This is a work around until we find a solution.
-			callback(null, camelToSnakeCase(result))
+			const result = await handler(controller, call.request)
+			callback(null, result)
 		} catch (err: any) {
 			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
 			callback({
@@ -84,9 +83,7 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 
 			const responseHandler: StreamingResponseHandler = (response, isLast, sequenceNumber) => {
 				try {
-					// The grpc-js serializer expects the proto message to be in the same
-					// case as the proto file. This is a work around until we find a solution.
-					call.write(camelToSnakeCase(response)) // Use a bound version of call.write to maintain proper 'this' context
+					call.write(response) // Use a bound version of call.write to maintain proper 'this' context
 
 					if (isLast === true) {
 						log(`Closing stream for ${requestId}`)
@@ -97,7 +94,7 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 					return Promise.reject(error)
 				}
 			}
-			await handler(controller, snakeToCamelCase(call.request), responseHandler, requestId)
+			await handler(controller, call.request, responseHandler, requestId)
 		} catch (err: any) {
 			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
 			call.destroy({

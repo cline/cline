@@ -1,31 +1,83 @@
 export interface SlashCommand {
 	name: string
-	description: string
+	description?: string
+	section?: "default" | "custom"
 }
 
-export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
+export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "newtask",
 		description: "Create a new task with context from the current task",
+		section: "default",
 	},
 	{
 		name: "smol",
 		description: "Condenses your current context window",
+		section: "default",
 	},
 	{
 		name: "newrule",
 		description: "Create a new Cline rule based on your conversation",
+		section: "default",
 	},
 	{
 		name: "reportbug",
 		description: "Create a Github issue with Cline",
+		section: "default",
 	},
 ]
 
+export function getWorkflowCommands(
+	localWorkflowToggles: Record<string, boolean>,
+	globalWorkflowToggles: Record<string, boolean>,
+): SlashCommand[] {
+	const { workflows: localWorkflows, nameSet: localWorkflowNames } = Object.entries(localWorkflowToggles)
+		.filter(([_, enabled]) => enabled)
+		.reduce(
+			(acc, [filePath, _]) => {
+				const fileName = filePath.replace(/^.*[/\\]/, "")
+
+				// Add to array of workflows
+				acc.workflows.push({
+					name: fileName,
+					section: "custom",
+				} as SlashCommand)
+
+				// Add to set of names
+				acc.nameSet.add(fileName)
+
+				return acc
+			},
+			{ workflows: [] as SlashCommand[], nameSet: new Set<string>() },
+		)
+
+	const globalWorkflows = Object.entries(globalWorkflowToggles)
+		.filter(([_, enabled]) => enabled)
+		.flatMap(([filePath, _]) => {
+			const fileName = filePath.replace(/^.*[/\\]/, "")
+
+			// skip if a local workflow with the same name exists
+			if (localWorkflowNames.has(fileName)) {
+				return []
+			}
+
+			return [
+				{
+					name: fileName,
+					section: "custom",
+				},
+			] as SlashCommand[]
+		})
+
+	const workflows = [...localWorkflows, ...globalWorkflows]
+	return workflows
+}
+
 // Regex for detecting slash commands in text
-export const slashCommandRegex = /\/([a-zA-Z0-9_-]+)(\s|$)/
+// currently doesn't allow whitespace inside of the filename
+export const slashCommandRegex = /\/([a-zA-Z0-9_.-]+)(\s|$)/
 export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
-export const slashCommandDeleteRegex = /^\s*\/([a-zA-Z0-9_-]+)$/
+export const slashCommandDeleteRegex = /^\s*\/([a-zA-Z0-9_.-]+)$/
 
 /**
  * Removes a slash command at the cursor position
@@ -81,13 +133,20 @@ export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number
 /**
  * Gets filtered slash commands that match the current input
  */
-export function getMatchingSlashCommands(query: string): SlashCommand[] {
+export function getMatchingSlashCommands(
+	query: string,
+	localWorkflowToggles: Record<string, boolean> = {},
+	globalWorkflowToggles: Record<string, boolean> = {},
+): SlashCommand[] {
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
+
 	if (!query) {
-		return [...SUPPORTED_SLASH_COMMANDS]
+		return allCommands
 	}
 
 	// filter commands that start with the query (case sensitive)
-	return SUPPORTED_SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(query))
+	return allCommands.filter((cmd) => cmd.name.startsWith(query))
 }
 
 /**
@@ -110,19 +169,26 @@ export function insertSlashCommand(text: string, commandName: string): { newValu
  * Determines the validation state of a slash command
  * Returns partial if we have a partial match against valid commands, or full for full match
  */
-export function validateSlashCommand(command: string): "full" | "partial" | null {
+export function validateSlashCommand(
+	command: string,
+	localWorkflowToggles: Record<string, boolean> = {},
+	globalWorkflowToggles: Record<string, boolean> = {},
+): "full" | "partial" | null {
 	if (!command) {
 		return null
 	}
 
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
+
 	// case sensitive matching
-	const exactMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name === command)
+	const exactMatch = allCommands.some((cmd) => cmd.name === command)
 
 	if (exactMatch) {
 		return "full"
 	}
 
-	const partialMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name.startsWith(command))
+	const partialMatch = allCommands.some((cmd) => cmd.name.startsWith(command))
 
 	if (partialMatch) {
 		return "partial"

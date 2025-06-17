@@ -24,24 +24,24 @@ export async function discoverBrowser(controller: Controller, request: EmptyRequ
 			const browserSession = new BrowserSession(controller.context, browserSettings)
 			const result = await browserSession.testConnection(discoveredHost)
 
-			return {
+			return BrowserConnection.create({
 				success: true,
 				message: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
 				endpoint: result.endpoint || "",
-			}
+			})
 		} else {
-			return {
+			return BrowserConnection.create({
 				success: false,
 				message:
 					"No Chrome instances found. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
 				endpoint: "",
-			}
+			})
 		}
 	} catch (error) {
-		return {
+		return BrowserConnection.create({
 			success: false,
 			message: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
 			endpoint: "",
-		}
+		})
 	}
 }

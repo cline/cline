@@ -7,7 +7,7 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
 
 /**
- * PostHogClient handles telemetry event tracking for the Cline extension
+ * TelemetryService handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
  * Respects user privacy settings and VSCode's global telemetry configuration
  */
@@ -29,7 +29,7 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
-class PostHogClient {
+class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
@@ -41,6 +41,11 @@ class PostHogClient {
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
+
+		USER: {
+			OPT_OUT: "user.opt_out",
+			EXTENSION_ACTIVATED: "user.extension_activated",
+		},
 		TASK: {
 			// Tracks when a new task/conversation is started
 			CREATED: "task.created",
@@ -83,37 +88,21 @@ class PostHogClient {
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
-			// Tracks when user switches between API providers
-			PROVIDER_SWITCH: "ui.provider_switch",
-			// Tracks when images are attached to a conversation
-			IMAGE_ATTACHED: "ui.image_attached",
-			// Tracks general button click interactions
-			BUTTON_CLICK: "ui.button_click",
-			// Tracks when the marketplace view is opened
-			MARKETPLACE_OPENED: "ui.marketplace_opened",
-			// Tracks when settings panel is opened
-			SETTINGS_OPENED: "ui.settings_opened",
-			// Tracks when task history view is opened
-			HISTORY_OPENED: "ui.history_opened",
-			// Tracks when a task is removed from history
-			TASK_POPPED: "ui.task_popped",
 			// Tracks when a different model is selected
 			MODEL_SELECTED: "ui.model_selected",
-			// Tracks when planning mode is toggled on
-			PLAN_MODE_TOGGLED: "ui.plan_mode_toggled",
-			// Tracks when action mode is toggled on
-			ACT_MODE_TOGGLED: "ui.act_mode_toggled",
 			// Tracks when users use the "favorite" button in the model picker
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
+			// Tracks when a button is clicked
+			BUTTON_CLICKED: "ui.button_clicked",
 		},
 	}
 
-	/** Singleton instance of the PostHogClient */
-	private static instance: PostHogClient
+	/** Singleton instance of the TelemetryService */
+	private static instance: TelemetryService
 	/** PostHog client instance for sending analytics events */
 	private client: PostHog
 	/** Unique identifier for the current VSCode instance */
-	private distinctId: string = vscode.env.machineId
+	public distinctId: string = vscode.env.machineId
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private telemetryEnabled: boolean = false
 	/** Current version of the extension */
@@ -129,14 +118,18 @@ class PostHogClient {
 		this.client = posthogClientProvider.getClient()
 	}
 
+	private setDistinctId(installId: string) {
+		if (this.distinctId === "someValue.machineId") {
+			this.distinctId = installId
+		}
+	}
+
 	/**
 	 * Updates the telemetry state based on user preferences and VSCode settings
 	 * Only enables telemetry if both VSCode global telemetry is enabled and user has opted in
 	 * @param didUserOptIn Whether the user has explicitly opted into telemetry
 	 */
-	public updateTelemetryState(didUserOptIn: boolean): void {
-		this.telemetryEnabled = false
-
+	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 		const globalTelemetryEnabled = telemetryLevel === "all"
@@ -144,25 +137,56 @@ class PostHogClient {
 		// We only enable telemetry if global vscode telemetry is enabled
 		if (globalTelemetryEnabled) {
 			this.telemetryEnabled = didUserOptIn
+		} else {
+			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
+			if (didUserOptIn) {
+				void vscode.window
+					.showWarningMessage(
+						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						"Open Settings",
+					)
+					.then((selection) => {
+						if (selection === "Open Settings") {
+							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+						}
+					})
+			}
+			this.telemetryEnabled = false
 		}
 
 		// Update PostHog client state based on telemetry preference
 		if (this.telemetryEnabled) {
 			this.client.optIn()
+			this.client.identify({ distinctId: this.distinctId })
 		} else {
+			this.client.capture({
+				distinctId: this.distinctId,
+				event: TelemetryService.EVENTS.USER.OPT_OUT,
+				properties: this.addProperties({}),
+			})
+
+			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
 			this.client.optOut()
 		}
 	}
 
 	/**
-	 * Gets or creates the singleton instance of PostHogClient
-	 * @returns The PostHogClient instance
+	 * Gets or creates the singleton instance of TelemetryService
+	 * @returns The TelemetryService instance
 	 */
-	public static getInstance(): PostHogClient {
-		if (!PostHogClient.instance) {
-			PostHogClient.instance = new PostHogClient()
+	public static getInstance(): TelemetryService {
+		if (!TelemetryService.instance) {
+			TelemetryService.instance = new TelemetryService()
 		}
-		return PostHogClient.instance
+		return TelemetryService.instance
+	}
+
+	private addProperties(properties: any): any {
+		return {
+			...properties,
+			extension_version: this.version,
+			is_dev: this.isDev,
+		}
 	}
 
 	/**
@@ -171,13 +195,14 @@ class PostHogClient {
 	 * @param collect If true, store the event in collectedEvents instead of sending to PostHog
 	 */
 	public capture(event: { event: string; properties?: any }, collect: boolean = false): void {
-		const taskId = event.properties.taskId
-		const propertiesWithVersion = {
-			...event.properties,
-			extension_version: this.version,
-			is_dev: this.isDev,
+		if (!this.telemetryEnabled) {
+			return
 		}
-		if (collect) {
+		const taskId = event.properties.taskId
+
+		const propertiesWithVersion = this.addProperties(event.properties)
+
+		if (collect && taskId) {
 			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
 			if (existingTask) {
 				existingTask.collection.push({
@@ -195,8 +220,17 @@ class PostHogClient {
 					],
 				})
 			}
-		} else if (this.telemetryEnabled) {
+		} else {
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
+		}
+	}
+
+	public captureExtensionActivated(installId: string) {
+		this.setDistinctId(installId)
+
+		if (this.telemetryEnabled) {
+			this.client.identify({ distinctId: this.distinctId })
+			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
 		}
 	}
 
@@ -210,7 +244,7 @@ class PostHogClient {
 	public captureTaskCreated(taskId: string, apiProvider?: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.CREATED,
+				event: TelemetryService.EVENTS.TASK.CREATED,
 				properties: { taskId, apiProvider },
 			},
 			collect,
@@ -226,7 +260,7 @@ class PostHogClient {
 	public captureTaskRestarted(taskId: string, apiProvider?: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.RESTARTED,
+				event: TelemetryService.EVENTS.TASK.RESTARTED,
 				properties: { taskId, apiProvider },
 			},
 			collect,
@@ -241,7 +275,7 @@ class PostHogClient {
 	public captureTaskCompleted(taskId: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.COMPLETED,
+				event: TelemetryService.EVENTS.TASK.COMPLETED,
 				properties: { taskId },
 			},
 			collect,
@@ -278,7 +312,7 @@ class PostHogClient {
 
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.CONVERSATION_TURN,
+				event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
 				properties,
 			},
 			collect,
@@ -295,7 +329,7 @@ class PostHogClient {
 	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.TOKEN_USAGE,
+				event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 				properties: {
 					taskId,
 					tokensIn,
@@ -315,7 +349,7 @@ class PostHogClient {
 	public captureModeSwitch(taskId: string, mode: "plan" | "act", collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.MODE_SWITCH,
+				event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
 				properties: {
 					taskId,
 					mode,
@@ -334,7 +368,7 @@ class PostHogClient {
 		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.FEEDBACK,
+				event: TelemetryService.EVENTS.TASK.FEEDBACK,
 				properties: {
 					taskId,
 					feedbackType,
@@ -352,15 +386,23 @@ class PostHogClient {
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(taskId: string, tool: string, autoApproved: boolean, success: boolean, collect: boolean = false) {
+	public captureToolUsage(
+		taskId: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		collect: boolean = false,
+	) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.TOOL_USED,
+				event: TelemetryService.EVENTS.TASK.TOOL_USED,
 				properties: {
 					taskId,
 					tool,
 					autoApproved,
 					success,
+					modelId,
 				},
 			},
 			collect,
@@ -385,140 +427,11 @@ class PostHogClient {
 
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
+				event: TelemetryService.EVENTS.TASK.CHECKPOINT_USED,
 				properties: {
 					taskId,
 					action,
 					durationMs,
-				},
-			},
-			collect,
-		)
-	}
-
-	// UI events
-	/**
-	 * Records when the user switches between different API providers
-	 * @param from Previous provider name
-	 * @param to New provider name
-	 * @param location Where the switch occurred (settings panel or bottom bar)
-	 * @param taskId Optional task identifier if switch occurred during a task
-	 */
-	public captureProviderSwitch(
-		from: string,
-		to: string,
-		location: "settings" | "bottom",
-		taskId?: string,
-		collect: boolean = false,
-	) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.PROVIDER_SWITCH,
-				properties: {
-					from,
-					to,
-					location,
-					taskId,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records when images are attached to a conversation
-	 * @param taskId Unique identifier for the task
-	 * @param imageCount Number of images attached
-	 */
-	public captureImageAttached(taskId: string, imageCount: number, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.IMAGE_ATTACHED,
-				properties: {
-					taskId,
-					imageCount,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records general button click interactions in the UI
-	 * @param button Identifier for the button that was clicked
-	 * @param taskId Optional task identifier if click occurred during a task
-	 */
-	public captureButtonClick(button: string, taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.BUTTON_CLICK,
-				properties: {
-					button,
-					taskId,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records when the marketplace view is opened
-	 * @param taskId Optional task identifier if marketplace was opened during a task
-	 */
-	public captureMarketplaceOpened(taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.MARKETPLACE_OPENED,
-				properties: {
-					taskId,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records when the settings panel is opened
-	 * @param taskId Optional task identifier if settings were opened during a task
-	 */
-	public captureSettingsOpened(taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.SETTINGS_OPENED,
-				properties: {
-					taskId,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records when the task history view is opened
-	 * @param taskId Optional task identifier if history was opened during a task
-	 */
-	public captureHistoryOpened(taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.HISTORY_OPENED,
-				properties: {
-					taskId,
-				},
-			},
-			collect,
-		)
-	}
-
-	/**
-	 * Records when a task is removed from the task history
-	 * @param taskId Unique identifier for the task being removed
-	 */
-	public captureTaskPopped(taskId: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: PostHogClient.EVENTS.UI.TASK_POPPED,
-				properties: {
-					taskId,
 				},
 			},
 			collect,
@@ -533,7 +446,7 @@ class PostHogClient {
 	public captureDiffEditFailure(taskId: string, modelId: string, errorType?: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+				event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 				properties: {
 					taskId,
 					errorType,
@@ -553,7 +466,7 @@ class PostHogClient {
 	public captureModelSelected(model: string, provider: string, taskId?: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.UI.MODEL_SELECTED,
+				event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
 				properties: {
 					model,
 					provider,
@@ -571,7 +484,7 @@ class PostHogClient {
 	public captureHistoricalTaskLoaded(taskId: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.HISTORICAL_LOADED,
+				event: TelemetryService.EVENTS.TASK.HISTORICAL_LOADED,
 				properties: {
 					taskId,
 				},
@@ -587,7 +500,7 @@ class PostHogClient {
 	public captureRetryClicked(taskId: string, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
+				event: TelemetryService.EVENTS.TASK.RETRY_CLICKED,
 				properties: {
 					taskId,
 				},
@@ -608,7 +521,7 @@ class PostHogClient {
 
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
+				event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_START,
 				properties: {
 					taskId,
 					viewport: browserSettings.viewport,
@@ -641,7 +554,7 @@ class PostHogClient {
 
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
+				event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_END,
 				properties: {
 					taskId,
 					actionCount: stats.actionCount,
@@ -679,7 +592,7 @@ class PostHogClient {
 
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
+				event: TelemetryService.EVENTS.TASK.BROWSER_ERROR,
 				properties: {
 					taskId,
 					errorType,
@@ -701,7 +614,7 @@ class PostHogClient {
 	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+				event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
 				properties: {
 					taskId,
 					qty,
@@ -721,7 +634,7 @@ class PostHogClient {
 	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+				event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
 				properties: {
 					taskId,
 					qty,
@@ -758,7 +671,7 @@ class PostHogClient {
 	) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.TASK.GEMINI_API_PERFORMANCE,
+				event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
 				properties: {
 					taskId,
 					modelId,
@@ -777,10 +690,23 @@ class PostHogClient {
 	public captureModelFavoritesUsage(model: string, isFavorited: boolean, collect: boolean = false) {
 		this.capture(
 			{
-				event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+				event: TelemetryService.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
 				properties: {
 					model,
 					isFavorited,
+				},
+			},
+			collect,
+		)
+	}
+
+	public captureButtonClick(button: string, taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
+				properties: {
+					button,
+					taskId,
 				},
 			},
 			collect,
@@ -806,13 +732,17 @@ class PostHogClient {
 	}
 
 	public async sendCollectedEvents(taskId?: string): Promise<void> {
+		if (!this.telemetryEnabled) {
+			return
+		}
+
 		if (this.collectedTasks.length > 0) {
 			if (taskId) {
 				const task = this.collectedTasks.find((t) => t.taskId === taskId)
 				if (task) {
 					this.capture(
 						{
-							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							event: TelemetryService.EVENTS.TASK.TASK_COLLECTION,
 							properties: { taskId, events: task.collection },
 						},
 						false,
@@ -823,7 +753,7 @@ class PostHogClient {
 				for (const task of this.collectedTasks) {
 					this.capture(
 						{
-							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							event: TelemetryService.EVENTS.TASK.TASK_COLLECTION,
 							properties: { taskId: task.taskId, events: task.collection },
 						},
 						false,
@@ -839,4 +769,4 @@ class PostHogClient {
 	}
 }
 
-export const telemetryService = PostHogClient.getInstance()
+export const telemetryService = TelemetryService.getInstance()
