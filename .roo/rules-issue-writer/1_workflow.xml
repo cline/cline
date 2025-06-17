@@ -88,9 +88,12 @@
       - read_file on specific files to understand implementation
       - search_files for specific error messages or patterns
       
+      Formulate an independent technical plan to solve the problem, disregarding any solution proposed by the issue author.
+      
       Document all relevant findings including:
       - File paths and line numbers
       - Current implementation details
+      - Your proposed implementation plan
       - Related code that might be affected
     </instructions>
   </step>
@@ -134,12 +137,13 @@
       [paste any error messages or logs]
       ```
       
-      ## Technical Context (from codebase exploration)
+      ## Technical Analysis
       
       Based on my investigation:
       - The issue appears to be in [file:line]
       - Related code: [brief description with file references]
       - Possible cause: [technical explanation]
+      - **Proposed Fix:** [Detail the fix from your implementation plan.]
       ```
       
       For Feature Requests, format as:
@@ -156,7 +160,7 @@
       
       ## How should this be solved?
       
-      [Detailed solution description]
+      [Based on your independent analysis, describe your proposed solution here. Disregard the author's proposal.]
       
       **What will change:**
       - [Specific change 1]
@@ -185,13 +189,14 @@
       **Main challenges:** [technical difficulties]
       **Dependencies:** [what's needed]
       
-      ## Technical Implementation Details (from codebase exploration)
+      ## Technical Implementation Plan
       
-      Based on my analysis:
+      Based on my analysis from the previous step:
       - Key files to modify: [list with paths]
       - Current architecture: [brief description]
       - Integration points: [where this fits]
       - Similar patterns in codebase: [examples]
+      - Implementation Steps: [Provide a detailed, step-by-step guide for your proposed solution.]
       
       ## Technical Considerations
       

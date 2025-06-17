@@ -221,8 +221,8 @@
   <post_creation_tools>
     <tool name="add_issue_comment">
       <when_to_use>
-        Use if user wants to add additional information after creation.
-        Also use to link related issues.
+        ONLY Use if user wants to add additional information after creation.
+
       </when_to_use>
       <example>
         <use_mcp_tool>
@@ -233,7 +233,7 @@
           "owner": "RooCodeInc",
           "repo": "Roo-Code",
           "issue_number": 456,
-          "body": "Related to #123 - both issues affect dark theme visibility"
+          "body": "Blah blah blah, additional context or comments."
         }
         </arguments>
         </use_mcp_tool>
