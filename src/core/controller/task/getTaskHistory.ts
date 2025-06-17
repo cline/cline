@@ -109,7 +109,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			status: item.status || "completed",
 			activeChildTaskId: item.activeChildTaskId,
 			pendingChildTasks: item.pendingChildTasks || [],
-		})) as any[]
+		}))
 
 		return TaskHistoryArray.create({
 			tasks,
