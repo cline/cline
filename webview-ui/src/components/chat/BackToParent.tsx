@@ -1,3 +1,10 @@
+/*
+ * @Description: 
+ * @Author: 清园
+ * @Date: 2025-06-17 10:58:15
+ * @LastEditors: 清园
+ * @LastEditTime: 2025-06-17 16:14:46
+ */
 import SuccessButton from '@/components/common/SuccessButton';
 import { TaskServiceClient } from '@/services/grpc-client';
 import { StringRequest } from '@shared/proto/common';
@@ -32,7 +39,7 @@ export default function BackToParent() {
                 console.error("Failed to resume task:", err),
               )
             }}>
-            <i className="codicon codicon-left" style={{ marginRight: 6 }} />
+            <span className="codicon codicon-arrow-left" style={{ marginRight: 6 }} />
             Back to parent Task
           </SuccessButton>
         </div>
