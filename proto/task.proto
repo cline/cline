@@ -121,5 +121,3 @@ message ExecuteQuickWinRequest {
   string command = 2;
   string title = 3;
 }
-
-

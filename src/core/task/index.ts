@@ -250,7 +250,6 @@ export class Task {
 		images?: string[],
 		files?: string[],
 		historyItem?: HistoryItem,
-		// 新增参数，用于支持父子任务关系
 		parentId?: string,
 		childTaskId?: string,
 	) {
@@ -293,7 +292,6 @@ export class Task {
 			this.taskId = historyItem.id
 			this.taskIsFavorited = historyItem.isFavorited
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			// 从 historyItem 初始化父子关系字段
 			this.parentId = historyItem.parentId
 			this.status = historyItem.status
 			this.childTaskIds = historyItem.childTaskIds || []
@@ -301,7 +299,6 @@ export class Task {
 			this.pendingChildTasks = historyItem.pendingChildTasks || []
 		} else if (task || images || files) {
 			this.taskId = childTaskId || Date.now().toString()
-			// 从参数初始化父子关系字段
 			this.parentId = parentId
 			this.childTaskIds = []
 			this.activeChildTaskId = undefined
@@ -2530,7 +2527,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
@@ -2578,7 +2575,7 @@ export class Task {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -2754,7 +2751,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2849,7 +2846,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2936,7 +2933,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -3025,7 +3022,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -3140,7 +3137,7 @@ export class Task {
 											"browser_action_launch",
 											removeClosingTag("url", url),
 											block.partial,
-										).catch(() => { })
+										).catch(() => {})
 									}
 								} else {
 									await this.say(
@@ -3303,7 +3300,7 @@ export class Task {
 									// ).catch(() => {})
 								} else {
 									// don't need to remove last partial since we couldn't have streamed a say
-									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => { })
+									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -3426,7 +3423,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
 								break
@@ -3578,7 +3575,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
 								break
@@ -3653,7 +3650,7 @@ export class Task {
 						} satisfies ClineAskQuestion
 						try {
 							if (block.partial) {
-								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => { })
+								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!question) {
@@ -3722,7 +3719,7 @@ export class Task {
 						const context: string | undefined = block.params.context
 						try {
 							if (block.partial) {
-								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => { })
+								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => {})
 								break
 							} else {
 								if (!context) {
@@ -3804,7 +3801,7 @@ export class Task {
 								await this.say("tool", partialMessage, undefined, undefined, block.partial)
 							} else {
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
-								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 							}
 							break
 						} else {
@@ -3847,7 +3844,6 @@ export class Task {
 								}
 								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 							}
-							// 执行工具
 							const toolResponse = await this.executeNewChildTaskTool(
 								childTaskPrompt,
 								childTaskFiles,
@@ -3892,7 +3888,7 @@ export class Task {
 								await this.say("tool", partialMessage, undefined, undefined, block.partial)
 							} else {
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
-								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 							}
 							break
 						} else {
@@ -3950,7 +3946,7 @@ export class Task {
 								await this.say("tool", partialMessage, undefined, undefined, block.partial)
 							} else {
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
-								await this.ask("tool", partialMessage, block.partial).catch(() => { })
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 							}
 							break
 						} else {
@@ -3980,11 +3976,9 @@ export class Task {
 								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 							}
 
-							// 执行工具
 							const toolResponse = await this.executeViewPendingTasksTool()
 							const isClaude4Model = await isClaude4ModelFamily(this.api)
 							pushToolResult(toolResponse, isClaude4Model)
-							// 检查是否有待执行的子任务，如果有则询问用户是否继续
 							if (this.pendingChildTasks && this.pendingChildTasks.length > 0) {
 								const { response: continueResponse, text } = await this.ask(
 									"followup",
@@ -3995,7 +3989,6 @@ export class Task {
 								)
 
 								if (continueResponse === "messageResponse" && text === "Yes, start child task") {
-									// 执行下一个子任务
 									const startNextResponse = await this.startNextChildTask()
 									pushToolResult(startNextResponse)
 								}
@@ -4009,7 +4002,7 @@ export class Task {
 						const context: string | undefined = block.params.context
 						try {
 							if (block.partial) {
-								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => { })
+								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => {})
 								break
 							} else {
 								if (!context) {
@@ -4092,7 +4085,7 @@ export class Task {
 										additional_context: removeClosingTag("additional_context", additional_context),
 									}),
 									block.partial,
-								).catch(() => { })
+								).catch(() => {})
 								break
 							} else {
 								if (!title) {
@@ -4232,7 +4225,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -4319,7 +4312,7 @@ export class Task {
 						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => { })
+								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
@@ -4494,7 +4487,7 @@ export class Task {
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => { },
+											() => {},
 										)
 									} else {
 										// last message is completion_result
@@ -4509,7 +4502,7 @@ export class Task {
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => { },
+											() => {},
 										)
 									}
 								} else {
@@ -4701,7 +4694,7 @@ export class Task {
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
-			} catch { }
+			} catch {}
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= 3) {
@@ -5268,7 +5261,7 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => { })
+			}).catch(() => {})
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
@@ -5416,7 +5409,6 @@ export class Task {
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
-	// 在 Task 类中添加这个新方法
 	async executeNewChildTaskTool(
 		childTaskPrompt: string,
 		childTaskFiles?: string[],
@@ -5425,25 +5417,21 @@ export class Task {
 		if (!this.context) {
 			return formatResponse.toolError("Task context is not available to create a child task.")
 		}
-		// Generate a unique ID for the child task
 		const childTaskId = Date.now().toString()
 
 		if (executeImmediately) {
 			setTimeout(() => {
-				// 立即执行模式：直接创建并启动子任务（保持原有行为）
 				this.initTask(
 					childTaskPrompt,
-					undefined, // images
-					childTaskFiles, // files
-					undefined, // historyItem
-					this.taskId, // parentIdForNewTask
-					childTaskId, // childTaskId
+					undefined, 
+					childTaskFiles, 
+					undefined, 
+					this.taskId, 
+					childTaskId,
 				)
 			}, 0)
 
-			// Add child task ID to our list
 			this.childTaskIds.push(childTaskId)
-			// Update our status to paused
 			this.status = "paused"
 			this.activeChildTaskId = childTaskId
 
@@ -5451,7 +5439,6 @@ export class Task {
 				`Child task created and started immediately (ID: ${childTaskId}). Parent task is now paused and will resume when the child task completes.`,
 			)
 		} else {
-			// 延迟执行模式：只存储子任务信息，不立即执行
 			const childTaskInfo = {
 				id: childTaskId,
 				prompt: childTaskPrompt,
@@ -5460,7 +5447,6 @@ export class Task {
 			}
 			this.pendingChildTasks.push(childTaskInfo)
 
-			// Add child task ID to our list for tracking
 			this.childTaskIds.push(childTaskId)
 
 			return formatResponse.toolResult(
@@ -5487,17 +5473,15 @@ export class Task {
 
 		try {
 			setTimeout(() => {
-				// start the child task after a short delay
 				this.initTask(
 					nextChildTask.prompt,
-					undefined, // images
-					nextChildTask.files, // files
-					undefined, // historyItem
-					this.taskId, // parentIdForNewTask
-					nextChildTask.id, // childTaskId
+					undefined, 
+					nextChildTask.files, 
+					undefined, 
+					this.taskId, 
+					nextChildTask.id, 
 				)
 			}, 100)
-			// update parent task status
 			this.status = this.pendingChildTasks.length > 0 ? "paused" : "completed"
 			this.activeChildTaskId = nextChildTask.id
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -5505,7 +5489,6 @@ export class Task {
 				`Child task started successfully (ID: ${nextChildTask.id}). Parent task is now ${this.status}. Remaining pending tasks: ${this.pendingChildTasks.length}`,
 			)
 		} catch (error) {
-			// 如果启动失败，将任务放回队列开头
 			this.pendingChildTasks.unshift(nextChildTask)
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			return formatResponse.toolError(`Failed to start child task: ${errorMessage}`)
@@ -5529,7 +5512,6 @@ export class Task {
 			result += "\n"
 		})
 
-		// 添加当前活动子任务信息（如果有）
 		if (this.activeChildTaskId) {
 			result += `\nCurrently Active Child Task: ${this.activeChildTaskId}\n`
 			result += `Parent Task Status: ${this.status}\n`

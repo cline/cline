@@ -115,11 +115,9 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 		}
 	}
 
-	// 计算显示的任务和隐藏数量
 	const displayTasks = isExpanded ? childTasks : childTasks.slice(0, COLLAPSED_SHOW_COUNT)
 	const hiddenCount = childTasks.length - COLLAPSED_SHOW_COUNT
 
-	// 状态统计
 	const statusSummary = useMemo(() => {
 		const statusCount = childTasks.reduce(
 			(acc, task) => {
@@ -160,7 +158,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 		setIsExpanded(!isExpanded)
 	}
 	if (childTasks.length === 0) {
-		return null // 没有子任务时不显示
+		return null 
 	}
 	const renderListInContainer = (childTask: HistoryItem, children: ReactNode) => {
 		if (childTask.status === "pending") {
@@ -178,7 +176,6 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 				border: "1px solid var(--vscode-panel-border)",
 				borderRadius: "4px",
 			}}>
-			{/* 可点击的标题栏 */}
 			<div
 				style={{
 					display: "flex",
@@ -213,7 +210,6 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 					)}
 				</div>
 
-				{/* 状态统计 */}
 				<div
 					style={{
 						display: "flex",
@@ -224,7 +220,6 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 				</div>
 			</div>
 
-			{/* 子任务列表 */}
 			<div
 				style={{
 					display: "flex",
@@ -253,7 +248,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 								if (childTask.status === "pending") {
 									return
 								}
-								e.stopPropagation() // 防止触发父级的折叠切换
+								e.stopPropagation() 
 								onTaskClick?.(childTask.id)
 							}}
 							onMouseEnter={(e) => {
