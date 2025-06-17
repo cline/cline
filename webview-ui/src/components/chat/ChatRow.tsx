@@ -1425,7 +1425,7 @@ export const ChatRowContent = ({
 					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-					const textDetail = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+					const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 					return (
 						<>
 							<div
@@ -1450,13 +1450,13 @@ export const ChatRowContent = ({
 							<WithCopyButton
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
-								textToCopy={textDetail}
+								textToCopy={text}
 								position="bottom-right"
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
 								}}>
-								<Markdown markdown={textDetail} />
+								<Markdown markdown={text} />
 								{quoteButtonState.visible && (
 									<QuoteButton
 										top={quoteButtonState.top}
@@ -1591,7 +1591,7 @@ export const ChatRowContent = ({
 				case "completion_result":
 					if (message.text) {
 						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const textDetail = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+						const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
 							<div>
 								<div
@@ -1616,13 +1616,13 @@ export const ChatRowContent = ({
 								<WithCopyButton
 									ref={contentRef}
 									onMouseUp={handleMouseUp}
-									textToCopy={textDetail}
+									textToCopy={text}
 									position="bottom-right"
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
 									}}>
-									<Markdown markdown={textDetail} />
+									<Markdown markdown={text} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											top={quoteButtonState.top}
