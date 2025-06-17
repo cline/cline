@@ -4,6 +4,8 @@ const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
 const SEARCH_BLOCK_CHAR = "-"
 const REPLACE_BLOCK_CHAR = "+"
+const LEGACY_SEARCH_BLOCK_CHAR = "<"
+const LEGACY_REPLACE_BLOCK_CHAR = ">"
 
 // Replace the exact string constants with flexible regex patterns
 const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH$/
@@ -271,7 +273,11 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
 		!isSearchBlockStart(lastLine) &&
 		!isSearchBlockEnd(lastLine) &&
 		!isReplaceBlockEnd(lastLine)
@@ -797,7 +803,11 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
 		lastLine !== SEARCH_BLOCK_START &&
 		lastLine !== SEARCH_BLOCK_END &&
 		lastLine !== REPLACE_BLOCK_END
