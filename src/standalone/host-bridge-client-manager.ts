@@ -1,5 +1,7 @@
-import { Channel, createChannel, createClient } from "nice-grpc"
+import { UriServiceClientImpl, WatchServiceClientImpl } from "@/generated/standalone/host-bridge-clients"
 import * as host from "@generated/nice-grpc/index.host"
+import { GrpcClientType } from "@hosts/vscode/client/host-grpc-client-base"
+import { Channel, createChannel } from "nice-grpc"
 
 /**
  * Singleton class to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
@@ -8,14 +10,14 @@ import * as host from "@generated/nice-grpc/index.host"
 class HostBridgeClientManager {
 	private static instance: HostBridgeClientManager | null
 	private channel: Channel
-	uriClient: host.UriServiceClient
-	//watchClient: host.WatchServiceClient
+	uriClient: GrpcClientType<typeof host.UriServiceDefinition>
+	watchClient: GrpcClientType<typeof host.WatchServiceDefinition>
 
 	private constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
 		this.channel = createChannel(address)
-		this.uriClient = createClient(host.UriServiceDefinition, this.channel)
-		//this.watchClient =
+		this.uriClient = new UriServiceClientImpl(this.channel)
+		this.watchClient = new WatchServiceClientImpl(this.channel)
 	}
 
 	public static getInstance(): HostBridgeClientManager {
@@ -31,21 +33,7 @@ class HostBridgeClientManager {
 	}
 }
 
-// TODO(sjf) Replace this with nice-grpc client.
-const StubWatchServiceClient = {
-	subscribeToFile: function (
-		_r: host.SubscribeToFileRequest,
-		_h: {
-			onResponse?: (response: { type: host.FileChangeEvent_ChangeType }) => void | Promise<void>
-			onError?: (error: any) => void
-			onComplete?: () => void
-		},
-	) {
-		throw Error("Unimplemented")
-	},
-}
-
 const clientManager = HostBridgeClientManager.getInstance()
 
 export const UriServiceClient = clientManager.uriClient
-export const WatchServiceClient = StubWatchServiceClient
+export const WatchServiceClient = clientManager.watchClient
