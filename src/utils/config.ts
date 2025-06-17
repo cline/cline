@@ -37,23 +37,30 @@ export async function injectVariables<C extends InjectableConfigType>(
 	variables: Record<string, undefined | null | string | Record<string, undefined | null | string>>,
 	propNotFoundValue?: any,
 ) {
-	// Use simple regex replace for now, will see if object traversal and recursion is needed here (e.g: for non-serializable objects)
 	const isObject = typeof config === "object"
-	let _config: string = isObject ? JSON.stringify(config) : config
+	let configString: string = isObject ? JSON.stringify(config) : config
 
-	// Intentionally using `== null` to match null | undefined
 	for (const [key, value] of Object.entries(variables)) {
 		if (value == null) continue
 
-		if (typeof value === "string") _config = _config.replace(new RegExp(`\\$\\{${key}\\}`, "g"), value)
-		else
-			_config = _config.replace(new RegExp(`\\$\\{${key}:([\\w]+)\\}`, "g"), (match, name) => {
-				if (value[name] == null)
-					console.warn(`[injectVariables] variable "${name}" referenced but not found in "${key}"`)
+		if (typeof value === "string") {
+			// Normalize paths to forward slashes for cross-platform compatibility
+			configString = configString.replace(new RegExp(`\\$\\{${key}\\}`, "g"), value.toPosix())
+		} else {
+			// Handle nested variables (e.g., ${env:VAR_NAME})
+			configString = configString.replace(new RegExp(`\\$\\{${key}:([\\w]+)\\}`, "g"), (match, name) => {
+				const nestedValue = value[name]
 
-				return value[name] ?? propNotFoundValue ?? match
+				if (nestedValue == null) {
+					console.warn(`[injectVariables] variable "${name}" referenced but not found in "${key}"`)
+					return propNotFoundValue ?? match
+				}
+
+				// Normalize paths for string values
+				return typeof nestedValue === "string" ? nestedValue.toPosix() : nestedValue
 			})
+		}
 	}
 
-	return (isObject ? JSON.parse(_config) : _config) as C extends string ? string : C
+	return (isObject ? JSON.parse(configString) : configString) as C extends string ? string : C
 }

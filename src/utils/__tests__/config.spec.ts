@@ -147,5 +147,109 @@ describe("injectVariables", () => {
 		expect(result).toEqual("Hello ")
 	})
 
+	it("should normalize Windows paths with backslashes to use forward slashes in JSON objects", async () => {
+		const config = {
+			command: "mcp-server",
+			args: ["${workspaceFolder}"],
+		}
+		const result = await injectVariables(config, { workspaceFolder: "C:\\Users\\project" })
+		expect(result).toEqual({
+			command: "mcp-server",
+			args: ["C:/Users/project"],
+		})
+	})
+
+	it("should handle complex Windows paths in nested objects", async () => {
+		const config = {
+			servers: {
+				git: {
+					command: "node",
+					args: ["${workspaceFolder}\\scripts\\mcp.js", "${workspaceFolder}\\data"],
+				},
+			},
+		}
+		const result = await injectVariables(config, { workspaceFolder: "C:\\Program Files\\My Project" })
+		expect(result).toEqual({
+			servers: {
+				git: {
+					command: "node",
+					args: ["C:/Program Files/My Project\\scripts\\mcp.js", "C:/Program Files/My Project\\data"],
+				},
+			},
+		})
+	})
+
+	it("should handle Windows paths when entire path is a variable", async () => {
+		const config = {
+			servers: {
+				git: {
+					command: "node",
+					args: ["${scriptPath}", "${dataPath}"],
+				},
+			},
+		}
+		const result = await injectVariables(config, {
+			scriptPath: "C:\\Program Files\\My Project\\scripts\\mcp.js",
+			dataPath: "C:\\Program Files\\My Project\\data",
+		})
+		expect(result).toEqual({
+			servers: {
+				git: {
+					command: "node",
+					args: ["C:/Program Files/My Project/scripts/mcp.js", "C:/Program Files/My Project/data"],
+				},
+			},
+		})
+	})
+
+	it("should normalize backslashes in plain string replacements", async () => {
+		const result = await injectVariables("Path: ${path}", { path: "C:\\Users\\test" })
+		expect(result).toEqual("Path: C:/Users/test")
+	})
+
+	it("should handle paths with mixed slashes", async () => {
+		const config = {
+			path: "${testPath}",
+		}
+		const result = await injectVariables(config, { testPath: "C:\\Users/test/mixed\\path" })
+		expect(result).toEqual({
+			path: "C:/Users/test/mixed/path",
+		})
+	})
+
+	it("should not affect non-path strings", async () => {
+		const config = {
+			message: "This is a string with a backslash \\ and a value: ${myValue}",
+		}
+		const result = await injectVariables(config, { myValue: "test" })
+		expect(result).toEqual({
+			message: "This is a string with a backslash \\ and a value: test",
+		})
+	})
+
+	it("should handle various non-path variables correctly", async () => {
+		const config = {
+			apiKey: "${key}",
+			url: "${endpoint}",
+			port: "${port}",
+			enabled: "${enabled}",
+			description: "${desc}",
+		}
+		const result = await injectVariables(config, {
+			key: "sk-1234567890abcdef",
+			endpoint: "https://api.example.com",
+			port: "8080",
+			enabled: "true",
+			desc: "This is a description with special chars: @#$%^&*()",
+		})
+		expect(result).toEqual({
+			apiKey: "sk-1234567890abcdef",
+			url: "https://api.example.com",
+			port: "8080",
+			enabled: "true",
+			description: "This is a description with special chars: @#$%^&*()",
+		})
+	})
+
 	// Variable maps are already tested by `injectEnv` tests above.
 })
