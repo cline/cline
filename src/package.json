@@ -407,7 +407,7 @@
 		"p-limit": "^6.2.0",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
-		"pkce-challenge": "^4.1.0",
+		"pkce-challenge": "^5.0.0",
 		"pretty-bytes": "^6.1.1",
 		"ps-tree": "^1.2.0",
 		"puppeteer-chromium-resolver": "^23.0.0",

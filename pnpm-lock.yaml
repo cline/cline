@@ -691,8 +691,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1
       pkce-challenge:
-        specifier: ^4.1.0
-        version: 4.1.0
+        specifier: ^5.0.0
+        version: 5.0.0
       pretty-bytes:
         specifier: ^6.1.1
         version: 6.1.1
@@ -7928,10 +7928,6 @@ packages:
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
-
-  pkce-challenge@4.1.0:
-    resolution: {integrity: sha512-ZBmhE1C9LcPoH9XZSdwiPtbPHZROwAnMy+kIFQVrnMCxY4Cudlz3gBOpzilgc0jOgRaiT3sIWfpMomW2ar2orQ==}
-    engines: {node: '>=16.20.0'}
 
   pkce-challenge@5.0.0:
     resolution: {integrity: sha512-ueGLflrrnvwB3xuo/uGob5pd5FN7l0MsLf0Z87o/UQmRtwjvfylfc9MurIxRAWywCYTgrvpXBcqjV4OfCYGCIQ==}
@@ -17760,8 +17756,6 @@ snapshots:
   pify@4.0.1: {}
 
   pirates@4.0.7: {}
-
-  pkce-challenge@4.1.0: {}
 
   pkce-challenge@5.0.0: {}
 
