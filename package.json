@@ -204,7 +204,7 @@
 		],
 		"keybindings": [
 			{
-				"command": "cline.addToChat",
+				"command": "lawaai.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -212,11 +212,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "lawaai.generateGitCommitMessage",
 				"when": "scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "lawaai.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -227,97 +227,97 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "lawaai.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "lawaai.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "lawaai.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "lawaai.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "lawaai.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "lawaai.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == law-aai.SidebarProvider"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "lawaai.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "lawaai.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "lawaai.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "lawaai.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "lawaai.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "lawaai.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == law-aai.TabPanelProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "lawaai.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "lawaai.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "lawaai.generateGitCommitMessage",
 					"group": "navigation",
 					"when": "scmProvider == git"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "lawaai.generateGitCommitMessage",
 					"when": "scmProvider == git"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Law.AAI",
 			"properties": {}
 		}
 	},
