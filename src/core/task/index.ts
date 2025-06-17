@@ -1158,22 +1158,30 @@ export class Task {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+
 		// resume the task from child messages
+		let childResumeText: string | undefined
 		if (this.activeChildTaskId) {
-			const { historyItem, apiConversationHistory } = await this.getTaskWithId(this.activeChildTaskId)
+			const childClineMessages = await getSavedClineMessages(this.getContext(), this.activeChildTaskId)
+			let completionResult = childClineMessages.find((m) => m.say === "completion_result")
+			if (completionResult) {
+				const parsedResult = JSON.parse(completionResult.text || "{}")
+				const { text } = parsedResult as any
+
+				childResumeText = `You are resumed from a child task. Child task ${this.activeChildTaskId} completed with result: ${text}.`
+				await this.say("child_task_completed", childResumeText)
+
+				this.userMessageContentReady = true
+				// Reset active child task id after processing
+			}
 		}
-
-		this.activeChildTaskId = undefined // reset active child task id
-
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
 			askType = "resume_completed_task"
 		} else {
 			askType = "resume_task"
 		}
-
 		this.isInitialized = true
-
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
@@ -1185,7 +1193,8 @@ export class Task {
 			responseImages = images
 			responseFiles = files
 		}
-
+		this.activeChildTaskId = undefined
+		this.status = "running"
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
@@ -1250,7 +1259,12 @@ export class Task {
 			responseText,
 			hasPendingFileContextWarnings,
 		)
-
+		if (childResumeText) {
+			newUserContent.push({
+				type: "text",
+				text: childResumeText,
+			})
+		}
 		if (taskResumptionMessage !== "") {
 			newUserContent.push({
 				type: "text",
@@ -3775,7 +3789,6 @@ export class Task {
 						}
 					}
 					case "new_child_task": {
-						console.log("Handling new_child_task tool block")
 						const childTaskPrompt: string | undefined = block.params.child_task_prompt
 						const childTaskFilesRaw: string | undefined = block.params.child_task_files
 						const executeImmediatelyRaw: string | undefined = block.params.execute_immediately
@@ -3849,6 +3862,15 @@ export class Task {
 								childTaskPrompt,
 								childTaskFiles,
 								executeImmediately,
+							)
+							await saveClineMessagesAndUpdateHistory(
+								this.getContext(),
+								() => this.getTaskInfo(),
+								this.clineMessages,
+								this.taskIsFavorited ?? false,
+								this.conversationHistoryDeletedRange,
+								this.checkpointTracker,
+								this.updateTaskHistory,
 							)
 							this.say(
 								"new_child_task",
@@ -5405,13 +5427,14 @@ export class Task {
 					this.taskId, // parentIdForNewTask
 					childTaskId, // childTaskId
 				)
-			}, 200)
+			}, 0)
 
 			// Add child task ID to our list
 			this.childTaskIds.push(childTaskId)
 			// Update our status to paused
 			this.status = "paused"
 			this.activeChildTaskId = childTaskId
+
 			return formatResponse.toolResult(
 				`Child task created and started immediately (ID: ${childTaskId}). Parent task is now paused and will resume when the child task completes.`,
 			)
