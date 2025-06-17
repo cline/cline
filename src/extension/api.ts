@@ -222,7 +222,11 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			})
 
 			cline.on("taskCompleted", async (_, tokenUsage, toolUsage) => {
-				this.emit(RooCodeEventName.TaskCompleted, cline.taskId, tokenUsage, toolUsage)
+				let isSubtask = false
+				if (cline.rootTask != undefined) {
+					isSubtask = true
+				}
+				this.emit(RooCodeEventName.TaskCompleted, cline.taskId, tokenUsage, toolUsage, { isSubtask: isSubtask })
 				this.taskMap.delete(cline.taskId)
 
 				await this.fileLog(

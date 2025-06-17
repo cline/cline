@@ -5,6 +5,14 @@ import { toolNamesSchema, toolUsageSchema } from "./tool.js"
 import { rooCodeSettingsSchema } from "./global-settings.js"
 
 /**
+ * isSubtaskSchema
+ */
+export const isSubtaskSchema = z.object({
+	isSubtask: z.boolean(),
+})
+export type IsSubtask = z.infer<typeof isSubtaskSchema>
+
+/**
  * RooCodeEvent
  */
 
@@ -41,7 +49,7 @@ export const rooCodeEventsSchema = z.object({
 	[RooCodeEventName.TaskAskResponded]: z.tuple([z.string()]),
 	[RooCodeEventName.TaskAborted]: z.tuple([z.string()]),
 	[RooCodeEventName.TaskSpawned]: z.tuple([z.string(), z.string()]),
-	[RooCodeEventName.TaskCompleted]: z.tuple([z.string(), tokenUsageSchema, toolUsageSchema]),
+	[RooCodeEventName.TaskCompleted]: z.tuple([z.string(), tokenUsageSchema, toolUsageSchema, isSubtaskSchema]),
 	[RooCodeEventName.TaskTokenUsageUpdated]: z.tuple([z.string(), tokenUsageSchema]),
 	[RooCodeEventName.TaskToolFailed]: z.tuple([z.string(), toolNamesSchema, z.string()]),
 })
