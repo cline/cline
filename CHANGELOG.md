@@ -7,16 +7,14 @@
 -   Add terminal output size constraint setting to limit how much terminal output is processed
 -   Add MCP Rich Display settings to the settings page for persistent configuration (Thanks @Vl4diC0de!)
 -   Improve copy button functionality with refactored reusable components (Thanks @shouhanzen!)
+-   Improve AWS Bedrock provider by removing deprecated dependency and using standard AWS SDK (Thanks @watany-dev!)
 -   Fix list_files tool to properly return files when targeting hidden directories
 -   Fix search and replace edge case that could cause file deletion, making the algorithm more lenient for models using different diff formats
--   Fix race condition where clineAsk was undefined, causing task restoration issues
--   Fix checkpoint saving to properly include commit hashes on all messages
+-   Fix task restoration issues that could occur when resuming interrupted tasks
+-   Fix checkpoint saving to properly track all file changes
 -   Improve file context warnings to reduce diff edit errors when resuming restored tasks
--   Improve checkmark control menu with better debouncing
 -   Clear chat input when switching between Plan/Act modes within a task
 -   Exclude .clinerules files from checkpoint tracking
--   Remove deprecated @anthropic-ai/bedrock-sdk dependency
--   Update developer reset functionality to include workspace settings
 
 ## [3.17.13]
 
