@@ -9,10 +9,14 @@ import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addProtobusServices } from "@/generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { initializeHostBridgeClient, StreamingCallbacks, UriServiceClient, WatchServiceClient } from "@/hosts/host-bridge-client"
+import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
+import { StringRequest } from "@/shared/proto/common"
+import { SubscribeToFileRequest } from "@/shared/proto/index.host"
 
 async function main() {
 	log("Starting service...")
-
+	initializeHostBridgeClient(new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage)
 	const server = new grpc.Server()

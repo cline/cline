@@ -1,11 +1,4 @@
 import { UriServiceClientInterface, WatchServiceClientInterface } from "@/generated/hosts/host-bridge-client-types"
-import * as VscodeClient from "./vscode/client/host-grpc-client"
-import * as ExternalClient from "@/standalone/host-bridge-client-manager"
-const isHostBridgeExternal = process.env.HOST_BRIDGE_ADDRESS !== undefined && process.env.HOST_BRIDGE_ADDRESS !== "vscode"
-const Client = isHostBridgeExternal ? ExternalClient : VscodeClient
-
-export const UriServiceClient: UriServiceClientInterface = Client.UriServiceClient
-export const WatchServiceClient: WatchServiceClientInterface = Client.WatchServiceClient
 
 /**
  * Callback interface for streaming requests
@@ -14,4 +7,32 @@ export interface StreamingCallbacks<T = any> {
 	onResponse: (response: T) => void
 	onError?: (error: Error) => void
 	onComplete?: () => void
+}
+
+/**
+ * Interface for host bridge client providers
+ */
+export interface HostBridgeClientProvider {
+	UriServiceClient: UriServiceClientInterface
+	WatchServiceClient: WatchServiceClientInterface
+}
+
+let isSetup = false
+
+// Export the clients directly - they'll be set during initialization
+export let UriServiceClient: UriServiceClientInterface
+export let WatchServiceClient: WatchServiceClientInterface
+
+export function initializeHostBridgeClient(provider: HostBridgeClientProvider): void {
+	UriServiceClient = provider.UriServiceClient
+	WatchServiceClient = provider.WatchServiceClient
+	isSetup = true
+}
+
+export function maybeInitializeHostBridgeClient(provider: HostBridgeClientProvider): void {
+	if (isSetup) {
+		console.log("Host bridge client already initialized, not re-initializing.")
+		return
+	}
+	initializeHostBridgeClient(provider)
 }
