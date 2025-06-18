@@ -1,5 +1,7 @@
 import { Channel, createChannel, createClient } from "nice-grpc"
 import * as host from "@generated/nice-grpc/index.host"
+import { UriServiceClientInterface, WatchServiceClientInterface } from "@/generated/hosts/host-bridge-client-types"
+import { FileChangeEvent } from "@/shared/proto/index.host"
 
 /**
  * Singleton class to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
@@ -36,7 +38,7 @@ const StubWatchServiceClient = {
 	subscribeToFile: function (
 		_r: host.SubscribeToFileRequest,
 		_h: {
-			onResponse?: (response: { type: host.FileChangeEvent_ChangeType }) => void | Promise<void>
+			onResponse?: (response: FileChangeEvent) => void | Promise<void>
 			onError?: (error: any) => void
 			onComplete?: () => void
 		},
@@ -47,5 +49,5 @@ const StubWatchServiceClient = {
 
 const clientManager = HostBridgeClientManager.getInstance()
 
-export const UriServiceClient = clientManager.uriClient
-export const WatchServiceClient = StubWatchServiceClient
+export const UriServiceClient: UriServiceClientInterface = clientManager.uriClient
+export const WatchServiceClient: WatchServiceClientInterface = StubWatchServiceClient
