@@ -2,6 +2,7 @@ import type { LanguageModelChatSelector } from "../api/providers/types"
 
 export type ApiProvider =
 	| "anthropic"
+	| "claude-code"
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
@@ -54,6 +55,7 @@ export interface ApiHandlerOptions {
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: BedrockModelId
+	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -223,6 +225,17 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
+
+// Claude Code
+export type ClaudeCodeModelId = keyof typeof claudeCodeModels
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
+export const claudeCodeModels = {
+	"claude-sonnet-4-20250514": anthropicModels["claude-sonnet-4-20250514"],
+	"claude-opus-4-20250514": anthropicModels["claude-opus-4-20250514"],
+	"claude-3-7-sonnet-20250219": anthropicModels["claude-3-7-sonnet-20250219"],
+	"claude-3-5-sonnet-20241022": anthropicModels["claude-3-5-sonnet-20241022"],
+	"claude-3-5-haiku-20241022": anthropicModels["claude-3-5-haiku-20241022"],
+} as const satisfies Record<string, ModelInfo>
 
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html

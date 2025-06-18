@@ -19,14 +19,34 @@ new content
 			isFinal: true,
 		},
 		{
-			name: "full file replacement",
-			original: "old content",
-			diff: `------- SEARCH
+			name: "malformed search - mixed symbols",
+			original: "line1\nline2\nline3",
+			diff: `<<-- SEARCH
+line2
 =======
-new content
+replaced
 +++++++ REPLACE`,
-			expected: "new content\n",
-			isFinal: true,
+			shouldThrow: true,
+		},
+		{
+			name: "malformed search - insufficient dashes",
+			original: "line1\nline2\nline3",
+			diff: `-- SEARCH
+line2
+=======
+replaced
++++++++ REPLACE`,
+			shouldThrow: true,
+		},
+		{
+			name: "malformed search - missing space",
+			original: "line1\nline2\nline3",
+			diff: `-------SEARCH
+line2
+=======
+replaced
++++++++ REPLACE`,
+			shouldThrow: true,
 		},
 		{
 			name: "exact match replacement",
@@ -139,17 +159,33 @@ replaced
 	]
 	//.filter(({name}) => name === "multiple ordered replacements")
 	//.filter(({name}) => name === "delete then replace")
-	testCases.forEach(({ name, original, diff, expected, isFinal }) => {
+	testCases.forEach(({ name, original, diff, expected, isFinal, shouldThrow }) => {
 		it(`should handle ${name} case correctly`, async () => {
-			const result1 = await cnfc(diff, original, isFinal)
-			const result2 = await cnfc2(diff, original, isFinal)
-			const equal = result1 === result2
-			const equal2 = result1 === expected
-			// Verify both implementations produce same result
-			expect(result1).to.equal(result2)
+			if (shouldThrow) {
+				try {
+					await cnfc(diff, original, isFinal ?? true)
+					expect.fail("Expected an error to be thrown")
+				} catch (err) {
+					expect(err).to.be.an("error")
+				}
 
-			// Verify result matches expected
-			expect(result1).to.equal(expected)
+				try {
+					await cnfc2(diff, original, isFinal ?? true)
+					expect.fail("Expected an error to be thrown")
+				} catch (err) {
+					expect(err).to.be.an("error")
+				}
+			} else {
+				const result1 = await cnfc(diff, original, isFinal ?? true)
+				const result2 = await cnfc2(diff, original, isFinal ?? true)
+				const equal = result1 === result2
+				const equal2 = result1 === expected
+				// Verify both implementations produce same result
+				expect(result1).to.equal(result2)
+
+				// Verify result matches expected
+				expect(result1).to.equal(expected)
+			}
 		})
 	})
 
