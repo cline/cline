@@ -1,6 +1,7 @@
 import { Controller } from ".."
 import { StringRequest } from "../../../shared/proto/common"
 import { TaskResponse } from "../../../shared/proto/task"
+import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Shows a task with the specified ID
@@ -22,13 +23,10 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Send UI update to show the chat view
-			await controller.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
+			await sendChatButtonClickedEvent(controller.id)
 
 			// Return task data for gRPC response
-			return {
+			return TaskResponse.create({
 				id: historyItem.id,
 				task: historyItem.task || "",
 				ts: historyItem.ts || 0,
@@ -39,7 +37,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 				tokensOut: historyItem.tokensOut || 0,
 				cacheWrites: historyItem.cacheWrites || 0,
 				cacheReads: historyItem.cacheReads || 0,
-			}
+			})
 		}
 
 		// If not in global state, fetch from storage
@@ -49,12 +47,9 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		await controller.initTask(undefined, undefined, undefined, fetchedItem)
 
 		// Send UI update to show the chat view
-		await controller.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
+		await sendChatButtonClickedEvent(controller.id)
 
-		return {
+		return TaskResponse.create({
 			id: fetchedItem.id,
 			task: fetchedItem.task || "",
 			ts: fetchedItem.ts || 0,
@@ -65,7 +60,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			tokensOut: fetchedItem.tokensOut || 0,
 			cacheWrites: fetchedItem.cacheWrites || 0,
 			cacheReads: fetchedItem.cacheReads || 0,
-		}
+		})
 	} catch (error) {
 		console.error("Error in showTaskWithId:", error)
 		throw error

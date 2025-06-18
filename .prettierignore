@@ -5,4 +5,3 @@ webview-ui/build/
 package-lock.json
 src/core/prompts/system.ts
 src/core/prompts/model_prompts/claude4.ts
-src/core/prompts/model_prompts/jsonToolToXml.ts

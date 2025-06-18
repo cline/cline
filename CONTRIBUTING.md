@@ -18,6 +18,18 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
 
+## Before Contributing
+
+All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
+
+- **Check existing issues**: Search [GitHub Issues](https://github.com/cline/cline/issues).
+- **Create an issue**: Use appropriate templates:
+    - **Bugs:** "Bug Report" template.
+    - **Features:** "Detailed Feature Proposal" template. Approval from a core Cline contributor required before starting.
+- **Claim issues**: Comment your interest.
+
+**PRs without approved issues may be closed.**
+
 ## Development Setup
 
 1. **VS Code Extensions**
@@ -34,18 +46,20 @@ If you're planning to work on a bigger feature, please create a [feature request
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
 
-    - `libatk1.0-0`
+    - `dbus`
+    - `libasound2`
     - `libatk-bridge2.0-0`
-    - `libxkbfile1`
+    - `libatk1.0-0`
+    - `libdrm2`
+    - `libgbm1`
+    - `libgtk-3-0`
+    - `libnss3`
     - `libx11-xcb1`
     - `libxcomposite1`
     - `libxdamage1`
     - `libxfixes3`
+    - `libxkbfile1`
     - `libxrandr2`
-    - `libgbm1`
-    - `libdrm2`
-    - `libgtk-3-0`
-    - `dbus`
     - `xvfb`
 
     These libraries provide necessary GUI components and system services for the test environment.
@@ -54,9 +68,21 @@ If you're planning to work on a bigger feature, please create a [feature request
     ```bash
     sudo apt update
     sudo apt install -y \
-      libatk1.0-0 libatk-bridge2.0-0 libxkbfile1 libx11-xcb1 \
-      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
-      libdrm2 libgtk-3-0 dbus xvfb
+      dbus \
+      libasound2 \
+      libatk-bridge2.0-0 \
+      libatk1.0-0 \
+      libdrm2 \
+      libgbm1 \
+      libgtk-3-0 \
+      libnss3 \
+      libx11-xcb1 \
+      libxcomposite1 \
+      libxdamage1 \
+      libxfixes3 \
+      libxkbfile1 \
+      libxrandr2 \
+      xvfb
     ```
 
     - Run `npm run test:ci` to run tests locally

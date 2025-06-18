@@ -1,9 +1,9 @@
-import React from "react"
-import { vscode } from "@/utils/vscode"
-import { WebServiceClient } from "@/services/grpc-client"
-import DOMPurify from "dompurify"
-import { getSafeHostname, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import { WebServiceClient } from "@/services/grpc-client"
+import { StringRequest } from "@shared/proto/common"
+import DOMPurify from "dompurify"
+import React from "react"
+import { checkIfImageUrl, formatUrlForOpening, getSafeHostname } from "./utils/mcpRichUtil"
 
 interface ImagePreviewProps {
 	url: string
@@ -235,9 +235,11 @@ class ImagePreview extends React.Component<
 					}}
 					onClick={async () => {
 						try {
-							await WebServiceClient.openInBrowser({
-								value: DOMPurify.sanitize(url),
-							})
+							await WebServiceClient.openInBrowser(
+								StringRequest.create({
+									value: DOMPurify.sanitize(url),
+								}),
+							)
 						} catch (err) {
 							console.error("Error opening URL in browser:", err)
 						}
@@ -262,9 +264,11 @@ class ImagePreview extends React.Component<
 				}}
 				onClick={async () => {
 					try {
-						await WebServiceClient.openInBrowser({
-							value: DOMPurify.sanitize(formatUrlForOpening(url)),
-						})
+						await WebServiceClient.openInBrowser(
+							StringRequest.create({
+								value: DOMPurify.sanitize(formatUrlForOpening(url)),
+							}),
+						)
 					} catch (err) {
 						console.error("Error opening URL in browser:", err)
 					}

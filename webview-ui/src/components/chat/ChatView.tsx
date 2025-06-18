@@ -26,7 +26,7 @@ import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
-import TaskHeader from "@/components/chat/TaskHeader"
+import TaskHeader from "@/components/chat/task-header/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
 import remarkStringify from "remark-stringify"
@@ -35,6 +35,8 @@ import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
+import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -93,7 +95,14 @@ export const MAX_IMAGES_AND_FILES_PER_MESSAGE = 20
 const QUICK_WINS_HISTORY_THRESHOLD = 300
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+		telemetrySetting,
+		navigateToChat,
+	} = useExtensionState()
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -123,8 +132,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [selectedFiles, setSelectedFiles] = useState<string[]>([])
 
-	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
-	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
@@ -136,6 +143,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
+
+	// UI layout depends on the last 2 messages
+	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
+	const lastMessage = useMemo(() => messages.at(-1), [messages])
+	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+
+	// Derive clineAsk directly from lastMessage to avoid race conditions
+	const clineAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -206,7 +221,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 					if (textToCopy !== null) {
 						try {
-							FileServiceClient.copyToClipboard({ value: textToCopy }).catch((err) => {
+							FileServiceClient.copyToClipboard(StringRequest.create({ value: textToCopy })).catch((err) => {
 								console.error("Error copying to clipboard:", err)
 							})
 							e.preventDefault()
@@ -223,11 +238,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			document.removeEventListener("copy", handleCopy)
 		}
 	}, [])
-
-	// UI layout depends on the last 2 messages
-	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
-	const lastMessage = useMemo(() => messages.at(-1), [messages])
-	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
 	useDeepCompareEffect(() => {
 		// if last message is an ask, show user ask UI
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
@@ -239,42 +249,36 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					switch (lastMessage.ask) {
 						case "api_req_failed":
 							setSendingDisabled(true)
-							setClineAsk("api_req_failed")
 							setEnableButtons(true)
 							setPrimaryButtonText("Retry")
 							setSecondaryButtonText("Start New Task")
 							break
 						case "mistake_limit_reached":
 							setSendingDisabled(false)
-							setClineAsk("mistake_limit_reached")
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed Anyways")
 							setSecondaryButtonText("Start New Task")
 							break
 						case "auto_approval_max_req_reached":
 							setSendingDisabled(true)
-							setClineAsk("auto_approval_max_req_reached")
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed")
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
 							setSendingDisabled(isPartial)
-							setClineAsk("followup")
 							setEnableButtons(false)
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
 						case "plan_mode_respond":
 							setSendingDisabled(isPartial)
-							setClineAsk("plan_mode_respond")
 							setEnableButtons(false)
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
 							setSendingDisabled(isPartial)
-							setClineAsk("tool")
 							setEnableButtons(!isPartial)
 							const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
 							switch (tool.tool) {
@@ -291,28 +295,24 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "browser_action_launch":
 							setSendingDisabled(isPartial)
-							setClineAsk("browser_action_launch")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Approve")
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
 							setSendingDisabled(isPartial)
-							setClineAsk("command")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Run Command")
 							setSecondaryButtonText("Reject")
 							break
 						case "command_output":
 							setSendingDisabled(false)
-							setClineAsk("command_output")
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed While Running")
 							setSecondaryButtonText(undefined)
 							break
 						case "use_mcp_server":
 							setSendingDisabled(isPartial)
-							setClineAsk("use_mcp_server")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Approve")
 							setSecondaryButtonText("Reject")
@@ -320,14 +320,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
 							setSendingDisabled(isPartial)
-							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
 							setSendingDisabled(false)
-							setClineAsk("resume_task")
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
 							setSecondaryButtonText(undefined)
@@ -335,7 +333,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "resume_completed_task":
 							setSendingDisabled(false)
-							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
@@ -343,21 +340,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "new_task":
 							setSendingDisabled(isPartial)
-							setClineAsk("new_task")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Start New Task with Context")
 							setSecondaryButtonText(undefined)
 							break
 						case "condense":
 							setSendingDisabled(isPartial)
-							setClineAsk("condense")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Condense Conversation")
 							setSecondaryButtonText(undefined)
 							break
 						case "report_bug":
 							setSendingDisabled(isPartial)
-							setClineAsk("report_bug")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Report GitHub issue")
 							setSecondaryButtonText(undefined)
@@ -374,7 +368,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setSendingDisabled(true)
 								setSelectedImages([])
 								setSelectedFiles([])
-								setClineAsk(undefined)
 								setEnableButtons(false)
 							}
 							break
@@ -410,7 +403,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEffect(() => {
 		if (messages.length === 0) {
 			setSendingDisabled(false)
-			setClineAsk(undefined)
 			setEnableButtons(false)
 			setPrimaryButtonText("Approve")
 			setSecondaryButtonText("Reject")
@@ -461,7 +453,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text: messageToSend, images, files })
+					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -478,12 +470,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "new_task": // user can provide feedback or reject the new task suggestion
 						case "condense":
 						case "report_bug":
-							await TaskServiceClient.askResponse({
-								responseType: "messageResponse",
-								text: messageToSend,
-								images,
-								files,
-							})
+							await TaskServiceClient.askResponse(
+								AskResponseRequest.create({
+									responseType: "messageResponse",
+									text: messageToSend,
+									images,
+									files,
+								}),
+							)
 							break
 						// there is no other case that a textfield should be enabled
 					}
@@ -493,7 +487,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setSendingDisabled(true)
 				setSelectedImages([])
 				setSelectedFiles([])
-				setClineAsk(undefined)
 				setEnableButtons(false)
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
@@ -505,7 +498,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const startNewTask = useCallback(async () => {
 		setActiveQuote(null) // Clear the active quote state
-		await TaskServiceClient.clearTask({})
+		await TaskServiceClient.clearTask(EmptyRequest.create({}))
 	}, [])
 
 	/*
@@ -525,16 +518,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse({
-							responseType: "yesButtonClicked",
-							text: trimmedInput,
-							images: images,
-							files: files,
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
-						await TaskServiceClient.askResponse({
-							responseType: "yesButtonClicked",
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
 					}
 					// Clear input state after sending
 					setInputValue("")
@@ -549,21 +546,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "new_task":
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
-					await TaskServiceClient.newTask({
-						text: lastMessage?.text,
-						images: [],
-						files: [],
-					})
+					await TaskServiceClient.newTask(
+						NewTaskRequest.create({
+							text: lastMessage?.text,
+							images: [],
+							files: [],
+						}),
+					)
 					break
 				case "condense":
-					await SlashServiceClient.condense({ value: lastMessage?.text }).catch((err) => console.error(err))
+					await SlashServiceClient.condense(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
+						console.error(err),
+					)
 					break
 				case "report_bug":
-					await SlashServiceClient.reportBug({ value: lastMessage?.text }).catch((err) => console.error(err))
+					await SlashServiceClient.reportBug(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
+						console.error(err),
+					)
 					break
 			}
 			setSendingDisabled(true)
-			setClineAsk(undefined)
 			setEnableButtons(false)
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
@@ -576,7 +578,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		async (text?: string, images?: string[], files?: string[]) => {
 			const trimmedInput = text?.trim()
 			if (isStreaming) {
-				await TaskServiceClient.cancelTask({})
+				await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 				setDidClickCancel(true)
 				return
 			}
@@ -592,17 +594,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "browser_action_launch":
 				case "use_mcp_server":
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse({
-							responseType: "noButtonClicked",
-							text: trimmedInput,
-							images: images,
-							files: files,
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "noButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
 						// responds to the API with a "This operation failed" and lets it try again
-						await TaskServiceClient.askResponse({
-							responseType: "noButtonClicked",
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "noButtonClicked",
+							}),
+						)
 					}
 					// Clear input state after sending
 					setInputValue("")
@@ -612,7 +618,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 			}
 			setSendingDisabled(true)
-			setClineAsk(undefined)
 			setEnableButtons(false)
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
@@ -635,9 +640,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
-			const response = await FileServiceClient.selectFiles({
-				value: selectedModelInfo.supportsImages,
-			})
+			const response = await FileServiceClient.selectFiles(
+				BooleanRequest.create({
+					value: selectedModelInfo.supportsImages,
+				}),
+			)
 			if (
 				response &&
 				response.values1 &&
@@ -679,12 +686,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								textAreaRef.current?.focus()
 							}
 							break
-						case "focusChatInput":
-							textAreaRef.current?.focus()
-							if (isHidden) {
-								window.dispatchEvent(new CustomEvent("chatButtonClicked"))
-							}
-							break
 					}
 					break
 			}
@@ -695,36 +696,49 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	useEvent("message", handleMessage)
 
+	// Listen for local focusChatInput event
+	useEffect(() => {
+		const handleFocusChatInput = () => {
+			if (isHidden) {
+				navigateToChat()
+			}
+			textAreaRef.current?.focus()
+		}
+
+		window.addEventListener("focusChatInput", handleFocusChatInput)
+
+		return () => {
+			window.removeEventListener("focusChatInput", handleFocusChatInput)
+		}
+	}, [isHidden])
+
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(
-			{},
-			{
-				onResponse: (event) => {
-					if (event.value) {
-						setInputValue((prevValue) => {
-							const newText = event.value
-							const newTextWithNewline = newText + "\n"
-							return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
-						})
-						// Add scroll to bottom after state update
-						// Auto focus the input and start the cursor on a new line for easy typing
-						setTimeout(() => {
-							if (textAreaRef.current) {
-								textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
-								textAreaRef.current.focus()
-							}
-						}, 0)
-					}
-				},
-				onError: (error) => {
-					console.error("Error in addToInput subscription:", error)
-				},
-				onComplete: () => {
-					console.log("addToInput subscription completed")
-				},
+		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+			onResponse: (event) => {
+				if (event.value) {
+					setInputValue((prevValue) => {
+						const newText = event.value
+						const newTextWithNewline = newText + "\n"
+						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
+					})
+					// Add scroll to bottom after state update
+					// Auto focus the input and start the cursor on a new line for easy typing
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
+						}
+					}, 0)
+				}
 			},
-		)
+			onError: (error) => {
+				console.error("Error in addToInput subscription:", error)
+			},
+			onComplete: () => {
+				console.log("addToInput subscription completed")
+			},
+		})
 
 		return cleanup
 	}, [])
@@ -1272,6 +1286,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
+				isTaskView={!!task}
 			/>
 		</div>
 	)
