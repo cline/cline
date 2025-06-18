@@ -305,7 +305,7 @@ export function registerAllMethods(): void {
 
 		// Write the methods.ts file
 		const registryFile = path.join(serviceDir, "methods.ts")
-		writeFileWithMkdirs(registryFile, methodsContent)
+		await writeFileWithMkdirs(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
