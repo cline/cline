@@ -77,9 +77,6 @@ export interface WebviewMessage {
 	childTaskId?: string
 	childTaskPrompt?: string
 	executeImmediately?: boolean
-	childId?: string
-	resultSummary?: string
-	failureReason?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
