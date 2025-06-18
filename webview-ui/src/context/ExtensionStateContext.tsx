@@ -279,6 +279,10 @@ export const ExtensionStateContextProvider: React.FC<{
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						console.log("[DEBUG] parsed state JSON, updating state")
+						console.log("[DEBUG] Incoming state chatSettings:", {
+							chatSettings: stateData.chatSettings,
+							voiceRecordingEnabled: stateData.chatSettings?.voiceRecordingEnabled,
+						})
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -770,7 +774,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setAvailableTerminalProfiles,
 		setShowMcp,
 		closeMcpView,
-		setChatSettings: async (value) => {
+		setChatSettings: (value) => {
 			// Merge the new value with existing chatSettings to preserve fields
 			const mergedChatSettings = {
 				...state.chatSettings,
@@ -780,32 +784,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				chatSettings: mergedChatSettings,
 			}))
-			try {
-				// Import the conversion functions
-				const { convertApiConfigurationToProtoApiConfiguration } = await import(
-					"@shared/proto-conversions/state/settings-conversion"
-				)
-				const { convertChatSettingsToProtoChatSettings } = await import(
-					"@shared/proto-conversions/state/chat-settings-conversion"
-				)
-
-				await StateServiceClient.updateSettings(
-					UpdateSettingsRequest.create({
-						chatSettings: convertChatSettingsToProtoChatSettings(mergedChatSettings),
-						apiConfiguration: state.apiConfiguration
-							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
-							: undefined,
-						telemetrySetting: state.telemetrySetting,
-						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-						enableCheckpointsSetting: state.enableCheckpointsSetting,
-						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-						mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
-						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-					}),
-				)
-			} catch (error) {
-				console.error("Failed to update chat settings:", error)
-			}
+			// Note: We're not calling the backend anymore to avoid the state being overwritten
+			// This makes it work exactly like setMcpRichDisplayEnabled
 		},
 		setGlobalClineRulesToggles: (toggles) =>
 			setState((prevState) => ({

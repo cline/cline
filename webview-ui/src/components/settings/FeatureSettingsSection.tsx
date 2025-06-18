@@ -74,7 +74,7 @@ const FeatureSettingsSection = () => {
 			</div>
 			<div style={{ marginTop: 10 }}>
 				<VSCodeCheckbox
-					checked={chatSettings?.voiceRecordingEnabled !== false}
+					checked={chatSettings?.voiceRecordingEnabled === true}
 					onChange={(e: any) => {
 						const checked = e.target.checked === true
 						setChatSettings({

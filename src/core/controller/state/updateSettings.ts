@@ -14,6 +14,14 @@ import { TelemetrySetting } from "@/shared/TelemetrySetting"
  * @returns An empty response
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
+	console.log("[DEBUG BACKEND] updateSettings called with request:", {
+		hasChatSettings: !!request.chatSettings,
+		chatSettings: request.chatSettings ? convertProtoChatSettingsToChatSettings(request.chatSettings) : undefined,
+		voiceRecordingEnabled: request.chatSettings
+			? convertProtoChatSettingsToChatSettings(request.chatSettings).voiceRecordingEnabled
+			: undefined,
+	})
+
 	try {
 		// Update API configuration
 		if (request.apiConfiguration) {
@@ -58,7 +66,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update chat settings
 		if (request.chatSettings) {
 			const chatSettings = convertProtoChatSettingsToChatSettings(request.chatSettings)
-			await controller.context.globalState.update("chatSettings", chatSettings)
+			await controller.context.workspaceState.update("chatSettings", chatSettings)
 			if (controller.task) {
 				controller.task.chatSettings = chatSettings
 			}

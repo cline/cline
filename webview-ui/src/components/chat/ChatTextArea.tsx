@@ -1701,7 +1701,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
-							{chatSettings?.voiceRecordingEnabled !== false && (
+							{chatSettings?.voiceRecordingEnabled === true && (
 								<VoiceRecorder
 									onTranscription={(text) => {
 										// Remove any processing text first
