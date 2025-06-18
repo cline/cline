@@ -16,7 +16,7 @@ import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 
-const { IS_DEV } = process.env
+const IS_DEV = process.env.IS_DEV
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -286,7 +286,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={onClose}
+						style={{ marginLeft: 6, flexShrink: 0 }}
+						aria-label="Close task">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>

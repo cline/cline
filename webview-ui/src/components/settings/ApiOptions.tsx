@@ -10,6 +10,7 @@ import {
 	bedrockDefaultModelId,
 	bedrockModels,
 	cerebrasModels,
+	claudeCodeModels,
 	deepSeekModels,
 	doubaoModels,
 	geminiModels,
@@ -299,6 +300,7 @@ const ApiOptions = ({
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
 					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
@@ -412,6 +414,27 @@ const ApiOptions = ({
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
 						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "claude-code" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.claudeCodePath || ""}
+						style={{ width: "100%", marginTop: 3 }}
+						type="text"
+						onInput={handleInputChange("claudeCodePath")}
+						placeholder="Default: claude"
+					/>
+
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Path to the Claude Code CLI.
 					</p>
 				</div>
 			)}
@@ -2145,6 +2168,7 @@ const ApiOptions = ({
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}

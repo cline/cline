@@ -421,8 +421,8 @@ export class Controller {
 						await updateWorkspaceState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateWorkspaceState(this.context, "liteLlmModelId", newModelId)
+						await updateWorkspaceState(this.context, "liteLlmModelInfo", newModelInfo)
 						break
 					case "requesty":
 						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
@@ -1007,7 +1007,7 @@ export class Controller {
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.clineMessages || [],
+			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
