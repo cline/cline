@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+service VoiceService {
+  rpc StartRecording(StartRecordingRequest) returns (StartRecordingResponse);
+  rpc StopRecording(StopRecordingRequest) returns (StopRecordingResponse);
+  rpc GetRecordingStatus(GetRecordingStatusRequest) returns (GetRecordingStatusResponse);
+  rpc TranscribeAudio(TranscribeAudioRequest) returns (TranscribeAudioResponse);
+}
+
+message StartRecordingRequest {
+  // Empty for now, could add options later
+}
+
+message StartRecordingResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StopRecordingRequest {
+  // Empty for now
+}
+
+message StopRecordingResponse {
+  bool success = 1;
+  string audio_base64 = 2;
+  string error = 3;
+}
+
+message GetRecordingStatusRequest {
+  // Empty for now
+}
+
+message GetRecordingStatusResponse {
+  bool is_recording = 1;
+  double duration_seconds = 2;
+  string error = 3;
+}
+
+message TranscribeAudioRequest {
+  string audio_base64 = 1;
+  string language = 2; // optional language hint
+}
+
+message TranscribeAudioResponse {
+  string text = 1;
+  string error = 2;
+}

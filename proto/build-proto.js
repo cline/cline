@@ -46,6 +46,7 @@ const serviceNameMap = {
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
 	ui: "cline.UiService",
+	voice: "cline.VoiceService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
