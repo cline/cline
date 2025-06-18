@@ -6,8 +6,8 @@ import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCo
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
-import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 import { withRetry } from "../retry"
+import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
 // This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
@@ -235,18 +235,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 	private isClaudeModel(): boolean {
 		return this.client?.family?.startsWith("claude") || false
-	}
-
-	private getClaudeContextWindow(family: string): number {
-		const claudeLimits: Record<string, number> = {
-			"claude-3.5-sonnet": 90000, // min(90K, 90K+8K) = 90K
-			"claude-sonnet-4": 80000, // min(80K, 80K+16K) = 80K
-			"claude-opus-4": 80000, // min(80K, 80K+16K) = 80K
-			"claude-3.7-sonnet": 106384, // min(200K, 90K+16K) = 106K
-			"claude-3.7-sonnet-thought": 106384, // min(200K, 90K+16K) = 106K
-		}
-
-		return claudeLimits[family] || 80000 // Conservative fallback
 	}
 
 	private extractTextFromMessage(message: vscode.LanguageModelChatMessage): string {
@@ -607,21 +595,34 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 			const modelId = this.client.id || modelParts.join(SELECTOR_SEPARATOR)
 
-			// Special handling for Claude models
+			// Use centralized model definitions for Claude models
 			if (this.isClaudeModel()) {
-				const contextWindow = this.getClaudeContextWindow(this.client.family)
+				// Access centralized model definitions
+				const vscodeLmModels = require("@shared/api").vscodeLmModels
 
-				const modelInfo: ModelInfo = {
-					maxTokens: -1,
-					contextWindow: contextWindow,
-					supportsImages: true, // Claude models support images
-					supportsPromptCache: true,
-					inputPrice: 0,
-					outputPrice: 0,
-					description: `Claude via VSCode LM: ${this.client.family} (Context: ${contextWindow.toLocaleString()} tokens, Token counting optimized for Claude)`,
+				// Try to find the model in our centralized definitions
+				const modelDef = vscodeLmModels[this.client.family as keyof typeof vscodeLmModels]
+
+				if (modelDef) {
+					// Use the centralized definition
+					const modelInfo: ModelInfo = {
+						...modelDef,
+						description: `Claude via VSCode LM: ${this.client.family} (Context: ${modelDef.contextWindow?.toLocaleString()} tokens, Token counting optimized for Claude)`,
+					}
+					return { id: modelId, info: modelInfo }
+				} else {
+					// Fallback for unknown Claude models
+					const modelInfo: ModelInfo = {
+						maxTokens: 8192,
+						contextWindow: 80_000, // Conservative fallback
+						supportsImages: true,
+						supportsPromptCache: true,
+						inputPrice: 0,
+						outputPrice: 0,
+						description: `Claude via VSCode LM: ${this.client.family} (Context: 80,000 tokens, Token counting optimized for Claude)`,
+					}
+					return { id: modelId, info: modelInfo }
 				}
-
-				return { id: modelId, info: modelInfo }
 			}
 
 			// Build model info with conservative defaults for missing values

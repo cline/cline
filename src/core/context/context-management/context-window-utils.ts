@@ -1,6 +1,5 @@
 import { ApiHandler } from "@api/index"
 import { OpenAiHandler } from "@api/providers/openai"
-import { VsCodeLmHandler } from "@api/providers/vscode-lm"
 
 /**
  * Gets context window information for the given API handler
@@ -10,18 +9,6 @@ import { VsCodeLmHandler } from "@api/providers/vscode-lm"
  */
 export function getContextWindowInfo(api: ApiHandler) {
 	let contextWindow = api.getModel().info.contextWindow || 128_000
-
-	// Special handling for VSCode LM + Claude models
-	if (api instanceof VsCodeLmHandler) {
-		const model = api.getModel()
-		if (model.id.includes("claude") || model.info.description?.includes("Claude")) {
-			contextWindow = model.info.contextWindow || 80_000
-			return {
-				contextWindow,
-				maxAllowedSize: contextWindow - 30_000, // Conservative buffer for Claude via VSCode LM
-			}
-		}
-	}
 
 	// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
 
