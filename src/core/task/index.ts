@@ -1166,7 +1166,7 @@ export class Task {
 				const { text } = completionResult
 
 				this.status = "running"
-				childResumeText = `Task resuming. Child task ${this.activeChildTaskId} completed with result: ${text}.`
+				childResumeText = `Task resuming. Child task completed with result: ${text}.`
 				await this.say("child_task_completed", childResumeText)
 				this.activeChildTaskId = undefined
 				await saveClineMessagesAndUpdateHistory(
