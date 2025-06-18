@@ -1,33 +1,28 @@
 name: Detailed Feature Proposal
-description: Propose a specific, actionable feature or enhancement for implementation
+description: Report a specific problem that needs solving in Roo Code
 labels: ["proposal", "enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        **Thank you for proposing a feature for Roo Code!**
+        **Thank you for submitting a feature request for Roo Code!**
         
-        This template is for specific, actionable proposals following our [Issue-First Approach](https://github.com/RooCodeInc/Roo-Code/blob/main/CONTRIBUTING.md).
+        This template helps you describe problems that need solving. Focus on the problem - the Roo team will work to design solutions unless you want to contribute the implementation yourself.
         
-        **Quality over speed:** We prefer detailed, clear proposals over quick ones. Vague proposals often get closed or require multiple rounds of clarification, which wastes everyone's time.
+        **Quality over speed:** We prefer detailed, clear problem descriptions over quick ones. Vague requests often get closed or require multiple rounds of clarification, which wastes everyone's time.
         
         **Before submitting:**
         - Search existing [Issues](https://github.com/RooCodeInc/Roo-Code/issues) and [Discussions](https://github.com/RooCodeInc/Roo-Code/discussions) to avoid duplicates
-        - For general ideas, use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests) first, or use the #collaboration-board channel in our [Discord](https://discord.gg/roocode)
-        - Join [Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`) for guidance
-        
-        **Review process:** A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until approved and assigned.** We're a small team with limited resources, so every code addition needs careful consideration. We're always happy to receive clear, actionable proposals though!
+        - For general ideas, use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests) instead of this template.
 
   - type: markdown
     attributes:
       value: |
-        ## ❌ Common mistakes that lead to proposal rejection:
+        ## ❌ Common mistakes that lead to request rejection:
         - **Vague problem descriptions:** "UI is bad" -> Should be: "Submit button is invisible on dark theme"
-        - **Solution without context:** "Add feature X" -> Should explain the problem first, then the solution
         - **Missing user impact:** "This would be cool" -> Should explain who benefits and how
-        - **No acceptance criteria:** How do we know when it's done? What does success look like?
+        - **No specific context:** Describe exactly when and how the problem occurs
 
-        If you're unsure how a good proposal should look like, you can check out our [Roadmap](https://github.com/orgs/RooCodeInc/projects/1/views/1?query=sort%3Aupdated-desc+is%3Aopen&filterQuery=is%3Aissue%2Copen%2Cclosed+label%3A%22feature+request%22+status%3A%22Issue+%5BUnassigned%5D%22%2C%22Issue+%5BIn+Progress%5D%22) where we have a list of all open feature requests that are ready to be implemented or currently being worked on.
 
   - type: textarea
     id: problem-description
@@ -55,11 +50,68 @@ body:
     validations:
       required: true
 
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context (optional)
+      description: Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Request checklist
+      options:
+        - label: I've searched existing Issues and Discussions for duplicates
+          required: true
+        - label: This describes a specific problem with clear impact and context
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## 🛠️ **Optional: Contributing & Technical Analysis**
+        
+        **🎯 Just reporting a problem?** You can click "Submit new issue" right now! The sections below are only needed if you want to contribute a solution via pull request.
+        
+        **⚠️ Only continue if you want to:**
+        - Propose a specific solution design
+        - Implement the feature yourself via pull request
+        - Provide technical analysis to help with implementation
+        
+        **For contributors who continue:**
+        - A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until approved and assigned.** We're a small team with limited resources, so every code addition needs careful consideration. We're always happy to receive clear, actionable proposals though!
+        - Join [Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`) for guidance on implementation
+        - Check our [Roadmap](https://github.com/orgs/RooCodeInc/projects/1/views/1?query=sort%3Aupdated-desc+is%3Aopen&filterQuery=is%3Aissue%2Copen%2Cclosed+label%3A%22feature+request%22+status%3A%22Issue+%5BUnassigned%5D%22%2C%22Issue+%5BIn+Progress%5D%22) to see open feature requests ready to be implemented or currently being worked on
+
+  - type: checkboxes
+    id: willingness-to-contribute
+    attributes:
+      label: Interested in implementing this?
+      description: |
+        **Important:** If you check "Yes" below, the technical sections become REQUIRED.
+        We need detailed technical analysis from contributors to ensure quality implementation.
+      options:
+        - label: Yes, I'd like to help implement this feature
+          required: false
+
+  - type: checkboxes
+    id: implementation-approval
+    attributes:
+      label: Implementation requirements
+      options:
+        - label: I understand this needs approval before implementation begins
+          required: false
+
   - type: textarea
     id: proposed-solution
     attributes:
-      label: How should this be solved?
+      label: How should this be solved? (REQUIRED if contributing, optional otherwise)
       description: |
+        **If you want to implement this feature, this section is REQUIRED.**
+        
         **Describe your solution in detail.** Explain not just what to build, but how it should work.
         
         ✅ **Good examples:**
@@ -77,14 +129,14 @@ body:
         - How will users interact with it?
         - What will the new behaviour look like?
       placeholder: Describe the specific changes and how they will work. Include user interaction details if relevant.
-    validations:
-      required: true
 
   - type: textarea
     id: acceptance-criteria
     attributes:
-      label: How will we know it works? (Acceptance Criteria)
+      label: How will we know it works? (Acceptance Criteria - REQUIRED if contributing, optional otherwise)
       description: |
+        **If you want to implement this feature, this section is REQUIRED.**
+        
         **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
         
         **Format suggestion:**
@@ -108,42 +160,14 @@ body:
       placeholder: |
         Define specific, testable criteria. What should users be able to do? What should happen? What should NOT happen?
         Use the Given/When/Then format above or your own clear structure.
-    validations:
-      required: true
-
-  - type: textarea
-    id: estimated-effort
-    attributes:
-      label: Estimated effort and complexity
-      description: |
-        **Help us understand the scope.** This helps with planning and prioritisation.
-        
-        **Please include:**
-        - **Size estimate:** XS/Small/Medium/Large/XL (or hours/days if you prefer)
-        - **Reasoning:** What makes it this size? Which parts are complex?
-        - **Main challenges:** What's the trickiest bit to implement?
-        - **Dependencies:** Does this require other changes or external libraries?
-        
-        **Example:**
-        ```
-        Size: Large (2-3 weeks)
-        Reasoning: Touches task execution engine, UI components, and state management
-        Main challenges: Preventing memory leaks with parallel execution and managing shared resources
-        Dependencies: Might need to add a new dependency for the new feature
-        ```
-      placeholder: |
-        Size: [your estimate]
-        Reasoning: [why this size?]
-        Main challenges: [what's tricky?]
-        Dependencies: [what else is needed?]
-    validations:
-      required: true
 
   - type: textarea
     id: technical-considerations
     attributes:
-      label: Technical considerations (optional but helpful)
+      label: Technical considerations (REQUIRED if contributing, optional otherwise)
       description: |
+        **If you want to implement this feature, this section is REQUIRED.**
+        
         Share technical insights that could help planning:
         - Implementation approach or architecture changes
         - Performance implications
@@ -155,40 +179,13 @@ body:
   - type: textarea
     id: trade-offs-and-risks
     attributes:
-      label: Trade-offs and risks (optional)
+      label: Trade-offs and risks (REQUIRED if contributing, optional otherwise)
       description: |
+        **If you want to implement this feature, this section is REQUIRED.**
+        
         What could go wrong or what alternatives did you consider?
         - Alternative approaches and why you chose this one
         - Potential negative impacts (performance, UX, etc.)
         - Breaking changes or migration concerns
         - Edge cases that need careful handling
       placeholder: 'e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"'
-
-  - type: textarea
-    id: additional-context
-    attributes:
-      label: Additional context (optional)
-      description: Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.
-
-  - type: checkboxes
-    id: checklist
-    attributes:
-      label: Proposal checklist
-      options:
-        - label: I've searched existing Issues and Discussions for duplicates
-          required: true
-        - label: This is a specific, actionable proposal with clear problem and solution
-          required: true
-        - label: I've included concrete acceptance criteria
-          required: true
-        - label: I understand this needs approval before implementation begins
-          required: true
-
-  - type: checkboxes
-    id: willingness-to-contribute
-    attributes:
-      label: Interested in implementing this?
-      description: Optional - doesn't affect proposal consideration
-      options:
-        - label: Yes, I'd like to help implement this feature
-          required: false
