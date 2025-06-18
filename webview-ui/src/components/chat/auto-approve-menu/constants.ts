@@ -16,6 +16,13 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		icon: "codicon-checklist",
 	},
 	{
+		id: "usePromptRefinement",
+		label: "Use prompt refinement",
+		shortName: "Prompt Refinement",
+		description: "Allows Cline to refine and improve your prompts for better task understanding and execution.",
+		icon: "codicon-sparkle",
+	},
+	{
 		id: "readFiles",
 		label: "Read project files",
 		shortName: "Read",

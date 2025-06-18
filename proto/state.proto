@@ -80,6 +80,7 @@ message AutoApprovalSettingsRequest {
     bool execute_all_commands = 6;
     bool use_browser = 7;
     bool use_mcp = 8;
+    bool use_prompt_refinement = 9;
   }
   int32 version = 2;
   bool enabled = 3;
