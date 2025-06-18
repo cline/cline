@@ -83,7 +83,8 @@ export const IntentHistoryPanel: React.FC<IntentHistoryPanelProps> = ({
 				filtered.sort((a, b) => b.timestamp - a.timestamp)
 				break
 			case "status":
-				filtered.sort((a, b) => a.status.localeCompare(b.status))
+				const statusOrder = { declared: 1, approved: 2, executing: 3, completed: 4, reverted: 5, failed: 6 }
+				filtered.sort((a, b) => statusOrder[a.status] - statusOrder[b.status])
 				break
 			case "complexity":
 				const complexityOrder = { high: 3, medium: 2, low: 1 }
