@@ -1,6 +1,6 @@
 import { Channel, createChannel } from "nice-grpc"
-import { UriServiceClientImpl, WatchServiceClientImpl } from "@/generated/standalone/host-bridge-clients"
-import { UriServiceClientInterface, WatchServiceClientInterface } from "@/generated/hosts/host-bridge-client-types"
+import { UriServiceClientImpl, WatchServiceClientImpl } from "@generated/standalone/host-bridge-clients"
+import { UriServiceClientInterface, WatchServiceClientInterface } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-bridge-client"
 
 /**

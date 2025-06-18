@@ -7,12 +7,10 @@ import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
-import { addProtobusServices } from "@/generated/standalone/server-setup"
+import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { initializeHostBridgeClient, StreamingCallbacks, UriServiceClient, WatchServiceClient } from "@/hosts/host-bridge-client"
 import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
-import { StringRequest } from "@/shared/proto/common"
-import { SubscribeToFileRequest } from "@/shared/proto/index.host"
 
 async function main() {
 	log("Starting service...")

@@ -1,4 +1,4 @@
-import { UriServiceClientInterface, WatchServiceClientInterface } from "@/generated/hosts/host-bridge-client-types"
+import { UriServiceClientInterface, WatchServiceClientInterface } from "@generated/hosts/host-bridge-client-types"
 
 /**
  * Callback interface for streaming requests
