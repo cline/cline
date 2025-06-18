@@ -217,7 +217,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		return currentTaskItem?.parentId !== undefined && currentTaskItem?.parentId !== ""
 	}, [currentTaskItem?.parentId])
 	const navigateToTask = (taskId: string) => {
-		TaskServiceClient.showTaskWithId({ value: taskId })
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: taskId}))
 	}
 
 	return (
