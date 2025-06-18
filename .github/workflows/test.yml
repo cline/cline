@@ -33,6 +33,11 @@ jobs:
               with:
                   node-version: 22
 
+            - name: Set up NPM on Windows
+              if: runner.os == 'Windows'
+              run: |
+                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+
             # Setup Python for coverage script
             - name: Setup Python
               uses: actions/setup-python@v4
@@ -73,11 +78,6 @@ jobs:
               run: |
                   npm install eslint-plugin-eslint-rules 
                   cd webview-ui/ && npm install eslint-plugin-eslint-rules
-
-            - name: Set up NPM on Windows
-              if: runner.os == 'Windows'
-              run: |
-                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
             - name: Type Check
               run: npm run check-types
