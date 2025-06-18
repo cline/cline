@@ -140,16 +140,9 @@ class TelemetryService {
 		} else {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
-				void vscode.window
-					.showWarningMessage(
-						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-						"Open Settings",
-					)
-					.then((selection) => {
-						if (selection === "Open Settings") {
-							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
-						}
-					})
+				void vscode.window.showWarningMessage(
+					"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+				)
 			}
 			this.telemetryEnabled = false
 		}

@@ -15,10 +15,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 	const { chatSettings } = useExtensionState()
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
+	const [error, setError] = useState<string | null>(null)
 
 	const startRecording = useCallback(async () => {
 		try {
 			setIsRecording(true)
+			setError(null) // Clear any previous errors
 			onProcessingStateChange?.(false) // Clear any previous processing state
 
 			// Call Extension Host to start recording
@@ -27,6 +29,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
 				setIsRecording(false)
+				setError(response.error || "Failed to start recording")
+				onProcessingStateChange?.(true, response.error || "Failed to start recording")
 				return
 			}
 
@@ -34,6 +38,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 		} catch (error) {
 			console.error("Error starting recording:", error)
 			setIsRecording(false)
+			const errorMessage = error instanceof Error ? error.message : "Failed to start recording"
+			setError(errorMessage)
+			onProcessingStateChange?.(true, errorMessage)
 		}
 	}, [onProcessingStateChange])
 
@@ -49,14 +56,18 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
 				setIsProcessing(false)
-				onProcessingStateChange?.(false)
+				const errorMessage = response.error || "Failed to stop recording"
+				setError(errorMessage)
+				onProcessingStateChange?.(true, errorMessage)
 				return
 			}
 
 			if (!response.audioBase64) {
 				console.error("No audio data received")
 				setIsProcessing(false)
-				onProcessingStateChange?.(false)
+				const errorMessage = "No audio data received"
+				setError(errorMessage)
+				onProcessingStateChange?.(true, errorMessage)
 				return
 			}
 
@@ -73,14 +84,26 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 
 			if (transcriptionResponse.error) {
 				console.error("Transcription error:", transcriptionResponse.error)
+				setError(transcriptionResponse.error)
+				// Show the error message in the UI
+				onProcessingStateChange?.(true, transcriptionResponse.error)
+				// Clear the error after a delay
+				setTimeout(() => {
+					setError(null)
+					onProcessingStateChange?.(false)
+				}, 5000)
 			} else if (transcriptionResponse.text) {
+				setError(null)
 				onTranscription(transcriptionResponse.text)
+				onProcessingStateChange?.(false)
 			}
 		} catch (error) {
 			console.error("Error stopping recording:", error)
+			const errorMessage = error instanceof Error ? error.message : "An error occurred"
+			setError(errorMessage)
+			onProcessingStateChange?.(true, errorMessage)
 		} finally {
 			setIsProcessing(false)
-			onProcessingStateChange?.(false)
 		}
 	}, [onTranscription, onProcessingStateChange])
 
