@@ -217,7 +217,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		return currentTaskItem?.parentId !== undefined && currentTaskItem?.parentId !== ""
 	}, [currentTaskItem?.parentId])
 	const navigateToTask = (taskId: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: taskId}))
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: taskId }))
 	}
 
 	return (
@@ -341,17 +341,67 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								position: "relative",
 							}}>
 							<div
-								ref={textRef}
 								style={{
-									display: "-webkit-box",
-									WebkitLineClamp: isTextExpanded ? "unset" : 2,
-									WebkitBoxOrient: "vertical",
-									overflow: "hidden",
-									whiteSpace: "pre-wrap",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
+									position: "relative",
 								}}>
-								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
+								<div
+									ref={textRef}
+									style={{
+										display: "-webkit-box",
+										WebkitLineClamp: isTextExpanded ? "unset" : 2,
+										WebkitBoxOrient: "vertical",
+										overflow: "hidden",
+										whiteSpace: "pre-wrap",
+										wordBreak: "break-word",
+										overflowWrap: "anywhere",
+									}}>
+									<span className="ph-no-capture">{highlightText(task.text, false)}</span>
+								</div>
+
+								{!isTextExpanded && showSeeMore && (
+									<div
+										style={{
+											position: "absolute",
+											right: 0,
+											bottom: 0,
+											display: "flex",
+											alignItems: "center",
+										}}>
+										<div
+											style={{
+												width: 30,
+												height: "1.2em",
+												background:
+													"linear-gradient(to right, transparent, var(--vscode-badge-background))",
+											}}
+										/>
+										<div
+											style={{
+												cursor: "pointer",
+												color: "var(--vscode-textLink-foreground)",
+												paddingRight: 0,
+												paddingLeft: 3,
+												backgroundColor: "var(--vscode-badge-background)",
+											}}
+											onClick={() => setIsTextExpanded(!isTextExpanded)}>
+											See more
+										</div>
+									</div>
+								)}
+
+								{isTextExpanded && showSeeMore && (
+									<div
+										style={{
+											cursor: "pointer",
+											color: "var(--vscode-textLink-foreground)",
+											marginLeft: "auto",
+											textAlign: "right",
+											paddingRight: 2,
+										}}
+										onClick={() => setIsTextExpanded(!isTextExpanded)}>
+										See less
+									</div>
+								)}
 							</div>
 							{currentTaskItem && (
 								<TaskHierarchy
@@ -361,49 +411,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									isTaskExpanded={isTaskExpanded}
 								/>
 							)}
-							{!isTextExpanded && showSeeMore && (
-								<div
-									style={{
-										position: "absolute",
-										right: 0,
-										bottom: 0,
-										display: "flex",
-										alignItems: "center",
-									}}>
-									<div
-										style={{
-											width: 30,
-											height: "1.2em",
-											background: "linear-gradient(to right, transparent, var(--vscode-badge-background))",
-										}}
-									/>
-									<div
-										style={{
-											cursor: "pointer",
-											color: "var(--vscode-textLink-foreground)",
-											paddingRight: 0,
-											paddingLeft: 3,
-											backgroundColor: "var(--vscode-badge-background)",
-										}}
-										onClick={() => setIsTextExpanded(!isTextExpanded)}>
-										See more
-									</div>
-								</div>
-							)}
 						</div>
-						{isTextExpanded && showSeeMore && (
-							<div
-								style={{
-									cursor: "pointer",
-									color: "var(--vscode-textLink-foreground)",
-									marginLeft: "auto",
-									textAlign: "right",
-									paddingRight: 2,
-								}}
-								onClick={() => setIsTextExpanded(!isTextExpanded)}>
-								See less
-							</div>
-						)}
+
 						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
 							<Thumbnails images={task.images ?? []} files={task.files ?? []} />
 						)}
