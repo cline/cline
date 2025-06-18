@@ -591,7 +591,7 @@ export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {${
 };`
 
 	const filePath = path.join(ROOT_DIR, "src/hosts/vscode/host-grpc-service-config.ts")
-	writeFileWithMkdirs(filePath, content)
+	await writeFileWithMkdirs(filePath, content)
 	log_verbose(chalk.green(`Generated host service configuration at ${filePath}`))
 }
 
