@@ -173,11 +173,11 @@ export class AudioRecordingService {
 
 			case "win32":
 				// Check for SoX on Windows
-				const winPath = "C:\\Program Files (x86)\\sox\\sox.exe"
-				if (!fs.existsSync(winPath)) {
+				const soxPath = "C:\\Program Files (x86)\\sox\\sox.exe"
+				if (!fs.existsSync(soxPath)) {
 					return {
 						available: false,
-						error: "Audio recording requires SoX. Please download and install from: https://sourceforge.net/projects/sox/",
+						error: "Audio recording requires SoX. Please install it using: winget install ChrisBagwell.SoX",
 					}
 				}
 				return { available: true }

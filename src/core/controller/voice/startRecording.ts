@@ -39,12 +39,16 @@ export const startRecording: VoiceMethodHandler = async (
 							terminal.show()
 						}
 					})
-			} else if (result.error.includes("sourceforge.net")) {
-				vscode.window.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX").then((selection) => {
-					if (selection === "Download SoX") {
-						vscode.env.openExternal(vscode.Uri.parse("https://sourceforge.net/projects/sox/"))
-					}
-				})
+			} else if (result.error.includes("winget install")) {
+				vscode.window
+					.showErrorMessage("Voice recording requires SoX for Windows.", "Install with winget")
+					.then((selection) => {
+						if (selection === "Install with winget") {
+							const terminal = vscode.window.createTerminal("Cline: Install SoX")
+							terminal.sendText("winget install ChrisBagwell.SoX")
+							terminal.show()
+						}
+					})
 			} else {
 				vscode.window.showErrorMessage(`Voice recording failed: ${result.error}`)
 			}
