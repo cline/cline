@@ -6,9 +6,7 @@ import * as vscode from "vscode"
 export class VoiceTranscriptionService {
 	private client: OpenAI | null = null
 
-	constructor() {
-		// Client will be initialized when needed
-	}
+	constructor() {}
 
 	/**
 	 * Initialize the service with any available OpenAI API key from the extension's configuration
@@ -21,10 +19,7 @@ export class VoiceTranscriptionService {
 
 			const openAiNativeApiKey = await getSecret(context, "openAiNativeApiKey")
 
-			// Use whichever key is available
-			const apiKey = openAiNativeApiKey
-
-			if (!apiKey) {
+			if (!openAiNativeApiKey) {
 				return {
 					success: false,
 					error: "No OpenAI API key found. Please configure an OpenAI API key in settings to use voice transcription.",
@@ -79,8 +74,8 @@ export class VoiceTranscriptionService {
 			// IMPORTANT: Must use whisper-1 model for audio transcription
 			const response = await this.client.audio.transcriptions.create({
 				file: audioFile,
-				model: "whisper-1", // This is the ONLY model that supports audio transcription
-				language: language, // optional language hint
+				model: "whisper-1",
+				language: language,
 			})
 
 			Logger.info("Transcription successful")
@@ -112,5 +107,4 @@ export class VoiceTranscriptionService {
 	}
 }
 
-// Singleton instance
 export const voiceTranscriptionService = new VoiceTranscriptionService()

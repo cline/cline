@@ -10,9 +10,7 @@ export class AudioRecordingService {
 	private startTime: number = 0
 	private outputFile: string = ""
 
-	constructor() {
-		// Initialize service
-	}
+	constructor() {}
 
 	async startRecording(): Promise<{ success: boolean; error?: string }> {
 		try {
@@ -173,7 +171,7 @@ export class AudioRecordingService {
 				}
 				return "sox"
 			default:
-				return "rec" // Default fallback
+				return "rec"
 		}
 	}
 
@@ -203,5 +201,4 @@ export class AudioRecordingService {
 	}
 }
 
-// Singleton instance
 export const audioRecordingService = new AudioRecordingService()
