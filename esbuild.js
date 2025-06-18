@@ -125,9 +125,11 @@ const baseConfig = {
 	minify: production,
 	sourcemap: !production,
 	logLevel: "silent",
-	define: {
-		"process.env.IS_DEV": JSON.stringify(!production),
-	},
+	define: production
+		? {
+				"process.env.IS_DEV": JSON.stringify(!production),
+			}
+		: undefined,
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,

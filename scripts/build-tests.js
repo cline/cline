@@ -34,7 +34,6 @@ const srcConfig = {
 	format: "cjs",
 	platform: "node",
 	define: {
-		"process.env.IS_DEV": "true",
 		"process.env.IS_TEST": "true",
 	},
 	external: ["vscode"],
