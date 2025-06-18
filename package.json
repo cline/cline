@@ -48,7 +48,10 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"tar-fs": ">=2.1.3"
+			"tar-fs": ">=2.1.3",
+			"esbuild": ">=0.25.0",
+			"undici": ">=5.29.0",
+			"brace-expansion": ">=2.0.2"
 		}
 	}
 }
