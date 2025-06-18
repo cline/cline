@@ -16,7 +16,7 @@ import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 
-const { IS_DEV } = process.env
+const IS_DEV = process.env.IS_DEV
 
 interface TaskHeaderProps {
 	task: ClineMessage
