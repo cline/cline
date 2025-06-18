@@ -21,35 +21,30 @@ export const startRecording: VoiceMethodHandler = async (
 		if (!result.success && result.error) {
 			if (result.error.includes("brew install sox")) {
 				vscode.window
-					.showErrorMessage("Voice recording requires SoX. Please install it first.", "Install SoX")
+					.showErrorMessage("Voice recording requires SoX. Please install it first.", "Install with Homebrew")
 					.then((selection) => {
-						if (selection === "Install SoX") {
-							vscode.env.openExternal(vscode.Uri.parse("https://formulae.brew.sh/formula/sox"))
+						if (selection === "Install with Homebrew") {
+							const terminal = vscode.window.createTerminal("Cline: Install SoX")
+							terminal.sendText("brew install sox")
+							terminal.show()
 						}
 					})
 			} else if (result.error.includes("apt-get install")) {
-				vscode.window.showErrorMessage(
-					"Voice recording requires ALSA utilities. Please install: sudo apt-get install alsa-utils",
-				)
-			} else if (result.error) {
-				try {
-					const parsedErrorUrl = new URL(result.error)
-					const allowedHosts = ["sourceforge.net"]
-					if (allowedHosts.includes(parsedErrorUrl.host)) {
-						const url = "https://sourceforge.net/projects/sox/"
-						vscode.window
-							.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX")
-							.then((selection) => {
-								if (selection === "Download SoX") {
-									vscode.env.openExternal(vscode.Uri.parse(url))
-								}
-							})
-					} else {
-						vscode.window.showErrorMessage("Invalid URL host detected in error message.")
+				vscode.window
+					.showErrorMessage("Voice recording requires ALSA utilities.", "Install with apt-get")
+					.then((selection) => {
+						if (selection === "Install with apt-get") {
+							const terminal = vscode.window.createTerminal("Cline: Install ALSA")
+							terminal.sendText("sudo apt-get install -y alsa-utils")
+							terminal.show()
+						}
+					})
+			} else if (result.error.includes("sourceforge.net")) {
+				vscode.window.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX").then((selection) => {
+					if (selection === "Download SoX") {
+						vscode.env.openExternal(vscode.Uri.parse("https://sourceforge.net/projects/sox/"))
 					}
-				} catch (e) {
-					vscode.window.showErrorMessage("An error occurred while parsing the error URL.")
-				}
+				})
 			} else {
 				vscode.window.showErrorMessage(`Voice recording failed: ${result.error}`)
 			}

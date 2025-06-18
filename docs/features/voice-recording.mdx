@@ -40,9 +40,13 @@ You can configure an OpenAI key in any of these ways:
 
 ### Audio Recording Tools
 
--   **macOS**: Uses SoX (`rec` command) - install with `brew install sox`
--   **Linux**: Uses ALSA (`arecord` command) - usually pre-installed
--   **Windows**: Uses SoX - download from the official website
+Cline uses common system audio recording tools to capture your voice:
+
+-   **macOS**: SoX
+-   **Linux**: ALSA
+-   **Windows**: SoX
+
+If you don't have the required tools installed, Cline will automatically detect them and prompt you to install them with a single click.
 
 ## Technical Details
 
@@ -75,11 +79,7 @@ Make sure you have configured an OpenAI API key in Cline's settings. You don't n
 
 ### "Failed to start recording"
 
-Ensure you have the required audio recording tools installed:
-
--   macOS: `brew install sox`
--   Linux: `arecord` should be pre-installed
--   Windows: Download SoX from the official website
+If you see this error, it means that the audio recording tools are not installed on your system. Cline will prompt you to install them automatically. Follow the on-screen instructions to install the required tools.
 
 ### "Transcription failed"
 
