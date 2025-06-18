@@ -24,7 +24,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			onProcessingStateChange?.(false) // Clear any previous processing state
 
 			// Call Extension Host to start recording
-			const response = await (VoiceServiceClient as any).StartRecording(StartRecordingRequest.create({}))
+			const response = await (VoiceServiceClient as any).startRecording(StartRecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
@@ -51,7 +51,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			onProcessingStateChange?.(true, "Processing...")
 
 			// Call Extension Host to stop recording and get audio
-			const response = await (VoiceServiceClient as any).StopRecording(StopRecordingRequest.create({}))
+			const response = await (VoiceServiceClient as any).stopRecording(StopRecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
@@ -75,7 +75,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			onProcessingStateChange?.(true, "Transcribing...")
 
 			// Transcribe the audio using OpenAI Whisper
-			const transcriptionResponse = await (VoiceServiceClient as any).TranscribeAudio(
+			const transcriptionResponse = await (VoiceServiceClient as any).transcribeAudio(
 				TranscribeAudioRequest.create({
 					audioBase64: response.audioBase64,
 					language: "en",

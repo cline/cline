@@ -11,7 +11,7 @@ import * as vscode from "vscode"
  * @param request TranscribeAudioRequest containing base64 audio data
  * @returns TranscribeAudioResponse with transcribed text or error
  */
-export const TranscribeAudio: VoiceMethodHandler = async (
+export const transcribeAudio: VoiceMethodHandler = async (
 	controller: Controller,
 	request: TranscribeAudioRequest,
 ): Promise<TranscribeAudioResponse> => {

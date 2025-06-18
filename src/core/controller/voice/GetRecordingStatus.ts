@@ -9,7 +9,7 @@ import { VoiceMethodHandler } from "./index"
  * @param request GetRecordingStatusRequest
  * @returns GetRecordingStatusResponse with current status
  */
-export const GetRecordingStatus: VoiceMethodHandler = async (
+export const getRecordingStatus: VoiceMethodHandler = async (
 	controller: Controller,
 	request: GetRecordingStatusRequest,
 ): Promise<GetRecordingStatusResponse> => {

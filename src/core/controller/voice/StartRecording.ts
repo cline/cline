@@ -10,7 +10,7 @@ import * as vscode from "vscode"
  * @param request StartRecordingRequest
  * @returns StartRecordingResponse with success status
  */
-export const StartRecording: VoiceMethodHandler = async (
+export const startRecording: VoiceMethodHandler = async (
 	controller: Controller,
 	request: StartRecordingRequest,
 ): Promise<StartRecordingResponse> => {

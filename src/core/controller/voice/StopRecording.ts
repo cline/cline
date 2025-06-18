@@ -9,7 +9,7 @@ import { VoiceMethodHandler } from "./index"
  * @param request StopRecordingRequest
  * @returns StopRecordingResponse with audio data
  */
-export const StopRecording: VoiceMethodHandler = async (
+export const stopRecording: VoiceMethodHandler = async (
 	controller: Controller,
 	request: StopRecordingRequest,
 ): Promise<StopRecordingResponse> => {

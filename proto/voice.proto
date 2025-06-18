@@ -1,18 +1,21 @@
 syntax = "proto3";
 
+import "common.proto";
+
 package cline;
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
 service VoiceService {
-  rpc StartRecording(StartRecordingRequest) returns (StartRecordingResponse);
-  rpc StopRecording(StopRecordingRequest) returns (StopRecordingResponse);
-  rpc GetRecordingStatus(GetRecordingStatusRequest) returns (GetRecordingStatusResponse);
-  rpc TranscribeAudio(TranscribeAudioRequest) returns (TranscribeAudioResponse);
+  rpc startRecording(StartRecordingRequest) returns (StartRecordingResponse);
+  rpc stopRecording(StopRecordingRequest) returns (StopRecordingResponse);
+  rpc getRecordingStatus(GetRecordingStatusRequest) returns (GetRecordingStatusResponse);
+  rpc transcribeAudio(TranscribeAudioRequest) returns (TranscribeAudioResponse);
 }
 
 message StartRecordingRequest {
-  // Empty for now, could add options later
+  Metadata metadata = 1;
+  // Could add options later
 }
 
 message StartRecordingResponse {
@@ -21,7 +24,7 @@ message StartRecordingResponse {
 }
 
 message StopRecordingRequest {
-  // Empty for now
+  Metadata metadata = 1;
 }
 
 message StopRecordingResponse {
@@ -31,7 +34,7 @@ message StopRecordingResponse {
 }
 
 message GetRecordingStatusRequest {
-  // Empty for now
+  Metadata metadata = 1;
 }
 
 message GetRecordingStatusResponse {
@@ -41,8 +44,9 @@ message GetRecordingStatusResponse {
 }
 
 message TranscribeAudioRequest {
-  string audio_base64 = 1;
-  string language = 2; // optional language hint
+  Metadata metadata = 1;
+  string audio_base64 = 2;
+  string language = 3; // optional language hint
 }
 
 message TranscribeAudioResponse {
