@@ -675,6 +675,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
+	// Listen for local focusChatInput event
+	useEffect(() => {
+		const handleFocusChatInput = () => {
+			if (isHidden) {
+				navigateToChat()
+			}
+			textAreaRef.current?.focus()
+		}
+
+		window.addEventListener("focusChatInput", handleFocusChatInput)
+
+		return () => {
+			window.removeEventListener("focusChatInput", handleFocusChatInput)
+		}
+	}, [isHidden])
+
 	// Set up addToInput subscription
 	useEffect(() => {
 		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
