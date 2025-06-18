@@ -4000,7 +4000,7 @@ export class Task {
 								} else {
 									this.userMessageContent.push({
 										type: "text",
-										text: `User denied the operation to start the next child task.. Pending child tasks: ${this.pendingChildTasks.length}`,	
+										text: `User denied the operation to start the next child task. Pending child tasks: ${this.pendingChildTasks.length}`,	
 									})
 								}
 							}
