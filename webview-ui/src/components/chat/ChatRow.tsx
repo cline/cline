@@ -729,7 +729,6 @@ export const ChatRowContent = ({
 				)
 
 			case "viewPendingChildTasks":
-				console.log("viewPendingChildTasks tool content:", message)
 				return (
 					<>
 						<div style={headerStyle}>
