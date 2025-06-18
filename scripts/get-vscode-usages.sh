@@ -12,6 +12,7 @@ git grep -h 'vscode\.' $DIR |
 grep -Ev '//.*vscode' | # remove commented out code
 sed 's|.*vscode\.|vscode.|'| # remove everything before vscode.
 sed 's/[^a-zA-Z0-9_.].*$//' | # remove everything after last identifier
+grep -E '\.[a-z][^.]+$' | # remove types (last part of identifier should be lowercase)
 sort | uniq > $SDK_DEST
 }
 echo Wrote uses of the vscode SDK to $(realpath $SDK_DEST)
