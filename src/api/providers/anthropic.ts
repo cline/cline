@@ -17,6 +17,7 @@ import { getModelParams } from "../transform/model-params"
 
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import { calculateApiCostAnthropic } from "../../shared/cost"
 
 export class AnthropicHandler extends BaseProvider implements SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -132,19 +133,34 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			}
 		}
 
+		let inputTokens = 0
+		let outputTokens = 0
+		let cacheWriteTokens = 0
+		let cacheReadTokens = 0
+
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start": {
 					// Tells us cache reads/writes/input/output.
-					const usage = chunk.message.usage
+					const {
+						input_tokens = 0,
+						output_tokens = 0,
+						cache_creation_input_tokens,
+						cache_read_input_tokens,
+					} = chunk.message.usage
 
 					yield {
 						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: usage.cache_read_input_tokens || undefined,
+						inputTokens: input_tokens,
+						outputTokens: output_tokens,
+						cacheWriteTokens: cache_creation_input_tokens || undefined,
+						cacheReadTokens: cache_read_input_tokens || undefined,
 					}
+
+					inputTokens += input_tokens
+					outputTokens += output_tokens
+					cacheWriteTokens += cache_creation_input_tokens || 0
+					cacheReadTokens += cache_read_input_tokens || 0
 
 					break
 				}
@@ -196,6 +212,21 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 					break
 				case "content_block_stop":
 					break
+			}
+		}
+
+		if (inputTokens > 0 || outputTokens > 0 || cacheWriteTokens > 0 || cacheReadTokens > 0) {
+			yield {
+				type: "usage",
+				inputTokens: 0,
+				outputTokens: 0,
+				totalCost: calculateApiCostAnthropic(
+					this.getModel().info,
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+				),
 			}
 		}
 	}
