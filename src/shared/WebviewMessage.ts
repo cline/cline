@@ -1,10 +1,3 @@
-/*
- * @Description: 
- * @Author: 清园
- * @Date: 2025-06-16 14:20:56
- * @LastEditors: 清园
- * @LastEditTime: 2025-06-16 14:27:05
- */
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
