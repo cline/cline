@@ -1,5 +1,4 @@
 import * as fs from "fs"
-import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@hosts/host-bridge-client"

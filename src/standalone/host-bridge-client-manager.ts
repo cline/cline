@@ -1,53 +1,26 @@
-import { Channel, createChannel, createClient } from "nice-grpc"
-import * as host from "@generated/nice-grpc/index.host"
-import { UriServiceClientInterface, WatchServiceClientInterface } from "@/generated/hosts/host-bridge-client-types"
-import { FileChangeEvent } from "@/shared/proto/index.host"
+import { Channel, createChannel } from "nice-grpc"
+import { UriServiceClientImpl, WatchServiceClientImpl } from "@generated/standalone/host-bridge-clients"
+import { UriServiceClientInterface, WatchServiceClientInterface } from "@generated/hosts/host-bridge-client-types"
+import { HostBridgeClientProvider } from "@/hosts/host-bridge-client"
 
 /**
  * Singleton class to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
  * creating a new TCP connection every time a rpc is made.
  */
-class HostBridgeClientManager {
-	private static instance: HostBridgeClientManager | null
+export class ExternalHostBridgeClientManager implements HostBridgeClientProvider {
 	private channel: Channel
-	uriClient: host.UriServiceClient
-	//watchClient: host.WatchServiceClient
+	UriServiceClient: UriServiceClientInterface
+	WatchServiceClient: WatchServiceClientInterface
 
-	private constructor() {
+	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
 		this.channel = createChannel(address)
-		this.uriClient = createClient(host.UriServiceDefinition, this.channel)
-		//this.watchClient =
-	}
 
-	public static getInstance(): HostBridgeClientManager {
-		if (!HostBridgeClientManager.instance) {
-			HostBridgeClientManager.instance = new HostBridgeClientManager()
-		}
-		return HostBridgeClientManager.instance
+		this.UriServiceClient = new UriServiceClientImpl(this.channel)
+		this.WatchServiceClient = new WatchServiceClientImpl(this.channel)
 	}
 
 	public close(): void {
 		this.channel.close()
-		HostBridgeClientManager.instance = null
 	}
 }
-
-// TODO(sjf) Replace this with nice-grpc client.
-const StubWatchServiceClient = {
-	subscribeToFile: function (
-		_r: host.SubscribeToFileRequest,
-		_h: {
-			onResponse?: (response: FileChangeEvent) => void | Promise<void>
-			onError?: (error: any) => void
-			onComplete?: () => void
-		},
-	) {
-		throw Error("Unimplemented")
-	},
-}
-
-const clientManager = HostBridgeClientManager.getInstance()
-
-export const UriServiceClient: UriServiceClientInterface = clientManager.uriClient
-export const WatchServiceClient: WatchServiceClientInterface = StubWatchServiceClient
