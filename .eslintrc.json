@@ -5,7 +5,7 @@
 		"ecmaVersion": 6,
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint"],
+	"plugins": ["@typescript-eslint", "eslint-rules"],
 	"rules": {
 		"@typescript-eslint/naming-convention": [
 			"warn",
@@ -19,7 +19,9 @@
 		"eqeqeq": "warn",
 		"no-throw-literal": "warn",
 		"semi": "off",
-		"react-hooks/exhaustive-deps": "off"
+		"react-hooks/exhaustive-deps": "off",
+		"eslint-rules/no-protobuf-object-literals": "error",
+		"eslint-rules/no-grpc-client-object-literals": "error"
 	},
 	"ignorePatterns": ["out", "dist", "**/*.d.ts"]
 }

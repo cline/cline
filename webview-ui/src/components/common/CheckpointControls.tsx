@@ -1,12 +1,12 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useRef, useState } from "react"
-import { useClickAway, useEvent } from "react-use"
-import styled from "styled-components"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { CheckpointsServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
+import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
+import { Int64Request } from "@shared/proto/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useRef, useState } from "react"
+import { useClickAway } from "react-use"
+import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface CheckpointOverlayProps {
 	messageTs?: number
@@ -21,6 +21,7 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	const [hasMouseEntered, setHasMouseEntered] = useState(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const tooltipRef = useRef<HTMLDivElement>(null)
+	const { onRelinquishControl } = useExtensionState()
 
 	useClickAway(containerRef, () => {
 		if (showRestoreConfirm) {
@@ -29,29 +30,26 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 		}
 	})
 
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		switch (message.type) {
-			case "relinquishControl": {
-				setCompareDisabled(false)
-				setRestoreTaskDisabled(false)
-				setRestoreWorkspaceDisabled(false)
-				setRestoreBothDisabled(false)
-				setShowRestoreConfirm(false)
-				break
-			}
-		}
-	}, [])
-
-	useEvent("message", handleMessage)
+	// Use the onRelinquishControl hook instead of message event
+	useEffect(() => {
+		return onRelinquishControl(() => {
+			setCompareDisabled(false)
+			setRestoreTaskDisabled(false)
+			setRestoreWorkspaceDisabled(false)
+			setRestoreBothDisabled(false)
+			setShowRestoreConfirm(false)
+		})
+	}, [onRelinquishControl])
 
 	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
 		try {
-			await CheckpointsServiceClient.checkpointRestore({
-				number: messageTs,
-				restoreType: "task",
-			})
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "task",
+				}),
+			)
 		} catch (err) {
 			console.error("Checkpoint restore task error:", err)
 			setRestoreTaskDisabled(false)
@@ -61,10 +59,12 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
 		try {
-			await CheckpointsServiceClient.checkpointRestore({
-				number: messageTs,
-				restoreType: "workspace",
-			})
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "workspace",
+				}),
+			)
 		} catch (err) {
 			console.error("Checkpoint restore workspace error:", err)
 			setRestoreWorkspaceDisabled(false)
@@ -74,10 +74,12 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
 		try {
-			await CheckpointsServiceClient.checkpointRestore({
-				number: messageTs,
-				restoreType: "taskAndWorkspace",
-			})
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "taskAndWorkspace",
+				}),
+			)
 		} catch (err) {
 			console.error("Checkpoint restore both error:", err)
 			setRestoreBothDisabled(false)
@@ -126,9 +128,11 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 				onClick={async () => {
 					setCompareDisabled(true)
 					try {
-						await CheckpointsServiceClient.checkpointDiff({
-							value: messageTs,
-						})
+						await CheckpointsServiceClient.checkpointDiff(
+							Int64Request.create({
+								value: messageTs,
+							}),
+						)
 					} catch (err) {
 						console.error("CheckpointDiff error:", err)
 					} finally {

@@ -138,17 +138,20 @@ class TelemetryService {
 		if (globalTelemetryEnabled) {
 			this.telemetryEnabled = didUserOptIn
 		} else {
-			// Show warning to user that global telemetry is disabled
-			void vscode.window
-				.showWarningMessage(
-					"VSCode telemetry is disabled. To enable telemetry for this extension, first enable VSCode telemetry in settings.",
-					"Open Settings",
-				)
-				.then((selection) => {
-					if (selection === "Open Settings") {
-						void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
-					}
-				})
+			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
+			if (didUserOptIn) {
+				void vscode.window
+					.showWarningMessage(
+						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						"Open Settings",
+					)
+					.then((selection) => {
+						if (selection === "Open Settings") {
+							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+						}
+					})
+			}
+			this.telemetryEnabled = false
 		}
 
 		// Update PostHog client state based on telemetry preference
@@ -383,7 +386,14 @@ class TelemetryService {
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(taskId: string, tool: string, autoApproved: boolean, success: boolean, collect: boolean = false) {
+	public captureToolUsage(
+		taskId: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		collect: boolean = false,
+	) {
 		this.capture(
 			{
 				event: TelemetryService.EVENTS.TASK.TOOL_USED,
@@ -392,6 +402,7 @@ class TelemetryService {
 					tool,
 					autoApproved,
 					success,
+					modelId,
 				},
 			},
 			collect,
