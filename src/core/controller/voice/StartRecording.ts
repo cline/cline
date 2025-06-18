@@ -33,22 +33,22 @@ export const StartRecording: VoiceMethodHandler = async (
 				)
 			} else if (result.error) {
 				try {
-					const parsedErrorUrl = new URL(result.error);
-					const allowedHosts = ["sourceforge.net"];
+					const parsedErrorUrl = new URL(result.error)
+					const allowedHosts = ["sourceforge.net"]
 					if (allowedHosts.includes(parsedErrorUrl.host)) {
-						const url = "https://sourceforge.net/projects/sox/";
+						const url = "https://sourceforge.net/projects/sox/"
 						vscode.window
 							.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX")
 							.then((selection) => {
 								if (selection === "Download SoX") {
-									vscode.env.openExternal(vscode.Uri.parse(url));
+									vscode.env.openExternal(vscode.Uri.parse(url))
 								}
-							});
+							})
 					} else {
-						vscode.window.showErrorMessage("Invalid URL host detected in error message.");
+						vscode.window.showErrorMessage("Invalid URL host detected in error message.")
 					}
 				} catch (e) {
-					vscode.window.showErrorMessage("An error occurred while parsing the error URL.");
+					vscode.window.showErrorMessage("An error occurred while parsing the error URL.")
 				}
 			} else {
 				vscode.window.showErrorMessage(`Voice recording failed: ${result.error}`)
