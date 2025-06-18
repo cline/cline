@@ -62,6 +62,8 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
+		let partialMessage: string | null = null
+
 		while (exitCode !== 0 || dataQueue.length > 0) {
 			if (dataQueue.length === 0) {
 				await new Promise((resolve) => setImmediate(resolve))
@@ -78,15 +80,23 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
-			const chunk = this.attemptParseChunk(data)
+			let chunk: ClaudeCodeMessage | null = null
 
-			if (!chunk) {
-				yield {
-					type: "text",
-					text: data || "",
+			if (partialMessage !== null) {
+				partialMessage += data
+				chunk = this.attemptParseChunk(partialMessage)
+				if (chunk) {
+					partialMessage = null
+				} else {
+					continue
 				}
+			} else {
+				chunk = this.attemptParseChunk(data)
 
-				continue
+				if (!chunk) {
+					partialMessage = data
+					continue
+				}
 			}
 
 			if (chunk.type === "system" && chunk.subtype === "init") {
