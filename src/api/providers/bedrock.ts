@@ -133,11 +133,20 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		const customSelected = this.options.awsBedrockCustomSelected
 		const baseModel = this.options.awsBedrockCustomModelBaseId
-		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
-			// Use the user-input model ID but inherit capabilities from the base model
+
+		// Handle custom models
+		if (customSelected && modelId) {
+			// If base model is provided and valid, use its capabilities
+			if (baseModel && baseModel in bedrockModels) {
+				return {
+					id: modelId,
+					info: bedrockModels[baseModel],
+				}
+			}
+			// For custom models without valid base model in bedrock model list, use default model's capabilities
 			return {
 				id: modelId,
-				info: bedrockModels[baseModel],
+				info: bedrockModels[bedrockDefaultModelId],
 			}
 		}
 
@@ -214,12 +223,9 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
-	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
+	 * For custom models, returns the raw model ID without any encoding.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
-			return encodeURIComponent(this.getModel().id)
-		}
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
