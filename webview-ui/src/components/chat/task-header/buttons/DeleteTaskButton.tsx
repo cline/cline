@@ -11,6 +11,7 @@ const DeleteTaskButton: React.FC<{
 		<VSCodeButton
 			appearance="icon"
 			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
+			aria-label="Delete task"
 			style={{ padding: "0px 0px" }}>
 			<div
 				style={{
