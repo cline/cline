@@ -278,6 +278,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						console.log("[DEBUG] parsed state JSON, updating state")
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -327,7 +328,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
-
+							console.log("[DEBUG] returning new state in ESC")
 							return newState
 						})
 					} catch (error) {
