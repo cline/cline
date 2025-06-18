@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { TogglePlanActModeRequest, TogglePlanActModeResponse } from "../../../shared/proto/state"
+import { Boolean } from "../../../shared/proto/common"
+import { TogglePlanActModeRequest } from "../../../shared/proto/state"
 import {
 	convertProtoChatContentToChatContent,
 	convertProtoChatSettingsToChatSettings,
@@ -12,10 +12,7 @@ import {
  * @param request The request containing the chat settings and optional chat content
  * @returns An empty response
  */
-export async function togglePlanActMode(
-	controller: Controller,
-	request: TogglePlanActModeRequest,
-): Promise<TogglePlanActModeResponse> {
+export async function togglePlanActMode(controller: Controller, request: TogglePlanActModeRequest): Promise<Boolean> {
 	try {
 		if (!request.chatSettings) {
 			throw new Error("Chat settings are required")
@@ -27,8 +24,8 @@ export async function togglePlanActMode(
 		// Call the existing controller implementation
 		const sentMessage = await controller.togglePlanActModeWithChatSettings(chatSettings, chatContent)
 
-		return TogglePlanActModeResponse.create({
-			sentMessage: sentMessage,
+		return Boolean.create({
+			value: sentMessage,
 		})
 	} catch (error) {
 		console.error("Failed to toggle Plan/Act mode:", error)

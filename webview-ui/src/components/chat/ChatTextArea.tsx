@@ -1015,7 +1015,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
-					if (response.sentMessage) {
+					if (response.value) {
 						setInputValue("")
 					}
 					textAreaRef.current?.focus()
