@@ -259,4 +259,7 @@ service UiService {
   
   // Subscribe to focus chat input events with client ID
   rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
+  
+  // Subscribe to webview visibility change events
+  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
 }
