@@ -1,0 +1,23 @@
+{
+	"unknownError": "Unknown error",
+	"authenticationFailed": "Failed to create embeddings: Authentication failed. Please check your API key.",
+	"failedWithStatus": "Failed to create embeddings after {{attempts}} attempts: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Failed to create embeddings after {{attempts}} attempts: {{errorMessage}}",
+	"failedMaxAttempts": "Failed to create embeddings after {{attempts}} attempts",
+	"textExceedsTokenLimit": "Text at index {{index}} exceeds maximum token limit ({{itemTokens}} > {{maxTokens}}). Skipping.",
+	"rateLimitRetry": "Rate limit hit, retrying in {{delayMs}}ms (attempt {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Could not read error body",
+		"requestFailed": "Ollama API request failed with status {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Invalid response structure from Ollama API: \"embeddings\" array not found or not an array.",
+		"embeddingFailed": "Ollama embedding failed: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Unknown error processing file {{filePath}}",
+		"unknownErrorDeletingPoints": "Unknown error deleting points for {{filePath}}",
+		"failedToProcessBatchWithError": "Failed to process batch after {{maxRetries}} attempts: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Failed to connect to Qdrant vector database. Please ensure Qdrant is running and accessible at {{qdrantUrl}}. Error: {{errorMessage}}"
+	}
+}

@@ -1,0 +1,23 @@
+{
+	"unknownError": "Onbekende fout",
+	"authenticationFailed": "Insluitingen maken mislukt: Authenticatie mislukt. Controleer je API-sleutel.",
+	"failedWithStatus": "Insluitingen maken mislukt na {{attempts}} pogingen: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Insluitingen maken mislukt na {{attempts}} pogingen: {{errorMessage}}",
+	"failedMaxAttempts": "Insluitingen maken mislukt na {{attempts}} pogingen",
+	"textExceedsTokenLimit": "Tekst op index {{index}} overschrijdt de maximale tokenlimiet ({{itemTokens}} > {{maxTokens}}). Wordt overgeslagen.",
+	"rateLimitRetry": "Snelheidslimiet bereikt, opnieuw proberen over {{delayMs}}ms (poging {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Kon foutinhoud niet lezen",
+		"requestFailed": "Ollama API-verzoek mislukt met status {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Ongeldige responsstructuur van Ollama API: \"embeddings\" array niet gevonden of is geen array.",
+		"embeddingFailed": "Ollama insluiting mislukt: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Onbekende fout bij verwerken van bestand {{filePath}}",
+		"unknownErrorDeletingPoints": "Onbekende fout bij verwijderen van punten voor {{filePath}}",
+		"failedToProcessBatchWithError": "Verwerken van batch mislukt na {{maxRetries}} pogingen: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Kan geen verbinding maken met Qdrant vectordatabase. Zorg ervoor dat Qdrant draait en toegankelijk is op {{qdrantUrl}}. Fout: {{errorMessage}}"
+	}
+}

@@ -12,6 +12,7 @@ import { v5 as uuidv5 } from "uuid"
 import pLimit from "p-limit"
 import { Mutex } from "async-mutex"
 import { CacheManager } from "../cache-manager"
+import { t } from "../../../i18n"
 import {
 	QDRANT_CODE_BLOCK_NAMESPACE,
 	MAX_FILE_SIZE_BYTES,
@@ -186,7 +187,11 @@ export class DirectoryScanner implements IDirectoryScanner {
 				} catch (error) {
 					console.error(`Error processing file ${filePath}:`, error)
 					if (onError) {
-						onError(error instanceof Error ? error : new Error(`Unknown error processing file ${filePath}`))
+						onError(
+							error instanceof Error
+								? error
+								: new Error(t("embeddings:scanner.unknownErrorProcessingFile", { filePath })),
+						)
 					}
 				}
 			}),
@@ -235,7 +240,11 @@ export class DirectoryScanner implements IDirectoryScanner {
 							onError(
 								error instanceof Error
 									? error
-									: new Error(`Unknown error deleting points for ${cachedFilePath}`),
+									: new Error(
+											t("embeddings:scanner.unknownErrorDeletingPoints", {
+												filePath: cachedFilePath,
+											}),
+										),
 							)
 						}
 						// Decide if we should re-throw or just log
@@ -337,7 +346,18 @@ export class DirectoryScanner implements IDirectoryScanner {
 		if (!success && lastError) {
 			console.error(`[DirectoryScanner] Failed to process batch after ${MAX_BATCH_RETRIES} attempts`)
 			if (onError) {
-				onError(new Error(`Failed to process batch after ${MAX_BATCH_RETRIES} attempts: ${lastError.message}`))
+				// Preserve the original error message from embedders which now have detailed i18n messages
+				const errorMessage = lastError.message || "Unknown error"
+
+				// For other errors, provide context
+				onError(
+					new Error(
+						t("embeddings:scanner.failedToProcessBatchWithError", {
+							maxRetries: MAX_BATCH_RETRIES,
+							errorMessage,
+						}),
+					),
+				)
 			}
 		}
 	}

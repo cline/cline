@@ -1,0 +1,23 @@
+{
+	"unknownError": "Erro desconhecido",
+	"authenticationFailed": "Falha ao criar embeddings: Falha na autenticação. Verifique sua chave de API.",
+	"failedWithStatus": "Falha ao criar embeddings após {{attempts}} tentativas: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Falha ao criar embeddings após {{attempts}} tentativas: {{errorMessage}}",
+	"failedMaxAttempts": "Falha ao criar embeddings após {{attempts}} tentativas",
+	"textExceedsTokenLimit": "O texto no índice {{index}} excede o limite máximo de tokens ({{itemTokens}} > {{maxTokens}}). Ignorando.",
+	"rateLimitRetry": "Limite de taxa atingido, tentando novamente em {{delayMs}}ms (tentativa {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Não foi possível ler o corpo do erro",
+		"requestFailed": "Solicitação da API Ollama falhou com status {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Estrutura de resposta inválida da API Ollama: array \"embeddings\" não encontrado ou não é um array.",
+		"embeddingFailed": "Embedding Ollama falhou: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Erro desconhecido ao processar arquivo {{filePath}}",
+		"unknownErrorDeletingPoints": "Erro desconhecido ao deletar pontos para {{filePath}}",
+		"failedToProcessBatchWithError": "Falha ao processar lote após {{maxRetries}} tentativas: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Falha ao conectar com o banco de dados vetorial Qdrant. Certifique-se de que o Qdrant esteja rodando e acessível em {{qdrantUrl}}. Erro: {{errorMessage}}"
+	}
+}

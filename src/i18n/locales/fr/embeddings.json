@@ -1,0 +1,23 @@
+{
+	"unknownError": "Erreur inconnue",
+	"authenticationFailed": "Échec de la création des embeddings : Échec de l'authentification. Veuillez vérifier votre clé API.",
+	"failedWithStatus": "Échec de la création des embeddings après {{attempts}} tentatives : HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Échec de la création des embeddings après {{attempts}} tentatives : {{errorMessage}}",
+	"failedMaxAttempts": "Échec de la création des embeddings après {{attempts}} tentatives",
+	"textExceedsTokenLimit": "Le texte à l'index {{index}} dépasse la limite maximale de tokens ({{itemTokens}} > {{maxTokens}}). Ignoré.",
+	"rateLimitRetry": "Limite de débit atteinte, nouvelle tentative dans {{delayMs}}ms (tentative {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Impossible de lire le corps de l'erreur",
+		"requestFailed": "Échec de la requête API Ollama avec le statut {{status}} {{statusText}} : {{errorBody}}",
+		"invalidResponseStructure": "Structure de réponse invalide de l'API Ollama : tableau \"embeddings\" non trouvé ou n'est pas un tableau.",
+		"embeddingFailed": "Échec de l'embedding Ollama : {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Erreur inconnue lors du traitement du fichier {{filePath}}",
+		"unknownErrorDeletingPoints": "Erreur inconnue lors de la suppression des points pour {{filePath}}",
+		"failedToProcessBatchWithError": "Échec du traitement du lot après {{maxRetries}} tentatives : {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Échec de la connexion à la base de données vectorielle Qdrant. Veuillez vous assurer que Qdrant fonctionne et est accessible à {{qdrantUrl}}. Erreur : {{errorMessage}}"
+	}
+}

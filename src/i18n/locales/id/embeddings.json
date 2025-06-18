@@ -1,0 +1,23 @@
+{
+	"unknownError": "Error tidak dikenal",
+	"authenticationFailed": "Gagal membuat embeddings: Autentikasi gagal. Silakan periksa API key Anda.",
+	"failedWithStatus": "Gagal membuat embeddings setelah {{attempts}} percobaan: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Gagal membuat embeddings setelah {{attempts}} percobaan: {{errorMessage}}",
+	"failedMaxAttempts": "Gagal membuat embeddings setelah {{attempts}} percobaan",
+	"textExceedsTokenLimit": "Teks pada indeks {{index}} melebihi batas maksimum token ({{itemTokens}} > {{maxTokens}}). Dilewati.",
+	"rateLimitRetry": "Batas rate tercapai, mencoba lagi dalam {{delayMs}}ms (percobaan {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Tidak dapat membaca body error",
+		"requestFailed": "Permintaan API Ollama gagal dengan status {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Struktur respons tidak valid dari API Ollama: array \"embeddings\" tidak ditemukan atau bukan array.",
+		"embeddingFailed": "Embedding Ollama gagal: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Error tidak dikenal saat memproses file {{filePath}}",
+		"unknownErrorDeletingPoints": "Error tidak dikenal saat menghapus points untuk {{filePath}}",
+		"failedToProcessBatchWithError": "Gagal memproses batch setelah {{maxRetries}} percobaan: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Gagal terhubung ke database vektor Qdrant. Pastikan Qdrant berjalan dan dapat diakses di {{qdrantUrl}}. Error: {{errorMessage}}"
+	}
+}

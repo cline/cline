@@ -1,0 +1,23 @@
+{
+	"unknownError": "Bilinmeyen hata",
+	"authenticationFailed": "Gömülmeler oluşturulamadı: Kimlik doğrulama başarısız oldu. Lütfen API anahtarınızı kontrol edin.",
+	"failedWithStatus": "{{attempts}} denemeden sonra gömülmeler oluşturulamadı: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "{{attempts}} denemeden sonra gömülmeler oluşturulamadı: {{errorMessage}}",
+	"failedMaxAttempts": "{{attempts}} denemeden sonra gömülmeler oluşturulamadı",
+	"textExceedsTokenLimit": "{{index}} dizinindeki metin maksimum jeton sınırını aşıyor ({{itemTokens}} > {{maxTokens}}). Atlanıyor.",
+	"rateLimitRetry": "Hız sınırına ulaşıldı, {{delayMs}}ms içinde yeniden deneniyor (deneme {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Hata gövdesi okunamadı",
+		"requestFailed": "Ollama API isteği {{status}} {{statusText}} durumuyla başarısız oldu: {{errorBody}}",
+		"invalidResponseStructure": "Ollama API'den geçersiz yanıt yapısı: \"embeddings\" dizisi bulunamadı veya dizi değil.",
+		"embeddingFailed": "Ollama gömülmesi başarısız oldu: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "{{filePath}} dosyası işlenirken bilinmeyen hata",
+		"unknownErrorDeletingPoints": "{{filePath}} için noktalar silinirken bilinmeyen hata",
+		"failedToProcessBatchWithError": "{{maxRetries}} denemeden sonra toplu işlem başarısız oldu: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Qdrant vektör veritabanına bağlanılamadı. Qdrant'ın çalıştığından ve {{qdrantUrl}} adresinde erişilebilir olduğundan emin olun. Hata: {{errorMessage}}"
+	}
+}

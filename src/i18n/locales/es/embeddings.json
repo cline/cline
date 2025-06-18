@@ -1,0 +1,23 @@
+{
+	"unknownError": "Error desconocido",
+	"authenticationFailed": "No se pudieron crear las incrustaciones: Error de autenticación. Comprueba tu clave de API.",
+	"failedWithStatus": "No se pudieron crear las incrustaciones después de {{attempts}} intentos: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "No se pudieron crear las incrustaciones después de {{attempts}} intentos: {{errorMessage}}",
+	"failedMaxAttempts": "No se pudieron crear las incrustaciones después de {{attempts}} intentos",
+	"textExceedsTokenLimit": "El texto en el índice {{index}} supera el límite máximo de tokens ({{itemTokens}} > {{maxTokens}}). Omitiendo.",
+	"rateLimitRetry": "Límite de velocidad alcanzado, reintentando en {{delayMs}}ms (intento {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "No se pudo leer el cuerpo del error",
+		"requestFailed": "La solicitud de la API de Ollama falló con estado {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Estructura de respuesta inválida de la API de Ollama: array \"embeddings\" no encontrado o no es un array.",
+		"embeddingFailed": "Incrustación de Ollama falló: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Error desconocido procesando archivo {{filePath}}",
+		"unknownErrorDeletingPoints": "Error desconocido eliminando puntos para {{filePath}}",
+		"failedToProcessBatchWithError": "Error al procesar lote después de {{maxRetries}} intentos: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Error al conectar con la base de datos vectorial Qdrant. Asegúrate de que Qdrant esté funcionando y sea accesible en {{qdrantUrl}}. Error: {{errorMessage}}"
+	}
+}

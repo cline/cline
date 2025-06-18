@@ -1,0 +1,23 @@
+{
+	"unknownError": "Nieznany błąd",
+	"authenticationFailed": "Nie udało się utworzyć osadzeń: Uwierzytelnianie nie powiodło się. Sprawdź swój klucz API.",
+	"failedWithStatus": "Nie udało się utworzyć osadzeń po {{attempts}} próbach: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Nie udało się utworzyć osadzeń po {{attempts}} próbach: {{errorMessage}}",
+	"failedMaxAttempts": "Nie udało się utworzyć osadzeń po {{attempts}} próbach",
+	"textExceedsTokenLimit": "Tekst w indeksie {{index}} przekracza maksymalny limit tokenów ({{itemTokens}} > {{maxTokens}}). Pomijanie.",
+	"rateLimitRetry": "Osiągnięto limit szybkości, ponawianie za {{delayMs}}ms (próba {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Nie można odczytać treści błędu",
+		"requestFailed": "Żądanie API Ollama nie powiodło się ze statusem {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Nieprawidłowa struktura odpowiedzi z API Ollama: tablica \"embeddings\" nie została znaleziona lub nie jest tablicą.",
+		"embeddingFailed": "Osadzenie Ollama nie powiodło się: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Nieznany błąd podczas przetwarzania pliku {{filePath}}",
+		"unknownErrorDeletingPoints": "Nieznany błąd podczas usuwania punktów dla {{filePath}}",
+		"failedToProcessBatchWithError": "Nie udało się przetworzyć partii po {{maxRetries}} próbach: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Nie udało się połączyć z bazą danych wektorowych Qdrant. Upewnij się, że Qdrant jest uruchomiony i dostępny pod adresem {{qdrantUrl}}. Błąd: {{errorMessage}}"
+	}
+}

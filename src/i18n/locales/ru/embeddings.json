@@ -1,0 +1,23 @@
+{
+	"unknownError": "Неизвестная ошибка",
+	"authenticationFailed": "Не удалось создать вложения: Ошибка аутентификации. Проверьте свой ключ API.",
+	"failedWithStatus": "Не удалось создать вложения после {{attempts}} попыток: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Не удалось создать вложения после {{attempts}} попыток: {{errorMessage}}",
+	"failedMaxAttempts": "Не удалось создать вложения после {{attempts}} попыток",
+	"textExceedsTokenLimit": "Текст в индексе {{index}} превышает максимальный лимит токенов ({{itemTokens}} > {{maxTokens}}). Пропускается.",
+	"rateLimitRetry": "Достигнут лимит скорости, повторная попытка через {{delayMs}} мс (попытка {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Не удалось прочитать тело ошибки",
+		"requestFailed": "Запрос к API Ollama не удался со статусом {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Неверная структура ответа от API Ollama: массив \"embeddings\" не найден или не является массивом.",
+		"embeddingFailed": "Вложение Ollama не удалось: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Неизвестная ошибка при обработке файла {{filePath}}",
+		"unknownErrorDeletingPoints": "Неизвестная ошибка при удалении точек для {{filePath}}",
+		"failedToProcessBatchWithError": "Не удалось обработать пакет после {{maxRetries}} попыток: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Не удалось подключиться к векторной базе данных Qdrant. Убедитесь, что Qdrant запущен и доступен по адресу {{qdrantUrl}}. Ошибка: {{errorMessage}}"
+	}
+}

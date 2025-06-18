@@ -1,0 +1,23 @@
+{
+	"unknownError": "알 수 없는 오류",
+	"authenticationFailed": "임베딩 생성 실패: 인증에 실패했습니다. API 키를 확인하세요.",
+	"failedWithStatus": "{{attempts}}번 시도 후 임베딩 생성 실패: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "{{attempts}}번 시도 후 임베딩 생성 실패: {{errorMessage}}",
+	"failedMaxAttempts": "{{attempts}}번 시도 후 임베딩 생성 실패",
+	"textExceedsTokenLimit": "인덱스 {{index}}의 텍스트가 최대 토큰 제한({{itemTokens}} > {{maxTokens}})을 초과했습니다. 건너뜁니다.",
+	"rateLimitRetry": "속도 제한에 도달했습니다. {{delayMs}}ms 후에 다시 시도합니다(시도 {{attempt}}/{{maxRetries}}).",
+	"ollama": {
+		"couldNotReadErrorBody": "오류 본문을 읽을 수 없습니다",
+		"requestFailed": "Ollama API 요청이 실패했습니다. 상태 {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Ollama API에서 잘못된 응답 구조: \"embeddings\" 배열을 찾을 수 없거나 배열이 아닙니다.",
+		"embeddingFailed": "Ollama 임베딩 실패: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "파일 {{filePath}} 처리 중 알 수 없는 오류",
+		"unknownErrorDeletingPoints": "{{filePath}}의 포인트 삭제 중 알 수 없는 오류",
+		"failedToProcessBatchWithError": "{{maxRetries}}번 시도 후 배치 처리 실패: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Qdrant 벡터 데이터베이스에 연결하지 못했습니다. Qdrant가 실행 중이고 {{qdrantUrl}}에서 접근 가능한지 확인하세요. 오류: {{errorMessage}}"
+	}
+}

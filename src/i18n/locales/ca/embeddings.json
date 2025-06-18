@@ -1,0 +1,23 @@
+{
+	"unknownError": "Error desconegut",
+	"authenticationFailed": "No s'han pogut crear les incrustacions: ha fallat l'autenticació. Comproveu la vostra clau d'API.",
+	"failedWithStatus": "No s'han pogut crear les incrustacions després de {{attempts}} intents: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "No s'han pogut crear les incrustacions després de {{attempts}} intents: {{errorMessage}}",
+	"failedMaxAttempts": "No s'han pogut crear les incrustacions després de {{attempts}} intents",
+	"textExceedsTokenLimit": "El text a l'índex {{index}} supera el límit màxim de testimonis ({{itemTokens}} > {{maxTokens}}). S'està ometent.",
+	"rateLimitRetry": "S'ha assolit el límit de velocitat, es torna a intentar en {{delayMs}}ms (intent {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "No s'ha pogut llegir el cos de l'error",
+		"requestFailed": "La sol·licitud de l'API d'Ollama ha fallat amb l'estat {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Estructura de resposta no vàlida de l'API d'Ollama: no s'ha trobat la matriu \"embeddings\" o no és una matriu.",
+		"embeddingFailed": "La incrustació d'Ollama ha fallat: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Error desconegut en processar el fitxer {{filePath}}",
+		"unknownErrorDeletingPoints": "Error desconegut en eliminar els punts per a {{filePath}}",
+		"failedToProcessBatchWithError": "No s'ha pogut processar el lot després de {{maxRetries}} intents: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "No s'ha pogut connectar a la base de dades vectorial Qdrant. Assegura't que Qdrant estigui funcionant i sigui accessible a {{qdrantUrl}}. Error: {{errorMessage}}"
+	}
+}

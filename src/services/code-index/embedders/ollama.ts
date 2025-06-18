@@ -1,5 +1,6 @@
 import { ApiHandlerOptions } from "../../../shared/api"
 import { EmbedderInfo, EmbeddingResponse, IEmbedder } from "../interfaces"
+import { t } from "../../../i18n"
 
 /**
  * Implements the IEmbedder interface using a local Ollama instance.
@@ -39,14 +40,18 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 			})
 
 			if (!response.ok) {
-				let errorBody = "Could not read error body"
+				let errorBody = t("embeddings:ollama.couldNotReadErrorBody")
 				try {
 					errorBody = await response.text()
 				} catch (e) {
 					// Ignore error reading body
 				}
 				throw new Error(
-					`Ollama API request failed with status ${response.status} ${response.statusText}: ${errorBody}`,
+					t("embeddings:ollama.requestFailed", {
+						status: response.status,
+						statusText: response.statusText,
+						errorBody,
+					}),
 				)
 			}
 
@@ -55,9 +60,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 			// Extract embeddings using 'embeddings' key as requested
 			const embeddings = data.embeddings
 			if (!embeddings || !Array.isArray(embeddings)) {
-				throw new Error(
-					'Invalid response structure from Ollama API: "embeddings" array not found or not an array.',
-				)
+				throw new Error(t("embeddings:ollama.invalidResponseStructure"))
 			}
 
 			return {
@@ -67,7 +70,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 			// Log the original error for debugging purposes
 			console.error("Ollama embedding failed:", error)
 			// Re-throw a more specific error for the caller
-			throw new Error(`Ollama embedding failed: ${error.message}`)
+			throw new Error(t("embeddings:ollama.embeddingFailed", { message: error.message }))
 		}
 	}
 

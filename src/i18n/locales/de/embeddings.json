@@ -1,0 +1,23 @@
+{
+	"unknownError": "Unbekannter Fehler",
+	"authenticationFailed": "Erstellung von Einbettungen fehlgeschlagen: Authentifizierung fehlgeschlagen. Bitte überprüfe deinen API-Schlüssel.",
+	"failedWithStatus": "Erstellung von Einbettungen nach {{attempts}} Versuchen fehlgeschlagen: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Erstellung von Einbettungen nach {{attempts}} Versuchen fehlgeschlagen: {{errorMessage}}",
+	"failedMaxAttempts": "Erstellung von Einbettungen nach {{attempts}} Versuchen fehlgeschlagen",
+	"textExceedsTokenLimit": "Text bei Index {{index}} überschreitet das maximale Token-Limit ({{itemTokens}} > {{maxTokens}}). Wird übersprungen.",
+	"rateLimitRetry": "Ratenlimit erreicht, Wiederholung in {{delayMs}}ms (Versuch {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Fehlerinhalt konnte nicht gelesen werden",
+		"requestFailed": "Ollama API-Anfrage fehlgeschlagen mit Status {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Ungültige Antwortstruktur von Ollama API: \"embeddings\" Array nicht gefunden oder kein Array.",
+		"embeddingFailed": "Ollama Einbettung fehlgeschlagen: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Unbekannter Fehler beim Verarbeiten der Datei {{filePath}}",
+		"unknownErrorDeletingPoints": "Unbekannter Fehler beim Löschen der Punkte für {{filePath}}",
+		"failedToProcessBatchWithError": "Verarbeitung des Batches nach {{maxRetries}} Versuchen fehlgeschlagen: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Verbindung zur Qdrant-Vektordatenbank fehlgeschlagen. Stelle sicher, dass Qdrant läuft und unter {{qdrantUrl}} erreichbar ist. Fehler: {{errorMessage}}"
+	}
+}

@@ -1,0 +1,23 @@
+{
+	"unknownError": "未知錯誤",
+	"authenticationFailed": "建立內嵌失敗：驗證失敗。請檢查您的 API 金鑰。",
+	"failedWithStatus": "嘗試 {{attempts}} 次後建立內嵌失敗：HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "嘗試 {{attempts}} 次後建立內嵌失敗：{{errorMessage}}",
+	"failedMaxAttempts": "嘗試 {{attempts}} 次後建立內嵌失敗",
+	"textExceedsTokenLimit": "索引 {{index}} 處的文字超過最大權杖限制 ({{itemTokens}} > {{maxTokens}})。正在略過。",
+	"rateLimitRetry": "已達到速率限制，將在 {{delayMs}} 毫秒後重試（嘗試次數 {{attempt}}/{{maxRetries}}）",
+	"ollama": {
+		"couldNotReadErrorBody": "無法讀取錯誤內容",
+		"requestFailed": "Ollama API 請求失敗，狀態碼 {{status}} {{statusText}}：{{errorBody}}",
+		"invalidResponseStructure": "Ollama API 回應結構無效：未找到 \"embeddings\" 陣列或不是陣列。",
+		"embeddingFailed": "Ollama 內嵌失敗：{{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "處理檔案 {{filePath}} 時發生未知錯誤",
+		"unknownErrorDeletingPoints": "刪除 {{filePath}} 的資料點時發生未知錯誤",
+		"failedToProcessBatchWithError": "嘗試 {{maxRetries}} 次後批次處理失敗：{{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "連接 Qdrant 向量資料庫失敗。請確保 Qdrant 正在執行並可在 {{qdrantUrl}} 存取。錯誤：{{errorMessage}}"
+	}
+}

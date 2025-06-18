@@ -1,0 +1,23 @@
+{
+	"unknownError": "未知错误",
+	"authenticationFailed": "创建嵌入失败：身份验证失败。请检查您的 API 密钥。",
+	"failedWithStatus": "尝试 {{attempts}} 次后创建嵌入失败：HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "尝试 {{attempts}} 次后创建嵌入失败：{{errorMessage}}",
+	"failedMaxAttempts": "尝试 {{attempts}} 次后创建嵌入失败",
+	"textExceedsTokenLimit": "索引 {{index}} 处的文本超过最大令牌限制 ({{itemTokens}} > {{maxTokens}})。正在跳过。",
+	"rateLimitRetry": "已达到速率限制，将在 {{delayMs}} 毫秒后重试（尝试次数 {{attempt}}/{{maxRetries}}）",
+	"ollama": {
+		"couldNotReadErrorBody": "无法读取错误内容",
+		"requestFailed": "Ollama API 请求失败，状态码 {{status}} {{statusText}}：{{errorBody}}",
+		"invalidResponseStructure": "Ollama API 响应结构无效：未找到 \"embeddings\" 数组或不是数组。",
+		"embeddingFailed": "Ollama 嵌入失败：{{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "处理文件 {{filePath}} 时出现未知错误",
+		"unknownErrorDeletingPoints": "删除 {{filePath}} 的数据点时出现未知错误",
+		"failedToProcessBatchWithError": "尝试 {{maxRetries}} 次后批次处理失败：{{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "连接 Qdrant 向量数据库失败。请确保 Qdrant 正在运行并可在 {{qdrantUrl}} 访问。错误：{{errorMessage}}"
+	}
+}

@@ -1,0 +1,23 @@
+{
+	"unknownError": "不明なエラー",
+	"authenticationFailed": "埋め込みの作成に失敗しました：認証に失敗しました。APIキーを確認してください。",
+	"failedWithStatus": "{{attempts}}回試行しましたが、埋め込みの作成に失敗しました：HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "{{attempts}}回試行しましたが、埋め込みの作成に失敗しました：{{errorMessage}}",
+	"failedMaxAttempts": "{{attempts}}回試行しましたが、埋め込みの作成に失敗しました",
+	"textExceedsTokenLimit": "インデックス{{index}}のテキストが最大トークン制限を超えています（{{itemTokens}}> {{maxTokens}}）。スキップします。",
+	"rateLimitRetry": "レート制限に達しました。{{delayMs}}ミリ秒後に再試行します（試行{{attempt}}/{{maxRetries}}）",
+	"ollama": {
+		"couldNotReadErrorBody": "エラー本文を読み取れませんでした",
+		"requestFailed": "Ollama APIリクエストが失敗しました。ステータス {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Ollama APIからの無効な応答構造：\"embeddings\"配列が見つからないか、配列ではありません。",
+		"embeddingFailed": "Ollama埋め込みが失敗しました：{{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "ファイル{{filePath}}の処理中に不明なエラーが発生しました",
+		"unknownErrorDeletingPoints": "{{filePath}}のポイント削除中に不明なエラーが発生しました",
+		"failedToProcessBatchWithError": "{{maxRetries}}回の試行後、バッチ処理に失敗しました：{{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Qdrantベクターデータベースへの接続に失敗しました。Qdrantが実行中で{{qdrantUrl}}でアクセス可能であることを確認してください。エラー：{{errorMessage}}"
+	}
+}

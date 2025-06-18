@@ -5,17 +5,18 @@ import { getWorkspacePath } from "../../../utils/path"
 import { IVectorStore } from "../interfaces/vector-store"
 import { Payload, VectorStoreSearchResult } from "../interfaces"
 import { MAX_SEARCH_RESULTS, SEARCH_MIN_SCORE } from "../constants"
+import { t } from "../../../i18n"
 
 /**
  * Qdrant implementation of the vector store interface
  */
 export class QdrantVectorStore implements IVectorStore {
-	private readonly QDRANT_URL = "http://localhost:6333"
 	private readonly vectorSize!: number
 	private readonly DISTANCE_METRIC = "Cosine"
 
 	private client: QdrantClient
 	private readonly collectionName: string
+	private readonly qdrantUrl: string = "http://localhost:6333"
 
 	/**
 	 * Creates a new Qdrant vector store
@@ -23,8 +24,9 @@ export class QdrantVectorStore implements IVectorStore {
 	 * @param url Optional URL to the Qdrant server
 	 */
 	constructor(workspacePath: string, url: string, vectorSize: number, apiKey?: string) {
+		this.qdrantUrl = url || "http://localhost:6333"
 		this.client = new QdrantClient({
-			url: url ?? this.QDRANT_URL,
+			url: this.qdrantUrl,
 			apiKey,
 			headers: {
 				"User-Agent": "Roo-Code",
@@ -110,11 +112,16 @@ export class QdrantVectorStore implements IVectorStore {
 			}
 			return created
 		} catch (error: any) {
+			const errorMessage = error?.message || error
 			console.error(
 				`[QdrantVectorStore] Failed to initialize Qdrant collection "${this.collectionName}":`,
-				error?.message || error,
+				errorMessage,
 			)
-			throw error
+
+			// Provide a more user-friendly error message that includes the original error
+			throw new Error(
+				t("embeddings:vectorStore.qdrantConnectionFailed", { qdrantUrl: this.qdrantUrl, errorMessage }),
+			)
 		}
 	}
 

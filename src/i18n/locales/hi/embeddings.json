@@ -1,0 +1,23 @@
+{
+	"unknownError": "अज्ञात त्रुटि",
+	"authenticationFailed": "एम्बेडिंग बनाने में विफल: प्रमाणीकरण विफल। कृपया अपनी एपीआई कुंजी जांचें।",
+	"failedWithStatus": "{{attempts}} प्रयासों के बाद एम्बेडिंग बनाने में विफल: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "{{attempts}} प्रयासों के बाद एम्बेडिंग बनाने में विफल: {{errorMessage}}",
+	"failedMaxAttempts": "{{attempts}} प्रयासों के बाद एम्बेडिंग बनाने में विफल",
+	"textExceedsTokenLimit": "अनुक्रमणिका {{index}} पर पाठ अधिकतम टोकन सीमा ({{itemTokens}} > {{maxTokens}}) से अधिक है। छोड़ा जा रहा है।",
+	"rateLimitRetry": "दर सीमा समाप्त, {{delayMs}}ms में पुन: प्रयास किया जा रहा है (प्रयास {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "त्रुटि सामग्री पढ़ नहीं सका",
+		"requestFailed": "Ollama API अनुरोध स्थिति {{status}} {{statusText}} के साथ विफल: {{errorBody}}",
+		"invalidResponseStructure": "Ollama API से अमान्य प्रतिक्रिया संरचना: \"embeddings\" सरणी नहीं मिली या सरणी नहीं है।",
+		"embeddingFailed": "Ollama एम्बेडिंग विफल: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "फ़ाइल {{filePath}} प्रसंस्करण में अज्ञात त्रुटि",
+		"unknownErrorDeletingPoints": "{{filePath}} के लिए बिंदु हटाने में अज्ञात त्रुटि",
+		"failedToProcessBatchWithError": "{{maxRetries}} प्रयासों के बाद बैच प्रसंस्करण विफल: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Qdrant वेक्टर डेटाबेस से कनेक्ट करने में विफल। कृपया सुनिश्चित करें कि Qdrant चल रहा है और {{qdrantUrl}} पर पहुंच योग्य है। त्रुटि: {{errorMessage}}"
+	}
+}

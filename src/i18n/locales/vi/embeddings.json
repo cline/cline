@@ -1,0 +1,23 @@
+{
+	"unknownError": "Lỗi không xác định",
+	"authenticationFailed": "Không thể tạo nhúng: Xác thực không thành công. Vui lòng kiểm tra khóa API của bạn.",
+	"failedWithStatus": "Không thể tạo nhúng sau {{attempts}} lần thử: HTTP {{statusCode}} - {{errorMessage}}",
+	"failedWithError": "Không thể tạo nhúng sau {{attempts}} lần thử: {{errorMessage}}",
+	"failedMaxAttempts": "Không thể tạo nhúng sau {{attempts}} lần thử",
+	"textExceedsTokenLimit": "Văn bản tại chỉ mục {{index}} vượt quá giới hạn mã thông báo tối đa ({{itemTokens}} > {{maxTokens}}). Bỏ qua.",
+	"rateLimitRetry": "Đã đạt đến giới hạn tốc độ, thử lại sau {{delayMs}}ms (lần thử {{attempt}}/{{maxRetries}})",
+	"ollama": {
+		"couldNotReadErrorBody": "Không thể đọc nội dung lỗi",
+		"requestFailed": "Yêu cầu API Ollama thất bại với trạng thái {{status}} {{statusText}}: {{errorBody}}",
+		"invalidResponseStructure": "Cấu trúc phản hồi không hợp lệ từ API Ollama: không tìm thấy mảng \"embeddings\" hoặc không phải là mảng.",
+		"embeddingFailed": "Nhúng Ollama thất bại: {{message}}"
+	},
+	"scanner": {
+		"unknownErrorProcessingFile": "Lỗi không xác định khi xử lý tệp {{filePath}}",
+		"unknownErrorDeletingPoints": "Lỗi không xác định khi xóa điểm cho {{filePath}}",
+		"failedToProcessBatchWithError": "Không thể xử lý lô sau {{maxRetries}} lần thử: {{errorMessage}}"
+	},
+	"vectorStore": {
+		"qdrantConnectionFailed": "Không thể kết nối với cơ sở dữ liệu vector Qdrant. Vui lòng đảm bảo Qdrant đang chạy và có thể truy cập tại {{qdrantUrl}}. Lỗi: {{errorMessage}}"
+	}
+}
