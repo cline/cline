@@ -335,7 +335,7 @@ registerAllMethods()`
 
 		// Write the index.ts file
 		const indexFile = path.join(serviceDir, "index.ts")
-		writeFileWithMkdirs(indexFile, indexContent)
+		await writeFileWithMkdirs(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
