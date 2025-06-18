@@ -4006,6 +4006,11 @@ export class Task {
 								if (continueResponse === "messageResponse" && text === "Yes, start child task") {
 									const startNextResponse = await this.startNextChildTask()
 									pushToolResult(startNextResponse)
+								} else {
+									this.userMessageContent.push({
+										type: "text",
+										text: `User denied the operation to start the next child task.. Pending child tasks: ${this.pendingChildTasks.length}`,	
+									})
 								}
 							}
 							await this.saveCheckpoint()
