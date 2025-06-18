@@ -31,12 +31,23 @@ vi.mock("vscode", () => ({
 vi.mock("fs/promises")
 vi.mock("../../../core/webview/ClineProvider")
 
+// Mock the MCP SDK modules
+vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
+	StdioClientTransport: vi.fn(),
+	getDefaultEnvironment: vi.fn().mockReturnValue({ PATH: "/usr/bin" }),
+}))
+
+vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
+	Client: vi.fn(),
+}))
+
 describe("McpHub", () => {
 	let mcpHub: McpHubType
 	let mockProvider: Partial<ClineProvider>
 
 	// Store original console methods
 	const originalConsoleError = console.error
+	const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform")
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -111,6 +122,10 @@ describe("McpHub", () => {
 	afterEach(() => {
 		// Restore original console methods
 		console.error = originalConsoleError
+		// Restore original platform
+		if (originalPlatform) {
+			Object.defineProperty(process, "platform", originalPlatform)
+		}
 	})
 
 	describe("toggleToolAlwaysAllow", () => {
@@ -680,6 +695,356 @@ describe("McpHub", () => {
 					}),
 				)
 			})
+		})
+	})
+
+	describe("Windows command wrapping", () => {
+		let StdioClientTransport: ReturnType<typeof vi.fn>
+		let Client: ReturnType<typeof vi.fn>
+
+		beforeEach(async () => {
+			// Reset mocks
+			vi.clearAllMocks()
+
+			// Get references to the mocked constructors
+			const stdioModule = await import("@modelcontextprotocol/sdk/client/stdio.js")
+			const clientModule = await import("@modelcontextprotocol/sdk/client/index.js")
+			StdioClientTransport = stdioModule.StdioClientTransport as ReturnType<typeof vi.fn>
+			Client = clientModule.Client as ReturnType<typeof vi.fn>
+
+			// Mock Windows platform
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			})
+		})
+
+		it("should wrap commands with cmd.exe on Windows", async () => {
+			// Mock StdioClientTransport
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation((config: any) => {
+				// Verify that cmd.exe wrapping is applied
+				expect(config.command).toBe("cmd.exe")
+				expect(config.args).toEqual([
+					"/c",
+					"npx",
+					"-y",
+					"@modelcontextprotocol/server-filesystem",
+					"/test/path",
+				])
+				return mockTransport
+			})
+
+			// Mock Client
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Create a new McpHub instance
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+
+			// Mock the config file read
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"test-npx-server": {
+							command: "npx",
+							args: ["-y", "@modelcontextprotocol/server-filesystem", "/test/path"],
+						},
+					},
+				}),
+			)
+
+			// Initialize servers (this will trigger connectToServer)
+			await mcpHub["initializeGlobalMcpServers"]()
+
+			// Verify StdioClientTransport was called with wrapped command
+			expect(StdioClientTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "cmd.exe",
+					args: ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "/test/path"],
+				}),
+			)
+		})
+
+		it("should not wrap commands on non-Windows platforms", async () => {
+			// Mock non-Windows platform
+			Object.defineProperty(process, "platform", {
+				value: "darwin",
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			})
+
+			// Mock StdioClientTransport
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation((config: any) => {
+				// Verify that no cmd.exe wrapping is applied
+				expect(config.command).toBe("npx")
+				expect(config.args).toEqual(["-y", "@modelcontextprotocol/server-filesystem", "/test/path"])
+				return mockTransport
+			})
+
+			// Mock Client
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Create a new McpHub instance
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+
+			// Mock the config file read
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"test-npx-server": {
+							command: "npx",
+							args: ["-y", "@modelcontextprotocol/server-filesystem", "/test/path"],
+						},
+					},
+				}),
+			)
+
+			// Initialize servers (this will trigger connectToServer)
+			await mcpHub["initializeGlobalMcpServers"]()
+
+			// Verify StdioClientTransport was called without wrapping
+			expect(StdioClientTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "npx",
+					args: ["-y", "@modelcontextprotocol/server-filesystem", "/test/path"],
+				}),
+			)
+		})
+
+		it("should not double-wrap commands that are already cmd.exe", async () => {
+			// Mock Windows platform
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			})
+
+			// Mock StdioClientTransport
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation((config: any) => {
+				// Verify that cmd.exe is not double-wrapped
+				expect(config.command).toBe("cmd.exe")
+				expect(config.args).toEqual(["/c", "echo", "test"])
+				return mockTransport
+			})
+
+			// Mock Client
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Create a new McpHub instance
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+
+			// Mock the config file read with cmd.exe already as command
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"test-cmd-server": {
+							command: "cmd.exe",
+							args: ["/c", "echo", "test"],
+						},
+					},
+				}),
+			)
+
+			// Initialize servers (this will trigger connectToServer)
+			await mcpHub["initializeGlobalMcpServers"]()
+
+			// Verify StdioClientTransport was called without double-wrapping
+			expect(StdioClientTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "cmd.exe",
+					args: ["/c", "echo", "test"],
+				}),
+			)
+		})
+
+		it("should handle npx.ps1 scenario from node version managers", async () => {
+			// Mock Windows platform
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			})
+
+			// Mock StdioClientTransport to simulate the ENOENT error without wrapping
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			let callCount = 0
+			StdioClientTransport.mockImplementation((config: any) => {
+				callCount++
+				// First call would fail with ENOENT if not wrapped
+				// Second call should be wrapped with cmd.exe
+				if (callCount === 1) {
+					// This simulates what would happen without wrapping
+					expect(config.command).toBe("cmd.exe")
+					expect(config.args[0]).toBe("/c")
+					expect(config.args[1]).toBe("npx")
+				}
+				return mockTransport
+			})
+
+			// Mock Client
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Create a new McpHub instance
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+
+			// Mock the config file read - simulating fnm/nvm-windows scenario
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"test-fnm-npx-server": {
+							command: "npx",
+							args: ["-y", "@modelcontextprotocol/server-example"],
+							env: {
+								// Simulate fnm environment
+								FNM_DIR: "C:\\Users\\test\\.fnm",
+								FNM_NODE_DIST_MIRROR: "https://nodejs.org/dist",
+								FNM_ARCH: "x64",
+							},
+						},
+					},
+				}),
+			)
+
+			// Initialize servers (this will trigger connectToServer)
+			await mcpHub["initializeGlobalMcpServers"]()
+
+			// Verify that the command was wrapped with cmd.exe
+			expect(StdioClientTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "cmd.exe",
+					args: ["/c", "npx", "-y", "@modelcontextprotocol/server-example"],
+					env: expect.objectContaining({
+						FNM_DIR: "C:\\Users\\test\\.fnm",
+						FNM_NODE_DIST_MIRROR: "https://nodejs.org/dist",
+						FNM_ARCH: "x64",
+					}),
+				}),
+			)
+		})
+
+		it("should handle case-insensitive cmd command check", async () => {
+			// Mock Windows platform
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			})
+
+			// Mock StdioClientTransport
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation((config: any) => {
+				// Verify that CMD (uppercase) is not double-wrapped
+				expect(config.command).toBe("CMD")
+				expect(config.args).toEqual(["/c", "echo", "test"])
+				return mockTransport
+			})
+
+			// Mock Client
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Create a new McpHub instance
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+
+			// Mock the config file read with CMD (uppercase) as command
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"test-cmd-uppercase-server": {
+							command: "CMD",
+							args: ["/c", "echo", "test"],
+						},
+					},
+				}),
+			)
+
+			// Initialize servers (this will trigger connectToServer)
+			await mcpHub["initializeGlobalMcpServers"]()
+
+			// Verify StdioClientTransport was called without double-wrapping
+			expect(StdioClientTransport).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "CMD",
+					args: ["/c", "echo", "test"],
+				}),
+			)
 		})
 	})
 })
