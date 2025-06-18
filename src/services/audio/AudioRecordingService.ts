@@ -18,6 +18,12 @@ export class AudioRecordingService {
 				return { success: false, error: "Already recording" }
 			}
 
+			// Check if recording software is available
+			const checkResult = this.checkRecordingDependencies()
+			if (!checkResult.available) {
+				return { success: false, error: checkResult.error }
+			}
+
 			// Create temporary file for audio output
 			const tempDir = os.tmpdir()
 			this.outputFile = path.join(tempDir, `cline_recording_${Date.now()}.wav`)
@@ -135,6 +141,52 @@ export class AudioRecordingService {
 		return {
 			isRecording: this.isRecording,
 			durationSeconds,
+		}
+	}
+
+	private checkRecordingDependencies(): { available: boolean; error?: string } {
+		const platform = os.platform()
+
+		switch (platform) {
+			case "darwin": // macOS
+				// Check for SoX installation
+				const macPaths = ["/usr/local/bin/rec", "/opt/homebrew/bin/rec", "/usr/local/bin/sox", "/opt/homebrew/bin/sox"]
+
+				const foundPath = macPaths.find((p) => fs.existsSync(p))
+				if (!foundPath) {
+					return {
+						available: false,
+						error: "Audio recording requires SoX. Please install it using: brew install sox",
+					}
+				}
+				return { available: true }
+
+			case "linux":
+				// Check for arecord
+				if (!fs.existsSync("/usr/bin/arecord")) {
+					return {
+						available: false,
+						error: "Audio recording requires ALSA utilities. Please install using: sudo apt-get install alsa-utils (or equivalent for your distribution)",
+					}
+				}
+				return { available: true }
+
+			case "win32":
+				// Check for SoX on Windows
+				const winPath = "C:\\Program Files (x86)\\sox\\sox.exe"
+				if (!fs.existsSync(winPath)) {
+					return {
+						available: false,
+						error: "Audio recording requires SoX. Please download and install from: https://sourceforge.net/projects/sox/",
+					}
+				}
+				return { available: true }
+
+			default:
+				return {
+					available: false,
+					error: `Audio recording is not supported on platform: ${platform}`,
+				}
 		}
 	}
 
