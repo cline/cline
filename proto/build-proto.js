@@ -21,7 +21,10 @@ const NICE_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone/proto")
 
 const isWindows = process.platform === "win32"
-const TS_PROTO_PLUGIN = require.resolve("ts-proto/protoc-gen-ts_proto") + (isWindows ? ".cmd" : "")
+const TS_PROTO_PLUGIN = isWindows
+	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
+	: require.resolve("ts-proto/protoc-gen-ts_proto")
+
 const TS_PROTO_OPTIONS = [
 	"env=node",
 	"esModuleInterop=true",
