@@ -1175,35 +1175,6 @@ export class Task {
 				this.activeChildTaskId = undefined
 			}
 		}
-
-		this.activeChildTaskId = undefined // reset active child task id
-
-		// resume the task from child messages
-		let childResumeText: string | undefined
-		if (this.activeChildTaskId) {
-			const childClineMessages = await getSavedClineMessages(this.getContext(), this.activeChildTaskId)
-			this.status = "running"
-			if (childClineMessages.length > 0) {
-				let completionResult = childClineMessages.find((m) => m.say === "completion_result")
-				if (completionResult) {
-					const { text } = completionResult
-					childResumeText = `Task resuming. Child task completed with result: ${text}.`
-					await this.say("child_task_completed", childResumeText)
-					this.activeChildTaskId = undefined
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						() => this.getTaskInfo(),
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						(historyItem) => this.updateTaskHistory(historyItem),
-					)
-				}
-			} else {
-				this.activeChildTaskId = undefined
-			}
-		}
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
 			askType = "resume_completed_task"
