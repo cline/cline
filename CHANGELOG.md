@@ -1,5 +1,43 @@
 # Changelog
 
+## [3.17.14]
+
+-   Add Claude Code as a new API provider, allowing integration with Anthropic's Claude Code CLI tool and Claude Max Plan (Thanks @BarreiroT!)
+-   Add SAP AI Core as a new API provider with support for Claude and GPT models (Thanks @schardosin!)
+-   Add configurable default terminal profile setting, allowing users to specify which terminal Cline should use (Thanks @valinha!)
+-   Add terminal output size constraint setting to limit how much terminal output is processed
+-   Add MCP Rich Display settings to the settings page for persistent configuration (Thanks @Vl4diC0de!)
+-   Improve copy button functionality with refactored reusable components (Thanks @shouhanzen!)
+-   Improve AWS Bedrock provider by removing deprecated dependency and using standard AWS SDK (Thanks @watany-dev!)
+-   Fix list_files tool to properly return files when targeting hidden directories
+-   Fix search and replace edge case that could cause file deletion, making the algorithm more lenient for models using different diff formats
+-   Fix task restoration issues that could occur when resuming interrupted tasks
+-   Fix checkpoint saving to properly track all file changes
+-   Improve file context warnings to reduce diff edit errors when resuming restored tasks
+-   Clear chat input when switching between Plan/Act modes within a task
+-   Exclude .clinerules files from checkpoint tracking
+
+## [3.17.13]
+
+-   Add Thinking UX for Gemini models, providing visual feedback during model reasoning
+-   Add support for Notifications MCP integration with Cline
+-   Add prompt caching indicator for Grok 3 models
+-   Sort MCP marketplace by newest listings by default for easier discovery of recent servers
+-   Update O3 model family pricing to reflect latest OpenAI rates
+-   Remove '-beta' suffix from Grok model identifiers
+-   Fix AWS Bedrock provider by removing deprecated Anthropic-Bedrock SDK (Thanks @watany-dev!)
+-   Fix menu display issue for terminal timeout settings
+-   Improve chat input field styling and behavior
+
+## [3.17.12]
+
+-   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
+-   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output (Thanks @valinha!)
+-   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions (Thanks @abeatrix!)
+-   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
+-   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
+-   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
+
 ## [3.17.11]
 
 -   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers

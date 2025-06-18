@@ -42,7 +42,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Run Standalone Extension",
+			"name": "Run Standalone Service",
 			"skipFiles": ["<node_internals>/**"],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
@@ -53,7 +53,8 @@
 				"GRPC_TRACE": "all",
 				"GRPC_VERBOSITY": "DEBUG",
 				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules",
-				"CLINE_DIR": "${userHome}/.cline-standalone"
+				"CLINE_DIR": "${userHome}/.cline-standalone",
+				"HOST_BRIDGE_ADDRESS": "localhost:50052"
 			},
 			"program": "standalone.js"
 		}
