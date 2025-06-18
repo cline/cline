@@ -177,9 +177,9 @@ export {
 	${serviceExports.join(",\n\t")}
 }`
 
-	const configPath = path.join(ROOT_DIR, "webview-ui", "src", "services", "grpc-client.ts")
-	await fs.writeFile(configPath, content)
-	log_verbose(chalk.green(`Generated gRPC client at ${configPath}`))
+	const filePath = path.join(ROOT_DIR, "webview-ui/src/services/grpc-client.ts")
+	await fs.writeFile(filePath, content)
+	log_verbose(chalk.green(`Generated gRPC client at ${filePath}`))
 }
 
 /**
@@ -248,17 +248,7 @@ async function generateMethodRegistrations() {
 	const streamingMethodsMap = await parseProtoForStreamingMethods(protoFiles, SCRIPT_DIR)
 
 	for (const serviceDir of serviceDirs) {
-		try {
-			await fs.access(serviceDir)
-		} catch (error) {
-			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new service`))
-			await fs.mkdir(serviceDir, { recursive: true })
-		}
-
 		const serviceName = path.basename(serviceDir)
-		const registryFile = path.join(serviceDir, "methods.ts")
-		const indexFile = path.join(serviceDir, "index.ts")
-
 		const fullServiceName = serviceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
@@ -314,7 +304,8 @@ export function registerAllMethods(): void {
 		methodsContent += `}`
 
 		// Write the methods.ts file
-		await fs.writeFile(registryFile, methodsContent)
+		const registryFile = path.join(serviceDir, "methods.ts")
+		writeFileWithMkdirs(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
@@ -343,7 +334,8 @@ export const isStreamingMethod = ${serviceName}Service.isStreamingMethod
 registerAllMethods()`
 
 		// Write the index.ts file
-		await fs.writeFile(indexFile, indexContent)
+		const indexFile = path.join(serviceDir, "index.ts")
+		writeFileWithMkdirs(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
@@ -462,17 +454,7 @@ async function generateHostMethodRegistrations() {
 	const streamingMethodsMap = await parseProtoForStreamingMethods(hostProtoFiles, path.join(SCRIPT_DIR, "host"))
 
 	for (const serviceDir of hostServiceDirs) {
-		try {
-			await fs.access(serviceDir)
-		} catch (error) {
-			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new host service`))
-			await fs.mkdir(serviceDir, { recursive: true })
-		}
-
 		const serviceName = path.basename(serviceDir)
-		const registryFile = path.join(serviceDir, "methods.ts")
-		const indexFile = path.join(serviceDir, "index.ts")
-
 		const fullServiceName = hostServiceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
@@ -528,7 +510,8 @@ export function registerAllMethods(): void {
 		methodsContent += `}`
 
 		// Write the methods.ts file
-		await fs.writeFile(registryFile, methodsContent)
+		const registryFile = path.join(serviceDir, "methods.ts")
+		writeFileWithMkdirs(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
@@ -557,7 +540,8 @@ export const isStreamingMethod = ${serviceName}Service.isStreamingMethod
 registerAllMethods()`
 
 		// Write the index.ts file
-		await fs.writeFile(indexFile, indexContent)
+		const indexFile = path.join(serviceDir, "index.ts")
+		writeFileWithMkdirs(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
@@ -606,10 +590,9 @@ export interface HostServiceHandlerConfig {
 export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "host-grpc-service-config.ts")
-	await fs.mkdir(path.dirname(configPath), { recursive: true })
-	await fs.writeFile(configPath, content)
-	log_verbose(chalk.green(`Generated host service configuration at ${configPath}`))
+	const filePath = path.join(ROOT_DIR, "src/hosts/vscode/host-grpc-service-config.ts")
+	writeFileWithMkdirs(filePath, content)
+	log_verbose(chalk.green(`Generated host service configuration at ${filePath}`))
 }
 
 /**
@@ -664,6 +647,7 @@ async function cleanup() {
 	for (const file of existingFiles) {
 		await fs.unlink(path.join(TS_OUT_DIR, file))
 	}
+	await rmdir(path.join(ROOT_DIR, "src/generated"))
 
 	// Clean up generated files that were moved.
 	await fs.rm(path.join(ROOT_DIR, "src/standalone/services/host-grpc-client.ts"), { force: true })
@@ -673,6 +657,14 @@ async function cleanup() {
 	await rmdir(path.join(ROOT_DIR, "hosts"))
 
 	await fs.rm(path.join(ROOT_DIR, "src/standalone/server-setup.ts"), { force: true })
+}
+
+/**
+ * Write `contents` to `filePath`, creating any necessary directories in `filePath`.
+ */
+async function writeFileWithMkdirs(filePath, content) {
+	await fs.mkdir(path.dirname(filePath), { recursive: true })
+	await fs.writeFile(filePath, content)
 }
 
 /**
