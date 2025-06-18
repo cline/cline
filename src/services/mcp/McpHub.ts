@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import ReconnectingEventSource from "reconnecting-eventsource"
@@ -153,7 +153,6 @@ export class McpHub {
 						const settings = await this.readAndValidateMcpSettingsFile()
 						if (settings) {
 							try {
-								vscode.window.showInformationMessage("Updating MCP servers...")
 								await this.updateServerConnections(settings.mcpServers)
 								vscode.window.showInformationMessage("MCP servers updated")
 							} catch (error) {
@@ -216,8 +215,8 @@ export class McpHub {
 						cwd: config.cwd,
 						env: {
 							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
+							...getDefaultEnvironment(),
 							...(config.env || {}), // Use config.env directly or an empty object
-							...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 						},
 						stderr: "pipe",
 					})
