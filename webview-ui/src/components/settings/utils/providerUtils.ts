@@ -40,6 +40,8 @@ import {
 	cerebrasDefaultModelId,
 	sapAiCoreModels,
 	sapAiCoreDefaultModelId,
+	claudeCodeDefaultModelId,
+	claudeCodeModels,
 } from "@shared/api"
 
 /**
@@ -78,6 +80,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "claude-code":
+			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId)
 		case "bedrock":
 			if (apiConfiguration?.awsBedrockCustomSelected) {
 				const baseModelId = apiConfiguration.awsBedrockCustomModelBaseId
