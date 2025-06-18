@@ -46,6 +46,8 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
+	miiboDefaultModelId,
+	miiboModels,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { OpenAiModelsRequest } from "@shared/proto/models"
@@ -358,6 +360,7 @@ const ApiOptions = ({
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="miibo">Miibo</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -2074,6 +2077,49 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "miibo" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.miiboBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("miiboBaseUrl")}
+						placeholder="Default: https://api-mebo.dev/api">
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+					</VSCodeTextField>
+
+					<VSCodeTextField
+						value={apiConfiguration?.miiboApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("miiboApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Miibo API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.miiboApiKey && (
+							<VSCodeLink href="https://miibo.com/api-keys" style={{ display: "inline", fontSize: "inherit" }}>
+								You can get a Miibo API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+
+					<VSCodeTextField
+						value={apiConfiguration?.miiboApiModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("miiboApiModelId")}
+						placeholder="Enter Model ID...">
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -2170,6 +2216,7 @@ const ApiOptions = ({
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
 				selectedProvider !== "bedrock" &&
+				selectedProvider !== "miibo" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -2617,6 +2664,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "miibo":
+			return getProviderData(miiboModels, miiboDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

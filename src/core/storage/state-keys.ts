@@ -22,6 +22,7 @@ export type SecretKey =
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
+	| "miiboApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -93,5 +94,7 @@ export type GlobalStateKey =
 	| "shellIntegrationTimeout"
 	| "terminalReuseEnabled"
 	| "isNewUser"
+	| "miiboBaseUrl"
+	| "miiboApiModelId"
 
 export type LocalStateKey = "localClineRulesToggles"

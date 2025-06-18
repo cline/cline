@@ -25,6 +25,7 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 	| "cerebras"
+	| "miibo"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -91,6 +92,9 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	miiboApiKey?: string
+	miiboBaseUrl?: string
+	miiboApiModelId?: string
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
@@ -2352,4 +2356,17 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
+// miibo
+export const miiboDefaultModelId = "miibo"
+export const miiboModels: Record<string, ModelInfo> = {
+	[miiboDefaultModelId]: {
+		description: "Miibo",
+		supportsImages: true,
+		maxTokens: 2000,
+		inputPrice: 1.0,
+		outputPrice: 3.0,
+		supportsPromptCache: true,
+	},
 }

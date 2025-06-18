@@ -166,6 +166,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		mcpMarketplaceEnabledRaw,
 		globalWorkflowToggles,
 		terminalReuseEnabled,
+		miiboBaseUrl,
+		miiboApiKey,
+		miiboApiModelId,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -257,6 +260,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
+		getGlobalState(context, "miiboBaseUrl") as Promise<string | undefined>,
+		getSecret(context, "miiboApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "miiboApiModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -362,6 +368,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			cerebrasApiKey,
 			nebiusApiKey,
+			miiboBaseUrl,
+			miiboApiKey,
+			miiboApiModelId,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -459,6 +468,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		cerebrasApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
+		miiboBaseUrl,
+		miiboApiKey,
+		miiboApiModelId,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
@@ -520,6 +532,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
+	await updateGlobalState(context, "miiboBaseUrl", miiboBaseUrl)
+	await storeSecret(context, "miiboApiKey", miiboApiKey)
+	await updateGlobalState(context, "miiboApiModelId", miiboApiModelId)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 }
@@ -551,6 +566,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"sambanovaApiKey",
 		"cerebrasApiKey",
 		"nebiusApiKey",
+		"miiboApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
