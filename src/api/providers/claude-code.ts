@@ -6,6 +6,15 @@ import { withRetry } from "../retry"
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { ClaudeCodeMessage } from "@/integrations/claude-code/types"
 
+const validStopSequences = ["tool_use", "end_turn"]
+
+type ProcessState = {
+	partialData: string | null
+	error: Error | null
+	errorOutput: string
+	exitCode: number | null
+}
+
 export class ClaudeCodeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 
@@ -27,9 +36,12 @@ export class ClaudeCodeHandler implements ApiHandler {
 		})
 
 		const dataQueue: string[] = []
-		let processError = null
-		let errorOutput = ""
-		let exitCode: number | null = null
+		let processState: ProcessState = {
+			partialData: null,
+			error: null,
+			errorOutput: "",
+			exitCode: null,
+		}
 
 		claudeProcess.stdout.on("data", (data) => {
 			const output = data.toString()
@@ -41,15 +53,15 @@ export class ClaudeCodeHandler implements ApiHandler {
 		})
 
 		claudeProcess.stderr.on("data", (data) => {
-			errorOutput += data.toString()
+			processState.errorOutput += data.toString()
 		})
 
 		claudeProcess.on("close", (code) => {
-			exitCode = code
+			processState.exitCode = code
 		})
 
 		claudeProcess.on("error", (error) => {
-			processError = error
+			processState.error = error
 		})
 
 		// Usage is included with assistant messages,
@@ -62,16 +74,16 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
-		let partialMessage: string | null = null
-
-		while (exitCode !== 0 || dataQueue.length > 0) {
+		while (processState.exitCode !== 0 || dataQueue.length > 0) {
 			if (dataQueue.length === 0) {
 				await new Promise((resolve) => setImmediate(resolve))
 			}
 
+			const exitCode = processState.exitCode
 			if (exitCode !== null && exitCode !== 0) {
+				const errorOutput = processState.errorOutput.trim()
 				throw new Error(
-					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput.trim()}` : ""}`,
+					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
 				)
 			}
 
@@ -80,23 +92,10 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
-			let chunk: ClaudeCodeMessage | null = null
+			const chunk = this.parseChunk(data, processState)
 
-			if (partialMessage !== null) {
-				partialMessage += data
-				chunk = this.attemptParseChunk(partialMessage)
-				if (chunk) {
-					partialMessage = null
-				} else {
-					continue
-				}
-			} else {
-				chunk = this.attemptParseChunk(data)
-
-				if (!chunk) {
-					partialMessage = data
-					continue
-				}
+			if (!chunk) {
+				continue
 			}
 
 			if (chunk.type === "system" && chunk.subtype === "init") {
@@ -106,7 +105,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null && message.stop_reason !== "tool_use") {
+				if (message.stop_reason !== null && !validStopSequences.includes(message.stop_reason)) {
 					const errorMessage = message.content[0]?.text || `Claude Code stopped with reason: ${message.stop_reason}`
 
 					if (errorMessage.includes("Invalid model name")) {
@@ -144,9 +143,41 @@ export class ClaudeCodeHandler implements ApiHandler {
 				yield usage
 			}
 
-			if (processError) {
-				throw processError
+			if (processState.error) {
+				throw processState.error
 			}
+		}
+	}
+
+	private parseChunk(data: string, processState: ProcessState) {
+		if (processState.partialData) {
+			processState.partialData += data
+
+			const chunk = this.attemptParseChunk(processState.partialData)
+
+			if (!chunk) {
+				return null
+			}
+
+			processState.partialData = null
+			return chunk
+		}
+
+		const chunk = this.attemptParseChunk(data)
+
+		if (!chunk) {
+			processState.partialData = data
+		}
+
+		return chunk
+	}
+
+	private attemptParseChunk(data: string): ClaudeCodeMessage | null {
+		try {
+			return JSON.parse(data)
+		} catch (error) {
+			console.error("Error parsing chunk:", error)
+			return null
 		}
 	}
 
@@ -160,16 +191,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 		return {
 			id: claudeCodeDefaultModelId,
 			info: claudeCodeModels[claudeCodeDefaultModelId],
-		}
-	}
-
-	// TOOD: Validate instead of parsing
-	private attemptParseChunk(data: string): ClaudeCodeMessage | null {
-		try {
-			return JSON.parse(data)
-		} catch (error) {
-			console.error("Error parsing chunk:", error)
-			return null
 		}
 	}
 }
