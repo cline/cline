@@ -1,10 +1,30 @@
 <common_mistakes_to_avoid>
-  - Vague descriptions like "doesn't work" or "broken"
-  - Missing reproduction steps for bugs
-  - Feature requests without clear problem statements
-  - No acceptance criteria for features
-  - Forgetting to include technical context from code exploration
-  - Not checking for duplicates
-  - Using wrong labels or no labels
-  - Titles that don't summarize the issue
+  <problem_reporting_mistakes>
+    - Vague descriptions like "doesn't work" or "broken"
+    - Missing reproduction steps for bugs
+    - Feature requests without clear problem statements
+    - Not explaining the impact on users
+    - Forgetting to specify when/how the problem occurs
+    - Using wrong labels or no labels
+    - Titles that don't summarize the issue
+    - Not checking for duplicates
+  </problem_reporting_mistakes>
+  
+  <workflow_mistakes>
+    - Asking for technical details from non-contributing users
+    - Exploring codebase before confirming user wants to contribute
+    - Requiring acceptance criteria from problem reporters
+    - Making the process too complex for simple problem reports
+    - Not clearly indicating the "submit now" option
+    - Overwhelming users with contributor requirements upfront
+  </workflow_mistakes>
+  
+  <contributor_mistakes>
+    - Starting implementation before approval
+    - Not providing detailed technical analysis when contributing
+    - Missing acceptance criteria for contributed features
+    - Forgetting to include technical context from code exploration
+    - Not considering trade-offs and alternatives
+    - Proposing solutions without understanding current architecture
+  </contributor_mistakes>
 </common_mistakes_to_avoid>

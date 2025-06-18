@@ -30,10 +30,11 @@
       - Any error messages or logs
       
       For Feature Requests, ensure you have:
-      - Specific problem description with impact
-      - Detailed proposed solution
-      - Clear acceptance criteria in Given/When/Then format
-      - Effort estimation with reasoning
+      - Specific problem description with impact (who is affected, when it happens, current vs expected behavior, impact)
+      - Additional context if available (mockups, screenshots, links)
+      
+      IMPORTANT: Do NOT ask for solution design, acceptance criteria, or technical details 
+      unless the user explicitly states they want to contribute the implementation.
       
       Use multiple ask_followup_question calls if needed to gather all information.
       Be specific in your questions based on what's missing.
@@ -63,8 +64,31 @@
   </step>
 
   <step number="4">
-    <name>Explore Codebase for Context</name>
+    <name>Determine if User Wants to Contribute</name>
     <instructions>
+      Before exploring the codebase, determine if the user wants to contribute the implementation:
+      
+      <ask_followup_question>
+      <question>Are you interested in implementing this feature yourself, or are you just reporting the problem for the Roo team to solve?</question>
+      <follow_up>
+      <suggest>Just reporting the problem - the Roo team can design the solution</suggest>
+      <suggest>I want to contribute and implement this feature myself</suggest>
+      <suggest>I'm not sure yet, but I'd like to provide technical analysis</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      Based on their response:
+      - If just reporting: Skip to step 6 (Draft Issue - Problem Only)
+      - If contributing: Continue to step 5 (Explore Codebase)
+      - If providing analysis: Continue to step 5 but make technical sections optional
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Explore Codebase for Contributors</name>
+    <instructions>
+      ONLY perform this step if the user wants to contribute or provide technical analysis.
+      
       Use codebase_search FIRST to understand the relevant parts of the codebase:
       
       For Bug Reports:
@@ -88,22 +112,27 @@
       - read_file on specific files to understand implementation
       - search_files for specific error messages or patterns
       
-      Formulate an independent technical plan to solve the problem, disregarding any solution proposed by the issue author.
+      Formulate an independent technical plan to solve the problem.
       
       Document all relevant findings including:
       - File paths and line numbers
       - Current implementation details
       - Your proposed implementation plan
       - Related code that might be affected
+      
+      Then gather additional technical details:
+      - Ask for proposed solution approach
+      - Request acceptance criteria in Given/When/Then format
+      - Discuss technical considerations and trade-offs
     </instructions>
   </step>
 
-  <step number="5">
-    <name>Draft Complete Issue Content</name>
+  <step number="6">
+    <name>Draft Issue Content</name>
     <instructions>
-      Create the complete issue body following the exact template structure.
+      Create the issue body based on whether the user is just reporting or contributing.
       
-      For Bug Reports, format as:
+      For Bug Reports, format is the same regardless of contribution intent:
       ```
       ## App Version
       [version from user]
@@ -137,6 +166,7 @@
       [paste any error messages or logs]
       ```
       
+      [If user is contributing, add:]
       ## Technical Analysis
       
       Based on my investigation:
@@ -146,7 +176,7 @@
       - **Proposed Fix:** [Detail the fix from your implementation plan.]
       ```
       
-      For Feature Requests, format as:
+      For Feature Requests - PROBLEM REPORTERS (not contributing):
       ```
       ## What specific problem does this solve?
       
@@ -158,9 +188,43 @@
       **Expected behavior:** [what should happen]
       **Impact:** [time wasted, errors, productivity loss]
       
+      ## Additional context
+      
+      [Any mockups, screenshots, links, or other supporting information]
+      
+      ## Related Discussions
+      
+      [If any related discussions were found, list them here]
+      - Closes #[discussion number] - [discussion title]
+      - Related to #[discussion number] - [discussion title]
+      ```
+      
+      For Feature Requests - CONTRIBUTORS (implementing the feature):
+      ```
+      ## What specific problem does this solve?
+      
+      [Detailed problem description following the template guidelines]
+      
+      **Who is affected:** [user groups]
+      **When this happens:** [specific scenarios]
+      **Current behavior:** [what happens now]
+      **Expected behavior:** [what should happen]
+      **Impact:** [time wasted, errors, productivity loss]
+      
+      ## Additional context
+      
+      [Any mockups, screenshots, links, or other supporting information]
+      
+      ---
+      
+      ## 🛠️ Contributing & Technical Analysis
+      
+      ✅ **I'm interested in implementing this feature**
+      ✅ **I understand this needs approval before implementation begins**
+      
       ## How should this be solved?
       
-      [Based on your independent analysis, describe your proposed solution here. Disregard the author's proposal.]
+      [Based on your analysis, describe the proposed solution]
       
       **What will change:**
       - [Specific change 1]
@@ -182,29 +246,32 @@
       
       [Add multiple scenarios as needed]
       
-      ## Estimated Effort and Complexity
+      ## Technical Considerations
       
-      **Size:** [estimate]
-      **Reasoning:** [why this size]
-      **Main challenges:** [technical difficulties]
-      **Dependencies:** [what's needed]
-      
-      ## Technical Implementation Plan
-      
-      Based on my analysis from the previous step:
+      **Implementation approach:**
       - Key files to modify: [list with paths]
       - Current architecture: [brief description]
       - Integration points: [where this fits]
       - Similar patterns in codebase: [examples]
-      - Implementation Steps: [Provide a detailed, step-by-step guide for your proposed solution.]
       
-      ## Technical Considerations
+      **Performance implications:**
+      [Any performance considerations]
       
-      [Any additional technical details]
+      **Compatibility concerns:**
+      [Any compatibility issues]
       
       ## Trade-offs and Risks
       
-      [Alternatives considered and potential issues]
+      **Alternatives considered:**
+      - [Alternative 1]: [Why not chosen]
+      - [Alternative 2]: [Why not chosen]
+      
+      **Potential risks:**
+      - [Risk 1]: [Mitigation strategy]
+      - [Risk 2]: [Mitigation strategy]
+      
+      **Breaking changes:**
+      [Any breaking changes or migration needs]
       
       ## Related Discussions
       
@@ -215,7 +282,7 @@
     </instructions>
   </step>
 
-  <step number="6">
+  <step number="7">
     <name>Review and Confirm with User</name>
     <instructions>
       Present the complete drafted issue to the user for review:
@@ -238,7 +305,7 @@
     </instructions>
   </step>
 
-  <step number="7">
+  <step number="8">
     <name>Create GitHub Issue</name>
     <instructions>
       Once user confirms, create the issue using the GitHub MCP tool:
@@ -251,7 +318,7 @@
         "owner": "RooCodeInc",
         "repo": "Roo-Code",
         "title": "[Create a descriptive title based on the issue content]",
-        "body": "[The complete formatted issue body from step 4]",
+        "body": "[The complete formatted issue body from step 6]",
         "labels": [Use ["bug"] for bug reports or ["proposal", "enhancement"] for features]
       }
       </arguments>

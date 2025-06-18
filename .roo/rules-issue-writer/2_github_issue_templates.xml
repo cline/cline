@@ -69,9 +69,9 @@
   
   <feature_request_template>
     <name>Detailed Feature Proposal</name>
-    <description>Propose a specific, actionable feature or enhancement for implementation</description>
+    <description>Report a specific problem that needs solving in Roo Code</description>
     <labels>["proposal", "enhancement"]</labels>
-    <fields>
+    <required_fields>
       <field name="problem-description" type="textarea" required="true">
         <label>What specific problem does this solve?</label>
         <description>
@@ -95,9 +95,30 @@
         </description>
         <placeholder>Be specific about the problem, who it affects, and the impact. Avoid generic statements like "it's slow" or "it's confusing."</placeholder>
       </field>
-      <field name="proposed-solution" type="textarea" required="true">
-        <label>How should this be solved?</label>
+      <field name="additional-context" type="textarea" required="false">
+        <label>Additional context (optional)</label>
+        <description>Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.</description>
+      </field>
+    </required_fields>
+    
+    <contributor_fields>
+      <field name="willingness-to-contribute" type="checkbox">
+        <label>Interested in implementing this?</label>
         <description>
+          **Important:** If you check "Yes" below, the technical sections become REQUIRED.
+          We need detailed technical analysis from contributors to ensure quality implementation.
+        </description>
+        <option>Yes, I'd like to help implement this feature</option>
+      </field>
+      <field name="implementation-approval" type="checkbox">
+        <label>Implementation requirements</label>
+        <option>I understand this needs approval before implementation begins</option>
+      </field>
+      <field name="proposed-solution" type="textarea" required_if_contributing="true">
+        <label>How should this be solved? (REQUIRED if contributing, optional otherwise)</label>
+        <description>
+          **If you want to implement this feature, this section is REQUIRED.**
+          
           **Describe your solution in detail.** Explain not just what to build, but how it should work.
           
           ✅ **Good examples:**
@@ -117,9 +138,11 @@
         </description>
         <placeholder>Describe the specific changes and how they will work. Include user interaction details if relevant.</placeholder>
       </field>
-      <field name="acceptance-criteria" type="textarea" required="true">
-        <label>How will we know it works? (Acceptance Criteria)</label>
+      <field name="acceptance-criteria" type="textarea" required_if_contributing="true">
+        <label>How will we know it works? (Acceptance Criteria - REQUIRED if contributing, optional otherwise)</label>
         <description>
+          **If you want to implement this feature, this section is REQUIRED.**
+          
           **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
           
           **Format suggestion:**
@@ -146,35 +169,11 @@
           Use the Given/When/Then format above or your own clear structure.
         </placeholder>
       </field>
-      <field name="estimated-effort" type="textarea" required="true">
-        <label>Estimated effort and complexity</label>
+      <field name="technical-considerations" type="textarea" required_if_contributing="true">
+        <label>Technical considerations (REQUIRED if contributing, optional otherwise)</label>
         <description>
-          **Help us understand the scope.** This helps with planning and prioritisation.
+          **If you want to implement this feature, this section is REQUIRED.**
           
-          **Please include:**
-          - **Size estimate:** XS/Small/Medium/Large/XL
-          - **Reasoning:** What makes it this size? Which parts are complex?
-          - **Main challenges:** What's the trickiest bit to implement?
-          - **Dependencies:** Does this require other changes or external libraries?
-          
-          **Example:**
-          ```
-          Size: Large
-          Reasoning: Touches task execution engine, UI components, and state management
-          Main challenges: Preventing memory leaks with parallel execution and managing shared resources
-          Dependencies: Might need to add a new dependency for the new feature
-          ```
-        </description>
-        <placeholder>
-          Size: [your estimate]
-          Reasoning: [why this size?]
-          Main challenges: [what's tricky?]
-          Dependencies: [what else is needed?]
-        </placeholder>
-      </field>
-      <field name="technical-considerations" type="textarea" required="false">
-        <label>Technical considerations (optional but helpful)</label>
-        <description>
           Share technical insights that could help planning:
           - Implementation approach or architecture changes
           - Performance implications
@@ -184,9 +183,11 @@
         </description>
         <placeholder>e.g., "Will need to refactor task manager", "Could impact memory usage on large files", "Requires a large portion of code to be rewritten"</placeholder>
       </field>
-      <field name="trade-offs-and-risks" type="textarea" required="false">
-        <label>Trade-offs and risks (optional)</label>
+      <field name="trade-offs-and-risks" type="textarea" required_if_contributing="true">
+        <label>Trade-offs and risks (REQUIRED if contributing, optional otherwise)</label>
         <description>
+          **If you want to implement this feature, this section is REQUIRED.**
+          
           What could go wrong or what alternatives did you consider?
           - Alternative approaches and why you chose this one
           - Potential negative impacts (performance, UX, etc.)
@@ -195,10 +196,24 @@
         </description>
         <placeholder>e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"</placeholder>
       </field>
-      <field name="additional-context" type="textarea" required="false">
-        <label>Additional context (optional)</label>
-        <description>Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.</description>
-      </field>
-    </fields>
+    </contributor_fields>
   </feature_request_template>
+  
+  <template_changes_summary>
+    <change type="focus_shift">
+      Template now focuses on problem reporting first, with solution contribution as optional
+    </change>
+    <change type="required_fields">
+      Only problem description and context are required for basic submission
+    </change>
+    <change type="contributor_section">
+      Technical fields (solution, acceptance criteria, etc.) are only required if user wants to contribute
+    </change>
+    <change type="clear_exit_point">
+      Users can submit after describing the problem without technical details
+    </change>
+    <change type="guidance_separation">
+      Implementation guidance moved to contributor section only
+    </change>
+  </template_changes_summary>
 </github_issue_templates>
