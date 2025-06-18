@@ -26,6 +26,9 @@ import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlob
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { maybeInitializeHostBridgeClient } from "./hosts/host-bridge-client"
+import { vscodeHostBridgeClient } from "@generated/hosts/vscode/client/host-grpc-client"
+
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -46,6 +49,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	maybeInitializeHostBridgeClient(vscodeHostBridgeClient)
 
 	// Migrate global storage values to workspace storage (one-time cleanup)
 	await migratePlanActGlobalToWorkspaceStorage(context)
