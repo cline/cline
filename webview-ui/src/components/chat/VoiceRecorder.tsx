@@ -4,7 +4,6 @@ import { VoiceServiceClient } from "@/services/grpc-client"
 import { StartRecordingRequest, StopRecordingRequest, TranscribeAudioRequest } from "@shared/proto/voice"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Tooltip from "@/components/common/Tooltip"
-import "./VoiceRecorder.css"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -113,11 +112,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 						gap: "2px",
 					}}>
 					<span
-						className={`codicon ${isRecording ? "codicon-stop-circle" : "codicon-mic"}`}
+						className={`codicon ${isRecording ? "codicon-stop-circle animate-pulse" : "codicon-mic"}`}
 						style={{
 							fontSize: "14px",
 							color: isRecording ? "var(--vscode-errorForeground)" : undefined,
-							animation: isRecording ? "pulse 1.5s infinite" : undefined,
 						}}
 					/>
 					{isProcessing && <span>Processing...</span>}
