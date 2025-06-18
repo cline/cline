@@ -771,9 +771,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowMcp,
 		closeMcpView,
 		setChatSettings: async (value) => {
+			// Merge the new value with existing chatSettings to preserve fields
+			const mergedChatSettings = {
+				...state.chatSettings,
+				...value,
+			}
 			setState((prevState) => ({
 				...prevState,
-				chatSettings: value,
+				chatSettings: mergedChatSettings,
 			}))
 			try {
 				// Import the conversion functions
@@ -786,7 +791,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 				await StateServiceClient.updateSettings(
 					UpdateSettingsRequest.create({
-						chatSettings: convertChatSettingsToProtoChatSettings(value),
+						chatSettings: convertChatSettingsToProtoChatSettings(mergedChatSettings),
 						apiConfiguration: state.apiConfiguration
 							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
 							: undefined,

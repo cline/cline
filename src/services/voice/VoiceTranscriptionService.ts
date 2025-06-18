@@ -17,10 +17,8 @@ export class VoiceTranscriptionService {
 	async initializeWithAnyOpenAIKey(context: vscode.ExtensionContext): Promise<{ success: boolean; error?: string }> {
 		try {
 			// Import here to avoid circular dependencies
-			const { getSecret, getGlobalState } = await import("@core/storage/state")
+			const { getSecret } = await import("@core/storage/state")
 
-			// Try to find any available OpenAI API key
-			const openAiApiKey = await getSecret(context, "openAiApiKey")
 			const openAiNativeApiKey = await getSecret(context, "openAiNativeApiKey")
 
 			// Use whichever key is available
@@ -33,12 +31,7 @@ export class VoiceTranscriptionService {
 				}
 			}
 
-			// Get OpenAI base URL and headers if configured
-			const openAiBaseUrl = (await getGlobalState(context, "openAiBaseUrl")) as string | undefined
-			const openAiHeaders = (await getGlobalState(context, "openAiHeaders")) as Record<string, string> | undefined
-
 			// Check if this is an Azure endpoint
-
 			this.client = new OpenAI({
 				apiKey: openAiNativeApiKey,
 			})

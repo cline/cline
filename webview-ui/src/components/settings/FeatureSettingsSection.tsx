@@ -73,6 +73,23 @@ const FeatureSettingsSection = () => {
 				</p>
 			</div>
 			<div style={{ marginTop: 10 }}>
+				<VSCodeCheckbox
+					checked={chatSettings?.voiceRecordingEnabled !== false}
+					onChange={(e: any) => {
+						const checked = e.target.checked === true
+						setChatSettings({
+							...chatSettings,
+							voiceRecordingEnabled: checked,
+						})
+					}}>
+					Enable Voice Recording
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					Enables voice recording with automatic transcription. Requires an OpenAI API key to be configured for Whisper
+					transcription.
+				</p>
+			</div>
+			<div style={{ marginTop: 10 }}>
 				<label
 					htmlFor="openai-reasoning-effort-dropdown"
 					className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
