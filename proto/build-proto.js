@@ -178,7 +178,7 @@ export {
 }`
 
 	const filePath = path.join(ROOT_DIR, "webview-ui/src/services/grpc-client.ts")
-	await fs.writeFile(filePath, content)
+	await writeFileWithMkdirs(filePath, content)
 	log_verbose(chalk.green(`Generated gRPC client at ${filePath}`))
 }
 
@@ -386,8 +386,8 @@ export interface ServiceHandlerConfig {
 export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const configPath = path.join(ROOT_DIR, "src", "core", "controller", "grpc-service-config.ts")
-	await fs.writeFile(configPath, content)
+	const configPath = path.join(ROOT_DIR, "src/core/controller/grpc-service-config.ts")
+	await writeFileWithMkdirs(configPath, content)
 	log_verbose(chalk.green(`Generated service configuration at ${configPath}`))
 }
 
@@ -511,7 +511,7 @@ export function registerAllMethods(): void {
 
 		// Write the methods.ts file
 		const registryFile = path.join(serviceDir, "methods.ts")
-		writeFileWithMkdirs(registryFile, methodsContent)
+		await writeFileWithMkdirs(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
@@ -541,7 +541,7 @@ registerAllMethods()`
 
 		// Write the index.ts file
 		const indexFile = path.join(serviceDir, "index.ts")
-		writeFileWithMkdirs(indexFile, indexContent)
+		await writeFileWithMkdirs(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
@@ -634,10 +634,9 @@ export {
 	${serviceExports.join(",\n\t")}
 }`
 
-	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "client", "host-grpc-client.ts")
-	await fs.mkdir(path.dirname(configPath), { recursive: true })
-	await fs.writeFile(configPath, content)
-	log_verbose(chalk.green(`Generated host gRPC client at ${configPath}`))
+	const filePath = path.join(ROOT_DIR, "src/hosts/vscode/client/host-grpc-client.ts")
+	await writeFileWithMkdirs(filePath, content)
+	log_verbose(chalk.green(`Generated host gRPC client at ${filePath}`))
 }
 
 async function cleanup() {
