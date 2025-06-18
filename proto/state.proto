@@ -217,4 +217,7 @@ message ApiConfiguration {
   optional string sap_ai_core_base_url = 74;
   optional string sap_ai_core_token_url = 75;
   optional string sap_ai_resource_group = 76;
+
+  // Claude Code specific
+  optional string claude_code_path = 77;
 }
