@@ -688,29 +688,15 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 2974c4be (feat: start_next_child_task)
 			case "startNextChildTask":
 				return (
 					<>
 						<div style={headerStyle}>
 							{toolIcon("split-horizontal")}
 							<span style={{ fontWeight: "bold" }}>
-<<<<<<< HEAD
-<<<<<<< HEAD
 								{message.type === "ask"
 									? "Cline wants to start next child task:"
 									: "Cline completed next child task:"}
-=======
-								{message.type === "ask" ? "Cline wants to start next child task:" : "Cline completed next child task:"}
->>>>>>> 2974c4be (feat: start_next_child_task)
-=======
-								{message.type === "ask"
-									? "Cline wants to start next child task:"
-									: "Cline completed next child task:"}
->>>>>>> 00dcbf08 (feat: modify system prompts)
 							</span>
 						</div>
 						<div
@@ -741,12 +727,6 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
-
-<<<<<<< HEAD
-=======
->>>>>>> a4cdb30f (feat: modify view_pending_task logic)
-=======
->>>>>>> 2974c4be (feat: start_next_child_task)
 			case "viewPendingChildTasks":
 				console.log("viewPendingChildTasks tool content:", message)
 				return (
@@ -759,10 +739,6 @@ export const ChatRowContent = ({
 									: "Cline viewed pending child tasks:"}
 							</span>
 						</div>
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 00dcbf08 (feat: modify system prompts)
 						{tool.content && (
 							<CodeAccordian
 								code={tool.content!}
@@ -772,18 +748,6 @@ export const ChatRowContent = ({
 								onToggleExpand={onToggleExpand}
 							/>
 						)}
-<<<<<<< HEAD
-=======
-						{tool.content && <CodeAccordian
-							code={tool.content!}
-							path={tool.path!}
-							language="plaintext"
-							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
-						/>}
->>>>>>> a4cdb30f (feat: modify view_pending_task logic)
-=======
->>>>>>> 00dcbf08 (feat: modify system prompts)
 					</>
 				)
 			case "searchFiles":
@@ -1133,16 +1097,9 @@ export const ChatRowContent = ({
 							)}
 						</>
 					)
-<<<<<<< HEAD
-<<<<<<< HEAD
 
 				case "child_task_completed":
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 00dcbf08 (feat: modify system prompts)
-					return (
-						message.text && (
+					return message.text && (
 							<>
 								<div style={headerStyle}>
 									{icon}
@@ -1157,34 +1114,6 @@ export const ChatRowContent = ({
 								</p>
 							</>
 						)
-<<<<<<< HEAD
-=======
-				
-=======
-
->>>>>>> 119554cf (feat: modify parentid logic in task complete part)
-				case "child_task_completed":
-					console.log(" 'child_task_completed' message type in ClineChatRow", message)
-=======
->>>>>>> 9bef4fa8 (feat: modify view_pending_task logic)
-					return message.text && (
-						<>
-							<div style={headerStyle}>
-								{icon}
-								{title}
-							</div>
-							<p
-								style={{
-									...pStyle,
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								{message.text}
-							</p>
-						</>
->>>>>>> 8d60dff3 (feat: modify resume logic to fix parent task state error resuming from child task)
-=======
->>>>>>> 00dcbf08 (feat: modify system prompts)
-					)
 				case "start_next_child_task":
 				case "new_child_task":
 					return (
