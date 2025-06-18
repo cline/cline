@@ -32,11 +32,18 @@ export const StartRecording: VoiceMethodHandler = async (
 					"Voice recording requires ALSA utilities. Please install: sudo apt-get install alsa-utils",
 				)
 			} else if (result.error.includes("sourceforge.net")) {
-				vscode.window.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX").then((selection) => {
-					if (selection === "Download SoX") {
-						vscode.env.openExternal(vscode.Uri.parse("https://sourceforge.net/projects/sox/"))
-					}
-				})
+				const url = "https://sourceforge.net/projects/sox/";
+				const parsedUrl = new URL(url);
+				const allowedHosts = ["sourceforge.net"];
+				if (allowedHosts.includes(parsedUrl.host)) {
+					vscode.window.showErrorMessage("Voice recording requires SoX for Windows.", "Download SoX").then((selection) => {
+						if (selection === "Download SoX") {
+							vscode.env.openExternal(vscode.Uri.parse(url));
+						}
+					});
+				} else {
+					vscode.window.showErrorMessage("Invalid URL host detected for SoX download.");
+				}
 			} else {
 				vscode.window.showErrorMessage(`Voice recording failed: ${result.error}`)
 			}
