@@ -2,7 +2,7 @@ import * as fs from "fs"
 import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import * as health from "grpc-health-check"
-import { StreamingCallbacks } from "@hosts/vscode/host-grpc-handler"
+import { StreamingCallbacks } from "@hosts/host-bridge-client"
 
 const log = (...args: unknown[]) => {
 	const timestamp = new Date().toISOString()

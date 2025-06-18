@@ -9,8 +9,6 @@ import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addProtobusServices } from "@/generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { UriServiceClient } from "@/hosts/host-bridge-client"
-import { StringRequest } from "@/shared/proto/common"
 
 async function main() {
 	log("Starting service...")
