@@ -445,16 +445,6 @@ export const ChatRowContent = ({
 						}}></span>,
 					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 				]
-			case "ask_question":
-				return [
-					<span
-						className="codicon codicon-question"
-						style={{
-							color: normalColor,
-							marginBottom: "-1.5px",
-						}}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
-				]
 			default:
 				return [null, null]
 		}
@@ -1544,14 +1534,14 @@ export const ChatRowContent = ({
 						<>
 							<div style={headerStyle}>
 								<span
-									className="codicon codicon-new-file"
+									className="codicon codicon-question"
 									style={{
 										color: normalColor,
 										marginBottom: "-1.5px",
 									}}></span>
-								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>
 							</div>
-							<NewTaskPreview context={message.text || ""} />
+							<MarkdownBlock markdown={message.text || ""} />
 						</>
 					)
 				case "new_task":

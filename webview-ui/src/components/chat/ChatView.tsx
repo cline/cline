@@ -454,6 +454,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
 						case "condense":
+						case "ask_question":
 						case "report_bug":
 							await TaskServiceClient.askResponse(
 								AskResponseRequest.create({

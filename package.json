@@ -401,7 +401,7 @@
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
 		"ts-node": "^10.9.2",
-		"ts-proto": "^2.6.1",
+		"ts-proto": "^2.7.5",
 		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.4.5"
 	},
