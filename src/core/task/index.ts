@@ -4022,7 +4022,6 @@ export class Task {
 									: undefined
 							if (
 								lastCompletionResultMessage &&
-								lastCompletionResultMessageIndex !== -1 &&
 								hasNewChanges &&
 								!lastCompletionResultMessage.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG)
 							) {
