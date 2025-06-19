@@ -7,12 +7,14 @@ import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
-import { addServices } from "./server-setup"
+import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { initializeHostBridgeClient, StreamingCallbacks, UriServiceClient, WatchServiceClient } from "@/hosts/host-bridge-client"
+import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
 
-function main() {
+async function main() {
 	log("Starting service...")
-
+	initializeHostBridgeClient(new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage)
 	const server = new grpc.Server()
@@ -22,7 +24,7 @@ function main() {
 	healthImpl.addToServer(server)
 
 	// Add all the handlers for the ProtoBus services to the server.
-	addServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
+	addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
 
 	// Set up reflection.
 	const reflection = new ReflectionService(getPackageDefinition())

@@ -121,6 +121,8 @@ enum ApiProvider {
   XAI = 21;
   SAMBANOVA = 22;
   CEREBRAS = 23;
+  SAPAICORE = 24;
+  CLAUDE_CODE = 25;
 }
 
 // Model info for OpenAI-compatible models
@@ -226,8 +228,12 @@ message ModelsApiConfiguration {
   optional string sambanova_api_key = 63;
   optional string cerebras_api_key = 64;
   optional int32 request_timeout_ms = 65;
-  
-  // From ApiConfiguration (additional fields)
   optional ApiProvider api_provider = 66;
   repeated string favorited_model_ids = 67;
+  optional string sap_ai_core_client_id = 68;
+  optional string sap_ai_core_client_secret = 69;
+  optional string sap_ai_resource_group = 70;
+  optional string sap_ai_core_token_url = 71;
+  optional string sap_ai_core_base_url = 72;
+  optional string claude_code_path = 73;
 }

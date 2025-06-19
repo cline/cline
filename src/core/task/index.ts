@@ -392,6 +392,18 @@ export class Task {
 						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
+				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
+					// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
+					console.warn(`Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint`)
+					try {
+						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else {
+					vscode.window.showErrorMessage("Failed to restore checkpoint")
 				}
 				break
 		}
@@ -415,6 +427,18 @@ export class Task {
 					const clineMessages = this.messageStateHandler.getClineMessages()
 					const deletedMessages = clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
+
+					// Detect files edited after this message timestamp for file context warning
+					// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
+					if (restoreType === "task") {
+						const filesEditedAfterMessage = await this.fileContextTracker.detectFilesEditedAfterMessage(
+							messageTs,
+							deletedMessages,
+						)
+						if (filesEditedAfterMessage.length > 0) {
+							await this.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
+						}
+					}
 
 					const newClineMessages = clineMessages.slice(0, messageIndex + 1)
 					await this.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
@@ -1080,12 +1104,17 @@ export class Task {
 
 		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
 
+		// Check if there are pending file context warnings before calling taskResumption
+		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
+		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
+
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
 			this.chatSettings?.mode === "plan" ? "plan" : "act",
 			agoText,
 			cwd,
 			wasRecent,
 			responseText,
+			hasPendingFileContextWarnings,
 		)
 
 		if (taskResumptionMessage !== "") {
@@ -1114,6 +1143,15 @@ export class Task {
 					text: fileContentString,
 				})
 			}
+		}
+
+		// Inject file context warning if there were pending warnings from message editing
+		if (pendingContextWarning && pendingContextWarning.length > 0) {
+			const fileContextWarning = formatResponse.fileContextWarning(pendingContextWarning)
+			newUserContent.push({
+				type: "text",
+				text: fileContextWarning,
+			})
 		}
 
 		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -1185,19 +1223,39 @@ export class Task {
 				return
 			}
 
-			// For non-attempt completion we just say checkpoints
-			await this.say("checkpoint_created")
-			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessageIndex = findLastIndex(
-					this.messageStateHandler.getClineMessages(),
-					(m) => m.say === "checkpoint_created",
-				)
-				if (lastCheckpointMessageIndex !== -1) {
-					await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-						lastCheckpointHash: commitHash,
-					})
+			// Initialize checkpoint tracker if it doesn't exist
+			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
+				try {
+					this.checkpointTracker = await CheckpointTracker.create(
+						this.taskId,
+						this.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					)
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					console.error("Failed to initialize checkpoint tracker:", errorMessage)
+					this.taskState.checkpointTrackerErrorMessage = errorMessage
+					await this.postStateToWebview()
+					return
 				}
-			}) // silently fails for now
+			}
+
+			// Create a checkpoint commit and update clineMessages with a commitHash
+			if (this.checkpointTracker) {
+				const commitHash = await this.checkpointTracker.commit()
+				if (commitHash) {
+					await this.say("checkpoint_created")
+					const lastCheckpointMessageIndex = findLastIndex(
+						this.messageStateHandler.getClineMessages(),
+						(m) => m.say === "checkpoint_created",
+					)
+					if (lastCheckpointMessageIndex !== -1) {
+						await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+							lastCheckpointHash: commitHash,
+						})
+					}
+				}
+			} // silently fails for now
 
 			//
 		} else {
@@ -1996,14 +2054,16 @@ export class Task {
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
 		if (isFirstRequest && this.enableCheckpoints && this.checkpointTracker) {
-			await this.say("checkpoint_created") // Now this is conditional
 			const commitHash = await this.checkpointTracker.commit() // Actual commit
-			const lastCheckpointMessage = findLast(
+			await this.say("checkpoint_created") // Now this is conditional
+			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
 				(m) => m.say === "checkpoint_created",
 			)
-			if (lastCheckpointMessage) {
-				lastCheckpointMessage.lastCheckpointHash = commitHash
+			if (lastCheckpointMessageIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+					lastCheckpointHash: commitHash,
+				})
 				// saveClineMessagesAndUpdateHistory will be called later after API response,
 				// so no need to call it here unless this is the only modification to this message.
 				// For now, assuming it's handled later.
