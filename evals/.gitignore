@@ -16,4 +16,4 @@ diff_editing/test_outputs/
 *.db-wal
 *.db-shm
 
-cache
+.cache
