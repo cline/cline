@@ -3,6 +3,16 @@ import * as path from "path"
 import * as os from "os"
 import { spawn, ChildProcess } from "child_process"
 import { Logger } from "@services/logging/Logger"
+import { SOX_FALLBACK_PATHS } from "@/shared/audioProgramConstants"
+
+function isExecutable(filePath: string): boolean {
+	try {
+		fs.accessSync(filePath, fs.constants.X_OK)
+		return true
+	} catch (e) {
+		return false
+	}
+}
 
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
@@ -32,6 +42,9 @@ export class AudioRecordingService {
 
 			// Get the recording program path
 			const recordProgram = this.getRecordProgram()
+			if (!recordProgram) {
+				return { success: false, error: "Recording program not found" }
+			}
 			Logger.info(`Using recording program: ${recordProgram}`)
 
 			// Set up recording arguments for rec/sox
@@ -145,86 +158,45 @@ export class AudioRecordingService {
 	}
 
 	private checkRecordingDependencies(): { available: boolean; error?: string } {
-		const platform = os.platform()
-
-		switch (platform) {
-			case "darwin": // macOS
-				// Check for SoX installation
-				const macPaths = ["/usr/local/bin/rec", "/opt/homebrew/bin/rec", "/usr/local/bin/sox", "/opt/homebrew/bin/sox"]
-
-				const foundPath = macPaths.find((p) => fs.existsSync(p))
-				if (!foundPath) {
-					return {
-						available: false,
-						error: "Audio recording requires SoX. Please install it using: brew install sox",
-					}
-				}
-				return { available: true }
-
-			case "linux":
-				// Check for arecord
-				if (!fs.existsSync("/usr/bin/arecord")) {
-					return {
-						available: false,
-						error: "Audio recording requires ALSA utilities. Please install using: sudo apt-get install alsa-utils (or equivalent for your distribution)",
-					}
-				}
-				return { available: true }
-
-			case "win32":
-				// Check for SoX on Windows
-				const soxPath = "C:\\Program Files (x86)\\sox\\sox.exe"
-				if (!fs.existsSync(soxPath)) {
-					return {
-						available: false,
-						error: "Audio recording requires SoX. Please install it using: winget install ChrisBagwell.SoX",
-					}
-				}
-				return { available: true }
-
-			default:
-				return {
-					available: false,
-					error: `Audio recording is not supported on platform: ${platform}`,
-				}
+		const program = this.getRecordProgram()
+		if (!program) {
+			const platform = os.platform()
+			let error = `Audio recording is not supported on platform: ${platform}`
+			if (platform === "darwin") {
+				error = "Audio recording requires SoX. Please install it using: brew install sox"
+			} else if (platform === "linux") {
+				error =
+					"Audio recording requires ALSA utilities. Please install using: sudo apt-get install alsa-utils (or equivalent for your distribution)"
+			} else if (platform === "win32") {
+				error = "Audio recording requires SoX. Please install it using: winget install ChrisBagwell.SoX"
+			}
+			return { available: false, error }
 		}
+		return { available: true }
 	}
 
-	private getRecordProgram(): string {
-		// Determine the best recording program for the platform
-		const platform = os.platform()
+	private getRecordProgram(): string | undefined {
+		const platform = os.platform() as keyof typeof SOX_FALLBACK_PATHS
+		const command = "rec"
 
-		switch (platform) {
-			case "darwin": // macOS
-				// Try different options in order of preference
-				if (fs.existsSync("/usr/local/bin/rec")) {
-					return "/usr/local/bin/rec" // from SoX if installed
-				} else if (fs.existsSync("/opt/homebrew/bin/rec")) {
-					return "/opt/homebrew/bin/rec" // from SoX via Homebrew on M1
-				} else if (fs.existsSync("/usr/local/bin/sox")) {
-					return "/usr/local/bin/sox" // sox command directly
-				} else if (fs.existsSync("/opt/homebrew/bin/sox")) {
-					return "/opt/homebrew/bin/sox" // sox via Homebrew
-				} else {
-					// Last resort - try just the command name and hope it's in PATH
-					return "rec"
-				}
-			case "linux":
-				// On Linux, use arecord which is part of ALSA
-				if (fs.existsSync("/usr/bin/arecord")) {
-					return "/usr/bin/arecord"
-				}
-				return "arecord"
-			case "win32": // Windows
-				// On Windows, SoX is usually in Program Files
-				const soxPath = "C:\\Program Files (x86)\\sox\\sox.exe"
-				if (fs.existsSync(soxPath)) {
-					return soxPath
-				}
-				return "sox"
-			default:
-				return "rec"
+		// 1. Check if the command is in the system's PATH
+		const pathDirs = (process.env.PATH || "").split(path.delimiter)
+		for (const dir of pathDirs) {
+			const fullPath = path.join(dir, command)
+			if (fs.existsSync(fullPath) && isExecutable(fullPath)) {
+				return fullPath
+			}
 		}
+
+		// 2. Check fallback paths if not in PATH
+		const fallbackPaths = SOX_FALLBACK_PATHS[platform] || []
+		for (const p of fallbackPaths) {
+			if (fs.existsSync(p) && isExecutable(p)) {
+				return p
+			}
+		}
+
+		return undefined
 	}
 
 	// Cleanup method
