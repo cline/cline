@@ -122,14 +122,12 @@ const copyWasmFiles = {
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
 	bundle: true,
-	minify: production,
+	minify: false,
 	sourcemap: !production,
 	logLevel: "silent",
-	define: production
-		? {
-				"process.env.IS_DEV": JSON.stringify(!production),
-			}
-		: undefined,
+	define: {
+		"process.env.IS_DEV": "true",
+	},
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,

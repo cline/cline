@@ -203,6 +203,7 @@ export class Controller {
 
 	// Send any JSON serializable data to the react app
 	async postMessageToWebview(message: ExtensionMessage) {
+		console.log("postMessageToWebview: " + JSON.stringify(message).slice(0, 200))
 		await this.postMessage(message)
 	}
 

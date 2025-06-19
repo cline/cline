@@ -39,7 +39,9 @@ export default defineConfig({
 	},
 	build: {
 		outDir: "build",
+		minify: false, // Disable minification for better debugging
 		reportCompressedSize: false,
+		sourcemap: true, // Generate source maps for easier debugging
 		rollupOptions: {
 			output: {
 				inlineDynamicImports: true,
@@ -54,6 +56,8 @@ export default defineConfig({
 					}
 					return "assets/[name][extname]"
 				},
+				// Preserve formatting
+				compact: false,
 			},
 		},
 		chunkSizeWarningLimit: 100000,
