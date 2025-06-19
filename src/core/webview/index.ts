@@ -1,7 +1,6 @@
 import axios from "axios"
 import * as vscode from "vscode"
 import { getNonce } from "./getNonce"
-import { getUri } from "./getUri"
 import { getTheme } from "@integrations/theme/getTheme"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
@@ -11,6 +10,7 @@ import { WebviewProviderType } from "@/shared/webview/types"
 import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 import { v4 as uuidv4 } from "uuid"
 import { sendDidBecomeVisibleEvent } from "../controller/ui/subscribeToDidBecomeVisible"
+import { Uri } from "vscode"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -192,29 +192,17 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		// then convert it to a uri we can use in the webview.
 
 		// The CSS file from the React build output
-		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
+		const stylesUri = this.getExtensionUri("webview-ui", "build", "assets", "index.css")
 		// The JS file from the React build output
-		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.js"])
+		const scriptUri = this.getExtensionUri("webview-ui", "build", "assets", "index.js")
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
 		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
 		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUri = getUri(webview, this.context.extensionUri, [
-			"node_modules",
-			"@vscode",
-			"codicons",
-			"dist",
-			"codicon.css",
-		])
+		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
-		const katexCssUri = getUri(webview, this.context.extensionUri, [
-			"webview-ui",
-			"node_modules",
-			"katex",
-			"dist",
-			"katex.min.css",
-		])
+		const katexCssUri = this.getExtensionUri("webview-ui", "node_modules", "katex", "dist", "katex.min.css")
 
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
@@ -315,23 +303,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		}
 
 		const nonce = getNonce()
-		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
-		const codiconsUri = getUri(webview, this.context.extensionUri, [
-			"node_modules",
-			"@vscode",
-			"codicons",
-			"dist",
-			"codicon.css",
-		])
+		const stylesUri = this.getExtensionUri("webview-ui", "build", "assets", "index.css")
+		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		// Get KaTeX resources
-		const katexCssUri = getUri(webview, this.context.extensionUri, [
-			"webview-ui",
-			"node_modules",
-			"katex",
-			"dist",
-			"katex.min.css",
-		])
+		const katexCssUri = this.getExtensionUri("webview-ui", "node_modules", "katex", "dist", "katex.min.css")
 
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
@@ -416,5 +392,20 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+	/**
+	 * A helper function which will get the webview URI of a given file or resource in the extension directory.
+	 *
+	 * @remarks This URI can be used within a webview's HTML as a link to the
+	 * given file/resource.
+	 *
+	 * @param pathList An array of strings representing the path to a file/resource in the extension directory.
+	 * @returns A URI pointing to the file/resource
+	 */
+	private getExtensionUri(...pathList: string[]): Uri {
+		if (!this.view) {
+			throw Error("webview is not initialized.")
+		}
+		return this.view.webview.asWebviewUri(Uri.joinPath(this.context.extensionUri, ...pathList))
 	}
 }
