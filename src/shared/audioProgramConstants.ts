@@ -3,18 +3,18 @@ export const AUDIO_PROGRAM_CONFIG = {
 		command: "rec",
 		fallbackPaths: ["/usr/local/bin/rec", "/opt/homebrew/bin/rec"],
 		getArgs: (outputFile: string) => ["-c", "1", "-e", "signed", "-b", "16", outputFile],
-		error: "Audio recording requires SoX. Please install it using: brew install sox",
+		error: "It looks like your system is missing the 'SoX' audio utility, which is required for voice recording. To install it, please ensure you are in **Act Mode** and then send this message. I will handle the installation for you.\n\n**Installation command:** `brew install sox`",
 	},
 	linux: {
 		command: "arecord",
 		fallbackPaths: ["/usr/bin/arecord"],
 		getArgs: (outputFile: string) => ["-f", "cd", "-t", "wav", "-d", "0", "-c", "1", outputFile],
-		error: "Audio recording requires ALSA utilities. Please install using: sudo apt-get install alsa-utils (or equivalent for your distribution)",
+		error: "It looks like your system is missing the 'ALSA' audio utility, which is required for voice recording. To install it, please ensure you are in **Act Mode** and then send this message. I will handle the installation for you.\n\n**Installation command:** `sudo apt-get install alsa-utils`",
 	},
 	win32: {
 		command: "sox",
 		fallbackPaths: ["C:\\Program Files (x86)\\sox\\sox.exe"],
 		getArgs: (outputFile: string) => ["-t", "waveaudio", "default", "-c", "1", "-e", "signed", "-b", "16", outputFile],
-		error: "Audio recording requires SoX. Please install it using: winget install ChrisBagwell.SoX",
+		error: "It looks like your system is missing the 'SoX' audio utility, which is required for voice recording. To install it, please ensure you are in **Act Mode** and then send this message. I will handle the installation for you.\n\n**Installation command:** `winget install ChrisBagwell.SoX`",
 	},
 }
