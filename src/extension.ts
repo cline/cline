@@ -22,9 +22,10 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
-import { migratePlanActGlobalToWorkspaceStorage } from "./core/storage/state"
+import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlobalRules } from "./core/storage/state"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -48,6 +49,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate global storage values to workspace storage (one-time cleanup)
 	await migratePlanActGlobalToWorkspaceStorage(context)
+
+	// Migrate custom instructions to global Cline rules (one-time cleanup)
+	await migrateCustomInstructionsToGlobalRules(context)
+
+	// Clean up orphaned file context warnings (startup cleanup)
+	await FileContextTracker.cleanupOrphanedWarnings(context)
 
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
@@ -632,7 +639,8 @@ export async function activate(context: vscode.ExtensionContext) {
 //
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
-const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
+const IS_DEV = process.env.IS_DEV
+const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 
 // This method is called when your extension is deactivated
 export async function deactivate() {

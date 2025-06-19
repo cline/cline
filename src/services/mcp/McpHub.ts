@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import ReconnectingEventSource from "reconnecting-eventsource"
@@ -53,6 +53,17 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
+
+	// Store notifications for display in chat
+	private pendingNotifications: Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> = []
+
+	// Callback for sending notifications to active task
+	private notificationCallback?: (serverName: string, level: string, message: string) => void
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -142,7 +153,6 @@ export class McpHub {
 						const settings = await this.readAndValidateMcpSettingsFile()
 						if (settings) {
 							try {
-								vscode.window.showInformationMessage("Updating MCP servers...")
 								await this.updateServerConnections(settings.mcpServers)
 								vscode.window.showInformationMessage("MCP servers updated")
 							} catch (error) {
@@ -205,8 +215,8 @@ export class McpHub {
 						cwd: config.cwd,
 						env: {
 							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
+							...getDefaultEnvironment(),
 							...(config.env || {}), // Use config.env directly or an empty object
-							...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 						},
 						stderr: "pipe",
 					})
@@ -320,6 +330,88 @@ export class McpHub {
 
 			connection.server.status = "connected"
 			connection.server.error = ""
+
+			// Register notification handler for real-time messages
+			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			console.log(`[MCP Debug] Client instance:`, connection.client)
+			console.log(`[MCP Debug] Transport type:`, config.type)
+
+			// Try to set notification handler using the client's method
+			try {
+				// Import the notification schema from MCP SDK
+				const { z } = await import("zod")
+
+				// Define the notification schema for notifications/message
+				const NotificationMessageSchema = z.object({
+					method: z.literal("notifications/message"),
+					params: z
+						.object({
+							level: z.enum(["debug", "info", "warning", "error"]).optional(),
+							logger: z.string().optional(),
+							data: z.string().optional(),
+							message: z.string().optional(),
+						})
+						.optional(),
+				})
+
+				// Set the notification handler
+				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
+					console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					const params = notification.params || {}
+					const level = params.level || "info"
+					const data = params.data || params.message || ""
+					const logger = params.logger || ""
+
+					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+
+					// Format the message
+					const message = logger ? `[${logger}] ${data}` : data
+
+					// Send notification directly to active task if callback is set
+					if (this.notificationCallback) {
+						console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						this.notificationCallback(name, level, message)
+					} else {
+						// Fallback: store for later retrieval
+						console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						this.pendingNotifications.push({
+							serverName: name,
+							level,
+							message,
+							timestamp: Date.now(),
+						})
+					}
+
+					// Forward to webview if available
+					if (this.postMessageToWebview) {
+						await this.postMessageToWebview({
+							type: "mcpNotification",
+							serverName: name,
+							notification: {
+								level,
+								data,
+								logger,
+								timestamp: Date.now(),
+							},
+						} as any)
+					}
+				})
+				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+
+				// Also set a fallback handler for any other notification types
+				connection.client.fallbackNotificationHandler = async (notification: any) => {
+					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					// Show in VS Code for visibility
+					vscode.window.showInformationMessage(
+						`MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
+					)
+				}
+				console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+			} catch (error) {
+				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+			}
 
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name)
@@ -947,6 +1039,38 @@ export class McpHub {
 			)
 			throw error
 		}
+	}
+
+	/**
+	 * Get and clear pending notifications
+	 * @returns Array of pending notifications
+	 */
+	getPendingNotifications(): Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> {
+		const notifications = [...this.pendingNotifications]
+		this.pendingNotifications = []
+		return notifications
+	}
+
+	/**
+	 * Set the notification callback for real-time notifications
+	 * @param callback Function to call when notifications arrive
+	 */
+	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
+		this.notificationCallback = callback
+		console.log("[MCP Debug] Notification callback set")
+	}
+
+	/**
+	 * Clear the notification callback
+	 */
+	clearNotificationCallback(): void {
+		this.notificationCallback = undefined
+		console.log("[MCP Debug] Notification callback cleared")
 	}
 
 	async dispose(): Promise<void> {

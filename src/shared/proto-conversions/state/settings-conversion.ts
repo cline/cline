@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
 import { ChatSettings } from "@shared/ChatSettings"
 import {
 	ApiConfiguration as ProtoApiConfiguration,
@@ -102,6 +102,13 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		// OpenRouter specific
 		openrouterProviderSorting: config.openRouterProviderSorting,
 
+		// SAP AI Core specific
+		sapAiCoreClientId: config.sapAiCoreClientId,
+		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
+		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
+		sapAiResourceGroup: config.sapAiResourceGroup,
+
 		// Complex objects stored as JSON strings
 		vscodeLmModelSelector: config.vsCodeLmModelSelector ? JSON.stringify(config.vsCodeLmModelSelector) : undefined,
 		openrouterModelInfo: config.openRouterModelInfo ? JSON.stringify(config.openRouterModelInfo) : undefined,
@@ -109,6 +116,9 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		requestyModelInfo: config.requestyModelInfo ? JSON.stringify(config.requestyModelInfo) : undefined,
 		litellmModelInfo: config.liteLlmModelInfo ? JSON.stringify(config.liteLlmModelInfo) : undefined,
 		openaiHeaders: config.openAiHeaders ? JSON.stringify(config.openAiHeaders) : undefined,
+
+		// Claude Code specific
+		claudeCodePath: config.claudeCodePath,
 
 		// Arrays
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -122,7 +132,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 	// eslint-disable-next-line eslint-rules/no-protobuf-object-literals
 	const config: ApiConfiguration = {
 		// Core API fields
-		apiProvider: protoConfig.apiProvider as any,
+		apiProvider: protoConfig.apiProvider as ApiProvider,
 		apiModelId: protoConfig.apiModelId,
 		apiKey: protoConfig.apiKey,
 
@@ -158,7 +168,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected: protoConfig.awsBedrockCustomSelected,
-		awsBedrockCustomModelBaseId: protoConfig.awsBedrockCustomModelBaseId as any,
+		awsBedrockCustomModelBaseId: protoConfig.awsBedrockCustomModelBaseId as BedrockModelId | undefined,
 		awsAccessKey: protoConfig.awsAccessKey,
 		awsSecretKey: protoConfig.awsSecretKey,
 		awsSessionToken: protoConfig.awsSessionToken,
@@ -207,6 +217,16 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// OpenRouter specific
 		openRouterProviderSorting: protoConfig.openrouterProviderSorting,
+
+		// SAP AI Core specific
+		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
+		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
+		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
+		sapAiResourceGroup: protoConfig.sapAiResourceGroup,
+
+		// Claude Code specific
+		claudeCodePath: protoConfig.claudeCodePath,
 
 		// Arrays
 		favoritedModelIds: protoConfig.favoritedModelIds || [],
