@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import Anthropic from "@anthropic-ai/sdk"
+import { spawn } from "child_process"
 import { execa } from "execa"
 import { ClaudeCodeMessage } from "./types"
 import readline from "readline"
@@ -53,7 +54,6 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				dataQueue.push(message)
 			} catch (err) {
 				console.error("Error parsing line:", line, err)
-				throw err
 			}
 		})
 
@@ -68,7 +68,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				continue
 			}
 
-			yield dataQueue.shift() as ClaudeCodeMessage
+			yield data
 		}
 
 		const { exitCode } = await process
@@ -86,6 +86,27 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 	}
 }
 
+// We want the model to make use of the existing tool format,
+// so we disallow the built-in tools
+const claudeCodeTools = [
+	"Task",
+	"Bash",
+	"Glob",
+	"Grep",
+	"LS",
+	"exit_plan_mode",
+	"Read",
+	"Edit",
+	"MultiEdit",
+	"Write",
+	"NotebookRead",
+	"NotebookEdit",
+	"WebFetch",
+	"TodoRead",
+	"TodoWrite",
+	"WebSearch",
+].join(",")
+
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
 	const claudePath = path || "claude"
 
@@ -97,6 +118,8 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		"--verbose",
 		"--output-format",
 		"stream-json",
+		"--disallowedTools",
+		claudeCodeTools,
 		// Cline will handle recursive calls
 		"--max-turns",
 		"1",
@@ -112,5 +135,6 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		stderr: "pipe",
 		env: process.env,
 		cwd,
+		buffer: false,
 	})
 }
