@@ -237,6 +237,58 @@ export const claudeCodeModels = {
 	"claude-3-5-haiku-20241022": anthropicModels["claude-3-5-haiku-20241022"],
 } as const satisfies Record<string, ModelInfo>
 
+// VSCode LM
+// https://docs.github.com/en/copilot/using-github-copilot/ai-models/using-claude-sonnet-in-github-copilot
+export type VsCodeLmModelId = keyof typeof vscodeLmModels
+export const vscodeLmDefaultModelId: VsCodeLmModelId = "claude-3.5-sonnet"
+export const vscodeLmModels = {
+	"claude-3.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 90_000, // VSCode LM effective limit
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0, // VSCode LM doesn't charge directly
+		outputPrice: 0,
+		description: "Claude 3.5 Sonnet via VSCode LM (GitHub Copilot)",
+	},
+	"claude-3.7-sonnet": {
+		maxTokens: 16384,
+		contextWindow: 106_384, // VSCode LM effective limit (min of 200K model limit and 90K+16K VSCode limit)
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Claude 3.7 Sonnet via VSCode LM (GitHub Copilot)",
+	},
+	"claude-3.7-sonnet-thought": {
+		maxTokens: 16384,
+		contextWindow: 106_384, // VSCode LM effective limit (min of 200K model limit and 90K+16K VSCode limit)
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Claude 3.7 Sonnet Thinking via VSCode LM (GitHub Copilot)",
+	},
+	"claude-sonnet-4": {
+		maxTokens: 16000,
+		contextWindow: 80_000, // VSCode LM effective limit (min of 128K model limit and 80K+16K VSCode limit)
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Claude Sonnet 4 via VSCode LM (GitHub Copilot)",
+	},
+	"claude-opus-4": {
+		maxTokens: 16000,
+		contextWindow: 80_000, // VSCode LM and model limit match
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Claude Opus 4 via VSCode LM (GitHub Copilot)",
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
