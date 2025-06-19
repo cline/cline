@@ -187,6 +187,12 @@
 				"icon": "$(robot)"
 			},
 			{
+				"command": "cline.abortGitCommitMessage",
+				"title": "Generate Commit Message with Cline - Stop",
+				"category": "Cline",
+				"icon": "$(debug-stop)"
+			},
+			{
 				"command": "cline.explainCode",
 				"title": "Explain with Cline",
 				"category": "Cline"
@@ -213,7 +219,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"when": "scmProvider == git"
+				"when": "config.git.enabled &&scmProvider == git"
 			},
 			{
 				"command": "cline.focusChatInput",
@@ -306,13 +312,22 @@
 				{
 					"command": "cline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled &&scmProvider == git && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"group": "navigation",
+					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			]
 		},

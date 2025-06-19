@@ -1,31 +1,15 @@
 import * as vscode from "vscode"
-import { getWorkingState } from "@utils/git"
 
 /**
- * Formats the git diff into a prompt for the AI
- * @param gitDiff The git diff to format
- * @returns A formatted prompt for the AI
+ * Cached Git extension API instance
  */
-function formatGitDiffPrompt(gitDiff: string): string {
-	// Limit the diff size to avoid token limits
-	const maxDiffLength = 5000
-	let truncatedDiff = gitDiff
+let gitExtensionApi: ReturnType<typeof vscode.extensions.getExtension> | null = null
 
-	if (gitDiff.length > maxDiffLength) {
-		truncatedDiff = gitDiff.substring(0, maxDiffLength) + "\n\n[Diff truncated due to size]"
-	}
-
-	return `Based on the following git diff, generate a concise and descriptive commit message:
-
-${truncatedDiff}
-
-The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
-
-Commit message:`
+/**
+ * Gets the Git extension API instance with caching
+ */
+export function getGitExtension() {
+	return (gitExtensionApi ??= vscode.extensions.getExtension("vscode.git")?.exports?.getAPI(1))
 }
 
 /**
@@ -35,21 +19,7 @@ Commit message:`
  */
 export function extractCommitMessage(aiResponse: string): string {
 	// Remove any markdown formatting or extra text
-	let message = aiResponse.trim()
-
-	// Remove markdown code blocks if present
-	if (message.startsWith("```") && message.endsWith("```")) {
-		message = message.substring(3, message.length - 3).trim()
-
-		// Remove language identifier if present (e.g., ```git)
-		const firstLineBreak = message.indexOf("\n")
-		if (firstLineBreak > 0 && firstLineBreak < 20) {
-			// Reasonable length for a language identifier
-			message = message.substring(firstLineBreak).trim()
-		}
-	}
-
-	return message
+	return aiResponse.trim().replace(/^```/g, "").replace(/```$/g, "").trim()
 }
 
 /**
