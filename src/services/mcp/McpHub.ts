@@ -19,7 +19,6 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { WatchServiceClient } from "@hosts/host-bridge-client"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { Metadata } from "../../shared/proto/common"
 import {
@@ -41,6 +40,7 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { Transport, McpConnection, McpTransportType, McpServerConfig } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -137,7 +137,7 @@ export class McpHub {
 
 		// Subscribe to file changes using the gRPC WatchService
 		console.log("[DEBUG] subscribing to mcp file changes")
-		const cancelSubscription = WatchServiceClient.subscribeToFile(
+		const cancelSubscription = getHostBridgeProvider().watchServiceClient.subscribeToFile(
 			SubscribeToFileRequest.create({
 				metadata: Metadata.create({}),
 				path: settingsPath,
