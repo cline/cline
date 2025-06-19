@@ -1,3 +1,5 @@
+import type { Anthropic } from "@anthropic-ai/sdk"
+
 type InitMessage = {
 	type: "system"
 	subtype: "init"
@@ -6,29 +8,9 @@ type InitMessage = {
 	mcp_servers: string[]
 }
 
-type ClaudeCodeContent = {
-	type: "text"
-	text: string
-}
-
 type AssistantMessage = {
 	type: "assistant"
-	message: {
-		id: string
-		type: "message"
-		role: "assistant"
-		model: string
-		content: ClaudeCodeContent[]
-		stop_reason: null
-		stop_sequence: null
-		usage: {
-			input_tokens: number
-			cache_creation_input_tokens?: number
-			cache_read_input_tokens?: number
-			output_tokens: number
-			service_tier: "standard"
-		}
-	}
+	message: Anthropic.Messages.Message
 	session_id: string
 }
 
