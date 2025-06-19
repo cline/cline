@@ -14,14 +14,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class ExternalWebviewProvider extends WebviewProvider {
 	public webview?: vscode.WebviewView | vscode.WebviewPanel
 
-	public static create(
-		context: vscode.ExtensionContext,
-		outputChannel: vscode.OutputChannel,
-		providerType: WebviewProviderType,
-	) {
-		return new ExternalWebviewProvider(context, outputChannel, providerType)
-	}
-
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
 		super(context, outputChannel, providerType)
 	}
