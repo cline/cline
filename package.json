@@ -200,6 +200,12 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.dev.resetTelemetryBanner",
+				"title": "Reset Telemetry Banner",
+				"category": "Cline",
+				"when": "cline.isDevMode"
 			}
 		],
 		"keybindings": [

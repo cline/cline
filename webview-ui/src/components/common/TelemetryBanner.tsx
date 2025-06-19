@@ -70,8 +70,10 @@ const TelemetryBanner = () => {
 				</i>
 				<div style={{ marginTop: 4 }}>
 					Cline collects anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts,
-					or personal information is ever sent.
+					or personal information is ever sent. Refer to our{" "}
+					<VSCodeLink href="https://cline.bot/tos">terms of service</VSCodeLink>.
 					<div style={{ marginTop: 4 }}>
+						{" "}
 						You can turn this setting off in{" "}
 						<VSCodeLink href="#" onClick={handleOpenSettings}>
 							settings

@@ -608,6 +608,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
 		}),
+		vscode.commands.registerCommand("cline.dev.resetTelemetryBanner", async () => {
+			const activeWebviewProvider = WebviewProvider.getVisibleInstance()
+			if (activeWebviewProvider) {
+				await activeWebviewProvider.controller.updateTelemetrySetting("unset")
+				await vscode.window.showInformationMessage("Telemetry banner setting has been reset.")
+			}
+		}),
 	)
 
 	// Register the generateGitCommitMessage command handler
