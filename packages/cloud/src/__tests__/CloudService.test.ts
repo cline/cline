@@ -79,7 +79,7 @@ describe("CloudService", () => {
 		} as unknown as vscode.ExtensionContext
 
 		mockAuthService = {
-			initialize: vi.fn(),
+			initialize: vi.fn().mockResolvedValue(undefined),
 			login: vi.fn(),
 			logout: vi.fn(),
 			isAuthenticated: vi.fn().mockReturnValue(false),
@@ -108,11 +108,8 @@ describe("CloudService", () => {
 			},
 		}
 
-		vi.mocked(AuthService.createInstance).mockResolvedValue(mockAuthService as unknown as AuthService)
-		Object.defineProperty(AuthService, "instance", { get: () => mockAuthService, configurable: true })
-
-		vi.mocked(SettingsService.createInstance).mockResolvedValue(mockSettingsService as unknown as SettingsService)
-		Object.defineProperty(SettingsService, "instance", { get: () => mockSettingsService, configurable: true })
+		vi.mocked(AuthService).mockImplementation(() => mockAuthService as unknown as AuthService)
+		vi.mocked(SettingsService).mockImplementation(() => mockSettingsService as unknown as SettingsService)
 
 		vi.mocked(TelemetryService.hasInstance).mockReturnValue(true)
 		Object.defineProperty(TelemetryService, "instance", {
@@ -135,8 +132,8 @@ describe("CloudService", () => {
 			const cloudService = await CloudService.createInstance(mockContext, callbacks)
 
 			expect(cloudService).toBeInstanceOf(CloudService)
-			expect(AuthService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
-			expect(SettingsService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
+			expect(AuthService).toHaveBeenCalledWith(mockContext, expect.any(Function))
+			expect(SettingsService).toHaveBeenCalledWith(mockContext, mockAuthService, expect.any(Function))
 		})
 
 		it("should throw error if instance already exists", async () => {

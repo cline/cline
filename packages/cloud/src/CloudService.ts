@@ -37,16 +37,18 @@ export class CloudService {
 		}
 
 		try {
-			this.authService = await AuthService.createInstance(this.context, this.log)
+			this.authService = new AuthService(this.context, this.log)
+			await this.authService.initialize()
 
 			this.authService.on("inactive-session", this.authListener)
 			this.authService.on("active-session", this.authListener)
 			this.authService.on("logged-out", this.authListener)
 			this.authService.on("user-info", this.authListener)
 
-			this.settingsService = await SettingsService.createInstance(this.context, () =>
+			this.settingsService = new SettingsService(this.context, this.authService, () =>
 				this.callbacks.stateChanged?.(),
 			)
+			this.settingsService.initialize()
 
 			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
 
@@ -162,13 +164,7 @@ export class CloudService {
 	}
 
 	private ensureInitialized(): void {
-		if (
-			!this.isInitialized ||
-			!this.authService ||
-			!this.settingsService ||
-			!this.telemetryClient ||
-			!this.shareService
-		) {
+		if (!this.isInitialized) {
 			throw new Error("CloudService not initialized.")
 		}
 	}
