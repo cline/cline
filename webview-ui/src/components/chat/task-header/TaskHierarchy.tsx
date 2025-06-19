@@ -15,7 +15,6 @@ interface TaskHierarchyProps {
 export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTasks, onTaskClick, isTaskExpanded }) => {
 	// get current task's child tasks from history
 	const existingChildTasks = allTasks.filter((task) => task.parentId === currentTask.id)
-
 	// get current task's pending child tasks from pendingChildTasks
 	const pendingChildTasks = (currentTask.pendingChildTasks || []).map((pendingTask) => ({
 		id: pendingTask.id,
@@ -162,7 +161,7 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 	}
 	const renderListInContainer = (childTask: HistoryItem, children: ReactNode) => {
 		if (childTask.status === "pending") {
-			return <HeroTooltip content="Task is pending">{children}</HeroTooltip>
+			return <HeroTooltip key={childTask.id} content="Task is pending">{children}</HeroTooltip>
 		}
 		return children
 	}

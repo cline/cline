@@ -1603,7 +1603,7 @@ export const ChatRowContent = ({
 										</SuccessButton>
 									</div>
 								)}
-								<BackToParent />
+								{/* <BackToParent /> */}
 							</div>
 						)
 					} else {

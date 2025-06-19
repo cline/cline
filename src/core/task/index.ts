@@ -313,6 +313,7 @@ export class Task {
 			conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
+			getTaskInfo: () => this.getTaskInfo(),
 		})
 
 		// Initialize file context tracker
@@ -405,46 +406,6 @@ export class Task {
 	}
 	isPaused() {
 		return this.status === "paused"
-	}
-	// Storing task to disk for history
-	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
-	}
-
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
-		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
-	}
-
-	private async addToClineMessages(message: ClineMessage) {
-		// these values allow us to reconstruct the conversation history at the time this cline message was created
-		// it's important that apiConversationHistory is initialized before we add cline messages
-		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
-		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
-		this.clineMessages.push(message)
-		await saveClineMessagesAndUpdateHistory(
-			this.getContext(),
-			() => this.getTaskInfo(),
-			this.clineMessages,
-			this.taskIsFavorited ?? false,
-			this.conversationHistoryDeletedRange,
-			this.checkpointTracker,
-			this.updateTaskHistory,
-		)
-	}
-
-	private async overwriteClineMessages(newMessages: ClineMessage[]) {
-		this.clineMessages = newMessages
-		await saveClineMessagesAndUpdateHistory(
-			this.getContext(),
-			() => this.getTaskInfo(),
-			this.clineMessages,
-			this.taskIsFavorited ?? false,
-			this.conversationHistoryDeletedRange,
-			this.checkpointTracker,
-			this.updateTaskHistory,
-		)
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
@@ -1161,15 +1122,7 @@ export class Task {
 					childResumeText = `Task resuming. Child task completed with result: ${text}.`
 					await this.say("child_task_completed", childResumeText)
 					this.activeChildTaskId = undefined
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						() => this.getTaskInfo(),
-						this.clineMessages,
-						this.taskIsFavorited ?? false,
-						this.conversationHistoryDeletedRange,
-						this.checkpointTracker,
-						(historyItem) => this.updateTaskHistory(historyItem),
-					)
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			} else {
 				this.activeChildTaskId = undefined
@@ -3823,6 +3776,8 @@ export class Task {
 							this.taskState.consecutiveMistakeCount = 0
 
 							const completeMessage = JSON.stringify(sharedMessageProps)
+
+							
 							if (this.shouldAutoApproveTool(block.name)) {
 								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 								await this.say("tool", completeMessage, undefined, undefined, false)
@@ -3835,9 +3790,12 @@ export class Task {
 									true,
 								)
 							} else {
-								showNotificationForApprovalIfAutoApprovalEnabled(
-									`Cline wants to create a child task: ${childTaskPrompt.substring(0, 50)}...`,
-								)
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to create a new child task...",
+										message: `Cline wants to create a child task: ${childTaskPrompt.substring(0, 50)}...`,
+									})
+								}
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
@@ -3858,15 +3816,7 @@ export class Task {
 								childTaskFiles,
 								executeImmediately,
 							)
-							await saveClineMessagesAndUpdateHistory(
-								this.getContext(),
-								() => this.getTaskInfo(),
-								this.clineMessages,
-								this.taskIsFavorited ?? false,
-								this.conversationHistoryDeletedRange,
-								this.checkpointTracker,
-								this.updateTaskHistory,
-							)
+							await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 							this.say(
 								"new_child_task",
 								`Child Task: "${sharedMessageProps.prompt}" created.`,
@@ -3916,9 +3866,12 @@ export class Task {
 									true,
 								)
 							} else {
-								showNotificationForApprovalIfAutoApprovalEnabled(
-									`Cline wants to start the next pending child task`,
-								)
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle:  "Approval Required",
+										message: `Cline wants to start the next pending child task`,
+									})
+								}
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
@@ -3959,16 +3912,21 @@ export class Task {
 							}
 							break
 						} else {
-							this.consecutiveMistakeCount = 0
+							this.taskState.consecutiveMistakeCount = 0
 
 							const completeMessage = JSON.stringify(sharedMessageProps)
 							if (this.shouldAutoApproveTool(block.name)) {
 								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 								await this.say("tool", completeMessage, undefined, undefined, false)
-								this.consecutiveAutoApprovedRequestsCount++
+								this.taskState.consecutiveAutoApprovedRequestsCount++
 								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 							} else {
-								showNotificationForApprovalIfAutoApprovalEnabled(`Cline wants to view pending child tasks`)
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle:  "Approval Required",
+										message: `Cline wants to view pending child tasks`,
+									})
+								}
 								this.removeLastPartialMessageIfExistsWithType("say", "tool")
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
