@@ -1,9 +1,7 @@
 import React, { useState, useCallback } from "react"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { VoiceServiceClient } from "@/services/grpc-client"
 import { StartRecordingRequest, StopRecordingRequest, TranscribeAudioRequest } from "@shared/proto/voice"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import Tooltip from "@/components/common/Tooltip"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -12,7 +10,6 @@ interface VoiceRecorderProps {
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProcessingStateChange, disabled = false }) => {
-	const { chatSettings } = useExtensionState()
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
