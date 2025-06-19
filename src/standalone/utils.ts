@@ -1,7 +1,7 @@
 import * as fs from "fs"
 import * as protoLoader from "@grpc/proto-loader"
 import * as health from "grpc-health-check"
-import { StreamingCallbacks } from "@hosts/host-bridge-client"
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 
 const log = (...args: unknown[]) => {
 	const timestamp = new Date().toISOString()
