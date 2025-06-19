@@ -135,6 +135,8 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			terminalOutputLineLimit,
+			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
@@ -170,6 +172,8 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
+			terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			task,
 			images,
@@ -220,6 +224,7 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			}
+
 			case "clearAllTaskHistory": {
 				const answer = await vscode.window.showWarningMessage(
 					"What would you like to delete?",
@@ -280,6 +285,12 @@ export class Controller {
 			previousModeReasoningEffort: newReasoningEffort,
 			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
 			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
+			previousModeSapAiCoreClientId: newSapAiCoreClientId,
+			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
+			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
+			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
+			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -345,6 +356,23 @@ export class Controller {
 					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
+				case "sapaicore":
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreClientSecret",
+						apiConfiguration.sapAiCoreClientSecret,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreResourceGroup",
+						apiConfiguration.sapAiResourceGroup,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
+					break
 			}
 
 			// Restore the model used in previous mode
@@ -393,12 +421,15 @@ export class Controller {
 						await updateWorkspaceState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateWorkspaceState(this.context, "liteLlmModelId", newModelId)
+						await updateWorkspaceState(this.context, "liteLlmModelInfo", newModelInfo)
 						break
 					case "requesty":
 						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
 						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "sapaicore":
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 				}
 
@@ -414,8 +445,8 @@ export class Controller {
 
 		if (this.task) {
 			this.task.chatSettings = chatSettings
-			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
-				this.task.didRespondToPlanAskBySwitchingMode = true
+			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
+				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
 				await this.task.handleWebviewAskResponse(
 					"messageResponse",
@@ -440,9 +471,9 @@ export class Controller {
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
-					this.task.isStreaming === false ||
-					this.task.didFinishAbortingStream ||
-					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
+					this.task.taskState.isStreaming === false ||
+					this.task.taskState.didFinishAbortingStream ||
+					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
 				},
@@ -451,7 +482,7 @@ export class Controller {
 			})
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.abandoned = true
+				this.task.taskState.abandoned = true
 			}
 			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
@@ -945,6 +976,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -952,8 +984,10 @@ export class Controller {
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -972,8 +1006,8 @@ export class Controller {
 			apiConfiguration,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.clineMessages || [],
+			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
+			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
@@ -985,6 +1019,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
@@ -997,8 +1032,10 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		}
 	}
 

@@ -9,7 +9,7 @@ export async function checkpointRestore(controller: Controller, request: Checkpo
 
 	if (request.number) {
 		// wait for messages to be loaded
-		await pWaitFor(() => controller.task?.isInitialized === true, {
+		await pWaitFor(() => controller.task?.taskState.isInitialized === true, {
 			timeout: 3_000,
 		}).catch(() => {
 			console.error("Failed to init new cline instance")

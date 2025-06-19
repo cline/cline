@@ -25,7 +25,7 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?: "didBecomeVisible" | "accountLogoutClicked"
+	action?: "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
@@ -82,6 +82,7 @@ export interface ExtensionState {
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	mcpMarketplaceEnabled?: boolean
+	mcpRichDisplayEnabled: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
@@ -90,6 +91,8 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
+	terminalOutputLineLimit: number
+	defaultTerminalProfile?: string
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null

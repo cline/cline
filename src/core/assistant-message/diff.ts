@@ -4,15 +4,19 @@ const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
 const SEARCH_BLOCK_CHAR = "-"
 const REPLACE_BLOCK_CHAR = "+"
+const LEGACY_SEARCH_BLOCK_CHAR = "<"
+const LEGACY_REPLACE_BLOCK_CHAR = ">"
 
 // Replace the exact string constants with flexible regex patterns
 const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH$/
 const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
 const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE$/
+const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH$/
+const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE$/
 
 // Helper functions to check if a line matches the flexible patterns
 function isSearchBlockStart(line: string): boolean {
-	return SEARCH_BLOCK_START_REGEX.test(line)
+	return SEARCH_BLOCK_START_REGEX.test(line) || LEGACY_SEARCH_BLOCK_START_REGEX.test(line)
 }
 
 function isSearchBlockEnd(line: string): boolean {
@@ -20,7 +24,7 @@ function isSearchBlockEnd(line: string): boolean {
 }
 
 function isReplaceBlockEnd(line: string): boolean {
-	return REPLACE_BLOCK_END_REGEX.test(line)
+	return REPLACE_BLOCK_END_REGEX.test(line) || LEGACY_REPLACE_BLOCK_END_REGEX.test(line)
 }
 
 /**
@@ -269,7 +273,11 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
 		!isSearchBlockStart(lastLine) &&
 		!isSearchBlockEnd(lastLine) &&
 		!isReplaceBlockEnd(lastLine)
@@ -303,9 +311,12 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 					searchMatchIndex = 0
 					searchEndIndex = 0
 				} else {
-					// Complete file replacement scenario: treat the entire file as matched
-					searchMatchIndex = 0
-					searchEndIndex = originalContent.length
+					// ERROR: Empty search block with non-empty file indicates malformed SEARCH marker
+					throw new Error(
+						"Empty SEARCH block detected with non-empty file. This usually indicates a malformed SEARCH marker.\n" +
+							"Please ensure your SEARCH marker follows the correct format:\n" +
+							"- Use '------- SEARCH' (7+ dashes + space + SEARCH)\n",
+					)
 				}
 			} else {
 				// Add check for inefficient full-file search
@@ -570,7 +581,7 @@ class NewFileContentConstructor {
 		pendingNonStandardLineLimit: number,
 	): number {
 		let removeLineCount = 0
-		if (line === SEARCH_BLOCK_START) {
+		if (isSearchBlockStart(line)) {
 			removeLineCount = this.trimPendingNonStandardTrailingEmptyLines(pendingNonStandardLineLimit)
 			if (removeLineCount > 0) {
 				pendingNonStandardLineLimit = pendingNonStandardLineLimit - removeLineCount
@@ -580,7 +591,7 @@ class NewFileContentConstructor {
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
 			}
 			this.activateSearchState()
-		} else if (line === SEARCH_BLOCK_END) {
+		} else if (isSearchBlockEnd(line)) {
 			// 校验非标内容
 			if (!this.isSearchingActive()) {
 				this.tryFixSearchBlock(pendingNonStandardLineLimit)
@@ -588,7 +599,7 @@ class NewFileContentConstructor {
 			}
 			this.activateReplaceState()
 			this.beforeReplace()
-		} else if (line === REPLACE_BLOCK_END) {
+		} else if (isReplaceBlockEnd(line)) {
 			if (!this.isReplacingActive()) {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
@@ -695,7 +706,7 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error("Invalid SEARCH/REPLACE block structure - no lines available to process")
 		}
-		let searchTagRegexp = /^[-]{3,} SEARCH$/
+		let searchTagRegexp = /^([-]{3,}|[<]{3,}) SEARCH$/
 		const searchTagIndex = this.findLastMatchingLineIndex(searchTagRegexp, lineLimit)
 		if (searchTagIndex !== -1) {
 			let fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
@@ -746,7 +757,7 @@ class NewFileContentConstructor {
 			throw new Error()
 		}
 
-		let replaceEndTagRegexp = /^[+]{3,} REPLACE$/
+		let replaceEndTagRegexp = /^([+]{3,}|[>]{3,}) REPLACE$/
 		const replaceEndTagIndex = this.findLastMatchingLineIndex(replaceEndTagRegexp, lineLimit)
 		const likeReplaceEndTag = replaceEndTagIndex === lineLimit - 1
 		if (likeReplaceEndTag) {
@@ -795,7 +806,11 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
 		lastLine !== SEARCH_BLOCK_START &&
 		lastLine !== SEARCH_BLOCK_END &&
 		lastLine !== REPLACE_BLOCK_END

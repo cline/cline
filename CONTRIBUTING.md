@@ -18,6 +18,18 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
 
+## Before Contributing
+
+All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
+
+- **Check existing issues**: Search [GitHub Issues](https://github.com/cline/cline/issues).
+- **Create an issue**: Use appropriate templates:
+    - **Bugs:** "Bug Report" template.
+    - **Features:** "Detailed Feature Proposal" template. Approval from a core Cline contributor required before starting.
+- **Claim issues**: Comment your interest.
+
+**PRs without approved issues may be closed.**
+
 ## Development Setup
 
 1. **VS Code Extensions**
