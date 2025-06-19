@@ -17,43 +17,6 @@ export const startRecording: VoiceMethodHandler = async (
 	try {
 		const result = await audioRecordingService.startRecording()
 
-		// Show VSCode notification if recording software is missing
-		if (!result.success && result.error) {
-			if (result.error.includes("brew install sox")) {
-				vscode.window
-					.showErrorMessage("Voice recording requires SoX. Please install it first.", "Install with Homebrew")
-					.then((selection) => {
-						if (selection === "Install with Homebrew") {
-							const terminal = vscode.window.createTerminal("Cline: Install SoX")
-							terminal.sendText("brew install sox")
-							terminal.show()
-						}
-					})
-			} else if (result.error.includes("apt-get install")) {
-				vscode.window
-					.showErrorMessage("Voice recording requires ALSA utilities.", "Install with apt-get")
-					.then((selection) => {
-						if (selection === "Install with apt-get") {
-							const terminal = vscode.window.createTerminal("Cline: Install ALSA")
-							terminal.sendText("sudo apt-get install -y alsa-utils")
-							terminal.show()
-						}
-					})
-			} else if (result.error.includes("winget install")) {
-				vscode.window
-					.showErrorMessage("Voice recording requires SoX for Windows.", "Install with winget")
-					.then((selection) => {
-						if (selection === "Install with winget") {
-							const terminal = vscode.window.createTerminal("Cline: Install SoX")
-							terminal.sendText("winget install ChrisBagwell.SoX")
-							terminal.show()
-						}
-					})
-			} else {
-				vscode.window.showErrorMessage(`Voice recording failed: ${result.error}`)
-			}
-		}
-
 		return StartRecordingResponse.create({
 			success: result.success,
 			error: result.error || "",
