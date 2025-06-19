@@ -232,6 +232,12 @@ export class ClineProvider
 		await this.getCurrentCline()?.resumePausedTask(lastMessage)
 	}
 
+	// Clear the current task without treating it as a subtask
+	// This is used when the user cancels a task that is not a subtask
+	async clearTask() {
+		await this.removeClineFromStack()
+	}
+
 	/*
 	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
 	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/

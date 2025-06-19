@@ -569,6 +569,117 @@ describe("ClineProvider", () => {
 		expect(stackSizeBeforeAbort - stackSizeAfterAbort).toBe(1)
 	})
 
+	describe("clearTask message handler", () => {
+		beforeEach(async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+		})
+
+		test("calls clearTask when there is no parent task", async () => {
+			// Setup a single task without parent
+			const mockCline = new Task(defaultTaskOptions)
+			// No need to set parentTask - it's undefined by default
+
+			// Mock the provider methods
+			const clearTaskSpy = vi.spyOn(provider, "clearTask").mockResolvedValue(undefined)
+			const finishSubTaskSpy = vi.spyOn(provider, "finishSubTask").mockResolvedValue(undefined)
+			const postStateToWebviewSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			// Add task to stack
+			await provider.addClineToStack(mockCline)
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+
+			// Trigger clearTask message
+			await messageHandler({ type: "clearTask" })
+
+			// Verify clearTask was called (not finishSubTask)
+			expect(clearTaskSpy).toHaveBeenCalled()
+			expect(finishSubTaskSpy).not.toHaveBeenCalled()
+			expect(postStateToWebviewSpy).toHaveBeenCalled()
+		})
+
+		test("calls finishSubTask when there is a parent task", async () => {
+			// Setup parent and child tasks
+			const parentTask = new Task(defaultTaskOptions)
+			const childTask = new Task(defaultTaskOptions)
+
+			// Set up parent-child relationship by setting the parentTask property
+			// The mock allows us to set properties directly
+			;(childTask as any).parentTask = parentTask
+			;(childTask as any).rootTask = parentTask
+
+			// Mock the provider methods
+			const clearTaskSpy = vi.spyOn(provider, "clearTask").mockResolvedValue(undefined)
+			const finishSubTaskSpy = vi.spyOn(provider, "finishSubTask").mockResolvedValue(undefined)
+			const postStateToWebviewSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			// Add both tasks to stack (parent first, then child)
+			await provider.addClineToStack(parentTask)
+			await provider.addClineToStack(childTask)
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+
+			// Trigger clearTask message
+			await messageHandler({ type: "clearTask" })
+
+			// Verify finishSubTask was called (not clearTask)
+			expect(finishSubTaskSpy).toHaveBeenCalledWith(expect.stringContaining("canceled"))
+			expect(clearTaskSpy).not.toHaveBeenCalled()
+			expect(postStateToWebviewSpy).toHaveBeenCalled()
+		})
+
+		test("handles case when no current task exists", async () => {
+			// Don't add any tasks to the stack
+
+			// Mock the provider methods
+			const clearTaskSpy = vi.spyOn(provider, "clearTask").mockResolvedValue(undefined)
+			const finishSubTaskSpy = vi.spyOn(provider, "finishSubTask").mockResolvedValue(undefined)
+			const postStateToWebviewSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+
+			// Trigger clearTask message
+			await messageHandler({ type: "clearTask" })
+
+			// When there's no current task, clearTask is still called (it handles the no-task case internally)
+			expect(clearTaskSpy).toHaveBeenCalled()
+			expect(finishSubTaskSpy).not.toHaveBeenCalled()
+			// State should still be posted
+			expect(postStateToWebviewSpy).toHaveBeenCalled()
+		})
+
+		test("correctly identifies subtask scenario for issue #4602", async () => {
+			// This test specifically validates the fix for issue #4602
+			// where canceling during API retry was incorrectly treating a single task as a subtask
+
+			const mockCline = new Task(defaultTaskOptions)
+			// No parent task by default - no need to explicitly set
+
+			// Mock the provider methods
+			const clearTaskSpy = vi.spyOn(provider, "clearTask").mockResolvedValue(undefined)
+			const finishSubTaskSpy = vi.spyOn(provider, "finishSubTask").mockResolvedValue(undefined)
+
+			// Add only one task to stack
+			await provider.addClineToStack(mockCline)
+
+			// Verify stack size is 1
+			expect(provider.getClineStackSize()).toBe(1)
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+
+			// Trigger clearTask message (simulating cancel during API retry)
+			await messageHandler({ type: "clearTask" })
+
+			// The fix ensures clearTask is called, not finishSubTask
+			expect(clearTaskSpy).toHaveBeenCalled()
+			expect(finishSubTaskSpy).not.toHaveBeenCalled()
+		})
+	})
+
 	test("addClineToStack adds multiple Cline instances to the stack", async () => {
 		// Setup Cline instance with auto-mock from the top of the file
 		const mockCline1 = new Task(defaultTaskOptions) // Create a new mocked instance
