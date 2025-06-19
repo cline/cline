@@ -281,7 +281,6 @@ Usage:
 <child_task_files>["file1.js", "file2.js"]</child_task_files>
 <execute_immediately>true or false</execute_immediately>
 </new_child_task>
-<new_child_task>
 
 ## start_next_child_task
 Description: Start the next pending child task from the queue. This will pause the current parent task and begin execution of the next queued child task. Use this tool when you want to manually control the execution timing of pending child tasks.
