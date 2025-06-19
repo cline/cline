@@ -77,10 +77,10 @@ export class MessageStateHandler {
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
-				findLastIndex(
-					this.clineMessages,
-					(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-				)
+					findLastIndex(
+						this.clineMessages,
+						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+					)
 				]
 			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
 			let taskDirSize = 0
@@ -110,7 +110,6 @@ export class MessageStateHandler {
 				pendingChildTasks,
 				activeChildTaskId,
 			} satisfies HistoryItem)
-
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
 		}

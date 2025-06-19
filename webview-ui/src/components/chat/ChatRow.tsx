@@ -1098,7 +1098,8 @@ export const ChatRowContent = ({
 					)
 
 				case "child_task_completed":
-					return message.text && (
+					return (
+						message.text && (
 							<>
 								<div style={headerStyle}>
 									{icon}
@@ -1113,6 +1114,7 @@ export const ChatRowContent = ({
 								</p>
 							</>
 						)
+					)
 				case "start_next_child_task":
 				case "new_child_task":
 					return (

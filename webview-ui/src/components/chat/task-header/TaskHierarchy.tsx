@@ -161,7 +161,11 @@ export const TaskHierarchy: React.FC<TaskHierarchyProps> = ({ currentTask, allTa
 	}
 	const renderListInContainer = (childTask: HistoryItem, children: ReactNode) => {
 		if (childTask.status === "pending") {
-			return <HeroTooltip key={childTask.id} content="Task is pending">{children}</HeroTooltip>
+			return (
+				<HeroTooltip key={childTask.id} content="Task is pending">
+					{children}
+				</HeroTooltip>
+			)
 		}
 		return children
 	}

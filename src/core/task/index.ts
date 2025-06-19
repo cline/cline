@@ -3777,18 +3777,11 @@ export class Task {
 
 							const completeMessage = JSON.stringify(sharedMessageProps)
 
-							
 							if (this.shouldAutoApproveTool(block.name)) {
 								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 								await this.say("tool", completeMessage, undefined, undefined, false)
 								this.taskState.consecutiveAutoApprovedRequestsCount++
-								telemetryService.captureToolUsage(
-									this.taskId,
-									block.name,
-									this.api.getModel().id,
-									true,
-									true,
-								)
+								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 							} else {
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
@@ -3858,17 +3851,11 @@ export class Task {
 								this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 								await this.say("tool", completeMessage, undefined, undefined, false)
 								this.taskState.consecutiveAutoApprovedRequestsCount++
-								telemetryService.captureToolUsage(
-									this.taskId,
-									block.name,
-									this.api.getModel().id,
-									true,
-									true,
-								)
+								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 							} else {
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
-										subtitle:  "Approval Required",
+										subtitle: "Approval Required",
 										message: `Cline wants to start the next pending child task`,
 									})
 								}
@@ -3923,7 +3910,7 @@ export class Task {
 							} else {
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
-										subtitle:  "Approval Required",
+										subtitle: "Approval Required",
 										message: `Cline wants to view pending child tasks`,
 									})
 								}
@@ -3961,7 +3948,7 @@ export class Task {
 								} else {
 									this.userMessageContent.push({
 										type: "text",
-										text: `User denied the operation to start the next child task. Pending child tasks: ${this.pendingChildTasks.length}`,	
+										text: `User denied the operation to start the next child task. Pending child tasks: ${this.pendingChildTasks.length}`,
 									})
 								}
 							}
@@ -4478,7 +4465,6 @@ export class Task {
 										)
 									}
 								} else {
-									
 									// no command, still outputting partial result
 									await this.say(
 										"completion_result",
@@ -4632,7 +4618,6 @@ export class Task {
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
-	
 		if (this.isPaused()) {
 			await pWaitFor(() => !this.isPaused() || this.taskState.abort, { interval: 100 })
 
