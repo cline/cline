@@ -17,7 +17,7 @@ import { ApiStream, ApiStreamChunk } from "../transform/stream"
 
 // Disable undici time‑outs for *this* dispatcher and hand it to the SDK.
 const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 })
-const customFetch: typeof fetch = (url: any, init: any) => fetch(url, { ...init, dispatcher } as any)
+const customFetch: typeof fetch = (url: RequestInfo, init?: RequestInit) => fetch(url, { ...init, dispatcher } as any)
 
 export class OllamaHandler implements ApiHandler {
 	/** Public so unit tests can stub `.chat()` (e.g. with sinon). */
