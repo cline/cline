@@ -234,6 +234,18 @@ class TelemetryService {
 		}
 	}
 
+	public identifyUser(email: string) {
+		if (!this.telemetryEnabled) {
+			return
+		}
+		this.client.identify({
+			distinctId: this.distinctId,
+			properties: {
+				email: email,
+			},
+		})
+	}
+
 	// Task events
 	/**
 	 * Records when a new task/conversation is started

@@ -1,6 +1,6 @@
 import { AccountServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { initializeApp } from "firebase/app"
 import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
@@ -55,6 +55,9 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 						}
 					: null,
 			})
+			if (user.email) {
+				AccountServiceClient.accountEmailIdentified(StringRequest.create({ value: user.email }))
+			}
 		})
 
 		return () => unsubscribe()
