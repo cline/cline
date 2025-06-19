@@ -26,8 +26,8 @@ import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlob
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import * as hostProviders from "./hosts/host-providers"
-import { vscodeHostBridgeClient } from "@generated/hosts/vscode/client/host-grpc-client"
+import * as hostProviders from "@hosts/index"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -641,7 +641,7 @@ export async function activate(context: vscode.ExtensionContext) {
 function maybeSetupHostProviders() {
 	if (!hostProviders.isSetup) {
 		console.log("Setting up vscode host providers.")
-		hostProviders.initialize(vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(vscodeHostBridgeClient)
 	}
 }
 

@@ -13,7 +13,7 @@ import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
 
 async function main() {
 	log("Starting service...")
-	hostProviders.initialize(new ExternalHostBridgeClientManager())
+	hostProviders.initializeHostProviders(new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage)
 	const server = new grpc.Server()
