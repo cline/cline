@@ -642,12 +642,7 @@ export async function activate(context: vscode.ExtensionContext) {
 function maybeSetupHostProviders() {
 	if (!hostProviders.isSetup) {
 		console.log("Setting up vscode host providers...")
-		const webviewCreator = (
-			context: vscode.ExtensionContext,
-			outputChannel: vscode.OutputChannel,
-			type: WebviewProviderType | undefined,
-		) => new VscodeWebviewProvider(context, outputChannel, type)
-		hostProviders.initializeHostProviders(webviewCreator, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(VscodeWebviewProvider.create, vscodeHostBridgeClient)
 	}
 }
 
