@@ -26,7 +26,7 @@ import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlob
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { maybeInitializeHostBridgeClient } from "./hosts/host-bridge-client"
+import * as hostProviders from "./hosts/host-providers"
 import { vscodeHostBridgeClient } from "@generated/hosts/vscode/client/host-grpc-client"
 
 /*
@@ -50,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
-	maybeInitializeHostBridgeClient(vscodeHostBridgeClient)
+	maybeSetupHostProviders()
 
 	// Migrate global storage values to workspace storage (one-time cleanup)
 	await migratePlanActGlobalToWorkspaceStorage(context)
@@ -636,6 +636,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(outputChannel, sidebarWebview.controller)
+}
+
+function maybeSetupHostProviders() {
+	if (!hostProviders.isSetup) {
+		console.log("Setting up vscode host providers.")
+		hostProviders.initialize(vscodeHostBridgeClient)
+	}
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.

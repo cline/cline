@@ -604,8 +604,8 @@ async function generateHostGrpcClientConfig() {
 
 	// Process each service in the hostServiceNameMap
 	for (const [_dirName, fullServiceName] of Object.entries(hostServiceNameMap)) {
-		const serviceName = fullServiceName.replace(/.*\./, "")
-		clients.push(`${serviceName}Client: createGrpcClient(${fullServiceName}Definition)`)
+		const propertyName = lowercaseFirstChar(serviceNameWithoutPackage(fullServiceName))
+		clients.push(`${propertyName}Client: createGrpcClient(${fullServiceName}Definition)`)
 	}
 
 	// Generate the file content
@@ -665,6 +665,13 @@ async function rmdir(path) {
 			throw error
 		}
 	}
+}
+
+function serviceNameWithoutPackage(fullServiceName) {
+	return fullServiceName.replace(/.*\./, "")
+}
+function lowercaseFirstChar(str) {
+	return str.charAt(0).toLowerCase() + str.slice(1)
 }
 
 // Check for Apple Silicon compatibility
