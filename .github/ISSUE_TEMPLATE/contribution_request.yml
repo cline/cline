@@ -1,0 +1,64 @@
+name: 🤝 Contribution Request
+description: Request to contribute a new feature or improvement to Cline
+labels: ["contribution-request"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              **Contribution Request for Cline**
+
+              Thank you for your interest in contributing to Cline! This template helps us understand what you'd like to work on and ensures alignment with the project's goals before you invest time in implementation.
+
+              Before submitting:
+              - Search existing [Issues](https://github.com/cline/cline/issues) and [Discussions](https://github.com/cline/cline/discussions) to avoid duplicates
+              - Check our ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) and ["help wanted"](https://github.com/cline/cline/labels/help%20wanted) labels for pre-approved contribution areas
+
+    - type: textarea
+      id: contribution-description
+      attributes:
+          label: What would you like to contribute?
+          description: |
+              Describe what you want to work on. Be specific about the feature, improvement, or fix you're proposing.
+
+              Include:
+              - Clear description of the contribution
+              - Why you think this would benefit Cline
+              - Any relevant context or background
+          placeholder: "I would like to contribute..."
+      validations:
+          required: true
+
+    - type: textarea
+      id: implementation-approach
+      attributes:
+          label: Implementation approach
+          description: |
+              How do you plan to implement this? Include:
+              - High-level technical approach
+              - Files/components that would be affected
+              - Any new dependencies required
+              - Potential challenges or considerations
+          placeholder: "My implementation approach would be..."
+      validations:
+          required: false
+
+    - type: checkboxes
+      id: checklist
+      attributes:
+          label: Contribution checklist
+          options:
+              - label: I've searched for existing issues and discussions
+                required: true
+              - label: I've read the [Contributing Guide](https://github.com/cline/cline/blob/main/CONTRIBUTING.md)
+                required: true
+              - label: I understand this needs approval before I start implementation
+                required: true
+              - label: I'm willing to make changes based on feedback
+                required: true
+
+    - type: textarea
+      id: additional-notes
+      attributes:
+          label: Additional notes
+          description: Any other information you'd like to share about your contribution proposal
+          placeholder: "Additional context..."
