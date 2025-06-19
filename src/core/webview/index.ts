@@ -81,12 +81,49 @@ export abstract class WebviewProvider {
 		}
 	}
 
+	/**
+	 * Initializes and sets up the webview when it's first created.
+	 *
+	 * @param webviewView - The webview view or panel instance to be resolved
+	 * @returns A promise that resolves when the webview has been fully initialized
+	 */
 	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
+
+	/**
+	 * Sends a message from the extension to the webview.
+	 *
+	 * @param message - The message to send to the webview
+	 * @returns A thenable that resolves to a boolean indicating success, or undefined if the webview is not available
+	 */
 	abstract postMessageToWebview(message: ExtensionMessage): Thenable<boolean> | undefined
+
+	/**
+	 * Gets the current webview instance.
+	 *
+	 * @returns The webview instance (WebviewView, WebviewPanel, or similar)
+	 */
 	abstract getWebview(): any
 
+	/**
+	 * Converts a local URI to a webview URI that can be used within the webview.
+	 *
+	 * @param uri - The local URI to convert
+	 * @returns A URI that can be used within the webview
+	 */
 	abstract getWebviewUri(uri: Uri): Uri
+
+	/**
+	 * Gets the Content Security Policy source for the webview.
+	 *
+	 * @returns The CSP source string to be used in the webview's Content-Security-Policy
+	 */
 	abstract getCspSource(): string
+
+	/**
+	 * Checks if the webview is currently visible to the user.
+	 *
+	 * @returns True if the webview is visible, false otherwise
+	 */
 	abstract isVisible(): boolean
 
 	/**
