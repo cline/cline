@@ -10,10 +10,12 @@ import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
+import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
 
 async function main() {
-	log("Starting service...")
-	hostProviders.initializeHostProviders(new ExternalHostBridgeClientManager())
+	log("Starting standalone service...")
+
+	hostProviders.initializeHostProviders(ExternalWebviewProvider.create, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage)
 	const server = new grpc.Server()
