@@ -3,7 +3,7 @@ import * as path from "path"
 import * as os from "os"
 import { spawn, ChildProcess } from "child_process"
 import { Logger } from "@services/logging/Logger"
-import { SOX_FALLBACK_PATHS } from "@/shared/audioProgramConstants"
+import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 
 function isExecutable(filePath: string): boolean {
 	try {
@@ -45,22 +45,13 @@ export class AudioRecordingService {
 			if (!recordProgram) {
 				return { success: false, error: "Recording program not found" }
 			}
-			Logger.info(`Using recording program: ${recordProgram}`)
+			Logger.info(`Using recording program: ${recordProgram.path}`)
 
-			// Set up recording arguments for rec/sox
-			const args = [
-				"-c",
-				"1", // Mono
-				"-e",
-				"signed", // Encoding
-				"-b",
-				"16", // 16-bit
-				this.outputFile, // Output file
-			]
-			// Note: We don't specify sample rate to avoid warnings - rec will use system default
+			// Set up recording arguments
+			const args = recordProgram.getArgs(this.outputFile)
 
 			// Spawn the recording process
-			this.recordingProcess = spawn(recordProgram, args)
+			this.recordingProcess = spawn(recordProgram.path, args)
 			this.isRecording = true
 			this.startTime = Date.now()
 
@@ -175,24 +166,27 @@ export class AudioRecordingService {
 		return { available: true }
 	}
 
-	private getRecordProgram(): string | undefined {
-		const platform = os.platform() as keyof typeof SOX_FALLBACK_PATHS
-		const command = "rec"
+	private getRecordProgram(): { path: string; getArgs: (outputFile: string) => string[] } | undefined {
+		const platform = os.platform() as keyof typeof AUDIO_PROGRAM_CONFIG
+		const config = AUDIO_PROGRAM_CONFIG[platform]
+
+		if (!config) {
+			return undefined
+		}
 
 		// 1. Check if the command is in the system's PATH
 		const pathDirs = (process.env.PATH || "").split(path.delimiter)
 		for (const dir of pathDirs) {
-			const fullPath = path.join(dir, command)
+			const fullPath = path.join(dir, config.command)
 			if (fs.existsSync(fullPath) && isExecutable(fullPath)) {
-				return fullPath
+				return { path: fullPath, getArgs: config.getArgs }
 			}
 		}
 
 		// 2. Check fallback paths if not in PATH
-		const fallbackPaths = SOX_FALLBACK_PATHS[platform] || []
-		for (const p of fallbackPaths) {
+		for (const p of config.fallbackPaths) {
 			if (fs.existsSync(p) && isExecutable(p)) {
-				return p
+				return { path: p, getArgs: config.getArgs }
 			}
 		}
 
