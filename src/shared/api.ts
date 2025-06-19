@@ -2364,9 +2364,6 @@ export const miiboModels: Record<string, ModelInfo> = {
 	[miiboDefaultModelId]: {
 		description: "Miibo",
 		supportsImages: true,
-		maxTokens: 2000,
-		inputPrice: 1.0,
-		outputPrice: 3.0,
 		supportsPromptCache: true,
 	},
 }
