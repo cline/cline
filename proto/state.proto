@@ -14,9 +14,10 @@ service StateService {
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
-  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
 }
 
 message State {
@@ -86,6 +87,17 @@ message AutoApprovalSettingsRequest {
   int32 max_requests = 5;
   bool enable_notifications = 6;
   repeated string favorites = 7;
+}
+
+enum TelemetrySettingEnum {
+  UNSET = 0;
+  ENABLED = 1;
+  DISABLED = 2;
+}
+
+message TelemetrySettingRequest {
+  Metadata metadata = 1;
+  TelemetrySettingEnum setting = 2;
 }
 
 // Message for updating settings

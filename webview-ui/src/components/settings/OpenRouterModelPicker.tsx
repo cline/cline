@@ -10,7 +10,8 @@ import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { ModelInfoView } from "./ApiOptions"
+import { normalizeApiConfiguration } from "./utils/providerUtils"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
@@ -42,13 +43,13 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-3.7-sonnet",
-		description: "Recommended for agentic coding in Cline",
+		id: "google/gemini-2.5-pro",
+		description: "Large 1M context window, great value",
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro-preview",
-		description: "Large 1M context window, great value",
+		id: "anthropic/claude-sonnet-4",
+		description: "Recommended for agentic coding in Cline",
 		label: "Trending",
 	},
 	{
@@ -333,8 +334,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
-							anthropic/claude-3.7-sonnet.
+							onClick={() => handleModelChange("google/gemini-2.5-pro")}>
+							google/gemini-2.5-pro.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>

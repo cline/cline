@@ -1,5 +1,47 @@
 # Changelog
 
+## [3.18.0]
+
+-   Optimized Cline to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities
+-   Added a new Gemini CLI provider that allows you to use your local Gemini CLI authentication to access Gemini models for free (Thanks @google-gemini!)
+-   Optimized Cline to work with the Gemini 2.5 family of models
+-   Updated the default and recommended model to Claude 4 Sonnet for the best performance
+-   Fix race condition in Plan/Act mode switching
+-   Improve robustness of search and replace parsing
+
+## [3.17.16]
+
+-   Fix Claude Code provider error handling for incomplete messages during long-running tasks (Thanks @BarreiroT!)
+-   Add taskId as metadata to LiteLLM API requests for better request tracing (Thanks @jorgegarciarey!)
+
+## [3.17.15]
+
+-   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
+-   Fix chat input being cleared when switching between Plan/Act modes without sending a message (Thanks @BarreiroT!)
+-   Fix MCP server name display to avoid showing "undefined" for SSE servers, preventing tool/resource invocation failures (Thanks @ramybenaroya!)
+-   Fix AWS Bedrock provider by removing deprecated custom model encoding (Thanks @watany-dev!)
+-   Fix timeline tooltips for followup messages and improve color retrieval code (Thanks @char8x!)
+-   Improve accessibility by making task header buttons properly announced by screen readers (Thanks @yncat!)
+-   Improve accessibility by adding proper state reporting for Plan/Act mode switch for screen readers (Thanks @yncat!)
+-   Prevent reading development environment variables from user's environment (Thanks @BarreiroT!)
+
+## [3.17.14]
+
+-   Add Claude Code as a new API provider, allowing integration with Anthropic's Claude Code CLI tool and Claude Max Plan (Thanks @BarreiroT!)
+-   Add SAP AI Core as a new API provider with support for Claude and GPT models (Thanks @schardosin!)
+-   Add configurable default terminal profile setting, allowing users to specify which terminal Cline should use (Thanks @valinha!)
+-   Add terminal output size constraint setting to limit how much terminal output is processed
+-   Add MCP Rich Display settings to the settings page for persistent configuration (Thanks @Vl4diC0de!)
+-   Improve copy button functionality with refactored reusable components (Thanks @shouhanzen!)
+-   Improve AWS Bedrock provider by removing deprecated dependency and using standard AWS SDK (Thanks @watany-dev!)
+-   Fix list_files tool to properly return files when targeting hidden directories
+-   Fix search and replace edge case that could cause file deletion, making the algorithm more lenient for models using different diff formats
+-   Fix task restoration issues that could occur when resuming interrupted tasks
+-   Fix checkpoint saving to properly track all file changes
+-   Improve file context warnings to reduce diff edit errors when resuming restored tasks
+-   Clear chat input when switching between Plan/Act modes within a task
+-   Exclude .clinerules files from checkpoint tracking
+
 ## [3.17.13]
 
 -   Add Thinking UX for Gemini models, providing visual feedback during model reasoning

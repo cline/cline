@@ -27,7 +27,15 @@
 		"prefer-const": "off",
 		"no-extra-semi": "off",
 		"eslint-rules/no-protobuf-object-literals": "error",
-		"eslint-rules/no-grpc-client-object-literals": "error"
+		"eslint-rules/no-grpc-client-object-literals": "error",
+		"eslint-rules/no-vscode-postmessage": "warn",
+		"no-restricted-syntax": [
+			"error",
+			{
+				"selector": "VariableDeclarator[id.type=\"ObjectPattern\"][init.object.name=\"process\"][init.property.name=\"env\"]",
+				"message": "Use process.env.VARIABLE_NAME directly instead of destructuring"
+			}
+		]
 	},
 	"ignorePatterns": ["build"]
 }

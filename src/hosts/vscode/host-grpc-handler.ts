@@ -1,3 +1,4 @@
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
@@ -8,15 +9,6 @@ export type StreamingResponseHandler = (response: any, isLast?: boolean, sequenc
 
 // Registry to track active gRPC requests and their cleanup functions
 const requestRegistry = new GrpcRequestRegistry()
-
-/**
- * Callback interface for streaming requests
- */
-export interface StreamingCallbacks<T = any> {
-	onResponse: (response: T) => void
-	onError?: (error: Error) => void
-	onComplete?: () => void
-}
 
 /**
  * Handles gRPC requests for the host bridge.

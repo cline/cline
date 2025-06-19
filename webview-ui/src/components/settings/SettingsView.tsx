@@ -2,7 +2,6 @@ import { UnsavedChangesDialog } from "@/components/common/AlertDialog"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { cn } from "@/utils/cn"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
@@ -16,6 +15,7 @@ import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import ApiOptions from "./ApiOptions"
 import BrowserSettingsSection from "./BrowserSettingsSection"
+import { BrowserSettings } from "@shared/BrowserSettings"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
 import Section from "./Section"
@@ -23,7 +23,7 @@ import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
-const { IS_DEV } = process.env
+const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
 const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
@@ -112,6 +112,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState(false)
 	// Store the action to perform after confirmation
 	const pendingAction = useRef<() => void>()
+	// Track if we're currently switching modes
+	const [isSwitchingMode, setIsSwitchingMode] = useState(false)
+	// Track pending mode switch when there are unsaved changes
+	const [pendingModeSwitch, setPendingModeSwitch] = useState<"plan" | "act" | null>(null)
 	const {
 		apiConfiguration,
 		version,
@@ -139,7 +143,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		mcpResponsesCollapsed,
 		setMcpResponsesCollapsed,
 		setApiConfiguration,
+		browserSettings,
 	} = useExtensionState()
+
+	// Local state for browser settings
+	const [localBrowserSettings, setLocalBrowserSettings] = useState<BrowserSettings>(browserSettings)
 
 	// Store the original state to detect changes
 	const originalState = useRef({
@@ -155,6 +163,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalReuseEnabled,
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
+		browserSettings,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -208,6 +217,23 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				} as StringRequest)
 			}
 
+			// Update browser settings if they have changed
+			if (JSON.stringify(localBrowserSettings) !== JSON.stringify(originalState.current.browserSettings)) {
+				const { BrowserServiceClient } = await import("@/services/grpc-client")
+				const { UpdateBrowserSettingsRequest } = await import("@shared/proto/browser")
+
+				await BrowserServiceClient.updateBrowserSettings(
+					UpdateBrowserSettingsRequest.create({
+						metadata: {},
+						viewport: localBrowserSettings.viewport,
+						remoteBrowserEnabled: localBrowserSettings.remoteBrowserEnabled,
+						remoteBrowserHost: localBrowserSettings.remoteBrowserHost,
+						chromeExecutablePath: localBrowserSettings.chromeExecutablePath,
+						disableToolUse: localBrowserSettings.disableToolUse,
+					}),
+				)
+			}
+
 			// Update the original state to reflect the saved changes
 			originalState.current = {
 				apiConfiguration,
@@ -222,6 +248,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				terminalReuseEnabled,
 				terminalOutputLineLimit,
 				defaultTerminalProfile,
+				browserSettings: localBrowserSettings,
 			}
 		} catch (error) {
 			console.error("Failed to update settings:", error)
@@ -237,8 +264,32 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
+	// Track the previous mode to detect mode switches
+	const previousMode = useRef(chatSettings.mode)
+
+	// Update original state when mode changes
+	useEffect(() => {
+		// Detect if the mode has changed
+		if (previousMode.current !== chatSettings.mode) {
+			// Mode has changed, update the original state immediately to reflect the new apiConfiguration and chatSettings
+			originalState.current = {
+				...originalState.current,
+				apiConfiguration: apiConfiguration,
+				chatSettings: chatSettings,
+			}
+
+			// Update the previous mode reference
+			previousMode.current = chatSettings.mode
+		}
+	}, [chatSettings.mode, apiConfiguration, chatSettings])
+
 	// Check for unsaved changes by comparing current state with original state
 	useEffect(() => {
+		// Don't check for changes while switching modes
+		if (isSwitchingMode) {
+			return
+		}
+
 		const hasChanges =
 			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
 			telemetrySetting !== originalState.current.telemetrySetting ||
@@ -248,11 +299,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
 			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
-			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
+			defaultTerminalProfile !== originalState.current.defaultTerminalProfile ||
+			JSON.stringify(localBrowserSettings) !== JSON.stringify(originalState.current.browserSettings)
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -268,6 +319,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalReuseEnabled,
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
+		isSwitchingMode,
 	])
 
 	// Handle cancel button click
@@ -320,6 +372,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				if (typeof setMcpResponsesCollapsed === "function") {
 					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
 				}
+				// Reset browser settings
+				setLocalBrowserSettings(originalState.current.browserSettings)
 				// Close settings view
 				onDone()
 			}
@@ -341,17 +395,134 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	])
 
 	// Handle confirmation dialog actions
-	const handleConfirmDiscard = useCallback(() => {
+	const handleConfirmDiscard = useCallback(async () => {
 		setIsUnsavedChangesDialogOpen(false)
-		if (pendingAction.current) {
+
+		// Check if this is for a mode switch
+		if (pendingModeSwitch) {
+			// Reset all state to original values (discard changes)
+			setTelemetrySetting(originalState.current.telemetrySetting)
+			setPlanActSeparateModelsSetting(originalState.current.planActSeparateModelsSetting)
+			setChatSettings(originalState.current.chatSettings)
+			if (typeof setApiConfiguration === "function") {
+				setApiConfiguration(originalState.current.apiConfiguration ?? {})
+			}
+			if (typeof setEnableCheckpointsSetting === "function") {
+				setEnableCheckpointsSetting(
+					typeof originalState.current.enableCheckpointsSetting === "boolean"
+						? originalState.current.enableCheckpointsSetting
+						: false,
+				)
+			}
+			if (typeof setMcpMarketplaceEnabled === "function") {
+				setMcpMarketplaceEnabled(
+					typeof originalState.current.mcpMarketplaceEnabled === "boolean"
+						? originalState.current.mcpMarketplaceEnabled
+						: false,
+				)
+			}
+			if (typeof setMcpRichDisplayEnabled === "function") {
+				setMcpRichDisplayEnabled(
+					typeof originalState.current.mcpRichDisplayEnabled === "boolean"
+						? originalState.current.mcpRichDisplayEnabled
+						: true,
+				)
+			}
+			// Reset terminal settings
+			if (typeof setShellIntegrationTimeout === "function") {
+				setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
+			}
+			if (typeof setTerminalOutputLineLimit === "function") {
+				setTerminalOutputLineLimit(originalState.current.terminalOutputLineLimit)
+			}
+			if (typeof setTerminalReuseEnabled === "function") {
+				setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+			}
+			if (typeof setDefaultTerminalProfile === "function") {
+				setDefaultTerminalProfile(originalState.current.defaultTerminalProfile ?? "default")
+			}
+			if (typeof setMcpResponsesCollapsed === "function") {
+				setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
+			}
+
+			// Now perform the mode switch
+			const targetMode = pendingModeSwitch
+			setPendingModeSwitch(null)
+			setIsSwitchingMode(true)
+
+			try {
+				await StateServiceClient.togglePlanActMode(
+					TogglePlanActModeRequest.create({
+						chatSettings: {
+							mode: targetMode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+							preferredLanguage: chatSettings.preferredLanguage,
+							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+						},
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to toggle Plan/Act mode:", error)
+			} finally {
+				setIsSwitchingMode(false)
+			}
+		} else if (pendingAction.current) {
+			// Regular cancel button flow
 			pendingAction.current()
 			pendingAction.current = undefined
 		}
-	}, [])
+	}, [
+		pendingModeSwitch,
+		setTelemetrySetting,
+		setPlanActSeparateModelsSetting,
+		setChatSettings,
+		setApiConfiguration,
+		setEnableCheckpointsSetting,
+		setMcpMarketplaceEnabled,
+		setMcpRichDisplayEnabled,
+		setShellIntegrationTimeout,
+		setTerminalOutputLineLimit,
+		setTerminalReuseEnabled,
+		setDefaultTerminalProfile,
+		setMcpResponsesCollapsed,
+		chatSettings.preferredLanguage,
+		chatSettings.openAIReasoningEffort,
+	])
+
+	// Handle save and switch for mode changes
+	const handleSaveAndSwitch = useCallback(async () => {
+		setIsUnsavedChangesDialogOpen(false)
+
+		if (pendingModeSwitch) {
+			// Save the current settings first
+			await handleSubmit(true)
+
+			// Now perform the mode switch
+			const targetMode = pendingModeSwitch
+			setPendingModeSwitch(null)
+			setIsSwitchingMode(true)
+
+			try {
+				await StateServiceClient.togglePlanActMode(
+					TogglePlanActModeRequest.create({
+						chatSettings: {
+							mode: targetMode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+							preferredLanguage: chatSettings.preferredLanguage,
+							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+						},
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to toggle Plan/Act mode:", error)
+			} finally {
+				setIsSwitchingMode(false)
+			}
+		}
+	}, [pendingModeSwitch, handleSubmit, chatSettings.preferredLanguage, chatSettings.openAIReasoningEffort])
 
 	const handleCancelDiscard = useCallback(() => {
 		setIsUnsavedChangesDialogOpen(false)
 		pendingAction.current = undefined
+		setPendingModeSwitch(null)
 	}, [])
 
 	// validate as soon as the component is mounted
@@ -419,14 +590,25 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	}
 
 	const handlePlanActModeChange = async (tab: "plan" | "act") => {
-		if (tab === chatSettings.mode) {
+		// Prevent switching if already in that mode or if currently switching
+		if (tab === chatSettings.mode || isSwitchingMode) {
 			return
 		}
 
-		// Update settings first to ensure any changes to the current tab are saved
-		await handleSubmit(true)
+		// Check if there are unsaved changes
+		if (hasUnsavedChanges) {
+			// Store the pending mode switch
+			setPendingModeSwitch(tab)
+			// Show the unsaved changes dialog
+			setIsUnsavedChangesDialogOpen(true)
+			return
+		}
+
+		// No unsaved changes, proceed with the switch
+		setIsSwitchingMode(true)
 
 		try {
+			// Perform the mode switch
 			await StateServiceClient.togglePlanActMode(
 				TogglePlanActModeRequest.create({
 					chatSettings: {
@@ -438,6 +620,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			)
 		} catch (error) {
 			console.error("Failed to toggle Plan/Act mode:", error)
+		} finally {
+			// Always re-enable mode switching, even on error
+			setIsSwitchingMode(false)
 		}
 	}
 
@@ -504,23 +689,22 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			</TabHeader>
 
 			{/* Vertical tabs layout */}
-			<div ref={containerRef} className={cn(settingsTabsContainer, isCompactMode && "narrow")}>
+			<div ref={containerRef} className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`}>
 				{/* Tab sidebar */}
 				<TabList
 					value={activeTab}
 					onValueChange={handleTabChange}
-					className={cn(settingsTabList)}
+					className={settingsTabList}
 					data-compact={isCompactMode}>
 					{SETTINGS_TABS.map((tab) =>
 						isCompactMode ? (
 							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
 								<div
-									className={cn(
+									className={`${
 										activeTab === tab.id
 											? `${settingsTabTrigger} ${settingsTabTriggerActive}`
-											: settingsTabTrigger,
-										"focus:ring-0",
-									)}
+											: settingsTabTrigger
+									} focus:ring-0`}
 									data-compact={isCompactMode}
 									data-testid={`tab-${tab.id}`}
 									data-value={tab.id}
@@ -528,7 +712,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 										console.log("Compact tab clicked:", tab.id)
 										handleTabChange(tab.id)
 									}}>
-									<div className={cn("flex items-center gap-2", isCompactMode && "justify-center")}>
+									<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
 										<tab.icon className="w-4 h-4" />
 										<span className="tab-label">{tab.name}</span>
 									</div>
@@ -538,15 +722,14 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							<TabTrigger
 								key={tab.id}
 								value={tab.id}
-								className={cn(
+								className={`${
 									activeTab === tab.id
 										? `${settingsTabTrigger} ${settingsTabTriggerActive}`
-										: settingsTabTrigger,
-									"focus:ring-0",
-								)}
+										: settingsTabTrigger
+								} focus:ring-0`}
 								data-compact={isCompactMode}
 								data-testid={`tab-${tab.id}`}>
-								<div className={cn("flex items-center gap-2", isCompactMode && "justify-center")}>
+								<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
 									<tab.icon className="w-4 h-4" />
 									<span className="tab-label">{tab.name}</span>
 								</div>
@@ -587,13 +770,27 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 													<TabButton
 														isActive={chatSettings.mode === "plan"}
-														onClick={() => handlePlanActModeChange("plan")}>
-														Plan Mode
+														onClick={() => handlePlanActModeChange("plan")}
+														disabled={isSwitchingMode}
+														style={{
+															opacity: isSwitchingMode ? 0.6 : 1,
+															cursor: isSwitchingMode ? "not-allowed" : "pointer",
+														}}>
+														{isSwitchingMode && chatSettings.mode === "act"
+															? "Switching..."
+															: "Plan Mode"}
 													</TabButton>
 													<TabButton
 														isActive={chatSettings.mode === "act"}
-														onClick={() => handlePlanActModeChange("act")}>
-														Act Mode
+														onClick={() => handlePlanActModeChange("act")}
+														disabled={isSwitchingMode}
+														style={{
+															opacity: isSwitchingMode ? 0.6 : 1,
+															cursor: isSwitchingMode ? "not-allowed" : "pointer",
+														}}>
+														{isSwitchingMode && chatSettings.mode === "plan"
+															? "Switching..."
+															: "Act Mode"}
 													</TabButton>
 												</div>
 
@@ -692,7 +889,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 								<div>
 									{renderSectionHeader("browser")}
 									<Section>
-										<BrowserSettingsSection />
+										<BrowserSettingsSection
+											localBrowserSettings={localBrowserSettings}
+											onBrowserSettingsChange={setLocalBrowserSettings}
+										/>
 									</Section>
 								</div>
 							)}
@@ -759,6 +959,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				onOpenChange={setIsUnsavedChangesDialogOpen}
 				onConfirm={handleConfirmDiscard}
 				onCancel={handleCancelDiscard}
+				onSave={pendingModeSwitch ? handleSaveAndSwitch : undefined}
+				title={pendingModeSwitch ? "Save Changes?" : "Unsaved Changes"}
+				description={
+					pendingModeSwitch
+						? `Do you want to save your changes to ${chatSettings.mode === "plan" ? "Plan" : "Act"} mode before switching to ${pendingModeSwitch === "plan" ? "Plan" : "Act"} mode?`
+						: "You have unsaved changes. Are you sure you want to discard them?"
+				}
+				confirmText={pendingModeSwitch ? "Switch Without Saving" : "Discard Changes"}
+				saveText="Save & Switch"
+				showSaveOption={!!pendingModeSwitch}
 			/>
 		</Tab>
 	)

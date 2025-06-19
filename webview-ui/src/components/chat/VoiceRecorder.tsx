@@ -1,9 +1,6 @@
 import React, { useState, useCallback } from "react"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { VoiceServiceClient } from "@/services/grpc-client"
 import { StartRecordingRequest, StopRecordingRequest, TranscribeAudioRequest } from "@shared/proto/voice"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import Tooltip from "@/components/common/Tooltip"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -12,7 +9,6 @@ interface VoiceRecorderProps {
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProcessingStateChange, disabled = false }) => {
-	const { chatSettings } = useExtensionState()
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -108,12 +104,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 	}, [onTranscription, onProcessingStateChange])
 
 	const handleClick = useCallback(() => {
+		if (disabled || isProcessing) return
+
+		if (error) return setError(null)
+
 		if (isRecording) {
 			stopRecording()
 		} else {
 			startRecording()
 		}
-	}, [isRecording, startRecording, stopRecording])
+	}, [isRecording, startRecording, stopRecording, disabled, isProcessing, error])
 
 	const getIconClass = () => {
 		if (isProcessing) return "codicon-loading"
@@ -128,15 +128,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 		return undefined
 	}
 
+	const getIconAnimation = () => {
+		if (isProcessing) return "animate-spin"
+		if (isRecording) return "animate-pulse"
+		return ""
+	}
+
+	const getIconAdjustment = () => {
+		if (isProcessing) return "mt-0"
+		if (isRecording) return "mt-1"
+		if (error) return "mt-1"
+		return "mt-0.5"
+	}
+
 	return (
 		<div
-			className={`input-icon-button ${disabled || isProcessing ? "disabled" : ""}`}
-			onClick={!disabled && !isProcessing ? handleClick : undefined}
+			className={`input-icon-button mr-1.5 text-base ${getIconAdjustment()} ${getIconAnimation()} ${disabled || isProcessing ? "disabled" : ""}`}
+			onClick={handleClick}
 			style={{
-				marginRight: "5px",
-				fontSize: "15px",
 				color: getIconColor(),
-				animation: isRecording ? "pulse 1.5s infinite" : "none",
 			}}>
 			<span className={`codicon ${getIconClass()}`} />
 		</div>
