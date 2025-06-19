@@ -1619,6 +1619,34 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								flexDirection: "row",
 								alignItems: "center",
 							}}>
+							{chatSettings?.voiceRecordingEnabled === true && (
+								<VoiceRecorder
+									onTranscription={(text) => {
+										// Remove any processing text first
+										const cleanedValue = inputValue.replace(/\s*\[Transcribing\.\.\.\]$/, "")
+										// Append the transcribed text to the cleaned input
+										const newValue = cleanedValue + (cleanedValue ? " " : "") + text
+										setInputValue(newValue)
+										// Focus the textarea and move cursor to end
+										setTimeout(() => {
+											if (textAreaRef.current) {
+												textAreaRef.current.focus()
+												const length = newValue.length
+												textAreaRef.current.setSelectionRange(length, length)
+											}
+										}, 0)
+									}}
+									onProcessingStateChange={(isProcessing, message) => {
+										if (isProcessing && message) {
+											// Show processing message in input
+											const processingText = inputValue + (inputValue ? " " : "") + `[${message}]`
+											setInputValue(processingText)
+										}
+										// When processing is done, the onTranscription callback will handle the final text
+									}}
+									disabled={sendingDisabled}
+								/>
+							)}
 							{/* <div
 								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 								onClick={() => {
@@ -1701,34 +1729,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
-							{chatSettings?.voiceRecordingEnabled === true && (
-								<VoiceRecorder
-									onTranscription={(text) => {
-										// Remove any processing text first
-										const cleanedValue = inputValue.replace(/\s*\[Transcribing\.\.\.\]$/, "")
-										// Append the transcribed text to the cleaned input
-										const newValue = cleanedValue + (cleanedValue ? " " : "") + text
-										setInputValue(newValue)
-										// Focus the textarea and move cursor to end
-										setTimeout(() => {
-											if (textAreaRef.current) {
-												textAreaRef.current.focus()
-												const length = newValue.length
-												textAreaRef.current.setSelectionRange(length, length)
-											}
-										}, 0)
-									}}
-									onProcessingStateChange={(isProcessing, message) => {
-										if (isProcessing && message) {
-											// Show processing message in input
-											const processingText = inputValue + (inputValue ? " " : "") + `[${message}]`
-											setInputValue(processingText)
-										}
-										// When processing is done, the onTranscription callback will handle the final text
-									}}
-									disabled={sendingDisabled}
-								/>
-							)}
 							<ServersToggleModal />
 							<ClineRulesToggleModal />
 							<ModelContainer ref={modelSelectorRef}>

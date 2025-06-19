@@ -115,36 +115,31 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 		}
 	}, [isRecording, startRecording, stopRecording])
 
+	const getIconClass = () => {
+		if (isProcessing) return "codicon-loading"
+		if (isRecording) return "codicon-stop-circle"
+		if (error) return "codicon-error"
+		return "codicon-mic"
+	}
+
+	const getIconColor = () => {
+		if (isRecording) return "var(--vscode-errorForeground)"
+		if (error) return "var(--vscode-errorForeground)"
+		return undefined
+	}
+
 	return (
-		<Tooltip tipText={isRecording ? "Stop Recording" : "Start Voice Recording"} hintText="Record your message">
-			<VSCodeButton
-				appearance="icon"
-				aria-label={isRecording ? "Stop Recording" : "Start Voice Recording"}
-				disabled={disabled || isProcessing}
-				onClick={handleClick}
-				style={{
-					padding: "0px 0px",
-					height: "20px",
-					opacity: isProcessing ? 0.5 : 1,
-				}}>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						fontSize: "10px",
-						gap: "2px",
-					}}>
-					<span
-						className={`codicon ${isRecording ? "codicon-stop-circle animate-pulse" : "codicon-mic"}`}
-						style={{
-							fontSize: "14px",
-							color: isRecording ? "var(--vscode-errorForeground)" : undefined,
-						}}
-					/>
-					{isProcessing && <span>Processing...</span>}
-				</div>
-			</VSCodeButton>
-		</Tooltip>
+		<div
+			className={`input-icon-button ${disabled || isProcessing ? "disabled" : ""}`}
+			onClick={!disabled && !isProcessing ? handleClick : undefined}
+			style={{
+				marginRight: "5px",
+				fontSize: "15px",
+				color: getIconColor(),
+				animation: isRecording ? "pulse 1.5s infinite" : "none",
+			}}>
+			<span className={`codicon ${getIconClass()}`} />
+		</div>
 	)
 }
 
