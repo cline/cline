@@ -284,6 +284,18 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		console.log(`Actual file path used: "${diffToolPath}"`);
 		if (diffToolPath !== originalFilePath) {
 			console.log(`❌ File path mismatch detected!`);
+			// Enhanced logging:
+			if (streamResult?.assistantMessage) {
+				console.log(`   Full model output (assistantMessage):`);
+				console.log(`   -----------------------------------------`);
+				console.log(`   ${streamResult.assistantMessage}`);
+				console.log(`   -----------------------------------------`);
+			}
+			if (toolCall) {
+				console.log(`   Parsed tool call that caused mismatch:`);
+				console.log(`   ${JSON.stringify(toolCall, null, 2)}`);
+				console.log(`   -----------------------------------------`);
+			}
 			return {
 				success: false,
 				streamResult: streamResult,

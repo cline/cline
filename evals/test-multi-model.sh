@@ -13,7 +13,7 @@ echo ""
 
 # Test command with multiple models
 node cli/dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-3-beta" \
   --max-cases 4 \
   --valid-attempts-per-case 2 \
   --verbose

@@ -7,6 +7,7 @@ import * as fs from "fs"
 import * as path from "path"
 import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
+import { loadOpenRouterModelData, EvalOpenRouterModelInfo } from "./openRouterModelsHelper" // Added import
 import {
 	getDatabase,
 	upsertSystemPrompt,
@@ -22,6 +23,12 @@ import {
 // Load environment variables from .env file
 import * as dotenv from "dotenv"
 dotenv.config({ path: path.join(__dirname, "../.env") })
+
+// tiktoken for token counting
+import { get_encoding } from "tiktoken";
+const encoding = get_encoding("cl100k_base"); 
+
+let openRouterModelDataGlobal: Record<string, EvalOpenRouterModelInfo> = {}; // Global to store fetched data
 
 function log(isVerbose: boolean, message: string) {
 	if (isVerbose) {
@@ -254,21 +261,20 @@ class NodeTestRunner {
 	/**
 	 * Estimate token count for messages (rough approximation)
 	 */
-	private estimateTokens(messages: Anthropic.Messages.MessageParam[]): number {
-		let totalChars = 0;
+	public estimateTokens(messages: Anthropic.Messages.MessageParam[]): number { // Made public
+		let totalText = "";
 		for (const message of messages) {
 			if (Array.isArray(message.content)) {
 				for (const block of message.content) {
 					if (block.type === 'text') {
-						totalChars += block.text.length;
+						totalText += block.text + "\n";
 					}
 				}
 			} else if (typeof message.content === 'string') {
-				totalChars += message.content.length;
+				totalText += message.content + "\n";
 			}
 		}
-		// Rough approximation: 4 characters per token
-		return Math.ceil(totalChars / 4);
+		return encoding.encode(totalText).length;
 	}
 
 	/**
@@ -345,7 +351,7 @@ class NodeTestRunner {
 	/**
 	 * Loads our test cases from a directory of json files
 	 */
-	loadTestCases(testDirectoryPath: string): TestCase[] {
+	loadTestCases(testDirectoryPath: string, isVerbose: boolean): TestCase[] {
 		const testCasesArray: TestCase[] = []
 		const dirents = fs.readdirSync(testDirectoryPath, { withFileTypes: true })
 
@@ -359,10 +365,15 @@ class NodeTestRunner {
 				if (!testCase.test_id) {
 					testCase.test_id = path.parse(dirent.name).name
 				}
+
+				// Filter out cases with missing file_contents
+				if (!testCase.file_contents || testCase.file_contents.trim() === "") {
+					log(isVerbose, `Skipping case ${testCase.test_id}: missing or empty file_contents.`);
+					continue;
+				}
 				testCasesArray.push(testCase)
 			}
 		}
-
 		return testCasesArray
 	}
 
@@ -816,22 +827,21 @@ async function main() {
 	try {
 		const startTime = Date.now()
 
-		const runner = new NodeTestRunner(options.replay)
-		let testCases = runner.loadTestCases(testPath)
-
-		// Apply max-cases limit if specified
-		if (options.maxCases && options.maxCases > 0) {
-			const originalCount = testCases.length
-			testCases = testCases.slice(0, options.maxCases)
-			log(isVerbose, `-Limited to ${options.maxCases} test cases (out of ${originalCount} available)`)
+		// Load OpenRouter model data first
+		openRouterModelDataGlobal = await loadOpenRouterModelData(isVerbose);
+		if (Object.keys(openRouterModelDataGlobal).length === 0 && isVerbose) {
+			log(isVerbose, "Warning: Could not load OpenRouter model data. Context window filtering might be affected for OpenRouter models.");
 		}
 
-		const processedTestCases: ProcessedTestCase[] = testCases.map((tc) => ({
+		const runner = new NodeTestRunner(options.replay)
+		let allLoadedTestCases = runner.loadTestCases(testPath, isVerbose) // Pass isVerbose
+		
+		const allProcessedTestCasesGlobal: ProcessedTestCase[] = allLoadedTestCases.map((tc) => ({
 			...tc,
 			messages: runner.transformMessages(tc.messages),
-		}))
+		}));
 
-		log(isVerbose, `-Loaded ${testCases.length} test cases.`)
+		log(isVerbose, `-Loaded ${allLoadedTestCases.length} initial test cases.`)
 		log(isVerbose, `-Testing ${modelIds.length} model(s): ${modelIds.join(', ')}`)
 		log(isVerbose, `-Target: ${validAttemptsPerCase} valid attempts per test case per model (will retry until this many valid attempts are collected)`)
 		if (options.replay) {
@@ -839,19 +849,80 @@ async function main() {
 		}
 		log(isVerbose, "Starting tests...\n")
 
-		// Initialize ONE database run for ALL models
-		const runDescription = `Models: ${modelIds.join(', ')}, Cases: ${testCases.length}, Valid attempts per case: ${validAttemptsPerCase}`;
-		await runner.initializeMultiModelRun(processedTestCases, options.systemPromptName, options.parsingFunction, options.diffEditFunction, runDescription, isVerbose);
+		// Determine the smallest context window among all specified models
+		let smallestContextWindow = Infinity;
+		let allModelsHaveKnownContext = true;
+		for (const modelId of modelIds) {
+			let modelInfo = openRouterModelDataGlobal[modelId];
+			if (!modelInfo) {
+				const foundKey = Object.keys(openRouterModelDataGlobal).find(
+					key => key.includes(modelId) || modelId.includes(key)
+				);
+				if (foundKey) modelInfo = openRouterModelDataGlobal[foundKey];
+			}
+			const currentModelContext = modelInfo?.contextWindow;
+			if (currentModelContext && currentModelContext > 0) {
+				if (currentModelContext < smallestContextWindow) {
+					smallestContextWindow = currentModelContext;
+				}
+			} else {
+				log(isVerbose, `Warning: Context window for model ${modelId} is unknown or zero. It will not constrain the test case selection.`);
+				// If we want to be strict and only run if all models have known context:
+				// allModelsHaveKnownContext = false;
+				// break; 
+			}
+		}
+
+		if (smallestContextWindow === Infinity) {
+			log(isVerbose, "Warning: Could not determine a common smallest context window. Proceeding with all loaded cases, context issues may occur.");
+			// smallestContextWindow will remain Infinity, so no context filtering will apply below unless adjusted
+		} else {
+			log(isVerbose, `Smallest common context window (with padding consideration) across specified models: ${smallestContextWindow} (target for filtering: ${smallestContextWindow - 20000})`);
+		}
+		
+		let eligibleCasesForThisRun = [...allLoadedTestCases];
+		if (smallestContextWindow !== Infinity && smallestContextWindow > 20000) { // Only filter if a valid smallest window is found
+			const originalCaseCount = eligibleCasesForThisRun.length;
+			eligibleCasesForThisRun = eligibleCasesForThisRun.filter(tc => {
+				const systemPromptText = runner.constructSystemPrompt(tc.system_prompt_details, options.systemPromptName);
+				const systemPromptTokens = encoding.encode(systemPromptText).length;
+				const messagesTokens = runner.estimateTokens(runner.transformMessages(tc.messages));
+				const totalInputTokens = systemPromptTokens + messagesTokens;
+				return totalInputTokens + 20000 <= smallestContextWindow; // 20k padding
+			});
+			log(isVerbose, `Filtered to ${eligibleCasesForThisRun.length} cases (from ${originalCaseCount}) to fit smallest context window of ${smallestContextWindow} (with padding).`);
+		}
+
+		// Apply max-cases limit if specified, to the context-filtered list
+		if (options.maxCases && options.maxCases > 0 && eligibleCasesForThisRun.length > options.maxCases) {
+			log(isVerbose, `Limiting to ${options.maxCases} test cases (out of ${eligibleCasesForThisRun.length} eligible).`);
+			eligibleCasesForThisRun = eligibleCasesForThisRun.slice(0, options.maxCases);
+		}
+
+		if (eligibleCasesForThisRun.length === 0) {
+			log(isVerbose, `No eligible test cases found after filtering for all specified models. Exiting.`);
+			process.exit(0); // Or handle as an error
+		}
+		
+		const processedEligibleCasesForRun: ProcessedTestCase[] = eligibleCasesForThisRun.map((tc) => ({
+			...tc,
+			messages: runner.transformMessages(tc.messages),
+		}));
+
+		// Initialize ONE database run for ALL models using the commonly eligible cases
+		const runDescription = `Models: ${modelIds.join(', ')}, Common Cases: ${processedEligibleCasesForRun.length}, Valid attempts per case: ${validAttemptsPerCase}`;
+		await runner.initializeMultiModelRun(processedEligibleCasesForRun, options.systemPromptName, options.parsingFunction, options.diffEditFunction, runDescription, isVerbose);
 
 		// For now, run models sequentially to avoid complexity
 		// TODO: Implement parallel model execution later
 		for (const modelId of modelIds) {
 			log(isVerbose, `\n=== Running Model: ${modelId} ===`)
 			
+			// All models run on the same set of processedEligibleCasesForRun
 			const testConfig: TestConfig = {
 				model_id: modelId,
 				system_prompt_name: options.systemPromptName,
-				number_of_runs: validAttemptsPerCase, // This will be used for retry logic later
+				number_of_runs: validAttemptsPerCase,
 				parsing_function: options.parsingFunction,
 				diff_edit_function: options.diffEditFunction,
 				thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
@@ -859,8 +930,8 @@ async function main() {
 			}
 
 			const results = options.parallel
-				? await runner.runAllTestsParallelForModel(processedTestCases, testConfig, isVerbose)
-				: await runner.runAllTestsForModel(processedTestCases, testConfig, isVerbose)
+				? await runner.runAllTestsParallelForModel(processedEligibleCasesForRun, testConfig, isVerbose)
+				: await runner.runAllTestsForModel(processedEligibleCasesForRun, testConfig, isVerbose)
 
 			runner.printSummary(results, isVerbose)
 		}
