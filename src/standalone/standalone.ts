@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js"
 import { ReflectionService } from "@grpc/reflection"
 import * as health from "grpc-health-check"
-
+import * as hostProviders from "@hosts/host-providers"
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
@@ -9,12 +9,13 @@ import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { initializeHostBridgeClient, StreamingCallbacks, UriServiceClient, WatchServiceClient } from "@/hosts/host-bridge-client"
 import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
+import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
 
 async function main() {
-	log("Starting service...")
-	initializeHostBridgeClient(new ExternalHostBridgeClientManager())
+	log("Starting standalone service...")
+
+	hostProviders.initializeHostProviders(ExternalWebviewProvider.create, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage)
 	const server = new grpc.Server()

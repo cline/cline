@@ -1,4 +1,4 @@
-import { StreamingCallbacks } from "@hosts/host-bridge-client"
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
