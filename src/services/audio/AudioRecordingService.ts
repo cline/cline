@@ -151,16 +151,9 @@ export class AudioRecordingService {
 	private checkRecordingDependencies(): { available: boolean; error?: string } {
 		const program = this.getRecordProgram()
 		if (!program) {
-			const platform = os.platform()
-			let error = `Audio recording is not supported on platform: ${platform}`
-			if (platform === "darwin") {
-				error = "Audio recording requires SoX. Please install it using: brew install sox"
-			} else if (platform === "linux") {
-				error =
-					"Audio recording requires ALSA utilities. Please install using: sudo apt-get install alsa-utils (or equivalent for your distribution)"
-			} else if (platform === "win32") {
-				error = "Audio recording requires SoX. Please install it using: winget install ChrisBagwell.SoX"
-			}
+			const platform = os.platform() as keyof typeof AUDIO_PROGRAM_CONFIG
+			const config = AUDIO_PROGRAM_CONFIG[platform]
+			const error = config ? config.error : `Audio recording is not supported on platform: ${platform}`
 			return { available: false, error }
 		}
 		return { available: true }
