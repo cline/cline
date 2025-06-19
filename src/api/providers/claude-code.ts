@@ -4,16 +4,6 @@ import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { runClaudeCode } from "@/integrations/claude-code/run"
-import { ClaudeCodeMessage } from "@/integrations/claude-code/types"
-
-const validStopSequences = ["tool_use", "end_turn"]
-
-type ProcessState = {
-	partialData: string | null
-	error: Error | null
-	errorOutput: string
-	exitCode: number | null
-}
 
 export class ClaudeCodeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -35,35 +25,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 			modelId: this.getModel().id,
 		})
 
-		const dataQueue: string[] = []
-		let processState: ProcessState = {
-			partialData: null,
-			error: null,
-			errorOutput: "",
-			exitCode: null,
-		}
-
-		claudeProcess.stdout.on("data", (data) => {
-			const output = data.toString()
-			const lines = output.split("\n").filter((line: string) => line.trim() !== "")
-
-			for (const line of lines) {
-				dataQueue.push(line)
-			}
-		})
-
-		claudeProcess.stderr.on("data", (data) => {
-			processState.errorOutput += data.toString()
-		})
-
-		claudeProcess.on("close", (code) => {
-			processState.exitCode = code
-		})
-
-		claudeProcess.on("error", (error) => {
-			processState.error = error
-		})
-
 		// Usage is included with assistant messages,
 		// but cost is included in the result chunk
 		let usage: ApiStreamUsageChunk = {
@@ -74,30 +35,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
-		while (processState.exitCode !== 0 || dataQueue.length > 0) {
-			if (dataQueue.length === 0) {
-				await new Promise((resolve) => setImmediate(resolve))
-			}
-
-			const exitCode = processState.exitCode
-			if (exitCode !== null && exitCode !== 0) {
-				const errorOutput = processState.errorOutput.trim()
-				throw new Error(
-					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
-				)
-			}
-
-			const data = dataQueue.shift()
-			if (!data) {
-				continue
-			}
-
-			const chunk = this.parseChunk(data, processState)
-
-			if (!chunk) {
-				continue
-			}
-
+		for await (const chunk of claudeProcess) {
 			if (chunk.type === "system" && chunk.subtype === "init") {
 				continue
 			}
@@ -105,8 +43,11 @@ export class ClaudeCodeHandler implements ApiHandler {
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null && !validStopSequences.includes(message.stop_reason)) {
-					const errorMessage = message.content[0]?.text || `Claude Code stopped with reason: ${message.stop_reason}`
+				if (message.stop_reason !== null && message.stop_reason === "max_tokens") {
+					const errorMessage =
+						"text" in message.content[0]
+							? message.content[0]?.text
+							: `Claude Code stopped with reason: ${message.stop_reason}`
 
 					if (errorMessage.includes("Invalid model name")) {
 						throw new Error(
@@ -119,13 +60,28 @@ export class ClaudeCodeHandler implements ApiHandler {
 				}
 
 				for (const content of message.content) {
-					if (content.type === "text") {
-						yield {
-							type: "text",
-							text: content.text,
-						}
-					} else {
-						console.warn("Unsupported content type:", content.type)
+					switch (content.type) {
+						case "text":
+							yield {
+								type: "text",
+								text: content.text,
+							}
+							break
+						case "thinking":
+							yield {
+								type: "reasoning",
+								reasoning: content.thinking || "",
+							}
+							break
+						case "redacted_thinking":
+							yield {
+								type: "reasoning",
+								reasoning: "[Redacted thinking block]",
+							}
+							break
+						case "tool_use":
+							console.error(`tool_use is not supported yet. Received: ${JSON.stringify(content)}`)
+							break
 					}
 				}
 
@@ -142,42 +98,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 				yield usage
 			}
-
-			if (processState.error) {
-				throw processState.error
-			}
-		}
-	}
-
-	private parseChunk(data: string, processState: ProcessState) {
-		if (processState.partialData) {
-			processState.partialData += data
-
-			const chunk = this.attemptParseChunk(processState.partialData)
-
-			if (!chunk) {
-				return null
-			}
-
-			processState.partialData = null
-			return chunk
-		}
-
-		const chunk = this.attemptParseChunk(data)
-
-		if (!chunk) {
-			processState.partialData = data
-		}
-
-		return chunk
-	}
-
-	private attemptParseChunk(data: string): ClaudeCodeMessage | null {
-		try {
-			return JSON.parse(data)
-		} catch (error) {
-			console.error("Error parsing chunk:", error)
-			return null
 		}
 	}
 
