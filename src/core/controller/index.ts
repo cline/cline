@@ -7,8 +7,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
-import { handleModelsServiceRequest } from "./models"
-import { EmptyRequest } from "@shared/proto/common"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
@@ -44,8 +42,7 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { sendOpenRouterModelsEvent } from "./models/subscribeToOpenRouterModels"
-import { OpenRouterCompatibleModelInfo } from "@/shared/proto/models"
+import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -72,7 +69,7 @@ export class Controller {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
-		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
+		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
@@ -117,7 +114,7 @@ export class Controller {
 		try {
 			await storeSecret(this.context, "clineApiKey", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await updateGlobalState(this.context, "apiProvider", "openrouter")
+			await updateWorkspaceState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
@@ -133,12 +130,13 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
-			customInstructions,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			terminalOutputLineLimit,
+			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
@@ -174,8 +172,9 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
+			terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
-			customInstructions,
 			task,
 			images,
 			files,
@@ -207,17 +206,7 @@ export class Controller {
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
 				break
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
 
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images, message.files)
-				break
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
@@ -226,63 +215,7 @@ export class Controller {
 				await this.fetchMcpMarketplace(message.bool)
 				break
 			}
-			// case "openMcpMarketplaceServerDetails": {
-			// 	if (message.text) {
-			// 		const response = await fetch(`https://api.cline.bot/v1/mcp/marketplace/item?mcpId=${message.mcpId}`)
-			// 		const details: McpDownloadResponse = await response.json()
 
-			// 		if (details.readmeContent) {
-			// 			// Disable markdown preview markers
-			// 			const config = vscode.workspace.getConfiguration("markdown")
-			// 			await config.update("preview.markEditorSelection", false, true)
-
-			// 			// Create URI with base64 encoded markdown content
-			// 			const uri = vscode.Uri.parse(
-			// 				`${DIFF_VIEW_URI_SCHEME}:${details.name} README?${Buffer.from(details.readmeContent).toString("base64")}`,
-			// 			)
-
-			// 			// close existing
-			// 			const tabs = vscode.window.tabGroups.all
-			// 				.flatMap((tg) => tg.tabs)
-			// 				.filter((tab) => tab.label && tab.label.includes("README") && tab.label.includes("Preview"))
-			// 			for (const tab of tabs) {
-			// 				await vscode.window.tabGroups.close(tab)
-			// 			}
-
-			// 			// Show only the preview
-			// 			await vscode.commands.executeCommand("markdown.showPreview", uri, {
-			// 				sideBySide: true,
-			// 				preserveFocus: true,
-			// 			})
-			// 		}
-			// 	}
-
-			// 	this.postMessageToWebview({ type: "relinquishControl" })
-
-			// 	break
-			// }
-			case "toggleWorkflow": {
-				const { workflowPath, enabled, isGlobal } = message
-				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const globalWorkflowToggles =
-							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
-						globalWorkflowToggles[workflowPath] = enabled
-						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
-						await this.postStateToWebview()
-					} else {
-						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-						toggles[workflowPath] = enabled
-						await updateWorkspaceState(this.context, "workflowToggles", toggles)
-						await this.postStateToWebview()
-					}
-				}
-				break
-			}
-			case "fetchLatestMcpServersFromHub": {
-				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
 			// telemetry
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
@@ -291,61 +224,7 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			}
-			case "updateSettings": {
-				// api config
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
 
-				// custom instructions
-				await this.updateCustomInstructions(message.customInstructionsSetting)
-
-				// telemetry setting
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-
-				// plan act setting
-				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
-
-				if (typeof message.enableCheckpointsSetting === "boolean") {
-					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
-				}
-
-				if (typeof message.mcpMarketplaceEnabled === "boolean") {
-					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
-				}
-
-				if (typeof message.mcpResponsesCollapsed === "boolean") {
-					await updateGlobalState(this.context, "mcpResponsesCollapsed", message.mcpResponsesCollapsed)
-				}
-
-				// chat settings (including preferredLanguage and openAIReasoningEffort)
-				if (message.chatSettings) {
-					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
-					if (this.task) {
-						this.task.chatSettings = message.chatSettings
-					}
-				}
-
-				// terminal settings
-				if (typeof message.shellIntegrationTimeout === "number") {
-					await updateGlobalState(this.context, "shellIntegrationTimeout", message.shellIntegrationTimeout)
-				}
-
-				if (typeof message.terminalReuseEnabled === "boolean") {
-					await updateGlobalState(this.context, "terminalReuseEnabled", message.terminalReuseEnabled)
-				}
-
-				// after settings are updated, post state to webview
-				await this.postStateToWebview()
-
-				await this.postMessageToWebview({ type: "didUpdateSettings" })
-				break
-			}
 			case "clearAllTaskHistory": {
 				const answer = await vscode.window.showWarningMessage(
 					"What would you like to delete?",
@@ -362,7 +241,7 @@ export class Controller {
 					await this.deleteAllTaskHistory()
 					await this.postStateToWebview()
 				}
-				this.postMessageToWebview({ type: "relinquishControl" })
+				sendRelinquishControlEvent()
 				break
 			}
 			case "grpc_request": {
@@ -377,13 +256,6 @@ export class Controller {
 				}
 				break
 			}
-			case "executeQuickWin":
-				if (message.payload) {
-					const { command, title } = message.payload
-					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
-					await this.initTask(title)
-				}
-				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
@@ -413,6 +285,12 @@ export class Controller {
 			previousModeReasoningEffort: newReasoningEffort,
 			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
 			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
+			previousModeSapAiCoreClientId: newSapAiCoreClientId,
+			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
+			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
+			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
+			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -420,9 +298,9 @@ export class Controller {
 
 		if (shouldSwitchModel) {
 			// Save the last model used in this mode
-			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
-			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
-			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
+			await updateWorkspaceState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
+			await updateWorkspaceState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			await updateWorkspaceState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "vertex":
@@ -432,16 +310,16 @@ export class Controller {
 				case "qwen":
 				case "deepseek":
 				case "xai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "bedrock":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(
 						this.context,
 						"previousModeAwsBedrockCustomSelected",
 						apiConfiguration.awsBedrockCustomSelected,
 					)
-					await updateGlobalState(
+					await updateWorkspaceState(
 						this.context,
 						"previousModeAwsBedrockCustomModelBaseId",
 						apiConfiguration.awsBedrockCustomModelBaseId,
@@ -449,34 +327,51 @@ export class Controller {
 					break
 				case "openrouter":
 				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 					break
 				case "vscode-lm":
 					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
-					await updateGlobalState(
+					await updateWorkspaceState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
 						apiConfiguration.vsCodeLmModelSelector,
 					)
 					break
 				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
 					break
 				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
 					break
 				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
 					break
 				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
 					break
 				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
+					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
+					break
+				case "sapaicore":
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreClientSecret",
+						apiConfiguration.sapAiCoreClientSecret,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreResourceGroup",
+						apiConfiguration.sapAiResourceGroup,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
 					break
 			}
 
@@ -488,9 +383,9 @@ export class Controller {
 				newReasoningEffort ||
 				newVsCodeLmModelSelector
 			) {
-				await updateGlobalState(this.context, "apiProvider", newApiProvider)
-				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
-				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
+				await updateWorkspaceState(this.context, "apiProvider", newApiProvider)
+				await updateWorkspaceState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
+				await updateWorkspaceState(this.context, "reasoningEffort", newReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
 					case "vertex":
@@ -500,38 +395,41 @@ export class Controller {
 					case "qwen":
 					case "deepseek":
 					case "xai":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 					case "bedrock":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
-						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
+						await updateWorkspaceState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
+						await updateWorkspaceState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
 						break
 					case "openrouter":
 					case "cline":
-						await updateGlobalState(this.context, "openRouterModelId", newModelId)
-						await updateGlobalState(this.context, "openRouterModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "openRouterModelId", newModelId)
+						await updateWorkspaceState(this.context, "openRouterModelInfo", newModelInfo)
 						break
 					case "vscode-lm":
-						await updateGlobalState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
+						await updateWorkspaceState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
 						break
 					case "openai":
-						await updateGlobalState(this.context, "openAiModelId", newModelId)
-						await updateGlobalState(this.context, "openAiModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "openAiModelId", newModelId)
+						await updateWorkspaceState(this.context, "openAiModelInfo", newModelInfo)
 						break
 					case "ollama":
-						await updateGlobalState(this.context, "ollamaModelId", newModelId)
+						await updateWorkspaceState(this.context, "ollamaModelId", newModelId)
 						break
 					case "lmstudio":
-						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
+						await updateWorkspaceState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateWorkspaceState(this.context, "liteLlmModelId", newModelId)
+						await updateWorkspaceState(this.context, "liteLlmModelInfo", newModelInfo)
 						break
 					case "requesty":
-						await updateGlobalState(this.context, "requestyModelId", newModelId)
-						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
+						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
+						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "sapaicore":
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 				}
 
@@ -542,13 +440,13 @@ export class Controller {
 			}
 		}
 
-		await updateGlobalState(this.context, "chatSettings", chatSettings)
+		await updateWorkspaceState(this.context, "chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
 			this.task.chatSettings = chatSettings
-			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
-				this.task.didRespondToPlanAskBySwitchingMode = true
+			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
+				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
 				await this.task.handleWebviewAskResponse(
 					"messageResponse",
@@ -573,9 +471,9 @@ export class Controller {
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
-					this.task.isStreaming === false ||
-					this.task.didFinishAbortingStream ||
-					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
+					this.task.taskState.isStreaming === false ||
+					this.task.taskState.didFinishAbortingStream ||
+					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
 				},
@@ -584,18 +482,10 @@ export class Controller {
 			})
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.abandoned = true
+				this.task.taskState.abandoned = true
 			}
 			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
-		}
-	}
-
-	async updateCustomInstructions(instructions?: string) {
-		// User may be clearing the field
-		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
-		if (this.task) {
-			this.task.customInstructions = instructions || undefined
 		}
 	}
 
@@ -633,7 +523,7 @@ export class Controller {
 			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
-			await updateGlobalState(this.context, "apiProvider", clineProvider)
+			await updateWorkspaceState(this.context, "apiProvider", clineProvider)
 
 			// Update API configuration with the new provider and API key
 			const { apiConfiguration } = await getAllExtensionState(this.context)
@@ -792,7 +682,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		await updateGlobalState(this.context, "apiProvider", openrouter)
+		await updateWorkspaceState(this.context, "apiProvider", openrouter)
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
@@ -1080,13 +970,13 @@ export class Controller {
 		const {
 			apiConfiguration,
 			lastShownAnnouncementId,
-			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -1094,8 +984,10 @@ export class Controller {
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1112,11 +1004,10 @@ export class Controller {
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
-			customInstructions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.clineMessages || [],
+			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
+			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
@@ -1128,6 +1019,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
@@ -1140,8 +1032,10 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		}
 	}
 

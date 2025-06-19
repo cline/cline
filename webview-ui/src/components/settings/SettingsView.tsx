@@ -6,8 +6,8 @@ import { cn } from "@/utils/cn"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest } from "@shared/proto/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
@@ -21,7 +21,9 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
-const { IS_DEV } = process.env
+import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
 const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
@@ -113,8 +115,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const {
 		apiConfiguration,
 		version,
-		customInstructions,
-		setCustomInstructions,
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
@@ -126,10 +126,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		setMcpRichDisplayEnabled,
 		shellIntegrationTimeout,
 		setShellIntegrationTimeout,
+		terminalOutputLineLimit,
+		setTerminalOutputLineLimit,
 		terminalReuseEnabled,
 		setTerminalReuseEnabled,
+		defaultTerminalProfile,
+		setDefaultTerminalProfile,
 		mcpResponsesCollapsed,
 		setMcpResponsesCollapsed,
 		setApiConfiguration,
@@ -138,21 +144,21 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Store the original state to detect changes
 	const originalState = useRef({
 		apiConfiguration,
-		customInstructions,
 		telemetrySetting,
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
+		defaultTerminalProfile,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
-	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
-
-	const handleSubmit = (withoutDone: boolean = false) => {
+	const handleSubmit = async (withoutDone: boolean = false) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
@@ -162,10 +168,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
 			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			// vscode.postMessage({
-			// 	type: "customInstructions",
-			// 	text: customInstructions,
-			// })
 			// vscode.postMessage({
 			// 	type: "telemetrySetting",
 			// 	text: telemetrySetting,
@@ -180,18 +182,50 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			apiConfigurationToSubmit = undefined
 		}
 
-		vscode.postMessage({
-			type: "updateSettings",
-			planActSeparateModelsSetting,
-			customInstructionsSetting: customInstructions,
-			telemetrySetting,
-			enableCheckpointsSetting,
-			mcpMarketplaceEnabled,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			mcpResponsesCollapsed,
-			apiConfiguration: apiConfigurationToSubmit,
-		})
+		try {
+			await StateServiceClient.updateSettings(
+				UpdateSettingsRequest.create({
+					planActSeparateModelsSetting,
+					telemetrySetting,
+					enableCheckpointsSetting,
+					mcpMarketplaceEnabled,
+					mcpRichDisplayEnabled,
+					shellIntegrationTimeout,
+					terminalReuseEnabled,
+					mcpResponsesCollapsed,
+					apiConfiguration: apiConfigurationToSubmit
+						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
+						: undefined,
+					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
+					terminalOutputLineLimit,
+				}),
+			)
+
+			// Update default terminal profile if it has changed
+			if (defaultTerminalProfile !== originalState.current.defaultTerminalProfile) {
+				await StateServiceClient.updateDefaultTerminalProfile({
+					value: defaultTerminalProfile || "default",
+				} as StringRequest)
+			}
+
+			// Update the original state to reflect the saved changes
+			originalState.current = {
+				apiConfiguration,
+				telemetrySetting,
+				planActSeparateModelsSetting,
+				enableCheckpointsSetting,
+				mcpMarketplaceEnabled,
+				mcpRichDisplayEnabled,
+				mcpResponsesCollapsed,
+				chatSettings,
+				shellIntegrationTimeout,
+				terminalReuseEnabled,
+				terminalOutputLineLimit,
+				defaultTerminalProfile,
+			}
+		} catch (error) {
+			console.error("Failed to update settings:", error)
+		}
 
 		if (!withoutDone) {
 			onDone()
@@ -207,28 +241,33 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	useEffect(() => {
 		const hasChanges =
 			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
-			customInstructions !== originalState.current.customInstructions ||
 			telemetrySetting !== originalState.current.telemetrySetting ||
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
+			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
-			terminalReuseEnabled !== originalState.current.terminalReuseEnabled
+			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
+			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
+			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
 		apiConfiguration,
-		customInstructions,
 		telemetrySetting,
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
 		mcpResponsesCollapsed,
 		chatSettings,
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
+		defaultTerminalProfile,
 	])
 
 	// Handle cancel button click
@@ -238,7 +277,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			setIsUnsavedChangesDialogOpen(true)
 			pendingAction.current = () => {
 				// Reset all tracked state to original values
-				setCustomInstructions(originalState.current.customInstructions)
 				setTelemetrySetting(originalState.current.telemetrySetting)
 				setPlanActSeparateModelsSetting(originalState.current.planActSeparateModelsSetting)
 				setChatSettings(originalState.current.chatSettings)
@@ -259,12 +297,25 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				if (typeof setMcpRichDisplayEnabled === "function") {
+					setMcpRichDisplayEnabled(
+						typeof originalState.current.mcpRichDisplayEnabled === "boolean"
+							? originalState.current.mcpRichDisplayEnabled
+							: true,
+					)
+				}
 				// Reset terminal settings
 				if (typeof setShellIntegrationTimeout === "function") {
 					setShellIntegrationTimeout(originalState.current.shellIntegrationTimeout)
 				}
+				if (typeof setTerminalOutputLineLimit === "function") {
+					setTerminalOutputLineLimit(originalState.current.terminalOutputLineLimit)
+				}
 				if (typeof setTerminalReuseEnabled === "function") {
 					setTerminalReuseEnabled(originalState.current.terminalReuseEnabled ?? true)
+				}
+				if (typeof setDefaultTerminalProfile === "function") {
+					setDefaultTerminalProfile(originalState.current.defaultTerminalProfile ?? "default")
 				}
 				if (typeof setMcpResponsesCollapsed === "function") {
 					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
@@ -279,13 +330,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	}, [
 		hasUnsavedChanges,
 		onDone,
-		setCustomInstructions,
 		setTelemetrySetting,
 		setPlanActSeparateModelsSetting,
 		setChatSettings,
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpRichDisplayEnabled,
 		setMcpResponsesCollapsed,
 	])
 
@@ -316,76 +367,78 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
 
-	const handleMessage = useCallback(
-		(event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "didUpdateSettings":
-					if (pendingTabChange) {
-						StateServiceClient.togglePlanActMode(
-							TogglePlanActModeRequest.create({
-								chatSettings: {
-									mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-									preferredLanguage: chatSettings.preferredLanguage,
-									openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-								},
-							}),
-						)
-						setPendingTabChange(null)
-					}
-					break
-				// Handle tab navigation through targetSection prop instead
-				case "grpc_response":
-					if (message.grpc_response?.message?.action === "scrollToSettings") {
-						const tabId = message.grpc_response?.message?.value
-						if (tabId) {
-							console.log("Opening settings tab from GRPC response:", tabId)
-							// Check if the value corresponds to a valid tab ID
-							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		switch (message.type) {
+			// Handle tab navigation through targetSection prop instead
+			case "grpc_response":
+				if (message.grpc_response?.message?.action === "scrollToSettings") {
+					const tabId = message.grpc_response?.message?.value
+					if (tabId) {
+						console.log("Opening settings tab from GRPC response:", tabId)
+						// Check if the value corresponds to a valid tab ID
+						const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
-							if (isValidTabId) {
-								// Set the active tab directly
-								setActiveTab(tabId)
-							} else {
-								// Fall back to the old behavior of scrolling to an element
-								setTimeout(() => {
-									const element = document.getElementById(tabId)
-									if (element) {
-										element.scrollIntoView({ behavior: "smooth" })
+						if (isValidTabId) {
+							// Set the active tab directly
+							setActiveTab(tabId)
+						} else {
+							// Fall back to the old behavior of scrolling to an element
+							setTimeout(() => {
+								const element = document.getElementById(tabId)
+								if (element) {
+									element.scrollIntoView({ behavior: "smooth" })
 
-										element.style.transition = "background-color 0.5s ease"
-										element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+									element.style.transition = "background-color 0.5s ease"
+									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
 
-										setTimeout(() => {
-											element.style.backgroundColor = "transparent"
-										}, 1200)
-									}
-								}, 300)
-							}
+									setTimeout(() => {
+										element.style.backgroundColor = "transparent"
+									}, 1200)
+								}
+							}, 300)
 						}
 					}
-					break
-			}
-		},
-		[pendingTabChange],
-	)
+				}
+				break
+		}
+	}, [])
 
 	useEvent("message", handleMessage)
 
-	const handleResetState = async () => {
+	const handleResetState = async (resetGlobalState?: boolean) => {
 		try {
-			await StateServiceClient.resetState(EmptyRequest.create({}))
+			await StateServiceClient.resetState(
+				ResetStateRequest.create({
+					global: resetGlobalState,
+				}),
+			)
 		} catch (error) {
 			console.error("Failed to reset state:", error)
 		}
 	}
 
-	const handlePlanActModeChange = (tab: "plan" | "act") => {
+	const handlePlanActModeChange = async (tab: "plan" | "act") => {
 		if (tab === chatSettings.mode) {
 			return
 		}
-		setPendingTabChange(tab)
-		handleSubmit(true)
+
+		// Update settings first to ensure any changes to the current tab are saved
+		await handleSubmit(true)
+
+		try {
+			await StateServiceClient.togglePlanActMode(
+				TogglePlanActModeRequest.create({
+					chatSettings: {
+						mode: tab === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+						preferredLanguage: chatSettings.preferredLanguage,
+						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+					},
+				}),
+			)
+		} catch (error) {
+			console.error("Failed to toggle Plan/Act mode:", error)
+		}
 	}
 
 	// Track active tab
@@ -579,24 +632,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												architect a plan for a cheaper coding model to act on.
 											</p>
 										</div>
-
-										<div className="mb-[5px]">
-											<VSCodeTextArea
-												value={customInstructions ?? ""}
-												className="w-full"
-												resize="vertical"
-												rows={4}
-												placeholder={
-													'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-												}
-												onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-												<span className="font-medium">Custom Instructions</span>
-											</VSCodeTextArea>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												These instructions are added to the end of the system prompt sent with every
-												request.
-											</p>
-										</div>
 									</Section>
 								</div>
 							)}
@@ -678,10 +713,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									{renderSectionHeader("debug")}
 									<Section>
 										<VSCodeButton
-											onClick={handleResetState}
+											onClick={() => handleResetState()}
 											className="mt-[5px] w-auto"
 											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
-											Reset State
+											Reset Workspace State
+										</VSCodeButton>
+										<VSCodeButton
+											onClick={() => handleResetState(true)}
+											className="mt-[5px] w-auto"
+											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
+											Reset Global State
 										</VSCodeButton>
 										<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 											This will reset all global state and secret storage in the extension.

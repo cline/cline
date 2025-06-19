@@ -15,7 +15,7 @@ enum WebviewProviderType {
 // Define a new message type for webview provider info
 message WebviewProviderTypeRequest {
   Metadata metadata = 1;
-  WebviewProviderType providerType = 2;
+  WebviewProviderType provider_type = 2;
 }
 
 // Enum for ClineMessage type
@@ -65,13 +65,14 @@ enum ClineSay {
   BROWSER_ACTION_RESULT = 16;
   MCP_SERVER_REQUEST_STARTED = 17;
   MCP_SERVER_RESPONSE = 18;
-  USE_MCP_SERVER_SAY = 19;
-  DIFF_ERROR = 20;
-  DELETED_API_REQS = 21;
-  CLINEIGNORE_ERROR = 22;
-  CHECKPOINT_CREATED = 23;
-  LOAD_MCP_DOCUMENTATION = 24;
-  INFO = 25;
+  MCP_NOTIFICATION = 19;
+  USE_MCP_SERVER_SAY = 20;
+  DIFF_ERROR = 21;
+  DELETED_API_REQS = 22;
+  CLINEIGNORE_ERROR = 23;
+  CHECKPOINT_CREATED = 24;
+  LOAD_MCP_DOCUMENTATION = 25;
+  INFO = 26;
 }
 
 // Enum for ClineSayTool tool types
@@ -221,7 +222,7 @@ message ClineMessage {
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
-  rpc scrollToSettings(StringRequest) returns (Empty);
+  rpc scrollToSettings(StringRequest) returns (KeyValuePair);
   
   // Marks the current announcement as shown and returns whether an announcement should still be shown
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
@@ -252,4 +253,13 @@ service UiService {
   
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
+  
+  // Subscribe to relinquish control events
+  rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
+  
+  // Subscribe to focus chat input events with client ID
+  rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
+  
+  // Subscribe to webview visibility change events
+  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
 }

@@ -21,7 +21,9 @@ coverage
 
 *evals.env
 
-# Generated proto files
+# Generated files
+src/generated/
+# Core
 src/core/controller/*/methods.ts
 src/core/controller/*/index.ts
 src/core/controller/grpc-service-config.ts
@@ -30,10 +32,7 @@ src/shared/proto/*.ts
 src/shared/proto/host/*.ts
 # Webview
 webview-ui/src/services/grpc-client.ts
-# Standalone
-src/standalone/server-setup.ts
-src/standalone/services/host-grpc-client.ts
 # Host bridge
-hosts/vscode/*/methods.ts
-hosts/vscode/*/index.ts
-hosts/vscode/host-grpc-service-config.ts
+src/hosts/vscode/*/methods.ts
+src/hosts/vscode/*/index.ts
+src/hosts/vscode/host-grpc-service-config.ts

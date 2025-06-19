@@ -1,9 +1,10 @@
 import { McpServiceClient } from "@/services/grpc-client"
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/common"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -15,6 +16,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
 	const githubLinkRef = useRef<HTMLDivElement>(null)
+	const { onRelinquishControl } = useExtensionState()
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message = event.data
@@ -22,13 +24,16 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 			case "mcpDownloadDetails":
 				setIsDownloading(false)
 				break
-			case "relinquishControl":
-				setIsLoading(false)
-				break
 		}
 	}, [])
 
 	useEvent("message", handleMessage)
+
+	useEffect(() => {
+		return onRelinquishControl(() => {
+			setIsLoading(false)
+		})
+	}, [onRelinquishControl])
 
 	const githubAuthorUrl = useMemo(() => {
 		const url = new URL(item.githubUrl)
