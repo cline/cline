@@ -26,7 +26,7 @@ import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlob
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import * as hostProviders from "@hosts/index"
+import * as hostProviders from "@hosts/host-providers"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 
 /*

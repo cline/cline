@@ -4,7 +4,7 @@ let _hostBridgeProvider: HostBridgeClientProvider | undefined
 
 export var isSetup: boolean = false
 
-export function initialize(hostBridgeProvider: HostBridgeClientProvider) {
+export function initializeHostProviders(hostBridgeProvider: HostBridgeClientProvider) {
 	_hostBridgeProvider = hostBridgeProvider
 	isSetup = true
 }
