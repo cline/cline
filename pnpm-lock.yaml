@@ -515,8 +515,8 @@ importers:
         specifier: workspace:^
         version: link:../types
       posthog-node:
-        specifier: ^4.7.0
-        version: 4.17.2
+        specifier: ^5.0.0
+        version: 5.1.1
       zod:
         specifier: ^3.25.61
         version: 3.25.61
@@ -7753,9 +7753,9 @@ packages:
       rrweb-snapshot:
         optional: true
 
-  posthog-node@4.17.2:
-    resolution: {integrity: sha512-bFmwOTk4QdYavopeHVXtyFGQ9vyLMVaNWkWocwjix+0n6sQgv7Zq5nYjYulz7ThmK18zsvNJ337ahuMLv3ulow==}
-    engines: {node: '>=15.0.0'}
+  posthog-node@5.1.1:
+    resolution: {integrity: sha512-6VISkNdxO24ehXiDA4dugyCSIV7lpGVaEu5kn/dlAj+SJ1lgcDru9PQ8p/+GSXsXVxohd1t7kHL2JKc9NoGb0w==}
+    engines: {node: '>=20'}
 
   preact@10.26.6:
     resolution: {integrity: sha512-5SRRBinwpwkaD+OqlBDeITlRgvd8I8QlxHJw9AxSdMNV6O+LodN9nUyYGpSF7sadHjs6RzeFShMexC6DbtWr9g==}
@@ -17354,11 +17354,7 @@ snapshots:
       preact: 10.26.6
       web-vitals: 4.2.4
 
-  posthog-node@4.17.2:
-    dependencies:
-      axios: 1.9.0
-    transitivePeerDependencies:
-      - debug
+  posthog-node@5.1.1: {}
 
   preact@10.26.6: {}
 
