@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { TranscribeAudioRequest, TranscribeAudioResponse } from "@shared/proto/voice"
+import { TranscribeAudioRequest, Transcription } from "@shared/proto/voice"
 import { voiceTranscriptionService } from "@services/voice/VoiceTranscriptionService"
 import { VoiceMethodHandler } from "./index"
 import * as vscode from "vscode"
@@ -9,12 +9,12 @@ import * as vscode from "vscode"
  * This will automatically use any available OpenAI API key, regardless of the current chat provider
  * @param controller The controller instance
  * @param request TranscribeAudioRequest containing base64 audio data
- * @returns TranscribeAudioResponse with transcribed text or error
+ * @returns Transcription with transcribed text or error
  */
 export const transcribeAudio: VoiceMethodHandler = async (
 	controller: Controller,
 	request: TranscribeAudioRequest,
-): Promise<TranscribeAudioResponse> => {
+): Promise<Transcription> => {
 	try {
 		// Initialize the voice service with any available OpenAI key
 		const initResult = await voiceTranscriptionService.initializeWithAnyOpenAIKey(controller.context)
@@ -31,7 +31,7 @@ export const transcribeAudio: VoiceMethodHandler = async (
 				vscode.window.showErrorMessage(`Voice transcription failed: ${errorMessage}`)
 			}
 
-			return TranscribeAudioResponse.create({
+			return Transcription.create({
 				text: "",
 				error: errorMessage,
 			})
@@ -67,13 +67,13 @@ export const transcribeAudio: VoiceMethodHandler = async (
 		}
 
 		// Return the response
-		return TranscribeAudioResponse.create({
+		return Transcription.create({
 			text: result.text || "",
 			error: result.error || "",
 		})
 	} catch (error) {
 		console.error("Error transcribing audio:", error)
-		return TranscribeAudioResponse.create({
+		return Transcription.create({
 			text: "",
 			error: error instanceof Error ? error.message : "Unknown error occurred",
 		})

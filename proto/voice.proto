@@ -7,40 +7,24 @@ option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
 service VoiceService {
-  rpc startRecording(StartRecordingRequest) returns (StartRecordingResponse);
-  rpc stopRecording(StopRecordingRequest) returns (StopRecordingResponse);
-  rpc getRecordingStatus(GetRecordingStatusRequest) returns (GetRecordingStatusResponse);
-  rpc transcribeAudio(TranscribeAudioRequest) returns (TranscribeAudioResponse);
+  rpc startRecording(StartRecordingRequest) returns (RecordingResult);
+  rpc stopRecording(StopRecordingRequest) returns (RecordedAudio);
+  rpc getRecordingStatus(GetRecordingStatusRequest) returns (RecordingStatus);
+  rpc transcribeAudio(TranscribeAudioRequest) returns (Transcription);
 }
 
+// Request messages
 message StartRecordingRequest {
   Metadata metadata = 1;
   // Could add options later
-}
-
-message StartRecordingResponse {
-  bool success = 1;
-  string error = 2;
 }
 
 message StopRecordingRequest {
   Metadata metadata = 1;
 }
 
-message StopRecordingResponse {
-  bool success = 1;
-  string audio_base64 = 2;
-  string error = 3;
-}
-
 message GetRecordingStatusRequest {
   Metadata metadata = 1;
-}
-
-message GetRecordingStatusResponse {
-  bool is_recording = 1;
-  double duration_seconds = 2;
-  string error = 3;
 }
 
 message TranscribeAudioRequest {
@@ -49,7 +33,25 @@ message TranscribeAudioRequest {
   string language = 3; // optional language hint
 }
 
-message TranscribeAudioResponse {
+// Plain, reusable response types
+message RecordingResult {
+  bool success = 1;
+  string error = 2;
+}
+
+message RecordedAudio {
+  bool success = 1;
+  string audio_base64 = 2;
+  string error = 3;
+}
+
+message RecordingStatus {
+  bool is_recording = 1;
+  double duration_seconds = 2;
+  string error = 3;
+}
+
+message Transcription {
   string text = 1;
   string error = 2;
 }

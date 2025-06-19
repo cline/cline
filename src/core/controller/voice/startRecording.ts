@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { StartRecordingRequest, StartRecordingResponse } from "@shared/proto/voice"
+import { StartRecordingRequest, RecordingResult } from "@shared/proto/voice"
 import { audioRecordingService } from "@services/audio/AudioRecordingService"
 import { VoiceMethodHandler } from "./index"
 import * as vscode from "vscode"
@@ -8,16 +8,16 @@ import * as vscode from "vscode"
  * Starts audio recording using the Extension Host
  * @param controller The controller instance
  * @param request StartRecordingRequest
- * @returns StartRecordingResponse with success status
+ * @returns RecordingResult with success status
  */
 export const startRecording: VoiceMethodHandler = async (
 	controller: Controller,
 	request: StartRecordingRequest,
-): Promise<StartRecordingResponse> => {
+): Promise<RecordingResult> => {
 	try {
 		const result = await audioRecordingService.startRecording()
 
-		return StartRecordingResponse.create({
+		return RecordingResult.create({
 			success: result.success,
 			error: result.error || "",
 		})
@@ -25,7 +25,7 @@ export const startRecording: VoiceMethodHandler = async (
 		console.error("Error starting recording:", error)
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 		vscode.window.showErrorMessage(`Voice recording error: ${errorMessage}`)
-		return StartRecordingResponse.create({
+		return RecordingResult.create({
 			success: false,
 			error: errorMessage,
 		})
