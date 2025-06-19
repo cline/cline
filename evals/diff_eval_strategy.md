@@ -36,6 +36,12 @@ node cli/dist/index.js run-diff-eval \
   --verbose
 ```
 
+Then once it's complete, I open up the dashboard to visualize the results:
+
+```
+cd evals/diff-edits/dashboard && streamlit run app.py
+```
+
 The `TestRunner.ts` script is the main coordinator. For each test case and setup, `ClineWrapper.ts` takes over and sends the conversation and system prompt to the LLM. We then watch the model's response as it streams in and parse it to find any tool calls.
 
 We're specifically looking for the model to make a single `replace_in_file` tool call. Multiple edits in one tool call are allowed, and recorded (in case you want to filter results by number of edits in a single tool call and compare success rate for that slice across different models/system prompts/etc). If it does, and it's for the correct file, we grab the diff content it produced. Then, the chosen diff application algorithm tries to apply that diff to the original file. We record whether this worked or not as `diffEditSuccess`.
