@@ -1,87 +1,95 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Message, Ollama } from "ollama"
+import { Agent } from "undici"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOllamaMessages } from "../transform/ollama-format"
-import { ApiStream } from "../transform/stream"
-import { withRetry } from "../retry"
+import { ApiStream, ApiStreamChunk } from "../transform/stream"
+
+/**
+ * OllamaHandler – communicates with an Ollama server while disabling
+ * undici’s header/body time‑outs. A manual per‑request timer still enforces
+ * an upper bound on total execution time so callers stay in control.
+ *
+ * Retry logic is intentionally *not* automatic for streaming requests; callers
+ * can decide when to retry based on their UX requirements.
+ */
+
+// Disable undici time‑outs for *this* dispatcher and hand it to the SDK.
+const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 })
+const customFetch: typeof fetch = (url: any, init: any) => fetch(url, { ...init, dispatcher } as any)
 
 export class OllamaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: Ollama
+	/** Public so unit tests can stub `.chat()` (e.g. with sinon). */
+	public readonly client: Ollama
 
-	constructor(options: ApiHandlerOptions) {
-		this.options = options
-		this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+	constructor(private readonly options: ApiHandlerOptions) {
+		this.client = new Ollama({
+			host: options.ollamaBaseUrl ?? "http://localhost:11434",
+			fetch: customFetch,
+		})
 	}
 
-	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const modelId = this.options.ollamaModelId
+		if (!modelId) throw new Error("Ollama model id is required")
+
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
+		// Caller‑configurable request timeout (default: 5 minutes)
+		const timeoutMs = this.options.requestTimeoutMs ?? 300_000
+		const timeoutPromise = new Promise<never>((_, reject) =>
+			setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs),
+		)
+
+		const apiPromise = this.client.chat({
+			model: modelId,
+			messages: ollamaMessages,
+			stream: true,
+		})
+
+		let stream: AsyncIterable<any>
 		try {
-			// Create a promise that rejects after timeout
-			const timeoutMs = this.options.requestTimeoutMs || 30000
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
-			})
+			stream = await Promise.race([apiPromise, timeoutPromise])
+		} catch (err: any) {
+			const cause: any = err?.cause ?? err
+			if (cause?.code) {
+				// e.g. ECONNREFUSED, ENOTFOUND, UND_ERR_HEADERS_TIMEOUT, …
+				throw new Error(
+					`Could not reach Ollama at ${
+						this.options.ollamaBaseUrl ?? "http://localhost:11434"
+					} — ${cause.code}: ${cause.message ?? cause}`,
+				)
+			}
+			const statusCode = err?.status ?? err?.statusCode ?? "unknown"
+			throw new Error(`Ollama API error (${statusCode}): ${err?.message ?? err}`)
+		}
 
-			// Create the actual API request promise
-			const apiPromise = this.client.chat({
-				model: this.getModel().id,
-				messages: ollamaMessages,
-				stream: true,
-				options: {
-					num_ctx: Number(this.options.ollamaApiOptionsCtxNum) || 32768,
-				},
-			})
-
-			// Race the API request against the timeout
-			const stream = (await Promise.race([apiPromise, timeoutPromise])) as Awaited<typeof apiPromise>
-
-			try {
-				for await (const chunk of stream) {
-					if (typeof chunk.message.content === "string") {
-						yield {
-							type: "text",
-							text: chunk.message.content,
-						}
-					}
-
-					// Handle token usage if available
-					if (chunk.eval_count !== undefined || chunk.prompt_eval_count !== undefined) {
-						yield {
-							type: "usage",
-							inputTokens: chunk.prompt_eval_count || 0,
-							outputTokens: chunk.eval_count || 0,
-						}
-					}
+		// Relay streaming chunks to the caller
+		for await (const chunk of stream) {
+			if (typeof chunk.message.content === "string") {
+				yield { type: "text", text: chunk.message.content }
+			}
+			if (chunk.eval_count !== undefined || chunk.prompt_eval_count !== undefined) {
+				const usageData: ApiStreamChunk = {
+					type: "usage",
+					inputTokens: chunk.prompt_eval_count ?? 0,
+					outputTokens: chunk.eval_count ?? 0,
 				}
-			} catch (streamError: any) {
-				console.error("Error processing Ollama stream:", streamError)
-				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
+				yield usageData
 			}
-		} catch (error: any) {
-			// Check if it's a timeout error
-			if (error.message && error.message.includes("timed out")) {
-				const timeoutMs = this.options.requestTimeoutMs || 30000
-				throw new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)
-			}
-
-			// Enhance error reporting
-			const statusCode = error.status || error.statusCode
-			const errorMessage = error.message || "Unknown error"
-
-			console.error(`Ollama API error (${statusCode || "unknown"}): ${errorMessage}`)
-			throw error
 		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const id = this.options.ollamaModelId! // validated above
 		return {
-			id: this.options.ollamaModelId || "",
+			id,
 			info: this.options.ollamaApiOptionsCtxNum
-				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32768 }
+				? {
+						...openAiModelInfoSaneDefaults,
+						contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32_768,
+					}
 				: openAiModelInfoSaneDefaults,
 		}
 	}
