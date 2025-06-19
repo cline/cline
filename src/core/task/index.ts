@@ -119,7 +119,7 @@ export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
-type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
+export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Task {
@@ -165,8 +165,6 @@ export class Task {
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
-	conversationHistoryDeletedRange?: [number, number]
-
 	constructor(
 		context: vscode.ExtensionContext,
 		mcpHub: McpHub,
@@ -225,7 +223,7 @@ export class Task {
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.taskIsFavorited = historyItem.isFavorited
-			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
 		} else {
@@ -235,7 +233,7 @@ export class Task {
 		this.messageStateHandler = new MessageStateHandler({
 			context,
 			taskId: this.taskId,
-			conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+			taskState: this.taskState,
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
 		})
@@ -386,7 +384,7 @@ export class Task {
 			switch (restoreType) {
 				case "task":
 				case "taskAndWorkspace":
-					this.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
+					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
 					await this.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
@@ -1636,13 +1634,13 @@ export class Task {
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
 			this.api,
-			this.conversationHistoryDeletedRange,
+			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
-			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
+			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
@@ -1664,9 +1662,9 @@ export class Task {
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
-				this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 					this.messageStateHandler.getApiConversationHistory(),
-					this.conversationHistoryDeletedRange,
+					this.taskState.conversationHistoryDeletedRange,
 					"quarter", // Force aggressive truncation
 				)
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -1678,9 +1676,9 @@ export class Task {
 				this.taskState.didAutomaticallyRetryFailedApiRequest = true
 			} else if (isOpenRouter && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				if (isOpenRouterContextWindowError) {
-					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+					this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 						this.messageStateHandler.getApiConversationHistory(),
-						this.conversationHistoryDeletedRange,
+						this.taskState.conversationHistoryDeletedRange,
 						"quarter", // Force aggressive truncation
 					)
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -1700,7 +1698,7 @@ export class Task {
 				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.messageStateHandler.getApiConversationHistory(),
-						this.conversationHistoryDeletedRange,
+						this.taskState.conversationHistoryDeletedRange,
 					)
 
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
@@ -3591,9 +3589,9 @@ export class Task {
 									const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
 
 									// clear the context history at this point in time
-									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+									this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 										apiConversationHistory,
-										this.conversationHistoryDeletedRange,
+										this.taskState.conversationHistoryDeletedRange,
 										keepStrategy,
 									)
 									await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
