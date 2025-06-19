@@ -19,4 +19,6 @@ service AccountService {
 
     // Subscribe to auth callback events (when authentication tokens are received)
     rpc subscribeToAuthCallback(EmptyRequest) returns (stream String);
+
+    rpc accountEmailIdentified(StringRequest) returns (Empty);
 }
