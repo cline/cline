@@ -14,6 +14,13 @@ type ClaudeCodeOptions = {
 	modelId?: string
 }
 
+type ProcessState = {
+	partialData: string | null
+	error: Error | null
+	errorOutput: string
+	exitCode: number | null
+}
+
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage> {
 	const process = runProcess(options)
 
@@ -21,45 +28,43 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		input: process.stdout,
 	})
 
-	let error: Error | null = null
-	let errorOutput = ""
-	let exitCode: number | null = null
+	const processState: ProcessState = {
+		error: null,
+		errorOutput: "",
+		exitCode: null,
+		partialData: null,
+	}
 
 	process.stderr.on("data", (data) => {
-		errorOutput += data.toString()
+		processState.errorOutput += data.toString()
 	})
 
 	process.on("close", (code) => {
-		exitCode = code
+		processState.exitCode = code
 	})
 
 	process.on("error", (err) => {
-		error = err
+		processState.error = err
 	})
 
 	try {
-		const dataQueue: ClaudeCodeMessage[] = []
+		const dataQueue: string[] = []
 
 		rl.on("line", (line) => {
-			if (error) {
-				throw error
+			if (processState.error) {
+				throw processState.error
 			}
 
-			try {
-				if (!line.trim()) {
-					return
-				}
-
-				const message = JSON.parse(line) as ClaudeCodeMessage
-				dataQueue.push(message)
-			} catch (err) {
-				console.error("Error parsing line:", line, err)
+			if (!line.trim()) {
+				return
 			}
+
+			dataQueue.push(line)
 		})
 
 		while (process.exitCode === null || dataQueue.length > 0) {
-			if (error) {
-				throw error
+			if (processState.error) {
+				throw processState.error
 			}
 
 			const data = dataQueue.shift()
@@ -68,12 +73,18 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				continue
 			}
 
-			yield data
+			const chunk = parseChunk(data, processState)
+
+			if (!chunk) {
+				continue
+			}
+
+			yield chunk
 		}
 
 		const { exitCode } = await process
 		if (exitCode !== null && exitCode !== 0) {
-			errorOutput = errorOutput.trim()
+			const errorOutput = processState.errorOutput?.trim()
 			throw new Error(
 				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
 			)
@@ -137,4 +148,36 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		cwd,
 		buffer: false,
 	})
+}
+
+function parseChunk(data: string, processState: ProcessState) {
+	if (processState.partialData) {
+		processState.partialData += data
+
+		const chunk = attemptParseChunk(processState.partialData)
+
+		if (!chunk) {
+			return null
+		}
+
+		processState.partialData = null
+		return chunk
+	}
+
+	const chunk = attemptParseChunk(data)
+
+	if (!chunk) {
+		processState.partialData = data
+	}
+
+	return chunk
+}
+
+function attemptParseChunk(data: string): ClaudeCodeMessage | null {
+	try {
+		return JSON.parse(data)
+	} catch (error) {
+		console.error("Error parsing chunk:", error)
+		return null
+	}
 }
