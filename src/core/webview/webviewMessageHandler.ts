@@ -1508,6 +1508,12 @@ export const webviewMessageHandler = async (
 			break
 		}
 
+		case "fetchMarketplaceData": {
+			// Fetch marketplace data on demand
+			await provider.fetchMarketplaceData()
+			break
+		}
+
 		case "installMarketplaceItem": {
 			if (marketplaceManager && message.mpItem && message.mpInstallOptions) {
 				try {

@@ -167,6 +167,7 @@ export interface WebviewMessage {
 		| "cancelMarketplaceInstall"
 		| "removeInstalledMarketplaceItem"
 		| "marketplaceInstallResult"
+		| "fetchMarketplaceData"
 		| "switchTab"
 	text?: string
 	tab?: "settings" | "history" | "mcp" | "modes" | "chat" | "marketplace" | "account"

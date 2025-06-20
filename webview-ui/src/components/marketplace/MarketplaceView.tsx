@@ -33,14 +33,10 @@ export function MarketplaceView({ stateManager, onDone }: MarketplaceViewProps) 
 		// a filter message with empty filters, which will cause the extension to
 		// send back the full state including all marketplace items.
 		if (!hasReceivedInitialState && state.allItems.length === 0) {
-			// Send empty filter to trigger state update
+			// Fetch marketplace data on demand
+			// Note: isFetching is already true by default for initial load
 			vscode.postMessage({
-				type: "filterMarketplaceItems",
-				filters: {
-					type: "",
-					search: "",
-					tags: [],
-				},
+				type: "fetchMarketplaceData",
 			})
 		}
 

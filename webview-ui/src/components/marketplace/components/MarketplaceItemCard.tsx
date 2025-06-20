@@ -94,6 +94,11 @@ export const MarketplaceItemCard: React.FC<MarketplaceItemCardProps> = ({ item, 
 													mpItem: item,
 													mpInstallOptions: { target },
 												})
+
+												// Request fresh marketplace data to update installed status
+												vscode.postMessage({
+													type: "fetchMarketplaceData",
+												})
 											}}>
 											{t("marketplace:items.card.remove")}
 										</Button>

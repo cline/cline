@@ -18,6 +18,12 @@ import { Mode } from "./modes"
 import { RouterModels } from "./api"
 import type { MarketplaceItem } from "@roo-code/types"
 
+// Type for marketplace installed metadata
+export interface MarketplaceInstalledMetadata {
+	project: Record<string, { type: string }>
+	global: Record<string, { type: string }>
+}
+
 // Indexing status types
 export interface IndexingStatus {
 	systemStatus: string
@@ -90,6 +96,7 @@ export interface ExtensionMessage {
 		| "indexCleared"
 		| "codebaseIndexConfig"
 		| "marketplaceInstallResult"
+		| "marketplaceData"
 	text?: string
 	payload?: any // Add a generic payload for now, can refine later
 	action?:
@@ -136,6 +143,8 @@ export interface ExtensionMessage {
 	userInfo?: CloudUserInfo
 	organizationAllowList?: OrganizationAllowList
 	tab?: string
+	marketplaceItems?: MarketplaceItem[]
+	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
 }
 
 export type ExtensionState = Pick<

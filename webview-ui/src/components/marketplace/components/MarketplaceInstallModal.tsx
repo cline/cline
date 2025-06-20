@@ -136,6 +136,11 @@ export const MarketplaceInstallModal: React.FC<MarketplaceInstallModalProps> = (
 					// Installation succeeded - show success state
 					setInstallationComplete(true)
 					setValidationError(null)
+
+					// Request fresh marketplace data to update installed status
+					vscode.postMessage({
+						type: "fetchMarketplaceData",
+					})
 				} else {
 					// Installation failed - show error
 					setValidationError(message.error || "Installation failed")
