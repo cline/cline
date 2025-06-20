@@ -10,7 +10,6 @@
 -   Improve accessibility by making task header buttons properly announced by screen readers (Thanks @yncat!)
 -   Improve accessibility by adding proper state reporting for Plan/Act mode switch for screen readers (Thanks @yncat!)
 -   Prevent reading development environment variables from user's environment (Thanks @BarreiroT!)
--   Internal refactoring: migrate didBecomeVisible event handling to protobus architecture
 
 ## [3.17.14]
 
