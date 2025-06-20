@@ -562,6 +562,24 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{apiConfiguration && selectedProvider === "openai" && (
+				<OpenAICompatibleProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
+			)}
+
+			{apiConfiguration && selectedProvider === "sambanova" && (
+				<SambanovaProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
+			)}
+
 			{selectedProvider === "bedrock" && (
 				<div
 					style={{
@@ -939,15 +957,6 @@ const ApiOptions = ({
 						)}
 					</p>
 				</div>
-			)}
-
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider
-					apiConfiguration={apiConfiguration}
-					handleInputChange={handleInputChange}
-					showModelOptions={showModelOptions}
-					isPopup={isPopup}
-				/>
 			)}
 
 			{selectedProvider === "requesty" && (
@@ -1533,15 +1542,6 @@ const ApiOptions = ({
 						</button>
 					)} */}
 				</div>
-			)}
-
-			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider
-					apiConfiguration={apiConfiguration}
-					handleInputChange={handleInputChange}
-					showModelOptions={showModelOptions}
-					isPopup={isPopup}
-				/>
 			)}
 
 			{selectedProvider === "cerebras" && (
