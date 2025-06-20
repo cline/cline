@@ -35,4 +35,6 @@ webview-ui/src/services/grpc-client.ts
 # Host bridge
 src/hosts/vscode/*/methods.ts
 src/hosts/vscode/*/index.ts
+src/hosts/vscode/client/host-grpc-client.ts
 src/hosts/vscode/host-grpc-service-config.ts
+src/standalone/server-setup.ts
