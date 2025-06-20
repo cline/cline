@@ -125,15 +125,24 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 		return undefined
 	}
 
+	const getIconAnimation = () => {
+		if (isProcessing) return "animate-spin"
+		if (isRecording) return "animate-pulse"
+		return ""
+	}
+
+	const getIconAdjustment = () => {
+		if (isProcessing) return "mt-0"
+		if (isRecording) return "mt-1"
+		return "mt-0.5"
+	}
+
 	return (
 		<div
-			className={`input-icon-button ${disabled || isProcessing ? "disabled" : ""}`}
+			className={`input-icon-button mr-1.5 text-base ${getIconAdjustment()} ${getIconAnimation()} ${disabled || isProcessing ? "disabled" : ""}`}
 			onClick={!disabled && !isProcessing ? handleClick : undefined}
 			style={{
-				marginRight: "5px",
-				fontSize: "15px",
 				color: getIconColor(),
-				animation: isRecording ? "pulse 1.5s infinite" : "none",
 			}}>
 			<span className={`codicon ${getIconClass()}`} />
 		</div>
