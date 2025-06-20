@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   bb6d02d: Migrate didBecomeVisible to protobus
+
+### Patch Changes
+
+-   b92a280: fix: respect setting litellm models for plan and act
+-   288f1bf: Do not clear the input value when changing modes without sending a message
+-   c54cf38: Fix MCP server name display logic to avoid showing `undefined` when `command` is missing, preventing tool/resource invocation failures for sse servers.
+-   c5eccfe: Prevent reading IS_DEV from the users environment
+-   cecf730: fix(bedrock): remove custom Model encode
+-   e46980e: Updated Timeline tooltips for `followup` messages and consolidated color retrieval code.
+-   b62f61f: The close task button and delete task button in the task header are now correctly announced by screen readers.
+-   1b70080: Screen readers now report the plan / act mode switch state.
+
 ## [3.17.14]
 
 -   Add Claude Code as a new API provider, allowing integration with Anthropic's Claude Code CLI tool and Claude Max Plan (Thanks @BarreiroT!)
