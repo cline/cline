@@ -399,6 +399,8 @@ export function convertO1ResponseToAnthropicMessage(
 			output_tokens: completion.usage?.completion_tokens || 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
+			service_tier: null,
 		},
 	}
 

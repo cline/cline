@@ -86,12 +86,15 @@ export function convertToOpenAiMessages(
 						role: "user",
 						content: nonToolMessages.map((part) => {
 							if (part.type === "image") {
-								return {
-									type: "image_url",
-									image_url: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
-									},
+								if (part.source.type === "base64" && "media_type" in part.source && "data" in part.source) {
+									return {
+										type: "image_url",
+										image_url: {
+											url: `data:${part.source.media_type};base64,${part.source.data}`,
+										},
+									}
 								}
+								throw new Error("Only base64 images are supported")
 							}
 							return { type: "text", text: part.text }
 						}),
@@ -184,6 +187,8 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			output_tokens: completion.usage?.completion_tokens || 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
+			service_tier: null,
 		},
 	}
 
