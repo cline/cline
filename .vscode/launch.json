@@ -50,10 +50,11 @@
 			"outFiles": ["${workspaceFolder}/dist-standalone/**/*.js"],
 			"preLaunchTask": "compile-standalone",
 			"env": {
-				"GRPC_TRACE": "all",
-				"GRPC_VERBOSITY": "DEBUG",
+				// Turns on grpc debug log.
+				//"GRPC_TRACE": "all",
+				//"GRPC_VERBOSITY": "DEBUG",
 				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules",
-				"CLINE_DIR": "${userHome}/.cline-standalone",
+
 				"HOST_BRIDGE_ADDRESS": "localhost:50052"
 			},
 			"program": "standalone.js"
