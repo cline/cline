@@ -77,7 +77,7 @@ body:
               - "Yes, I'd like to collaborate with others"
               - "Maybe, depending on complexity and guidance"
       validations:
-          required: true
+          required: false
 
     - type: textarea
       id: implementation-approach
