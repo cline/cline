@@ -181,6 +181,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "moveLines"
 	path?: string
 	diff?: string
 	content?: string

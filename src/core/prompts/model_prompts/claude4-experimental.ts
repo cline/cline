@@ -25,6 +25,7 @@ import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTo
 import { browserActionToolDefinition } from "@core/tools/browserActionTool"
 import { newTaskToolDefinition } from "@core/tools/newTaskTool"
 import { editToolDefinition } from "@/core/tools/editTool"
+import { moveLinesTool } from "@core/tools/moveLinesTool"
 
 export const SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL = async (
 	cwd: string,
@@ -50,7 +51,6 @@ TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
-
  MultiEdit Tool: Makes multiple changes to a single file in one operation
 
   <function_calls>
@@ -68,6 +68,11 @@ You have access to a set of tools that are executed upon the user's approval. Yo
   - edits (required): Array of edit operations, each containing:
     - old_string (required): Exact text to replace
     - new_string (required): The replacement text
+
+- **Use ${moveLinesTool(cwd).name}** when:
+  - Moving or copying code between files
+  - Extracting shared functionality into common files
+  - Reorganizing code across multiple files
 
 # Tool Use Guidelines
 
@@ -145,7 +150,7 @@ ${
 
 EDITING FILES
 
-You have access to two tools for working with files: **${writeTool.name}** and **${editToolDefinition.name}**. Understanding their roles and selecting the right one for the job will help ensure efficient and accurate modifications.
+You have access to three tools for working with files: **${writeTool.name}**, **${editToolDefinition.name}**, and **${moveLinesTool(cwd).name}**. Understanding their roles and selecting the right one for the job will help ensure efficient and accurate modifications.
 
 # ${writeTool.name}
 
@@ -190,8 +195,12 @@ You have access to two tools for working with files: **${writeTool.name}** and *
   - Creating new files
   - The changes are so extensive that using ${editToolDefinition.name} would be more complex or risky
   - You need to completely reorganize or restructure a file
-  - The file is relatively small and the changes affect most of its content
+  - The file is relatively small and a large portion of its content is being changed
   - You're generating boilerplate or template files
+- **Use ${moveLinesTool(cwd).name}** when:
+  - Moving or copying code between files
+  - Extracting shared functionality into common files
+  - Reorganizing code across multiple files
 
 # Auto-formatting Considerations
 
@@ -340,6 +349,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		loadMcpDocumentationTool,
 		newTaskToolDefinition,
 		editToolDefinition,
+		moveLinesTool(cwd),
 	]
 	if (supportsBrowserUse) {
 		tools.push(browserActionTool)
