@@ -22,6 +22,8 @@ Right now, these evals are mostly about whether the diff *applies* correctly. Th
 
 ## How We Run These Tests
 
+Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons prior to running this.
+
 Our testing strategy is based on replaying situations from actual user sessions where diff edits were tried.
 
 It starts with our test cases. Each one is a JSON file in `./cases` that has the conversation history that led to a diff edit, the original file content and its path, and the info needed to rebuild the system prompt from that original session.
