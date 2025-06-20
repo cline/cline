@@ -17,7 +17,7 @@ The evaluation system consists of two main components:
 
 1. **Test Server**: Enhanced HTTP server in `src/services/test/TestServer.ts` that provides detailed task results
 2. **CLI Tool**: Command-line interface in `evals/cli/` for orchestrating evaluations
-3. **Diff Edit Benchmark**: Separate command using the CLI tool that runs a comprehensive diff editing benchmark suite on real world cases, along with a streamlit dashboard displaying the results. Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons. 
+3. **Diff Edit Benchmark**: Separate command using the CLI tool that runs a comprehensive diff editing benchmark suite on real world cases, along with a streamlit dashboard displaying the results. For more details, see the [Diff Edit Benchmark README](./diff-edits/README.md). Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons. 
 
 ## Directory Structure
 

@@ -40,7 +40,7 @@ The `TestRunner.ts` script is the main coordinator. For each test case and setup
 
 We're specifically looking for the model to make a single `replace_in_file` tool call. Multiple edits in one tool call are allowed, and recorded (in case you want to filter results by number of edits in a single tool call and compare success rate for that slice across different models/system prompts/etc). If it does, and it's for the correct file, we grab the diff content it produced. Then, the chosen diff application algorithm tries to apply that diff to the original file. We record whether this worked or not as `diffEditSuccess`.
 
-We record a bunch of data for every attempt into a database. This includes details about the model and prompt, token counts, costs, the raw output from the model, the parsed tool calls, whether it succeeded or failed, any error messages, and timing info.
+We record a bunch of data for every attempt into a database. This includes details about the model and prompt, token counts, costs, the raw output from the model, the parsed tool calls, whether it succeeded or failed, any error messages, and timing info. For a detailed explanation of the database schema, see [database.md](./database.md).
 
 A big part of this is how we handle "valid attempts," which I'll explain next.
 
