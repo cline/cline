@@ -97,7 +97,8 @@ export class MarketplaceViewStateManager {
 		// Only create new arrays if they exist and have items
 		const allItems = this.state.allItems.length ? [...this.state.allItems] : []
 		// Ensure displayItems is always an array, never undefined
-		const displayItems = this.state.displayItems ? [...this.state.displayItems] : []
+		// If displayItems is undefined or null, fall back to allItems
+		const displayItems = this.state.displayItems ? [...this.state.displayItems] : [...allItems]
 		const tags = this.state.filters.tags.length ? [...this.state.filters.tags] : []
 
 		// Create minimal new state object
@@ -174,11 +175,20 @@ export class MarketplaceViewStateManager {
 					break
 				}
 
+				// Calculate display items based on current filters
+				let newDisplayItems: MarketplaceItem[]
+				if (this.isFilterActive()) {
+					newDisplayItems = this.filterItems([...items])
+				} else {
+					// No filters active - show all items
+					newDisplayItems = [...items]
+				}
+
 				// Update allItems as source of truth
 				this.state = {
 					...this.state,
 					allItems: [...items],
-					displayItems: this.isFilterActive() ? this.filterItems([...items]) : [...items],
+					displayItems: newDisplayItems,
 					isFetching: false,
 				}
 
@@ -322,7 +332,17 @@ export class MarketplaceViewStateManager {
 				// Always use the marketplace items from the extension when they're provided
 				// This ensures fresh data is always displayed
 				const items = [...marketplaceItems]
-				const newDisplayItems = this.isFilterActive() ? this.filterItems(items) : items
+
+				// Calculate display items based on current filters
+				// If no filters are active, show all items
+				// If filters are active, apply filtering
+				let newDisplayItems: MarketplaceItem[]
+				if (this.isFilterActive()) {
+					newDisplayItems = this.filterItems(items)
+				} else {
+					// No filters active - show all items
+					newDisplayItems = items
+				}
 
 				// Update state in a single operation
 				this.state = {

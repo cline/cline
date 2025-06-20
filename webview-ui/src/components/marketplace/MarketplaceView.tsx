@@ -42,7 +42,9 @@ export function MarketplaceView({ stateManager, onDone }: MarketplaceViewProps) 
 
 		// Listen for state changes to know when initial data arrives
 		const unsubscribe = manager.onStateChange((newState) => {
-			if (newState.allItems.length > 0 && !hasReceivedInitialState) {
+			// Mark as received initial state when we get any state update
+			// This prevents infinite loops and ensures proper state handling
+			if (!hasReceivedInitialState && (newState.allItems.length > 0 || newState.displayItems !== undefined)) {
 				setHasReceivedInitialState(true)
 			}
 		})
