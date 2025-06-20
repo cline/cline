@@ -58,7 +58,7 @@ describe("MarketplaceViewStateManager", () => {
 
 			expect(state.allItems).toEqual([])
 			expect(state.displayItems).toEqual([])
-			expect(state.isFetching).toBe(false)
+			expect(state.isFetching).toBe(true)
 			expect(state.activeTab).toBe("mcp")
 			expect(state.filters).toEqual({
 				type: "",
