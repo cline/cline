@@ -247,6 +247,13 @@ export function Footer() {
 										</a>
 									</li>
 									<li>
+										<Link
+											href="/terms"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Terms of Service
+										</Link>
+									</li>
+									<li>
 										<div className="relative z-10" ref={dropdownRef}>
 											<button
 												onClick={() => setPrivacyDropdownOpen(!privacyDropdownOpen)}
