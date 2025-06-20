@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from "react"
 import { VoiceServiceClient } from "@/services/grpc-client"
 import { StartRecordingRequest, StopRecordingRequest, TranscribeAudioRequest } from "@shared/proto/voice"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -105,12 +104,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 	}, [onTranscription, onProcessingStateChange])
 
 	const handleClick = useCallback(() => {
+		if (disabled || isProcessing) return
+
+		if (error) return setError(null)
+
 		if (isRecording) {
 			stopRecording()
 		} else {
 			startRecording()
 		}
-	}, [isRecording, startRecording, stopRecording])
+	}, [isRecording, startRecording, stopRecording, disabled, isProcessing])
 
 	const getIconClass = () => {
 		if (isProcessing) return "codicon-loading"
@@ -134,13 +137,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 	const getIconAdjustment = () => {
 		if (isProcessing) return "mt-0"
 		if (isRecording) return "mt-1"
+		if (error) return "mt-1"
 		return "mt-0.5"
 	}
 
 	return (
 		<div
 			className={`input-icon-button mr-1.5 text-base ${getIconAdjustment()} ${getIconAnimation()} ${disabled || isProcessing ? "disabled" : ""}`}
-			onClick={!disabled && !isProcessing ? handleClick : undefined}
+			onClick={handleClick}
 			style={{
 				color: getIconColor(),
 			}}>
