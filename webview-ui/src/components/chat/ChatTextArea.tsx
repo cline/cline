@@ -1566,7 +1566,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 9px 9px",
+							padding: `9px ${chatSettings?.voiceRecordingEnabled ? "48" : "28"}px 9px 9px`,
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
