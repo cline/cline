@@ -137,7 +137,6 @@ export class AnthropicHandler implements ApiHandler {
 				case "message_start":
 					// tells us cache reads/writes/input/output
 					const usage = chunk.message.usage
-
 					yield {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
