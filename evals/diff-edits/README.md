@@ -22,7 +22,12 @@ Right now, these evals are mostly about whether the diff *applies* correctly. Th
 
 ## How We Run These Tests
 
-Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons prior to running this.
+Two prerequisites:
+
+1. Make sure you have an `evals/.env` file with `OPENROUTER_API_KEY=<your-openrouter-key>` 
+
+2. Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons prior to running this. 
+
 
 Our testing strategy is based on replaying situations from actual user sessions where diff edits were tried.
 
