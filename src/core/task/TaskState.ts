@@ -34,6 +34,9 @@ export class TaskState {
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
+	// Context and history
+	conversationHistoryDeletedRange?: [number, number]
+
 	// Tool execution flags
 	didRejectTool = false
 	didAlreadyUseTool = false
