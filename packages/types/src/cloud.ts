@@ -13,6 +13,7 @@ export interface CloudUserInfo {
 	organizationId?: string
 	organizationName?: string
 	organizationRole?: string
+	organizationImageUrl?: string
 }
 
 /**

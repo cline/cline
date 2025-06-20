@@ -488,6 +488,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 					userInfo.organizationId = organization.id
 					userInfo.organizationName = organization.name
 					userInfo.organizationRole = primaryOrgMembership.role
+					userInfo.organizationImageUrl = organization.image_url
 				}
 			}
 		} catch (error) {

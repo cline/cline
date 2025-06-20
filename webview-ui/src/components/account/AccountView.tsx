@@ -41,15 +41,24 @@ export const AccountView = ({ userInfo, isAuthenticated, onDone }: AccountViewPr
 									</div>
 								)}
 							</div>
-							<h2 className="text-lg font-medium text-vscode-foreground mb-1">
+							<h2 className="text-lg font-medium text-vscode-foreground mb-0">
 								{userInfo?.name || t("account:unknownUser")}
 							</h2>
-							{userInfo?.organizationName && (
-								<p className="text-sm text-vscode-descriptionForeground mb-1">
-									{userInfo.organizationName}
-								</p>
+							{userInfo?.email && (
+								<p className="text-sm text-vscode-descriptionForeground">{userInfo?.email}</p>
 							)}
-							<p className="text-sm text-vscode-descriptionForeground">{userInfo?.email || ""}</p>
+							{userInfo?.organizationName && (
+								<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground">
+									{userInfo.organizationImageUrl && (
+										<img
+											src={userInfo.organizationImageUrl}
+											alt={userInfo.organizationName}
+											className="w-4 h-4 rounded object-cover"
+										/>
+									)}
+									<span>{userInfo.organizationName}</span>
+								</div>
+							)}
 						</div>
 					)}
 					<div className="flex flex-col gap-2 mt-4">
