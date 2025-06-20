@@ -9,10 +9,6 @@ body:
 
               Thank you for your interest in contributing to Cline! This template helps us understand what you'd like to work on and ensures alignment with the project's goals before you invest time in implementation.
 
-              Before submitting:
-              - Search existing [Issues](https://github.com/cline/cline/issues) and [Discussions](https://github.com/cline/cline/discussions) to avoid duplicates
-              - Check our ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) and ["help wanted"](https://github.com/cline/cline/labels/help%20wanted) labels for pre-approved contribution areas
-
     - type: textarea
       id: contribution-description
       attributes:
