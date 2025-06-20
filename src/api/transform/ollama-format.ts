@@ -40,7 +40,11 @@ export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.Me
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										if (part.source.type === "base64" && "media_type" in part.source && "data" in part.source) {
+										if (
+											part.source.type === "base64" &&
+											"media_type" in part.source &&
+											"data" in part.source
+										) {
 											toolResultImages.push(`data:${part.source.media_type};base64,${part.source.data}`)
 											return "(see following user message for image)"
 										}
