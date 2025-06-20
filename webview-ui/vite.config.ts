@@ -105,7 +105,17 @@ export default defineConfig(({ mode }) => {
 						// Default naming for other chunks, ensuring uniqueness from entry
 						return `assets/chunk-[hash].js`
 					},
-					assetFileNames: `assets/[name].[ext]`,
+					assetFileNames: (assetInfo) => {
+						if (
+							assetInfo.name &&
+							(assetInfo.name.endsWith(".woff2") ||
+								assetInfo.name.endsWith(".woff") ||
+								assetInfo.name.endsWith(".ttf"))
+						) {
+							return "assets/fonts/[name][extname]"
+						}
+						return "assets/[name][extname]"
+					},
 					manualChunks: (id, { getModuleInfo }) => {
 						// Consolidate all mermaid code and its direct large dependencies (like dagre)
 						// into a single chunk. The 'channel.js' error often points to dagre.

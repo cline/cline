@@ -221,8 +221,8 @@ describe("mergeExtensionState", () => {
 			experiments: {
 				powerSteering: true,
 				marketplace: false,
-				concurrentFileReads: true,
 				disableCompletionCommand: false,
+				concurrentFileReads: true,
 				multiFileApplyDiff: true,
 			} as Record<ExperimentId, boolean>,
 		}
@@ -237,8 +237,8 @@ describe("mergeExtensionState", () => {
 		expect(result.experiments).toEqual({
 			powerSteering: true,
 			marketplace: false,
-			concurrentFileReads: true,
 			disableCompletionCommand: false,
+			concurrentFileReads: true,
 			multiFileApplyDiff: true,
 		})
 	})

@@ -2,6 +2,8 @@ import React, { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
+import rehypeKatex from "rehype-katex"
+import remarkMath from "remark-math"
 
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -75,6 +77,31 @@ const StyledMarkdown = styled.div`
 		);
 	}
 
+	/* KaTeX styling */
+	.katex {
+		font-size: 1.1em;
+		color: var(--vscode-editor-foreground);
+		font-family: KaTeX_Main, "Times New Roman", serif;
+		line-height: 1.2;
+		white-space: normal;
+		text-indent: 0;
+	}
+
+	.katex-display {
+		display: block;
+		margin: 1em 0;
+		text-align: center;
+		padding: 0.5em;
+		overflow-x: auto;
+		overflow-y: hidden;
+		background-color: var(--vscode-textCodeBlock-background);
+		border-radius: 3px;
+	}
+
+	.katex-error {
+		color: var(--vscode-errorForeground);
+	}
+
 	font-family:
 		var(--vscode-font-family),
 		system-ui,
@@ -126,6 +153,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkUrlToLink,
+			remarkMath,
 			() => {
 				return (tree) => {
 					visit(tree, "code", (node: any) => {
@@ -138,7 +166,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 				}
 			},
 		],
-		rehypePlugins: [],
+		rehypePlugins: [rehypeKatex as any],
 		rehypeReactOptions: {
 			components: {
 				a: ({ href, children }: any) => {
