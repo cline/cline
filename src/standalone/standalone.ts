@@ -12,13 +12,14 @@ import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
 import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
 import { WebviewProviderType } from "@/shared/webview/types"
+import { v4 as uuidv4 } from "uuid"
 
 async function main() {
 	log("Starting standalone service...")
 
 	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
-	const controller = new Controller(extensionContext, outputChannel, postMessage)
+	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	const server = new grpc.Server()
 
 	// Set up health check.

@@ -142,12 +142,26 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
 			console.log("[DEBUG] mcpButtonClicked", webview)
-			// Pass the webview type to the event sender
-			const isSidebar = !webview
-			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 
-			// Will send to appropriate subscribers based on the source webview type
-			sendMcpButtonClickedEvent(webviewType)
+			const activeInstance = WebviewProvider.getActiveInstance()
+			const isSidebar = !webview
+
+			if (isSidebar) {
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				const sidebarInstanceId = sidebarInstance?.getClientId()
+				if (sidebarInstanceId) {
+					sendMcpButtonClickedEvent(sidebarInstanceId)
+				} else {
+					console.error("[DEBUG] No sidebar instance found, cannot send MCP button event")
+				}
+			} else {
+				const activeInstanceId = activeInstance?.getClientId()
+				if (activeInstanceId) {
+					sendMcpButtonClickedEvent(activeInstanceId)
+				} else {
+					console.error("[DEBUG] No active instance found, cannot send MCP button event")
+				}
+			}
 		}),
 	)
 
@@ -629,7 +643,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			} else {
 				// Create a temporary controller just for this operation
 				const outputChannel = vscode.window.createOutputChannel("Cline Commit Generator")
-				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true))
+				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true), uuidv4())
 
 				await tempController.generateGitCommitMessage()
 				outputChannel.dispose()

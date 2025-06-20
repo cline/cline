@@ -28,7 +28,7 @@ export abstract class WebviewProvider {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
-		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message))
+		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
 	}
 
 	// Add a method to get the client ID
@@ -56,6 +56,19 @@ export abstract class WebviewProvider {
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.isVisible() === true)
+	}
+
+	public static getActiveInstance(): WebviewProvider | undefined {
+		return Array.from(this.activeInstances).find((instance) => {
+			if (
+				instance.getWebview() &&
+				instance.getWebview().viewType === "claude-dev.TabPanelProvider" &&
+				"active" in instance.getWebview()
+			) {
+				return instance.getWebview().active === true
+			}
+			return false
+		})
 	}
 
 	public static getAllInstances(): WebviewProvider[] {
