@@ -7,6 +7,7 @@
     "build:cli": "cd cli && tsc",
     "start:cli": "cd cli && node dist/index.js",
     "dev:cli": "cd cli && ts-node src/index.ts",
+    "diff-eval": "./diff-edits/run_and_open_dashboard.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

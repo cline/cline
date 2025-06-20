@@ -28,26 +28,11 @@ It starts with our test cases. Each one is a JSON file in `./cases` that has the
 
 Then, for every test run, we set up a specific configuration. This includes which LLM we're testing, which system prompt it gets, which function we use to parse the model's raw output, and which function we use to actually apply the diff. Here's the command I've been using:
 
-First build it:
 ```bash
-cd evals
-npm run build:cli
+npm run diff-eval -- --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-3-beta" --max-cases 4 --valid-attempts-per-case 2 --verbose --parallel
 ```
 
-Then run it. For example, this benchmarks claude 3.5 sonnet vs grok-3 for 4 cases and 2 valid attempts per case (running everything in parallel)
-```bash
-node cli/dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-3-beta" \
-  --max-cases 4 \
-  --valid-attempts-per-case 2 \
-  --verbose --parallel
-```
-
-Then once it's complete, I open up the dashboard to visualize the results:
-
-```bash
-cd evals/diff-edits/dashboard && streamlit run app.py
-```
+This will build the eval script, run it, and then open the streamlit dashboard to show the results.
 
 The `TestRunner.ts` script is the main coordinator. For each test case and setup, `ClineWrapper.ts` takes over and sends the conversation and system prompt to the LLM. We then watch the model's response as it streams in and parse it to find any tool calls.
 
