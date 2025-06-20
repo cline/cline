@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Всегда разрешать",
 		"parameters": "Параметры",
-		"noDescription": "Нет описания"
+		"noDescription": "Нет описания",
+		"togglePromptInclusion": "Переключить включение в промпт"
 	},
 	"tabs": {
 		"tools": "Инструменты",

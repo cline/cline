@@ -19,7 +19,8 @@
 	"tool": {
 		"alwaysAllow": "Always allow",
 		"parameters": "Parameters",
-		"noDescription": "No description"
+		"noDescription": "No description",
+		"togglePromptInclusion": "Toggle inclusion in prompt"
 	},
 	"tabs": {
 		"tools": "Tools",

@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Luôn cho phép",
 		"parameters": "Tham số",
-		"noDescription": "Không có mô tả"
+		"noDescription": "Không có mô tả",
+		"togglePromptInclusion": "Bật/tắt bao gồm trong lời nhắc"
 	},
 	"tabs": {
 		"tools": "Công cụ",

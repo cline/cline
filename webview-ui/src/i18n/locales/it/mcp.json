@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Consenti sempre",
 		"parameters": "Parametri",
-		"noDescription": "Nessuna descrizione"
+		"noDescription": "Nessuna descrizione",
+		"togglePromptInclusion": "Attiva/disattiva inclusione nel prompt"
 	},
 	"tabs": {
 		"tools": "Strumenti",

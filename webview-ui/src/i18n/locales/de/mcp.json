@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Immer erlauben",
 		"parameters": "Parameter",
-		"noDescription": "Keine Beschreibung"
+		"noDescription": "Keine Beschreibung",
+		"togglePromptInclusion": "Einbeziehung in Prompt umschalten"
 	},
 	"tabs": {
 		"tools": "Tools",

@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Zawsze pozwalaj",
 		"parameters": "Parametry",
-		"noDescription": "Brak opisu"
+		"noDescription": "Brak opisu",
+		"togglePromptInclusion": "Przełącz uwzględnianie w podpowiedzi"
 	},
 	"tabs": {
 		"tools": "Narzędzia",

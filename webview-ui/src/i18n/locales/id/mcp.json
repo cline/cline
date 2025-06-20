@@ -19,7 +19,8 @@
 	"tool": {
 		"alwaysAllow": "Selalu izinkan",
 		"parameters": "Parameter",
-		"noDescription": "Tidak ada deskripsi"
+		"noDescription": "Tidak ada deskripsi",
+		"togglePromptInclusion": "Aktifkan daya untuk meminta"
 	},
 	"tabs": {
 		"tools": "Tools",

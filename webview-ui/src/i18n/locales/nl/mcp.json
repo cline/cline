@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Altijd toestaan",
 		"parameters": "Parameters",
-		"noDescription": "Geen beschrijving"
+		"noDescription": "Geen beschrijving",
+		"togglePromptInclusion": "Inclusie in prompt in-/uitschakelen"
 	},
 	"tabs": {
 		"tools": "Tools",
@@ -28,6 +29,7 @@
 	"emptyState": {
 		"noTools": "Geen tools gevonden",
 		"noResources": "Geen bronnen gevonden",
+		"noLogs": "Geen logboeken gevonden",
 		"noErrors": "Geen fouten gevonden"
 	},
 	"networkTimeout": {

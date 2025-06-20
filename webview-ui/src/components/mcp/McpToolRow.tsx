@@ -25,50 +25,77 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 		})
 	}
 
+	const handleEnabledForPromptChange = () => {
+		if (!serverName) return
+		vscode.postMessage({
+			type: "toggleToolEnabledForPrompt",
+			serverName,
+			source: serverSource || "global",
+			toolName: tool.name,
+			isEnabled: !tool.enabledForPrompt,
+		})
+	}
+
 	return (
-		<div
-			key={tool.name}
-			style={{
-				padding: "3px 0",
-			}}>
+		<div key={tool.name} className="py-2 border-b border-vscode-panel-border last:border-b-0">
 			<div
 				data-testid="tool-row-container"
-				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+				className="flex items-center gap-4"
 				onClick={(e) => e.stopPropagation()}>
-				<div style={{ display: "flex", alignItems: "center" }}>
-					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
-					<span style={{ fontWeight: 500 }}>{tool.name}</span>
+				{/* Tool name section */}
+				<div className="flex items-center min-w-0 flex-1">
+					<span className="codicon codicon-symbol-method mr-2 flex-shrink-0 text-vscode-symbolIcon-methodForeground"></span>
+					<span className="font-medium truncate text-vscode-foreground" title={tool.name}>
+						{tool.name}
+					</span>
 				</div>
-				{serverName && alwaysAllowMcp && (
-					<VSCodeCheckbox checked={tool.alwaysAllow} onChange={handleAlwaysAllowChange} data-tool={tool.name}>
-						{t("mcp:tool.alwaysAllow")}
-					</VSCodeCheckbox>
+
+				{/* Controls section */}
+				{serverName && (
+					<div className="flex items-center gap-4 flex-shrink-0">
+						{/* Always Allow checkbox */}
+						{alwaysAllowMcp && (
+							<VSCodeCheckbox
+								checked={tool.alwaysAllow}
+								onChange={handleAlwaysAllowChange}
+								data-tool={tool.name}
+								className="text-xs">
+								<span className="text-vscode-descriptionForeground whitespace-nowrap">
+									{t("mcp:tool.alwaysAllow")}
+								</span>
+							</VSCodeCheckbox>
+						)}
+
+						{/* Enabled eye button */}
+						<button
+							role="button"
+							aria-pressed={tool.enabledForPrompt}
+							aria-label={t("mcp:tool.togglePromptInclusion")}
+							className={`p-1 rounded hover:bg-vscode-toolbar-hoverBackground transition-colors ${
+								tool.enabledForPrompt
+									? "text-vscode-foreground"
+									: "text-vscode-descriptionForeground opacity-60"
+							}`}
+							onClick={handleEnabledForPromptChange}
+							data-tool-prompt-toggle={tool.name}
+							title={t("mcp:tool.togglePromptInclusion")}>
+							<span
+								className={`codicon ${
+									tool.enabledForPrompt ? "codicon-eye" : "codicon-eye-closed"
+								} text-base`}
+							/>
+						</button>
+					</div>
 				)}
 			</div>
 			{tool.description && (
-				<div
-					style={{
-						marginLeft: "0px",
-						marginTop: "4px",
-						opacity: 0.8,
-						fontSize: "12px",
-					}}>
-					{tool.description}
-				</div>
+				<div className="mt-1 text-xs text-vscode-descriptionForeground opacity-80">{tool.description}</div>
 			)}
 			{tool.inputSchema &&
 				"properties" in tool.inputSchema &&
 				Object.keys(tool.inputSchema.properties as Record<string, any>).length > 0 && (
-					<div
-						style={{
-							marginTop: "8px",
-							fontSize: "12px",
-							border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent)",
-							borderRadius: "3px",
-							padding: "8px",
-						}}>
-						<div
-							style={{ marginBottom: "4px", opacity: 0.8, fontSize: "11px", textTransform: "uppercase" }}>
+					<div className="mt-2 text-xs border border-vscode-panel-border rounded p-2">
+						<div className="mb-1 text-[11px] uppercase opacity-80 text-vscode-descriptionForeground">
 							{t("mcp:tool.parameters")}
 						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(
@@ -80,29 +107,12 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 									tool.inputSchema.required.includes(paramName)
 
 								return (
-									<div
-										key={paramName}
-										style={{
-											display: "flex",
-											alignItems: "baseline",
-											marginTop: "4px",
-										}}>
-										<code
-											style={{
-												color: "var(--vscode-textPreformat-foreground)",
-												marginRight: "8px",
-											}}>
+									<div key={paramName} className="flex items-baseline mt-1">
+										<code className="text-vscode-textPreformat-foreground mr-2">
 											{paramName}
-											{isRequired && (
-												<span style={{ color: "var(--vscode-errorForeground)" }}>*</span>
-											)}
+											{isRequired && <span className="text-vscode-errorForeground">*</span>}
 										</code>
-										<span
-											style={{
-												opacity: 0.8,
-												overflowWrap: "break-word",
-												wordBreak: "break-word",
-											}}>
+										<span className="opacity-80 break-words text-vscode-descriptionForeground">
 											{schema.description || t("mcp:tool.noDescription")}
 										</span>
 									</div>

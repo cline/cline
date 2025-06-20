@@ -45,6 +45,7 @@ const BaseConfigSchema = z.object({
 	timeout: z.number().min(1).max(3600).optional().default(60),
 	alwaysAllow: z.array(z.string()).default([]),
 	watchPaths: z.array(z.string()).optional(), // paths to watch for changes and restart server
+	disabledTools: z.array(z.string()).default([]),
 })
 
 // Custom error messages for better user feedback
@@ -835,34 +836,39 @@ export class McpHub {
 			const actualSource = connection.server.source || "global"
 			let configPath: string
 			let alwaysAllowConfig: string[] = []
+			let disabledToolsList: string[] = []
 
 			// Read from the appropriate config file based on the actual source
 			try {
+				let serverConfigData: Record<string, any> = {}
 				if (actualSource === "project") {
 					// Get project MCP config path
 					const projectMcpPath = await this.getProjectMcpPath()
 					if (projectMcpPath) {
 						configPath = projectMcpPath
 						const content = await fs.readFile(configPath, "utf-8")
-						const config = JSON.parse(content)
-						alwaysAllowConfig = config.mcpServers?.[serverName]?.alwaysAllow || []
+						serverConfigData = JSON.parse(content)
 					}
 				} else {
 					// Get global MCP settings path
 					configPath = await this.getMcpSettingsFilePath()
 					const content = await fs.readFile(configPath, "utf-8")
-					const config = JSON.parse(content)
-					alwaysAllowConfig = config.mcpServers?.[serverName]?.alwaysAllow || []
+					serverConfigData = JSON.parse(content)
+				}
+				if (serverConfigData) {
+					alwaysAllowConfig = serverConfigData.mcpServers?.[serverName]?.alwaysAllow || []
+					disabledToolsList = serverConfigData.mcpServers?.[serverName]?.disabledTools || []
 				}
 			} catch (error) {
-				console.error(`Failed to read alwaysAllow config for ${serverName}:`, error)
-				// Continue with empty alwaysAllowConfig
+				console.error(`Failed to read tool configuration for ${serverName}:`, error)
+				// Continue with empty configs
 			}
 
-			// Mark tools as always allowed based on settings
+			// Mark tools as always allowed and enabled for prompt based on settings
 			const tools = (response?.tools || []).map((tool) => ({
 				...tool,
 				alwaysAllow: alwaysAllowConfig.includes(tool.name),
+				enabledForPrompt: !disabledToolsList.includes(tool.name),
 			}))
 
 			return tools
@@ -1491,6 +1497,84 @@ export class McpHub {
 		)
 	}
 
+	/**
+	 * Helper method to update a specific tool list (alwaysAllow or disabledTools)
+	 * in the appropriate settings file.
+	 * @param serverName The name of the server to update
+	 * @param source Whether to update the global or project config
+	 * @param toolName The name of the tool to add or remove
+	 * @param listName The name of the list to modify ("alwaysAllow" or "disabledTools")
+	 * @param addTool Whether to add (true) or remove (false) the tool from the list
+	 */
+	private async updateServerToolList(
+		serverName: string,
+		source: "global" | "project",
+		toolName: string,
+		listName: "alwaysAllow" | "disabledTools",
+		addTool: boolean,
+	): Promise<void> {
+		// Find the connection with matching name and source
+		const connection = this.findConnection(serverName, source)
+
+		if (!connection) {
+			throw new Error(`Server ${serverName} with source ${source} not found`)
+		}
+
+		// Determine the correct config path based on the source
+		let configPath: string
+		if (source === "project") {
+			// Get project MCP config path
+			const projectMcpPath = await this.getProjectMcpPath()
+			if (!projectMcpPath) {
+				throw new Error("Project MCP configuration file not found")
+			}
+			configPath = projectMcpPath
+		} else {
+			// Get global MCP settings path
+			configPath = await this.getMcpSettingsFilePath()
+		}
+
+		// Normalize path for cross-platform compatibility
+		// Use a consistent path format for both reading and writing
+		const normalizedPath = process.platform === "win32" ? configPath.replace(/\\/g, "/") : configPath
+
+		// Read the appropriate config file
+		const content = await fs.readFile(normalizedPath, "utf-8")
+		const config = JSON.parse(content)
+
+		if (!config.mcpServers) {
+			config.mcpServers = {}
+		}
+
+		if (!config.mcpServers[serverName]) {
+			config.mcpServers[serverName] = {
+				type: "stdio",
+				command: "node",
+				args: [], // Default to an empty array; can be set later if needed
+			}
+		}
+
+		if (!config.mcpServers[serverName][listName]) {
+			config.mcpServers[serverName][listName] = []
+		}
+
+		const targetList = config.mcpServers[serverName][listName]
+		const toolIndex = targetList.indexOf(toolName)
+
+		if (addTool && toolIndex === -1) {
+			targetList.push(toolName)
+		} else if (!addTool && toolIndex !== -1) {
+			targetList.splice(toolIndex, 1)
+		}
+
+		await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
+
+		if (connection) {
+			connection.server.tools = await this.fetchToolsList(serverName, source)
+			await this.notifyWebviewOfServerChanges()
+		}
+	}
+
 	async toggleToolAlwaysAllow(
 		serverName: string,
 		source: "global" | "project",
@@ -1498,76 +1582,29 @@ export class McpHub {
 		shouldAllow: boolean,
 	): Promise<void> {
 		try {
-			// Find the connection with matching name and source
-			const connection = this.findConnection(serverName, source)
-
-			if (!connection) {
-				throw new Error(`Server ${serverName} with source ${source} not found`)
-			}
-
-			// Determine the correct config path based on the source
-			let configPath: string
-			if (source === "project") {
-				// Get project MCP config path
-				const projectMcpPath = await this.getProjectMcpPath()
-				if (!projectMcpPath) {
-					throw new Error("Project MCP configuration file not found")
-				}
-				configPath = projectMcpPath
-			} else {
-				// Get global MCP settings path
-				configPath = await this.getMcpSettingsFilePath()
-			}
-
-			// Normalize path for cross-platform compatibility
-			// Use a consistent path format for both reading and writing
-			const normalizedPath = process.platform === "win32" ? configPath.replace(/\\/g, "/") : configPath
-
-			// Read the appropriate config file
-			const content = await fs.readFile(normalizedPath, "utf-8")
-			const config = JSON.parse(content)
-
-			// Initialize mcpServers if it doesn't exist
-			if (!config.mcpServers) {
-				config.mcpServers = {}
-			}
-
-			// Initialize server config if it doesn't exist
-			if (!config.mcpServers[serverName]) {
-				config.mcpServers[serverName] = {
-					type: "stdio",
-					command: "node",
-					args: [], // Default to an empty array; can be set later if needed
-				}
-			}
-
-			// Initialize alwaysAllow if it doesn't exist
-			if (!config.mcpServers[serverName].alwaysAllow) {
-				config.mcpServers[serverName].alwaysAllow = []
-			}
-
-			const alwaysAllow = config.mcpServers[serverName].alwaysAllow
-			const toolIndex = alwaysAllow.indexOf(toolName)
-
-			if (shouldAllow && toolIndex === -1) {
-				// Add tool to always allow list
-				alwaysAllow.push(toolName)
-			} else if (!shouldAllow && toolIndex !== -1) {
-				// Remove tool from always allow list
-				alwaysAllow.splice(toolIndex, 1)
-			}
-
-			// Write updated config back to file
-			await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
-
-			// Update the tools list to reflect the change
-			if (connection) {
-				// Explicitly pass the source to ensure we're updating the correct server's tools
-				connection.server.tools = await this.fetchToolsList(serverName, source)
-				await this.notifyWebviewOfServerChanges()
-			}
+			await this.updateServerToolList(serverName, source, toolName, "alwaysAllow", shouldAllow)
 		} catch (error) {
-			this.showErrorMessage(`Failed to update always allow settings for tool ${toolName}`, error)
+			this.showErrorMessage(
+				`Failed to toggle always allow for tool "${toolName}" on server "${serverName}" with source "${source}"`,
+				error,
+			)
+			throw error
+		}
+	}
+
+	async toggleToolEnabledForPrompt(
+		serverName: string,
+		source: "global" | "project",
+		toolName: string,
+		isEnabled: boolean,
+	): Promise<void> {
+		try {
+			// When isEnabled is true, we want to remove the tool from the disabledTools list.
+			// When isEnabled is false, we want to add the tool to the disabledTools list.
+			const addToolToDisabledList = !isEnabled
+			await this.updateServerToolList(serverName, source, toolName, "disabledTools", addToolToDisabledList)
+		} catch (error) {
+			this.showErrorMessage(`Failed to update settings for tool ${toolName}`, error)
 			throw error // Re-throw to ensure the error is properly handled
 		}
 	}

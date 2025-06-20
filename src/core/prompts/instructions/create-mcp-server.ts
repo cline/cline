@@ -50,6 +50,7 @@ Common configuration options for both types:
 - \`disabled\`: (optional) Set to true to temporarily disable the server
 - \`timeout\`: (optional) Maximum time in seconds to wait for server responses (default: 60)
 - \`alwaysAllow\`: (optional) Array of tool names that don't require user confirmation
+- \`disabledTools\`: (optional) Array of tool names that are not included in the system prompt and won't be used
 
 ### Example Local MCP Server
 
@@ -276,7 +277,7 @@ npm run build
 
 5. Install the MCP Server by adding the MCP server configuration to the settings file located at '${await mcpHub.getMcpSettingsFilePath()}'. The settings file may have other MCP servers already configured, so you would read it first and then add your new server to the existing \`mcpServers\` object.
 
-IMPORTANT: Regardless of what else you see in the MCP settings file, you must default any new MCP servers you create to disabled=false and alwaysAllow=[].
+IMPORTANT: Regardless of what else you see in the MCP settings file, you must default any new MCP servers you create to disabled=false, alwaysAllow=[] and disabledTools=[].
 
 \`\`\`json
 {

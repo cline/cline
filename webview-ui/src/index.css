@@ -118,6 +118,9 @@
 	--color-vscode-sideBarSectionHeader-background: var(--vscode-sideBarSectionHeader-background);
 	--color-vscode-sideBarSectionHeader-border: var(--vscode-sideBarSectionHeader-border);
 
+	--color-vscode-titleBar-activeForeground: var(--vscode-titleBar-activeForeground);
+	--color-vscode-titleBar-inactiveForeground: var(--vscode-titleBar-inactiveForeground);
+
 	--color-vscode-charts-green: var(--vscode-charts-green);
 	--color-vscode-charts-yellow: var(--vscode-charts-yellow);
 

@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "總是允許",
 		"parameters": "參數",
-		"noDescription": "無說明"
+		"noDescription": "無說明",
+		"togglePromptInclusion": "切換在提示中的包含"
 	},
 	"tabs": {
 		"tools": "工具",

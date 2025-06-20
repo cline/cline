@@ -18,7 +18,8 @@
 	"tool": {
 		"alwaysAllow": "Permet sempre",
 		"parameters": "Paràmetres",
-		"noDescription": "Sense descripció"
+		"noDescription": "Sense descripció",
+		"togglePromptInclusion": "Canviar inclusió al prompt"
 	},
 	"tabs": {
 		"tools": "Eines",

@@ -17,8 +17,9 @@
 	"learnMoreEditingSettings": "MCP 설정 파일 편집 방법 더 알아보기",
 	"tool": {
 		"alwaysAllow": "항상 허용",
-		"parameters": "파라미터",
-		"noDescription": "설명 없음"
+		"parameters": "매개변수",
+		"noDescription": "설명 없음",
+		"togglePromptInclusion": "프롬프트 포함 여부 전환"
 	},
 	"tabs": {
 		"tools": "도구",
