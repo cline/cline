@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.17.15]
+
+-   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
+-   Fix chat input being cleared when switching between Plan/Act modes without sending a message (Thanks @BarreiroT!)
+-   Fix MCP server name display to avoid showing "undefined" for SSE servers, preventing tool/resource invocation failures (Thanks @ramybenaroya!)
+-   Fix AWS Bedrock provider by removing deprecated custom model encoding (Thanks @watany-dev!)
+-   Fix timeline tooltips for followup messages and improve color retrieval code (Thanks @char8x!)
+-   Improve accessibility by making task header buttons properly announced by screen readers (Thanks @yncat!)
+-   Improve accessibility by adding proper state reporting for Plan/Act mode switch for screen readers (Thanks @yncat!)
+-   Prevent reading development environment variables from user's environment (Thanks @BarreiroT!)
+
 ## [3.17.14]
 
 -   Add Claude Code as a new API provider, allowing integration with Anthropic's Claude Code CLI tool and Claude Max Plan (Thanks @BarreiroT!)
