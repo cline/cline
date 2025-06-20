@@ -276,7 +276,7 @@ export function Footer() {
 															href={INTERNAL_LINKS.PRIVACY_POLICY_WEBSITE}
 															onClick={() => setPrivacyDropdownOpen(false)}
 															className="rounded-md px-3 py-2 transition-colors hover:bg-accent/50 hover:text-foreground">
-															Marketing Website
+															Roo Code Cloud
 														</Link>
 													</div>
 												</div>
