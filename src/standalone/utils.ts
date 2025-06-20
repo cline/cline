@@ -11,9 +11,28 @@ const log = (...args: unknown[]) => {
 function getPackageDefinition() {
 	// Load service definitions.
 	const descriptorSet = fs.readFileSync("proto/descriptor_set.pb")
-	const clineDef = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
+	const allDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
+
+	// Log all keys to see what's in the descriptor set
+	console.log("All keys in descriptor set:", Object.keys(allDefs).join(", "))
+
+	// Filter to only include entries from the cline package
+	const clineDef: Record<string, any> = {}
+	for (const [key, value] of Object.entries(allDefs)) {
+		if (key.startsWith("cline.")) {
+			clineDef[key] = value
+		}
+	}
+
+	// Log the filtered keys
+	console.log("Filtered keys:", Object.keys(clineDef).join(", "))
+
 	const healthDef = protoLoader.loadSync(health.protoPath)
 	const packageDefinition = { ...clineDef, ...healthDef }
+
+	// Log the final package definition keys
+	console.log("Final package definition keys:", Object.keys(packageDefinition).join(", "))
+
 	return packageDefinition
 }
 
