@@ -61,7 +61,22 @@ export type ConstructSystemPromptFn = (
 
 export interface TestResult {
 	success: boolean
-	streamResult?: any
+	streamResult?: {
+		assistantMessage: string
+		reasoningMessage: string
+		usage: {
+			inputTokens: number
+			outputTokens: number
+			cacheWriteTokens: number
+			cacheReadTokens: number
+			totalCost: number
+		}
+		timing?: {
+			timeToFirstTokenMs: number
+			timeToFirstEditMs?: number
+			totalRoundTripMs: number
+		}
+	}
 	diffEdit?: string
 	toolCalls?: ExtractedToolCall[]
 	diffEditSuccess?: boolean
