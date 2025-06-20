@@ -93,7 +93,7 @@ async function listFilesWithRipgrep(
  */
 function buildRipgrepArgs(dirPath: string, recursive: boolean): string[] {
 	// Base arguments to list files
-	const args = ["--files", "--hidden"]
+	const args = ["--files", "--hidden", "--follow"]
 
 	if (recursive) {
 		return [...args, ...buildRecursiveArgs(), dirPath]

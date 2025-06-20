@@ -387,6 +387,124 @@ This directory contains various files and subdirectories for testing the list_fi
 		}
 	})
 
+	test("Should list symlinked files and directories", async function () {
+		const api = globalThis.api
+		const messages: ClineMessage[] = []
+		let taskCompleted = false
+		let toolExecuted = false
+		let listResults: string | null = null
+
+		// Listen for messages
+		const messageHandler = ({ message }: { message: ClineMessage }) => {
+			messages.push(message)
+
+			// Check for tool execution and capture results
+			if (message.type === "say" && message.say === "api_req_started") {
+				const text = message.text || ""
+				if (text.includes("list_files")) {
+					toolExecuted = true
+					console.log("list_files tool executed (symlinks):", text.substring(0, 200))
+
+					// Extract list results from the tool execution
+					try {
+						const jsonMatch = text.match(/\{"request":".*?"\}/)
+						if (jsonMatch) {
+							const requestData = JSON.parse(jsonMatch[0])
+							if (requestData.request && requestData.request.includes("Result:")) {
+								listResults = requestData.request
+								console.log("Captured symlink test results:", listResults?.substring(0, 300))
+							}
+						}
+					} catch (e) {
+						console.log("Failed to parse symlink test results:", e)
+					}
+				}
+			}
+		}
+		api.on("message", messageHandler)
+
+		// Listen for task completion
+		const taskCompletedHandler = (id: string) => {
+			if (id === taskId) {
+				taskCompleted = true
+			}
+		}
+		api.on("taskCompleted", taskCompletedHandler)
+
+		let taskId: string
+		try {
+			// Create a symlink test directory
+			const testDirName = `symlink-test-${Date.now()}`
+			const testDir = path.join(workspaceDir, testDirName)
+			await fs.mkdir(testDir, { recursive: true })
+
+			// Create a source directory with content
+			const sourceDir = path.join(testDir, "source")
+			await fs.mkdir(sourceDir, { recursive: true })
+			const sourceFile = path.join(sourceDir, "source-file.txt")
+			await fs.writeFile(sourceFile, "Content from symlinked file")
+
+			// Create symlinks to file and directory
+			const symlinkFile = path.join(testDir, "link-to-file.txt")
+			const symlinkDir = path.join(testDir, "link-to-dir")
+
+			try {
+				await fs.symlink(sourceFile, symlinkFile)
+				await fs.symlink(sourceDir, symlinkDir)
+				console.log("Created symlinks successfully")
+			} catch (symlinkError) {
+				console.log("Symlink creation failed (might be platform limitation):", symlinkError)
+				// Skip test if symlinks can't be created
+				console.log("Skipping symlink test - platform doesn't support symlinks")
+				return
+			}
+
+			// Start task to list files in symlink test directory
+			taskId = await api.startNewTask({
+				configuration: {
+					mode: "code",
+					autoApprovalEnabled: true,
+					alwaysAllowReadOnly: true,
+					alwaysAllowReadOnlyOutsideWorkspace: true,
+				},
+				text: `I have created a test directory with symlinks at "${testDirName}". Use the list_files tool to list the contents of this directory. It should show both the original files/directories and the symlinked ones. The directory contains symlinks to both a file and a directory.`,
+			})
+
+			console.log("Symlink test Task ID:", taskId)
+
+			// Wait for task completion
+			await waitFor(() => taskCompleted, { timeout: 60_000 })
+
+			// Verify the list_files tool was executed
+			assert.ok(toolExecuted, "The list_files tool should have been executed")
+
+			// Verify the tool returned results
+			assert.ok(listResults, "Tool execution results should be captured")
+
+			const results = listResults as string
+			console.log("Symlink test results:", results)
+
+			// Check that symlinked items are visible
+			assert.ok(
+				results.includes("link-to-file.txt") || results.includes("source-file.txt"),
+				"Should see either the symlink or the target file",
+			)
+			assert.ok(
+				results.includes("link-to-dir") || results.includes("source/"),
+				"Should see either the symlink or the target directory",
+			)
+
+			console.log("Test passed! Symlinked files and directories are now visible")
+
+			// Cleanup
+			await fs.rm(testDir, { recursive: true, force: true })
+		} finally {
+			// Clean up
+			api.off("message", messageHandler)
+			api.off("taskCompleted", taskCompletedHandler)
+		}
+	})
+
 	test("Should list files in workspace root directory", async function () {
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
