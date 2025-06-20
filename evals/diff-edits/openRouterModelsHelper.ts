@@ -1,7 +1,6 @@
 import axios from "axios";
 import path from "path";
 import fs from "fs/promises";
-import { fileExistsAtPath } from "../../src/utils/fs"; // Assuming this util can be reached or replicated
 
 // Minimal type for what we need from OpenRouter model info in evals
 export interface EvalOpenRouterModelInfo {
@@ -97,17 +96,3 @@ export async function loadOpenRouterModelData(isVerbose: boolean = false): Promi
     // Return empty if all attempts fail, so the caller can decide how to handle it
     return {};
 }
-
-// Helper to replicate fileExistsAtPath if direct import is problematic
-// For simplicity, assuming it can be imported or TestRunner already has access to a similar utility.
-// If not, it can be defined here:
-/*
-async function fileExistsAtPathLocal(filePath: string): Promise<boolean> {
-    try {
-        await fs.access(filePath);
-        return true;
-    } catch {
-        return false;
-    }
-}
-*/
