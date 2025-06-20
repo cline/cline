@@ -35,28 +35,41 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
+		let isPaidUsage = true
+
 		for await (const chunk of claudeProcess) {
 			if (chunk.type === "system" && chunk.subtype === "init") {
+				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
+				isPaidUsage = chunk.apiKeySource !== "none"
 				continue
 			}
 
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null && message.stop_reason === "max_tokens") {
-					const errorMessage =
-						"text" in message.content[0]
-							? message.content[0]?.text
-							: `Claude Code stopped with reason: ${message.stop_reason}`
+				if (message.stop_reason !== null) {
+					const content = "text" in message.content[0] ? message.content[0] : undefined
 
-					if (errorMessage.includes("Invalid model name")) {
-						throw new Error(
-							errorMessage +
-								`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
-						)
+					const isError = content && content.text.startsWith(`API Error`)
+					if (isError) {
+						// Error messages are formatted as: `API Error: <<status code>> <<json>>`
+						const errorMessageStart = content.text.indexOf("{")
+						const errorMessage = content.text.slice(errorMessageStart)
+
+						const error = this.attemptParse(errorMessage)
+						if (!error) {
+							throw new Error(content.text)
+						}
+
+						if (error.error.message.includes("Invalid model name")) {
+							throw new Error(
+								content.text +
+									`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
+							)
+						}
+
+						throw new Error(errorMessage)
 					}
-
-					throw new Error(errorMessage)
 				}
 
 				for (const content of message.content) {
@@ -94,10 +107,20 @@ export class ClaudeCodeHandler implements ApiHandler {
 			}
 
 			if (chunk.type === "result" && "result" in chunk) {
-				usage.totalCost = chunk.cost_usd || 0
+				if (isPaidUsage) {
+					usage.totalCost = chunk.total_cost_usd || 0
+				}
 
 				yield usage
 			}
+		}
+	}
+
+	private attemptParse(str: string) {
+		try {
+			return JSON.parse(str)
+		} catch (err) {
+			return null
 		}
 	}
 
