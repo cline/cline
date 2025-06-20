@@ -17,3 +17,6 @@ diff_editing/test_outputs/
 *.db-shm
 
 .cache
+
+# Python bytecode cache
+*__pycache__/

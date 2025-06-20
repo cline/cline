@@ -9,7 +9,8 @@ from datetime import datetime
 import os
 import json
 import difflib
-import mimetypes # For guessing file type
+# import mimetypes # No longer needed here if guess_language_from_filepath handles it
+from utils import get_database_connection, guess_language_from_filepath # Import from utils
 
 # Page config
 st.set_page_config(
@@ -201,15 +202,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Database connection
-@st.cache_resource
-def get_database_connection():
-    db_path = os.path.join(os.path.dirname(__file__), '..', 'evals.db')
-    if not os.path.exists(db_path):
-        st.error(f"Database not found at {db_path}")
-        st.stop()
-    return sqlite3.connect(db_path, check_same_thread=False)
 
 # Enhanced data loading functions
 @st.cache_data
@@ -827,8 +819,6 @@ def guess_language_from_filepath(filepath):
     }
     
     _, ext = os.path.splitext(filepath)
-    return extension_map.get(ext.lower(), None) # Return None if extension not found, st.code will use auto-detection or plain
-
 def main():
     # Add a note about valid attempts
     st.sidebar.markdown("""
