@@ -24,11 +24,11 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Import Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;700&display=swap');
     
     /* Global Styles */
     .main {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Azeret Mono', monospace;
     }
     
     /* Hero Section */
@@ -454,14 +454,15 @@ def render_comparison_charts(model_performance):
             labels={'avg_first_edit_ms': 'Time to First Edit (ms)', 'model_id': 'Model'},
             color='avg_first_edit_ms',
             color_continuous_scale='bluered',
-            text='avg_first_edit_ms'
+            text='avg_first_edit_ms',
+            template='plotly_dark'
         )
         fig_first_edit.update_traces(texttemplate='%{text:.0f}ms', textposition='outside')
         fig_first_edit.update_layout(
             showlegend=False,
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Inter, sans-serif"),
+            font=dict(family="Azeret Mono, monospace"),
             margin=dict(t=50)
         )
         st.plotly_chart(fig_first_edit, use_container_width=True)
@@ -482,12 +483,13 @@ def render_comparison_charts(model_performance):
                 'success_rate': 'Success Rate',
                 'total_results': 'Valid Results'
             },
-            color_continuous_scale='RdYlGn'
+            color_continuous_scale='RdYlGn',
+            template='plotly_dark'
         )
         fig_scatter.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Inter, sans-serif")
+            font=dict(family="Azeret Mono, monospace")
         )
         st.plotly_chart(fig_scatter, use_container_width=True)
 
@@ -925,14 +927,15 @@ def main():
             labels={'success_rate': 'Success Rate', 'model_id': 'Model'},
             color='success_rate',
             color_continuous_scale='RdYlGn',
-            text='success_rate'
+            text='success_rate',
+            template='plotly_dark'
         )
         fig_success.update_traces(texttemplate='%{text:.1%}', textposition='outside')
         fig_success.update_layout(
             showlegend=False,
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Inter, sans-serif"),
+            font=dict(family="Azeret Mono, monospace"),
             yaxis_range=[0,1],  # Set y-axis from 0% to 100%
             margin=dict(t=50)  # Add top margin to prevent clipping
         )
