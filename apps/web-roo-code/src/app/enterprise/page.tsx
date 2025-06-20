@@ -16,17 +16,18 @@ export default async function Enterprise() {
 						<div className="flex flex-col justify-center space-y-6 sm:space-y-8">
 							<div>
 								<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
-									<span className="block">Roo Code for</span>
+									<span className="block">Roo Code Cloud for</span>
 									<AnimatedText className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
 										Enterprise
 									</AnimatedText>
 								</h1>
 								<p className="mt-4 max-w-md text-base text-muted-foreground sm:mt-6 sm:text-lg">
-									A next-generation, AI-powered{" "}
+									The{" "}
 									<AnimatedText className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-										coding partner
+										control-plane
 									</AnimatedText>{" "}
-									for enterprise development teams.
+									for AI-powered software development. Gain visibility, governance, and control over
+									your AI coding initiatives.
 								</p>
 							</div>
 							<div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0">
@@ -63,28 +64,28 @@ export default async function Enterprise() {
 							<div className="relative z-10 rounded-lg border border-border bg-card p-6 shadow-lg">
 								<div className="mb-4 flex items-center space-x-2">
 									<Code className="h-6 w-6 text-blue-400" />
-									<h3 className="text-lg font-semibold">Roo Code Enterprise</h3>
+									<h3 className="text-lg font-semibold">Roo Code Cloud Control-Plane</h3>
 								</div>
 								<p className="mb-4 text-sm text-muted-foreground">
-									An AI extension of your team that handles coding tasks, from new code generation to
-									refactoring, bug fixing, and documentation.
+									A unified control system for managing Roo Code across your organization, with the
+									flexibility to extend governance to your broader AI toolkit.
 								</p>
 								<div className="space-y-2">
 									<div className="flex items-center space-x-2">
 										<CheckCircle className="h-4 w-4 text-green-400" />
-										<span className="text-sm">Accelerate development cycles</span>
+										<span className="text-sm">Centralized Roo Code management</span>
 									</div>
 									<div className="flex items-center space-x-2">
 										<CheckCircle className="h-4 w-4 text-green-400" />
-										<span className="text-sm">Enterprise-grade security</span>
+										<span className="text-sm">Real-time usage visibility</span>
 									</div>
 									<div className="flex items-center space-x-2">
 										<CheckCircle className="h-4 w-4 text-green-400" />
-										<span className="text-sm">Custom-tailored to your workflow</span>
+										<span className="text-sm">Enterprise policy enforcement</span>
 									</div>
 									<div className="flex items-center space-x-2">
 										<CheckCircle className="h-4 w-4 text-green-400" />
-										<span className="text-sm">Improve collaboration and onboarding</span>
+										<span className="text-sm">Extensible to other AI tools</span>
 									</div>
 								</div>
 							</div>
@@ -97,10 +98,12 @@ export default async function Enterprise() {
 			<section id="benefits" className="bg-secondary/50 py-16">
 				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="mb-12 text-center">
-						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Empower Your Development Team</h2>
+						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+							Take Control of Your AI Development
+						</h2>
 						<p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-							Roo Code functions like an entire AI dev team embedded in your developers&apos; IDE, ready
-							to accelerate software delivery and improve code quality.
+							Roo Code Cloud provides enterprise-grade control and visibility for Roo Code deployments,
+							with an extensible architecture for your evolving AI strategy.
 						</p>
 					</div>
 
@@ -110,23 +113,23 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Zap className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Accelerate Development Cycles</h3>
+							<h3 className="mb-2 text-xl font-bold">Centralized AI Management Hub</h3>
 							<p className="text-muted-foreground">
-								Supercharge development with AI assistance that helps developers code faster while
-								maintaining quality.
+								Manage Roo Code deployments enterprise-wide, with an extensible platform ready for your
+								broader AI ecosystem.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Faster time-to-market</span>
+									<span>Centralized token management</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>AI pair-programming</span>
+									<span>Multi-model support for Roo</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Improved code quality</span>
+									<span>Extensible architecture</span>
 								</li>
 							</ul>
 						</div>
@@ -136,22 +139,22 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Users className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Augment Your Team with AI Agents</h3>
+							<h3 className="mb-2 text-xl font-bold">Real-Time Usage Visibility</h3>
 							<p className="text-muted-foreground">
-								Roo Code functions like an AI extension of your team, handling various coding tasks.
+								Track Roo Code usage across teams with detailed analytics and cost attribution.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>New code generation</span>
+									<span>Token consumption tracking</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Refactoring and bug fixing</span>
+									<span>Cost attribution by team</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Automate complex migrations</span>
+									<span>AI adoption insights</span>
 								</li>
 							</ul>
 						</div>
@@ -161,22 +164,23 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Shield className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Enterprise-Grade Security</h3>
+							<h3 className="mb-2 text-xl font-bold">Enterprise-Grade Governance</h3>
 							<p className="text-muted-foreground">
-								Keep your data private with on-premises models, keeping proprietary code in-house.
+								Implement security policies for Roo Code that align with your enterprise AI governance
+								framework.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Security and compliance</span>
+									<span>Model allow-lists</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>No external cloud dependencies</span>
+									<span>Data residency controls</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Open-source and extensible</span>
+									<span>Audit trail compliance</span>
 								</li>
 							</ul>
 						</div>
@@ -186,23 +190,23 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Workflow className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Custom-Tailored to Your Workflow</h3>
+							<h3 className="mb-2 text-xl font-bold">5-Minute Control-Plane Setup</h3>
 							<p className="text-muted-foreground">
-								Developers can create Custom Modes for specialized tasks like security auditing or
-								performance tuning.
+								Deploy your Roo Code control-plane instantly with our SaaS solution. No infrastructure
+								required.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Integrate with internal tools</span>
+									<span>Instant deployment</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Adapt to existing workflows</span>
+									<span>SAML/SCIM integration</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Custom AI behaviors</span>
+									<span>REST API access</span>
 								</li>
 							</ul>
 						</div>
@@ -212,23 +216,22 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Users className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Collaboration and Onboarding</h3>
+							<h3 className="mb-2 text-xl font-bold">Manage AI Development Costs</h3>
 							<p className="text-muted-foreground">
-								Ask Mode enables developers to query their codebase in plain language and receive
-								instant answers.
+								Track and control Roo Code costs with detailed analytics and budget controls.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Accelerates onboarding</span>
+									<span>Unified cost visibility</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Improves cross-team collaboration</span>
+									<span>Department chargebacks</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Makes code more accessible</span>
+									<span>Usage optimization</span>
 								</li>
 							</ul>
 						</div>
@@ -238,22 +241,22 @@ export default async function Enterprise() {
 							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
 								<Zap className="h-6 w-6 text-blue-500" />
 							</div>
-							<h3 className="mb-2 text-xl font-bold">Faster Delivery, Lower Costs</h3>
+							<h3 className="mb-2 text-xl font-bold">Zero Friction for Developers</h3>
 							<p className="text-muted-foreground">
-								Automate routine tasks to accelerate software releases and reduce costs.
+								Developers get seamless Roo Code access while you maintain governance and visibility.
 							</p>
 							<ul className="mt-4 space-y-2">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Improved code quality & consistency</span>
+									<span>Automatic token refresh</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Empowered developers, happier teams</span>
+									<span>Local sidecar architecture</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-									<span>Rapid knowledge sharing</span>
+									<span>No workflow disruption</span>
 								</li>
 							</ul>
 						</div>
@@ -265,16 +268,15 @@ export default async function Enterprise() {
 			<section className="py-16">
 				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="mb-12 text-center">
-						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl">What Makes Roo Code Unique</h2>
+						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Why You Need a Control-Plane</h2>
 						<p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-							Unlike traditional code editors or basic autocomplete tools, Roo Code is an autonomous
-							coding agent with powerful capabilities.
+							See how Roo Code Cloud brings enterprise control to AI-powered development.
 						</p>
 					</div>
 
 					<div className="grid gap-8 md:grid-cols-2">
 						<div className="rounded-lg border border-border bg-card p-8 shadow-sm">
-							<h3 className="mb-4 text-2xl font-bold">Traditional AI Coding Assistants</h3>
+							<h3 className="mb-4 text-2xl font-bold">Current State: AI Tool Sprawl</h3>
 							<ul className="space-y-3">
 								<li className="flex items-start">
 									<svg
@@ -289,7 +291,7 @@ export default async function Enterprise() {
 											d="M6 18L18 6M6 6l12 12"
 										/>
 									</svg>
-									<span>Limited to autocomplete and simple suggestions</span>
+									<span>Roo Code tokens managed individually by developers</span>
 								</li>
 								<li className="flex items-start">
 									<svg
@@ -304,7 +306,7 @@ export default async function Enterprise() {
 											d="M6 18L18 6M6 6l12 12"
 										/>
 									</svg>
-									<span>Lack project-wide context understanding</span>
+									<span>No visibility into AI tool usage or costs</span>
 								</li>
 								<li className="flex items-start">
 									<svg
@@ -319,7 +321,7 @@ export default async function Enterprise() {
 											d="M6 18L18 6M6 6l12 12"
 										/>
 									</svg>
-									<span>Can&apos;t execute commands or perform web actions</span>
+									<span>Inconsistent security practices</span>
 								</li>
 								<li className="flex items-start">
 									<svg
@@ -334,7 +336,7 @@ export default async function Enterprise() {
 											d="M6 18L18 6M6 6l12 12"
 										/>
 									</svg>
-									<span>No customization for enterprise workflows</span>
+									<span>Shadow AI spend on corporate cards</span>
 								</li>
 								<li className="flex items-start">
 									<svg
@@ -349,33 +351,33 @@ export default async function Enterprise() {
 											d="M6 18L18 6M6 6l12 12"
 										/>
 									</svg>
-									<span>Often require sending code to external cloud services</span>
+									<span>No centralized governance framework</span>
 								</li>
 							</ul>
 						</div>
 
 						<div className="rounded-lg border border-border bg-card p-8 shadow-sm">
-							<h3 className="mb-4 text-2xl font-bold text-blue-400">Roo Code Enterprise</h3>
+							<h3 className="mb-4 text-2xl font-bold text-blue-400">Roo Code Cloud Control-Plane</h3>
 							<ul className="space-y-3">
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 text-green-500" />
-									<span>Full-featured AI dev team with natural language communication</span>
+									<span>Centralized Roo Code management dashboard</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 text-green-500" />
-									<span>Deep understanding of your entire codebase</span>
+									<span>Complete visibility into usage and costs</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 text-green-500" />
-									<span>Can run tests, execute commands, and perform web actions</span>
+									<span>Consistent policy enforcement</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 text-green-500" />
-									<span>Custom modes for specialized enterprise tasks</span>
+									<span>Controlled, trackable AI investments</span>
 								</li>
 								<li className="flex items-start">
 									<CheckCircle className="mr-2 mt-0.5 h-5 w-5 text-green-500" />
-									<span>On-premises deployment option for data privacy</span>
+									<span>Enterprise-ready governance platform</span>
 								</li>
 							</ul>
 						</div>
@@ -391,8 +393,8 @@ export default async function Enterprise() {
 							Ready to Transform Your Development Process?
 						</h2>
 						<p className="mb-8 text-lg text-muted-foreground">
-							Join our early access program and be among the first to experience the power of Roo Code for
-							Enterprise.
+							Join our early access program and be among the first to experience the power of Roo Code
+							Cloud for Enterprise.
 						</p>
 						<div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
 							<div className="rounded-lg border border-border bg-card p-6 text-center shadow-sm">
@@ -409,15 +411,6 @@ export default async function Enterprise() {
 								</p>
 								<ContactForm formType="demo" buttonText="Contact Us" buttonClassName="w-full" />
 							</div>
-						</div>
-						<div className="mt-8">
-							<Button variant="outline" size="lg">
-								<a
-									href="mailto:enterprise@roocode.com?subject=Enterprise Guide Request"
-									className="flex items-center justify-center">
-									Download the Enterprise Guide
-								</a>
-							</Button>
 						</div>
 					</div>
 				</div>
