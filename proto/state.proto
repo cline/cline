@@ -89,6 +89,17 @@ message AutoApprovalSettingsRequest {
   repeated string favorites = 7;
 }
 
+enum TelemetrySettingEnum {
+  UNSET = 0;
+  ENABLED = 1;
+  DISABLED = 2;
+}
+
+message TelemetrySettingRequest {
+  Metadata metadata = 1;
+  TelemetrySettingEnum setting = 2;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
