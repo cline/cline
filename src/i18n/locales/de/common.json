@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "API-Handler zum Verdichten des Kontexts ist ungültig",
 		"condense_context_grew": "Kontextgröße ist während der Verdichtung gewachsen; dieser Versuch wird übersprungen",
 		"share_task_failed": "Teilen der Aufgabe fehlgeschlagen. Bitte versuche es erneut.",
-		"share_no_active_task": "Keine aktive Aufgabe zum Teilen"
+		"share_no_active_task": "Keine aktive Aufgabe zum Teilen",
+		"share_auth_required": "Authentifizierung erforderlich. Bitte melde dich an, um Aufgaben zu teilen.",
+		"share_not_enabled": "Aufgabenfreigabe ist für diese Organisation nicht aktiviert.",
+		"share_task_not_found": "Aufgabe nicht gefunden oder Zugriff verweigert."
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
@@ -74,7 +77,9 @@
 		"settings_imported": "Einstellungen erfolgreich importiert.",
 		"share_link_copied": "Share-Link in die Zwischenablage kopiert",
 		"image_copied_to_clipboard": "Bild-Daten-URI in die Zwischenablage kopiert",
-		"image_saved": "Bild gespeichert unter {{path}}"
+		"image_saved": "Bild gespeichert unter {{path}}",
+		"organization_share_link_copied": "Organisations-Freigabelink in die Zwischenablage kopiert!",
+		"public_share_link_copied": "Öffentlicher Freigabelink in die Zwischenablage kopiert!"
 	},
 	"answers": {
 		"yes": "Ja",

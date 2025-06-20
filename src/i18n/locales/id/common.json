@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "Handler API untuk mengompres konteks tidak valid",
 		"condense_context_grew": "Ukuran konteks bertambah saat mengompres; melewati percobaan ini",
 		"share_task_failed": "Gagal membagikan tugas. Silakan coba lagi.",
-		"share_no_active_task": "Tidak ada tugas aktif untuk dibagikan"
+		"share_no_active_task": "Tidak ada tugas aktif untuk dibagikan",
+		"share_auth_required": "Autentikasi diperlukan. Silakan masuk untuk berbagi tugas.",
+		"share_not_enabled": "Berbagi tugas tidak diaktifkan untuk organisasi ini.",
+		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak."
 	},
 	"warnings": {
 		"no_terminal_content": "Tidak ada konten terminal yang dipilih",
@@ -74,7 +77,9 @@
 		"settings_imported": "Pengaturan berhasil diimpor.",
 		"share_link_copied": "Link bagikan disalin ke clipboard",
 		"image_copied_to_clipboard": "Data URI gambar disalin ke clipboard",
-		"image_saved": "Gambar disimpan ke {{path}}"
+		"image_saved": "Gambar disimpan ke {{path}}",
+		"organization_share_link_copied": "Tautan berbagi organisasi disalin ke clipboard!",
+		"public_share_link_copied": "Tautan berbagi publik disalin ke clipboard!"
 	},
 	"answers": {
 		"yes": "Ya",

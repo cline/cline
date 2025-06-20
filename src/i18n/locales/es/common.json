@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "El manejador de API para condensar el contexto no es válido",
 		"condense_context_grew": "El tamaño del contexto aumentó durante la condensación; se omite este intento",
 		"share_task_failed": "Error al compartir la tarea. Por favor, inténtalo de nuevo.",
-		"share_no_active_task": "No hay tarea activa para compartir"
+		"share_no_active_task": "No hay tarea activa para compartir",
+		"share_auth_required": "Se requiere autenticación. Por favor, inicia sesión para compartir tareas.",
+		"share_not_enabled": "La compartición de tareas no está habilitada para esta organización.",
+		"share_task_not_found": "Tarea no encontrada o acceso denegado."
 	},
 	"warnings": {
 		"no_terminal_content": "No hay contenido de terminal seleccionado",
@@ -74,7 +77,9 @@
 		"settings_imported": "Configuración importada correctamente.",
 		"share_link_copied": "Enlace de compartir copiado al portapapeles",
 		"image_copied_to_clipboard": "URI de datos de imagen copiada al portapapeles",
-		"image_saved": "Imagen guardada en {{path}}"
+		"image_saved": "Imagen guardada en {{path}}",
+		"organization_share_link_copied": "¡Enlace de compartición de organización copiado al portapapeles!",
+		"public_share_link_copied": "¡Enlace de compartición pública copiado al portapapeles!"
 	},
 	"answers": {
 		"yes": "Sí",

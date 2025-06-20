@@ -138,9 +138,9 @@ export class CloudService {
 
 	// ShareService
 
-	public async shareTask(taskId: string): Promise<boolean> {
+	public async shareTask(taskId: string, visibility: "organization" | "public" = "organization") {
 		this.ensureInitialized()
-		return this.shareService!.shareTask(taskId)
+		return this.shareService!.shareTask(taskId, visibility)
 	}
 
 	public async canShareTask(): Promise<boolean> {

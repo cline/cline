@@ -6,6 +6,16 @@ import type { HistoryItem } from "@roo-code/types"
 
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import {
+	Button,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+	Command,
+	CommandList,
+	CommandItem,
+	CommandGroup,
+} from "@/components/ui"
 
 import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
 import { IconButton } from "./IconButton"
@@ -17,18 +27,65 @@ interface TaskActionsProps {
 
 export const TaskActions = ({ item, buttonsDisabled }: TaskActionsProps) => {
 	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
+	const [shareDropdownOpen, setShareDropdownOpen] = useState(false)
 	const { t } = useTranslation()
 	const { sharingEnabled } = useExtensionState()
+
+	const handleShare = (visibility: "organization" | "public") => {
+		vscode.postMessage({
+			type: "shareCurrentTask",
+			visibility,
+		})
+		setShareDropdownOpen(false)
+	}
 
 	return (
 		<div className="flex flex-row gap-1">
 			{item?.id && sharingEnabled && (
-				<IconButton
-					iconClass="codicon-link"
-					title={t("chat:task.share")}
-					disabled={buttonsDisabled}
-					onClick={() => vscode.postMessage({ type: "shareCurrentTask" })}
-				/>
+				<Popover open={shareDropdownOpen} onOpenChange={setShareDropdownOpen}>
+					<PopoverTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							disabled={buttonsDisabled}
+							className="h-6 w-6 p-0 hover:bg-vscode-toolbar-hoverBackground"
+							title={t("chat:task.share")}>
+							<span className="codicon codicon-link text-xs"></span>
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-56 p-0" align="start">
+						<Command>
+							<CommandList>
+								<CommandGroup>
+									<CommandItem
+										onSelect={() => handleShare("organization")}
+										className="cursor-pointer">
+										<div className="flex items-center gap-2">
+											<span className="codicon codicon-organization text-sm"></span>
+											<div className="flex flex-col">
+												<span className="text-sm">{t("chat:task.shareWithOrganization")}</span>
+												<span className="text-xs text-vscode-descriptionForeground">
+													{t("chat:task.shareWithOrganizationDescription")}
+												</span>
+											</div>
+										</div>
+									</CommandItem>
+									<CommandItem onSelect={() => handleShare("public")} className="cursor-pointer">
+										<div className="flex items-center gap-2">
+											<span className="codicon codicon-globe text-sm"></span>
+											<div className="flex flex-col">
+												<span className="text-sm">{t("chat:task.sharePublicly")}</span>
+												<span className="text-xs text-vscode-descriptionForeground">
+													{t("chat:task.sharePubliclyDescription")}
+												</span>
+											</div>
+										</div>
+									</CommandItem>
+								</CommandGroup>
+							</CommandList>
+						</Command>
+					</PopoverContent>
+				</Popover>
 			)}
 			<IconButton
 				iconClass="codicon-desktop-download"

@@ -12,7 +12,11 @@
 		"export": "작업 기록 내보내기",
 		"delete": "작업 삭제 (Shift + 클릭으로 확인 생략)",
 		"condenseContext": "컨텍스트 지능적으로 압축",
-		"share": "작업 공유"
+		"share": "작업 공유",
+		"shareWithOrganization": "조직과 공유",
+		"shareWithOrganizationDescription": "조직 구성원만 액세스할 수 있습니다",
+		"sharePublicly": "공개적으로 공유",
+		"sharePubliclyDescription": "링크가 있는 누구나 액세스할 수 있습니다"
 	},
 	"unpin": "고정 해제하기",
 	"pin": "고정하기",

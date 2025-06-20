@@ -63,7 +63,10 @@
 		"condense_handler_invalid": "El gestor de l'API per condensar el context no és vàlid",
 		"condense_context_grew": "La mida del context ha augmentat durant la condensació; s'omet aquest intent",
 		"share_task_failed": "Ha fallat compartir la tasca. Si us plau, torna-ho a provar.",
-		"share_no_active_task": "No hi ha cap tasca activa per compartir"
+		"share_no_active_task": "No hi ha cap tasca activa per compartir",
+		"share_auth_required": "Es requereix autenticació. Si us plau, inicia sessió per compartir tasques.",
+		"share_not_enabled": "La compartició de tasques no està habilitada per a aquesta organització.",
+		"share_task_not_found": "Tasca no trobada o accés denegat."
 	},
 	"warnings": {
 		"no_terminal_content": "No s'ha seleccionat contingut de terminal",
@@ -78,7 +81,9 @@
 		"settings_imported": "Configuració importada correctament.",
 		"share_link_copied": "Enllaç de compartició copiat al portapapers",
 		"image_copied_to_clipboard": "URI de dades de la imatge copiada al portapapers",
-		"image_saved": "Imatge desada a {{path}}"
+		"image_saved": "Imatge desada a {{path}}",
+		"organization_share_link_copied": "Enllaç de compartició d'organització copiat al porta-retalls!",
+		"public_share_link_copied": "Enllaç de compartició pública copiat al porta-retalls!"
 	},
 	"answers": {
 		"yes": "Sí",

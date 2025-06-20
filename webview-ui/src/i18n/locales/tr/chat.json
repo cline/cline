@@ -12,7 +12,11 @@
 		"export": "Görev geçmişini dışa aktar",
 		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)",
 		"condenseContext": "Bağlamı akıllıca yoğunlaştır",
-		"share": "Görevi paylaş"
+		"share": "Görevi paylaş",
+		"shareWithOrganization": "Kuruluşla paylaş",
+		"shareWithOrganizationDescription": "Sadece kuruluşunuzun üyeleri erişebilir",
+		"sharePublicly": "Herkese açık paylaş",
+		"sharePubliclyDescription": "Bağlantıya sahip herkes erişebilir"
 	},
 	"unpin": "Sabitlemeyi iptal et",
 	"pin": "Sabitle",

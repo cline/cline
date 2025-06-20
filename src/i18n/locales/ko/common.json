@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "컨텍스트 압축을 위한 API 핸들러가 유효하지 않습니다",
 		"condense_context_grew": "압축 중 컨텍스트 크기가 증가했습니다; 이 시도를 건너뜁니다",
 		"share_task_failed": "작업 공유에 실패했습니다",
-		"share_no_active_task": "공유할 활성 작업이 없습니다"
+		"share_no_active_task": "공유할 활성 작업이 없습니다",
+		"share_auth_required": "인증이 필요합니다. 작업을 공유하려면 로그인하세요.",
+		"share_not_enabled": "이 조직에서는 작업 공유가 활성화되지 않았습니다.",
+		"share_task_not_found": "작업을 찾을 수 없거나 액세스가 거부되었습니다."
 	},
 	"warnings": {
 		"no_terminal_content": "선택된 터미널 내용이 없습니다",
@@ -74,7 +77,9 @@
 		"settings_imported": "설정이 성공적으로 가져와졌습니다.",
 		"share_link_copied": "공유 링크가 클립보드에 복사되었습니다",
 		"image_copied_to_clipboard": "이미지 데이터 URI가 클립보드에 복사되었습니다",
-		"image_saved": "이미지가 {{path}}에 저장되었습니다"
+		"image_saved": "이미지가 {{path}}에 저장되었습니다",
+		"organization_share_link_copied": "조직 공유 링크가 클립보드에 복사되었습니다!",
+		"public_share_link_copied": "공개 공유 링크가 클립보드에 복사되었습니다!"
 	},
 	"answers": {
 		"yes": "예",

@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "壓縮上下文的 API 處理程式無效",
 		"condense_context_grew": "壓縮過程中上下文大小增加；跳過此次嘗試",
 		"share_task_failed": "分享工作失敗。請重試。",
-		"share_no_active_task": "沒有活躍的工作可分享"
+		"share_no_active_task": "沒有活躍的工作可分享",
+		"share_auth_required": "需要身份驗證。請登入以分享工作。",
+		"share_not_enabled": "此組織未啟用工作分享功能。",
+		"share_task_not_found": "未找到工作或存取被拒絕。"
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端機內容",
@@ -74,7 +77,9 @@
 		"settings_imported": "設定已成功匯入。",
 		"share_link_copied": "分享連結已複製到剪貼簿",
 		"image_copied_to_clipboard": "圖片資料 URI 已複製到剪貼簿",
-		"image_saved": "圖片已儲存至 {{path}}"
+		"image_saved": "圖片已儲存至 {{path}}",
+		"organization_share_link_copied": "組織分享連結已複製到剪貼簿！",
+		"public_share_link_copied": "公開分享連結已複製到剪貼簿！"
 	},
 	"answers": {
 		"yes": "是",

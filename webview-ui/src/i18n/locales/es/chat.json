@@ -12,7 +12,11 @@
 		"export": "Exportar historial de tareas",
 		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)",
 		"condenseContext": "Condensar contexto de forma inteligente",
-		"share": "Compartir tarea"
+		"share": "Compartir tarea",
+		"shareWithOrganization": "Compartir con organización",
+		"shareWithOrganizationDescription": "Solo los miembros de tu organización pueden acceder",
+		"sharePublicly": "Compartir públicamente",
+		"sharePubliclyDescription": "Cualquiera con el enlace puede acceder"
 	},
 	"unpin": "Desfijar",
 	"pin": "Fijar",

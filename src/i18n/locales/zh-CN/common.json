@@ -64,7 +64,10 @@
 		"condense_handler_invalid": "压缩上下文的API处理程序无效",
 		"condense_context_grew": "压缩过程中上下文大小增加；跳过此次尝试",
 		"share_task_failed": "分享任务失败。请重试。",
-		"share_no_active_task": "没有活跃任务可分享"
+		"share_no_active_task": "没有活跃任务可分享",
+		"share_auth_required": "需要身份验证。请登录以分享任务。",
+		"share_not_enabled": "此组织未启用任务分享功能。",
+		"share_task_not_found": "未找到任务或访问被拒绝。"
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
@@ -79,7 +82,9 @@
 		"settings_imported": "设置已成功导入。",
 		"share_link_copied": "分享链接已复制到剪贴板",
 		"image_copied_to_clipboard": "图片数据 URI 已复制到剪贴板",
-		"image_saved": "图片已保存到 {{path}}"
+		"image_saved": "图片已保存到 {{path}}",
+		"organization_share_link_copied": "组织分享链接已复制到剪贴板！",
+		"public_share_link_copied": "公开分享链接已复制到剪贴板！"
 	},
 	"answers": {
 		"yes": "是",

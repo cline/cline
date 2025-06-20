@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "Trình xử lý API để nén ngữ cảnh không hợp lệ",
 		"condense_context_grew": "Kích thước ngữ cảnh tăng lên trong quá trình nén; bỏ qua lần thử này",
 		"share_task_failed": "Không thể chia sẻ nhiệm vụ",
-		"share_no_active_task": "Không có nhiệm vụ hoạt động để chia sẻ"
+		"share_no_active_task": "Không có nhiệm vụ hoạt động để chia sẻ",
+		"share_auth_required": "Cần xác thực. Vui lòng đăng nhập để chia sẻ nhiệm vụ.",
+		"share_not_enabled": "Chia sẻ nhiệm vụ không được bật cho tổ chức này.",
+		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối."
 	},
 	"warnings": {
 		"no_terminal_content": "Không có nội dung terminal được chọn",
@@ -74,7 +77,9 @@
 		"settings_imported": "Cài đặt đã được nhập thành công.",
 		"share_link_copied": "Liên kết chia sẻ đã được sao chép vào clipboard",
 		"image_copied_to_clipboard": "URI dữ liệu hình ảnh đã được sao chép vào clipboard",
-		"image_saved": "Hình ảnh đã được lưu vào {{path}}"
+		"image_saved": "Hình ảnh đã được lưu vào {{path}}",
+		"organization_share_link_copied": "Liên kết chia sẻ tổ chức đã được sao chép vào clipboard!",
+		"public_share_link_copied": "Liên kết chia sẻ công khai đã được sao chép vào clipboard!"
 	},
 	"answers": {
 		"yes": "Có",

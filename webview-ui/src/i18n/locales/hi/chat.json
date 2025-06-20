@@ -12,7 +12,11 @@
 		"export": "कार्य इतिहास निर्यात करें",
 		"delete": "कार्य हटाएं (पुष्टि को छोड़ने के लिए Shift + क्लिक)",
 		"condenseContext": "संदर्भ को बुद्धिमानी से संघनित करें",
-		"share": "कार्य साझा करें"
+		"share": "कार्य साझा करें",
+		"shareWithOrganization": "संगठन के साथ साझा करें",
+		"shareWithOrganizationDescription": "केवल आपके संगठन के सदस्य पहुंच सकते हैं",
+		"sharePublicly": "सार्वजनिक रूप से साझा करें",
+		"sharePubliclyDescription": "लिंक वाला कोई भी व्यक्ति पहुंच सकता है"
 	},
 	"unpin": "पिन करें",
 	"pin": "अवपिन करें",

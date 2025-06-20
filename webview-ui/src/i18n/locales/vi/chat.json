@@ -12,7 +12,11 @@
 		"export": "Xuất lịch sử nhiệm vụ",
 		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)",
 		"condenseContext": "Cô đọng ngữ cảnh thông minh",
-		"share": "Chia sẻ nhiệm vụ"
+		"share": "Chia sẻ nhiệm vụ",
+		"shareWithOrganization": "Chia sẻ với tổ chức",
+		"shareWithOrganizationDescription": "Chỉ thành viên tổ chức của bạn mới có thể truy cập",
+		"sharePublicly": "Chia sẻ công khai",
+		"sharePubliclyDescription": "Bất kỳ ai có liên kết đều có thể truy cập"
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
 	"pin": "Ghim lên đầu",

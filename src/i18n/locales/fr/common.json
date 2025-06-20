@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "Le gestionnaire d'API pour condenser le contexte est invalide",
 		"condense_context_grew": "La taille du contexte a augmenté pendant la condensation ; cette tentative est ignorée",
 		"share_task_failed": "Échec du partage de la tâche. Veuillez réessayer.",
-		"share_no_active_task": "Aucune tâche active à partager"
+		"share_no_active_task": "Aucune tâche active à partager",
+		"share_auth_required": "Authentification requise. Veuillez vous connecter pour partager des tâches.",
+		"share_not_enabled": "Le partage de tâches n'est pas activé pour cette organisation.",
+		"share_task_not_found": "Tâche non trouvée ou accès refusé."
 	},
 	"warnings": {
 		"no_terminal_content": "Aucun contenu de terminal sélectionné",
@@ -74,7 +77,9 @@
 		"settings_imported": "Paramètres importés avec succès.",
 		"share_link_copied": "Lien de partage copié dans le presse-papiers",
 		"image_copied_to_clipboard": "URI de données d'image copiée dans le presse-papiers",
-		"image_saved": "Image enregistrée dans {{path}}"
+		"image_saved": "Image enregistrée dans {{path}}",
+		"organization_share_link_copied": "Lien de partage d'organisation copié dans le presse-papiers !",
+		"public_share_link_copied": "Lien de partage public copié dans le presse-papiers !"
 	},
 	"answers": {
 		"yes": "Oui",

@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "API-handler voor het comprimeren van context is ongeldig",
 		"condense_context_grew": "Contextgrootte nam toe tijdens comprimeren; deze poging wordt overgeslagen",
 		"share_task_failed": "Delen van taak mislukt",
-		"share_no_active_task": "Geen actieve taak om te delen"
+		"share_no_active_task": "Geen actieve taak om te delen",
+		"share_auth_required": "Authenticatie vereist. Log in om taken te delen.",
+		"share_not_enabled": "Taken delen is niet ingeschakeld voor deze organisatie.",
+		"share_task_not_found": "Taak niet gevonden of toegang geweigerd."
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",
@@ -74,7 +77,9 @@
 		"settings_imported": "Instellingen succesvol geïmporteerd.",
 		"share_link_copied": "Deellink gekopieerd naar klembord",
 		"image_copied_to_clipboard": "Afbeelding data-URI gekopieerd naar klembord",
-		"image_saved": "Afbeelding opgeslagen naar {{path}}"
+		"image_saved": "Afbeelding opgeslagen naar {{path}}",
+		"organization_share_link_copied": "Organisatie deel-link gekopieerd naar klembord!",
+		"public_share_link_copied": "Openbare deel-link gekopieerd naar klembord!"
 	},
 	"answers": {
 		"yes": "Ja",

@@ -17,6 +17,7 @@ vi.mock("vscode", () => ({
 	window: {
 		showInformationMessage: vi.fn(),
 		showErrorMessage: vi.fn(),
+		showQuickPick: vi.fn(),
 	},
 	env: {
 		clipboard: {
@@ -68,7 +69,7 @@ describe("ShareService", () => {
 	})
 
 	describe("shareTask", () => {
-		it("should share task and copy to clipboard", async () => {
+		it("should share task with organization visibility and copy to clipboard", async () => {
 			const mockResponse = {
 				data: {
 					success: true,
@@ -76,16 +77,16 @@ describe("ShareService", () => {
 				},
 			}
 
-			;(mockAuthService.hasActiveSession as any).mockReturnValue(true)
 			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
 			mockedAxios.post.mockResolvedValue(mockResponse)
 
-			const result = await shareService.shareTask("task-123")
+			const result = await shareService.shareTask("task-123", "organization")
 
-			expect(result).toBe(true)
+			expect(result.success).toBe(true)
+			expect(result.shareUrl).toBe("https://app.roocode.com/share/abc123")
 			expect(mockedAxios.post).toHaveBeenCalledWith(
 				"https://app.roocode.com/api/extension/share",
-				{ taskId: "task-123" },
+				{ taskId: "task-123", visibility: "organization" },
 				{
 					headers: {
 						"Content-Type": "application/json",
@@ -97,6 +98,48 @@ describe("ShareService", () => {
 			expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith("https://app.roocode.com/share/abc123")
 		})
 
+		it("should share task with public visibility", async () => {
+			const mockResponse = {
+				data: {
+					success: true,
+					shareUrl: "https://app.roocode.com/share/abc123",
+				},
+			}
+
+			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
+			mockedAxios.post.mockResolvedValue(mockResponse)
+
+			const result = await shareService.shareTask("task-123", "public")
+
+			expect(result.success).toBe(true)
+			expect(mockedAxios.post).toHaveBeenCalledWith(
+				"https://app.roocode.com/api/extension/share",
+				{ taskId: "task-123", visibility: "public" },
+				expect.any(Object),
+			)
+		})
+
+		it("should default to organization visibility when not specified", async () => {
+			const mockResponse = {
+				data: {
+					success: true,
+					shareUrl: "https://app.roocode.com/share/abc123",
+				},
+			}
+
+			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
+			mockedAxios.post.mockResolvedValue(mockResponse)
+
+			const result = await shareService.shareTask("task-123")
+
+			expect(result.success).toBe(true)
+			expect(mockedAxios.post).toHaveBeenCalledWith(
+				"https://app.roocode.com/api/extension/share",
+				{ taskId: "task-123", visibility: "organization" },
+				expect.any(Object),
+			)
+		})
+
 		it("should handle API error response", async () => {
 			const mockResponse = {
 				data: {
@@ -105,55 +148,26 @@ describe("ShareService", () => {
 				},
 			}
 
-			;(mockAuthService.hasActiveSession as any).mockReturnValue(true)
 			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
 			mockedAxios.post.mockResolvedValue(mockResponse)
 
-			const result = await shareService.shareTask("task-123")
+			const result = await shareService.shareTask("task-123", "organization")
 
-			expect(result).toBe(false)
+			expect(result.success).toBe(false)
+			expect(result.error).toBe("Task not found")
 		})
 
 		it("should handle authentication errors", async () => {
-			;(mockAuthService.hasActiveSession as any).mockReturnValue(false)
+			;(mockAuthService.getSessionToken as any).mockReturnValue(null)
 
-			const result = await shareService.shareTask("task-123")
-
-			expect(result).toBe(false)
-			expect(mockedAxios.post).not.toHaveBeenCalled()
-		})
-
-		it("should handle 403 error for disabled sharing", async () => {
-			;(mockAuthService.hasActiveSession as any).mockReturnValue(true)
-			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
-
-			const error = {
-				isAxiosError: true,
-				response: {
-					status: 403,
-					data: {
-						error: "Task sharing is not enabled for this organization",
-					},
-				},
-			}
-
-			mockedAxios.isAxiosError.mockReturnValue(true)
-			mockedAxios.post.mockRejectedValue(error)
-
-			const result = await shareService.shareTask("task-123")
-
-			expect(result).toBe(false)
+			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow("Authentication required")
 		})
 
 		it("should handle unexpected errors", async () => {
-			;(mockAuthService.hasActiveSession as any).mockReturnValue(true)
 			;(mockAuthService.getSessionToken as any).mockReturnValue("session-token")
-
 			mockedAxios.post.mockRejectedValue(new Error("Network error"))
 
-			const result = await shareService.shareTask("task-123")
-
-			expect(result).toBe(false)
+			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow("Network error")
 		})
 	})
 

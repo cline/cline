@@ -204,6 +204,7 @@ export interface WebviewMessage {
 	mpItem?: MarketplaceItem
 	mpInstallOptions?: InstallMarketplaceItemOptions
 	config?: Record<string, any> // Add config to the payload
+	visibility?: "organization" | "public" // For share visibility
 }
 
 export const checkoutDiffPayloadSchema = z.object({

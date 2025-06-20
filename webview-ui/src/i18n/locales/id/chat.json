@@ -12,7 +12,11 @@
 		"closeAndStart": "Tutup tugas dan mulai yang baru",
 		"export": "Ekspor riwayat tugas",
 		"share": "Bagikan tugas",
-		"delete": "Hapus Tugas (Shift + Klik untuk lewati konfirmasi)"
+		"delete": "Hapus Tugas (Shift + Klik untuk lewati konfirmasi)",
+		"shareWithOrganization": "Bagikan dengan organisasi",
+		"shareWithOrganizationDescription": "Hanya anggota organisasi Anda yang dapat mengakses",
+		"sharePublicly": "Bagikan secara publik",
+		"sharePubliclyDescription": "Siapa pun dengan tautan dapat mengakses"
 	},
 	"history": {
 		"title": "Riwayat"

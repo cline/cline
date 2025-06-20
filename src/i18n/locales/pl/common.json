@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "Nieprawidłowy handler API do kondensowania kontekstu",
 		"condense_context_grew": "Rozmiar kontekstu wzrósł podczas kondensacji; pomijanie tej próby",
 		"share_task_failed": "Nie udało się udostępnić zadania",
-		"share_no_active_task": "Brak aktywnego zadania do udostępnienia"
+		"share_no_active_task": "Brak aktywnego zadania do udostępnienia",
+		"share_auth_required": "Wymagana autoryzacja. Zaloguj się, aby udostępniać zadania.",
+		"share_not_enabled": "Udostępnianie zadań nie jest włączone dla tej organizacji.",
+		"share_task_not_found": "Zadanie nie znalezione lub dostęp odmówiony."
 	},
 	"warnings": {
 		"no_terminal_content": "Nie wybrano zawartości terminala",
@@ -74,7 +77,9 @@
 		"settings_imported": "Ustawienia zaimportowane pomyślnie.",
 		"share_link_copied": "Link udostępniania skopiowany do schowka",
 		"image_copied_to_clipboard": "URI danych obrazu skopiowane do schowka",
-		"image_saved": "Obraz zapisany w {{path}}"
+		"image_saved": "Obraz zapisany w {{path}}",
+		"organization_share_link_copied": "Link udostępniania organizacji skopiowany do schowka!",
+		"public_share_link_copied": "Publiczny link udostępniania skopiowany do schowka!"
 	},
 	"answers": {
 		"yes": "Tak",

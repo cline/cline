@@ -12,7 +12,11 @@
 		"export": "Taakgeschiedenis exporteren",
 		"delete": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)",
 		"condenseContext": "Context intelligent samenvatten",
-		"share": "Taak delen"
+		"share": "Taak delen",
+		"shareWithOrganization": "Delen met organisatie",
+		"shareWithOrganizationDescription": "Alleen leden van je organisatie kunnen toegang krijgen",
+		"sharePublicly": "Openbaar delen",
+		"sharePubliclyDescription": "Iedereen met de link kan toegang krijgen"
 	},
 	"unpin": "Losmaken",
 	"pin": "Vastmaken",

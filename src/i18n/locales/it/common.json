@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "Il gestore API per condensare il contesto non è valido",
 		"condense_context_grew": "La dimensione del contesto è aumentata durante la condensazione; questo tentativo viene saltato",
 		"share_task_failed": "Condivisione dell'attività fallita. Riprova.",
-		"share_no_active_task": "Nessuna attività attiva da condividere"
+		"share_no_active_task": "Nessuna attività attiva da condividere",
+		"share_auth_required": "Autenticazione richiesta. Accedi per condividere le attività.",
+		"share_not_enabled": "La condivisione delle attività non è abilitata per questa organizzazione.",
+		"share_task_not_found": "Attività non trovata o accesso negato."
 	},
 	"warnings": {
 		"no_terminal_content": "Nessun contenuto del terminale selezionato",
@@ -74,7 +77,9 @@
 		"settings_imported": "Impostazioni importate con successo.",
 		"share_link_copied": "Link di condivisione copiato negli appunti",
 		"image_copied_to_clipboard": "URI dati dell'immagine copiato negli appunti",
-		"image_saved": "Immagine salvata in {{path}}"
+		"image_saved": "Immagine salvata in {{path}}",
+		"organization_share_link_copied": "Link di condivisione organizzazione copiato negli appunti!",
+		"public_share_link_copied": "Link di condivisione pubblica copiato negli appunti!"
 	},
 	"answers": {
 		"yes": "Sì",

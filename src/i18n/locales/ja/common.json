@@ -59,7 +59,10 @@
 		"condense_handler_invalid": "コンテキストを圧縮するためのAPIハンドラーが無効です",
 		"condense_context_grew": "圧縮中にコンテキストサイズが増加しました；この試行をスキップします",
 		"share_task_failed": "タスクの共有に失敗しました",
-		"share_no_active_task": "共有するアクティブなタスクがありません"
+		"share_no_active_task": "共有するアクティブなタスクがありません",
+		"share_auth_required": "認証が必要です。タスクを共有するにはサインインしてください。",
+		"share_not_enabled": "この組織ではタスク共有が有効になっていません。",
+		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。"
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -74,7 +77,9 @@
 		"settings_imported": "設定が正常にインポートされました。",
 		"share_link_copied": "共有リンクがクリップボードにコピーされました",
 		"image_copied_to_clipboard": "画像データURIがクリップボードにコピーされました",
-		"image_saved": "画像を{{path}}に保存しました"
+		"image_saved": "画像を{{path}}に保存しました",
+		"organization_share_link_copied": "組織共有リンクがクリップボードにコピーされました！",
+		"public_share_link_copied": "公開共有リンクがクリップボードにコピーされました！"
 	},
 	"answers": {
 		"yes": "はい",

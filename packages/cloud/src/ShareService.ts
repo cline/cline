@@ -7,6 +7,8 @@ import type { AuthService } from "./AuthService"
 import type { SettingsService } from "./SettingsService"
 import { getUserAgent } from "./utils"
 
+export type ShareVisibility = "organization" | "public"
+
 export class ShareService {
 	private authService: AuthService
 	private settingsService: SettingsService
@@ -19,19 +21,19 @@ export class ShareService {
 	}
 
 	/**
-	 * Share a task: Create link and copy to clipboard
-	 * Returns true if successful, false if failed
+	 * Share a task with specified visibility
+	 * Returns the share response data
 	 */
-	async shareTask(taskId: string): Promise<boolean> {
+	async shareTask(taskId: string, visibility: ShareVisibility = "organization") {
 		try {
 			const sessionToken = this.authService.getSessionToken()
 			if (!sessionToken) {
-				return false
+				throw new Error("Authentication required")
 			}
 
 			const response = await axios.post(
 				`${getRooCodeApiUrl()}/api/extension/share`,
-				{ taskId },
+				{ taskId, visibility },
 				{
 					headers: {
 						"Content-Type": "application/json",
@@ -47,14 +49,12 @@ export class ShareService {
 			if (data.success && data.shareUrl) {
 				// Copy to clipboard
 				await vscode.env.clipboard.writeText(data.shareUrl)
-				return true
-			} else {
-				this.log("[share] Share failed:", data.error)
-				return false
 			}
+
+			return data
 		} catch (error) {
 			this.log("[share] Error sharing task:", error)
-			return false
+			throw error
 		}
 	}
 
