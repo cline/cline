@@ -611,12 +611,14 @@ class NodeTestRunner {
 		const results: TestResultSet = {}
 		const validAttemptsCount: Record<string, number> = {}
 		const totalAttemptsCount: Record<string, number> = {}
+		const pendingAttemptsCount: Record<string, number> = {} // To track in-flight requests
 		
 		// Initialize results and counters
 		testCases.forEach((tc) => {
 			results[tc.test_id] = []
 			validAttemptsCount[tc.test_id] = 0
 			totalAttemptsCount[tc.test_id] = 0
+			pendingAttemptsCount[tc.test_id] = 0
 		})
 
 		// Keep track of which test cases still need more valid attempts
@@ -625,18 +627,36 @@ class NodeTestRunner {
 		// Keep trying until all test cases have enough valid attempts
 		while (remainingTestCases.length > 0) {
 			// Create a batch of runs for test cases that still need more valid attempts
-			const batchRuns = remainingTestCases.map(testCase => ({
-				testCase,
-				testId: testCase.test_id
-			}))
+			const batchRuns = remainingTestCases
+				.filter(testCase => {
+					// Only schedule a new attempt if we still need valid ones, accounting for pending requests
+					const testId = testCase.test_id;
+					return (validAttemptsCount[testId] + pendingAttemptsCount[testId]) < testConfig.number_of_runs;
+				})
+				.map(testCase => ({
+					testCase,
+					testId: testCase.test_id
+				}));
 			
 			// Limit batch size to maxConcurrency
 			const currentBatch = batchRuns.slice(0, maxConcurrency)
 			
+			if (currentBatch.length === 0) {
+				// If no runs can be scheduled (e.g., all remaining cases have enough pending requests),
+				// wait a moment before re-evaluating. This can happen if concurrency is high.
+				await new Promise(resolve => setTimeout(resolve, 100));
+				continue;
+			}
+
+			// Increment pending counters before launching the batch
+			currentBatch.forEach(({ testId }) => {
+				pendingAttemptsCount[testId]++;
+			});
+
 			// Run the batch in parallel
 			const batchPromises = currentBatch.map(({ testCase, testId }) => {
 				totalAttemptsCount[testId]++;
-				log(isVerbose, `  Attempt ${totalAttemptsCount[testId]} for ${testId} (${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid so far)...`);
+				log(isVerbose, `  Attempt ${totalAttemptsCount[testId]} for ${testId} (${validAttemptsCount[testId]} valid, ${pendingAttemptsCount[testId]-1} pending)...`);
 				return this.runSingleTest(testCase, testConfig, isVerbose).then((result) => ({
 					...result,
 					test_id: testId,
@@ -644,6 +664,11 @@ class NodeTestRunner {
 			})
 			
 			const batchResults = await Promise.all(batchPromises)
+			
+			// Decrement pending counters after the batch is complete
+			currentBatch.forEach(({ testId }) => {
+				pendingAttemptsCount[testId]--;
+			});
 			
 			// Calculate the total cost for this batch
 			const batchCost = batchResults.reduce((total, result) => {
@@ -685,7 +710,8 @@ class NodeTestRunner {
 				}
 				
 				const needsMoreAttempts = validAttemptsCount[testId] < testConfig.number_of_runs;
-				if (!needsMoreAttempts && isVerbose) {
+				if (!needsMoreAttempts && isVerbose && !remainingTestCases.find(c => c.test_id === testId)) {
+					// Log completion only once
 					log(isVerbose, `  ✓ Completed test case ${testId}: ${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid attempts (${totalAttemptsCount[testId]} total attempts)`);
 				}
 				
@@ -913,13 +939,13 @@ async function main() {
 		const runDescription = `Models: ${modelIds.join(', ')}, Common Cases: ${processedEligibleCasesForRun.length}, Valid attempts per case: ${validAttemptsPerCase}`;
 		await runner.initializeMultiModelRun(processedEligibleCasesForRun, options.systemPromptName, options.parsingFunction, options.diffEditFunction, runDescription, isVerbose);
 
-		// For now, run models sequentially to avoid complexity
-		// TODO: Implement parallel model execution later
-		for (const modelId of modelIds) {
-			log(isVerbose, `\n=== Running Model: ${modelId} ===`)
-			
-			// All models run on the same set of processedEligibleCasesForRun
-			const testConfig: TestConfig = {
+		// Run all models in parallel
+		log(isVerbose, `\n=== Running ${modelIds.length} models in parallel ===`)
+		
+		// Create test configs for all models
+		const modelConfigs = modelIds.map(modelId => ({
+			modelId,
+			testConfig: {
 				model_id: modelId,
 				system_prompt_name: options.systemPromptName,
 				number_of_runs: validAttemptsPerCase,
@@ -928,12 +954,27 @@ async function main() {
 				thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
 				replay: options.replay,
 			}
-
-			const results = options.parallel
-				? await runner.runAllTestsParallelForModel(processedEligibleCasesForRun, testConfig, isVerbose)
-				: await runner.runAllTestsForModel(processedEligibleCasesForRun, testConfig, isVerbose)
-
-			runner.printSummary(results, isVerbose)
+		}));
+		
+		// Run all models in parallel
+		const modelResults = await Promise.all(
+			modelConfigs.map(async ({ modelId, testConfig }) => {
+				log(isVerbose, `\n-Starting tests for model: ${modelId}`);
+				
+				const results = options.parallel
+					? await runner.runAllTestsParallelForModel(processedEligibleCasesForRun, testConfig, isVerbose)
+					: await runner.runAllTestsForModel(processedEligibleCasesForRun, testConfig, isVerbose);
+				
+				log(isVerbose, `\n-Completed tests for model: ${modelId}`);
+				
+				return { modelId, results };
+			})
+		);
+		
+		// Print summary for each model
+		for (const { modelId, results } of modelResults) {
+			log(isVerbose, `\n=== Results for Model: ${modelId} ===`);
+			runner.printSummary(results, isVerbose);
 		}
 
 		const endTime = Date.now()
