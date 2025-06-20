@@ -113,7 +113,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 		} else {
 			startRecording()
 		}
-	}, [isRecording, startRecording, stopRecording, disabled, isProcessing])
+	}, [isRecording, startRecording, stopRecording, disabled, isProcessing, error])
 
 	const getIconClass = () => {
 		if (isProcessing) return "codicon-loading"
