@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"type": "module",
 	"scripts": {
-		"lint": "next lint",
+		"lint": "next lint --max-warnings 0",
 		"check-types": "tsc -b",
 		"dev": "scripts/check-services.sh && next dev",
 		"format": "prettier --write src",

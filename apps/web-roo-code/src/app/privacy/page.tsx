@@ -17,8 +17,8 @@ export default function Privacy() {
 					<p className="text-muted-foreground">Last Updated: June 19, 2025</p>
 
 					<p className="lead">
-						This Privacy Policy explains how Roo Code, Inc. ("Roo Code," "we," "our," or "us") collects,
-						uses, and shares information when you:
+						This Privacy Policy explains how Roo Code, Inc. (&quot;Roo Code,&quot; &quot;we,&quot;
+						&quot;our,&quot; or &quot;us&quot;) collects, uses, and shares information when you:
 					</p>
 					<ul className="lead">
 						<li>
@@ -149,7 +149,7 @@ export default function Privacy() {
 						</li>
 					</ul>
 
-					<h2 className="mt-12 text-2xl font-bold">3. Where Your Data Goes (And Doesn't)</h2>
+					<h2 className="mt-12 text-2xl font-bold">3. Where Your Data Goes (And Doesn&apos;t)</h2>
 
 					<div className="overflow-x-auto">
 						<table className="min-w-full border-collapse border border-border">
