@@ -599,132 +599,6 @@ class NodeTestRunner {
 	}
 
 	/**
-	 * Runs all tests for a specific model in parallel (assumes database run already initialized)
-	 * Keeps retrying until we get the requested number of valid attempts per case
-	 */
-	async runAllTestsParallelForModel(
-		testCases: ProcessedTestCase[],
-		testConfig: TestConfig,
-		isVerbose: boolean,
-		maxConcurrency: number = 20,
-	): Promise<TestResultSet> {
-		const results: TestResultSet = {}
-		const validAttemptsCount: Record<string, number> = {}
-		const totalAttemptsCount: Record<string, number> = {}
-		const pendingAttemptsCount: Record<string, number> = {} // To track in-flight requests
-		
-		// Initialize results and counters
-		testCases.forEach((tc) => {
-			results[tc.test_id] = []
-			validAttemptsCount[tc.test_id] = 0
-			totalAttemptsCount[tc.test_id] = 0
-			pendingAttemptsCount[tc.test_id] = 0
-		})
-
-		// Keep track of which test cases still need more valid attempts
-		let remainingTestCases = [...testCases]
-		
-		// Keep trying until all test cases have enough valid attempts
-		while (remainingTestCases.length > 0) {
-			// Create a batch of runs for test cases that still need more valid attempts
-			const batchRuns = remainingTestCases
-				.filter(testCase => {
-					// Only schedule a new attempt if we still need valid ones, accounting for pending requests
-					const testId = testCase.test_id;
-					return (validAttemptsCount[testId] + pendingAttemptsCount[testId]) < testConfig.number_of_runs;
-				})
-				.map(testCase => ({
-					testCase,
-					testId: testCase.test_id
-				}));
-			
-			// Limit batch size to maxConcurrency
-			const currentBatch = batchRuns.slice(0, maxConcurrency)
-			
-			if (currentBatch.length === 0) {
-				// If no runs can be scheduled (e.g., all remaining cases have enough pending requests),
-				// wait a moment before re-evaluating. This can happen if concurrency is high.
-				await new Promise(resolve => setTimeout(resolve, 100));
-				continue;
-			}
-
-			// Increment pending counters before launching the batch
-			currentBatch.forEach(({ testId }) => {
-				pendingAttemptsCount[testId]++;
-			});
-
-			// Run the batch in parallel
-			const batchPromises = currentBatch.map(({ testCase, testId }) => {
-				totalAttemptsCount[testId]++;
-				log(isVerbose, `  Attempt ${totalAttemptsCount[testId]} for ${testId} (${validAttemptsCount[testId]} valid, ${pendingAttemptsCount[testId]-1} pending)...`);
-				return this.runSingleTest(testCase, testConfig, isVerbose).then((result) => ({
-					...result,
-					test_id: testId,
-				}))
-			})
-			
-			const batchResults = await Promise.all(batchPromises)
-			
-			// Decrement pending counters after the batch is complete
-			currentBatch.forEach(({ testId }) => {
-				pendingAttemptsCount[testId]--;
-			});
-			
-			// Calculate the total cost for this batch
-			const batchCost = batchResults.reduce((total, result) => {
-				return total + (result.streamResult?.usage?.totalCost || 0)
-			}, 0)
-			
-			// Process results and update counters
-			for (const result of batchResults) {
-				if (result.test_id) {
-					const testId = result.test_id
-					results[testId].push(result)
-					
-					// Check if this was a valid attempt
-					const isValid = this.isValidAttempt(result);
-					if (isValid) {
-						validAttemptsCount[testId]++;
-						log(isVerbose, `  ✓ Valid attempt ${validAttemptsCount[testId]}/${testConfig.number_of_runs} for ${testId} completed (${result.success ? 'SUCCESS' : 'FAILED'})`);
-					} else {
-						log(isVerbose, `  ✗ Invalid attempt for ${testId} (error: ${result.error || 'unknown'})`);
-					}
-					
-					// Store result in database
-					try {
-						await this.storeResultInDatabase(result, testId, testConfig.model_id);
-					} catch (error) {
-						log(isVerbose, `Warning: Failed to store result in database: ${error}`);
-					}
-				}
-			}
-			
-			// Update the list of remaining test cases
-			remainingTestCases = remainingTestCases.filter(testCase => {
-				const testId = testCase.test_id
-				
-				// Safety check to prevent infinite loops - limit to 10 attempts per valid attempt requested
-				if (totalAttemptsCount[testId] >= testConfig.number_of_runs * 10) {
-					log(isVerbose, `  ⚠️ Reached maximum attempts (${totalAttemptsCount[testId]}) for test case ${testId}. Only got ${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid attempts.`);
-					return false; // Remove from remaining test cases
-				}
-				
-				const needsMoreAttempts = validAttemptsCount[testId] < testConfig.number_of_runs;
-				if (!needsMoreAttempts && isVerbose && !remainingTestCases.find(c => c.test_id === testId)) {
-					// Log completion only once
-					log(isVerbose, `  ✓ Completed test case ${testId}: ${validAttemptsCount[testId]}/${testConfig.number_of_runs} valid attempts (${totalAttemptsCount[testId]} total attempts)`);
-				}
-				
-				return needsMoreAttempts;
-			})
-			
-			log(isVerbose, `-Completed batch... (Batch Cost: $${batchCost.toFixed(6)}, Remaining test cases: ${remainingTestCases.length})`)
-		}
-
-		return results
-	}
-
-	/**
 	 * Print output of the tests
 	 */
 	printSummary(results: TestResultSet, isVerbose: boolean) {
@@ -812,6 +686,12 @@ class NodeTestRunner {
 }
 
 async function main() {
+	interface EvaluationTask {
+		modelId: string;
+		testCase: ProcessedTestCase;
+		testConfig: TestConfig;
+	}
+
 	const program = new Command()
 
 	const defaultTestPath = path.join(__dirname, "cases")
@@ -833,6 +713,8 @@ async function main() {
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
+		.option("--max-concurrency <number>", "Maximum number of parallel requests", "20")
+
 
 	program.parse(process.argv)
 
@@ -840,6 +722,7 @@ async function main() {
 	const isVerbose = options.verbose
 	const testPath = options.testPath
 	const outputPath = options.outputPath
+	const maxConcurrency = parseInt(options.maxConcurrency, 10);
 
 	// Parse model IDs from comma-separated string
 	const modelIds = options.modelIds ? options.modelIds.split(',').map(id => id.trim()) : [];
@@ -877,7 +760,6 @@ async function main() {
 
 		// Determine the smallest context window among all specified models
 		let smallestContextWindow = Infinity;
-		let allModelsHaveKnownContext = true;
 		for (const modelId of modelIds) {
 			let modelInfo = openRouterModelDataGlobal[modelId];
 			if (!modelInfo) {
@@ -893,15 +775,11 @@ async function main() {
 				}
 			} else {
 				log(isVerbose, `Warning: Context window for model ${modelId} is unknown or zero. It will not constrain the test case selection.`);
-				// If we want to be strict and only run if all models have known context:
-				// allModelsHaveKnownContext = false;
-				// break; 
 			}
 		}
 
 		if (smallestContextWindow === Infinity) {
 			log(isVerbose, "Warning: Could not determine a common smallest context window. Proceeding with all loaded cases, context issues may occur.");
-			// smallestContextWindow will remain Infinity, so no context filtering will apply below unless adjusted
 		} else {
 			log(isVerbose, `Smallest common context window (with padding consideration) across specified models: ${smallestContextWindow} (target for filtering: ${smallestContextWindow - 20000})`);
 		}
@@ -927,7 +805,7 @@ async function main() {
 
 		if (eligibleCasesForThisRun.length === 0) {
 			log(isVerbose, `No eligible test cases found after filtering for all specified models. Exiting.`);
-			process.exit(0); // Or handle as an error
+			process.exit(0);
 		}
 		
 		const processedEligibleCasesForRun: ProcessedTestCase[] = eligibleCasesForThisRun.map((tc) => ({
@@ -939,49 +817,107 @@ async function main() {
 		const runDescription = `Models: ${modelIds.join(', ')}, Common Cases: ${processedEligibleCasesForRun.length}, Valid attempts per case: ${validAttemptsPerCase}`;
 		await runner.initializeMultiModelRun(processedEligibleCasesForRun, options.systemPromptName, options.parsingFunction, options.diffEditFunction, runDescription, isVerbose);
 
-		// Run all models in parallel
-		log(isVerbose, `\n=== Running ${modelIds.length} models in parallel ===`)
-		
-		// Create test configs for all models
-		const modelConfigs = modelIds.map(modelId => ({
-			modelId,
-			testConfig: {
-				model_id: modelId,
-				system_prompt_name: options.systemPromptName,
-				number_of_runs: validAttemptsPerCase,
-				parsing_function: options.parsingFunction,
-				diff_edit_function: options.diffEditFunction,
-				thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
-				replay: options.replay,
-			}
-		}));
-		
-		// Run all models in parallel
-		const modelResults = await Promise.all(
-			modelConfigs.map(async ({ modelId, testConfig }) => {
-				log(isVerbose, `\n-Starting tests for model: ${modelId}`);
-				
-				const results = options.parallel
-					? await runner.runAllTestsParallelForModel(processedEligibleCasesForRun, testConfig, isVerbose)
-					: await runner.runAllTestsForModel(processedEligibleCasesForRun, testConfig, isVerbose);
-				
-				log(isVerbose, `\n-Completed tests for model: ${modelId}`);
-				
-				return { modelId, results };
-			})
+		// Create a global task queue
+		const globalTaskQueue: EvaluationTask[] = modelIds.flatMap(modelId => 
+			processedEligibleCasesForRun.map(testCase => ({
+				modelId,
+				testCase,
+				testConfig: {
+					model_id: modelId,
+					system_prompt_name: options.systemPromptName,
+					number_of_runs: validAttemptsPerCase,
+					parsing_function: options.parsingFunction,
+					diff_edit_function: options.diffEditFunction,
+					thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
+					replay: options.replay,
+				}
+			}))
 		);
-		
+
+		const results: TestResultSet = {};
+		const taskStates: Record<string, { valid: number; total: number; pending: number }> = {};
+
+		globalTaskQueue.forEach(({ modelId, testCase }) => {
+			const taskId = `${modelId}-${testCase.test_id}`;
+			taskStates[taskId] = { valid: 0, total: 0, pending: 0 };
+			if (!results[testCase.test_id]) {
+				results[testCase.test_id] = [];
+			}
+		});
+
+		let remainingTasks = [...globalTaskQueue];
+
+		while (remainingTasks.length > 0) {
+			const batch: EvaluationTask[] = [];
+			for (const task of remainingTasks) {
+				if (batch.length >= maxConcurrency) break;
+				const taskId = `${task.modelId}-${task.testCase.test_id}`;
+				if ((taskStates[taskId].valid + taskStates[taskId].pending) < validAttemptsPerCase) {
+					batch.push(task);
+					taskStates[taskId].pending++;
+				}
+			}
+
+			if (batch.length === 0) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+				continue;
+			}
+
+			const batchPromises = batch.map(task => {
+				const taskId = `${task.modelId}-${task.testCase.test_id}`;
+				taskStates[taskId].total++;
+				log(isVerbose, `  Attempt ${taskStates[taskId].total} for ${task.testCase.test_id} with ${task.modelId} (${taskStates[taskId].valid} valid, ${taskStates[taskId].pending - 1} pending)...`);
+				return runner.runSingleTest(task.testCase, task.testConfig, isVerbose).then(result => ({
+					...result,
+					test_id: task.testCase.test_id,
+					modelId: task.modelId,
+				}));
+			});
+
+			const batchResults = await Promise.all(batchPromises);
+
+			for (const result of batchResults) {
+				const taskId = `${result.modelId}-${result.test_id}`;
+				taskStates[taskId].pending--;
+				results[result.test_id].push(result);
+
+				if (runner.isValidAttempt(result)) {
+					taskStates[taskId].valid++;
+					log(isVerbose, `  ✓ Valid attempt ${taskStates[taskId].valid}/${validAttemptsPerCase} for ${result.test_id} with ${result.modelId} completed (${result.success ? 'SUCCESS' : 'FAILED'})`);
+				} else {
+					log(isVerbose, `  ✗ Invalid attempt for ${result.test_id} with ${result.modelId} (error: ${result.error || 'unknown'})`);
+				}
+
+				await runner.storeResultInDatabase(result, result.test_id, result.modelId);
+			}
+
+			remainingTasks = remainingTasks.filter(task => {
+				const taskId = `${task.modelId}-${task.testCase.test_id}`;
+				if (taskStates[taskId].total >= validAttemptsPerCase * 10) {
+					log(isVerbose, `  ⚠️ Reached maximum attempts for ${task.testCase.test_id} with ${task.modelId}.`);
+					return false;
+				}
+				return taskStates[taskId].valid < validAttemptsPerCase;
+			});
+
+			const batchCost = batchResults.reduce((total, result) => total + (result.streamResult?.usage?.totalCost || 0), 0);
+			log(isVerbose, `-Completed batch... (Batch Cost: $${batchCost.toFixed(6)}, Remaining tasks: ${remainingTasks.length})`);
+		}
+
 		// Print summary for each model
-		for (const { modelId, results } of modelResults) {
+		for (const modelId of modelIds) {
+			const modelResults: TestResultSet = {};
+			Object.keys(results).forEach(testId => {
+				modelResults[testId] = results[testId].filter(r => (r as any).modelId === modelId);
+			});
 			log(isVerbose, `\n=== Results for Model: ${modelId} ===`);
-			runner.printSummary(results, isVerbose);
+			runner.printSummary(modelResults, isVerbose);
 		}
 
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
 
-		// Note: Individual results are already saved to database during execution
 		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {
 		console.error("\nError running tests:", error)
