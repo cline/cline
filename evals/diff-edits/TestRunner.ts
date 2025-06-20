@@ -713,7 +713,7 @@ async function main() {
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
-		.option("--max-concurrency <number>", "Maximum number of parallel requests", "20")
+		.option("--max-concurrency <number>", "Maximum number of parallel requests", "80")
 
 
 	program.parse(process.argv)
