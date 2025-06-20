@@ -1,6 +1,7 @@
 import { Controller } from ".."
 import { StartRecordingRequest, RecordingResult } from "@shared/proto/voice"
 import { audioRecordingService } from "@services/audio/AudioRecordingService"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { VoiceMethodHandler } from "./index"
 import * as vscode from "vscode"
 import { getSecret } from "@/core/storage/state"
@@ -15,6 +16,8 @@ export const startRecording: VoiceMethodHandler = async (
 	controller: Controller,
 	request: StartRecordingRequest,
 ): Promise<RecordingResult> => {
+	const taskId = controller.task?.taskId
+
 	try {
 		const openAIKey = await getSecret(controller.context, "openAiNativeApiKey")
 
@@ -30,6 +33,11 @@ export const startRecording: VoiceMethodHandler = async (
 		}
 
 		const result = await audioRecordingService.startRecording()
+
+		// Capture telemetry for recording start
+		if (result.success) {
+			telemetryService.captureVoiceRecordingStarted(taskId, process.platform)
+		}
 
 		return RecordingResult.create({
 			success: result.success,
