@@ -11,13 +11,14 @@ import * as path from "path"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
 import Anthropic from "@anthropic-ai/sdk"
+import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
 	taskId: string
-	conversationHistoryDeletedRange?: [number, number]
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
+	taskState: TaskState
 }
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -25,17 +26,17 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 export class MessageStateHandler {
 	private apiConversationHistory: Anthropic.MessageParam[] = []
 	private clineMessages: ClineMessage[] = []
-	private conversationHistoryDeletedRange: [number, number] | undefined
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
+	private taskState: TaskState
 
 	constructor(params: MessageStateHandlerParams) {
 		this.context = params.context
 		this.taskId = params.taskId
-		this.conversationHistoryDeletedRange = params.conversationHistoryDeletedRange
+		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
 	}
@@ -95,7 +96,7 @@ export class MessageStateHandler {
 				size: taskDirSize,
 				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
 				cwdOnTaskInitialization: cwd,
-				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
 			})
 		} catch (error) {
@@ -117,7 +118,7 @@ export class MessageStateHandler {
 		// these values allow us to reconstruct the conversation history at the time this cline message was created
 		// it's important that apiConversationHistory is initialized before we add cline messages
 		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
-		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
+		message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
 		this.clineMessages.push(message)
 		await this.saveClineMessagesAndUpdateHistory()
 	}
