@@ -99,8 +99,8 @@ describe("AuthService", () => {
 		}
 		vi.mocked(RefreshTimer).mockImplementation(() => mockTimer as unknown as RefreshTimer)
 
-		// Setup config mocks
-		vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.test.com")
+		// Setup config mocks - use production URL by default to maintain existing test behavior
+		vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
 		vi.mocked(Config.getRooCodeApiUrl).mockReturnValue("https://api.test.com")
 
 		// Setup utils mock
@@ -377,7 +377,7 @@ describe("AuthService", () => {
 			expect(mockContext.secrets.delete).toHaveBeenCalledWith("clerk-auth-credentials")
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("clerk-auth-state", undefined)
 			expect(mockFetch).toHaveBeenCalledWith(
-				"https://clerk.test.com/v1/client/sessions/test-session/remove",
+				"https://clerk.roocode.com/v1/client/sessions/test-session/remove",
 				expect.objectContaining({
 					method: "POST",
 					headers: expect.objectContaining({
@@ -810,6 +810,143 @@ describe("AuthService", () => {
 			await authService.initialize()
 
 			expect(mockTimer.start).toHaveBeenCalled()
+		})
+	})
+
+	describe("auth credentials key scoping", () => {
+		it("should use default key when getClerkBaseUrl returns production URL", async () => {
+			// Mock getClerkBaseUrl to return production URL
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const credentials = { clientToken: "test-token", sessionId: "test-session" }
+
+			await service.initialize()
+			await service["storeCredentials"](credentials)
+
+			expect(mockContext.secrets.store).toHaveBeenCalledWith(
+				"clerk-auth-credentials",
+				JSON.stringify(credentials),
+			)
+		})
+
+		it("should use scoped key when getClerkBaseUrl returns custom URL", async () => {
+			const customUrl = "https://custom.clerk.com"
+			// Mock getClerkBaseUrl to return custom URL
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const credentials = { clientToken: "test-token", sessionId: "test-session" }
+
+			await service.initialize()
+			await service["storeCredentials"](credentials)
+
+			expect(mockContext.secrets.store).toHaveBeenCalledWith(
+				`clerk-auth-credentials-${customUrl}`,
+				JSON.stringify(credentials),
+			)
+		})
+
+		it("should load credentials using scoped key", async () => {
+			const customUrl = "https://custom.clerk.com"
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const credentials = { clientToken: "test-token", sessionId: "test-session" }
+			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
+
+			await service.initialize()
+			const loadedCredentials = await service["loadCredentials"]()
+
+			expect(mockContext.secrets.get).toHaveBeenCalledWith(`clerk-auth-credentials-${customUrl}`)
+			expect(loadedCredentials).toEqual(credentials)
+		})
+
+		it("should clear credentials using scoped key", async () => {
+			const customUrl = "https://custom.clerk.com"
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+
+			await service.initialize()
+			await service["clearCredentials"]()
+
+			expect(mockContext.secrets.delete).toHaveBeenCalledWith(`clerk-auth-credentials-${customUrl}`)
+		})
+
+		it("should listen for changes on scoped key", async () => {
+			const customUrl = "https://custom.clerk.com"
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			let onDidChangeCallback: (e: { key: string }) => void
+
+			mockContext.secrets.onDidChange.mockImplementation((callback: (e: { key: string }) => void) => {
+				onDidChangeCallback = callback
+				return { dispose: vi.fn() }
+			})
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			await service.initialize()
+
+			// Simulate credentials change event with scoped key
+			const newCredentials = { clientToken: "new-token", sessionId: "new-session" }
+			mockContext.secrets.get.mockResolvedValue(JSON.stringify(newCredentials))
+
+			const inactiveSessionSpy = vi.fn()
+			service.on("inactive-session", inactiveSessionSpy)
+
+			onDidChangeCallback!({ key: `clerk-auth-credentials-${customUrl}` })
+			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
+
+			expect(inactiveSessionSpy).toHaveBeenCalled()
+		})
+
+		it("should not respond to changes on different scoped keys", async () => {
+			const customUrl = "https://custom.clerk.com"
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			let onDidChangeCallback: (e: { key: string }) => void
+
+			mockContext.secrets.onDidChange.mockImplementation((callback: (e: { key: string }) => void) => {
+				onDidChangeCallback = callback
+				return { dispose: vi.fn() }
+			})
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			await service.initialize()
+
+			const inactiveSessionSpy = vi.fn()
+			service.on("inactive-session", inactiveSessionSpy)
+
+			// Simulate credentials change event with different scoped key
+			onDidChangeCallback!({ key: "clerk-auth-credentials-https://other.clerk.com" })
+			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
+
+			expect(inactiveSessionSpy).not.toHaveBeenCalled()
+		})
+
+		it("should not respond to changes on default key when using scoped key", async () => {
+			const customUrl = "https://custom.clerk.com"
+			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+
+			let onDidChangeCallback: (e: { key: string }) => void
+
+			mockContext.secrets.onDidChange.mockImplementation((callback: (e: { key: string }) => void) => {
+				onDidChangeCallback = callback
+				return { dispose: vi.fn() }
+			})
+
+			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			await service.initialize()
+
+			const inactiveSessionSpy = vi.fn()
+			service.on("inactive-session", inactiveSessionSpy)
+
+			// Simulate credentials change event with default key
+			onDidChangeCallback!({ key: "clerk-auth-credentials" })
+			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
+
+			expect(inactiveSessionSpy).not.toHaveBeenCalled()
 		})
 	})
 })

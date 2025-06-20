@@ -6,7 +6,7 @@ import { z } from "zod"
 
 import type { CloudUserInfo, CloudOrganizationMembership } from "@roo-code/types"
 
-import { getClerkBaseUrl, getRooCodeApiUrl } from "./Config"
+import { getClerkBaseUrl, getRooCodeApiUrl, PRODUCTION_CLERK_BASE_URL } from "./Config"
 import { RefreshTimer } from "./RefreshTimer"
 import { getUserAgent } from "./utils"
 
@@ -24,7 +24,6 @@ const authCredentialsSchema = z.object({
 
 type AuthCredentials = z.infer<typeof authCredentialsSchema>
 
-const AUTH_CREDENTIALS_KEY = "clerk-auth-credentials"
 const AUTH_STATE_KEY = "clerk-auth-state"
 
 type AuthState = "initializing" | "logged-out" | "active-session" | "inactive-session"
@@ -89,6 +88,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private timer: RefreshTimer
 	private state: AuthState = "initializing"
 	private log: (...args: unknown[]) => void
+	private readonly authCredentialsKey: string
 
 	private credentials: AuthCredentials | null = null
 	private sessionToken: string | null = null
@@ -99,6 +99,14 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		this.context = context
 		this.log = log || console.log
+
+		// Calculate auth credentials key based on Clerk base URL
+		const clerkBaseUrl = getClerkBaseUrl()
+		if (clerkBaseUrl !== PRODUCTION_CLERK_BASE_URL) {
+			this.authCredentialsKey = `clerk-auth-credentials-${clerkBaseUrl}`
+		} else {
+			this.authCredentialsKey = "clerk-auth-credentials"
+		}
 
 		this.timer = new RefreshTimer({
 			callback: async () => {
@@ -180,7 +188,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		this.context.subscriptions.push(
 			this.context.secrets.onDidChange((e) => {
-				if (e.key === AUTH_CREDENTIALS_KEY) {
+				if (e.key === this.authCredentialsKey) {
 					this.handleCredentialsChange()
 				}
 			}),
@@ -188,11 +196,11 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	}
 
 	private async storeCredentials(credentials: AuthCredentials): Promise<void> {
-		await this.context.secrets.store(AUTH_CREDENTIALS_KEY, JSON.stringify(credentials))
+		await this.context.secrets.store(this.authCredentialsKey, JSON.stringify(credentials))
 	}
 
 	private async loadCredentials(): Promise<AuthCredentials | null> {
-		const credentialsJson = await this.context.secrets.get(AUTH_CREDENTIALS_KEY)
+		const credentialsJson = await this.context.secrets.get(this.authCredentialsKey)
 		if (!credentialsJson) return null
 
 		try {
@@ -209,7 +217,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	}
 
 	private async clearCredentials(): Promise<void> {
-		await this.context.secrets.delete(AUTH_CREDENTIALS_KEY)
+		await this.context.secrets.delete(this.authCredentialsKey)
 	}
 
 	/**
