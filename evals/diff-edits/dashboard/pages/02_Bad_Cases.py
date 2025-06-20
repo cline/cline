@@ -5,12 +5,12 @@ import os # Need to import os for load_case_raw_data
 from utils import get_database_connection, guess_language_from_filepath # Absolute import
 
 st.set_page_config(
-    page_title="🧹 Case Health Inspector",
-    page_icon="🧹",
+    page_title="Case Health Inspector",
+    page_icon="🧑‍⚕️",
     layout="wide"
 )
 
-st.title("🧹 Case Health Inspector")
+st.title("Case Health Inspector")
 st.markdown("Identify test cases that are frequently problematic across different models and runs.")
 
 @st.cache_data

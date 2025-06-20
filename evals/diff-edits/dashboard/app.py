@@ -14,8 +14,8 @@ from utils import get_database_connection, guess_language_from_filepath # Import
 
 # Page config
 st.set_page_config(
-    page_title="🚀 Diff Edits Evaluation Dashboard",
-    page_icon="🚀",
+    page_title="Diff Edits Evaluation Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -336,10 +336,10 @@ def render_hero_section(current_run, model_performance):
     run_title = current_run['description'] if current_run['description'] else f"Run {current_run['run_id'][:8]}..."
     st.markdown(f"""
     <div class="hero-container">
-        <div class="hero-title">🚀 Diff Edits Evaluation Dashboard</div>
-        <div class="hero-subtitle">Current Run: {run_title} • {current_run['created_at']}</div>
-        <div class="hero-subtitle" style="font-size: 0.9rem; margin-top: 5px;">
-            <i>Note: All metrics are based on valid attempts only (excluding attempts where models didn't call the diff edit tool, or called it on the wrong file)</i>
+        <div class="hero-title">Diff Edit Evaluation Results</div>
+        <div class="hero-subtitle">A comprehensive analysis of model performance on code editing tasks.</div>
+        <div class="hero-subtitle" style="font-size: 0.9rem; margin-top: 10px;">
+            <strong>Current Run:</strong> {run_title} • {current_run['created_at']}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -387,7 +387,7 @@ def render_hero_section(current_run, model_performance):
 
 def render_model_comparison_cards(model_performance):
     """Render beautiful model comparison cards"""
-    st.markdown("## 🏆 Model Performance Comparison")
+    st.markdown("## Model Leaderboard")
     
     # Find best performer
     best_model = model_performance.iloc[0]['model_id']
@@ -403,7 +403,7 @@ def render_model_comparison_cards(model_performance):
             with col1:
                 # Use Streamlit's native components instead of raw HTML
                 if is_best:
-                    st.success(f"🏆 **{model['model_id']}** - Best Performer")
+                    st.success(f"**{model['model_id']}** - Best Performer")
                 else:
                     st.info(f"**{model['model_id']}**")
                 
@@ -433,40 +433,39 @@ def render_model_comparison_cards(model_performance):
             
             with col2:
                 st.write("")  # Add some spacing
-                if st.button(f"🔍 Drill Down", key=f"drill_{model['model_id']}", use_container_width=True):
+                if st.button(f"Drill Down", key=f"drill_{model['model_id']}", use_container_width=True):
                     st.session_state.drill_down_model = model['model_id']
             
             st.divider()  # Add a divider between models
 
 def render_comparison_charts(model_performance):
     """Render interactive comparison charts"""
-    st.markdown("## 📊 Performance Analytics")
+    st.markdown("## Performance Analysis")
     
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        # Success Rate Comparison
-        fig_success = px.bar(
+        # Time to First Edit
+        fig_first_edit = px.bar(
             model_performance,
             x='model_id',
-            y='success_rate',
-            title="🎯 Success Rate by Model",
-            labels={'success_rate': 'Success Rate', 'model_id': 'Model'},
-            color='success_rate',
-            color_continuous_scale='RdYlGn',
-            text='success_rate'
+            y='avg_first_edit_ms',
+            title="Time to First Edit",
+            labels={'avg_first_edit_ms': 'Time to First Edit (ms)', 'model_id': 'Model'},
+            color='avg_first_edit_ms',
+            color_continuous_scale='bluered',
+            text='avg_first_edit_ms'
         )
-        fig_success.update_traces(texttemplate='%{text:.1%}', textposition='outside')
-        fig_success.update_layout(
+        fig_first_edit.update_traces(texttemplate='%{text:.0f}ms', textposition='outside')
+        fig_first_edit.update_layout(
             showlegend=False,
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Inter, sans-serif"),
-            yaxis_range=[0,1],  # Set y-axis from 0% to 100%
-            margin=dict(t=50)  # Add top margin to prevent clipping
+            margin=dict(t=50)
         )
-        st.plotly_chart(fig_success, use_container_width=True)
-    
+        st.plotly_chart(fig_first_edit, use_container_width=True)
+
     with col2:
         # Latency vs Cost Scatter
         fig_scatter = px.scatter(
@@ -476,7 +475,7 @@ def render_comparison_charts(model_performance):
             size='total_results',
             color='success_rate',
             hover_name='model_id',
-            title="⚡ Latency vs Cost Analysis",
+            title="Latency vs Cost Analysis",
             labels={
                 'avg_round_trip_ms': 'Avg Round Trip (ms)',
                 'avg_cost': 'Avg Cost ($)',
@@ -494,7 +493,7 @@ def render_comparison_charts(model_performance):
 
 def render_detailed_analysis(run_id, model_id):
     """Render detailed drill-down analysis"""
-    st.markdown(f"## 🔍 Detailed Analysis: {model_id}")
+    st.markdown(f"## Detailed Analysis: {model_id}")
     
     # Load all results (including invalid attempts)
     detailed_results = load_detailed_results(run_id, model_id)
@@ -822,7 +821,7 @@ def guess_language_from_filepath(filepath):
 def main():
     # Add a note about valid attempts
     st.sidebar.markdown("""
-    ### 📝 Note on Metrics
+    ### Note on Metrics
     Success rates are calculated based on **valid results only**. 
     
     Invalid results (where the model didn't call the diff edit tool or edited the wrong file) are excluded from calculations.
@@ -911,12 +910,34 @@ def main():
     if st.session_state.drill_down_model:
         col1, col2 = st.columns([1, 4])
         with col1:
-            if st.button("← Back to Overview", use_container_width=True):
+            if st.button("Back to Overview", use_container_width=True):
                 st.session_state.drill_down_model = None
                 st.rerun()
         
         render_detailed_analysis(current_run['run_id'], st.session_state.drill_down_model)
     else:
+        # Success Rate Comparison
+        fig_success = px.bar(
+            model_performance,
+            x='model_id',
+            y='success_rate',
+            title="Success Rate by Model",
+            labels={'success_rate': 'Success Rate', 'model_id': 'Model'},
+            color='success_rate',
+            color_continuous_scale='RdYlGn',
+            text='success_rate'
+        )
+        fig_success.update_traces(texttemplate='%{text:.1%}', textposition='outside')
+        fig_success.update_layout(
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Inter, sans-serif"),
+            yaxis_range=[0,1],  # Set y-axis from 0% to 100%
+            margin=dict(t=50)  # Add top margin to prevent clipping
+        )
+        st.plotly_chart(fig_success, use_container_width=True)
+        
         render_model_comparison_cards(model_performance)
         render_comparison_charts(model_performance)
 
