@@ -93,7 +93,7 @@
 	"onboarding": "Daftar tugas di workspace ini kosong.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Tugas Boomerang",
+			"title": "Orkestrasi Tugas",
 			"description": "Bagi tugas menjadi bagian-bagian kecil yang dapat dikelola"
 		},
 		"stickyModels": {

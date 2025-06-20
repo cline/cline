@@ -79,7 +79,7 @@
 	"onboarding": "<strong>Danh sách nhiệm vụ của bạn trong không gian làm việc này trống.</strong> Bắt đầu bằng cách nhập nhiệm vụ bên dưới. Bạn không chắc chắn nên bắt đầu như thế nào? Đọc thêm về những gì Roo có thể làm cho bạn trong <DocsLink>tài liệu</DocsLink>.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Nhiệm vụ Boomerang",
+			"title": "Điều phối Nhiệm vụ",
 			"description": "Chia nhỏ các nhiệm vụ thành các phần nhỏ hơn, dễ quản lý hơn."
 		},
 		"stickyModels": {

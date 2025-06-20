@@ -79,7 +79,7 @@
 	"onboarding": "<strong> La vostra llista de tasques en aquest espai de treball està buida. </strong> Comença escrivint una tasca a continuació. \nNo esteu segur per on començar? \nMés informació sobre què pot fer Roo als documents.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Tasques Boomerang",
+			"title": "Orquestració de Tasques",
 			"description": "Divideix les tasques en parts més petites i manejables."
 		},
 		"stickyModels": {

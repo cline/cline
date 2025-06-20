@@ -79,7 +79,7 @@
 	"onboarding": "<strong>Tu lista de tareas en este espacio de trabajo está vacía.</strong> Comienza escribiendo una tarea abajo. ¿No estás seguro cómo empezar? Lee más sobre lo que Roo puede hacer por ti en <DocsLink>la documentación</DocsLink>.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Tareas Boomerang",
+			"title": "Orquestación de Tareas",
 			"description": "Divide las tareas en partes más pequeñas y manejables."
 		},
 		"stickyModels": {

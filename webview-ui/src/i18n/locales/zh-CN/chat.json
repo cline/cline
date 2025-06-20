@@ -79,7 +79,7 @@
 	"onboarding": "<strong>此工作区中的任务列表为空。</strong> 请在下方输入任务开始。 不确定如何开始？ 在 <DocsLink>文档</DocsLink> 中阅读更多关于 Roo 可以为您做什么的信息。",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "任务拆分",
+			"title": "任务编排",
 			"description": "将任务拆分为更小、更易于管理的部分。"
 		},
 		"stickyModels": {

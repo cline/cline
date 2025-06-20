@@ -87,7 +87,7 @@
 	"onboarding": "Your task list in this workspace is empty.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Boomerang Tasks",
+			"title": "Task Orchestration",
 			"description": "Split tasks into smaller, manageable parts"
 		},
 		"stickyModels": {

@@ -79,7 +79,7 @@
 	"onboarding": "<strong>이 작업 공간의 작업 목록이 비어 있습니다.</strong> 아래에 작업을 입력하여 시작하세요. 어떻게 시작해야 할지 모르겠나요? Roo가 무엇을 할 수 있는지 <DocsLink>문서</DocsLink>에서 자세히 알아보세요.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "부메랑 작업",
+			"title": "작업 오케스트레이션",
 			"description": "작업을 더 작고 관리하기 쉬운 부분으로 나눕니다."
 		},
 		"stickyModels": {

@@ -79,7 +79,7 @@
 	"onboarding": "<strong>Bu çalışma alanındaki görev listeniz boş.</strong> Aşağıya bir görev yazarak başlayın. Nasıl başlayacağınızdan emin değil misiniz? Roo'nun sizin için neler yapabileceği hakkında daha fazla bilgiyi <DocsLink>belgelerde</DocsLink> okuyun.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Bumerang Görevleri",
+			"title": "Görev Orkestrasyonu",
 			"description": "Görevleri daha küçük, yönetilebilir parçalara ayırın."
 		},
 		"stickyModels": {

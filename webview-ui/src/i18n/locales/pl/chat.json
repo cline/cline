@@ -79,7 +79,7 @@
 	"onboarding": "<strong>Twoja lista zadań w tym obszarze roboczym jest pusta.</strong> Zacznij od wpisania zadania poniżej. Nie wiesz, jak zacząć? Przeczytaj więcej o tym, co Roo może dla Ciebie zrobić w <DocsLink>dokumentacji</DocsLink>.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Zadania bumerangowe",
+			"title": "Orkiestracja Zadań",
 			"description": "Podziel zadania na mniejsze, łatwiejsze do zarządzania części."
 		},
 		"stickyModels": {

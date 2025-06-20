@@ -79,7 +79,7 @@
 	"onboarding": "Grazie alle più recenti innovazioni nelle capacità di codifica agentica, posso gestire complesse attività di sviluppo software passo dopo passo. Con strumenti che mi permettono di creare e modificare file, esplorare progetti complessi, utilizzare il browser ed eseguire comandi da terminale (dopo la tua autorizzazione), posso aiutarti in modi che vanno oltre il completamento del codice o il supporto tecnico. Posso persino usare MCP per creare nuovi strumenti ed estendere le mie capacità.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Attività Boomerang",
+			"title": "Orchestrazione di Attività",
 			"description": "Dividi le attività in parti più piccole e gestibili."
 		},
 		"stickyModels": {

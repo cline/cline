@@ -79,7 +79,7 @@
 	"onboarding": "<strong>您在此工作區中的工作清單是空的。</strong> 請在下方輸入工作以開始。 不確定如何開始？ 在 <DocsLink>說明文件</DocsLink> 中閱讀更多關於 Roo 能為您做什麼的資訊。",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "任務拆分",
+			"title": "任務編排",
 			"description": "將任務拆分為更小、更易於管理的部分。"
 		},
 		"stickyModels": {

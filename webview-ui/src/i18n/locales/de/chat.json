@@ -79,7 +79,7 @@
 	"onboarding": "<strong>Deine Aufgabenliste in diesem Arbeitsbereich ist leer.</strong> Beginne mit der Eingabe einer Aufgabe unten. Du bist dir nicht sicher, wie du anfangen sollst? Lies mehr darüber, was Roo für dich tun kann, in <DocsLink>den Dokumenten</DocsLink>.",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "Bumerang-Aufgaben",
+			"title": "Aufgaben-Orchestrierung",
 			"description": "Teile Aufgaben in kleinere, überschaubare Teile auf."
 		},
 		"stickyModels": {
