@@ -1,9 +1,8 @@
 {
-	"greeting": "Merhaba, ben Roo!",
-	"introduction": "<strong>Roo Code, önde gelen otonom kodlama aracıdır.</strong> Daha önce hiç görmediğin şekilde mimari tasarım yapmaya, kod yazmaya, hata ayıklamaya ve üretkenliğini artırmaya hazırlan. Devam etmek için Roo Code'un bir API anahtarına ihtiyacı var.",
+	"greeting": "Roo Code'a Hoş Geldin!",
+	"introduction": "Yerleşik ve genişletilebilir Modlar yelpazesiyle Roo Code, daha önce hiç olmadığı gibi planlama, mimari tasarım, kodlama, hata ayıklama ve üretkenliğini artırmanı sağlar.",
 	"notice": "Başlamak için bu eklentinin bir API sağlayıcısına ihtiyacı var.",
 	"start": "Hadi başlayalım!",
-	"chooseProvider": "Başlamak için bir API sağlayıcısı seç:",
 	"routers": {
 		"requesty": {
 			"description": "Optimize edilmiş LLM yönlendiricin",
@@ -13,8 +12,9 @@
 			"description": "LLM'ler için birleşik bir arayüz"
 		}
 	},
-	"startRouter": "Yönlendirici Üzerinden Hızlı Kurulum",
-	"startCustom": "Kendi API Anahtarını Kullan",
+	"chooseProvider": "Sihirini yapabilmesi için Roo'nun bir API anahtarına ihtiyacı var.",
+	"startRouter": "Bir LLM yönlendiricisi kullanmanı öneririz:",
+	"startCustom": "Veya kendi API anahtarını kullanabilirsin:",
 	"telemetry": {
 		"title": "Roo Code'u Geliştirmeye Yardım Et",
 		"anonymousTelemetry": "Hataları düzeltmemize ve eklentiyi geliştirmemize yardımcı olmak için anonim hata ve kullanım verileri gönder. Hiçbir zaman kod, metin veya kişisel bilgi gönderilmez.",
@@ -23,6 +23,5 @@
 		"allow": "İzin Ver",
 		"deny": "Reddet"
 	},
-	"or": "veya",
 	"importSettings": "Ayarları İçe Aktar"
 }

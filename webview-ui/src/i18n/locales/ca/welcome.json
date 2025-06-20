@@ -1,9 +1,8 @@
 {
-	"greeting": "Hola, sóc Roo!",
-	"introduction": "<strong>Roo Code és el principal agent de codificació autònom.</strong> Prepara't per arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans. Per continuar, Roo Code necessita una clau API.",
+	"greeting": "Benvingut a Roo Code!",
+	"introduction": "Amb una gamma de Modes integrats i ampliables, Roo Code et permet planificar, arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans.",
 	"notice": "Per començar, aquesta extensió necessita un proveïdor d'API.",
 	"start": "Som-hi!",
-	"chooseProvider": "Tria un proveïdor d'API per començar:",
 	"routers": {
 		"requesty": {
 			"description": "El teu router LLM optimitzat",
@@ -13,8 +12,9 @@
 			"description": "Una interfície unificada per a LLMs"
 		}
 	},
-	"startRouter": "Configuració ràpida a través d'un router",
-	"startCustom": "Utilitza la teva pròpia clau API",
+	"chooseProvider": "Per fer la seva màgia, Roo necessita una clau API.",
+	"startRouter": "Recomanem utilitzar un router LLM:",
+	"startCustom": "O pots utilitzar la teva pròpia clau API:",
 	"telemetry": {
 		"title": "Ajuda a millorar Roo Code",
 		"anonymousTelemetry": "Envia dades d'ús i errors anònims per ajudar-nos a corregir errors i millorar l'extensió. No s'envia mai cap codi, text o informació personal.",
@@ -23,6 +23,5 @@
 		"allow": "Permetre",
 		"deny": "Denegar"
 	},
-	"or": "o",
 	"importSettings": "Importar configuració"
 }

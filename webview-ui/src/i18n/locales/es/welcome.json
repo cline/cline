@@ -1,9 +1,8 @@
 {
-	"greeting": "¡Hola, soy Roo!",
-	"introduction": "<strong>Roo Code es el principal agente de codificación autónomo.</strong> Prepárate para arquitectar, codificar, depurar y aumentar tu productividad como nunca antes. Para continuar, Roo Code requiere una clave API.",
+	"greeting": "¡Bienvenido a Roo Code!",
+	"introduction": "Con una variedad de Modos integrados y extensibles, Roo Code te permite planificar, arquitectar, codificar, depurar y aumentar tu productividad como nunca antes.",
 	"notice": "Para comenzar, esta extensión necesita un proveedor de API.",
 	"start": "¡Vamos!",
-	"chooseProvider": "Elige un proveedor de API para comenzar:",
 	"routers": {
 		"requesty": {
 			"description": "Tu router LLM optimizado",
@@ -13,8 +12,9 @@
 			"description": "Una interfaz unificada para LLMs"
 		}
 	},
-	"startRouter": "Configuración rápida a través de un router",
-	"startCustom": "Usa tu propia clave API",
+	"chooseProvider": "Para hacer su magia, Roo necesita una clave API.",
+	"startRouter": "Recomendamos usar un router LLM:",
+	"startCustom": "O puedes traer tu propia clave API:",
 	"telemetry": {
 		"title": "Ayuda a mejorar Roo Code",
 		"anonymousTelemetry": "Envía datos de uso y errores anónimos para ayudarnos a corregir errores y mejorar la extensión. Nunca se envía código, texto o información personal.",
@@ -23,6 +23,5 @@
 		"allow": "Permitir",
 		"deny": "Denegar"
 	},
-	"or": "o",
 	"importSettings": "Importar configuración"
 }

@@ -1,9 +1,8 @@
 {
-	"greeting": "嗨，我是 Roo！",
-	"introduction": "<strong>Roo Code 是领先的自主编程助手。</strong>准备好以前所未有的方式进行架构设计、编码、调试并提升你的工作效率。要继续使用，Roo Code 需要一个 API 密钥。",
+	"greeting": "欢迎使用 Roo Code！",
+	"introduction": "通过一系列内置和可扩展的模式，Roo Code 让你能够以前所未有的方式进行规划、架构设计、编码、调试并提升工作效率。",
 	"notice": "请先配置大语言模型API提供商",
 	"start": "开始吧！",
-	"chooseProvider": "选择一个 API 提供商开始：",
 	"routers": {
 		"requesty": {
 			"description": "智能调度多个大语言模型",
@@ -13,16 +12,16 @@
 			"description": "统一了大语言模型的接口"
 		}
 	},
-	"startRouter": "通过路由器快速设置",
-	"startCustom": "使用你自己的 API 密钥",
+	"chooseProvider": "Roo 需要一个 API 密钥才能发挥魔力。",
+	"startRouter": "我们推荐使用 LLM 路由器：",
+	"startCustom": "或者你可以使用自己的 API 密钥：",
 	"telemetry": {
 		"title": "帮助改进 Roo Code",
+		"anonymousTelemetry": "发送匿名的错误和使用数据，以帮助我们修复错误并改进扩展程序。不会涉及代码、提示词或个人隐私信息。",
 		"changeSettings": "可以随时在<settingsLink>设置</settingsLink>页面底部更改此设置",
 		"settings": "设置",
-		"anonymousTelemetry": "发送匿名的错误和使用数据，以帮助我们修复错误并改进扩展程序。不会涉及代码、提示词或个人隐私信息。",
 		"allow": "允许",
 		"deny": "拒绝"
 	},
-	"or": "或",
 	"importSettings": "导入设置"
 }

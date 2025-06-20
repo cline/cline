@@ -1,9 +1,8 @@
 {
-	"greeting": "こんにちは、Rooです！",
-	"introduction": "<strong>Roo Codeは最高の自律型コーディングエージェントです。</strong>アーキテクチャの設計、コーディング、デバッグ、そして今までにない生産性向上を体験する準備をしてください。続行するには、Roo CodeにはAPIキーが必要です。",
+	"greeting": "Roo Codeへようこそ！",
+	"introduction": "組み込みおよび拡張可能なモードを備えたRoo Codeは、計画、アーキテクチャ設計、コーディング、デバッグ、そして今までにない生産性向上を可能にします。",
 	"notice": "開始するには、この拡張機能にはAPIプロバイダーが必要です。",
 	"start": "さあ、始めましょう！",
-	"chooseProvider": "開始するにはAPIプロバイダーを選択してください：",
 	"routers": {
 		"requesty": {
 			"description": "最適化されたLLMルーター",
@@ -13,8 +12,9 @@
 			"description": "LLMsのための統一インターフェース"
 		}
 	},
-	"startRouter": "ルーター経由の簡単セットアップ",
-	"startCustom": "自分のAPIキーを使用",
+	"chooseProvider": "Rooが機能するには、APIキーが必要です。",
+	"startRouter": "LLMルーターの使用をお勧めします：",
+	"startCustom": "または、あなた自身のAPIキーを使用できます：",
 	"telemetry": {
 		"title": "Roo Codeの改善にご協力ください",
 		"anonymousTelemetry": "バグの修正と拡張機能の改善のため、匿名のエラーと使用データを送信してください。コード、プロンプト、個人情報は一切送信されません。",
@@ -23,6 +23,5 @@
 		"allow": "許可",
 		"deny": "拒否"
 	},
-	"or": "または",
 	"importSettings": "設定をインポート"
 }
