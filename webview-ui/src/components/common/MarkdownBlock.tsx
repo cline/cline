@@ -30,29 +30,49 @@ const remarkUrlToLink = () => {
 			const urlRegex = /https?:\/\/[^\s<>)"]+/g
 			const matches = node.value.match(urlRegex)
 
-			if (!matches) {
+			if (!matches || !parent) {
 				return
 			}
 
 			const parts = node.value.split(urlRegex)
 			const children: any[] = []
+			const cleanedMatches = matches.map((url: string) => url.replace(/[.,;:!?'"]+$/, ""))
 
 			parts.forEach((part: string, i: number) => {
 				if (part) {
 					children.push({ type: "text", value: part })
 				}
 
-				if (matches[i]) {
-					children.push({ type: "link", url: matches[i], children: [{ type: "text", value: matches[i] }] })
+				if (cleanedMatches[i]) {
+					const originalUrl = matches[i]
+					const cleanedUrl = cleanedMatches[i]
+					const removedPunctuation = originalUrl.substring(cleanedUrl.length)
+
+					// Create a proper link node with all required properties
+					children.push({
+						type: "link",
+						url: cleanedUrl,
+						title: null,
+						children: [{ type: "text", value: cleanedUrl }],
+						data: {
+							hProperties: {
+								href: cleanedUrl,
+							},
+						},
+					})
+
+					if (removedPunctuation) {
+						children.push({ type: "text", value: removedPunctuation })
+					}
 				}
 			})
 
-			// Fix: Instead of converting the node to a paragraph (which broke things),
-			// we replace the original text node with our new nodes in the parent's children array.
+			// Replace the original text node with our new nodes in the parent's children array.
 			// This preserves the document structure while adding our links.
-			if (parent) {
-				parent.children.splice(index, 1, ...children)
-			}
+			parent.children.splice(index!, 1, ...children)
+
+			// Return SKIP to prevent visiting the newly created nodes
+			return ["skip", index! + children.length]
 		})
 	}
 }
@@ -169,44 +189,42 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		rehypePlugins: [rehypeKatex as any],
 		rehypeReactOptions: {
 			components: {
-				a: ({ href, children }: any) => {
+				a: ({ href, children, ...props }: any) => {
+					const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+						// Only process file:// protocol or local file paths
+						const isLocalPath = href.startsWith("file://") || href.startsWith("/") || !href.includes("://")
+
+						if (!isLocalPath) {
+							return
+						}
+
+						e.preventDefault()
+
+						// Handle absolute vs project-relative paths
+						let filePath = href.replace("file://", "")
+
+						// Extract line number if present
+						const match = filePath.match(/(.*):(\d+)(-\d+)?$/)
+						let values = undefined
+						if (match) {
+							filePath = match[1]
+							values = { line: parseInt(match[2]) }
+						}
+
+						// Add ./ prefix if needed
+						if (!filePath.startsWith("/") && !filePath.startsWith("./")) {
+							filePath = "./" + filePath
+						}
+
+						vscode.postMessage({
+							type: "openFile",
+							text: filePath,
+							values,
+						})
+					}
+
 					return (
-						<a
-							href={href}
-							title={href}
-							onClick={(e) => {
-								// Only process file:// protocol or local file paths
-								const isLocalPath =
-									href.startsWith("file://") || href.startsWith("/") || !href.includes("://")
-
-								if (!isLocalPath) {
-									return
-								}
-
-								e.preventDefault()
-
-								// Handle absolute vs project-relative paths
-								let filePath = href.replace("file://", "")
-
-								// Extract line number if present
-								const match = filePath.match(/(.*):(\d+)(-\d+)?$/)
-								let values = undefined
-								if (match) {
-									filePath = match[1]
-									values = { line: parseInt(match[2]) }
-								}
-
-								// Add ./ prefix if needed
-								if (!filePath.startsWith("/") && !filePath.startsWith("./")) {
-									filePath = "./" + filePath
-								}
-
-								vscode.postMessage({
-									type: "openFile",
-									text: filePath,
-									values,
-								})
-							}}>
+						<a {...props} href={href} onClick={handleClick}>
 							{children}
 						</a>
 					)
