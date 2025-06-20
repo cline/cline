@@ -501,10 +501,7 @@
 			"name": "Activer le Marketplace",
 			"description": "Lorsque cette option est activée, tu peux installer des MCP et des modes personnalisés depuis le Marketplace."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Désactiver l'exécution des commandes dans attempt_completion",
-			"description": "Lorsque cette option est activée, l'outil attempt_completion n'exécutera pas de commandes. Il s'agit d'une fonctionnalité expérimentale visant à préparer la dépréciation de l'exécution des commandes lors de la finalisation des tâches."
-		},
+
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Activer les éditions de fichiers concurrentes",
 			"description": "Lorsque cette option est activée, Roo peut éditer plusieurs fichiers en une seule requête. Lorsqu'elle est désactivée, Roo doit éditer les fichiers un par un. Désactiver cette option peut aider lorsque tu travailles avec des modèles moins capables ou lorsque tu veux plus de contrôle sur les modifications de fichiers."

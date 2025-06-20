@@ -530,10 +530,6 @@
 			"name": "Aktifkan Marketplace",
 			"description": "Ketika diaktifkan, kamu dapat menginstal MCP dan mode kustom dari Marketplace."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Nonaktifkan eksekusi perintah di attempt_completion",
-			"description": "Ketika diaktifkan, tool attempt_completion tidak akan mengeksekusi perintah. Ini adalah fitur eksperimental untuk mempersiapkan penghentian eksekusi perintah dalam penyelesaian tugas."
-		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Aktifkan edit file bersamaan",
 			"description": "Ketika diaktifkan, Roo dapat mengedit beberapa file dalam satu permintaan. Ketika dinonaktifkan, Roo harus mengedit file satu per satu. Menonaktifkan ini dapat membantu saat bekerja dengan model yang kurang mampu atau ketika kamu ingin kontrol lebih terhadap modifikasi file."

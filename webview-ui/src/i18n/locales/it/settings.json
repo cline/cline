@@ -501,10 +501,6 @@
 			"name": "Abilita Marketplace",
 			"description": "Quando abilitato, puoi installare MCP e modalità personalizzate dal Marketplace."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Disabilita l'esecuzione dei comandi in attempt_completion",
-			"description": "Se abilitato, lo strumento attempt_completion non eseguirà comandi. Questa è una funzionalità sperimentale per preparare la futura deprecazione dell'esecuzione dei comandi al completamento dell'attività."
-		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Abilita modifiche di file concorrenti",
 			"description": "Quando abilitato, Roo può modificare più file in una singola richiesta. Quando disabilitato, Roo deve modificare i file uno alla volta. Disabilitare questa opzione può aiutare quando lavori con modelli meno capaci o quando vuoi più controllo sulle modifiche dei file."

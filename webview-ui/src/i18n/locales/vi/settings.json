@@ -501,10 +501,6 @@
 			"name": "Bật Marketplace",
 			"description": "Khi được bật, bạn có thể cài đặt MCP và chế độ tùy chỉnh từ Marketplace."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Tắt thực thi lệnh trong attempt_completion",
-			"description": "Khi được bật, công cụ attempt_completion sẽ không thực thi lệnh. Đây là một tính năng thử nghiệm để chuẩn bị cho việc ngừng hỗ trợ thực thi lệnh khi hoàn thành tác vụ trong tương lai."
-		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Bật chỉnh sửa tệp đồng thời",
 			"description": "Khi được bật, Roo có thể chỉnh sửa nhiều tệp trong một yêu cầu duy nhất. Khi bị tắt, Roo phải chỉnh sửa từng tệp một. Tắt tính năng này có thể hữu ích khi làm việc với các mô hình kém khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn đối với các thay đổi tệp."

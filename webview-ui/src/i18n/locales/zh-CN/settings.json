@@ -501,10 +501,6 @@
 			"name": "启用 Marketplace",
 			"description": "启用后，你可以从 Marketplace 安装 MCP 和自定义模式。"
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "禁用 attempt_completion 中的命令执行",
-			"description": "启用后，attempt_completion 工具将不会执行命令。这是一项实验性功能，旨在为将来弃用任务完成时的命令执行做准备。"
-		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "启用并发文件编辑",
 			"description": "启用后 Roo 可在单个请求中编辑多个文件。禁用后 Roo 必须逐个编辑文件。禁用此功能有助于使用能力较弱的模型或需要更精确控制文件修改时。"

@@ -497,10 +497,6 @@
 			"name": "Habilitar leitura simultânea de arquivos",
 			"description": "Quando habilitado, o Roo pode ler vários arquivos em uma única solicitação. Quando desabilitado, o Roo deve ler arquivos um de cada vez. Desabilitar pode ajudar ao trabalhar com modelos menos capazes ou quando você deseja mais controle sobre o acesso aos arquivos."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Desativar execução de comando em attempt_completion",
-			"description": "Quando ativado, a ferramenta attempt_completion não executará comandos. Este é um recurso experimental para preparar a futura descontinuação da execução de comandos na conclusão da tarefa."
-		},
 		"MARKETPLACE": {
 			"name": "Ativar Marketplace",
 			"description": "Quando ativado, você pode instalar MCPs e modos personalizados do Marketplace."

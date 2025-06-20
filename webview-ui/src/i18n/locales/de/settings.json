@@ -501,10 +501,7 @@
 			"name": "Marketplace aktivieren",
 			"description": "Wenn aktiviert, kannst du MCP und benutzerdefinierte Modi aus dem Marketplace installieren und verwalten."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Befehlsausführung in attempt_completion deaktivieren",
-			"description": "Wenn aktiviert, führt das Tool attempt_completion keine Befehle aus. Dies ist eine experimentelle Funktion, um die Abschaffung der Befehlsausführung bei Aufgabenabschluss vorzubereiten."
-		},
+
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Gleichzeitige Dateibearbeitungen aktivieren",
 			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage bearbeiten. Wenn deaktiviert, muss Roo Dateien einzeln bearbeiten. Das Deaktivieren kann helfen, wenn du mit weniger fähigen Modellen arbeitest oder mehr Kontrolle über Dateiänderungen haben möchtest."

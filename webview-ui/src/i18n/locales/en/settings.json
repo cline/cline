@@ -501,10 +501,6 @@
 			"name": "Enable Marketplace",
 			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Disable command execution in attempt_completion",
-			"description": "When enabled, the attempt_completion tool will not execute commands. This is an experimental feature to prepare for deprecating command execution in task completion."
-		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Enable concurrent file edits",
 			"description": "When enabled, Roo can edit multiple files in a single request. When disabled, Roo must edit files one at a time. Disabling this can help when working with less capable models or when you want more control over file modifications."

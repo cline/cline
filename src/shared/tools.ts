@@ -144,7 +144,7 @@ export interface AskFollowupQuestionToolUse extends ToolUse {
 
 export interface AttemptCompletionToolUse extends ToolUse {
 	name: "attempt_completion"
-	params: Partial<Pick<Record<ToolParamName, string>, "result" | "command">>
+	params: Partial<Pick<Record<ToolParamName, string>, "result">>
 }
 
 export interface SwitchModeToolUse extends ToolUse {

@@ -497,10 +497,6 @@
 			"name": "Włącz jednoczesne odczytywanie plików",
 			"description": "Po włączeniu Roo może odczytać wiele plików w jednym żądaniu. Po wyłączeniu Roo musi odczytywać pliki pojedynczo. Wyłączenie może pomóc podczas pracy z mniej wydajnymi modelami lub gdy chcesz mieć większą kontrolę nad dostępem do plików."
 		},
-		"DISABLE_COMPLETION_COMMAND": {
-			"name": "Wyłącz wykonywanie poleceń w attempt_completion",
-			"description": "Gdy włączone, narzędzie attempt_completion nie będzie wykonywać poleceń. Jest to funkcja eksperymentalna przygotowująca do przyszłego wycofania wykonywania poleceń po zakończeniu zadania."
-		},
 		"MARKETPLACE": {
 			"name": "Włącz Marketplace",
 			"description": "Gdy włączone, możesz instalować MCP i niestandardowe tryby z Marketplace."
