@@ -113,6 +113,7 @@ import { MessageStateHandler } from "./message-state"
 import { formatErrorWithStatusCode, showNotificationForApprovalIfAutoApprovalEnabled, updateApiReqMsg } from "./utils"
 import { serializeError } from "serialize-error"
 import { TaskState } from "./TaskState"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -2643,10 +2644,29 @@ export class Task {
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
 
+								// Get diagnostics for this specific file only
+								const fileUri = vscode.Uri.file(absolutePath)
+								const fileDiagnostics = vscode.languages.getDiagnostics(fileUri)
+
+								// Format diagnostics if any exist
+								let diagnosticsMessage = ""
+								if (fileDiagnostics.length > 0) {
+									const problemsString = diagnosticsToProblemsString(
+										[[fileUri, fileDiagnostics]],
+										[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
+										cwd,
+									)
+
+									diagnosticsMessage = `\n\n---\nNOTE: This file has linter issues. Only address these if they're relevant to your current task:\n${problemsString}\n---`
+								}
+
+								// Combine content with diagnostics
+								const finalContent = content + diagnosticsMessage
+
 								// Track file read operation
 								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-								pushToolResult(content)
+								pushToolResult(finalContent)
 								await this.saveCheckpoint()
 								break
 							}
