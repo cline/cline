@@ -2,12 +2,7 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   bb6d02d: Migrate didBecomeVisible to protobus
-
-### Patch Changes
-
 -   b92a280: fix: respect setting litellm models for plan and act
 -   288f1bf: Do not clear the input value when changing modes without sending a message
 -   c54cf38: Fix MCP server name display logic to avoid showing `undefined` when `command` is missing, preventing tool/resource invocation failures for sse servers.
