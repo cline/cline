@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 import json
 import difflib
+import mimetypes # For guessing file type
 
 # Page config
 st.set_page_config(
@@ -468,7 +469,9 @@ def render_comparison_charts(model_performance):
             showlegend=False,
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Inter, sans-serif")
+            font=dict(family="Inter, sans-serif"),
+            yaxis_range=[0,1],  # Set y-axis from 0% to 100%
+            margin=dict(t=50)  # Add top margin to prevent clipping
         )
         st.plotly_chart(fig_success, use_container_width=True)
     
@@ -620,14 +623,61 @@ def render_file_and_edits_view(result):
             filepath = result['original_filepath'] if not pd.isna(result['original_filepath']) else 'Unknown file'
             st.markdown(f"📁 `{filepath}`")
             
-            # Display original file content with line numbers
+            # Display full original file content in a scrollable code block
             with st.expander("View Original File Content", expanded=True):
-                file_lines = result['original_file_content'].split('\n')
-                for i, line in enumerate(file_lines[:50], 1):  # Limit to first 50 lines
-                    st.text(f"{i:3d} | {line}")
+                # Prepare content for the copy button (needs JS-specific escaping)
+                raw_content_for_copy = result['original_file_content']
+                # Escape for JavaScript template literal: backticks, backslashes, newlines
+                js_escaped_content = raw_content_for_copy.replace('\\', '\\\\') \
+                                                       .replace('`', '\\`') \
+                                                       .replace('\r\n', '\\n') \
+                                                       .replace('\n', '\\n') \
+                                                       .replace('\r', '\\n')
+
+                unique_suffix = str(result.name if hasattr(result, 'name') else result['task_id']).replace('-', '_').replace('.', '_')
+                button_id = f"copyBtnOriginal_{unique_suffix}"
                 
-                if len(file_lines) > 50:
-                    st.text(f"... ({len(file_lines) - 50} more lines)")
+                copy_button_html = f"""
+                    <button id="{button_id}" onclick="copyOriginalToClipboard(`{js_escaped_content}`, '{button_id}')" style="margin-bottom: 10px; padding: 5px 10px; border-radius: 5px; border: 1px solid #ccc; cursor: pointer;">Copy Original File</button>
+                    <script>
+                        if (!window.copyOriginalToClipboard) {{
+                            window.copyOriginalToClipboard = async function(text, buttonId) {{
+                                try {{
+                                    await navigator.clipboard.writeText(text);
+                                    const button = document.getElementById(buttonId);
+                                    button.innerText = 'Copied!';
+                                    button.style.backgroundColor = '#d4edda'; // Optional: success feedback
+                                    setTimeout(() => {{ 
+                                        button.innerText = 'Copy Original File'; 
+                                        button.style.backgroundColor = '';
+                                    }}, 2000);
+                                }} catch (err) {{
+                                    console.error('Failed to copy original: ', err);
+                                    const button = document.getElementById(buttonId);
+                                    button.innerText = 'Copy Failed!';
+                                    button.style.backgroundColor = '#f8d7da'; // Optional: error feedback
+                                    setTimeout(() => {{ 
+                                        button.innerText = 'Copy Original File'; 
+                                        button.style.backgroundColor = '';
+                                    }}, 2000);
+                                }}
+                            }}
+                        }}
+                    </script>
+                    """
+                st.components.v1.html(copy_button_html, height=50)
+
+                # Prepare content for st.code (needs actual newlines)
+                content_for_display = result['original_file_content']
+                # Iteratively replace common escaped newline sequences with actual newlines
+                # This handles cases like "\\n" -> "\n" and then "\n" (if it was literally "\n")
+                # Order might matter if there are multiple levels of escaping, but this covers common ones.
+                content_for_display = content_for_display.replace('\\\\r\\\\n', '\r\n').replace('\\\\n', '\n') # Double escaped
+                content_for_display = content_for_display.replace('\\r\\n', '\r\n').replace('\\n', '\n')     # Single escaped
+
+                language = guess_language_from_filepath(filepath)
+                st.code(content_for_display, language=language, line_numbers=False)
+
         else:
             st.warning("Original file content not available")
     
@@ -745,6 +795,39 @@ def render_metrics_view(result):
         
         if not pd.isna(result['tokens_in_context']):
             st.metric("Context Tokens", int(result['tokens_in_context']))
+
+def guess_language_from_filepath(filepath):
+    """Guess the language for syntax highlighting from filepath."""
+    if not filepath or pd.isna(filepath):
+        return None
+    
+    extension_map = {
+        '.py': 'python',
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.java': 'java',
+        '.cs': 'csharp',
+        '.cpp': 'cpp',
+        '.c': 'c',
+        '.html': 'html',
+        '.css': 'css',
+        '.json': 'json',
+        '.sql': 'sql',
+        '.md': 'markdown',
+        '.rb': 'ruby',
+        '.php': 'php',
+        '.go': 'go',
+        '.rs': 'rust',
+        '.swift': 'swift',
+        '.kt': 'kotlin',
+        '.sh': 'bash',
+        '.yaml': 'yaml',
+        '.yml': 'yaml',
+        '.xml': 'xml',
+    }
+    
+    _, ext = os.path.splitext(filepath)
+    return extension_map.get(ext.lower(), None) # Return None if extension not found, st.code will use auto-detection or plain
 
 def main():
     # Add a note about valid attempts
