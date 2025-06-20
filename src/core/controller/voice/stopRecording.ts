@@ -25,7 +25,6 @@ export const stopRecording: VoiceMethodHandler = async (
 		telemetryService.captureVoiceRecordingStopped(taskId, recordingDuration, result.success, process.platform)
 
 		// Calculate audio size if available
-		const audioSizeBytes = result.audioBase64 ? Math.ceil((result.audioBase64.length * 3) / 4) : undefined
 
 		return RecordedAudio.create({
 			success: result.success,
