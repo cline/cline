@@ -190,25 +190,42 @@ async function listFilteredDirectories(
 	gitignorePatterns: string[],
 ): Promise<string[]> {
 	const absolutePath = path.resolve(dirPath)
+	const directories: string[] = []
 
-	try {
-		// List all entries in the directory
-		const entries = await fs.promises.readdir(absolutePath, { withFileTypes: true })
+	async function scanDirectory(currentPath: string): Promise<void> {
+		try {
+			// List all entries in the current directory
+			const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
 
-		// Filter for directories only
-		const directories = entries
-			.filter((entry) => entry.isDirectory())
-			.filter((entry) => {
-				return shouldIncludeDirectory(entry.name, recursive, gitignorePatterns)
-			})
-			.map((entry) => path.join(absolutePath, entry.name))
+			// Filter for directories only, excluding symbolic links to prevent circular traversal
+			for (const entry of entries) {
+				if (entry.isDirectory() && !entry.isSymbolicLink()) {
+					const dirName = entry.name
+					const fullDirPath = path.join(currentPath, dirName)
 
-		// Format directory paths with trailing slash
-		return directories.map((dir) => (dir.endsWith("/") ? dir : `${dir}/`))
-	} catch (err) {
-		console.error(`Error listing directories: ${err}`)
-		return [] // Return empty array on error
+					// Check if this directory should be included
+					if (shouldIncludeDirectory(dirName, recursive, gitignorePatterns)) {
+						// Add the directory to our results (with trailing slash)
+						const formattedPath = fullDirPath.endsWith("/") ? fullDirPath : `${fullDirPath}/`
+						directories.push(formattedPath)
+
+						// If recursive mode and not a ignored directory, scan subdirectories
+						if (recursive && !isDirectoryExplicitlyIgnored(dirName)) {
+							await scanDirectory(fullDirPath)
+						}
+					}
+				}
+			}
+		} catch (err) {
+			// Silently continue if we can't read a directory
+			console.warn(`Could not read directory ${currentPath}: ${err}`)
+		}
 	}
+
+	// Start scanning from the root directory
+	await scanDirectory(absolutePath)
+
+	return directories
 }
 
 /**
@@ -295,7 +312,8 @@ function formatAndCombineResults(files: string[], directories: string[], limit: 
 	const allPaths = [...directories, ...files]
 
 	// Deduplicate paths (a directory might appear in both lists)
-	const uniquePaths = [...new Set(allPaths)]
+	const uniquePathsSet = new Set(allPaths)
+	const uniquePaths = Array.from(uniquePathsSet)
 
 	// Sort to ensure directories come first, followed by files
 	uniquePaths.sort((a: string, b: string) => {
