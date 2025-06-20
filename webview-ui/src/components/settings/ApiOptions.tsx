@@ -6,7 +6,6 @@ import {
 	ApiConfiguration,
 	askSageDefaultURL,
 	askSageModels,
-	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
 	cerebrasModels,
@@ -18,9 +17,7 @@ import {
 	mainlandQwenModels,
 	ModelInfo,
 	nebiusModels,
-	openAiModelInfoSaneDefaults,
 	openAiNativeModels,
-	sambanovaModels,
 	vertexGlobalModels,
 	vertexModels,
 	xaiModels,
@@ -56,6 +53,7 @@ import { MistralProvider } from "./providers/MistralProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { TogetherProvider } from "./providers/TogetherProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
+import { SambanovaProvider } from "./providers/SambanovaProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -1537,35 +1535,13 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "sambanova" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.sambanovaApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("sambanovaApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>SambaNova API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.sambanovaApiKey && (
-							<VSCodeLink
-								href="https://docs.sambanova.ai/cloud/docs/get-started/overview"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a SambaNova API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "sambanova" && (
+				<SambanovaProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{selectedProvider === "cerebras" && (
@@ -1762,6 +1738,7 @@ const ApiOptions = ({
 				selectedProvider !== "bedrock" &&
 				selectedProvider !== "mistral" &&
 				selectedProvider !== "deepseek" &&
+				selectedProvider !== "sambanova" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1781,7 +1758,6 @@ const ApiOptions = ({
 							{selectedProvider === "doubao" && createDropdown(doubaoModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
-							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
