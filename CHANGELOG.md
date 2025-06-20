@@ -1,16 +1,16 @@
 # Changelog
 
-## 3.18.0
+## [3.17.15]
 
--   bb6d02d: Migrate didBecomeVisible to protobus
--   b92a280: fix: respect setting litellm models for plan and act
--   288f1bf: Do not clear the input value when changing modes without sending a message
--   c54cf38: Fix MCP server name display logic to avoid showing `undefined` when `command` is missing, preventing tool/resource invocation failures for sse servers.
--   c5eccfe: Prevent reading IS_DEV from the users environment
--   cecf730: fix(bedrock): remove custom Model encode
--   e46980e: Updated Timeline tooltips for `followup` messages and consolidated color retrieval code.
--   b62f61f: The close task button and delete task button in the task header are now correctly announced by screen readers.
--   1b70080: Screen readers now report the plan / act mode switch state.
+-   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
+-   Fix chat input being cleared when switching between Plan/Act modes without sending a message (Thanks @BarreiroT!)
+-   Fix MCP server name display to avoid showing "undefined" for SSE servers, preventing tool/resource invocation failures (Thanks @ramybenaroya!)
+-   Fix AWS Bedrock provider by removing deprecated custom model encoding (Thanks @watany-dev!)
+-   Fix timeline tooltips for followup messages and improve color retrieval code (Thanks @char8x!)
+-   Improve accessibility by making task header buttons properly announced by screen readers (Thanks @yncat!)
+-   Improve accessibility by adding proper state reporting for Plan/Act mode switch for screen readers (Thanks @yncat!)
+-   Prevent reading development environment variables from user's environment (Thanks @BarreiroT!)
+-   Internal refactoring: migrate didBecomeVisible event handling to protobus architecture
 
 ## [3.17.14]
 
