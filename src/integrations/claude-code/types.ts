@@ -6,6 +6,7 @@ type InitMessage = {
 	session_id: string
 	tools: string[]
 	mcp_servers: string[]
+	apiKeySource: "none" | "/login managed key" | string
 }
 
 type AssistantMessage = {
@@ -21,13 +22,12 @@ type ErrorMessage = {
 type ResultMessage = {
 	type: "result"
 	subtype: "success"
-	cost_usd: number
+	total_cost_usd: number
 	is_error: boolean
 	duration_ms: number
 	duration_api_ms: number
 	num_turns: number
 	result: string
-	total_cost: number
 	session_id: string
 }
 
