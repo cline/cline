@@ -27,21 +27,21 @@ Client                    Server
 
 ### STDIO Characteristics
 
--   **Locality**: Runs on the same machine as Cline
--   **Performance**: Very low latency and overhead (no network stack involved)
--   **Simplicity**: Direct process communication without network configuration
--   **Relationship**: One-to-one relationship between client and server
--   **Security**: Inherently more secure as no network exposure
+- **Locality**: Runs on the same machine as Cline
+- **Performance**: Very low latency and overhead (no network stack involved)
+- **Simplicity**: Direct process communication without network configuration
+- **Relationship**: One-to-one relationship between client and server
+- **Security**: Inherently more secure as no network exposure
 
 ### When to Use STDIO
 
 STDIO transport is ideal for:
 
--   Local integrations and tools running on the same machine
--   Security-sensitive operations
--   Low-latency requirements
--   Single-client scenarios (one Cline instance per server)
--   Command-line tools or IDE extensions
+- Local integrations and tools running on the same machine
+- Security-sensitive operations
+- Low-latency requirements
+- Single-client scenarios (one Cline instance per server)
+- Command-line tools or IDE extensions
 
 ### STDIO Implementation Example
 
@@ -83,21 +83,21 @@ Client                             Server
 
 ### SSE Characteristics
 
--   **Remote Access**: Can be hosted on a different machine from your Cline instance
--   **Scalability**: Can handle multiple client connections concurrently
--   **Protocol**: Works over standard HTTP (no special protocols needed)
--   **Persistence**: Maintains a persistent connection for server-to-client messages
--   **Authentication**: Can use standard HTTP authentication mechanisms
+- **Remote Access**: Can be hosted on a different machine from your Cline instance
+- **Scalability**: Can handle multiple client connections concurrently
+- **Protocol**: Works over standard HTTP (no special protocols needed)
+- **Persistence**: Maintains a persistent connection for server-to-client messages
+- **Authentication**: Can use standard HTTP authentication mechanisms
 
 ### When to Use SSE
 
 SSE transport is better for:
 
--   Remote access across networks
--   Multi-client scenarios
--   Public services
--   Centralized tools that many users need to access
--   Integration with web services
+- Remote access across networks
+- Multi-client scenarios
+- Public services
+- Centralized tools that many users need to access
+- Integration with web services
 
 ### SSE Implementation Example
 
@@ -114,7 +114,7 @@ const server = new Server({ name: "remote-server", version: "1.0.0" })
 const transport = new SSEServerTransport(server)
 app.use("/mcp", transport.requestHandler())
 app.listen(3000, () => {
-  console.log("MCP server listening on port 3000")
+	console.log("MCP server listening on port 3000")
 })
 ```
 
@@ -126,8 +126,10 @@ Streamable HTTP transport provides an HTTP-based communication method that combi
 
 1. **Client-to-Server**: The client (Cline) sends JSON-RPC messages via HTTP POST requests to the server's MCP endpoint
 2. **Server-to-Client**: The server can respond either with:
-  - Direct JSON responses for simple request-response patterns
-  - Server-Sent Events (SSE) streams for real-time communication and streaming responses (Optional)
+
+- Direct JSON responses for simple request-response patterns
+- Server-Sent Events (SSE) streams for real-time communication and streaming responses (Optional)
+
 3. **Optional Listening**: The client can optionally open a persistent SSE connection via HTTP GET to receive server-initiated messages
 4. **Session Management**: Servers can maintain stateful sessions with session IDs for persistent connections
 
@@ -144,24 +146,24 @@ Client                             Server
 
 ### Streamable HTTP Characteristics
 
--   **Remote Access**: Can be hosted on a different machine from your Cline instance
--   **Flexible Response Types**: Supports both direct JSON responses and SSE streaming
--   **Bidirectional**: Allows server-initiated communication through SSE streams
--   **Session Support**: Optional stateful sessions with session ID management
--   **Multiple Connections**: Can handle multiple simultaneous SSE streams
--   **Resumable**: Supports connection resumption and message redelivery
--   **Security**: Includes built-in protections against DNS rebinding attacks
+- **Remote Access**: Can be hosted on a different machine from your Cline instance
+- **Flexible Response Types**: Supports both direct JSON responses and SSE streaming
+- **Bidirectional**: Allows server-initiated communication through SSE streams
+- **Session Support**: Optional stateful sessions with session ID management
+- **Multiple Connections**: Can handle multiple simultaneous SSE streams
+- **Resumable**: Supports connection resumption and message redelivery
+- **Security**: Includes built-in protections against DNS rebinding attacks
 
 ### When to Use Streamable HTTP
 
 Streamable HTTP transport is well suited for:
 
--   Remote servers requiring both request-response and streaming capabilities
--   Applications needing server-initiated notifications or requests
--   Services that need session persistence and state management
--   Environments where you want HTTP flexibility with optional streaming
--   Integration with existing HTTP infrastructure and security models
--   Scenarios requiring connection resumption and message reliability
+- Remote servers requiring both request-response and streaming capabilities
+- Applications needing server-initiated notifications or requests
+- Services that need session persistence and state management
+- Environments where you want HTTP flexibility with optional streaming
+- Integration with existing HTTP infrastructure and security models
+- Scenarios requiring connection resumption and message reliability
 
 In addition, the [draft specification of the modelcontextprotocol](https://modelcontextprotocol.io/specification/draft/basic/transports#streamable-http) states that Streamable HTTP (with optional upgrade to SSE) replaces the SSE-only transport from the 2024 version of the MCP specification.
 
@@ -180,7 +182,7 @@ const server = new Server({ name: "streamable-server", version: "1.0.0" })
 const transport = new StreamableHTTPServerTransport(server)
 app.use("/mcp", transport.requestHandler())
 app.listen(3000, () => {
-  console.log("MCP streamable server listening on port 3000")
+	console.log("MCP streamable server listening on port 3000")
 })
 ```
 
@@ -188,10 +190,10 @@ app.listen(3000, () => {
 
 When implementing Streamable HTTP transport:
 
--   **Origin Validation**: Servers must validate the `Origin` header to prevent DNS rebinding attacks
--   **Local Binding**: Local servers should bind only to localhost (127.0.0.1) rather than all interfaces
--   **Authentication**: Implement proper authentication for all connections
--   **Session Security**: Use cryptographically secure session IDs (UUIDs, JWTs, or hashes)
+- **Origin Validation**: Servers must validate the `Origin` header to prevent DNS rebinding attacks
+- **Local Binding**: Local servers should bind only to localhost (127.0.0.1) rather than all interfaces
+- **Authentication**: Implement proper authentication for all connections
+- **Session Security**: Use cryptographically secure session IDs (UUIDs, JWTs, or hashes)
 
 ## Local vs. Hosted: Deployment Aspects
 
@@ -201,47 +203,47 @@ The choice between STDIO, SSE, and Streamable HTTP transports directly impacts h
 
 STDIO servers run locally on the same machine as Cline, which has several important implications:
 
--   **Installation**: The server executable must be installed on each user's machine
--   **Distribution**: You need to provide installation packages for different operating systems
--   **Updates**: Each instance must be updated separately
--   **Resources**: Uses the local machine's CPU, memory, and disk
--   **Access Control**: Relies on the local machine's filesystem permissions
--   **Integration**: Easy integration with local system resources (files, processes)
--   **Execution**: Starts and stops with Cline (child process lifecycle)
--   **Dependencies**: Any dependencies must be installed on the user's machine
+- **Installation**: The server executable must be installed on each user's machine
+- **Distribution**: You need to provide installation packages for different operating systems
+- **Updates**: Each instance must be updated separately
+- **Resources**: Uses the local machine's CPU, memory, and disk
+- **Access Control**: Relies on the local machine's filesystem permissions
+- **Integration**: Easy integration with local system resources (files, processes)
+- **Execution**: Starts and stops with Cline (child process lifecycle)
+- **Dependencies**: Any dependencies must be installed on the user's machine
 
 #### Practical Example
 
 A local file search tool using STDIO would:
 
--   Run on the user's machine
--   Have direct access to the local filesystem
--   Start when needed by Cline
--   Not require network configuration
--   Need to be installed alongside Cline or via a package manager
+- Run on the user's machine
+- Have direct access to the local filesystem
+- Start when needed by Cline
+- Not require network configuration
+- Need to be installed alongside Cline or via a package manager
 
 ### SSE & Streamable HTTP: Hosted Deployment Model
 
 Both SSE and Streamable HTTP servers can be deployed to remote servers and accessed over the network:
 
--   **Installation**: Installed once on a server, accessed by many users
--   **Distribution**: Single deployment serves multiple clients
--   **Updates**: Centralized updates affect all users immediately
--   **Resources**: Uses server resources, not local machine resources
--   **Access Control**: Managed through authentication and authorization systems
--   **Integration**: More complex integration with user-specific resources
--   **Execution**: Runs as an independent service (often continuously)
--   **Dependencies**: Managed on the server, not on user machines
+- **Installation**: Installed once on a server, accessed by many users
+- **Distribution**: Single deployment serves multiple clients
+- **Updates**: Centralized updates affect all users immediately
+- **Resources**: Uses server resources, not local machine resources
+- **Access Control**: Managed through authentication and authorization systems
+- **Integration**: More complex integration with user-specific resources
+- **Execution**: Runs as an independent service (often continuously)
+- **Dependencies**: Managed on the server, not on user machines
 
 #### Practical Example
 
 A database query tool using SSE or Streamable HTTP would:
 
--   Run on a central server
--   Connect to databases with server-side credentials
--   Be continuously available for multiple users
--   Require proper network security configuration
--   Be deployed using container or cloud technologies
+- Run on a central server
+- Connect to databases with server-side credentials
+- Be continuously available for multiple users
+- Require proper network security configuration
+- Be deployed using container or cloud technologies
 
 ### Hybrid Approaches
 
