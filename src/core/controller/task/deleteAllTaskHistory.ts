@@ -41,9 +41,9 @@ export async function deleteAllTaskHistory(controller: Controller, request: Bool
 					console.error("Error posting to webview:", webviewErr)
 				}
 
-				return {
+				return DeleteAllTaskHistoryCount.create({
 					tasksDeleted: totalTasks - favoritedTasks.length,
-				}
+				})
 			}
 		}
 
@@ -75,9 +75,9 @@ export async function deleteAllTaskHistory(controller: Controller, request: Bool
 			console.error("Error posting to webview:", webviewErr)
 		}
 
-		return {
+		return DeleteAllTaskHistoryCount.create({
 			tasksDeleted: totalTasks,
-		}
+		})
 	} catch (error) {
 		console.error("Error in deleteAllTaskHistory:", error)
 		throw error

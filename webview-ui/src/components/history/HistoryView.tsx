@@ -4,7 +4,7 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/common"
+import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/task"
 import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
@@ -737,7 +737,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										"Would you like to preserve favorited tasks?\n\nClick 'OK' to preserve favorites, or 'Cancel' to delete everything.",
 									)
 
-									TaskServiceClient.deleteAllTaskHistory({ value: preserveFavorites })
+									TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({ value: preserveFavorites }))
 										.catch((error) => console.error("Error deleting task history:", error))
 										.finally(() => setDeleteAllDisabled(false))
 								} else {
