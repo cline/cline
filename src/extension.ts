@@ -43,9 +43,37 @@ let outputChannel: vscode.OutputChannel
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
+import * as os from "os"
+import * as fs from "fs"
+import * as path from "path"
+
 export async function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
+
+	// Watch for instructions from the headless server
+	const tempDir = os.tmpdir()
+	const instructionFilePath = path.join(tempDir, "cline-instruction.txt")
+
+	fs.watch(instructionFilePath, async (eventType: string) => {
+		if (eventType === "change") {
+			try {
+				const instruction = await fs.promises.readFile(instructionFilePath, "utf-8")
+				if (instruction) {
+					const visibleWebview = WebviewProvider.getVisibleInstance()
+					if (visibleWebview) {
+						await visibleWebview.controller.initTask(instruction)
+					} else {
+						vscode.window.showInformationMessage(
+							`Cline received instruction: "${instruction}" but no active webview was found.`,
+						)
+					}
+				}
+			} catch (error) {
+				console.error("Error processing instruction from file:", error)
+			}
+		}
+	})
 
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
