@@ -11,12 +11,13 @@ import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
 import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
+import { WebviewProviderType } from "@/shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 
 async function main() {
 	log("Starting standalone service...")
 
-	hostProviders.initializeHostProviders(ExternalWebviewProvider.create, new ExternalHostBridgeClientManager())
+	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	const server = new grpc.Server()
@@ -42,6 +43,10 @@ async function main() {
 		server.start()
 		log(`gRPC server listening on ${host}`)
 	})
+}
+
+const createWebview = () => {
+	return new ExternalWebviewProvider(extensionContext, outputChannel, WebviewProviderType.SIDEBAR)
 }
 
 /**
