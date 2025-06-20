@@ -85,8 +85,8 @@ export class MdmService {
 			return { compliant: true }
 		}
 
-		// Check if cloud service is available and authenticated
-		if (!CloudService.hasInstance() || !CloudService.instance.hasActiveSession()) {
+		// Check if cloud service is available and has active or attempting session
+		if (!CloudService.hasInstance() || !CloudService.instance.hasOrIsAcquiringActiveSession()) {
 			return {
 				compliant: false,
 				reason: "Your organization requires Roo Code Cloud authentication. Please sign in to continue.",

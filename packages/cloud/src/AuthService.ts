@@ -11,6 +11,7 @@ import { RefreshTimer } from "./RefreshTimer"
 import { getUserAgent } from "./utils"
 
 export interface AuthServiceEvents {
+	"attempting-session": [data: { previousState: AuthState }]
 	"inactive-session": [data: { previousState: AuthState }]
 	"active-session": [data: { previousState: AuthState }]
 	"logged-out": [data: { previousState: AuthState }]
@@ -26,7 +27,7 @@ type AuthCredentials = z.infer<typeof authCredentialsSchema>
 
 const AUTH_STATE_KEY = "clerk-auth-state"
 
-type AuthState = "initializing" | "logged-out" | "active-session" | "inactive-session"
+type AuthState = "initializing" | "logged-out" | "active-session" | "attempting-session" | "inactive-session"
 
 const clerkSignInResponseSchema = z.object({
 	response: z.object({
@@ -93,6 +94,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private credentials: AuthCredentials | null = null
 	private sessionToken: string | null = null
 	private userInfo: CloudUserInfo | null = null
+	private isFirstRefreshAttempt: boolean = false
 
 	constructor(context: vscode.ExtensionContext, log?: (...args: unknown[]) => void) {
 		super()
@@ -129,7 +131,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 					this.credentials.clientToken !== credentials.clientToken ||
 					this.credentials.sessionId !== credentials.sessionId
 				) {
-					this.transitionToInactiveSession(credentials)
+					this.transitionToAttemptingSession(credentials)
 				}
 			} else {
 				if (this.state !== "logged-out") {
@@ -156,9 +158,24 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		this.log("[auth] Transitioned to logged-out state")
 	}
 
-	private transitionToInactiveSession(credentials: AuthCredentials): void {
+	private transitionToAttemptingSession(credentials: AuthCredentials): void {
 		this.credentials = credentials
 
+		const previousState = this.state
+		this.state = "attempting-session"
+
+		this.sessionToken = null
+		this.userInfo = null
+		this.isFirstRefreshAttempt = true
+
+		this.emit("attempting-session", { previousState })
+
+		this.timer.start()
+
+		this.log("[auth] Transitioned to attempting-session state")
+	}
+
+	private transitionToInactiveSession(): void {
 		const previousState = this.state
 		this.state = "inactive-session"
 
@@ -166,8 +183,6 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		this.userInfo = null
 
 		this.emit("inactive-session", { previousState })
-
-		this.timer.start()
 
 		this.log("[auth] Transitioned to inactive-session state")
 	}
@@ -329,14 +344,25 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	/**
 	 * Check if the user is authenticated
 	 *
-	 * @returns True if the user is authenticated (has an active or inactive session)
+	 * @returns True if the user is authenticated (has an active, attempting, or inactive session)
 	 */
 	public isAuthenticated(): boolean {
-		return this.state === "active-session" || this.state === "inactive-session"
+		return (
+			this.state === "active-session" || this.state === "attempting-session" || this.state === "inactive-session"
+		)
 	}
 
 	public hasActiveSession(): boolean {
 		return this.state === "active-session"
+	}
+
+	/**
+	 * Check if the user has an active session or is currently attempting to acquire one
+	 *
+	 * @returns True if the user has an active session or is attempting to get one
+	 */
+	public hasOrIsAcquiringActiveSession(): boolean {
+		return this.state === "active-session" || this.state === "attempting-session"
 	}
 
 	/**
@@ -364,6 +390,9 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			if (error instanceof InvalidClientTokenError) {
 				this.log("[auth] Invalid/Expired client token: clearing credentials")
 				this.clearCredentials()
+			} else if (this.isFirstRefreshAttempt && this.state === "attempting-session") {
+				this.isFirstRefreshAttempt = false
+				this.transitionToInactiveSession()
 			}
 			this.log("[auth] Failed to refresh session", error)
 			throw error

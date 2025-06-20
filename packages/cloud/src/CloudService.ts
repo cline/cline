@@ -40,6 +40,7 @@ export class CloudService {
 			this.authService = new AuthService(this.context, this.log)
 			await this.authService.initialize()
 
+			this.authService.on("attempting-session", this.authListener)
 			this.authService.on("inactive-session", this.authListener)
 			this.authService.on("active-session", this.authListener)
 			this.authService.on("logged-out", this.authListener)
@@ -87,6 +88,11 @@ export class CloudService {
 	public hasActiveSession(): boolean {
 		this.ensureInitialized()
 		return this.authService!.hasActiveSession()
+	}
+
+	public hasOrIsAcquiringActiveSession(): boolean {
+		this.ensureInitialized()
+		return this.authService!.hasOrIsAcquiringActiveSession()
 	}
 
 	public getUserInfo(): CloudUserInfo | null {
@@ -152,6 +158,8 @@ export class CloudService {
 
 	public dispose(): void {
 		if (this.authService) {
+			this.authService.off("attempting-session", this.authListener)
+			this.authService.off("inactive-session", this.authListener)
 			this.authService.off("active-session", this.authListener)
 			this.authService.off("logged-out", this.authListener)
 			this.authService.off("user-info", this.authListener)

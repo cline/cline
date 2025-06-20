@@ -14,7 +14,6 @@ import { RefreshTimer } from "./RefreshTimer"
 const ORGANIZATION_SETTINGS_CACHE_KEY = "organization-settings"
 
 export class SettingsService {
-
 	private context: vscode.ExtensionContext
 	private authService: AuthService
 	private settings: OrganizationSettings | undefined = undefined
@@ -43,6 +42,10 @@ export class SettingsService {
 			this.removeSettings()
 		}
 
+		this.authService.on("attempting-session", () => {
+			this.timer.start()
+		})
+
 		this.authService.on("active-session", () => {
 			this.timer.start()
 		})
@@ -52,7 +55,7 @@ export class SettingsService {
 			this.removeSettings()
 		})
 
-		if (this.authService.hasActiveSession()) {
+		if (this.authService.hasOrIsAcquiringActiveSession()) {
 			this.timer.start()
 		}
 	}
@@ -120,5 +123,4 @@ export class SettingsService {
 	public dispose(): void {
 		this.timer.stop()
 	}
-
 }

@@ -16,6 +16,7 @@ vi.mock("@roo-code/cloud", () => ({
 		hasInstance: vi.fn(),
 		instance: {
 			hasActiveSession: vi.fn(),
+			hasOrIsAcquiringActiveSession: vi.fn(),
 			getOrganizationId: vi.fn(),
 		},
 	},
@@ -243,7 +244,7 @@ describe("MdmService", () => {
 			mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig))
 
 			mockCloudService.hasInstance.mockReturnValue(true)
-			mockCloudService.instance.hasActiveSession.mockReturnValue(true)
+			mockCloudService.instance.hasOrIsAcquiringActiveSession.mockReturnValue(true)
 
 			const service = await MdmService.createInstance()
 			const compliance = service.isCompliant()
@@ -278,7 +279,7 @@ describe("MdmService", () => {
 
 			// Mock CloudService to have instance and active session but wrong org
 			mockCloudService.hasInstance.mockReturnValue(true)
-			mockCloudService.instance.hasActiveSession.mockReturnValue(true)
+			mockCloudService.instance.hasOrIsAcquiringActiveSession.mockReturnValue(true)
 			mockCloudService.instance.getOrganizationId.mockReturnValue("different-org-456")
 
 			const service = await MdmService.createInstance()
@@ -299,8 +300,23 @@ describe("MdmService", () => {
 			mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig))
 
 			mockCloudService.hasInstance.mockReturnValue(true)
-			mockCloudService.instance.hasActiveSession.mockReturnValue(true)
+			mockCloudService.instance.hasOrIsAcquiringActiveSession.mockReturnValue(true)
 			mockCloudService.instance.getOrganizationId.mockReturnValue("correct-org-123")
+
+			const service = await MdmService.createInstance()
+			const compliance = service.isCompliant()
+
+			expect(compliance.compliant).toBe(true)
+		})
+
+		it("should be compliant when in attempting-session state", async () => {
+			const mockConfig = { requireCloudAuth: true }
+			mockFs.existsSync.mockReturnValue(true)
+			mockFs.readFileSync.mockReturnValue(JSON.stringify(mockConfig))
+
+			mockCloudService.hasInstance.mockReturnValue(true)
+			// Mock attempting session (not active, but acquiring)
+			mockCloudService.instance.hasOrIsAcquiringActiveSession.mockReturnValue(true)
 
 			const service = await MdmService.createInstance()
 			const compliance = service.isCompliant()
