@@ -10,6 +10,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class ExternalWebviewProvider extends WebviewProvider {
+	private RESOURCE_AUTHORITY: string = "file.resources"
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
 		super(context, outputChannel, providerType)
 	}
@@ -18,7 +19,7 @@ export class ExternalWebviewProvider extends WebviewProvider {
 		if (uri.scheme !== "file") {
 			return uri
 		}
-		return URI.from({ scheme: "https", authority: "file.resource", path: uri.fsPath })
+		return URI.from({ scheme: "https", authority: this.RESOURCE_AUTHORITY, path: uri.fsPath })
 	}
 	override getCspSource() {
 		return "csp-source"
