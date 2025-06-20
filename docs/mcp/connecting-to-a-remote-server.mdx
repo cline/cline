@@ -1,6 +1,6 @@
 ---
 title: "Connecting to a Remote Server"
-description: "The Model Context Protocol (MCP) allows Cline to communicate with external servers that provide additional tools and resources to extend its capabilities. This guide explains how to add and connect to remote MCP servers through the MCP Servers interface."
+description: "The Model Context Protocol (MCP) allows Cline to communicate with external servers that provide additional tools and resources to extend its capabilities. This guide explains how to add and connect to remote MCP servers using SSE or Streamable HTTP transports through the MCP Servers interface."
 ---
 
 ## Adding and Managing Remote MCP Servers
@@ -103,20 +103,41 @@ For advanced users, Cline stores MCP server configurations in a JSON file that c
 
 ```json
 {
-	"mcpServers": {
-		"exampleServer": {
-			"url": "https://example.com/mcp-sse",
-			"disabled": false,
-			"autoApprove": ["tool1", "tool2"],
-			"timeout": 30
-		}
-	}
+  "mcpServers": {
+    "exampleServer": {
+      "url": "https://example.com/mcp-sse",
+      "disabled": false,
+      "autoApprove": ["tool1", "tool2"],
+      "timeout": 30
+    }
+  }
+}
+```
+
+For Streamable HTTP servers, you can explicitly specify the transport type:
+
+```json
+{
+  "mcpServers": {
+    "streamableServer": {
+      "type": "streamableHttp",
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "disabled": false,
+      "autoApprove": ["tool1", "tool2"],
+      "timeout": 60
+    }
+  }
 }
 ```
 
 Key configuration options:
 
+-   **type**: Transport type (`sse` or `streamableHttp`)
 -   **url**: The endpoint URL (for remote servers)
+-   **headers**: HTTP headers for authentication (optional)
 -   **disabled**: Whether the server is currently enabled (true/false)
 -   **autoApprove**: List of tool names that don't require confirmation
 -   **timeout**: Maximum time in seconds to wait for server responses
