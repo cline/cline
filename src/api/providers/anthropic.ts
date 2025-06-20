@@ -135,6 +135,7 @@ export class AnthropicHandler implements ApiHandler {
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
 				case "message_start":
+				case "message_delta":
 					// tells us cache reads/writes/input/output
 					const usage = chunk.message.usage
 					yield {
@@ -143,17 +144,6 @@ export class AnthropicHandler implements ApiHandler {
 						outputTokens: usage.output_tokens || 0,
 						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
-					}
-					break
-				case "message_delta":
-					// tells us stop_reason, stop_sequence, and output tokens along the way and at the end of the message
-
-					yield {
-						type: "usage",
-						inputTokens: chunk.usage.input_tokens || 0,
-						outputTokens: chunk.usage.output_tokens || 0,
-						cacheWriteTokens: chunk.usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: chunk.usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_stop":
