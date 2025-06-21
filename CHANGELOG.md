@@ -2,8 +2,6 @@
 
 ## 3.18.0
 
-### Minor Changes
-
 -   b26997a: Migrate authStateChanged to protobus
 
 ## [3.17.15]
