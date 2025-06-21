@@ -242,6 +242,7 @@ export const McpExecution = ({
 							serverName={useMcpServer.serverName}
 							serverSource={server?.source}
 							alwaysAllowMcp={alwaysAllowMcp}
+							isInChatContext={true}
 						/>
 					</div>
 				)}
@@ -256,6 +257,7 @@ export const McpExecution = ({
 							serverName={serverName}
 							serverSource={undefined}
 							alwaysAllowMcp={alwaysAllowMcp}
+							isInChatContext={true}
 						/>
 					</div>
 				)}

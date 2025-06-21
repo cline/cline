@@ -10,9 +10,10 @@ type McpToolRowProps = {
 	serverName?: string
 	serverSource?: "global" | "project"
 	alwaysAllowMcp?: boolean
+	isInChatContext?: boolean
 }
 
-const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp, isInChatContext = false }: McpToolRowProps) => {
 	const { t } = useAppTranslation()
 	const handleAlwaysAllowChange = () => {
 		if (!serverName) return
@@ -66,25 +67,27 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 							</VSCodeCheckbox>
 						)}
 
-						{/* Enabled eye button */}
-						<button
-							role="button"
-							aria-pressed={tool.enabledForPrompt}
-							aria-label={t("mcp:tool.togglePromptInclusion")}
-							className={`p-1 rounded hover:bg-vscode-toolbar-hoverBackground transition-colors ${
-								tool.enabledForPrompt
-									? "text-vscode-foreground"
-									: "text-vscode-descriptionForeground opacity-60"
-							}`}
-							onClick={handleEnabledForPromptChange}
-							data-tool-prompt-toggle={tool.name}
-							title={t("mcp:tool.togglePromptInclusion")}>
-							<span
-								className={`codicon ${
-									tool.enabledForPrompt ? "codicon-eye" : "codicon-eye-closed"
-								} text-base`}
-							/>
-						</button>
+						{/* Enabled eye button - only show in settings context */}
+						{!isInChatContext && (
+							<button
+								role="button"
+								aria-pressed={tool.enabledForPrompt}
+								aria-label={t("mcp:tool.togglePromptInclusion")}
+								className={`p-1 rounded hover:bg-vscode-toolbar-hoverBackground transition-colors ${
+									tool.enabledForPrompt
+										? "text-vscode-foreground"
+										: "text-vscode-descriptionForeground opacity-60"
+								}`}
+								onClick={handleEnabledForPromptChange}
+								data-tool-prompt-toggle={tool.name}
+								title={t("mcp:tool.togglePromptInclusion")}>
+								<span
+									className={`codicon ${
+										tool.enabledForPrompt ? "codicon-eye-closed" : "codicon-eye"
+									} text-base`}
+								/>
+							</button>
+						)}
 					</div>
 				)}
 			</div>

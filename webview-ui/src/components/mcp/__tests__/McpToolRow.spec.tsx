@@ -12,6 +12,7 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				"mcp:tool.alwaysAllow": "Always allow",
 				"mcp:tool.parameters": "Parameters",
 				"mcp:tool.noDescription": "No description",
+				"mcp:tool.togglePromptInclusion": "Toggle prompt inclusion",
 			}
 			return translations[key] || key
 		},
@@ -48,6 +49,7 @@ describe("McpToolRow", () => {
 		name: "test-tool",
 		description: "A test tool",
 		alwaysAllow: false,
+		enabledForPrompt: true,
 	}
 
 	beforeEach(() => {
@@ -140,5 +142,49 @@ describe("McpToolRow", () => {
 		expect(screen.getByText("param2")).toBeInTheDocument()
 		expect(screen.getByText("First parameter")).toBeInTheDocument()
 		expect(screen.getByText("Second parameter")).toBeInTheDocument()
+	})
+
+	it("shows eye button when serverName is provided and not in chat context", () => {
+		render(<McpToolRow tool={mockTool} serverName="test-server" />)
+
+		const eyeButton = screen.getByRole("button", { name: "Toggle prompt inclusion" })
+		expect(eyeButton).toBeInTheDocument()
+	})
+
+	it("hides eye button when isInChatContext is true", () => {
+		render(<McpToolRow tool={mockTool} serverName="test-server" isInChatContext={true} />)
+
+		const eyeButton = screen.queryByRole("button", { name: "Toggle prompt inclusion" })
+		expect(eyeButton).not.toBeInTheDocument()
+	})
+
+	it("shows correct eye icon based on enabledForPrompt state", () => {
+		// Test when enabled (should show eye-closed icon)
+		const { rerender } = render(<McpToolRow tool={mockTool} serverName="test-server" />)
+
+		let eyeIcon = screen.getByRole("button", { name: "Toggle prompt inclusion" }).querySelector("span")
+		expect(eyeIcon).toHaveClass("codicon-eye-closed")
+
+		// Test when disabled (should show eye icon)
+		const disabledTool = { ...mockTool, enabledForPrompt: false }
+		rerender(<McpToolRow tool={disabledTool} serverName="test-server" />)
+
+		eyeIcon = screen.getByRole("button", { name: "Toggle prompt inclusion" }).querySelector("span")
+		expect(eyeIcon).toHaveClass("codicon-eye")
+	})
+
+	it("sends message to toggle enabledForPrompt when eye button is clicked", () => {
+		render(<McpToolRow tool={mockTool} serverName="test-server" />)
+
+		const eyeButton = screen.getByRole("button", { name: "Toggle prompt inclusion" })
+		fireEvent.click(eyeButton)
+
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "toggleToolEnabledForPrompt",
+			serverName: "test-server",
+			source: "global",
+			toolName: "test-tool",
+			isEnabled: false,
+		})
 	})
 })
