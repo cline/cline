@@ -49,6 +49,7 @@ describe("ContextManagementSettings", () => {
 		maxWorkspaceFiles: 200,
 		showRooIgnoredFiles: false,
 		setCachedStateField: vitest.fn(),
+		profileThresholds: {},
 	}
 
 	beforeEach(() => {
@@ -174,17 +175,16 @@ describe("ContextManagementSettings", () => {
 		render(<ContextManagementSettings {...propsWithAutoCondense} />)
 
 		// Should render the auto condense section
-		// Should render the auto condense section
 		const autoCondenseCheckbox = screen.getByTestId("auto-condense-context-checkbox")
 		expect(autoCondenseCheckbox).toBeInTheDocument()
 
-		// Should render the slider with correct value
-		const slider = screen.getByTestId("auto-condense-percent-slider")
+		// Should render the threshold slider with correct value
+		const slider = screen.getByTestId("condense-threshold-slider")
 		expect(slider).toBeInTheDocument()
 
-		// Should render the API config select
-		const apiSelect = screen.getByRole("combobox")
-		expect(apiSelect).toBeInTheDocument()
+		// Should render both select dropdowns (profile and API config)
+		const selects = screen.getAllByRole("combobox")
+		expect(selects).toHaveLength(2)
 
 		// Should render the custom prompt textarea
 		const textarea = screen.getByRole("textbox")
@@ -207,7 +207,7 @@ describe("ContextManagementSettings", () => {
 		it("toggles auto condense context setting", () => {
 			const mockSetCachedStateField = vitest.fn()
 			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
-			const { rerender } = render(<ContextManagementSettings {...props} />)
+			render(<ContextManagementSettings {...props} />)
 
 			const checkbox = screen.getByTestId("auto-condense-context-checkbox")
 			expect(checkbox).toBeChecked()
@@ -215,33 +215,16 @@ describe("ContextManagementSettings", () => {
 			// Toggle off
 			fireEvent.click(checkbox)
 			expect(mockSetCachedStateField).toHaveBeenCalledWith("autoCondenseContext", false)
-
-			// Re-render with updated props to simulate the state change
-			rerender(<ContextManagementSettings {...props} autoCondenseContext={false} />)
-
-			// Additional settings should not be visible when disabled
-			expect(screen.queryByTestId("auto-condense-percent-slider")).not.toBeInTheDocument()
-			expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
-			expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
 		})
 
 		it("shows additional settings when auto condense is enabled", () => {
 			render(<ContextManagementSettings {...autoCondenseProps} />)
 
 			// Additional settings should be visible
-			expect(screen.getByTestId("auto-condense-percent-slider")).toBeInTheDocument()
-			expect(screen.getByRole("combobox")).toBeInTheDocument()
+			expect(screen.getByTestId("condense-threshold-slider")).toBeInTheDocument()
+			// Two comboboxes: one for profile selection, one for API config
+			expect(screen.getAllByRole("combobox")).toHaveLength(2)
 			expect(screen.getByRole("textbox")).toBeInTheDocument()
-		})
-
-		it("hides additional settings when auto condense is disabled", () => {
-			const props = { ...autoCondenseProps, autoCondenseContext: false }
-			render(<ContextManagementSettings {...props} />)
-
-			// Additional settings should not be visible
-			expect(screen.queryByTestId("auto-condense-percent-slider")).not.toBeInTheDocument()
-			expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
-			expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
 		})
 
 		it("updates auto condense context percent", () => {
@@ -249,8 +232,8 @@ describe("ContextManagementSettings", () => {
 			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
 			render(<ContextManagementSettings {...props} />)
 
-			// Find the auto condense percent slider
-			const slider = screen.getByTestId("auto-condense-percent-slider")
+			// Find the condense threshold slider
+			const slider = screen.getByTestId("condense-threshold-slider")
 
 			// Test slider interaction
 			slider.focus()
@@ -273,7 +256,9 @@ describe("ContextManagementSettings", () => {
 			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
 			render(<ContextManagementSettings {...props} />)
 
-			const apiSelect = screen.getByRole("combobox")
+			// Get the second combobox (API config select)
+			const selects = screen.getAllByRole("combobox")
+			const apiSelect = selects[1]
 			fireEvent.click(apiSelect)
 
 			const configOption = screen.getByText("Config 1")
@@ -295,8 +280,9 @@ describe("ContextManagementSettings", () => {
 			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
 			render(<ContextManagementSettings {...props} />)
 
-			// Test selecting default config
-			const apiSelect = screen.getByRole("combobox")
+			// Test selecting default config - get the second combobox (API config)
+			const selects = screen.getAllByRole("combobox")
+			const apiSelect = selects[1]
 			fireEvent.click(apiSelect)
 			const defaultOption = screen.getByText(
 				"settings:contextManagement.condensingApiConfiguration.useCurrentConfig",
@@ -463,9 +449,14 @@ describe("ContextManagementSettings", () => {
 			}
 			render(<ContextManagementSettings {...propsWithoutAutoCondense} />)
 
-			expect(screen.queryByText("settings:experimental.autoCondenseContextPercent.label")).not.toBeInTheDocument()
-			expect(screen.queryByText("settings:experimental.condensingApiConfiguration.label")).not.toBeInTheDocument()
-			expect(screen.queryByText("settings:experimental.customCondensingPrompt.label")).not.toBeInTheDocument()
+			// When auto condense is false, all condensing-related UI should not be visible
+			expect(screen.queryByTestId("condense-threshold-slider")).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:contextManagement.condensingApiConfiguration.label"),
+			).not.toBeInTheDocument()
+			expect(
+				screen.queryByText("settings:contextManagement.customCondensingPrompt.label"),
+			).not.toBeInTheDocument()
 		})
 
 		it("renders max read file controls with default value when maxReadFileLine is undefined", () => {

@@ -370,7 +370,8 @@
 			"hint": "비어있음 = 기본 프롬프트 사용"
 		},
 		"autoCondenseContext": {
-			"name": "지능적 컨텍스트 압축 자동 트리거"
+			"name": "지능적 컨텍스트 압축 자동 트리거",
+			"description": "활성화되면 Roo는 임계값에 도달했을 때 자동으로 컨텍스트를 압축합니다. 비활성화되면 여전히 수동으로 컨텍스트 압축을 트리거할 수 있습니다."
 		},
 		"openTabs": {
 			"label": "열린 탭 컨텍스트 제한",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "동시 파일 읽기 제한",
 			"description": "read_file 도구가 동시에 처리할 수 있는 최대 파일 수입니다. 높은 값은 여러 작은 파일을 읽는 속도를 높일 수 있지만 메모리 사용량이 증가합니다."
+		},
+		"condensingThreshold": {
+			"label": "압축 트리거 임계값",
+			"selectProfile": "프로필 임계값 구성",
+			"defaultProfile": "글로벌 기본값 (모든 프로필)",
+			"defaultDescription": "컨텍스트가 이 비율에 도달하면 사용자 정의 설정이 없는 한 모든 프로필에 대해 자동으로 압축됩니다",
+			"profileDescription": "이 프로필만을 위한 사용자 정의 임계값 (글로벌 기본값 재정의)",
+			"inheritDescription": "이 프로필은 글로벌 기본 임계값을 상속합니다 ({{threshold}}%)",
+			"usesGlobal": "(글로벌 {{threshold}}% 사용)"
 		}
 	},
 	"terminal": {

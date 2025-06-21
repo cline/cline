@@ -370,7 +370,8 @@
 			"hint": "Boş = varsayılan promptu kullan"
 		},
 		"autoCondenseContext": {
-			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle"
+			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle",
+			"description": "Etkinleştirildiğinde, Roo eşiğe ulaşıldığında bağlamı otomatik olarak sıkıştırır. Devre dışı bırakıldığında, bağlam sıkıştırmayı hala manuel olarak tetikleyebilirsiniz."
 		},
 		"openTabs": {
 			"label": "Açık sekmeler bağlam sınırı",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Eşzamanlı dosya okuma sınırı",
 			"description": "'read_file' aracının aynı anda işleyebileceği maksimum dosya sayısı. Daha yüksek değerler birden çok küçük dosyanın okunmasını hızlandırabilir ancak bellek kullanımını artırır."
+		},
+		"condensingThreshold": {
+			"label": "Sıkıştırma Tetikleme Eşiği",
+			"selectProfile": "Profil için eşik yapılandır",
+			"defaultProfile": "Küresel Varsayılan (tüm profiller)",
+			"defaultDescription": "Bağlam bu yüzdeye ulaştığında, özel ayarları olmadıkça tüm profiller için otomatik olarak sıkıştırılacak",
+			"profileDescription": "Sadece bu profil için özel eşik (küresel varsayılanı geçersiz kılar)",
+			"inheritDescription": "Bu profil küresel varsayılan eşiği miras alır ({{threshold}}%)",
+			"usesGlobal": "(küresel {{threshold}}% kullanır)"
 		}
 	},
 	"terminal": {

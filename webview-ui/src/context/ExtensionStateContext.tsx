@@ -44,6 +44,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCustomCondensingPrompt: (value: string) => void
 	marketplaceItems?: any[]
 	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
+	profileThresholds: Record<string, number>
+	setProfileThresholds: (value: Record<string, number>) => void
 	setApiConfiguration: (config: ProviderSettings) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
@@ -201,6 +203,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,
+		profileThresholds: {},
 		codebaseIndexConfig: {
 			codebaseIndexEnabled: false,
 			codebaseIndexQdrantUrl: "http://localhost:6333",
@@ -345,6 +348,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		cloudIsAuthenticated: state.cloudIsAuthenticated ?? false,
 		marketplaceItems,
 		marketplaceInstalledMetadata,
+		profileThresholds: state.profileThresholds ?? {},
 		setExperimentEnabled: (id, enabled) =>
 			setState((prevState) => ({ ...prevState, experiments: { ...prevState.experiments, [id]: enabled } })),
 		setApiConfiguration,
@@ -429,6 +433,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCondensingApiConfigId: (value) => setState((prevState) => ({ ...prevState, condensingApiConfigId: value })),
 		setCustomCondensingPrompt: (value) =>
 			setState((prevState) => ({ ...prevState, customCondensingPrompt: value })),
+		setProfileThresholds: (value) => setState((prevState) => ({ ...prevState, profileThresholds: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

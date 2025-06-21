@@ -370,7 +370,8 @@
 			"hint": "Puste = użyj domyślnego monitu"
 		},
 		"autoCondenseContext": {
-			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu"
+			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu",
+			"description": "Gdy włączone, Roo automatycznie skondensuje kontekst po osiągnięciu progu. Gdy wyłączone, nadal możesz ręcznie wyzwolić kondensację kontekstu."
 		},
 		"openTabs": {
 			"label": "Limit kontekstu otwartych kart",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Limit jednoczesnych odczytów",
 			"description": "Maksymalna liczba plików, które narzędzie 'read_file' może przetwarzać jednocześnie. Wyższe wartości mogą przyspieszyć odczyt wielu małych plików, ale zwiększają zużycie pamięci."
+		},
+		"condensingThreshold": {
+			"label": "Próg wyzwalania kondensacji",
+			"selectProfile": "Skonfiguruj próg dla profilu",
+			"defaultProfile": "Globalny domyślny (wszystkie profile)",
+			"defaultDescription": "Gdy kontekst osiągnie ten procent, zostanie automatycznie skondensowany dla wszystkich profili, chyba że mają niestandardowe ustawienia",
+			"profileDescription": "Niestandardowy próg tylko dla tego profilu (zastępuje globalny domyślny)",
+			"inheritDescription": "Ten profil dziedziczy globalny domyślny próg ({{threshold}}%)",
+			"usesGlobal": "(używa globalnego {{threshold}}%)"
 		}
 	},
 	"terminal": {

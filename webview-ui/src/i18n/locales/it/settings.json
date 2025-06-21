@@ -370,7 +370,8 @@
 			"hint": "Vuoto = usa prompt predefinito"
 		},
 		"autoCondenseContext": {
-			"name": "Attiva automaticamente la condensazione intelligente del contesto"
+			"name": "Attiva automaticamente la condensazione intelligente del contesto",
+			"description": "Quando abilitato, Roo condenserà automaticamente il contesto quando viene raggiunta la soglia. Quando disabilitato, puoi ancora attivare manualmente la condensazione del contesto."
 		},
 		"openTabs": {
 			"label": "Limite contesto schede aperte",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Limite letture simultanee",
 			"description": "Numero massimo di file che lo strumento 'read_file' può elaborare contemporaneamente. Valori più alti possono velocizzare la lettura di più file piccoli ma aumentano l'utilizzo della memoria."
+		},
+		"condensingThreshold": {
+			"label": "Soglia di attivazione condensazione",
+			"selectProfile": "Configura soglia per profilo",
+			"defaultProfile": "Predefinito globale (tutti i profili)",
+			"defaultDescription": "Quando il contesto raggiunge questa percentuale, verrà automaticamente condensato per tutti i profili a meno che non abbiano impostazioni personalizzate",
+			"profileDescription": "Soglia personalizzata solo per questo profilo (sovrascrive il predefinito globale)",
+			"inheritDescription": "Questo profilo eredita la soglia predefinita globale ({{threshold}}%)",
+			"usesGlobal": "(usa globale {{threshold}}%)"
 		}
 	},
 	"terminal": {

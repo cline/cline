@@ -370,7 +370,8 @@
 			"hint": "Vazio = usar prompt padrão"
 		},
 		"autoCondenseContext": {
-			"name": "Acionar automaticamente a condensação inteligente de contexto"
+			"name": "Acionar automaticamente a condensação inteligente de contexto",
+			"description": "Quando habilitado, o Roo condensará automaticamente o contexto quando o limite for atingido. Quando desabilitado, você ainda pode acionar manualmente a condensação de contexto."
 		},
 		"openTabs": {
 			"label": "Limite de contexto de abas abertas",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Limite de leituras simultâneas",
 			"description": "Número máximo de arquivos que a ferramenta 'read_file' pode processar simultaneamente. Valores mais altos podem acelerar a leitura de vários arquivos pequenos, mas aumentam o uso de memória."
+		},
+		"condensingThreshold": {
+			"label": "Limite de Ativação de Condensação",
+			"selectProfile": "Configurar limite para perfil",
+			"defaultProfile": "Padrão Global (todos os perfis)",
+			"defaultDescription": "Quando o contexto atingir essa porcentagem, será automaticamente condensado para todos os perfis, a menos que tenham configurações personalizadas",
+			"profileDescription": "Limite personalizado apenas para este perfil (substitui o padrão global)",
+			"inheritDescription": "Este perfil herda o limite padrão global ({{threshold}}%)",
+			"usesGlobal": "(usa global {{threshold}}%)"
 		}
 	},
 	"terminal": {

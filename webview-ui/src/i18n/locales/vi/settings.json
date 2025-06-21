@@ -370,7 +370,8 @@
 			"hint": "Để trống = sử dụng prompt mặc định"
 		},
 		"autoCondenseContext": {
-			"name": "Tự động kích hoạt nén ngữ cảnh thông minh"
+			"name": "Tự động kích hoạt nén ngữ cảnh thông minh",
+			"description": "Khi được bật, Roo sẽ tự động nén ngữ cảnh khi đạt đến ngưỡng. Khi bị tắt, bạn vẫn có thể kích hoạt nén ngữ cảnh thủ công."
 		},
 		"openTabs": {
 			"label": "Giới hạn ngữ cảnh tab đang mở",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Giới hạn đọc file đồng thời",
 			"description": "Số lượng file tối đa mà công cụ 'read_file' có thể xử lý cùng lúc. Giá trị cao hơn có thể tăng tốc độ đọc nhiều file nhỏ nhưng sẽ tăng mức sử dụng bộ nhớ."
+		},
+		"condensingThreshold": {
+			"label": "Ngưỡng kích hoạt nén",
+			"selectProfile": "Cấu hình ngưỡng cho hồ sơ",
+			"defaultProfile": "Mặc định toàn cục (tất cả hồ sơ)",
+			"defaultDescription": "Khi ngữ cảnh đạt đến tỷ lệ phần trăm này, nó sẽ được tự động nén cho tất cả hồ sơ trừ khi chúng có cài đặt tùy chỉnh",
+			"profileDescription": "Ngưỡng tùy chỉnh chỉ cho hồ sơ này (ghi đè mặc định toàn cục)",
+			"inheritDescription": "Hồ sơ này kế thừa ngưỡng mặc định toàn cục ({{threshold}}%)",
+			"usesGlobal": "(sử dụng toàn cục {{threshold}}%)"
 		}
 	},
 	"terminal": {

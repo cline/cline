@@ -370,7 +370,8 @@
 			"hint": "Buit = utilitzar indicació per defecte"
 		},
 		"autoCondenseContext": {
-			"name": "Activar automàticament la condensació intel·ligent de context"
+			"name": "Activar automàticament la condensació intel·ligent de context",
+			"description": "Quan està activat, Roo condensarà automàticament el context quan s'assoleixi el llindar. Quan està desactivat, encara pots activar manualment la condensació de context."
 		},
 		"openTabs": {
 			"label": "Límit de context de pestanyes obertes",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Límit de lectures simultànies",
 			"description": "Nombre màxim de fitxers que l'eina 'read_file' pot processar simultàniament. Els valors més alts poden accelerar la lectura de múltiples fitxers petits però augmenten l'ús de memòria."
+		},
+		"condensingThreshold": {
+			"label": "Llindar d'activació de condensació",
+			"selectProfile": "Configura el llindar per al perfil",
+			"defaultProfile": "Per defecte global (tots els perfils)",
+			"defaultDescription": "Quan el context arribi a aquest percentatge, es condensarà automàticament per a tots els perfils tret que tinguin configuracions personalitzades",
+			"profileDescription": "Llindar personalitzat només per a aquest perfil (substitueix el per defecte global)",
+			"inheritDescription": "Aquest perfil hereta el llindar per defecte global ({{threshold}}%)",
+			"usesGlobal": "(utilitza global {{threshold}}%)"
 		}
 	},
 	"terminal": {

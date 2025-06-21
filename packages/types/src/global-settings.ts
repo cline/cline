@@ -103,6 +103,7 @@ export const globalSettingsSchema = z.object({
 	customSupportPrompts: customSupportPromptsSchema.optional(),
 	enhancementApiConfigId: z.string().optional(),
 	historyPreviewCollapsed: z.boolean().optional(),
+	profileThresholds: z.record(z.string(), z.number()).optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>

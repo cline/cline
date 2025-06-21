@@ -370,7 +370,8 @@
 			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "Automatically trigger intelligent context condensing"
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Roo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
 			"label": "Open tabs context limit",
@@ -393,6 +394,15 @@
 			"description": "Roo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Roo generates a line number index of code definitions. Special cases: -1 instructs Roo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
 			"lines": "lines",
 			"always_full_read": "Always read entire file"
+		},
+		"condensingThreshold": {
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		}
 	},
 	"terminal": {

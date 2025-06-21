@@ -370,7 +370,8 @@
 			"hint": "Leeg = gebruik standaardprompt"
 		},
 		"autoCondenseContext": {
-			"name": "Automatisch intelligente contextcompressie activeren"
+			"name": "Automatisch intelligente contextcompressie activeren",
+			"description": "Wanneer ingeschakeld, zal Roo automatisch de context comprimeren wanneer de drempel wordt bereikt. Wanneer uitgeschakeld, kun je nog steeds handmatig contextcompressie activeren."
 		},
 		"openTabs": {
 			"label": "Limiet geopende tabbladen in context",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Limiet gelijktijdige bestandslezingen",
 			"description": "Maximum aantal bestanden dat de 'read_file' tool tegelijkertijd kan verwerken. Hogere waarden kunnen het lezen van meerdere kleine bestanden versnellen maar verhogen het geheugengebruik."
+		},
+		"condensingThreshold": {
+			"label": "Compressie trigger drempelwaarde",
+			"selectProfile": "Drempelwaarde voor profiel configureren",
+			"defaultProfile": "Globale standaard (alle profielen)",
+			"defaultDescription": "Wanneer de context dit percentage bereikt, wordt het automatisch gecomprimeerd voor alle profielen tenzij ze aangepaste instellingen hebben",
+			"profileDescription": "Aangepaste drempelwaarde alleen voor dit profiel (overschrijft globale standaard)",
+			"inheritDescription": "Dit profiel erft de globale standaard drempelwaarde ({{threshold}}%)",
+			"usesGlobal": "(gebruikt globaal {{threshold}}%)"
 		}
 	},
 	"terminal": {

@@ -370,7 +370,8 @@
 			"hint": "Vacío = usar prompt predeterminado"
 		},
 		"autoCondenseContext": {
-			"name": "Activar automáticamente la condensación inteligente de contexto"
+			"name": "Activar automáticamente la condensación inteligente de contexto",
+			"description": "Cuando está habilitado, Roo condensará automáticamente el contexto cuando se alcance el umbral. Cuando está deshabilitado, aún puedes activar manualmente la condensación de contexto."
 		},
 		"openTabs": {
 			"label": "Límite de contexto de pestañas abiertas",
@@ -393,6 +394,15 @@
 		"maxConcurrentFileReads": {
 			"label": "Límite de lecturas simultáneas",
 			"description": "Número máximo de archivos que la herramienta 'read_file' puede procesar simultáneamente. Valores más altos pueden acelerar la lectura de múltiples archivos pequeños pero aumentan el uso de memoria."
+		},
+		"condensingThreshold": {
+			"label": "Umbral de condensación de contexto",
+			"selectProfile": "Configurar umbral para perfil",
+			"defaultProfile": "Predeterminado global (todos los perfiles)",
+			"defaultDescription": "Cuando el contexto alcance este porcentaje, se condensará automáticamente para todos los perfiles a menos que tengan configuraciones personalizadas",
+			"profileDescription": "Umbral personalizado solo para este perfil (anula el predeterminado global)",
+			"inheritDescription": "Este perfil hereda el umbral predeterminado global ({{threshold}}%)",
+			"usesGlobal": "(usa global {{threshold}}%)"
 		}
 	},
 	"terminal": {

@@ -19,7 +19,14 @@ import {
 // Create a mock ApiHandler for testing
 class MockApiHandler extends BaseProvider {
 	createMessage(): any {
-		throw new Error("Method not implemented.")
+		// Mock implementation for testing - returns an async iterable stream
+		const mockStream = {
+			async *[Symbol.asyncIterator]() {
+				yield { type: "text", text: "Mock summary content" }
+				yield { type: "usage", inputTokens: 100, outputTokens: 50 }
+			},
+		}
+		return mockStream
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -265,6 +272,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Check the new return type
@@ -304,6 +313,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			expect(result).toEqual({
@@ -337,6 +348,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			const result2 = await truncateConversationIfNeeded({
@@ -349,6 +362,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			expect(result1.messages).toEqual(result2.messages)
@@ -368,6 +383,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			const result4 = await truncateConversationIfNeeded({
@@ -380,6 +397,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			expect(result3.messages).toEqual(result4.messages)
@@ -414,6 +433,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(resultWithSmall).toEqual({
 				messages: messagesWithSmallContent,
@@ -447,6 +468,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(resultWithLarge.messages).not.toEqual(messagesWithLargeContent) // Should truncate
 			expect(resultWithLarge.summary).toBe("")
@@ -473,6 +496,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(resultWithVeryLarge.messages).not.toEqual(messagesWithVeryLargeContent) // Should truncate
 			expect(resultWithVeryLarge.summary).toBe("")
@@ -509,6 +534,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result).toEqual({
 				messages: expectedResult,
@@ -554,6 +581,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Verify summarizeConversation was called with the right parameters
@@ -619,6 +648,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Verify summarizeConversation was called
@@ -664,6 +695,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 50, // This shouldn't matter since autoCondenseContext is false
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Verify summarizeConversation was not called
@@ -719,6 +752,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 50, // Set threshold to 50% - our tokens are at 60%
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Verify summarizeConversation was called with the right parameters
@@ -769,12 +804,220 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 50, // Set threshold to 50% - our tokens are at 40%
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 
 			// Verify summarizeConversation was not called
 			expect(summarizeSpy).not.toHaveBeenCalled()
 
 			// Verify no truncation or summarization occurred
+			expect(result).toEqual({
+				messages: messagesWithSmallContent,
+				summary: "",
+				cost: 0,
+				prevContextTokens: totalTokens,
+			})
+
+			// Clean up
+			summarizeSpy.mockRestore()
+		})
+	})
+
+	/**
+	 * Tests for profile-specific thresholds functionality
+	 */
+	describe("profile-specific thresholds", () => {
+		const createModelInfo = (contextWindow: number, maxTokens?: number): ModelInfo => ({
+			contextWindow,
+			supportsPromptCache: true,
+			maxTokens,
+		})
+
+		const messages: ApiMessage[] = [
+			{ role: "user", content: "First message" },
+			{ role: "assistant", content: "Second message" },
+			{ role: "user", content: "Third message" },
+			{ role: "assistant", content: "Fourth message" },
+			{ role: "user", content: "Fifth message" },
+		]
+
+		/**
+		 * Test that a profile's specific threshold is correctly used instead of the global threshold
+		 * when defined in profileThresholds
+		 */
+		it("should use profile-specific threshold when enabled and profile has specific threshold", async () => {
+			const modelInfo = createModelInfo(100000, 30000)
+			const profileThresholds = {
+				"test-profile": 60, // Profile-specific threshold of 60%
+			}
+			const currentProfileId = "test-profile"
+			const contextWindow = modelInfo.contextWindow
+
+			// Set tokens to 65% of context window - above profile threshold (60%) but below global default (100%)
+			const totalTokens = Math.floor(contextWindow * 0.65) // 65000 tokens
+
+			// Create messages with very small content in the last one to avoid token overflow
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+
+			// Mock the summarizeConversation function
+			const mockSummary = "Profile-specific threshold summary"
+			const mockCost = 0.03
+			const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+				messages: [
+					{ role: "user", content: "First message" },
+					{ role: "assistant", content: mockSummary, isSummary: true },
+					{ role: "user", content: "Last message" },
+				],
+				summary: mockSummary,
+				cost: mockCost,
+				newContextTokens: 100,
+			}
+
+			const summarizeSpy = vi
+				.spyOn(condenseModule, "summarizeConversation")
+				.mockResolvedValue(mockSummarizeResponse)
+
+			const result = await truncateConversationIfNeeded({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 100, // Global threshold of 100%
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds,
+				currentProfileId,
+			})
+
+			// Should use summarization because 65% > 60% (profile threshold)
+			expect(summarizeSpy).toHaveBeenCalled()
+			expect(result).toMatchObject({
+				messages: mockSummarizeResponse.messages,
+				summary: mockSummary,
+				cost: mockCost,
+				prevContextTokens: totalTokens,
+			})
+
+			// Clean up
+			summarizeSpy.mockRestore()
+		})
+
+		/**
+		 * Test that when a profile's threshold is set to -1,
+		 * the function correctly falls back to using the global autoCondenseContextPercent
+		 */
+		it("should fall back to global threshold when profile threshold is -1", async () => {
+			const modelInfo = createModelInfo(100000, 30000)
+			const profileThresholds = {
+				"test-profile": -1, // Profile threshold set to -1 (use global)
+			}
+			const currentProfileId = "test-profile"
+			const contextWindow = modelInfo.contextWindow
+
+			// Set tokens to 80% of context window - above global threshold (75%) but would be below if profile had its own
+			const totalTokens = Math.floor(contextWindow * 0.8) // 80000 tokens
+
+			// Create messages with very small content in the last one to avoid token overflow
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+
+			// Mock the summarizeConversation function
+			const mockSummary = "Global threshold fallback summary"
+			const mockCost = 0.04
+			const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+				messages: [
+					{ role: "user", content: "First message" },
+					{ role: "assistant", content: mockSummary, isSummary: true },
+					{ role: "user", content: "Last message" },
+				],
+				summary: mockSummary,
+				cost: mockCost,
+				newContextTokens: 120,
+			}
+
+			const summarizeSpy = vi
+				.spyOn(condenseModule, "summarizeConversation")
+				.mockResolvedValue(mockSummarizeResponse)
+
+			const result = await truncateConversationIfNeeded({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 75, // Global threshold of 75%
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds,
+				currentProfileId,
+			})
+
+			// Should use summarization because 80% > 75% (global threshold, since profile is -1)
+			expect(summarizeSpy).toHaveBeenCalled()
+			expect(result).toMatchObject({
+				messages: mockSummarizeResponse.messages,
+				summary: mockSummary,
+				cost: mockCost,
+				prevContextTokens: totalTokens,
+			})
+
+			// Clean up
+			summarizeSpy.mockRestore()
+		})
+
+		/**
+		 * Test that when a profile does not have a specific threshold defined,
+		 * the function correctly falls back to the global default
+		 */
+		it("should fall back to global threshold when profile has no specific threshold", async () => {
+			const modelInfo = createModelInfo(100000, 30000)
+			const profileThresholds = {
+				"other-profile": 50, // Different profile has a threshold
+			}
+			const currentProfileId = "test-profile" // This profile is not in profileThresholds
+			const contextWindow = modelInfo.contextWindow
+
+			// Calculate allowedTokens: contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - reservedTokens
+			// allowedTokens = 100000 * 0.9 - 30000 = 60000
+			// Set tokens to be below both the global threshold (80%) and allowedTokens
+			const totalTokens = 50000 // 50% of context window, well below 60000 allowedTokens and 80% threshold
+
+			// Create messages with very small content in the last one to avoid token overflow
+			const messagesWithSmallContent = [
+				...messages.slice(0, -1),
+				{ ...messages[messages.length - 1], content: "" },
+			]
+
+			// Reset any previous mock calls
+			vi.clearAllMocks()
+			const summarizeSpy = vi.spyOn(condenseModule, "summarizeConversation")
+
+			const result = await truncateConversationIfNeeded({
+				messages: messagesWithSmallContent,
+				totalTokens,
+				contextWindow,
+				maxTokens: modelInfo.maxTokens,
+				apiHandler: mockApiHandler,
+				autoCondenseContext: true,
+				autoCondenseContextPercent: 80, // Global threshold of 80%
+				systemPrompt: "System prompt",
+				taskId,
+				profileThresholds,
+				currentProfileId,
+			})
+
+			// Should NOT use summarization because 50% < 80% (global threshold, since profile has no specific threshold)
+			// and totalTokens (50000) < allowedTokens (60000)
+			expect(summarizeSpy).not.toHaveBeenCalled()
 			expect(result).toEqual({
 				messages: messagesWithSmallContent,
 				summary: "",
@@ -829,6 +1072,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result1).toEqual({
 				messages: messagesWithSmallContent,
@@ -848,6 +1093,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result2.messages).not.toEqual(messagesWithSmallContent)
 			expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -878,6 +1125,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result1).toEqual({
 				messages: messagesWithSmallContent,
@@ -897,6 +1146,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result2.messages).not.toEqual(messagesWithSmallContent)
 			expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -926,6 +1177,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result1.messages).toEqual(messagesWithSmallContent)
 
@@ -940,6 +1193,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result2).not.toEqual(messagesWithSmallContent)
 			expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -967,6 +1222,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result1.messages).toEqual(messagesWithSmallContent)
 
@@ -981,6 +1238,8 @@ describe("Sliding Window", () => {
 				autoCondenseContextPercent: 100,
 				systemPrompt: "System prompt",
 				taskId,
+				profileThresholds: {},
+				currentProfileId: "default",
 			})
 			expect(result2).not.toEqual(messagesWithSmallContent)
 			expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction

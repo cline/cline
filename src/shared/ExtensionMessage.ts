@@ -213,6 +213,7 @@ export type ExtensionState = Pick<
 	| "customCondensingPrompt"
 	| "codebaseIndexConfig"
 	| "codebaseIndexModels"
+	| "profileThresholds"
 > & {
 	version: string
 	clineMessages: ClineMessage[]
@@ -259,6 +260,7 @@ export type ExtensionState = Pick<
 	autoCondenseContextPercent: number
 	marketplaceItems?: MarketplaceItem[]
 	marketplaceInstalledMetadata?: { project: Record<string, any>; global: Record<string, any> }
+	profileThresholds: Record<string, number>
 }
 
 export interface ClineSayTool {

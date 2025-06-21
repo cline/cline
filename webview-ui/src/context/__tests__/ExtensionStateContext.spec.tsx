@@ -207,6 +207,7 @@ describe("mergeExtensionState", () => {
 			autoCondenseContextPercent: 100,
 			cloudIsAuthenticated: false,
 			sharingEnabled: false,
+			profileThresholds: {},
 		}
 
 		const prevState: ExtensionState = {
