@@ -1,5 +1,104 @@
 # Changelog
 
+## [3.17.15]
+
+-   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
+-   Fix chat input being cleared when switching between Plan/Act modes without sending a message (Thanks @BarreiroT!)
+-   Fix MCP server name display to avoid showing "undefined" for SSE servers, preventing tool/resource invocation failures (Thanks @ramybenaroya!)
+-   Fix AWS Bedrock provider by removing deprecated custom model encoding (Thanks @watany-dev!)
+-   Fix timeline tooltips for followup messages and improve color retrieval code (Thanks @char8x!)
+-   Improve accessibility by making task header buttons properly announced by screen readers (Thanks @yncat!)
+-   Improve accessibility by adding proper state reporting for Plan/Act mode switch for screen readers (Thanks @yncat!)
+-   Prevent reading development environment variables from user's environment (Thanks @BarreiroT!)
+
+## [3.17.14]
+
+-   Add Claude Code as a new API provider, allowing integration with Anthropic's Claude Code CLI tool and Claude Max Plan (Thanks @BarreiroT!)
+-   Add SAP AI Core as a new API provider with support for Claude and GPT models (Thanks @schardosin!)
+-   Add configurable default terminal profile setting, allowing users to specify which terminal Cline should use (Thanks @valinha!)
+-   Add terminal output size constraint setting to limit how much terminal output is processed
+-   Add MCP Rich Display settings to the settings page for persistent configuration (Thanks @Vl4diC0de!)
+-   Improve copy button functionality with refactored reusable components (Thanks @shouhanzen!)
+-   Improve AWS Bedrock provider by removing deprecated dependency and using standard AWS SDK (Thanks @watany-dev!)
+-   Fix list_files tool to properly return files when targeting hidden directories
+-   Fix search and replace edge case that could cause file deletion, making the algorithm more lenient for models using different diff formats
+-   Fix task restoration issues that could occur when resuming interrupted tasks
+-   Fix checkpoint saving to properly track all file changes
+-   Improve file context warnings to reduce diff edit errors when resuming restored tasks
+-   Clear chat input when switching between Plan/Act modes within a task
+-   Exclude .clinerules files from checkpoint tracking
+
+## [3.17.13]
+
+-   Add Thinking UX for Gemini models, providing visual feedback during model reasoning
+-   Add support for Notifications MCP integration with Cline
+-   Add prompt caching indicator for Grok 3 models
+-   Sort MCP marketplace by newest listings by default for easier discovery of recent servers
+-   Update O3 model family pricing to reflect latest OpenAI rates
+-   Remove '-beta' suffix from Grok model identifiers
+-   Fix AWS Bedrock provider by removing deprecated Anthropic-Bedrock SDK (Thanks @watany-dev!)
+-   Fix menu display issue for terminal timeout settings
+-   Improve chat input field styling and behavior
+
+## [3.17.12]
+
+-   **Free Grok Model Available!** Access Grok 3 completely free through the Cline provider
+-   Add collapsible MCP response panels to keep conversations focused on the main AI responses while still allowing access to detailed MCP output (Thanks @valinha!)
+-   Prioritize active files (open tabs) at the top of the file context menu when using @ mentions (Thanks @abeatrix!)
+-   Fix context menu to properly default to "File" option instead of incorrectly selecting "Git Commits"
+-   Fix diff editing to handle out-of-order SEARCH/REPLACE blocks, improving reliability with models that don't follow strict ordering
+-   Fix telemetry warning popup appearing repeatedly for users who have telemetry disabled
+
+## [3.17.11]
+
+-   Add support for Gemini 2.5 Pro Preview 06-05 model to Vertex AI and Google Gemini providers
+
+## [3.17.10]
+
+-   Add support for Qwen 3 series models with thinking mode options (Thanks @Jonny-china!)
+-   Add new AskSage models: Claude 4 Sonnet, Claude 4 Opus, GPT 4.1, Gemini 2.5 Pro (Thanks @swhite24!)
+-   Add VSCode walkthrough to help new users get started with Cline
+-   Add support for streamable MCP servers
+-   Improve Ollama model selection with filterable dropdown instead of radio buttons (Thanks @paulgear!)
+-   Add setting to disable aggressive terminal reuse to help users experiencing task lockout issues
+-   Fix settings dialog applying changes even when cancel button is clicked
+
+## [3.17.9]
+
+-   Aligning Cline to work with Claude 4 model family (Experimental)
+-   Add task timeline scrolling feature
+-   Add support for uploading CSV and XLSX files for data analysis and processing
+-   Add stable Grok-3 models to xAI provider (grok-3, grok-3-fast, grok-3-mini, grok-3-mini-fast) and update default model from grok-3-beta to grok-3 (Thanks @PeterDaveHello!)
+-   Add new models to Vertex AI provider
+-   Add new model to Nebius AI Studio
+-   Remove hard-coded temperature from LM Studio API requests and add support for reasoning_content in LM Studio responses
+-   Display delay information when retrying API calls for better user feedback
+-   Fix AWS Bedrock credential caching issue where externally updated credentials (e.g., by AWS Identity Manager) were not detected, requiring extension restart (Thanks @DaveFres!)
+-   Fix search tool overloading conversation with massive outputs by setting maximum byte limit for responses
+-   Fix checkpoints functionality
+-   Fix token counting for xAI provider
+-   Fix Ollama provider issues
+-   Fix window title display for Windows users
+-   Improve chat box UI
+
+## [3.17.8]
+
+-   Fix bug where terminal would get stuck and output "capture failure"
+
+## [3.17.7]
+
+-   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
+
+## [3.17.6]
+
+-   Add Cerebras as a new API provider with 5 high-performance models including reasoning-capable models (Thanks @kevint-cerebras!)
+-   Add support for uploading various file types (XML, JSON, TXT, LOG, MD, DOCX, IPYNB, PDF) alongside images
+-   Add improved onboarding experience for new users with guided setup
+-   Add prompt cache indicator for Gemini 2.5 Flash models
+-   Update SambaNova provider with new model list and documentation links (Thanks @luisfucros!)
+-   Fix diff editing support for Claude 4 family of models
+-   Improve telemetry and analytics for better user experience insights
+
 ## [3.17.5]
 
 -   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits

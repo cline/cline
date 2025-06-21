@@ -1,4 +1,5 @@
-import type { EmptyRequest, Boolean } from "../../../shared/proto/common"
+import type { EmptyRequest } from "../../../shared/proto/common"
+import { Boolean } from "../../../shared/proto/common"
 import type { Controller } from "../index"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
 
@@ -21,9 +22,9 @@ export async function onDidShowAnnouncement(controller: Controller, _request: Em
 		// This replicates the same logic used in getStateToPostToWebview()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== controller.latestAnnouncementId
 
-		return { value: shouldShowAnnouncement }
+		return Boolean.create({ value: shouldShowAnnouncement })
 	} catch (error) {
 		console.error("Failed to acknowledge announcement:", error)
-		return { value: false }
+		return Boolean.create({ value: false })
 	}
 }

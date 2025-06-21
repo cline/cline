@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react"
+import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react" // Import ProgressRing
+import { useExtensionState } from "../../../context/ExtensionStateContext"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
@@ -27,6 +29,10 @@ const ResponseHeader = styled.div`
 		overflow: hidden;
 		text-overflow: ellipsis;
 		margin-right: 8px;
+	}
+
+	.header-icon {
+		margin-right: 6px;
 	}
 `
 
@@ -111,54 +117,46 @@ interface UrlMatch {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
-	const [isLoading, setIsLoading] = useState(true)
+	const { mcpResponsesCollapsed, mcpRichDisplayEnabled } = useExtensionState() // Get setting from context
+	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
+	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
-		// Get saved preference from localStorage, default to 'rich'
-		const savedMode = localStorage.getItem("mcpDisplayMode")
-		return savedMode === "plain" ? "plain" : "rich"
+		// Initialize directly from the global setting.
+		return mcpRichDisplayEnabled ? "rich" : "plain"
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
-	// Add a counter state for forcing re-renders to make toggling run smoother
-	const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
 	const toggleDisplayMode = useCallback(() => {
-		const newMode = displayMode === "rich" ? "plain" : "rich"
+		setDisplayMode((prevMode) => (prevMode === "rich" ? "plain" : "rich"))
+	}, [])
 
-		// Force an immediate re-render
-		setForceUpdateCounter((prev) => prev + 1)
+	const toggleExpand = useCallback(() => {
+		setIsExpanded((prev) => !prev)
+	}, [])
 
-		// Update display mode and save preference
-		setDisplayMode(newMode)
-		localStorage.setItem("mcpDisplayMode", newMode)
-
-		// If switching to plain mode, cancel any ongoing processing
-		if (newMode === "plain") {
-			console.log("Switching to plain mode - cancelling URL processing")
-			setUrlMatches([]) // Clear any existing matches when switching to plain mode
-		} else {
-			// If switching to rich mode, the useEffect will re-run and fetch data
-			console.log("Switching to rich mode - will start URL processing")
-		}
-	}, [displayMode])
+	// Effect to update isExpanded if mcpResponsesCollapsed changes from context
+	useEffect(() => {
+		setIsExpanded(!mcpResponsesCollapsed)
+	}, [mcpResponsesCollapsed])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
 		// Skip all processing if in plain mode
-		if (displayMode === "plain") {
+		if (!isExpanded || displayMode === "plain") {
 			setIsLoading(false)
-			setUrlMatches([]) // Clear any existing matches when in plain mode
+			if (urlMatches.length > 0) {
+				setUrlMatches([]) // Clear any existing matches when in plain mode
+			}
 			return
 		}
 
 		// Use a direct boolean for cancellation that's scoped to this effect run
 		let processingCanceled = false
-
 		const processResponse = async () => {
 			console.log("Processing MCP response for URL extraction")
 			setIsLoading(true)
 			setError(null)
-
 			try {
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
@@ -267,12 +265,24 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			processingCanceled = true
 			console.log("Cleaning up URL processing")
 		}
-	}, [responseText, displayMode, forceUpdateCounter])
+	}, [responseText, displayMode, isExpanded])
 
 	// Function to render content based on display mode
 	const renderContent = () => {
+		if (!isExpanded) {
+			return null // Don't render content if not expanded
+		}
+
+		if (isLoading && displayMode === "rich") {
+			return (
+				<div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50px" }}>
+					<VSCodeProgressRing />
+				</div>
+			)
+		}
+
 		// For plain text mode, just show the text
-		if (displayMode === "plain" || isLoading) {
+		if (displayMode === "plain") {
 			return <UrlText>{responseText}</UrlText>
 		}
 
@@ -287,7 +297,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		}
 
 		// For rich display mode, show the text with embedded content
-		if (!isLoading) {
+		if (displayMode === "rich") {
 			// We already know displayMode is "rich" if we get here
 			// Create an array of text segments and embedded content
 			const segments: JSX.Element[] = []
@@ -385,30 +395,48 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	try {
 		return (
 			<ResponseContainer>
-				<ResponseHeader>
-					<span className="header-title">Response</span>
-					<ToggleSwitch>
-						<span className="toggle-label">{displayMode === "rich" ? "Rich Display" : "Plain Text"}</span>
-						<div className={`toggle-container ${displayMode === "rich" ? "active" : ""}`} onClick={toggleDisplayMode}>
-							<div className="toggle-handle"></div>
-						</div>
-					</ToggleSwitch>
+				<ResponseHeader
+					onClick={toggleExpand}
+					style={{
+						borderBottom: isExpanded ? "1px dashed var(--vscode-editorGroup-border)" : "none",
+						marginBottom: isExpanded ? "8px" : "0px",
+					}}>
+					<div className="header-title">
+						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
+						Response
+					</div>
+					<div style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
+						<ToggleSwitch onClick={(e) => e.stopPropagation()}>
+							<span className="toggle-label">{displayMode === "rich" ? "Rich Display" : "Plain Text"}</span>
+							<div
+								className={`toggle-container ${displayMode === "rich" ? "active" : ""}`}
+								onClick={toggleDisplayMode}>
+								<div className="toggle-handle"></div>
+							</div>
+						</ToggleSwitch>
+					</div>
 				</ResponseHeader>
 
-				<div className="response-content">{renderContent()}</div>
+				{isExpanded && <div className="response-content">{renderContent()}</div>}
 			</ResponseContainer>
 		)
 	} catch (error) {
-		console.log("Error rendering MCP response - falling back to plain text")
+		console.log("Error rendering MCP response - falling back to plain text") // Restored comment
+		// Fallback for critical rendering errors
 		return (
 			<ResponseContainer>
-				<ResponseHeader>
-					<span className="header-title">Response</span>
+				<ResponseHeader onClick={toggleExpand}>
+					<div className="header-title">
+						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
+						Response (Error)
+					</div>
 				</ResponseHeader>
-				<div className="response-content">
-					<div>Error parsing response:</div>
-					<UrlText>{responseText}</UrlText>
-				</div>
+				{isExpanded && (
+					<div className="response-content">
+						<div style={{ color: "var(--vscode-errorForeground)" }}>Error parsing response:</div>
+						<UrlText>{responseText}</UrlText>
+					</div>
+				)}
 			</ResponseContainer>
 		)
 	}

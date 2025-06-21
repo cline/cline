@@ -53,6 +53,7 @@ vscode.window = {
 	tabGroups: {
 		all: [],
 		close: async () => {},
+		onDidChangeTabs: createStub("vscode.env.tabGroups.onDidChangeTabs"),
 	},
 	withProgress: async (_options, task) => {
 		console.log("Stubbed withProgress")
@@ -62,13 +63,8 @@ vscode.window = {
 	registerWebviewViewProvider: () => ({ dispose: () => {} }),
 	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
 	createTextEditorDecorationType: () => ({ dispose: () => {} }),
-	createWebviewPanel: (...args) => {
-		console.log("Stubbed createWebviewPanel:", ...args)
-		return {
-			webview: {},
-			reveal: () => {},
-			dispose: () => {},
-		}
+	createWebviewPanel: (..._args) => {
+		throw new Error("WebviewPanel is not supported in standalone app.")
 	},
 }
 

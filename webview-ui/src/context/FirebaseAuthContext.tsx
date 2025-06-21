@@ -1,7 +1,9 @@
-import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
-import { initializeApp } from "firebase/app"
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { AccountServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
+import { EmptyRequest } from "@shared/proto/common"
+import { initializeApp } from "firebase/app"
+import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useExtensionState } from "./ExtensionStateContext"
 import { AuthStateChanged } from "@shared/proto/account"
 
@@ -79,17 +81,21 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		[auth],
 	)
 
-	// Listen for auth callback from extension
+	// Set up authCallback subscription
 	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "authCallback" && message.customToken) {
-				signInWithToken(message.customToken)
-			}
-		}
+		const cleanup = AccountServiceClient.subscribeToAuthCallback(EmptyRequest.create({}), {
+			onResponse: (event) => {
+				if (event.value) {
+					signInWithToken(event.value)
+				}
+			},
+			onError: (error) => {
+				console.error("Error in authCallback subscription:", error)
+			},
+			onComplete: () => {},
+		})
 
-		window.addEventListener("message", handleMessage)
-		return () => window.removeEventListener("message", handleMessage)
+		return cleanup
 	}, [signInWithToken])
 
 	const handleSignOut = useCallback(async () => {

@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "@services/glob/list-files"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { sendWorkspaceUpdateEvent } from "@core/controller/file/subscribeToWorkspaceUpdates"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
@@ -10,8 +10,15 @@ class WorkspaceTracker {
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 
-	constructor(private readonly postMessageToWebview: (message: ExtensionMessage) => Promise<void>) {
-		this.postMessageToWebview = postMessageToWebview
+	private get activeFiles() {
+		return new Set(
+			vscode.window.tabGroups.activeTabGroup.tabs
+				.filter((tab) => tab.input instanceof vscode.TabInputText)
+				.map((tab) => (tab.input as vscode.TabInputText).uri.fsPath),
+		)
+	}
+
+	constructor() {
 		this.registerListeners()
 	}
 
@@ -35,6 +42,9 @@ class WorkspaceTracker {
 
 		// Listen for file renaming
 		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
+
+		// Listen for tab groups changes
+		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(this.workspaceDidUpdate.bind(this)))
 
 		/*
 		 An event that is emitted when a workspace folder is added or removed.
@@ -80,17 +90,15 @@ class WorkspaceTracker {
 		this.workspaceDidUpdate()
 	}
 
-	private workspaceDidUpdate() {
+	private async workspaceDidUpdate() {
 		if (!cwd) {
 			return
 		}
-		this.postMessageToWebview({
-			type: "workspaceUpdated",
-			filePaths: Array.from(this.filePaths).map((file) => {
-				const relativePath = path.relative(cwd, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			}),
+		const filePaths = Array.from(new Set([...this.activeFiles, ...this.filePaths])).map((file) => {
+			const relativePath = path.relative(cwd, file).toPosix()
+			return file.endsWith("/") ? relativePath + "/" : relativePath
 		})
+		await sendWorkspaceUpdateEvent(filePaths)
 	}
 
 	private normalizeFilePath(filePath: string): string {
