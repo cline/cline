@@ -35,6 +35,8 @@ service TaskService {
   rpc taskCompletionViewChanges(Int64Request) returns (Empty);
   // Executes a quick win task with command and title
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
+  // Deletes all task history
+  rpc deleteAllTaskHistory(BooleanRequest) returns (DeleteAllTaskHistoryCount);
 }
 
 // Request message for creating a new task
@@ -115,4 +117,9 @@ message ExecuteQuickWinRequest {
   Metadata metadata = 1;
   string command = 2;
   string title = 3;
+}
+
+// Results returned when deleting all task history
+message DeleteAllTaskHistoryCount {
+  int32 tasks_deleted = 1;
 }
