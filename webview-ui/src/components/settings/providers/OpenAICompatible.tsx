@@ -438,7 +438,13 @@ export const OpenAICompatibleProvider = ({
 			{modelConfigurationSelected && (
 				<>
 					<VSCodeCheckbox
-						checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
+						checked={
+							!!(
+								apiConfiguration?.openAiConfigs &&
+								apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiModelInfo
+									?.supportsImages
+							)
+						}
 						onChange={handleOpenAiChange("supportsImages", true)}>
 						Supports Images
 					</VSCodeCheckbox>
@@ -448,13 +454,10 @@ export const OpenAICompatibleProvider = ({
 							!!(
 								apiConfiguration?.openAiConfigs &&
 								apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiModelInfo
-									?.supportsBrowser
+									?.supportsImages
 							)
 						}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							handleOpenAiChange("supportsBrowser", true)({ target: { value: isChecked } })
-						}}>
+						onChange={handleOpenAiChange("supportsImages", true)}>
 						Supports browser use
 					</VSCodeCheckbox>
 
