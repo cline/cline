@@ -720,7 +720,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "openAiConfigs", openAiConfigs)
 	const planActSeparate = (await getGlobalState(context, "planActSeparateModelsSetting")) as boolean
 	if (planActSeparate) {
-		const chatSettings = (await getGlobalState(context, "chatSettings")) as ChatSettings
+		const chatSettings = (await getWorkspaceState(context, "chatSettings")) as ChatSettings
 		const key = chatSettings?.mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
 		await updateGlobalState(context, key, apiConfiguration.openAiSelectedConfigIndex)
 	} else {
