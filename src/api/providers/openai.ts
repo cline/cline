@@ -21,6 +21,7 @@ export class OpenAiHandler implements ApiHandler {
 			options.openAiModelId = config.openAiModelId
 			options.openAiModelInfo = config.openAiModelInfo
 			options.azureApiVersion = config.azureApiVersion
+			options.openAiHeaders = config.openAiHeaders
 		}
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai

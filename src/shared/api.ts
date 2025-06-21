@@ -109,6 +109,7 @@ export interface ApiHandlerOptions {
 		openAiModelId: string
 		openAiModelInfo: OpenAiCompatibleModelInfo
 		azureApiVersion: string
+		openAiHeaders?: Record<string, string>
 	}[]
 	openAiSelectedConfigIndex?: number
 }
