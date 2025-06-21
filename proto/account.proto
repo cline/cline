@@ -35,7 +35,7 @@ message AuthStateChanged {
 }
 
 message UserInfo {
-    optional string displayName = 1;
+    optional string display_name = 1;
     optional string email = 2;
-    optional string photoURL = 3;
+    optional string photo_url = 3;
 }

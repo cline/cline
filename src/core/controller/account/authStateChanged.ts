@@ -1,4 +1,4 @@
-import type { AuthStateChangedRequest, AuthStateChanged } from "@shared/proto/account"
+import { AuthStateChangedRequest, AuthStateChanged } from "@shared/proto/account"
 import type { Controller } from "../index"
 import { updateGlobalState } from "../../storage/state"
 
@@ -15,7 +15,7 @@ export async function authStateChanged(controller: Controller, request: AuthStat
 		await updateGlobalState(controller.context, "userInfo", request.user)
 
 		// Return the same user info
-		return { user: request.user }
+		return AuthStateChanged.create({ user: request.user })
 	} catch (error) {
 		console.error(`Failed to update auth state: ${error}`)
 		throw error

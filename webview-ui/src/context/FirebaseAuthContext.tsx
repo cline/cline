@@ -5,7 +5,7 @@ import { initializeApp } from "firebase/app"
 import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useExtensionState } from "./ExtensionStateContext"
-import { AuthStateChanged } from "@shared/proto/account"
+import { AuthStateChanged, AuthStateChangedRequest } from "@shared/proto/account"
 
 // Firebase configuration from extension
 const firebaseConfig = {
@@ -48,15 +48,17 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 				return
 			}
 			// Sync auth state with extension
-			AccountServiceClient.authStateChanged({
-				user: user
-					? {
-							displayName: user.displayName ?? undefined,
-							email: user.email ?? undefined,
-							photoURL: user.photoURL ?? undefined,
-						}
-					: undefined,
-			})
+			AccountServiceClient.authStateChanged(
+				AuthStateChangedRequest.create({
+					user: user
+						? {
+								displayName: user.displayName ?? undefined,
+								email: user.email ?? undefined,
+								photoURL: user.photoURL ?? undefined,
+							}
+						: undefined,
+				}),
+			)
 				.then((response: AuthStateChanged) => {
 					setUserInfo(response.user)
 				})
