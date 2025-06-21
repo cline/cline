@@ -80,6 +80,10 @@ export type GlobalStateKey =
 	| "sapAiCoreClientSecret"
 	| "sapAiCoreModelId"
 	| "claudeCodePath"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
 
 export type LocalStateKey =
 	| "localClineRulesToggles"

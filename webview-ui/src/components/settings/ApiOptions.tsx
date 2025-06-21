@@ -127,6 +127,12 @@ const ApiOptions = ({
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
+	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(
+		!!(
+			apiConfiguration?.openAiConfigs &&
+			apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.azureApiVersion
+		),
+	)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -157,11 +163,20 @@ const ApiOptions = ({
 				UpdateApiConfigurationRequest.create({
 					apiConfiguration: protoConfig,
 				}),
-			).catch((error) => {
+			).catch((error: any) => {
 				console.error("Failed to update API configuration:", error)
 			})
 		}
 	}
+
+	useEffect(() => {
+		setAzureApiVersionSelected(
+			!!(
+				apiConfiguration?.openAiConfigs &&
+				apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.azureApiVersion
+			),
+		)
+	}, [apiConfiguration?.openAiConfigs, apiConfiguration?.openAiSelectedConfigIndex])
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
@@ -565,7 +580,7 @@ const ApiOptions = ({
 			{apiConfiguration && selectedProvider === "openai" && (
 				<OpenAICompatibleProvider
 					apiConfiguration={apiConfiguration}
-					handleInputChange={handleInputChange}
+					setApiConfiguration={setApiConfiguration}
 					showModelOptions={showModelOptions}
 					isPopup={isPopup}
 				/>

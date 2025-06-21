@@ -337,8 +337,16 @@ export class Controller {
 					)
 					break
 				case "openai":
-					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
+					const idx = apiConfiguration.openAiSelectedConfigIndex ?? 0
+					const currentConfig =
+						Array.isArray(apiConfiguration.openAiConfigs) && apiConfiguration.openAiConfigs.length > idx
+							? apiConfiguration.openAiConfigs[idx]
+							: undefined
+
+					if (currentConfig) {
+						await updateWorkspaceState(this.context, "previousModeModelId", currentConfig.openAiModelId)
+						await updateWorkspaceState(this.context, "previousModeModelInfo", currentConfig.openAiModelInfo)
+					}
 					break
 				case "ollama":
 					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)

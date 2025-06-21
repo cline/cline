@@ -122,6 +122,10 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 
 		// Arrays
 		favoritedModelIds: config.favoritedModelIds || [],
+
+		// OpenAI configs
+		openAiConfigs: config.openAiConfigs ? JSON.stringify(config.openAiConfigs) : undefined,
+		openAiSelectedConfigIndex: config.openAiSelectedConfigIndex,
 	})
 }
 
@@ -232,6 +236,11 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		favoritedModelIds: protoConfig.favoritedModelIds || [],
 	}
 
+	// Handle optional number fields
+	if (protoConfig.openAiSelectedConfigIndex !== undefined) {
+		config.openAiSelectedConfigIndex = protoConfig.openAiSelectedConfigIndex
+	}
+
 	// Handle complex JSON objects
 	try {
 		if (protoConfig.vscodeLmModelSelector) {
@@ -251,6 +260,9 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		}
 		if (protoConfig.openaiHeaders) {
 			config.openAiHeaders = JSON.parse(protoConfig.openaiHeaders)
+		}
+		if (protoConfig.openAiConfigs) {
+			config.openAiConfigs = JSON.parse(protoConfig.openAiConfigs)
 		}
 	} catch (error) {
 		console.error("Failed to parse complex JSON objects in API configuration:", error)
