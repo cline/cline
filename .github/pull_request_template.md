@@ -30,19 +30,6 @@ Detail the steps to test your changes. This helps reviewers verify your work.
 - Include relevant testing environment details if applicable.
 -->
 
-### Type of Change
-
-<!-- Mark all applicable boxes with an 'x'. -->
-
-- [ ] 🐛 **Bug Fix**: Non-breaking change that fixes an issue.
-- [ ] ✨ **New Feature**: Non-breaking change that adds functionality.
-- [ ] 💥 **Breaking Change**: Fix or feature that would cause existing functionality to not work as expected.
-- [ ] ♻️ **Refactor**: Code change that neither fixes a bug nor adds a feature.
-- [ ] 💅 **Style**: Changes that do not affect the meaning of the code (white-space, formatting, etc.).
-- [ ] 📚 **Documentation**: Updates to documentation files.
-- [ ] ⚙️ **Build/CI**: Changes to the build process or CI configuration.
-- [ ] 🧹 **Chore**: Other changes that don't modify `src` or test files.
-
 ### Pre-Submission Checklist
 
 <!-- Go through this checklist before marking your PR as ready for review. -->
