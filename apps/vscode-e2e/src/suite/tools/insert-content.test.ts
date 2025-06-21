@@ -6,8 +6,11 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code insert_content Tool", () => {
+suite("Roo Code insert_content Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let workspaceDir: string
 
 	// Pre-created test files that will be used across tests

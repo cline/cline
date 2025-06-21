@@ -3,8 +3,11 @@ import * as assert from "assert"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitUntilCompleted } from "./utils"
+import { setDefaultSuiteTimeout } from "./test-utils"
 
-suite("Roo Code Task", () => {
+suite("Roo Code Task", function () {
+	setDefaultSuiteTimeout(this)
+
 	test("Should handle prompt and response correctly", async () => {
 		const api = globalThis.api
 

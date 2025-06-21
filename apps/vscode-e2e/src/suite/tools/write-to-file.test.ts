@@ -6,8 +6,11 @@ import * as os from "os"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code write_to_file Tool", () => {
+suite("Roo Code write_to_file Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let tempDir: string
 	let testFilePath: string
 

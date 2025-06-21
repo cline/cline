@@ -6,8 +6,11 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code apply_diff Tool", () => {
+suite("Roo Code apply_diff Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let workspaceDir: string
 
 	// Pre-created test files that will be used across tests
@@ -491,9 +494,6 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 	})
 
 	test("Should handle apply_diff errors gracefully", async function () {
-		// Increase timeout for this specific test
-		this.timeout(90_000)
-
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		const testFile = testFiles.errorHandling
@@ -605,9 +605,6 @@ Assume the file exists and you can modify it directly.`,
 	})
 
 	test("Should apply multiple search/replace blocks to edit two separate functions", async function () {
-		// Increase timeout for this specific test
-		this.timeout(60_000)
-
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		const testFile = testFiles.multiSearchReplace

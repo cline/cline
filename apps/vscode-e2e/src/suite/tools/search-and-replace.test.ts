@@ -6,8 +6,11 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code search_and_replace Tool", () => {
+suite("Roo Code search_and_replace Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let workspaceDir: string
 
 	// Pre-created test files that will be used across tests
@@ -253,9 +256,6 @@ Assume the file exists and you can modify it directly.`,
 	})
 
 	test("Should perform regex pattern replacement", async function () {
-		// Increase timeout for this test
-		this.timeout(90_000)
-
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		const testFile = testFiles.regexReplace

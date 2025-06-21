@@ -1,7 +1,11 @@
 import * as assert from "assert"
 import * as vscode from "vscode"
 
-suite("Roo Code Extension", () => {
+import { setDefaultSuiteTimeout } from "./test-utils"
+
+suite("Roo Code Extension", function () {
+	setDefaultSuiteTimeout(this)
+
 	test("Commands should be registered", async () => {
 		const expectedCommands = [
 			"SidebarProvider.open",

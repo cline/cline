@@ -6,8 +6,11 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep, waitUntilCompleted } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code execute_command Tool", () => {
+suite("Roo Code execute_command Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let workspaceDir: string
 
 	// Pre-created test files that will be used across tests
@@ -331,9 +334,6 @@ Avoid at all costs suggesting a command when using the attempt_completion tool`,
 	})
 
 	test("Should execute multiple commands sequentially", async function () {
-		// Increase timeout for this test
-		this.timeout(90_000)
-
 		const api = globalThis.api
 		const testFile = testFiles.multiCommand
 		let taskStarted = false
@@ -447,9 +447,6 @@ After both commands are executed, use the attempt_completion tool to complete th
 	})
 
 	test("Should handle long-running commands", async function () {
-		// Increase timeout for this test
-		this.timeout(60_000)
-
 		const api = globalThis.api
 		let taskStarted = false
 		let _taskCompleted = false

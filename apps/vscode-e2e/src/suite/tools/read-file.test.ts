@@ -7,8 +7,11 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
+import { setDefaultSuiteTimeout } from "../test-utils"
 
-suite("Roo Code read_file Tool", () => {
+suite("Roo Code read_file Tool", function () {
+	setDefaultSuiteTimeout(this)
+
 	let tempDir: string
 	let testFiles: {
 		simple: string
@@ -118,7 +121,6 @@ suite("Roo Code read_file Tool", () => {
 	})
 
 	test("Should read a simple text file", async function () {
-		this.timeout(90_000) // Increase timeout for this test
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskStarted = false
@@ -264,7 +266,6 @@ suite("Roo Code read_file Tool", () => {
 	})
 
 	test("Should read a multiline file", async function () {
-		this.timeout(90_000) // Increase timeout
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskCompleted = false
@@ -376,7 +377,6 @@ suite("Roo Code read_file Tool", () => {
 	})
 
 	test("Should read file with line range", async function () {
-		this.timeout(90_000) // Increase timeout
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskCompleted = false
@@ -562,7 +562,6 @@ suite("Roo Code read_file Tool", () => {
 	})
 
 	test("Should read XML content file", async function () {
-		this.timeout(90_000) // Increase timeout
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskCompleted = false
@@ -634,7 +633,6 @@ suite("Roo Code read_file Tool", () => {
 	})
 
 	test("Should read multiple files in sequence", async function () {
-		this.timeout(90_000) // Increase timeout
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskCompleted = false
@@ -708,7 +706,6 @@ Assume both files exist and you can read them directly. Read each file and tell 
 	})
 
 	test("Should read large file efficiently", async function () {
-		this.timeout(90_000) // Increase timeout
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let taskCompleted = false

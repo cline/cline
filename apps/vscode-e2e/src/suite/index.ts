@@ -27,13 +27,11 @@ export async function run() {
 
 	globalThis.api = api
 
-	// Configure Mocha with grep pattern if provided
 	const mochaOptions: Mocha.MochaOptions = {
 		ui: "tdd",
-		timeout: 300_000,
+		timeout: 20 * 60 * 1_000, // 20m
 	}
 
-	// Apply grep filter if TEST_GREP is set
 	if (process.env.TEST_GREP) {
 		mochaOptions.grep = process.env.TEST_GREP
 		console.log(`Running tests matching pattern: ${process.env.TEST_GREP}`)
@@ -42,17 +40,16 @@ export async function run() {
 	const mocha = new Mocha(mochaOptions)
 	const cwd = path.resolve(__dirname, "..")
 
-	// Get test files based on filter
 	let testFiles: string[]
+
 	if (process.env.TEST_FILE) {
-		// Run specific test file
 		const specificFile = process.env.TEST_FILE.endsWith(".js")
 			? process.env.TEST_FILE
 			: `${process.env.TEST_FILE}.js`
+
 		testFiles = await glob(`**/${specificFile}`, { cwd })
 		console.log(`Running specific test file: ${specificFile}`)
 	} else {
-		// Run all test files
 		testFiles = await glob("**/**.test.js", { cwd })
 	}
 
@@ -62,7 +59,6 @@ export async function run() {
 
 	testFiles.forEach((testFile) => mocha.addFile(path.resolve(cwd, testFile)))
 
-	// Let's go!
 	return new Promise<void>((resolve, reject) =>
 		mocha.run((failures) => (failures === 0 ? resolve() : reject(new Error(`${failures} tests failed.`)))),
 	)
