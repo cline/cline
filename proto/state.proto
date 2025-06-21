@@ -7,16 +7,37 @@ import "common.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
+  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+  rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
+  rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
+  rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
-  rpc resetState(EmptyRequest) returns (Empty);
-  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc resetState(ResetStateRequest) returns (Empty);
+  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
 }
 
 message State {
   string state_json = 1;
+}
+
+message TerminalProfiles {
+  repeated TerminalProfile profiles = 1;
+}
+
+message TerminalProfile {
+  string id = 1;
+  string name = 2;
+  optional string path = 3;
+  optional string description = 4;
+}
+
+message TerminalProfileUpdateResponse {
+  int32 closed_count = 1;
+  int32 busy_terminals_count = 2;
+  bool has_busy_terminals = 3;
 }
 
 message TogglePlanActModeRequest {
@@ -42,10 +63,13 @@ message ChatContent {
   repeated string files = 3;
 }
 
-// Message for auto approval settings
+message ResetStateRequest {
+  Metadata metadata = 1;
+  optional bool global = 2;
+}
+
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
-
   message Actions {
     bool read_files = 1;
     bool read_files_externally = 2;
@@ -56,7 +80,6 @@ message AutoApprovalSettingsRequest {
     bool use_browser = 7;
     bool use_mcp = 8;
   }
-
   int32 version = 2;
   bool enabled = 3;
   Actions actions = 4;
@@ -69,15 +92,16 @@ message AutoApprovalSettingsRequest {
 message UpdateSettingsRequest {
   Metadata metadata = 1;
   optional ApiConfiguration api_configuration = 2;
-  optional string custom_instructions_setting = 3;
-  optional string telemetry_setting = 4;
-  optional bool plan_act_separate_models_setting = 5;
-  optional bool enable_checkpoints_setting = 6;
-  optional bool mcp_marketplace_enabled = 7;
-  optional ChatSettings chat_settings = 8;
-  optional int64 shell_integration_timeout = 9;
-  optional bool terminal_reuse_enabled = 10;
-  optional bool mcp_responses_collapsed = 11;
+  optional string telemetry_setting = 3;
+  optional bool plan_act_separate_models_setting = 4;
+  optional bool enable_checkpoints_setting = 5;
+  optional bool mcp_marketplace_enabled = 6;
+  optional ChatSettings chat_settings = 7;
+  optional int64 shell_integration_timeout = 8;
+  optional bool terminal_reuse_enabled = 9;
+  optional bool mcp_responses_collapsed = 10;
+  optional bool mcp_rich_display_enabled = 11;
+  optional int64 terminal_output_line_limit = 12;
 }
 
 // Complete API Configuration message
@@ -186,4 +210,14 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 71;
+
+  // SAP AI Core specific
+  optional string sap_ai_core_client_id = 72;
+  optional string sap_ai_core_client_secret = 73;
+  optional string sap_ai_core_base_url = 74;
+  optional string sap_ai_core_token_url = 75;
+  optional string sap_ai_resource_group = 76;
+
+  // Claude Code specific
+  optional string claude_code_path = 77;
 }

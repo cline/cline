@@ -11,6 +11,9 @@ import { ChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { ensureRulesDirectoryExists } from "./disk"
+import fs from "fs/promises"
+import path from "path"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -125,6 +128,51 @@ async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRaw: bool
 	return enableCheckpointsSettingRaw ?? true
 }
 
+export async function migrateCustomInstructionsToGlobalRules(context: vscode.ExtensionContext) {
+	try {
+		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
+
+		if (customInstructions?.trim()) {
+			console.log("Migrating custom instructions to global Cline rules...")
+
+			// Create global .clinerules directory if it doesn't exist
+			const globalRulesDir = await ensureRulesDirectoryExists()
+
+			// Use a fixed filename for custom instructions
+			const migrationFileName = "custom_instructions.md"
+			const migrationFilePath = path.join(globalRulesDir, migrationFileName)
+
+			try {
+				// Check if file already exists to determine if we should append
+				let existingContent = ""
+				try {
+					existingContent = await fs.readFile(migrationFilePath, "utf8")
+				} catch (readError) {
+					// File doesn't exist, which is fine
+				}
+
+				// Append or create the file with custom instructions
+				const contentToWrite = existingContent
+					? `${existingContent}\n\n---\n\n${customInstructions.trim()}`
+					: customInstructions.trim()
+
+				await fs.writeFile(migrationFilePath, contentToWrite)
+				console.log(`Successfully ${existingContent ? "appended to" : "created"} migration file: ${migrationFilePath}`)
+			} catch (fileError) {
+				console.error("Failed to write migration file:", fileError)
+				return
+			}
+
+			// Remove customInstructions from global state only after successful file creation
+			await context.globalState.update("customInstructions", undefined)
+			console.log("Successfully migrated custom instructions to global Cline rules")
+		}
+	} catch (error) {
+		console.error("Failed to migrate custom instructions to global rules:", error)
+		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
 		isNewUser,
@@ -161,7 +209,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		azureApiVersion,
 		openRouterProviderSorting,
 		lastShownAnnouncementId,
-		customInstructions,
 		taskHistory,
 		autoApprovalSettings,
 		browserSettings,
@@ -187,9 +234,19 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		shellIntegrationTimeout,
 		enableCheckpointsSettingRaw,
 		mcpMarketplaceEnabledRaw,
+		mcpRichDisplayEnabled,
 		mcpResponsesCollapsedRaw,
 		globalWorkflowToggles,
 		terminalReuseEnabled,
+		terminalOutputLineLimit,
+		defaultTerminalProfile,
+		sapAiCoreClientId,
+		sapAiCoreClientSecret,
+		sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl,
+		sapAiResourceGroup,
+		sapAiCoreModelId,
+		claudeCodePath,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
@@ -225,7 +282,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "azureApiVersion") as Promise<string | undefined>,
 		getGlobalState(context, "openRouterProviderSorting") as Promise<string | undefined>,
 		getGlobalState(context, "lastShownAnnouncementId") as Promise<string | undefined>,
-		getGlobalState(context, "customInstructions") as Promise<string | undefined>,
 		getGlobalState(context, "taskHistory") as Promise<HistoryItem[] | undefined>,
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
@@ -251,9 +307,19 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
+		getGlobalState(context, "mcpRichDisplayEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpResponsesCollapsed") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
+		getGlobalState(context, "terminalOutputLineLimit") as Promise<number | undefined>,
+		getGlobalState(context, "defaultTerminalProfile") as Promise<string | undefined>,
+		getSecret(context, "sapAiCoreClientId") as Promise<string | undefined>,
+		getSecret(context, "sapAiCoreClientSecret") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreBaseUrl") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
+		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -287,6 +353,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
+		previousModeSapAiCoreClientId,
+		previousModeSapAiCoreClientSecret,
+		previousModeSapAiCoreBaseUrl,
+		previousModeSapAiCoreTokenUrl,
+		previousModeSapAiCoreResourceGroup,
+		previousModeSapAiCoreModelId,
 	] = await Promise.all([
 		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -316,6 +388,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getWorkspaceState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
 		getWorkspaceState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientId") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
+		getWorkspaceState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -361,6 +439,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			apiKey,
 			openRouterApiKey,
 			clineApiKey,
+			claudeCodePath,
 			awsAccessKey,
 			awsSecretKey,
 			awsSessionToken,
@@ -422,10 +501,15 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			nebiusApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
+			sapAiCoreClientId,
+			sapAiCoreClientSecret,
+			sapAiCoreBaseUrl,
+			sapAiCoreTokenUrl,
+			sapAiResourceGroup,
+			sapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
 		lastShownAnnouncementId,
-		customInstructions,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		globalClineRulesToggles: globalClineRulesToggles || {},
@@ -444,13 +528,22 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
+		previousModeSapAiCoreClientId,
+		previousModeSapAiCoreClientSecret,
+		previousModeSapAiCoreBaseUrl,
+		previousModeSapAiCoreTokenUrl,
+		previousModeSapAiCoreResourceGroup,
+		previousModeSapAiCoreModelId,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSetting,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 		terminalReuseEnabled: terminalReuseEnabled ?? true,
+		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
 	}
 }
@@ -522,6 +615,13 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		fireworksModelId,
 		fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens,
+		sapAiCoreClientId,
+		sapAiCoreClientSecret,
+		sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl,
+		sapAiResourceGroup,
+		sapAiCoreModelId,
+		claudeCodePath,
 	} = apiConfiguration
 	// Workspace state updates
 	await updateWorkspaceState(context, "apiProvider", apiProvider)
@@ -570,6 +670,13 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
 	await updateGlobalState(context, "fireworksModelMaxTokens", fireworksModelMaxTokens)
+	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
+	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await updateGlobalState(context, "sapAiCoreBaseUrl", sapAiCoreBaseUrl)
+	await updateGlobalState(context, "sapAiCoreTokenUrl", sapAiCoreTokenUrl)
+	await updateGlobalState(context, "sapAiResourceGroup", sapAiResourceGroup)
+	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
+	await updateGlobalState(context, "claudeCodePath", claudeCodePath)
 
 	// Secret updates
 	await storeSecret(context, "apiKey", apiKey)
@@ -594,9 +701,18 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
+	await storeSecret(context, "sapAiCoreClientId", sapAiCoreClientId)
+	await storeSecret(context, "sapAiCoreClientSecret", sapAiCoreClientSecret)
 }
 
-export async function resetExtensionState(context: vscode.ExtensionContext) {
+export async function resetWorkspaceState(context: vscode.ExtensionContext) {
+	for (const key of context.workspaceState.keys()) {
+		await context.workspaceState.update(key, undefined)
+	}
+}
+
+export async function resetGlobalState(context: vscode.ExtensionContext) {
+	// TODO: Reset all workspace states?
 	for (const key of context.globalState.keys()) {
 		await context.globalState.update(key, undefined)
 	}

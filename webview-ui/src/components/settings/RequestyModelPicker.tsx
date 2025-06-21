@@ -5,12 +5,13 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { requestyDefaultModelId } from "../../../../src/shared/api"
+import { requestyDefaultModelId, requestyDefaultModelInfo } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { ModelInfoView } from "./ApiOptions"
+import { normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 export interface RequestyModelPickerProps {
@@ -18,7 +19,7 @@ export interface RequestyModelPickerProps {
 }
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, requestyModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -44,9 +45,16 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 	}, [apiConfiguration])
 
 	useMount(() => {
-		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({})).catch((err) => {
-			console.error("Failed to refresh Requesty models:", err)
-		})
+		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({}))
+			.then((response) => {
+				setRequestyModels({
+					[requestyDefaultModelId]: requestyDefaultModelInfo,
+					...response.models,
+				})
+			})
+			.catch((err) => {
+				console.error("Failed to refresh Requesty models:", err)
+			})
 	})
 
 	useEffect(() => {
