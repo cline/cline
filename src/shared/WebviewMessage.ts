@@ -9,7 +9,6 @@ import { McpViewTab } from "./mcp"
 export interface WebviewMessage {
 	type:
 		| "requestVsCodeLmModels"
-		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "telemetrySetting"
