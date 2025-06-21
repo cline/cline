@@ -1,5 +1,5 @@
 name: 💡 Feature Proposal & Contribution
-description: Propose a new feature or improvement, with optional contribution offer
+description: Propose a new feature or improvement, and optionally offer to implement feature as a contributor
 labels: ["proposal"]
 body:
     - type: markdown
