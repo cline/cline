@@ -49,61 +49,43 @@ export class ClineAccountService {
 	}
 
 	/**
-	 * Fetches the user's current credit balance
+	 * RPC variant that fetches the user's current credit balance without posting to webview
+	 * @returns Balance data or undefined if failed
 	 */
-	async fetchBalance(): Promise<BalanceResponse | undefined> {
+	async fetchBalanceRPC(): Promise<BalanceResponse | undefined> {
 		try {
 			const data = await this.authenticatedRequest<BalanceResponse>("/user/credits/balance")
-
-			// Post to webview
-			await this.postMessageToWebview({
-				type: "userCreditsBalance",
-				userCreditsBalance: data,
-			})
-
 			return data
 		} catch (error) {
-			console.error("Failed to fetch balance:", error)
+			console.error("Failed to fetch balance (RPC):", error)
 			return undefined
 		}
 	}
 
 	/**
-	 * Fetches the user's usage transactions
+	 * RPC variant that fetches the user's usage transactions without posting to webview
+	 * @returns Usage transactions or undefined if failed
 	 */
-	async fetchUsageTransactions(): Promise<UsageTransaction[] | undefined> {
+	async fetchUsageTransactionsRPC(): Promise<UsageTransaction[] | undefined> {
 		try {
-			const data = await this.authenticatedRequest<UsageTransaction[]>("/user/credits/usage")
-
-			// Post to webview
-			await this.postMessageToWebview({
-				type: "userCreditsUsage",
-				userCreditsUsage: data,
-			})
-
-			return data
+			const data = await this.authenticatedRequest<{ usageTransactions: UsageTransaction[] }>("/user/credits/usage")
+			return data.usageTransactions
 		} catch (error) {
-			console.error("Failed to fetch usage transactions:", error)
+			console.error("Failed to fetch usage transactions (RPC):", error)
 			return undefined
 		}
 	}
 
 	/**
-	 * Fetches the user's payment transactions
+	 * RPC variant that fetches the user's payment transactions without posting to webview
+	 * @returns Payment transactions or undefined if failed
 	 */
-	async fetchPaymentTransactions(): Promise<PaymentTransaction[] | undefined> {
+	async fetchPaymentTransactionsRPC(): Promise<PaymentTransaction[] | undefined> {
 		try {
-			const data = await this.authenticatedRequest<PaymentTransaction[]>("/user/credits/payments")
-
-			// Post to webview
-			await this.postMessageToWebview({
-				type: "userCreditsPayments",
-				userCreditsPayments: data,
-			})
-
-			return data
+			const data = await this.authenticatedRequest<{ paymentTransactions: PaymentTransaction[] }>("/user/credits/payments")
+			return data.paymentTransactions
 		} catch (error) {
-			console.error("Failed to fetch payment transactions:", error)
+			console.error("Failed to fetch payment transactions (RPC):", error)
 			return undefined
 		}
 	}

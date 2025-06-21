@@ -42,30 +42,21 @@ export const ClineAccountView = () => {
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
-	// Listen for balance and transaction data updates from the extension
+	// Fetch all account data when component mounts using gRPC
 	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "userCreditsBalance" && message.userCreditsBalance) {
-				setBalance(message.userCreditsBalance.currentBalance)
-			} else if (message.type === "userCreditsUsage" && message.userCreditsUsage) {
-				setUsageData(message.userCreditsUsage.usageTransactions)
-			} else if (message.type === "userCreditsPayments" && message.userCreditsPayments) {
-				setPaymentsData(message.userCreditsPayments.paymentTransactions)
-			}
-			setIsLoading(false)
-		}
-
-		window.addEventListener("message", handleMessage)
-
-		// Fetch all account data when component mounts
 		if (user) {
 			setIsLoading(true)
-			vscode.postMessage({ type: "fetchUserCreditsData" })
-		}
-
-		return () => {
-			window.removeEventListener("message", handleMessage)
+			AccountServiceClient.fetchUserCreditsData(EmptyRequest.create())
+				.then((response) => {
+					setBalance(response.balance?.currentBalance || 0)
+					setUsageData(response.usageTransactions)
+					setPaymentsData(response.paymentTransactions)
+					setIsLoading(false)
+				})
+				.catch((error) => {
+					console.error("Failed to fetch user credits data:", error)
+					setIsLoading(false)
+				})
 		}
 	}, [user])
 
@@ -135,7 +126,20 @@ export const ClineAccountView = () => {
 									<VSCodeButton
 										appearance="icon"
 										className="mt-1"
-										onClick={() => vscode.postMessage({ type: "fetchUserCreditsData" })}>
+										onClick={() => {
+											setIsLoading(true)
+											AccountServiceClient.fetchUserCreditsData(EmptyRequest.create())
+												.then((response) => {
+													setBalance(response.balance?.currentBalance || 0)
+													setUsageData(response.usageTransactions)
+													setPaymentsData(response.paymentTransactions)
+													setIsLoading(false)
+												})
+												.catch((error) => {
+													console.error("Failed to refresh user credits data:", error)
+													setIsLoading(false)
+												})
+										}}>
 										<span className="codicon codicon-refresh"></span>
 									</VSCodeButton>
 								</>
