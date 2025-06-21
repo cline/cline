@@ -50,15 +50,7 @@ Detail the steps to test your changes. This helps reviewers verify your work.
 - [ ] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
 - [ ] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
 - [ ] **Self-Review**: I have performed a thorough self-review of my code.
-- [ ] **Code Quality**:
-    - [ ] My code adheres to the project's style guidelines.
-    - [ ] There are no new linting errors or warnings (`npm run lint`).
-    - [ ] All debug code (e.g., `console.log`) has been removed.
-- [ ] **Testing**:
-    - [ ] New and/or updated tests have been added to cover my changes.
-    - [ ] All tests pass locally (`npm test`).
-    - [ ] The application builds successfully with my changes.
-- [ ] **Branch Hygiene**: My branch is up-to-date (rebased) with the `main` branch.
+- [ ] **Testing**: New and/or updated tests have been added to cover my changes (if applicable).
 - [ ] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
 - [ ] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
 
