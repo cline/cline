@@ -11,7 +11,6 @@ import {
 	bedrockModels,
 	cerebrasModels,
 	claudeCodeModels,
-	deepSeekModels,
 	doubaoModels,
 	geminiModels,
 	internationalQwenModels,
@@ -54,7 +53,8 @@ import { normalizeApiConfiguration } from "./utils/providerUtils"
 
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { MistralProvider } from "./providers/MistralProvider"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { DeepSeekProvider } from "./providers/DeepSeekProvider"
+import { TogetherProvider } from "./providers/TogetherProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -470,37 +470,6 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "deepseek" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.deepSeekApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("deepSeekApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.deepSeekApiKey && (
-							<VSCodeLink
-								href="https://www.deepseek.com/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a DeepSeek API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
-			)}
-
 			{selectedProvider === "qwen" && (
 				<div>
 					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
@@ -607,6 +576,24 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{apiConfiguration && selectedProvider === "deepseek" && (
+				<DeepSeekProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
+			)}
+
+			{apiConfiguration && selectedProvider === "together" && (
+				<TogetherProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
+			)}
+
 			{selectedProvider === "bedrock" && (
 				<div
 					style={{
@@ -694,6 +681,8 @@ const ApiOptions = ({
 							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
 							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
 							<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
+							<VSCodeOption value="eu-south-1">eu-south-1</VSCodeOption>
+							<VSCodeOption value="eu-south-2">eu-south-2</VSCodeOption>
 							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
 							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
@@ -1426,37 +1415,6 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "together" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.togetherApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("togetherApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>API Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.togetherModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("togetherModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-					</p>
-				</div>
-			)}
-
 			{selectedProvider === "vscode-lm" && (
 				<div>
 					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -2161,6 +2119,7 @@ const ApiOptions = ({
 				selectedProvider !== "requesty" &&
 				selectedProvider !== "bedrock" &&
 				selectedProvider !== "mistral" &&
+				selectedProvider !== "deepseek" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -2173,7 +2132,6 @@ const ApiOptions = ({
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
-							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" &&
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,

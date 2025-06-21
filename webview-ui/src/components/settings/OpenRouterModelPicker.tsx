@@ -48,7 +48,7 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro-preview",
+		id: "google/gemini-2.5-pro",
 		description: "Large 1M context window, great value",
 		label: "Trending",
 	},
