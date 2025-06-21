@@ -214,15 +214,6 @@ export class Controller {
 				break
 			}
 
-			// telemetry
-			case "telemetrySetting": {
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-				await this.postStateToWebview()
-				break
-			}
-
 			case "clearAllTaskHistory": {
 				const answer = await vscode.window.showWarningMessage(
 					"What would you like to delete?",
