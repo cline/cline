@@ -3,6 +3,7 @@
 import { screen, fireEvent, render } from "@testing-library/react"
 import { act } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { vi } from "vitest"
 
 import { ModelInfo } from "@roo-code/types"
 
@@ -58,6 +59,13 @@ describe("ModelPicker", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		vi.useFakeTimers()
+	})
+
+	afterEach(() => {
+		// Clear any pending timers to prevent test flakiness
+		vi.clearAllTimers()
+		vi.useRealTimers()
 	})
 
 	it("calls setApiConfigurationField when a model is selected", async () => {
@@ -71,7 +79,7 @@ describe("ModelPicker", () => {
 
 		// Wait for popover to open and animations to complete.
 		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 100))
+			vi.advanceTimersByTime(100)
 		})
 
 		await act(async () => {
@@ -85,6 +93,11 @@ describe("ModelPicker", () => {
 			// Find the CommandItem for model2 and click it
 			const modelItem = screen.getByTestId("model-option-model2")
 			fireEvent.click(modelItem)
+		})
+
+		// Advance timers to trigger the setTimeout in onSelect
+		await act(async () => {
+			vi.advanceTimersByTime(100)
 		})
 
 		// Verify the API config was updated.
@@ -102,7 +115,7 @@ describe("ModelPicker", () => {
 
 		// Wait for popover to open and animations to complete.
 		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 100))
+			vi.advanceTimersByTime(100)
 		})
 
 		const customModelId = "custom-model-id"
@@ -115,7 +128,7 @@ describe("ModelPicker", () => {
 
 		// Wait for the UI to update
 		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 100))
+			vi.advanceTimersByTime(100)
 		})
 
 		// Find and click the "Use custom" option
@@ -123,6 +136,11 @@ describe("ModelPicker", () => {
 			// Look for text containing our custom model ID
 			const customOption = screen.getByTestId("use-custom-model")
 			fireEvent.click(customOption)
+		})
+
+		// Advance timers to trigger the setTimeout in onSelect
+		await act(async () => {
+			vi.advanceTimersByTime(100)
 		})
 
 		// Verify the API config was updated with the custom model ID
