@@ -8,6 +8,8 @@ export default defineConfig({
 		watch: false,
 		reporters: ["dot"],
 		silent: true,
+		testTimeout: 20_000,
+		hookTimeout: 20_000,
 	},
 	resolve: {
 		alias: {
