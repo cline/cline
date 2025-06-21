@@ -1,0 +1,14 @@
+{
+	"mistralai/devstral-small-2505": {
+		"type": "llm",
+		"modelKey": "mistralai/devstral-small-2505",
+		"format": "safetensors",
+		"displayName": "Devstral Small 2505",
+		"path": "mistralai/devstral-small-2505",
+		"sizeBytes": 13277565112,
+		"architecture": "mistral",
+		"vision": false,
+		"trainedForToolUse": false,
+		"maxContextLength": 131072
+	}
+}

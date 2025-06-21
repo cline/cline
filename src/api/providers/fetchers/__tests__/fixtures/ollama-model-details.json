@@ -1,0 +1,58 @@
+{
+	"qwen3-2to16:latest": {
+		"license": "                                 Apache License\\n                           Version 2.0, January 2004\\n...",
+		"modelfile": "model.modelfile,# To build a new Modelfile based on this, replace FROM with:...",
+		"parameters": "repeat_penalty                 1\\nstop                           \\\\nstop...",
+		"template": "{{- if .Messages }}\\n{{- if or .System .Tools }}<|im_start|>system...",
+		"details": {
+			"parent_model": "/Users/brad/.ollama/models/blobs/sha256-3291abe70f16ee9682de7bfae08db5373ea9d6497e614aaad63340ad421d6312",
+			"format": "gguf",
+			"family": "qwen3",
+			"families": ["qwen3"],
+			"parameter_size": "32.8B",
+			"quantization_level": "Q4_K_M"
+		},
+		"model_info": {
+			"general.architecture": "qwen3",
+			"general.basename": "Qwen3",
+			"general.file_type": 15,
+			"general.parameter_count": 32762123264,
+			"general.quantization_version": 2,
+			"general.size_label": "32B",
+			"general.type": "model",
+			"qwen3.attention.head_count": 64,
+			"qwen3.attention.head_count_kv": 8,
+			"qwen3.attention.key_length": 128,
+			"qwen3.attention.layer_norm_rms_epsilon": 0.000001,
+			"qwen3.attention.value_length": 128,
+			"qwen3.block_count": 64,
+			"qwen3.context_length": 40960,
+			"qwen3.embedding_length": 5120,
+			"qwen3.feed_forward_length": 25600,
+			"qwen3.rope.freq_base": 1000000,
+			"tokenizer.ggml.add_bos_token": false,
+			"tokenizer.ggml.bos_token_id": 151643,
+			"tokenizer.ggml.eos_token_id": 151645,
+			"tokenizer.ggml.merges": null,
+			"tokenizer.ggml.model": "gpt2",
+			"tokenizer.ggml.padding_token_id": 151643,
+			"tokenizer.ggml.pre": "qwen2",
+			"tokenizer.ggml.token_type": null,
+			"tokenizer.ggml.tokens": null
+		},
+		"tensors": [
+			{
+				"name": "output.weight",
+				"type": "Q6_K",
+				"shape": [5120, 151936]
+			},
+			{
+				"name": "output_norm.weight",
+				"type": "F32",
+				"shape": [5120]
+			}
+		],
+		"capabilities": ["completion", "tools"],
+		"modified_at": "2025-06-02T22:16:13.644123606-04:00"
+	}
+}

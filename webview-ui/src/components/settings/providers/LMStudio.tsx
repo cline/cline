@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useState, useMemo } from "react"
 import { useEvent } from "react-use"
 import { Trans } from "react-i18next"
 import { Checkbox } from "vscrui"
@@ -8,6 +8,7 @@ import type { ProviderSettings } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
+import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
 
 import { inputEventTransform } from "../transforms"
 
@@ -20,6 +21,7 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 	const { t } = useAppTranslation()
 
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
+	const routerModels = useRouterModels()
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
@@ -47,6 +49,48 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 
 	useEvent("message", onMessage)
 
+	// Check if the selected model exists in the fetched models
+	const modelNotAvailable = useMemo(() => {
+		const selectedModel = apiConfiguration?.lmStudioModelId
+		if (!selectedModel) return false
+
+		// Check if model exists in local LM Studio models
+		if (lmStudioModels.length > 0 && lmStudioModels.includes(selectedModel)) {
+			return false // Model is available locally
+		}
+
+		// If we have router models data for LM Studio
+		if (routerModels.data?.lmstudio) {
+			const availableModels = Object.keys(routerModels.data.lmstudio)
+			// Show warning if model is not in the list (regardless of how many models there are)
+			return !availableModels.includes(selectedModel)
+		}
+
+		// If neither source has loaded yet, don't show warning
+		return false
+	}, [apiConfiguration?.lmStudioModelId, routerModels.data, lmStudioModels])
+
+	// Check if the draft model exists
+	const draftModelNotAvailable = useMemo(() => {
+		const draftModel = apiConfiguration?.lmStudioDraftModelId
+		if (!draftModel) return false
+
+		// Check if model exists in local LM Studio models
+		if (lmStudioModels.length > 0 && lmStudioModels.includes(draftModel)) {
+			return false // Model is available locally
+		}
+
+		// If we have router models data for LM Studio
+		if (routerModels.data?.lmstudio) {
+			const availableModels = Object.keys(routerModels.data.lmstudio)
+			// Show warning if model is not in the list (regardless of how many models there are)
+			return !availableModels.includes(draftModel)
+		}
+
+		// If neither source has loaded yet, don't show warning
+		return false
+	}, [apiConfiguration?.lmStudioDraftModelId, routerModels.data, lmStudioModels])
+
 	return (
 		<>
 			<VSCodeTextField
@@ -64,6 +108,16 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 				className="w-full">
 				<label className="block font-medium mb-1">{t("settings:providers.lmStudio.modelId")}</label>
 			</VSCodeTextField>
+			{modelNotAvailable && (
+				<div className="flex flex-col gap-2 text-vscode-errorForeground text-sm">
+					<div className="flex flex-row items-center gap-1">
+						<div className="codicon codicon-close" />
+						<div>
+							{t("settings:validation.modelAvailability", { modelId: apiConfiguration?.lmStudioModelId })}
+						</div>
+					</div>
+				</div>
+			)}
 			{lmStudioModels.length > 0 && (
 				<VSCodeRadioGroup
 					value={
@@ -101,6 +155,18 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 						<div className="text-sm text-vscode-descriptionForeground">
 							{t("settings:providers.lmStudio.draftModelDesc")}
 						</div>
+						{draftModelNotAvailable && (
+							<div className="flex flex-col gap-2 text-vscode-errorForeground text-sm mt-2">
+								<div className="flex flex-row items-center gap-1">
+									<div className="codicon codicon-close" />
+									<div>
+										{t("settings:validation.modelAvailability", {
+											modelId: apiConfiguration?.lmStudioDraftModelId,
+										})}
+									</div>
+								</div>
+							</div>
+						)}
 					</div>
 					{lmStudioModels.length > 0 && (
 						<>

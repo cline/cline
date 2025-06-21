@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import axios from "axios"
 
 import { type ModelInfo, openAiModelInfoSaneDefaults, DEEP_SEEK_DEFAULT_TEMPERATURE } from "@roo-code/types"
 
@@ -109,19 +108,5 @@ export class OllamaHandler extends BaseProvider implements SingleCompletionHandl
 			}
 			throw error
 		}
-	}
-}
-
-export async function getOllamaModels(baseUrl = "http://localhost:11434") {
-	try {
-		if (!URL.canParse(baseUrl)) {
-			return []
-		}
-
-		const response = await axios.get(`${baseUrl}/api/tags`)
-		const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-		return [...new Set<string>(modelsArray)]
-	} catch (error) {
-		return []
 	}
 }

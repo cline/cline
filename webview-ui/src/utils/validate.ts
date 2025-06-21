@@ -227,6 +227,12 @@ export function validateModelId(apiConfiguration: ProviderSettings, routerModels
 		case "requesty":
 			modelId = apiConfiguration.requestyModelId
 			break
+		case "ollama":
+			modelId = apiConfiguration.ollamaModelId
+			break
+		case "lmstudio":
+			modelId = apiConfiguration.lmStudioModelId
+			break
 		case "litellm":
 			modelId = apiConfiguration.litellmModelId
 			break

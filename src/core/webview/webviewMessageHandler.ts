@@ -29,9 +29,7 @@ import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettings } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
-import { getOllamaModels } from "../../api/providers/ollama"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
-import { getLmStudioModels } from "../../api/providers/lm-studio"
 import { openMention } from "../mentions"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { getWorkspacePath } from "../../utils/path"
@@ -357,6 +355,8 @@ export const webviewMessageHandler = async (
 				glama: {},
 				unbound: {},
 				litellm: {},
+				ollama: {},
+				lmstudio: {},
 			}
 
 			const safeGetModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
@@ -378,6 +378,9 @@ export const webviewMessageHandler = async (
 				{ key: "unbound", options: { provider: "unbound", apiKey: apiConfiguration.unboundApiKey } },
 			]
 
+			// Don't fetch Ollama and LM Studio models by default anymore
+			// They have their own specific handlers: requestOllamaModels and requestLmStudioModels
+
 			const litellmApiKey = apiConfiguration.litellmApiKey || message?.values?.litellmApiKey
 			const litellmBaseUrl = apiConfiguration.litellmBaseUrl || message?.values?.litellmBaseUrl
 			if (litellmApiKey && litellmBaseUrl) {
@@ -394,13 +397,31 @@ export const webviewMessageHandler = async (
 				}),
 			)
 
-			const fetchedRouterModels: Partial<Record<RouterName, ModelRecord>> = { ...routerModels }
+			const fetchedRouterModels: Partial<Record<RouterName, ModelRecord>> = {
+				...routerModels,
+				// Initialize ollama and lmstudio with empty objects since they use separate handlers
+				ollama: {},
+				lmstudio: {},
+			}
 
 			results.forEach((result, index) => {
 				const routerName = modelFetchPromises[index].key // Get RouterName using index
 
 				if (result.status === "fulfilled") {
 					fetchedRouterModels[routerName] = result.value.models
+
+					// Ollama and LM Studio settings pages still need these events
+					if (routerName === "ollama" && Object.keys(result.value.models).length > 0) {
+						provider.postMessageToWebview({
+							type: "ollamaModels",
+							ollamaModels: Object.keys(result.value.models),
+						})
+					} else if (routerName === "lmstudio" && Object.keys(result.value.models).length > 0) {
+						provider.postMessageToWebview({
+							type: "lmStudioModels",
+							lmStudioModels: Object.keys(result.value.models),
+						})
+					}
 				} else {
 					// Handle rejection: Post a specific error message for this provider
 					const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
@@ -421,7 +442,50 @@ export const webviewMessageHandler = async (
 				type: "routerModels",
 				routerModels: fetchedRouterModels as Record<RouterName, ModelRecord>,
 			})
+
 			break
+		case "requestOllamaModels": {
+			// Specific handler for Ollama models only
+			const { apiConfiguration: ollamaApiConfig } = await provider.getState()
+			try {
+				const ollamaModels = await getModels({
+					provider: "ollama",
+					baseUrl: ollamaApiConfig.ollamaBaseUrl,
+				})
+
+				if (Object.keys(ollamaModels).length > 0) {
+					provider.postMessageToWebview({
+						type: "ollamaModels",
+						ollamaModels: Object.keys(ollamaModels),
+					})
+				}
+			} catch (error) {
+				// Silently fail - user hasn't configured Ollama yet
+				console.debug("Ollama models fetch failed:", error)
+			}
+			break
+		}
+		case "requestLmStudioModels": {
+			// Specific handler for LM Studio models only
+			const { apiConfiguration: lmStudioApiConfig } = await provider.getState()
+			try {
+				const lmStudioModels = await getModels({
+					provider: "lmstudio",
+					baseUrl: lmStudioApiConfig.lmStudioBaseUrl,
+				})
+
+				if (Object.keys(lmStudioModels).length > 0) {
+					provider.postMessageToWebview({
+						type: "lmStudioModels",
+						lmStudioModels: Object.keys(lmStudioModels),
+					})
+				}
+			} catch (error) {
+				// Silently fail - user hasn't configured LM Studio yet
+				console.debug("LM Studio models fetch failed:", error)
+			}
+			break
+		}
 		case "requestOpenAiModels":
 			if (message?.values?.baseUrl && message?.values?.apiKey) {
 				const openAiModels = await getOpenAiModels(
@@ -433,16 +497,6 @@ export const webviewMessageHandler = async (
 				provider.postMessageToWebview({ type: "openAiModels", openAiModels })
 			}
 
-			break
-		case "requestOllamaModels":
-			const ollamaModels = await getOllamaModels(message.text)
-			// TODO: Cache like we do for OpenRouter, etc?
-			provider.postMessageToWebview({ type: "ollamaModels", ollamaModels })
-			break
-		case "requestLmStudioModels":
-			const lmStudioModels = await getLmStudioModels(message.text)
-			// TODO: Cache like we do for OpenRouter, etc?
-			provider.postMessageToWebview({ type: "lmStudioModels", lmStudioModels })
 			break
 		case "requestVsCodeLmModels":
 			const vsCodeLmModels = await getVsCodeLmModels()
