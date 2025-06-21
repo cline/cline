@@ -259,4 +259,10 @@ service UiService {
   
   // Subscribe to focus chat input events with client ID
   rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
+  
+  // Subscribe to webview visibility change events
+  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
+
+  // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
+  rpc getWebviewHtml(EmptyRequest) returns (String);
 }

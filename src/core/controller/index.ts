@@ -51,7 +51,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	readonly id: string = uuidv4()
+	readonly id: string
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
@@ -65,7 +65,9 @@ export class Controller {
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
+		id: string,
 	) {
+		this.id = id
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
@@ -268,7 +270,7 @@ export class Controller {
 		telemetryService.updateTelemetryState(isOptedIn)
 	}
 
-	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
+	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
@@ -454,10 +456,15 @@ export class Controller {
 					chatContent?.images || [],
 					chatContent?.files || [],
 				)
+
+				return true
 			} else {
 				this.cancelTask()
+				return false
 			}
 		}
+
+		return false
 	}
 
 	async cancelTask() {

@@ -29,7 +29,6 @@
 		"katex": "^0.16.22",
 		"lucide-react": "^0.511.0",
 		"mermaid": "^11.4.1",
-		"package.json": "^2.0.1",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",

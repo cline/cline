@@ -17,15 +17,13 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "openAiModels"
-		| "requestyModels"
 		| "mcpDownloadDetails"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	action?: "didBecomeVisible" | "accountLogoutClicked"
+	action?: "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
@@ -33,7 +31,6 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	openAiModels?: string[]
-	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
