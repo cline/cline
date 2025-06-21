@@ -1,0 +1,116 @@
+name: 💡 Feature Proposal & Contribution
+description: Propose a new feature or improvement, and optionally offer to implement feature as a contributor
+labels: ["proposal"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              **Feature Proposal & Contribution for Cline**
+
+              Thank you for proposing a feature or improvement for Cline! This template helps us understand the problem, evaluate the solution, and coordinate implementation.
+
+              **For detailed proposals:** Please provide comprehensive information to enable fast prioritization and discussion.
+              **For contribution offers:** You can indicate your willingness to implement the feature yourself.
+
+              Before submitting:
+              - Search existing [Issues](https://github.com/cline/cline/issues) and [Discussions](https://github.com/cline/cline/discussions) to avoid duplicates
+              - Read the [Contributing Guide](https://github.com/cline/cline/blob/main/CONTRIBUTING.md) if you plan to contribute
+              - Don't start implementation until the proposal is reviewed and approved
+
+    - type: textarea
+      id: problem-description
+      attributes:
+          label: What problem does this solve?
+          description: |
+              Describe the problem clearly from a user's point of view. Focus on why this matters, who it affects, and when it occurs.
+
+              ✅ Good examples:
+              - "LLM provider returns 400 error when nearing the context window instead of truncating"
+              - "Submit button is invisible in dark mode"
+              - "Users can't easily share their Cline configurations with team members"
+
+              ❌ Avoid vague descriptions:
+              - "Performance is bad"
+              - "UI needs work"
+
+              Your description should include:
+              - Who is affected?
+              - When does it happen?
+              - What's the current vs expected behavior?
+              - What is the impact?
+          placeholder: Be specific about the problem, who it affects, and the impact.
+      validations:
+          required: true
+
+    - type: textarea
+      id: proposed-solution
+      attributes:
+          label: What's the proposed solution?
+          description: |
+              Describe how the problem should be solved. Be specific about UX, system behavior, and any flows that would change.
+
+              ✅ Good examples:
+              - "Add error handling immediately after attempting to create the llm stream and retry after manually truncating"
+              - "Update button styling to ensure contrast in all themes"
+              - "Add export/import functionality in settings with JSON format"
+
+              ❌ Avoid vague solutions:
+              - "Improve performance"
+              - "Fix the bug"
+
+              Your solution should include:
+              - What exactly will change?
+              - How will users interact with it?
+              - What's the expected outcome?
+          placeholder: Describe the proposed changes and how they solve the problem.
+      validations:
+          required: false
+
+    - type: dropdown
+      id: contribution-intent
+      attributes:
+          label: Are you interested in implementing this?
+          description: Let us know if you'd like to contribute to this feature
+          options:
+              - "No, just proposing the idea"
+              - "Yes, I'd like to implement this myself"
+              - "Yes, I'd like to collaborate with others"
+              - "Maybe, depending on complexity and guidance"
+      validations:
+          required: false
+
+    - type: textarea
+      id: implementation-approach
+      attributes:
+          label: Implementation approach (if contributing)
+          description: |
+              **Only fill this out if you selected "Yes" above.**
+
+              How do you plan to implement this? Include:
+              - High-level technical approach
+              - Files/components that would be affected
+              - Any new dependencies required
+              - Potential challenges or considerations you've identified
+
+              This helps us provide better guidance and ensures alignment before you start coding.
+          placeholder: "My implementation approach would be..."
+
+    - type: checkboxes
+      id: checklist
+      attributes:
+          label: Proposal checklist
+          options:
+              - label: I've checked for existing issues or related proposals
+                required: true
+              - label: I understand this needs review before implementation can start
+                required: true
+
+    - type: checkboxes
+      id: contribution-checklist
+      attributes:
+          label: Contribution checklist (if contributing)
+          description: Only check these if you plan to contribute
+          options:
+              - label: I've read the [Contributing Guide](https://github.com/cline/cline/blob/main/CONTRIBUTING.md)
+              - label: I'm willing to make changes based on feedback
+              - label: I understand the code review process and requirements
