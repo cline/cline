@@ -72,8 +72,13 @@ export function convertToVsCodeLmMessages(
 								? [new vscode.LanguageModelTextPart(toolMessage.content)]
 								: (toolMessage.content?.map((part) => {
 										if (part.type === "image") {
+											const sourceType = part.source?.type || "Unknown source-type"
+											const mediaType =
+												part.source?.type === "base64" && "media_type" in part.source
+													? part.source.media_type
+													: "unknown media-type"
 											return new vscode.LanguageModelTextPart(
-												`[Image (${part.source?.type || "Unknown source-type"}): ${part.source?.media_type || "unknown media-type"} not supported by VSCode LM API]`,
+												`[Image (${sourceType}): ${mediaType} not supported by VSCode LM API]`,
 											)
 										}
 										return new vscode.LanguageModelTextPart(part.text)
@@ -85,8 +90,13 @@ export function convertToVsCodeLmMessages(
 					// Convert non-tool messages to TextParts after tool messages
 					...nonToolMessages.map((part) => {
 						if (part.type === "image") {
+							const sourceType = part.source?.type || "Unknown source-type"
+							const mediaType =
+								part.source?.type === "base64" && "media_type" in part.source
+									? part.source.media_type
+									: "unknown media-type"
 							return new vscode.LanguageModelTextPart(
-								`[Image (${part.source?.type || "Unknown source-type"}): ${part.source?.media_type || "unknown media-type"} not supported by VSCode LM API]`,
+								`[Image (${sourceType}): ${mediaType} not supported by VSCode LM API]`,
 							)
 						}
 						return new vscode.LanguageModelTextPart(part.text)
@@ -198,6 +208,8 @@ export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelC
 			output_tokens: 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
+			service_tier: null,
 		},
 	}
 }
