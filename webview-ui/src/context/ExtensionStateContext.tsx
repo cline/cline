@@ -269,8 +269,13 @@ export const ExtensionStateContextProvider: React.FC<{
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
+							// Always preserve chat settings from the current state
+							// This prevents the backend from overwriting user changes
+							const chatSettings = prevState.chatSettings || stateData.chatSettings
+
 							const newState = {
 								...stateData,
+								chatSettings, // Use preserved or incoming chat settings
 								autoApprovalSettings: shouldUpdateAutoApproval
 									? stateData.autoApprovalSettings
 									: prevState.autoApprovalSettings,
@@ -307,9 +312,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
-
 							console.log("[DEBUG] returning new state in ESC")
-
 							return newState
 						})
 					} catch (error) {
