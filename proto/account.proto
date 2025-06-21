@@ -23,6 +23,9 @@ service AccountService {
     // Handles authentication state changes from the Firebase context.
     // Updates the user info in global state and returns the updated value.
     rpc authStateChanged(AuthStateChangedRequest) returns (AuthStateChanged);
+    
+    // Fetches all user credits data (balance, usage transactions, payment transactions)
+    rpc fetchUserCreditsData(EmptyRequest) returns (UserCreditsData);
 }
 
 message AuthStateChangedRequest {
@@ -38,9 +41,6 @@ message UserInfo {
     optional string display_name = 1;
     optional string email = 2;
     optional string photo_url = 3;
-    
-    // Fetches all user credits data (balance, usage transactions, payment transactions)
-    rpc fetchUserCreditsData(EmptyRequest) returns (UserCreditsData);
 }
 
 // Response containing all user credits data
