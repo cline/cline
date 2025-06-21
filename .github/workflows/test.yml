@@ -68,6 +68,12 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Install local modules on windows
+              if: runner.os == 'Windows' && steps.root-cache.outputs.cache-hit == 'true'
+              run: |
+                  npm install eslint-plugin-eslint-rules 
+                  cd webview-ui/ && npm install eslint-plugin-eslint-rules
+
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
               run: |

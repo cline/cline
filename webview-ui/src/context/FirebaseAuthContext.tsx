@@ -4,6 +4,8 @@ import { EmptyRequest } from "@shared/proto/common"
 import { initializeApp } from "firebase/app"
 import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { useExtensionState } from "./ExtensionStateContext"
+import { AuthStateChanged, AuthStateChangedRequest } from "@shared/proto/account"
 
 // Firebase configuration from extension
 const firebaseConfig = {
@@ -28,6 +30,7 @@ const FirebaseAuthContext = createContext<FirebaseAuthContextType | undefined>(u
 export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<User | null>(null)
 	const [isInitialized, setIsInitialized] = useState(false)
+	const { setUserInfo } = useExtensionState()
 
 	// Initialize Firebase
 	const app = initializeApp(firebaseConfig)
@@ -45,16 +48,23 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 				return
 			}
 			// Sync auth state with extension
-			vscode.postMessage({
-				type: "authStateChanged",
-				user: user
-					? {
-							displayName: user.displayName,
-							email: user.email,
-							photoURL: user.photoURL,
-						}
-					: null,
-			})
+			AccountServiceClient.authStateChanged(
+				AuthStateChangedRequest.create({
+					user: user
+						? {
+								displayName: user.displayName ?? undefined,
+								email: user.email ?? undefined,
+								photoURL: user.photoURL ?? undefined,
+							}
+						: undefined,
+				}),
+			)
+				.then((response: AuthStateChanged) => {
+					setUserInfo(response.user)
+				})
+				.catch((error) => {
+					console.error("Error updating auth state via gRPC:", error)
+				})
 		})
 
 		return () => unsubscribe()

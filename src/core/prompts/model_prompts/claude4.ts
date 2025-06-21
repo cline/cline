@@ -470,7 +470,10 @@ ${
                     const config = JSON.parse(server.config)
 
                     return (
-                        `## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+						`## ${server.name}` +
+						(config.command
+							? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
+							: "") +
                         (tools ? `\n\n### Available Tools\n${tools}` : "") +
                         (templates ? `\n\n### Resource Templates\n${templates}` : "") +
                         (resources ? `\n\n### Direct Resources\n${resources}` : "")
@@ -663,7 +666,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
     }
 
 export function addUserInstructions(
-    settingsCustomInstructions?: string,
     globalClineRulesFileInstructions?: string,
     localClineRulesFileInstructions?: string,
     localCursorRulesFileInstructions?: string,
@@ -675,9 +677,6 @@ export function addUserInstructions(
     let customInstructions = ""
     if (preferredLanguageInstructions) {
         customInstructions += preferredLanguageInstructions + "\n\n"
-    }
-    if (settingsCustomInstructions) {
-        customInstructions += settingsCustomInstructions + "\n\n"
     }
     if (globalClineRulesFileInstructions) {
         customInstructions += globalClineRulesFileInstructions + "\n\n"

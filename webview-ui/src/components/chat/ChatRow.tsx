@@ -1,6 +1,8 @@
 import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import styled from "styled-components"
+import { useEvent, useSize } from "react-use"
 
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
@@ -9,6 +11,8 @@ import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import SuccessButton from "@/components/common/SuccessButton"
+import { WithCopyButton } from "@/components/common/CopyButton"
+import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
@@ -28,75 +32,18 @@ import {
 } from "@shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { Int64Request, StringRequest } from "@shared/proto/common"
-import { useEvent, useSize } from "react-use"
-import styled from "styled-components"
-import { CheckpointControls } from "../common/CheckpointControls"
+
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { CheckpointControls } from "../common/CheckpointControls"
 import NewTaskPreview from "./NewTaskPreview"
-import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
-
-interface CopyButtonProps {
-	textToCopy: string | undefined
-}
+import QuoteButton from "./QuoteButton"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const cancelledColor = "var(--vscode-descriptionForeground)"
-
-const CopyButtonStyled = styled(VSCodeButton)`
-	position: absolute;
-	bottom: 2px;
-	right: 2px;
-	z-index: 1;
-	opacity: 0;
-`
-
-interface WithCopyButtonProps {
-	children: React.ReactNode
-	textToCopy?: string
-	style?: React.CSSProperties
-	ref?: React.Ref<HTMLDivElement>
-	onMouseUp?: (event: MouseEvent<HTMLDivElement>) => void
-}
-
-const StyledContainer = styled.div`
-	position: relative;
-
-	&:hover ${CopyButtonStyled} {
-		opacity: 1;
-	}
-`
-
-const WithCopyButton = React.forwardRef<HTMLDivElement, WithCopyButtonProps>(
-	({ children, textToCopy, style, onMouseUp, ...props }, ref) => {
-		const [copied, setCopied] = useState(false)
-
-		const handleCopy = () => {
-			if (!textToCopy) return
-
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				setCopied(true)
-				setTimeout(() => {
-					setCopied(false)
-				}, 1500)
-			})
-		}
-
-		return (
-			<StyledContainer ref={ref} onMouseUp={onMouseUp} style={style} {...props}>
-				{children}
-				{textToCopy && (
-					<CopyButtonStyled appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
-						<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
-					</CopyButtonStyled>
-				)}
-			</StyledContainer>
-		)
-	},
-)
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -1054,9 +1001,43 @@ export const ChatRowContent = ({
 					return null // we should never see this message type
 				case "mcp_server_response":
 					return <McpResponseDisplay responseText={message.text || ""} />
+				case "mcp_notification":
+					return (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "flex-start",
+								gap: "8px",
+								padding: "8px 12px",
+								backgroundColor: "var(--vscode-textBlockQuote-background)",
+								borderRadius: "4px",
+								fontSize: "13px",
+								color: "var(--vscode-foreground)",
+								opacity: 0.9,
+								marginBottom: "8px",
+							}}>
+							<i
+								className="codicon codicon-bell"
+								style={{
+									marginTop: "2px",
+									fontSize: "14px",
+									color: "var(--vscode-notificationsInfoIcon-foreground)",
+									flexShrink: 0,
+								}}
+							/>
+							<div style={{ flex: 1, wordBreak: "break-word" }}>
+								<span style={{ fontWeight: 500 }}>MCP Notification: </span>
+								<span className="ph-no-capture">{message.text}</span>
+							</div>
+						</div>
+					)
 				case "text":
 					return (
-						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text}>
+						<WithCopyButton
+							ref={contentRef}
+							onMouseUp={handleMouseUp}
+							textToCopy={message.text}
+							position="bottom-right">
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
 								<QuoteButton
@@ -1293,6 +1274,7 @@ export const ChatRowContent = ({
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
 								textToCopy={text}
+								position="bottom-right"
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
@@ -1457,6 +1439,7 @@ export const ChatRowContent = ({
 									ref={contentRef}
 									onMouseUp={handleMouseUp}
 									textToCopy={text}
+									position="bottom-right"
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
@@ -1527,6 +1510,7 @@ export const ChatRowContent = ({
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
 								textToCopy={question}
+								position="bottom-right"
 								style={{ paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
@@ -1610,7 +1594,7 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={response}>
+						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={response} position="bottom-right">
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}
