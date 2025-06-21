@@ -4,15 +4,18 @@ export interface BalanceResponse {
 
 export interface UsageTransaction {
 	spentAt: string
-	credits: string
+	creatorId: string
+	credits: number
 	modelProvider: string
 	model: string
-	promptTokens: string
-	completionTokens: string
+	promptTokens: number
+	completionTokens: number
+	totalTokens: number
 }
 
 export interface PaymentTransaction {
 	paidAt: string
-	amountCents: string
-	credits: string
+	creatorId: string
+	amountCents: number
+	credits: number
 }
