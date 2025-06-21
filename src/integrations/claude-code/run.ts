@@ -20,7 +20,7 @@ type ProcessState = {
 	exitCode: number | null
 }
 
-export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage> {
+export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
 	const process = runProcess(options)
 
 	const rl = readline.createInterface({
@@ -53,12 +53,20 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			}
 
 			if (line.trim()) {
-				if (line.length > 8000) {
-					console.debug(`Received line: ${line.length} characters`)
+				const chunk = parseChunk(line, processState)
+
+				if (!chunk) {
+					continue
 				}
 
-				yield JSON.parse(line) as ClaudeCodeMessage
+				yield chunk
 			}
+		}
+
+		// We rely on the assistant message. If the output was truncated, it's better having a poorly formatted message
+		// from which to extract something, than throwing an error/showing the model didn't return any messages.
+		if (processState.partialData && processState.partialData.startsWith(`{"type":"assistant"`)) {
+			yield processState.partialData
 		}
 
 		const { exitCode } = await process
@@ -97,6 +105,8 @@ const claudeCodeTools = [
 	"WebSearch",
 ].join(",")
 
+const CLAUDE_CODE_TIMEOUT = 900000 // 15 minutes
+
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
 	const claudePath = path || "claude"
 
@@ -129,8 +139,8 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 			CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
 		},
 		cwd,
-		maxBuffer: 1024 * 1024 * 1000, // Increase to 1GB to handle larger outputs
-		timeout: 0, // No timeout to ensure process completes
+		maxBuffer: 1024 * 1024 * 1000,
+		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 }
 
@@ -141,11 +151,8 @@ function parseChunk(data: string, processState: ProcessState) {
 		const chunk = attemptParseChunk(processState.partialData)
 
 		if (!chunk) {
-			console.error(`Couldn't parse partial data: ${processState.partialData.length} characters`)
 			return null
 		}
-
-		console.log(`Parsed chunk from partial data: ${processState.partialData.length} characters`)
 
 		processState.partialData = null
 		return chunk
@@ -154,8 +161,6 @@ function parseChunk(data: string, processState: ProcessState) {
 	const chunk = attemptParseChunk(data)
 
 	if (!chunk) {
-		console.error(`Couldn't parse chunk: ${data.length} characters`)
-		console.error(`Storing partial data for next chunk`)
 		processState.partialData = data
 	}
 
