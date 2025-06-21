@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.21.3] - 2025-06-21
+
+- Add profile-specific context condensing thresholds (thanks @SannidhyaSah!)
+- Fix context length for lmstudio and ollama (thanks @thecolorblue!)
+- Resolve MCP tool eye icon state and hide in chat context (thanks @daniel-lxs!)
+
 ## [3.21.2] - 2025-06-20
 
 - Add LaTeX math equation rendering in chat window
