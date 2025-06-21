@@ -25,6 +25,8 @@ customModes:
         - fileRegex: (\.roomodes$|\.roo/.*\.xml$|\.yaml$)
           description: Mode configuration files and XML instructions
       - command
+      - mcp
+    source: project
   - slug: test
     name: 🧪 Test
     roleDefinition: >-
