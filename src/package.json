@@ -409,7 +409,7 @@
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
 		"pkce-challenge": "^5.0.0",
-		"pretty-bytes": "^6.1.1",
+		"pretty-bytes": "^7.0.0",
 		"ps-tree": "^1.2.0",
 		"puppeteer-chromium-resolver": "^24.0.0",
 		"puppeteer-core": "^23.4.0",

@@ -50,7 +50,7 @@
 		"lucide-react": "^0.518.0",
 		"mermaid": "^11.4.1",
 		"posthog-js": "^1.227.2",
-		"pretty-bytes": "^6.1.1",
+		"pretty-bytes": "^7.0.0",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
 		"react-i18next": "^15.4.1",
