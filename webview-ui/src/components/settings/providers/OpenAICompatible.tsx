@@ -185,13 +185,30 @@ export const OpenAICompatibleProvider = ({
 	}
 
 	useEffect(() => {
+		// Migrate existing top-level openAiHeaders to the current profile (only once)
+		if (apiConfiguration?.openAiHeaders && Object.keys(apiConfiguration.openAiHeaders).length > 0) {
+			const currentConfigs = [...(apiConfiguration.openAiConfigs || [])]
+			const currentIndex = apiConfiguration.openAiSelectedConfigIndex ?? 0
+			if (currentConfigs[currentIndex] && !currentConfigs[currentIndex].openAiHeaders) {
+				currentConfigs[currentIndex] = {
+					...currentConfigs[currentIndex],
+					openAiHeaders: { ...apiConfiguration.openAiHeaders },
+				}
+				setApiConfiguration({
+					...apiConfiguration,
+					openAiConfigs: currentConfigs,
+					openAiHeaders: undefined,
+				})
+			}
+		}
+
 		setAzureApiVersionSelected(
 			!!(
 				apiConfiguration?.openAiConfigs &&
 				apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.azureApiVersion
 			),
 		)
-	}, [apiConfiguration?.openAiConfigs, apiConfiguration?.openAiSelectedConfigIndex])
+	}, [apiConfiguration, apiConfiguration?.openAiConfigs, apiConfiguration?.openAiSelectedConfigIndex])
 
 	return (
 		<div>
@@ -324,21 +341,19 @@ export const OpenAICompatibleProvider = ({
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
-				const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {})
+				const currentConfig = apiConfiguration?.openAiConfigs?.[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+				const headerEntries = Object.entries(currentConfig?.openAiHeaders ?? {})
 				return (
 					<div style={{ marginBottom: 10 }}>
 						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 							<span style={{ fontWeight: 500 }}>Custom Headers</span>
 							<VSCodeButton
 								onClick={() => {
-									const currentHeaders = { ...(apiConfiguration?.openAiHeaders || {}) }
+									const currentHeaders = { ...(currentConfig?.openAiHeaders || {}) }
 									const headerCount = Object.keys(currentHeaders).length
 									const newKey = `header${headerCount + 1}`
 									currentHeaders[newKey] = ""
-									setApiConfiguration({
-										...apiConfiguration,
-										openAiHeaders: currentHeaders,
-									})
+									handleOpenAiChange("openAiHeaders")({ target: { value: currentHeaders } })
 								}}>
 								Add Header
 							</VSCodeButton>
@@ -351,17 +366,12 @@ export const OpenAICompatibleProvider = ({
 										style={{ width: "40%" }}
 										placeholder="Header name"
 										onInput={(e: any) => {
-											const currentHeaders = { ...(apiConfiguration?.openAiHeaders ?? {}) }
+											const currentHeaders = { ...(currentConfig?.openAiHeaders ?? {}) }
 											const newValue = e.target.value
 											if (newValue && newValue !== key) {
 												const { [key]: _, ...rest } = currentHeaders
-												setApiConfiguration({
-													...apiConfiguration,
-													openAiHeaders: {
-														...rest,
-														[newValue]: value,
-													},
-												})
+												const updatedHeaders = { ...rest, [newValue]: value }
+												handleOpenAiChange("openAiHeaders")({ target: { value: updatedHeaders } })
 											}
 										}}
 									/>
@@ -370,23 +380,17 @@ export const OpenAICompatibleProvider = ({
 										style={{ width: "40%" }}
 										placeholder="Header value"
 										onInput={(e: any) => {
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiHeaders: {
-													...(apiConfiguration?.openAiHeaders ?? {}),
-													[key]: e.target.value,
-												},
-											})
+											const currentHeaders = { ...(currentConfig?.openAiHeaders ?? {}) }
+											const updatedHeaders = { ...currentHeaders, [key]: e.target.value }
+											handleOpenAiChange("openAiHeaders")({ target: { value: updatedHeaders } })
 										}}
 									/>
 									<VSCodeButton
 										appearance="secondary"
 										onClick={() => {
-											const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiHeaders: rest,
-											})
+											const currentHeaders = { ...(currentConfig?.openAiHeaders ?? {}) }
+											const { [key]: _, ...rest } = currentHeaders
+											handleOpenAiChange("openAiHeaders")({ target: { value: rest } })
 										}}>
 										Remove
 									</VSCodeButton>
