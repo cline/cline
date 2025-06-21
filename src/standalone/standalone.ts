@@ -54,10 +54,10 @@ function startProtobusService(controller: Controller) {
 
 function getProtobusServiceNames(packageDefinition: { [x: string]: any }): string[] {
 	// Filter service names to only include cline services
-	const clineServiceNames = Object.keys(packageDefinition).filter(
+	const protobusServiceNames = Object.keys(packageDefinition).filter(
 		(name) => name.startsWith("cline.") || name.startsWith("grpc.health"),
 	)
-	return clineServiceNames
+	return protobusServiceNames
 }
 
 const createWebview = () => {
