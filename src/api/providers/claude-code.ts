@@ -38,6 +38,15 @@ export class ClaudeCodeHandler implements ApiHandler {
 		let isPaidUsage = true
 
 		for await (const chunk of claudeProcess) {
+			if (typeof chunk === "string") {
+				yield {
+					type: "text",
+					text: chunk,
+				}
+
+				continue
+			}
+
 			if (chunk.type === "system" && chunk.subtype === "init") {
 				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
 				isPaidUsage = chunk.apiKeySource !== "none"
