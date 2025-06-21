@@ -1071,14 +1071,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useEffect(() => {
 			if (prevShowModelSelector.current && !showModelSelector) {
 				// Menu was just closed
-				// If the API provider is OpenAI, do not submit.
-				const { selectedProvider } = normalizeApiConfiguration(apiConfiguration)
-				if (selectedProvider !== "openai") {
-					submitApiConfig()
-				}
+				submitApiConfig()
 			}
 			prevShowModelSelector.current = showModelSelector
-		}, [showModelSelector, submitApiConfig, apiConfiguration])
+		}, [showModelSelector, submitApiConfig])
 
 		// Remove the handleApiConfigSubmit callback
 		// Update click handler to just toggle the menu

@@ -5,6 +5,7 @@ import {
 	ModelInfo,
 	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
 	LiteLLMModelInfo as AppLiteLLMModelInfo,
+	ApiHandlerOptions,
 } from "../../api"
 import {
 	ModelsApiConfiguration as ProtoApiConfiguration,
@@ -379,6 +380,78 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		claudeCodePath: config.claudeCodePath,
+		openAiConfigsJson: convertOpenAiConfigsArrayToProto(config.openAiConfigs),
+		openAiSelectedConfigIndex: config.openAiSelectedConfigIndex,
+	}
+}
+
+// Convert individual OpenAI config to proto format
+function convertOpenAiConfigToProto(config: NonNullable<ApiHandlerOptions["openAiConfigs"]>[0]): {
+	profileName: string
+	openAiBaseUrl: string
+	openAiApiKey: string
+	openAiModelId: string
+	openAiModelInfo: OpenAiCompatibleModelInfo
+	azureApiVersion: string
+	openAiHeaders: Record<string, string>
+} {
+	return {
+		profileName: config.profileName,
+		openAiBaseUrl: config.openAiBaseUrl,
+		openAiApiKey: config.openAiApiKey,
+		openAiModelId: config.openAiModelId,
+		openAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.openAiModelInfo) as OpenAiCompatibleModelInfo,
+		azureApiVersion: config.azureApiVersion,
+		openAiHeaders: config.openAiHeaders || {},
+	}
+}
+
+// Convert proto OpenAI config to application format
+function convertProtoToOpenAiConfig(config: {
+	profileName: string
+	openAiBaseUrl: string
+	openAiApiKey: string
+	openAiModelId: string
+	openAiModelInfo: OpenAiCompatibleModelInfo
+	azureApiVersion: string
+	openAiHeaders: Record<string, string>
+}): NonNullable<ApiHandlerOptions["openAiConfigs"]>[0] {
+	return {
+		profileName: config.profileName,
+		openAiBaseUrl: config.openAiBaseUrl,
+		openAiApiKey: config.openAiApiKey,
+		openAiModelId: config.openAiModelId,
+		openAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(config.openAiModelInfo) as AppOpenAiCompatibleModelInfo,
+		azureApiVersion: config.azureApiVersion,
+		openAiHeaders: Object.keys(config.openAiHeaders).length > 0 ? config.openAiHeaders : undefined,
+	}
+}
+
+// Convert array of OpenAI configs to proto format (JSON string)
+export function convertOpenAiConfigsArrayToProto(configs: ApiHandlerOptions["openAiConfigs"]): string | undefined {
+	if (!configs || configs.length === 0) {
+		return undefined
+	}
+
+	const protoConfigs = configs.map(convertOpenAiConfigToProto)
+	return JSON.stringify(protoConfigs)
+}
+
+// Convert proto OpenAI configs (JSON string) to application format
+export function convertProtoToOpenAiConfigsArray(protoConfigs: string | undefined): ApiHandlerOptions["openAiConfigs"] {
+	if (!protoConfigs) {
+		return undefined
+	}
+
+	try {
+		const parsedConfigs = JSON.parse(protoConfigs)
+		if (!Array.isArray(parsedConfigs)) {
+			return undefined
+		}
+		return parsedConfigs.map(convertProtoToOpenAiConfig)
+	} catch (error) {
+		console.error("Failed to parse openAiConfigs:", error)
+		return undefined
 	}
 }
 
@@ -458,5 +531,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		claudeCodePath: protoConfig.claudeCodePath,
+		openAiConfigs: convertProtoToOpenAiConfigsArray(protoConfig.openAiConfigsJson),
+		openAiSelectedConfigIndex: protoConfig.openAiSelectedConfigIndex,
 	}
 }
