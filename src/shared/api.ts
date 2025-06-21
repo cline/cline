@@ -182,6 +182,10 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		thinkingConfig: {
+			maxBudget: 64000,
+			outputPrice: 15.0,
+		},
 	},
 	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
@@ -314,6 +318,10 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		thinkingConfig: {
+			maxBudget: 64000,
+			outputPrice: 15.0,
+		},
 	},
 	"anthropic.claude-3-5-sonnet-20241022-v2:0": {
 		maxTokens: 8192,
