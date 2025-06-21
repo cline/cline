@@ -16,7 +16,7 @@ import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
@@ -55,6 +55,7 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
+	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
@@ -134,7 +135,7 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: storedChatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
@@ -143,6 +144,12 @@ export class Controller {
 			isNewUser,
 			taskHistory,
 		} = await getAllExtensionState(this.context)
+
+		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		const chatSettings: ChatSettings = {
+			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
+			mode: this.mode, // Use in-memory mode (override any stored mode)
+		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -272,6 +279,9 @@ export class Controller {
 
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
+
+		// Store mode in-memory only
+		this.mode = chatSettings.mode
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -442,7 +452,9 @@ export class Controller {
 			}
 		}
 
-		await updateWorkspaceState(this.context, "chatSettings", chatSettings)
+		// Save only non-mode properties to workspace storage
+		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
+		await updateWorkspaceState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
@@ -970,7 +982,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		await sendStateUpdate(this.id, state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -980,7 +992,7 @@ export class Controller {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: storedChatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpRichDisplayEnabled,
@@ -996,6 +1008,12 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
+
+		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		const chatSettings: ChatSettings = {
+			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
+			mode: this.mode, // Use in-memory mode (override any stored mode)
+		}
 
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
