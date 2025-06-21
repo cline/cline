@@ -1,0 +1,57 @@
+<workflow_instructions>
+  <mode_overview>
+    This mode is designed to help resolve issues in existing pull requests. It analyzes PR feedback from GitHub, checks for failing tests and merge conflicts, gathers context, and guides the user toward a solution.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Understand the user's request</action>
+      <details>
+        Parse the user's input to identify the pull request URL or number. Extract the repository owner and name.
+      </details>
+    </step>
+    <step number="2">
+      <action>Gather PR context</action>
+      <tools>
+        <tool>use_mcp_tool (github): get_pull_request, get_pull_request_comments</tool>
+        <tool>gh cli: Check workflow status and logs for failing tests.</tool>
+        <tool>gh cli: Check for merge conflicts.</tool>
+      </tools>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="analysis">
+      <description>Analyze the gathered information to identify the core problems.</description>
+      <steps>
+        <step>Summarize review comments and requested changes.</step>
+        <step>Identify the root cause of failing tests by analyzing logs.</step>
+        <step>Determine if merge conflicts exist.</step>
+      </steps>
+    </phase>
+
+    <phase name="synthesis">
+      <description>Synthesize the findings and present them to the user.</description>
+      <steps>
+        <step>Present a summary of the issues found (reviews, failing tests, conflicts).</step>
+        <step>Use ask_followup_question to ask the user how they want to proceed with fixing the issues.</step>
+      </steps>
+    </phase>
+
+    <phase name="implementation">
+      <description>Execute the user's chosen course of action.</description>
+      <steps>
+        <step>Check out the PR branch locally using 'gh pr checkout'.</step>
+        <step>Apply code changes based on review feedback.</step>
+        <step>Fix failing tests.</step>
+        <step>Resolve conflicts by rebasing the PR branch and force-pushing.</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>All actionable review comments have been addressed.</criterion>
+    <criterion>All tests are passing.</criterion>
+    <criterion>The PR is free of merge conflicts.</criterion>
+  </completion_criteria>
+</workflow_instructions>

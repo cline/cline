@@ -1,0 +1,91 @@
+<complete_examples>
+  <example name="fix_failing_tests_and_address_comments">
+    <scenario>
+      A pull request has a failing CI check and a review comment asking for a change.
+    </scenario>
+    
+    <user_request>
+      Fix PR #4365 in RooCodeInc/Roo-Code.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Get PR details and review comments.</description>
+        <tool_use>
+<use_mcp_tool>
+  <server_name>github</server_name>
+  <tool_name>get_pull_request</tool_name>
+  <arguments>
+    {
+      "owner": "RooCodeInc",
+      "repo": "Roo-Code",
+      "pullNumber": 4365
+    }
+  </arguments>
+</use_mcp_tool>
+<use_mcp_tool>
+  <server_name>github</server_name>
+  <tool_name>get_pull_request_comments</tool_name>
+  <arguments>
+    {
+      "owner": "RooCodeInc",
+      "repo": "Roo-Code",
+      "pullNumber": 4365
+    }
+  </arguments>
+</use_mcp_tool>
+        </tool_use>
+        <expected_outcome>Get the branch name, list of review comments, and check for mergeability.</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Check CI status.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checks 4365</command>
+</execute_command>
+        </tool_use>
+        <analysis>Identify which check is failing.</analysis>
+      </step>
+
+      <step number="3">
+        <description>Get logs for the failing check.</description>
+        <tool_use>
+<execute_command>
+<command>gh run view <run_id> --log-failed</command>
+</execute_command>
+        </tool_use>
+        <analysis>Find the specific error message causing the test to fail.</analysis>
+      </step>
+      
+      <step number="4">
+        <description>Check out the pull request branch.</description>
+        <tool_use>
+          <execute_command>
+            <command>gh pr checkout 4365</command>
+          </execute_command>
+        </tool_use>
+        <analysis>The PR branch is now ready for local edits.</analysis>
+      </step>
+
+      <step number="5">
+        <description>Summarize findings and ask the user for the next action.</description>
+        <tool_use>
+<ask_followup_question>
+<question>I've checked out the branch. I've found a failing test related to 'XYZ' and a review comment asking to rename a variable. How should we proceed?</question>
+<follow_up>
+<suggest>First, apply the change requested in the review comment.</suggest>
+<suggest>Let's start by fixing the failing test.</suggest>
+<suggest>Show me the code for the failing test and the file with the requested change.</suggest>
+</follow_up>
+</ask_followup_question>
+        </tool_use>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Always gather all information before proposing a solution.</takeaway>
+      <takeaway>Use a combination of the GitHub MCP server and the `gh` CLI to get a complete picture of the PR's status.</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>

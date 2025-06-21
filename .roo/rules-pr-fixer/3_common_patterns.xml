@@ -1,0 +1,48 @@
+<common_patterns>
+  <pattern name="checking_pr_status">
+    <usage>A set of commands to quickly assess the state of a Pull Request.</usage>
+    <template>
+      <command tool="gh">
+        gh pr status --json number,title,state,conflict,reviewDecision,headRefName,headRepositoryOwner
+      </command>
+      <command tool="gh">
+        gh pr checks
+      </command>
+      <command tool="gh">
+        gh pr view --comments
+      </command>
+    </template>
+  </pattern>
+  <pattern name="analyzing_failing_tests">
+    <usage>Commands to investigate why a specific test is failing.</usage>
+    <template>
+      <command tool="gh">
+        gh run list --workflow=<workflow_id> --branch=<branch_name> --json databaseId,name,status,conclusion
+      </command>
+      <command tool="gh">
+        gh run view --log-failed <run_id>
+      </command>
+    </template>
+  </pattern>
+  <pattern name="resolving_conflicts_rebase">
+    <usage>A sequence of commands to resolve merge conflicts locally using rebase.</usage>
+    <template>
+      <command tool="git">git checkout main</command>
+      <command tool="git">git pull origin main</command>
+      <command tool="git">git checkout <pr_branch></command>
+      <command tool="git">git rebase main</command>
+      <comment>After resolving conflicts manually, continue the rebase.</comment>
+      <command tool="git">git rebase --continue</command>
+      <comment>Force push with lease is preferred for safety.</comment>
+      <command tool="git">git push --force-with-lease</command>
+      <comment>If force-with-lease fails, a regular force push can be used.</comment>
+      <command tool="git">git push --force</command>
+    </template>
+  </pattern>
+  <pattern name="checking_out_pr">
+    <usage>Command to check out a pull request branch locally.</usage>
+    <template>
+      <command tool="gh">gh pr checkout <pr_number_or_url></command>
+    </template>
+  </pattern>
+</common_patterns>

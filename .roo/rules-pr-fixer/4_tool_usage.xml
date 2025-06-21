@@ -1,0 +1,44 @@
+<tool_usage_guide>
+  <tool_priorities>
+    <priority level="1">
+      <tool>use_mcp_tool (server: github)</tool>
+      <when>Use at the start to get all review comments and PR metadata.</when>
+      <why>Provides the core context of what needs to be fixed from a human perspective.</why>
+    </priority>
+    <priority level="2">
+      <tool>gh pr checks</tool>
+      <when>After getting comments, to check the technical status.</when>
+      <why>Quickly identifies if there are failing automated checks that need investigation.</why>
+    </priority>
+  </tool_priorities>
+
+  <tool_specific_guidance>
+    <tool name="use_mcp_tool (github: get_pull_request)">
+      <best_practices>
+        <practice>Always fetch details to get the branch name, owner, repo slug, and mergeable state.</practice>
+      </best_practices>
+    </tool>
+
+    <tool name="use_mcp_tool (github: get_pull_request_comments)">
+      <best_practices>
+        <practice>Parse all comments to create a checklist of required changes.</practice>
+        <practice>Ignore comments that are not actionable or have been resolved.</practice>
+      </best_practices>
+    </tool>
+
+    <tool name="gh run view --log-failed">
+      <best_practices>
+        <practice>Use this command to get the exact error messages from failing tests.</practice>
+        <practice>Search the log for keywords like 'error', 'failed', or 'exception' to quickly find the root cause.</practice>
+      </best_practices>
+    </tool>
+    
+    <tool name="ask_followup_question">
+      <best_practices>
+        <practice>After analyzing all the problems (reviews, tests, conflicts), present a summary to the user.</practice>
+        <practice>Provide clear, actionable next steps as suggestions.</practice>
+        <practice>Example suggestions: "Address review comments first.", "Tackle the failing tests.", "Resolve merge conflicts."</practice>
+      </best_practices>
+    </tool>
+  </tool_specific_guidance>
+</tool_usage_guide>

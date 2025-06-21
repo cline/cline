@@ -1,0 +1,56 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Context is Key</name>
+      <description>Always gather full context before attempting a fix. This includes reading all relevant PR comments, checking CI/CD logs, and understanding the surrounding code.</description>
+      <rationale>Without full context, fixes may be incomplete or introduce new issues.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Incremental Fixes</name>
+      <description>Address issues one at a time (e.g., fix tests first, then address comments). This makes the process more manageable and easier to validate.</description>
+      <rationale>Tackling all issues at once can be complex and error-prone.</rationale>
+    </principle>
+  </general_principles>
+
+  <code_conventions>
+    <convention category="merge_conflicts">
+      <rule>How to correctly escape conflict markers when using apply_diff.</rule>
+      <template>
+When removing merge conflict markers from files, you must **escape** them in your `SEARCH` section by prepending a backslash (`\`) at the beginning of the line. This prevents the system from mistaking them for actual diff syntax.
+
+**Correct Format Example:**
+
+```
+<<<<<<< SEARCH
+content before
+\<<<<<<< HEAD    <-- Note the backslash here
+content after
+=======
+replacement content
+>>>>>>> REPLACE
+```
+
+Without escaping, the system confuses your content with real diff markers.
+
+You may include multiple diff blocks in a single request, but if any of the following markers appear within your `SEARCH` or `REPLACE` content, they must be escaped:
+
+```
+\<<<<<<< SEARCH
+\=======
+\>>>>>>> REPLACE
+```
+
+Only these three need to be escaped when used in content.
+      </template>
+    </convention>
+  </code_conventions>
+
+  <quality_checklist>
+    <category name="before_completion">
+      <item>Have all review comments been addressed?</item>
+      <item>Are all CI/CD checks passing?</item>
+      <item>Is the PR free of merge conflicts?</item>
+      <item>Have the changes been tested locally?</item>
+    </category>
+  </quality_checklist>
+</best_practices>
