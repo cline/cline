@@ -5,6 +5,8 @@ import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { VSCodeTextField, VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { BaseUrlField } from "../common/BaseUrlField"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 /**
@@ -27,7 +29,6 @@ export const OpenAICompatibleProvider = ({
 	isPopup,
 }: OpenAICompatibleProviderProps) => {
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
-	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
@@ -78,19 +79,16 @@ export const OpenAICompatibleProvider = ({
 				<span style={{ fontWeight: 500 }}>Base URL</span>
 			</VSCodeTextField>
 
-			<VSCodeTextField
+			<ApiKeyField
 				value={apiConfiguration?.openAiApiKey || ""}
-				style={{ width: "100%", marginBottom: 10 }}
-				type="password"
-				onInput={(e: any) => {
+				onChange={(e: any) => {
 					const apiKey = e.target.value
 					handleInputChange("openAiApiKey")({ target: { value: apiKey } })
 
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
 				}}
-				placeholder="Enter API Key...">
-				<span style={{ fontWeight: 500 }}>API Key</span>
-			</VSCodeTextField>
+				providerName="OpenAI Compatible"
+			/>
 
 			<VSCodeTextField
 				value={apiConfiguration?.openAiModelId || ""}
@@ -179,26 +177,12 @@ export const OpenAICompatibleProvider = ({
 				)
 			})()}
 
-			<VSCodeCheckbox
-				checked={azureApiVersionSelected}
-				onChange={(e: any) => {
-					const isChecked = e.target.checked === true
-					setAzureApiVersionSelected(isChecked)
-					if (!isChecked) {
-						handleInputChange("azureApiVersion")({ target: { value: "" } })
-					}
-				}}>
-				Set Azure API version
-			</VSCodeCheckbox>
-
-			{azureApiVersionSelected && (
-				<VSCodeTextField
-					value={apiConfiguration?.azureApiVersion || ""}
-					style={{ width: "100%", marginTop: 3 }}
-					onInput={handleInputChange("azureApiVersion")}
-					placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
-				/>
-			)}
+			<BaseUrlField
+				value={apiConfiguration?.azureApiVersion}
+				onChange={(value) => handleInputChange("azureApiVersion")({ target: { value } })}
+				label="Set Azure API version"
+				placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
+			/>
 
 			<div
 				style={{
