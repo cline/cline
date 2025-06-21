@@ -416,7 +416,7 @@
 		"reconnecting-eventsource": "^1.6.4",
 		"sanitize-filename": "^1.6.3",
 		"say": "^0.16.0",
-		"serialize-error": "^11.0.3",
+		"serialize-error": "^12.0.0",
 		"simple-git": "^3.27.0",
 		"sound-play": "^1.1.0",
 		"string-similarity": "^4.0.4",
