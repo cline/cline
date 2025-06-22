@@ -34,3 +34,22 @@ export function validateThinkingBudget(
 	// Otherwise, return the original value
 	return value
 }
+
+/**
+ * Checks if the given data can be successfully stringified and parsed as JSON.
+ * This is a basic test to catch unserializable data or very broken structures.
+ * @param data The data to validate.
+ * @returns True if the data is valid for JSON serialization, false otherwise.
+ */
+export function isDataValidJSON(data: any): boolean {
+	try {
+		// Attempt to stringify and then parse. If this succeeds, the structure is generally valid.
+		const stringified = JSON.stringify(data)
+		JSON.parse(stringified)
+		return true
+	} catch (error) {
+		// Log the specific error for debugging, but return false to indicate validation failure.
+		console.error("JSON validation failed during stringify/parse check:", error)
+		return false
+	}
+}
