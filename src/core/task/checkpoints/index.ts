@@ -5,7 +5,7 @@ import { ClineMessage, ClineApiReqInfo, COMPLETION_RESULT_CHANGES_FLAG, ClineSay
 import { HistoryItem } from "@shared/HistoryItem"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { saveClineMessagesAndUpdateHistory } from "../message-state"
+import { MessageStateHandler } from "../message-state"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 
@@ -20,10 +20,10 @@ interface CheckpointManagerDependencies {
 	readonly diffViewProvider: DiffViewProvider
 	readonly updateTaskHistory: UpdateTaskHistoryFunction
 	readonly say: SayFunction
+	readonly messageStateHandler: MessageStateHandler
 }
 
 interface CheckpointManagerState {
-	clineMessages: ClineMessage[]
 	conversationHistoryDeletedRange?: [number, number]
 	checkpointTracker?: CheckpointTracker
 	checkpointTrackerErrorMessage?: string
@@ -31,17 +31,17 @@ interface CheckpointManagerState {
 
 /**
  * TaskCheckpointManager
- * 
+ *
  * A dedicated service for managing all checkpoint-related operations within a task.
  * Provides a clean separation of concerns from the main Task class while maintaining
  * full access to necessary dependencies and state.
- * 
+ *
  * Key Responsibilities:
  * - Creating and saving checkpoints at strategic points
  * - Restoring from checkpoints (task state and/or workspace files)
  * - Presenting multi-file diffs between checkpoint states
  * - Tracking changes since task completion for user feedback
- * 
+ *
  * Architecture Benefits:
  * - Encapsulates complex checkpoint logic away from Task class
  * - Provides type-safe interfaces for all dependencies
@@ -57,10 +57,7 @@ export class TaskCheckpointManager {
 	// This gets updated as the user works and checkpoints are created
 	private state: CheckpointManagerState
 
-	constructor(
-		dependencies: CheckpointManagerDependencies,
-		initialState: CheckpointManagerState
-	) {
+	constructor(dependencies: CheckpointManagerDependencies, initialState: CheckpointManagerState) {
 		this.dependencies = Object.freeze(dependencies)
 		this.state = { ...initialState }
 	}
@@ -80,7 +77,8 @@ export class TaskCheckpointManager {
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.state.clineMessages.forEach((message) => {
+		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		clineMessages.forEach((message) => {
 			if (message.say === "checkpoint_created") {
 				message.isCheckpointCheckedOut = false
 			}
@@ -88,7 +86,7 @@ export class TaskCheckpointManager {
 
 		if (!isAttemptCompletionMessage) {
 			// ensure we aren't creating a duplicate checkpoint
-			const lastMessage = this.state.clineMessages.at(-1)
+			const lastMessage = clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
 			}
@@ -96,18 +94,13 @@ export class TaskCheckpointManager {
 			// For non-attempt completion we just say checkpoints
 			await this.dependencies.say("checkpoint_created")
 			this.state.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.state.clineMessages, (m) => m.say === "checkpoint_created")
+				const lastCheckpointMessage = findLast(
+					this.dependencies.messageStateHandler.getClineMessages(),
+					(m) => m.say === "checkpoint_created",
+				)
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.dependencies.taskId,
-						this.state.clineMessages,
-						taskIsFavorited,
-						this.state.conversationHistoryDeletedRange,
-						this.state.checkpointTracker,
-						this.dependencies.updateTaskHistory,
-					)
+					await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			}) // silently fails for now
 
@@ -134,20 +127,12 @@ export class TaskCheckpointManager {
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
 				const lastCompletionResultMessage = findLast(
-					this.state.clineMessages,
+					this.dependencies.messageStateHandler.getClineMessages(),
 					(m) => m.say === "completion_result" || m.ask === "completion_result",
 				)
 				if (lastCompletionResultMessage) {
 					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await saveClineMessagesAndUpdateHistory(
-						this.getContext(),
-						this.dependencies.taskId,
-						this.state.clineMessages,
-						taskIsFavorited,
-						this.state.conversationHistoryDeletedRange,
-						this.state.checkpointTracker,
-						this.dependencies.updateTaskHistory,
-					)
+					await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			} else {
 				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
@@ -204,19 +189,11 @@ export class TaskCheckpointManager {
 	}
 
 	/**
-	 * Updates the cline messages reference
-	 */
-	updateClineMessages(clineMessages: ClineMessage[]): void {
-		this.state.clineMessages = clineMessages
-	}
-
-	/**
 	 * Updates the conversation history deleted range
 	 */
 	updateConversationHistoryDeletedRange(range: [number, number] | undefined): void {
 		this.state.conversationHistoryDeletedRange = range
 	}
-
 
 	// ============================================================================
 	// Internal utilities - Private helpers for checkpoint operations
@@ -256,7 +233,7 @@ export class TaskCheckpointManager {
  */
 export function createTaskCheckpointManager(
 	dependencies: CheckpointManagerDependencies,
-	initialState: CheckpointManagerState
+	initialState: CheckpointManagerState,
 ): TaskCheckpointManager {
 	return new TaskCheckpointManager(dependencies, initialState)
 }
