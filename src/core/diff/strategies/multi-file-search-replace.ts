@@ -485,7 +485,7 @@ Each file requires its own path, start_line, and diff elements.
 
 		const replacements = matches
 			.map((match) => ({
-				startLine: Number(match[2] ?? 0),
+				startLine: _paramStartLine ?? Number(match[2] ?? 0),
 				searchContent: match[6],
 				replaceContent: match[7],
 			}))
