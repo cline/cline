@@ -14,6 +14,7 @@ export interface AutoApprovalSettings {
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 		usePromptRefinement: boolean // Use prompt refinement for better task understanding
+		usePhasePlanning: boolean // Use planning for task execution
 	}
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
@@ -34,6 +35,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		useBrowser: false,
 		useMcp: false,
 		usePromptRefinement: true,
+		usePhasePlanning: true,
 	},
 	maxRequests: 20,
 	enableNotifications: false,

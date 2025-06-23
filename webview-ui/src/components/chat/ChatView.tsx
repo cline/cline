@@ -480,7 +480,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk, activeQuote, autoApprovalSettings.actions.usePromptRefinement],
+		[
+			messages.length,
+			clineAsk,
+			activeQuote,
+			autoApprovalSettings.actions.usePromptRefinement,
+			autoApprovalSettings.actions.usePhasePlanning,
+		],
 	)
 
 	const startNewTask = useCallback(async () => {

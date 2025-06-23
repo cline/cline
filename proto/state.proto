@@ -81,6 +81,7 @@ message AutoApprovalSettingsRequest {
     bool use_browser = 7;
     bool use_mcp = 8;
     bool use_prompt_refinement = 9;
+    bool use_phase_planning = 10;
   }
   int32 version = 2;
   bool enabled = 3;

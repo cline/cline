@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { StreamingJsonReplacer } from "@core/assistant-message/diff-json"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { PhaseTracker } from "../planning/phase-tracker"
 
 export class TaskState {
 	// Streaming flags
@@ -57,4 +58,10 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Phase Planning
+	phaseTracker?: PhaseTracker
+	isPhaseRoot: boolean = false
+	newPhaseOpened: boolean = true
+	phaseFinished: boolean = false
 }
