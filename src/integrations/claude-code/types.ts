@@ -6,10 +6,16 @@ type InitMessage = {
 	mcp_servers: string[]
 }
 
-type ClaudeCodeContent = {
-	type: "text"
-	text: string
-}
+type ClaudeCodeContent =
+	| {
+			type: "text"
+			text: string
+	  }
+	| {
+			type: "thinking"
+			thinking: string
+			signature?: string
+	  }
 
 type AssistantMessage = {
 	type: "assistant"
