@@ -4,7 +4,7 @@ import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { runClaudeCode } from "@/integrations/claude-code/run"
-import { ClaudeCodeMessage } from "@/integrations/claude-code/types"
+import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
 
 export class ClaudeCodeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -19,37 +19,14 @@ export class ClaudeCodeHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		// Filter out image blocks since Claude Code doesn't support them
+		const filteredMessages = filterMessagesForClaudeCode(messages)
+
 		const claudeProcess = runClaudeCode({
 			systemPrompt,
-			messages,
+			messages: filteredMessages,
 			path: this.options.claudeCodePath,
 			modelId: this.getModel().id,
-		})
-
-		const dataQueue: string[] = []
-		let processError = null
-		let errorOutput = ""
-		let exitCode: number | null = null
-
-		claudeProcess.stdout.on("data", (data) => {
-			const output = data.toString()
-			const lines = output.split("\n").filter((line: string) => line.trim() !== "")
-
-			for (const line of lines) {
-				dataQueue.push(line)
-			}
-		})
-
-		claudeProcess.stderr.on("data", (data) => {
-			errorOutput += data.toString()
-		})
-
-		claudeProcess.on("close", (code) => {
-			exitCode = code
-		})
-
-		claudeProcess.on("error", (error) => {
-			processError = error
 		})
 
 		// Usage is included with assistant messages,
@@ -62,61 +39,75 @@ export class ClaudeCodeHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 		}
 
-		while (exitCode !== 0 || dataQueue.length > 0) {
-			if (dataQueue.length === 0) {
-				await new Promise((resolve) => setImmediate(resolve))
-			}
+		let isPaidUsage = true
 
-			if (exitCode !== null && exitCode !== 0) {
-				throw new Error(
-					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput.trim()}` : ""}`,
-				)
-			}
-
-			const data = dataQueue.shift()
-			if (!data) {
-				continue
-			}
-
-			const chunk = this.attemptParseChunk(data)
-
-			if (!chunk) {
+		for await (const chunk of claudeProcess) {
+			if (typeof chunk === "string") {
 				yield {
 					type: "text",
-					text: data || "",
+					text: chunk,
 				}
 
 				continue
 			}
 
 			if (chunk.type === "system" && chunk.subtype === "init") {
+				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
+				isPaidUsage = chunk.apiKeySource !== "none"
 				continue
 			}
 
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null && message.stop_reason !== "tool_use") {
-					const errorMessage = message.content[0]?.text || `Claude Code stopped with reason: ${message.stop_reason}`
+				if (message.stop_reason !== null) {
+					const content = "text" in message.content[0] ? message.content[0] : undefined
 
-					if (errorMessage.includes("Invalid model name")) {
-						throw new Error(
-							errorMessage +
-								`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
-						)
+					const isError = content && content.text.startsWith(`API Error`)
+					if (isError) {
+						// Error messages are formatted as: `API Error: <<status code>> <<json>>`
+						const errorMessageStart = content.text.indexOf("{")
+						const errorMessage = content.text.slice(errorMessageStart)
+
+						const error = this.attemptParse(errorMessage)
+						if (!error) {
+							throw new Error(content.text)
+						}
+
+						if (error.error.message.includes("Invalid model name")) {
+							throw new Error(
+								content.text +
+									`\n\nAPI keys and subscription plans allow different models. Make sure the selected model is included in your plan.`,
+							)
+						}
+
+						throw new Error(errorMessage)
 					}
-
-					throw new Error(errorMessage)
 				}
 
 				for (const content of message.content) {
-					if (content.type === "text") {
-						yield {
-							type: "text",
-							text: content.text,
-						}
-					} else {
-						console.warn("Unsupported content type:", content.type)
+					switch (content.type) {
+						case "text":
+							yield {
+								type: "text",
+								text: content.text,
+							}
+							break
+						case "thinking":
+							yield {
+								type: "reasoning",
+								reasoning: content.thinking || "",
+							}
+							break
+						case "redacted_thinking":
+							yield {
+								type: "reasoning",
+								reasoning: "[Redacted thinking block]",
+							}
+							break
+						case "tool_use":
+							console.error(`tool_use is not supported yet. Received: ${JSON.stringify(content)}`)
+							break
 					}
 				}
 
@@ -129,14 +120,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 			}
 
 			if (chunk.type === "result" && "result" in chunk) {
-				usage.totalCost = chunk.cost_usd || 0
+				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0
 
 				yield usage
 			}
+		}
+	}
 
-			if (processError) {
-				throw processError
-			}
+	private attemptParse(str: string) {
+		try {
+			return JSON.parse(str)
+		} catch (err) {
+			return null
 		}
 	}
 
@@ -150,16 +145,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 		return {
 			id: claudeCodeDefaultModelId,
 			info: claudeCodeModels[claudeCodeDefaultModelId],
-		}
-	}
-
-	// TOOD: Validate instead of parsing
-	private attemptParseChunk(data: string): ClaudeCodeMessage | null {
-		try {
-			return JSON.parse(data)
-		} catch (error) {
-			console.error("Error parsing chunk:", error)
-			return null
 		}
 	}
 }
