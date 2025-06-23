@@ -135,7 +135,12 @@ describe("CloudService", () => {
 
 			expect(cloudService).toBeInstanceOf(CloudService)
 			expect(AuthService).toHaveBeenCalledWith(mockContext, expect.any(Function))
-			expect(SettingsService).toHaveBeenCalledWith(mockContext, mockAuthService, expect.any(Function))
+			expect(SettingsService).toHaveBeenCalledWith(
+				mockContext,
+				mockAuthService,
+				expect.any(Function),
+				expect.any(Function),
+			)
 		})
 
 		it("should throw error if instance already exists", async () => {

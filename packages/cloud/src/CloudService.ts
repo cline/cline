@@ -46,8 +46,11 @@ export class CloudService {
 			this.authService.on("logged-out", this.authListener)
 			this.authService.on("user-info", this.authListener)
 
-			this.settingsService = new SettingsService(this.context, this.authService, () =>
-				this.callbacks.stateChanged?.(),
+			this.settingsService = new SettingsService(
+				this.context,
+				this.authService,
+				() => this.callbacks.stateChanged?.(),
+				this.log,
 			)
 			this.settingsService.initialize()
 

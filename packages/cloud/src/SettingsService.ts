@@ -18,10 +18,17 @@ export class SettingsService {
 	private authService: AuthService
 	private settings: OrganizationSettings | undefined = undefined
 	private timer: RefreshTimer
+	private log: (...args: unknown[]) => void
 
-	constructor(context: vscode.ExtensionContext, authService: AuthService, callback: () => void) {
+	constructor(
+		context: vscode.ExtensionContext,
+		authService: AuthService,
+		callback: () => void,
+		log?: (...args: unknown[]) => void,
+	) {
 		this.context = context
 		this.authService = authService
+		this.log = log || console.log
 
 		this.timer = new RefreshTimer({
 			callback: async () => {
@@ -70,7 +77,11 @@ export class SettingsService {
 			})
 
 			if (!response.ok) {
-				console.error(`Failed to fetch organization settings: ${response.status} ${response.statusText}`)
+				this.log(
+					"[cloud-settings] Failed to fetch organization settings:",
+					response.status,
+					response.statusText,
+				)
 				return false
 			}
 
@@ -78,7 +89,7 @@ export class SettingsService {
 			const result = organizationSettingsSchema.safeParse(data)
 
 			if (!result.success) {
-				console.error("Invalid organization settings format:", result.error)
+				this.log("[cloud-settings] Invalid organization settings format:", result.error)
 				return false
 			}
 
@@ -92,7 +103,7 @@ export class SettingsService {
 
 			return true
 		} catch (error) {
-			console.error("Error fetching organization settings:", error)
+			this.log("[cloud-settings] Error fetching organization settings:", error)
 			return false
 		}
 	}
