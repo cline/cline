@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/TemperatureControl.spec.tsx
 
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 
 import { TemperatureControl } from "../TemperatureControl"
 
@@ -64,16 +64,18 @@ describe("TemperatureControl", () => {
 		// Uncheck - should clear temperature.
 		fireEvent.click(checkbox)
 
-		// Waiting for debounce.
-		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(null)
+		// Wait for debounced onChange call.
+		await waitFor(() => {
+			expect(onChange).toHaveBeenCalledWith(null)
+		})
 
 		// Check - should restore previous temperature.
 		fireEvent.click(checkbox)
 
-		// Waiting for debounce.
-		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(0.7)
+		// Wait for debounced onChange call.
+		await waitFor(() => {
+			expect(onChange).toHaveBeenCalledWith(0.7)
+		})
 	})
 
 	it("syncs checkbox state when value prop changes", () => {
