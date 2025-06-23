@@ -18,6 +18,10 @@ import {
 	insertResult,
 	DatabaseClient,
 	CreateResultInput,
+	getResultsByRun,
+	getCaseById,
+	getFileByHash,
+	getBenchmarkRun,
 } from "./database"
 
 // Load environment variables from .env file
@@ -182,6 +186,78 @@ class NodeTestRunner {
 		}
 
 		log(isVerbose, `✓ Created ${this.caseIdMap.size} database case records`);
+	}
+
+	/**
+	 * Store replay result in database, copying original data but with new diffing results
+	 */
+	async storeReplayResultInDatabase(replayResult: TestResult, originalResult: any, testId: string, newCaseId: string): Promise<void> {
+		if (!this.currentRunId || !this.processingFunctionsHash) {
+			return; // Skip if database not initialized
+		}
+
+		try {
+			// Map error string to error enum (simple mapping)
+			const errorEnum = this.mapErrorToEnum(replayResult.error);
+
+			// Store diff edit content if available
+			let fileEditedHash: string | undefined;
+			if (replayResult.diffEdit) {
+				fileEditedHash = await upsertFile({
+					filepath: `diff-edit-${testId}`,
+					content: replayResult.diffEdit
+				});
+			}
+
+			// Calculate basic metrics from diff edit if available
+			let numEdits = 0;
+			let numLinesAdded = 0;
+			let numLinesDeleted = 0;
+			
+			if (replayResult.diffEdit) {
+				// Simple parsing to count edits - count SEARCH/REPLACE blocks
+				const searchBlocks = (replayResult.diffEdit.match(/------- SEARCH/g) || []).length;
+				numEdits = searchBlocks;
+				
+				// Count added/deleted lines (rough approximation)
+				const lines = replayResult.diffEdit.split('\n');
+				for (const line of lines) {
+					if (line.startsWith('+') && !line.startsWith('+++')) {
+						numLinesAdded++;
+					} else if (line.startsWith('-') && !line.startsWith('---')) {
+						numLinesDeleted++;
+					}
+				}
+			}
+
+			// Copy original result data but update replay-specific fields
+			const resultInput: CreateResultInput = {
+				run_id: this.currentRunId, // New run ID
+				case_id: newCaseId, // New case ID
+				model_id: originalResult.model_id, // Copy from original
+				processing_functions_hash: this.processingFunctionsHash, // New processing functions
+				succeeded: replayResult.success && (replayResult.diffEditSuccess ?? false), // New result
+				error_enum: errorEnum, // New error if any
+				num_edits: numEdits || originalResult.num_edits, // New or original
+				num_lines_deleted: numLinesDeleted || originalResult.num_lines_deleted, // New or original
+				num_lines_added: numLinesAdded || originalResult.num_lines_added, // New or original
+				// Copy timing and cost data from original (since we didn't make API calls)
+				time_to_first_token_ms: originalResult.time_to_first_token_ms,
+				time_to_first_edit_ms: originalResult.time_to_first_edit_ms,
+				time_round_trip_ms: originalResult.time_round_trip_ms,
+				cost_usd: originalResult.cost_usd,
+				completion_tokens: originalResult.completion_tokens,
+				// Use original model output (since we're replaying)
+				raw_model_output: originalResult.raw_model_output,
+				file_edited_hash: fileEditedHash || originalResult.file_edited_hash,
+				parsed_tool_call_json: replayResult.toolCalls ? JSON.stringify(replayResult.toolCalls) : originalResult.parsed_tool_call_json
+			};
+
+			await insertResult(resultInput);
+		} catch (error) {
+			console.error(`Failed to store replay result in database for ${testId}:`, error);
+			// Continue execution - don't fail the test run
+		}
 	}
 
 	/**
@@ -394,6 +470,105 @@ class NodeTestRunner {
 		}
 	}
 
+	async runDatabaseReplay(replayRunId: string, diffApplyFile: string, isVerbose: boolean) {
+		log(isVerbose, `Starting database replay for run_id: ${replayRunId}`)
+		log(isVerbose, `Using diff apply file: ${diffApplyFile}`)
+
+		// 1. Fetch original run data
+		const originalResults = await getResultsByRun(replayRunId)
+		if (originalResults.length === 0) {
+			throw new Error(`No results found for run_id: ${replayRunId}`)
+		}
+		log(isVerbose, `Found ${originalResults.length} results to replay.`)
+
+		const originalRun = await getBenchmarkRun(replayRunId)
+		if (!originalRun) {
+			throw new Error(`Could not find original run with id ${replayRunId}`)
+		}
+
+		// 2. Create a new benchmark run for the replay
+		const replayRunDescription = `Replay of run ${replayRunId} using ${diffApplyFile}`
+		this.currentRunId = await createBenchmarkRun({
+			description: replayRunDescription,
+			system_prompt_hash: originalRun.system_prompt_hash, // Use the same system prompt
+		})
+		log(isVerbose, `Created new run for replay: ${this.currentRunId}`)
+
+		// 3. Set up processing functions for the new run
+		this.processingFunctionsHash = await upsertProcessingFunctions({
+			name: `replay-${diffApplyFile}`,
+			parsing_function: "parseAssistantMessageV2", // Assuming this is standard for replay
+			diff_edit_function: diffApplyFile,
+		})
+
+		// 4. Process each result from the original run
+		for (const originalResult of originalResults) {
+			if (!originalResult.case_id || !originalResult.raw_model_output) {
+				log(isVerbose, `Skipping result ${originalResult.result_id} due to missing case_id or raw_model_output`)
+				continue
+			}
+
+			// 5. Fetch original case and file data
+			const originalCase = await getCaseById(originalResult.case_id)
+			if (!originalCase || !originalCase.file_hash) {
+				log(isVerbose, `Skipping result ${originalResult.result_id} because original case or file_hash could not be found.`)
+				continue
+			}
+
+			const originalFile = await getFileByHash(originalCase.file_hash)
+			if (!originalFile) {
+				log(isVerbose, `Skipping result ${originalResult.result_id} because original file content could not be found.`)
+				continue
+			}
+
+			// 6. Create a new case that mirrors the original case, linked to the new run
+			const newCaseId = await createCase({
+				run_id: this.currentRunId,
+				description: `Replay of case ${originalCase.case_id} from run ${replayRunId}`,
+				system_prompt_hash: originalCase.system_prompt_hash,
+				task_id: originalCase.task_id,
+				tokens_in_context: originalCase.tokens_in_context,
+				file_hash: originalCase.file_hash,
+			})
+			this.caseIdMap.set(originalCase.task_id, newCaseId) // Map by task_id for consistency
+
+			// 7. Construct the input for the evaluation
+			const testInput: TestInput = {
+				// No API key needed for replay
+				systemPrompt: "replay-mode", // Dummy value to pass validation
+				messages: [], // Not needed
+				modelId: originalResult.model_id,
+				originalFile: originalFile.content,
+				originalFilePath: originalFile.filepath,
+				parsingFunction: "parseAssistantMessageV2",
+				diffEditFunction: diffApplyFile, // The new function to test
+				thinkingBudgetTokens: 0,
+				originalDiffEditToolCallMessage: originalResult.raw_model_output,
+				diffApplyFile: diffApplyFile,
+			}
+
+		// 8. Run the evaluation with the new diffing logic
+		log(isVerbose, `Replaying test for original case ${originalCase.case_id} (task: ${originalCase.task_id})`)
+		const replayResult = await runSingleEvaluation(testInput)
+
+		// Add detailed logging for debugging
+		log(isVerbose, `  Raw replay result:`)
+		log(isVerbose, `    success: ${replayResult.success}`)
+		log(isVerbose, `    diffEditSuccess: ${replayResult.diffEditSuccess}`)
+		log(isVerbose, `    error: ${replayResult.error}`)
+		log(isVerbose, `    errorString: ${replayResult.errorString}`)
+		log(isVerbose, `    diffEdit length: ${replayResult.diffEdit ? replayResult.diffEdit.length : 'null'}`)
+		log(isVerbose, `    toolCalls: ${replayResult.toolCalls ? JSON.stringify(replayResult.toolCalls).substring(0, 100) + '...' : 'null'}`)
+
+		// 9. Store the new result in the database, copying original data but with new diffing results
+		await this.storeReplayResultInDatabase(replayResult, originalResult, originalCase.task_id, newCaseId)
+		log(isVerbose, `  Stored new result for task ${originalCase.task_id}. Success: ${replayResult.success}, DiffEditSuccess: ${replayResult.diffEditSuccess}`)
+		}
+
+		log(isVerbose, `\n✓ Database replay completed successfully.`)
+		log(isVerbose, `  New run ID: ${this.currentRunId}`)
+	}
+
 	/**
 	 * Run a single test example
 	 */
@@ -420,6 +595,7 @@ class NodeTestRunner {
 			diffEditFunction: testConfig.diff_edit_function,
 			thinkingBudgetTokens: testConfig.thinking_tokens_budget,
 			originalDiffEditToolCallMessage: testConfig.replay ? testCase.original_diff_edit_tool_call_message : undefined,
+			diffApplyFile: testConfig.diff_apply_file,
 		}
 
 		if (isVerbose) {
@@ -712,6 +888,8 @@ async function main() {
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
+		.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
+		.option("--diff-apply-file <filename>", "The name of the diff apply file to use for the replay")
 		.option("-v, --verbose", "Enable verbose logging", false)
 		.option("--max-concurrency <number>", "Maximum number of parallel requests", "80")
 
@@ -732,6 +910,17 @@ async function main() {
 	}
 
 	const validAttemptsPerCase = parseInt(options.validAttemptsPerCase, 10);
+
+	const runner = new NodeTestRunner(options.replay || !!options.replayRunId)
+
+	if (options.replayRunId) {
+		if (!options.diffApplyFile) {
+			console.error("Error: --diff-apply-file is required when using --replay-run-id")
+			process.exit(1)
+		}
+		await runner.runDatabaseReplay(options.replayRunId, options.diffApplyFile, isVerbose)
+		return
+	}
 	
 	try {
 		const startTime = Date.now()
