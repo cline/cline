@@ -165,11 +165,30 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
-	}, [])
+	const handleShowTaskWithId = useCallback(
+		(id: string) => {
+			console.log("[TASK_LOAD] Frontend: User clicked task with ID:", id)
+			console.log("[TASK_LOAD] Frontend: Current task history length:", taskHistory.length)
+			console.log("[TASK_LOAD] Frontend: Filtered tasks length:", filteredTasks.length)
+
+			const clickedTask = filteredTasks.find((task) => task.id === id)
+			console.log("[TASK_LOAD] Frontend: Clicked task details:", {
+				id: clickedTask?.id,
+				task: clickedTask?.task?.substring(0, 50) + "...",
+				ts: clickedTask?.ts,
+				isFavorited: clickedTask?.isFavorited,
+			})
+
+			TaskServiceClient.showTaskWithId(StringRequest.create({ value: id }))
+				.then(() => {
+					console.log("[TASK_LOAD] Frontend: gRPC request sent successfully for task:", id)
+				})
+				.catch((error) => {
+					console.error("[TASK_LOAD] Frontend: Error showing task:", error)
+				})
+		},
+		[taskHistory, filteredTasks],
+	)
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
 		setSelectedItems((prev) => {

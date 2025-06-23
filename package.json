@@ -318,7 +318,14 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.taskStoragePath": {
+					"type": "string",
+					"default": "",
+					"description": "Specifies a custom absolute path for storing Cline task data. Useful for ensuring persistence in devcontainer or remote environments where the default global storage might be ephemeral. If empty, uses the default VS Code global storage path.",
+					"scope": "machine-overridable"
+				}
+			}
 		}
 	},
 	"scripts": {
