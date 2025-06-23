@@ -3,7 +3,9 @@
   - Making judgmental or harsh comments
   - Providing feedback on code outside the PR's scope
   - Overlooking unrelated changes not tied to the main issue
-  - Using excessive praise or unnecessary formatting
+  - Including ANY praise or positive comments - focus only on issues
+  - Using markdown headings (###, ##, #) in review comments
+  - Using excessive markdown formatting when plain text would suffice
   - Submitting comments without user preview/approval
   - Ignoring existing PR comments and discussions
   - Forgetting to check for an associated issue for additional context
@@ -13,6 +15,6 @@
   - Using internal evaluation terminology in public comments
   - Not providing actionable suggestions for improvements
   - Reviewing only the diff without local context
-  - Making assumptions instead of asking clarifying questions
+  - Making assumptions instead of asking clarifying questions about potential intentions
   - Forgetting to link to specific lines with full GitHub URLs
 </common_mistakes_to_avoid>

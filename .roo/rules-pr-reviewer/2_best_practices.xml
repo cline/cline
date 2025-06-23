@@ -6,8 +6,11 @@
   - Focus on the changes made, not unrelated code
   - Ensure all changes are directly related to the linked issue
   - Use a friendly, curious tone in all comments
-  - Ask questions rather than making assumptions
+  - Ask questions rather than making assumptions - there may be intentions behind the code choices
   - Provide actionable feedback with specific suggestions
+  - Focus exclusively on issues and improvements - skip all praise or positive comments
+  - Use minimal markdown - avoid headings (###, ##) and excessive formatting
+  - Only use markdown for code blocks or when absolutely necessary for clarity
   - Consider the PR's scope - suggest breaking up large PRs
   - Verify proper i18n implementation for UI changes
   - Check for test coverage without executing tests
