@@ -66,7 +66,14 @@
 		"share_no_active_task": "Nenhuma tarefa ativa para compartilhar",
 		"share_auth_required": "Autenticação necessária. Faça login para compartilhar tarefas.",
 		"share_not_enabled": "O compartilhamento de tarefas não está habilitado para esta organização.",
-		"share_task_not_found": "Tarefa não encontrada ou acesso negado."
+		"share_task_not_found": "Tarefa não encontrada ou acesso negado.",
+		"claudeCode": {
+			"processExited": "O processo Claude Code saiu com código {{exitCode}}.",
+			"errorOutput": "Saída de erro: {{output}}",
+			"processExitedWithError": "O processo Claude Code saiu com código {{exitCode}}. Saída de erro: {{output}}",
+			"stoppedWithReason": "Claude Code parou pela razão: {{reason}}",
+			"apiKeyModelPlanMismatch": "Chaves de API e planos de assinatura permitem modelos diferentes. Certifique-se de que o modelo selecionado esteja incluído no seu plano."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Chave de API Groq",
-			"getGroqApiKey": "Obter chave de API Groq"
+			"getGroqApiKey": "Obter chave de API Groq",
+			"claudeCode": {
+				"pathLabel": "Caminho do Claude Code",
+				"description": "Caminho opcional para sua CLI do Claude Code. Padrão 'claude' se não for definido.",
+				"placeholder": "Padrão: claude"
+			}
 		}
 	},
 	"mdm": {

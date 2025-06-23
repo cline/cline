@@ -62,7 +62,14 @@
 		"share_no_active_task": "共有するアクティブなタスクがありません",
 		"share_auth_required": "認証が必要です。タスクを共有するにはサインインしてください。",
 		"share_not_enabled": "この組織ではタスク共有が有効になっていません。",
-		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。"
+		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。",
+		"claudeCode": {
+			"processExited": "Claude Code プロセスがコード {{exitCode}} で終了しました。",
+			"errorOutput": "エラー出力：{{output}}",
+			"processExitedWithError": "Claude Code プロセスがコード {{exitCode}} で終了しました。エラー出力：{{output}}",
+			"stoppedWithReason": "Claude Code が理由により停止しました：{{reason}}",
+			"apiKeyModelPlanMismatch": "API キーとサブスクリプションプランでは異なるモデルが利用可能です。選択したモデルがプランに含まれていることを確認してください。"
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Groq APIキー",
-			"getGroqApiKey": "Groq APIキーを取得"
+			"getGroqApiKey": "Groq APIキーを取得",
+			"claudeCode": {
+				"pathLabel": "Claude Code パス",
+				"description": "Claude Code CLI へのオプションのパス。設定されていない場合は、デフォルトで「claude」になります。",
+				"placeholder": "デフォルト: claude"
+			}
 		}
 	},
 	"mdm": {

@@ -67,7 +67,14 @@
 		"share_no_active_task": "没有活跃任务可分享",
 		"share_auth_required": "需要身份验证。请登录以分享任务。",
 		"share_not_enabled": "此组织未启用任务分享功能。",
-		"share_task_not_found": "未找到任务或访问被拒绝。"
+		"share_task_not_found": "未找到任务或访问被拒绝。",
+		"claudeCode": {
+			"processExited": "Claude Code 进程退出，退出码：{{exitCode}}。",
+			"errorOutput": "错误输出：{{output}}",
+			"processExitedWithError": "Claude Code 进程退出，退出码：{{exitCode}}。错误输出：{{output}}",
+			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
+			"apiKeyModelPlanMismatch": "API 密钥和订阅计划支持不同的模型。请确保所选模型包含在您的计划中。"
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
@@ -110,7 +117,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Groq API 密钥",
-			"getGroqApiKey": "获取 Groq API 密钥"
+			"getGroqApiKey": "获取 Groq API 密钥",
+			"claudeCode": {
+				"pathLabel": "Claude Code 路径",
+				"description": "Claude Code CLI 的可选路径。如果未设置，默认为 'claude'。",
+				"placeholder": "默认: claude"
+			}
 		}
 	},
 	"mdm": {

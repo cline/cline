@@ -303,7 +303,12 @@
 			"medium": "Orta",
 			"low": "Düşük"
 		},
-		"setReasoningLevel": "Akıl Yürütme Çabasını Etkinleştir"
+		"setReasoningLevel": "Akıl Yürütme Çabasını Etkinleştir",
+		"claudeCode": {
+			"pathLabel": "Claude Code Yolu",
+			"description": "Claude Code CLI'nize isteğe bağlı yol. Ayarlanmazsa varsayılan olarak 'claude' kullanılır.",
+			"placeholder": "Varsayılan: claude"
+		}
 	},
 	"browser": {
 		"enable": {

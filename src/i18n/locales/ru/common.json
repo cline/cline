@@ -62,7 +62,14 @@
 		"share_no_active_task": "Нет активной задачи для совместного использования",
 		"share_auth_required": "Требуется аутентификация. Войдите в систему для совместного доступа к задачам.",
 		"share_not_enabled": "Совместный доступ к задачам не включен для этой организации.",
-		"share_task_not_found": "Задача не найдена или доступ запрещен."
+		"share_task_not_found": "Задача не найдена или доступ запрещен.",
+		"claudeCode": {
+			"processExited": "Процесс Claude Code завершился с кодом {{exitCode}}.",
+			"errorOutput": "Вывод ошибки: {{output}}",
+			"processExitedWithError": "Процесс Claude Code завершился с кодом {{exitCode}}. Вывод ошибки: {{output}}",
+			"stoppedWithReason": "Claude Code остановился по причине: {{reason}}",
+			"apiKeyModelPlanMismatch": "API-ключи и планы подписки позволяют использовать разные модели. Убедитесь, что выбранная модель включена в ваш план."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Не выбрано содержимое терминала",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Ключ API Groq",
-			"getGroqApiKey": "Получить ключ API Groq"
+			"getGroqApiKey": "Получить ключ API Groq",
+			"claudeCode": {
+				"pathLabel": "Путь к Claude Code",
+				"description": "Необязательный путь к вашему CLI Claude Code. По умолчанию 'claude', если не установлено.",
+				"placeholder": "По умолчанию: claude"
+			}
 		}
 	},
 	"mdm": {

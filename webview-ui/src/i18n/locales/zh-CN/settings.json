@@ -303,7 +303,12 @@
 			"medium": "中",
 			"low": "低"
 		},
-		"setReasoningLevel": "启用推理工作量"
+		"setReasoningLevel": "启用推理工作量",
+		"claudeCode": {
+			"pathLabel": "Claude Code 路径",
+			"description": "您的 Claude Code CLI 的可选路径。如果未设置，则默认为 “claude”。",
+			"placeholder": "默认：claude"
+		}
 	},
 	"browser": {
 		"enable": {

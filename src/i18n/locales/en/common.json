@@ -62,7 +62,14 @@
 		"share_no_active_task": "No active task to share",
 		"share_auth_required": "Authentication required. Please sign in to share tasks.",
 		"share_not_enabled": "Task sharing is not enabled for this organization.",
-		"share_task_not_found": "Task not found or access denied."
+		"share_task_not_found": "Task not found or access denied.",
+		"claudeCode": {
+			"processExited": "Claude Code process exited with code {{exitCode}}.",
+			"errorOutput": "Error output: {{output}}",
+			"processExitedWithError": "Claude Code process exited with code {{exitCode}}. Error output: {{output}}",
+			"stoppedWithReason": "Claude Code stopped with reason: {{reason}}",
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",

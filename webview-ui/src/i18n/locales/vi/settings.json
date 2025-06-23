@@ -303,7 +303,12 @@
 			"medium": "Trung bình",
 			"low": "Thấp"
 		},
-		"setReasoningLevel": "Kích hoạt nỗ lực suy luận"
+		"setReasoningLevel": "Kích hoạt nỗ lực suy luận",
+		"claudeCode": {
+			"pathLabel": "Đường dẫn Claude Code",
+			"description": "Đường dẫn tùy chọn đến Claude Code CLI của bạn. Mặc định là 'claude' nếu không được đặt.",
+			"placeholder": "Mặc định: claude"
+		}
 	},
 	"browser": {
 		"enable": {

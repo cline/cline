@@ -13,6 +13,7 @@ import {
 	litellmDefaultModelId,
 	openAiNativeDefaultModelId,
 	anthropicDefaultModelId,
+	claudeCodeDefaultModelId,
 	geminiDefaultModelId,
 	deepSeekDefaultModelId,
 	mistralDefaultModelId,
@@ -36,6 +37,7 @@ import {
 	Anthropic,
 	Bedrock,
 	Chutes,
+	ClaudeCode,
 	DeepSeek,
 	Gemini,
 	Glama,
@@ -254,6 +256,7 @@ const ApiOptions = ({
 				requesty: { field: "requestyModelId", default: requestyDefaultModelId },
 				litellm: { field: "litellmModelId", default: litellmDefaultModelId },
 				anthropic: { field: "apiModelId", default: anthropicDefaultModelId },
+				"claude-code": { field: "apiModelId", default: claudeCodeDefaultModelId },
 				"openai-native": { field: "apiModelId", default: openAiNativeDefaultModelId },
 				gemini: { field: "apiModelId", default: geminiDefaultModelId },
 				deepseek: { field: "apiModelId", default: deepSeekDefaultModelId },
@@ -381,6 +384,10 @@ const ApiOptions = ({
 
 			{selectedProvider === "anthropic" && (
 				<Anthropic apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+			)}
+
+			{selectedProvider === "claude-code" && (
+				<ClaudeCode apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 			)}
 
 			{selectedProvider === "openai-native" && (

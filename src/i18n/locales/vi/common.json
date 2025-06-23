@@ -62,7 +62,14 @@
 		"share_no_active_task": "Không có nhiệm vụ hoạt động để chia sẻ",
 		"share_auth_required": "Cần xác thực. Vui lòng đăng nhập để chia sẻ nhiệm vụ.",
 		"share_not_enabled": "Chia sẻ nhiệm vụ không được bật cho tổ chức này.",
-		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối."
+		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối.",
+		"claudeCode": {
+			"processExited": "Tiến trình Claude Code thoát với mã {{exitCode}}.",
+			"errorOutput": "Đầu ra lỗi: {{output}}",
+			"processExitedWithError": "Tiến trình Claude Code thoát với mã {{exitCode}}. Đầu ra lỗi: {{output}}",
+			"stoppedWithReason": "Claude Code dừng lại vì lý do: {{reason}}",
+			"apiKeyModelPlanMismatch": "Khóa API và gói đăng ký cho phép các mô hình khác nhau. Đảm bảo rằng mô hình đã chọn được bao gồm trong gói của bạn."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Không có nội dung terminal được chọn",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Khóa API Groq",
-			"getGroqApiKey": "Lấy khóa API Groq"
+			"getGroqApiKey": "Lấy khóa API Groq",
+			"claudeCode": {
+				"pathLabel": "Đường dẫn Claude Code",
+				"description": "Đường dẫn tùy chọn đến CLI Claude Code của bạn. Mặc định là 'claude' nếu không được đặt.",
+				"placeholder": "Mặc định: claude"
+			}
 		}
 	},
 	"mdm": {

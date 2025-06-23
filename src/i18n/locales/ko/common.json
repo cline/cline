@@ -62,7 +62,14 @@
 		"share_no_active_task": "공유할 활성 작업이 없습니다",
 		"share_auth_required": "인증이 필요합니다. 작업을 공유하려면 로그인하세요.",
 		"share_not_enabled": "이 조직에서는 작업 공유가 활성화되지 않았습니다.",
-		"share_task_not_found": "작업을 찾을 수 없거나 액세스가 거부되었습니다."
+		"share_task_not_found": "작업을 찾을 수 없거나 액세스가 거부되었습니다.",
+		"claudeCode": {
+			"processExited": "Claude Code 프로세스가 코드 {{exitCode}}로 종료되었습니다.",
+			"errorOutput": "오류 출력: {{output}}",
+			"processExitedWithError": "Claude Code 프로세스가 코드 {{exitCode}}로 종료되었습니다. 오류 출력: {{output}}",
+			"stoppedWithReason": "Claude Code가 다음 이유로 중지되었습니다: {{reason}}",
+			"apiKeyModelPlanMismatch": "API 키와 구독 플랜에서 다른 모델을 허용합니다. 선택한 모델이 플랜에 포함되어 있는지 확인하세요."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "선택된 터미널 내용이 없습니다",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Groq API 키",
-			"getGroqApiKey": "Groq API 키 받기"
+			"getGroqApiKey": "Groq API 키 받기",
+			"claudeCode": {
+				"pathLabel": "Claude Code 경로",
+				"description": "Claude Code CLI의 선택적 경로입니다. 설정되지 않은 경우 기본값은 'claude'입니다.",
+				"placeholder": "기본값: claude"
+			}
 		}
 	},
 	"mdm": {

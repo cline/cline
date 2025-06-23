@@ -66,7 +66,14 @@
 		"share_no_active_task": "No hi ha cap tasca activa per compartir",
 		"share_auth_required": "Es requereix autenticació. Si us plau, inicia sessió per compartir tasques.",
 		"share_not_enabled": "La compartició de tasques no està habilitada per a aquesta organització.",
-		"share_task_not_found": "Tasca no trobada o accés denegat."
+		"share_task_not_found": "Tasca no trobada o accés denegat.",
+		"claudeCode": {
+			"processExited": "El procés Claude Code ha sortit amb codi {{exitCode}}.",
+			"errorOutput": "Sortida d'error: {{output}}",
+			"processExitedWithError": "El procés Claude Code ha sortit amb codi {{exitCode}}. Sortida d'error: {{output}}",
+			"stoppedWithReason": "Claude Code s'ha aturat per la raó: {{reason}}",
+			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "No s'ha seleccionat contingut de terminal",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Clau API de Groq",
-			"getGroqApiKey": "Obté la clau API de Groq"
+			"getGroqApiKey": "Obté la clau API de Groq",
+			"claudeCode": {
+				"pathLabel": "Ruta de Claude Code",
+				"description": "Ruta opcional a la teva CLI de Claude Code. Per defecte 'claude' si no s'estableix.",
+				"placeholder": "Per defecte: claude"
+			}
 		}
 	},
 	"mdm": {

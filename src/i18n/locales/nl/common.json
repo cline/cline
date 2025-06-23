@@ -62,7 +62,14 @@
 		"share_no_active_task": "Geen actieve taak om te delen",
 		"share_auth_required": "Authenticatie vereist. Log in om taken te delen.",
 		"share_not_enabled": "Taken delen is niet ingeschakeld voor deze organisatie.",
-		"share_task_not_found": "Taak niet gevonden of toegang geweigerd."
+		"share_task_not_found": "Taak niet gevonden of toegang geweigerd.",
+		"claudeCode": {
+			"processExited": "Claude Code proces beëindigd met code {{exitCode}}.",
+			"errorOutput": "Foutuitvoer: {{output}}",
+			"processExitedWithError": "Claude Code proces beëindigd met code {{exitCode}}. Foutuitvoer: {{output}}",
+			"stoppedWithReason": "Claude Code gestopt om reden: {{reason}}",
+			"apiKeyModelPlanMismatch": "API-sleutels en abonnementsplannen staan verschillende modellen toe. Zorg ervoor dat het geselecteerde model is opgenomen in je plan."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",
@@ -101,6 +108,17 @@
 	"input": {
 		"task_prompt": "Wat moet Roo doen?",
 		"task_placeholder": "Typ hier je taak"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Groq API-sleutel",
+			"getGroqApiKey": "Groq API-sleutel ophalen",
+			"claudeCode": {
+				"pathLabel": "Claude Code Pad",
+				"description": "Optioneel pad naar je Claude Code CLI. Standaard 'claude' indien niet ingesteld.",
+				"placeholder": "Standaard: claude"
+			}
+		}
 	},
 	"mdm": {
 		"errors": {

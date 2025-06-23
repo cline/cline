@@ -62,7 +62,14 @@
 		"share_no_active_task": "Tidak ada tugas aktif untuk dibagikan",
 		"share_auth_required": "Autentikasi diperlukan. Silakan masuk untuk berbagi tugas.",
 		"share_not_enabled": "Berbagi tugas tidak diaktifkan untuk organisasi ini.",
-		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak."
+		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak.",
+		"claudeCode": {
+			"processExited": "Proses Claude Code keluar dengan kode {{exitCode}}.",
+			"errorOutput": "Output error: {{output}}",
+			"processExitedWithError": "Proses Claude Code keluar dengan kode {{exitCode}}. Output error: {{output}}",
+			"stoppedWithReason": "Claude Code berhenti karena alasan: {{reason}}",
+			"apiKeyModelPlanMismatch": "Kunci API dan paket berlangganan memungkinkan model yang berbeda. Pastikan model yang dipilih termasuk dalam paket Anda."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Tidak ada konten terminal yang dipilih",
@@ -101,6 +108,17 @@
 	"input": {
 		"task_prompt": "Apa yang harus Roo lakukan?",
 		"task_placeholder": "Ketik tugas kamu di sini"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Kunci API Groq",
+			"getGroqApiKey": "Dapatkan Kunci API Groq",
+			"claudeCode": {
+				"pathLabel": "Jalur Claude Code",
+				"description": "Jalur opsional ke CLI Claude Code Anda. Defaultnya 'claude' jika tidak diatur.",
+				"placeholder": "Default: claude"
+			}
+		}
 	},
 	"mdm": {
 		"errors": {

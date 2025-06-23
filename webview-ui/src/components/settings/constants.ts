@@ -3,6 +3,7 @@ import {
 	type ModelInfo,
 	anthropicModels,
 	bedrockModels,
+	claudeCodeModels,
 	deepSeekModels,
 	geminiModels,
 	mistralModels,
@@ -15,6 +16,7 @@ import {
 
 export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, ModelInfo>>> = {
 	anthropic: anthropicModels,
+	"claude-code": claudeCodeModels,
 	bedrock: bedrockModels,
 	deepseek: deepSeekModels,
 	gemini: geminiModels,
@@ -29,6 +31,7 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 export const PROVIDERS = [
 	{ value: "openrouter", label: "OpenRouter" },
 	{ value: "anthropic", label: "Anthropic" },
+	{ value: "claude-code", label: "Claude Code" },
 	{ value: "gemini", label: "Google Gemini" },
 	{ value: "deepseek", label: "DeepSeek" },
 	{ value: "openai-native", label: "OpenAI" },

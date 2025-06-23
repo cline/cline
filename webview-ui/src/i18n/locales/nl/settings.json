@@ -303,7 +303,12 @@
 			"medium": "Middel",
 			"low": "Laag"
 		},
-		"setReasoningLevel": "Redeneervermogen inschakelen"
+		"setReasoningLevel": "Redeneervermogen inschakelen",
+		"claudeCode": {
+			"pathLabel": "Claude Code Pad",
+			"description": "Optioneel pad naar uw Claude Code CLI. Standaard 'claude' als niet ingesteld.",
+			"placeholder": "Standaard: claude"
+		}
 	},
 	"browser": {
 		"enable": {

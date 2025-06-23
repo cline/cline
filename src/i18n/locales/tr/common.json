@@ -62,7 +62,14 @@
 		"share_no_active_task": "Paylaşılacak aktif görev yok",
 		"share_auth_required": "Kimlik doğrulama gerekli. Görevleri paylaşmak için lütfen giriş yapın.",
 		"share_not_enabled": "Bu kuruluş için görev paylaşımı etkinleştirilmemiş.",
-		"share_task_not_found": "Görev bulunamadı veya erişim reddedildi."
+		"share_task_not_found": "Görev bulunamadı veya erişim reddedildi.",
+		"claudeCode": {
+			"processExited": "Claude Code işlemi {{exitCode}} koduyla çıktı.",
+			"errorOutput": "Hata çıktısı: {{output}}",
+			"processExitedWithError": "Claude Code işlemi {{exitCode}} koduyla çıktı. Hata çıktısı: {{output}}",
+			"stoppedWithReason": "Claude Code şu nedenle durdu: {{reason}}",
+			"apiKeyModelPlanMismatch": "API anahtarları ve abonelik planları farklı modellere izin verir. Seçilen modelin planınıza dahil olduğundan emin olun."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Seçili terminal içeriği yok",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Groq API Anahtarı",
-			"getGroqApiKey": "Groq API Anahtarı Al"
+			"getGroqApiKey": "Groq API Anahtarı Al",
+			"claudeCode": {
+				"pathLabel": "Claude Code Yolu",
+				"description": "Claude Code CLI'nizin isteğe bağlı yolu. Ayarlanmazsa varsayılan olarak 'claude' olur.",
+				"placeholder": "Varsayılan: claude"
+			}
 		}
 	},
 	"mdm": {

@@ -303,7 +303,12 @@
 			"medium": "Mittel",
 			"low": "Niedrig"
 		},
-		"setReasoningLevel": "Denkaufwand aktivieren"
+		"setReasoningLevel": "Denkaufwand aktivieren",
+		"claudeCode": {
+			"pathLabel": "Claude-Code-Pfad",
+			"description": "Optionaler Pfad zu Ihrer Claude Code CLI. Standard ist 'claude', wenn nicht festgelegt.",
+			"placeholder": "Standard: claude"
+		}
 	},
 	"browser": {
 		"enable": {

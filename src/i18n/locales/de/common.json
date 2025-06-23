@@ -62,7 +62,14 @@
 		"share_no_active_task": "Keine aktive Aufgabe zum Teilen",
 		"share_auth_required": "Authentifizierung erforderlich. Bitte melde dich an, um Aufgaben zu teilen.",
 		"share_not_enabled": "Aufgabenfreigabe ist für diese Organisation nicht aktiviert.",
-		"share_task_not_found": "Aufgabe nicht gefunden oder Zugriff verweigert."
+		"share_task_not_found": "Aufgabe nicht gefunden oder Zugriff verweigert.",
+		"claudeCode": {
+			"processExited": "Claude Code Prozess wurde mit Code {{exitCode}} beendet.",
+			"errorOutput": "Fehlerausgabe: {{output}}",
+			"processExitedWithError": "Claude Code Prozess wurde mit Code {{exitCode}} beendet. Fehlerausgabe: {{output}}",
+			"stoppedWithReason": "Claude Code wurde mit Grund gestoppt: {{reason}}",
+			"apiKeyModelPlanMismatch": "API-Schlüssel und Abonnement-Pläne erlauben verschiedene Modelle. Stelle sicher, dass das ausgewählte Modell in deinem Plan enthalten ist."
+		}
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
@@ -105,7 +112,12 @@
 	"settings": {
 		"providers": {
 			"groqApiKey": "Groq API-Schlüssel",
-			"getGroqApiKey": "Groq API-Schlüssel erhalten"
+			"getGroqApiKey": "Groq API-Schlüssel erhalten",
+			"claudeCode": {
+				"pathLabel": "Claude Code Pfad",
+				"description": "Optionaler Pfad zu deiner Claude Code CLI. Standardmäßig 'claude', falls nicht festgelegt.",
+				"placeholder": "Standard: claude"
+			}
 		}
 	},
 	"mdm": {

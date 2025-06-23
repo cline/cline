@@ -307,7 +307,12 @@
 			"medium": "Sedang",
 			"low": "Rendah"
 		},
-		"setReasoningLevel": "Aktifkan Upaya Reasoning"
+		"setReasoningLevel": "Aktifkan Upaya Reasoning",
+		"claudeCode": {
+			"pathLabel": "Jalur Kode Claude",
+			"description": "Jalur opsional ke Claude Code CLI Anda. Defaultnya adalah 'claude' jika tidak diatur.",
+			"placeholder": "Default: claude"
+		}
 	},
 	"browser": {
 		"enable": {
