@@ -125,6 +125,7 @@ export const ORGANIZATION_ALLOW_ALL: OrganizationAllowList = {
 export const ORGANIZATION_DEFAULT: OrganizationSettings = {
 	version: 0,
 	cloudSettings: {
+		recordTaskMessages: true,
 		enableTaskSharing: true,
 		taskShareExpirationDays: 30,
 	},

@@ -40,6 +40,7 @@ describe("CloudService", () => {
 		getState: ReturnType<typeof vi.fn>
 		getSessionToken: ReturnType<typeof vi.fn>
 		handleCallback: ReturnType<typeof vi.fn>
+		getStoredOrganizationId: ReturnType<typeof vi.fn>
 		on: ReturnType<typeof vi.fn>
 		off: ReturnType<typeof vi.fn>
 		once: ReturnType<typeof vi.fn>
@@ -88,6 +89,7 @@ describe("CloudService", () => {
 			getState: vi.fn().mockReturnValue("logged-out"),
 			getSessionToken: vi.fn(),
 			handleCallback: vi.fn(),
+			getStoredOrganizationId: vi.fn().mockReturnValue(null),
 			on: vi.fn(),
 			off: vi.fn(),
 			once: vi.fn(),
@@ -255,7 +257,41 @@ describe("CloudService", () => {
 
 		it("should delegate handleAuthCallback to AuthService", async () => {
 			await cloudService.handleAuthCallback("code", "state")
-			expect(mockAuthService.handleCallback).toHaveBeenCalledWith("code", "state")
+			expect(mockAuthService.handleCallback).toHaveBeenCalledWith("code", "state", undefined)
+		})
+
+		it("should delegate handleAuthCallback with organizationId to AuthService", async () => {
+			await cloudService.handleAuthCallback("code", "state", "org_123")
+			expect(mockAuthService.handleCallback).toHaveBeenCalledWith("code", "state", "org_123")
+		})
+
+		it("should return stored organization ID from AuthService", () => {
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org_456")
+
+			const result = cloudService.getStoredOrganizationId()
+			expect(mockAuthService.getStoredOrganizationId).toHaveBeenCalled()
+			expect(result).toBe("org_456")
+		})
+
+		it("should return null when no stored organization ID available", () => {
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			const result = cloudService.getStoredOrganizationId()
+			expect(result).toBe(null)
+		})
+
+		it("should return true when stored organization ID exists", () => {
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org_789")
+
+			const result = cloudService.hasStoredOrganizationId()
+			expect(result).toBe(true)
+		})
+
+		it("should return false when no stored organization ID exists", () => {
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			const result = cloudService.hasStoredOrganizationId()
+			expect(result).toBe(false)
 		})
 	})
 

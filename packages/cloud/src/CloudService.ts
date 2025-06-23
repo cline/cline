@@ -118,14 +118,28 @@ export class CloudService {
 		return userInfo?.organizationRole || null
 	}
 
+	public hasStoredOrganizationId(): boolean {
+		this.ensureInitialized()
+		return this.authService!.getStoredOrganizationId() !== null
+	}
+
+	public getStoredOrganizationId(): string | null {
+		this.ensureInitialized()
+		return this.authService!.getStoredOrganizationId()
+	}
+
 	public getAuthState(): string {
 		this.ensureInitialized()
 		return this.authService!.getState()
 	}
 
-	public async handleAuthCallback(code: string | null, state: string | null): Promise<void> {
+	public async handleAuthCallback(
+		code: string | null,
+		state: string | null,
+		organizationId?: string | null,
+	): Promise<void> {
 		this.ensureInitialized()
-		return this.authService!.handleCallback(code, state)
+		return this.authService!.handleCallback(code, state, organizationId)
 	}
 
 	// SettingsService

@@ -43,6 +43,19 @@ vi.mock("../../../shared/package", () => ({
 	},
 }))
 
+vi.mock("../../../i18n", () => ({
+	t: vi.fn((key: string) => {
+		const translations: Record<string, string> = {
+			"mdm.errors.cloud_auth_required":
+				"Your organization requires Roo Code Cloud authentication. Please sign in to continue.",
+			"mdm.errors.organization_mismatch":
+				"You must be authenticated with your organization's Roo Code Cloud account.",
+			"mdm.errors.verification_failed": "Unable to verify organization authentication.",
+		}
+		return translations[key] || key
+	}),
+}))
+
 import * as fs from "fs"
 import * as os from "os"
 import * as vscode from "vscode"
@@ -265,7 +278,7 @@ describe("MdmService", () => {
 
 			expect(compliance.compliant).toBe(false)
 			if (!compliance.compliant) {
-				expect(compliance.reason).toContain("requires Roo Code Cloud authentication")
+				expect(compliance.reason).toContain("Your organization requires Roo Code Cloud authentication")
 			}
 		})
 
@@ -287,7 +300,9 @@ describe("MdmService", () => {
 
 			expect(compliance.compliant).toBe(false)
 			if (!compliance.compliant) {
-				expect(compliance.reason).toContain("organization's Roo Code Cloud account")
+				expect(compliance.reason).toContain(
+					"You must be authenticated with your organization's Roo Code Cloud account",
+				)
 			}
 		})
 
