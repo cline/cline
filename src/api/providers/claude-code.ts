@@ -116,9 +116,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			}
 
 			if (chunk.type === "result" && "result" in chunk) {
-				if (isPaidUsage) {
-					usage.totalCost = chunk.total_cost_usd || 0
-				}
+				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0
 
 				yield usage
 			}
