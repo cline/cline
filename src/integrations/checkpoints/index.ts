@@ -5,7 +5,7 @@ import { ClineMessage, ClineApiReqInfo, COMPLETION_RESULT_CHANGES_FLAG, ClineSay
 import { HistoryItem } from "@shared/HistoryItem"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { MessageStateHandler } from "../message-state"
+import { MessageStateHandler } from "../../core/task/message-state"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 
@@ -89,6 +89,23 @@ export class TaskCheckpointManager {
 			const lastMessage = clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
+			}
+
+			// If checkpointTracker is not initialized and we have no error for it, we will initialize it.
+			if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+				try {
+					this.state.checkpointTracker = await CheckpointTracker.create(
+						this.dependencies.taskId,
+						this.dependencies.context.globalStorageUri.fsPath,
+						this.dependencies.enableCheckpoints,
+					)
+				} catch (error) {
+					// If there is an error initializing checpoints, we want to set the checkpointTrackerErrorMessage for future use
+					console.error("Error initializing checkpoint")
+					const errorMessage = error instanceof Error ? error.message : "Unknown Error"
+					this.setCheckpointTrackerErrorMessage(errorMessage)
+					// TODO - Do we need to postState to webview here? TBD
+				}
 			}
 
 			// For non-attempt completion we just say checkpoints
