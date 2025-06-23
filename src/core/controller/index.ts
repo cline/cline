@@ -1135,8 +1135,8 @@ Commit message:`
 		}
 	}
 
-	public async onPhaseCompleted(task: Task, openNewTask: boolean = false): Promise<void> {
-		const tracker = task.getPhaseTracker?.() || this.phaseTracker
+	public async onPhaseCompleted(openNewTask: boolean = false): Promise<void> {
+		const tracker = this.task?.getPhaseTracker?.() || this.task?.taskState.phaseTracker
 		if (!tracker) {
 			return
 		}
