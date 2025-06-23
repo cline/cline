@@ -22,21 +22,21 @@ Cline uses [Protobuf](https://protobuf.dev/) to define a strongly-typed API, ens
 
 ## 4-Step Development Workflow
 
-Here’s how to add a new RPC, using `accountEmailIdentified` as an example.
+Here’s how to add a new RPC, using `scrollToSettings` as an example.
 
 ### 1. Define the RPC in a `.proto` File
 
 Add your service method to the appropriate file in the `proto/` directory.
 
-**File: `proto/account.proto`**
+**File: `proto/ui.proto`**
 ```proto
-service AccountService {
+service UiService {
   // ... other RPCs
-  // Identifies a user by their email for telemetry purposes.
-  rpc accountEmailIdentified(StringRequest) returns (Empty);
+  // Scrolls to a specific settings section in the settings view
+  rpc scrollToSettings(StringRequest) returns (KeyValuePair);
 }
 ```
-Here, we use the common `StringRequest` and `Empty` types.
+Here, we use the common `StringRequest` and `KeyValuePair` types.
 
 ### 2. Compile Definitions
 
@@ -50,16 +50,22 @@ This command compiles all `.proto` files and outputs the generated code to `src/
 
 Create the RPC implementation in the backend. Handlers are located in `src/core/controller/[service-name]/`.
 
-**File: `src/core/controller/account/accountEmailIdentified.ts`**
+**File: `src/core/controller/ui/scrollToSettings.ts`**
 ```typescript
-import { Controller } from "../index"
-import { Empty, StringRequest } from "../../../shared/proto/common"
+import { Controller } from ".."
+import { StringRequest, KeyValuePair } from "../../../shared/proto/common"
 
-export async function accountEmailIdentified(controller: Controller, request: StringRequest): Promise<Empty> {
-  const email = request.value;
-  console.log(`Identifying user with email: ${email}`);
-  // controller.telemetry.identify(email);
-  return Empty.create({});
+/**
+ * Executes a scroll to settings action
+ * @param controller The controller instance
+ * @param request The request containing the ID of the settings section to scroll to
+ * @returns KeyValuePair with action and value fields for the UI to process
+ */
+export async function scrollToSettings(controller: Controller, request: StringRequest): Promise<KeyValuePair> {
+	return KeyValuePair.create({
+		key: "scrollToSettings",
+		value: request.value || "",
+	})
 }
 ```
 
@@ -67,17 +73,17 @@ export async function accountEmailIdentified(controller: Controller, request: St
 
 Call the new RPC from a React component in `webview-ui/`. The generated client makes this simple.
 
-**File: `webview-ui/src/components/SomeComponent.tsx`** (Example)
+**File: `webview-ui/src/components/browser/BrowserSettingsMenu.tsx`** (Example)
 ```tsx
-import { accountServiceClient } from '../../services/grpc';
-import { StringRequest } from '../../../../src/shared/proto/common';
+import { UiServiceClient } from "../../../services/grpc"
+import { StringRequest } from "../../../../shared/proto/common"
 
-const handleIdentifyClick = async () => {
-  try {
-    const request = StringRequest.create({ value: "test@example.com" });
-    await accountServiceClient.accountEmailIdentified(request, {});
-    console.log('Successfully identified email.');
-  } catch (error) {
-    console.error('Failed to identify email:', error);
-  }
-};
+// ... inside a React component
+const handleMenuClick = async () => {
+    try {
+        await UiServiceClient.scrollToSettings(StringRequest.create({ value: "browser" }))
+    } catch (error) {
+        console.error("Error scrolling to browser settings:", error)
+    }
+}
+```
