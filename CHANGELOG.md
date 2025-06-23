@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.21.5] - 2025-06-23
+
+- Fix Qdrant URL prefix handling for QdrantClient initialization (thanks @CW-B-W!)
+- Improve LM Studio model detection to show all downloaded models (thanks @daniel-lxs!)
+- Resolve Claude Code provider JSON parsing and reasoning block display
+
 ## [3.21.4] - 2025-06-23
 
 - Fix start line not working in multiple apply diff (thanks @samhvw8!)
