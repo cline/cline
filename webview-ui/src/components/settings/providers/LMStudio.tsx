@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from "react"
+import { useCallback, useState, useMemo, useEffect } from "react"
 import { useEvent } from "react-use"
 import { Trans } from "react-i18next"
 import { Checkbox } from "vscrui"
@@ -9,6 +9,7 @@ import type { ProviderSettings } from "@roo-code/types"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
+import { vscode } from "@src/utils/vscode"
 
 import { inputEventTransform } from "../transforms"
 
@@ -48,6 +49,12 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 	}, [])
 
 	useEvent("message", onMessage)
+
+	// Refresh models on mount
+	useEffect(() => {
+		// Request fresh models - the handler now flushes cache automatically
+		vscode.postMessage({ type: "requestLmStudioModels" })
+	}, [])
 
 	// Check if the selected model exists in the fetched models
 	const modelNotAvailable = useMemo(() => {

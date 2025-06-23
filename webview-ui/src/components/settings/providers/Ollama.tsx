@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { useEvent } from "react-use"
 import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
@@ -8,6 +8,7 @@ import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
+import { vscode } from "@src/utils/vscode"
 
 import { inputEventTransform } from "../transforms"
 
@@ -47,6 +48,12 @@ export const Ollama = ({ apiConfiguration, setApiConfigurationField }: OllamaPro
 	}, [])
 
 	useEvent("message", onMessage)
+
+	// Refresh models on mount
+	useEffect(() => {
+		// Request fresh models - the handler now flushes cache automatically
+		vscode.postMessage({ type: "requestOllamaModels" })
+	}, [])
 
 	// Check if the selected model exists in the fetched models
 	const modelNotAvailable = useMemo(() => {

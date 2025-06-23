@@ -2,14 +2,17 @@ import { ModelInfo, lMStudioDefaultModelInfo } from "@roo-code/types"
 import { LLM, LLMInfo, LLMInstanceInfo, LMStudioClient } from "@lmstudio/sdk"
 import axios from "axios"
 
-export const parseLMStudioModel = (rawModel: LLMInstanceInfo): ModelInfo => {
+export const parseLMStudioModel = (rawModel: LLMInstanceInfo | LLMInfo): ModelInfo => {
+	// Handle both LLMInstanceInfo (from loaded models) and LLMInfo (from downloaded models)
+	const contextLength = "contextLength" in rawModel ? rawModel.contextLength : rawModel.maxContextLength
+
 	const modelInfo: ModelInfo = Object.assign({}, lMStudioDefaultModelInfo, {
 		description: `${rawModel.displayName} - ${rawModel.path}`,
-		contextWindow: rawModel.contextLength,
+		contextWindow: contextLength,
 		supportsPromptCache: true,
 		supportsImages: rawModel.vision,
 		supportsComputerUse: false,
-		maxTokens: rawModel.contextLength,
+		maxTokens: contextLength,
 	})
 
 	return modelInfo
@@ -33,12 +36,25 @@ export async function getLMStudioModels(baseUrl = "http://localhost:1234"): Prom
 		await axios.get(`${baseUrl}/v1/models`)
 
 		const client = new LMStudioClient({ baseUrl: lmsUrl })
-		const response = (await client.llm.listLoaded().then((models: LLM[]) => {
-			return Promise.all(models.map((m) => m.getModelInfo()))
-		})) as Array<LLMInstanceInfo>
 
-		for (const lmstudioModel of response) {
-			models[lmstudioModel.modelKey] = parseLMStudioModel(lmstudioModel)
+		// First, try to get all downloaded models
+		try {
+			const downloadedModels = await client.system.listDownloadedModels("llm")
+			for (const model of downloadedModels) {
+				// Use the model path as the key since that's what users select
+				models[model.path] = parseLMStudioModel(model)
+			}
+		} catch (error) {
+			console.warn("Failed to list downloaded models, falling back to loaded models only")
+
+			// Fall back to listing only loaded models
+			const loadedModels = (await client.llm.listLoaded().then((models: LLM[]) => {
+				return Promise.all(models.map((m) => m.getModelInfo()))
+			})) as Array<LLMInstanceInfo>
+
+			for (const lmstudioModel of loadedModels) {
+				models[lmstudioModel.modelKey] = parseLMStudioModel(lmstudioModel)
+			}
 		}
 	} catch (error) {
 		if (error.code === "ECONNREFUSED") {

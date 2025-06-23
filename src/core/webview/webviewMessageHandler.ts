@@ -448,6 +448,9 @@ export const webviewMessageHandler = async (
 			// Specific handler for Ollama models only
 			const { apiConfiguration: ollamaApiConfig } = await provider.getState()
 			try {
+				// Flush cache first to ensure fresh models
+				await flushModels("ollama")
+
 				const ollamaModels = await getModels({
 					provider: "ollama",
 					baseUrl: ollamaApiConfig.ollamaBaseUrl,
@@ -469,6 +472,9 @@ export const webviewMessageHandler = async (
 			// Specific handler for LM Studio models only
 			const { apiConfiguration: lmStudioApiConfig } = await provider.getState()
 			try {
+				// Flush cache first to ensure fresh models
+				await flushModels("lmstudio")
+
 				const lmStudioModels = await getModels({
 					provider: "lmstudio",
 					baseUrl: lmStudioApiConfig.lmStudioBaseUrl,
