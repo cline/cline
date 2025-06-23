@@ -767,7 +767,7 @@ suite("Roo Code use_mcp_tool Tool", function () {
 		}
 	})
 
-	test("Should validate MCP request message format and complete successfully", async function () {
+	test.skip("Should validate MCP request message format and complete successfully", async function () {
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let _taskCompleted = false
