@@ -56,7 +56,22 @@ export class ClineHandler implements ApiHandler {
 				this.lastGenerationId = chunk.id
 			}
 
-			const delta = chunk.choices[0]?.delta
+			// Check for mid-stream error via finish_reason
+			const choice = chunk.choices?.[0]
+			// OpenRouter may return finish_reason = "error" with error details
+			// @ts-ignore - OpenRouter extends the OpenAI format
+			if (choice?.finish_reason === "error") {
+				// @ts-ignore - error field is OpenRouter-specific
+				const error = choice.error
+				if (error) {
+					console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+					throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+				} else {
+					throw new Error("Cline Mid-Stream Error: Stream terminated with error status but no error details provided")
+				}
+			}
+
+			const delta = choice?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
