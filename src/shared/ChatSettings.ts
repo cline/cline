@@ -8,6 +8,9 @@ export interface ChatSettings {
 
 export type PartialChatSettings = Partial<ChatSettings>
 
+// Type for chat settings stored in workspace (excludes in-memory mode)
+export type StoredChatSettings = Omit<ChatSettings, "mode">
+
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
 	mode: "act",
 	preferredLanguage: "English",

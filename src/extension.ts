@@ -22,7 +22,11 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
-import { migratePlanActGlobalToWorkspaceStorage, migrateCustomInstructionsToGlobalRules } from "./core/storage/state"
+import {
+	migratePlanActGlobalToWorkspaceStorage,
+	migrateCustomInstructionsToGlobalRules,
+	cleanupModeFromWorkspaceStorage,
+} from "./core/storage/state"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
@@ -59,6 +63,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
+
+	// Clean up mode from workspace storage (one-time cleanup)
+	await cleanupModeFromWorkspaceStorage(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
