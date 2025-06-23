@@ -113,6 +113,7 @@ describe("QdrantVectorStore", () => {
 					host: "qdrant.ashbyfam.com",
 					https: true,
 					port: 443,
+					prefix: undefined, // No prefix for root path
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -127,6 +128,7 @@ describe("QdrantVectorStore", () => {
 					host: "example.com",
 					https: true,
 					port: 9000,
+					prefix: undefined, // No prefix for root path
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -145,6 +147,7 @@ describe("QdrantVectorStore", () => {
 					host: "example.com",
 					https: true,
 					port: 443,
+					prefix: "/api/v1", // Should have prefix
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -161,6 +164,7 @@ describe("QdrantVectorStore", () => {
 					host: "example.com",
 					https: false,
 					port: 80,
+					prefix: undefined, // No prefix for root path
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -175,6 +179,7 @@ describe("QdrantVectorStore", () => {
 					host: "localhost",
 					https: false,
 					port: 8080,
+					prefix: undefined, // No prefix for root path
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -193,6 +198,7 @@ describe("QdrantVectorStore", () => {
 					host: "example.com",
 					https: false,
 					port: 80,
+					prefix: "/api/v1", // Should have prefix
 					apiKey: undefined,
 					headers: {
 						"User-Agent": "Roo-Code",
@@ -334,6 +340,159 @@ describe("QdrantVectorStore", () => {
 				})
 				expect((vectorStore as any).qdrantUrl).toBe("http://invalid-url-format")
 			})
+		})
+	})
+
+	describe("URL Prefix Handling", () => {
+		it("should pass the URL pathname as prefix to QdrantClient if not root", () => {
+			const vectorStoreWithPrefix = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/some/path",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: "/some/path",
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithPrefix as any).qdrantUrl).toBe("http://localhost:6333/some/path")
+		})
+
+		it("should not pass prefix if the URL pathname is root ('/')", () => {
+			const vectorStoreWithoutPrefix = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: undefined,
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithoutPrefix as any).qdrantUrl).toBe("http://localhost:6333/")
+		})
+
+		it("should handle HTTPS URL with path as prefix", () => {
+			const vectorStoreWithHttpsPrefix = new QdrantVectorStore(
+				mockWorkspacePath,
+				"https://qdrant.ashbyfam.com/api",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "qdrant.ashbyfam.com",
+				https: true,
+				port: 443,
+				prefix: "/api",
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithHttpsPrefix as any).qdrantUrl).toBe("https://qdrant.ashbyfam.com/api")
+		})
+
+		it("should normalize URL pathname by removing trailing slash for prefix", () => {
+			const vectorStoreWithTrailingSlash = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/api/",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: "/api", // Trailing slash should be removed
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithTrailingSlash as any).qdrantUrl).toBe("http://localhost:6333/api/")
+		})
+
+		it("should normalize URL pathname by removing multiple trailing slashes for prefix", () => {
+			const vectorStoreWithMultipleTrailingSlashes = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/api///",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: "/api", // All trailing slashes should be removed
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithMultipleTrailingSlashes as any).qdrantUrl).toBe("http://localhost:6333/api///")
+		})
+
+		it("should handle multiple path segments correctly for prefix", () => {
+			const vectorStoreWithMultiSegment = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/api/v1/qdrant",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: "/api/v1/qdrant",
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithMultiSegment as any).qdrantUrl).toBe("http://localhost:6333/api/v1/qdrant")
+		})
+
+		it("should handle complex URL with multiple segments, multiple trailing slashes, query params, and fragment", () => {
+			const complexUrl = "https://example.com/ollama/api/v1///?key=value#pos"
+			const vectorStoreComplex = new QdrantVectorStore(mockWorkspacePath, complexUrl, mockVectorSize)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "example.com",
+				https: true,
+				port: 443,
+				prefix: "/ollama/api/v1", // Trailing slash removed, query/fragment ignored
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreComplex as any).qdrantUrl).toBe(complexUrl)
+		})
+
+		it("should ignore query parameters and fragments when determining prefix", () => {
+			const vectorStoreWithQueryParams = new QdrantVectorStore(
+				mockWorkspacePath,
+				"http://localhost:6333/api/path?key=value#fragment",
+				mockVectorSize,
+			)
+			expect(QdrantClient).toHaveBeenLastCalledWith({
+				host: "localhost",
+				https: false,
+				port: 6333,
+				prefix: "/api/path", // Query params and fragment should be ignored
+				apiKey: undefined,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+			expect((vectorStoreWithQueryParams as any).qdrantUrl).toBe(
+				"http://localhost:6333/api/path?key=value#fragment",
+			)
 		})
 	})
 

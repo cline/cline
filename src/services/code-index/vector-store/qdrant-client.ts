@@ -57,6 +57,7 @@ export class QdrantVectorStore implements IVectorStore {
 				host: urlObj.hostname,
 				https: useHttps,
 				port: port,
+				prefix: urlObj.pathname === "/" ? undefined : urlObj.pathname.replace(/\/+$/, ""),
 				apiKey,
 				headers: {
 					"User-Agent": "Roo-Code",
@@ -64,6 +65,7 @@ export class QdrantVectorStore implements IVectorStore {
 			})
 		} catch (urlError) {
 			// If URL parsing fails, fall back to URL-based config
+			// Note: This fallback won't correctly handle prefixes, but it's a last resort for malformed URLs.
 			this.client = new QdrantClient({
 				url: parsedUrl,
 				apiKey,
