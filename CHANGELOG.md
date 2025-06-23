@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## [3.21.4] - 2025-06-23
+
+- Fix start line not working in multiple apply diff (thanks @samhvw8!)
+- Resolve diff editor issues with markdown preview associations (thanks @daniel-lxs!)
+- Resolve URL port handling bug for HTTPS URLs in Qdrant (thanks @benashby!)
+- Mark unused Ollama schema properties as optional (thanks @daniel-lxs!)
+- Close the local browser when used as fallback for remote (thanks @markijbema!)
+- Add Claude Code provider for local CLI integration (thanks @BarreiroT!)
+
 ## [3.21.3] - 2025-06-21
 
 - Add profile-specific context condensing thresholds (thanks @SannidhyaSah!)
