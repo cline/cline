@@ -58,7 +58,9 @@ describe("QdrantVectorStore", () => {
 	it("should correctly initialize QdrantClient and collectionName in constructor", () => {
 		expect(QdrantClient).toHaveBeenCalledTimes(1)
 		expect(QdrantClient).toHaveBeenCalledWith({
-			url: mockQdrantUrl,
+			host: "mock-qdrant",
+			https: false,
+			port: 6333,
 			apiKey: mockApiKey,
 			headers: {
 				"User-Agent": "Roo-Code",
@@ -75,7 +77,9 @@ describe("QdrantVectorStore", () => {
 		const vectorStoreWithDefaults = new QdrantVectorStore(mockWorkspacePath, undefined as any, mockVectorSize)
 
 		expect(QdrantClient).toHaveBeenLastCalledWith({
-			url: "http://localhost:6333", // Should use default QDRANT_URL
+			host: "localhost",
+			https: false,
+			port: 6333,
 			apiKey: undefined,
 			headers: {
 				"User-Agent": "Roo-Code",
@@ -87,11 +91,249 @@ describe("QdrantVectorStore", () => {
 		const vectorStoreWithoutKey = new QdrantVectorStore(mockWorkspacePath, mockQdrantUrl, mockVectorSize)
 
 		expect(QdrantClient).toHaveBeenLastCalledWith({
-			url: mockQdrantUrl,
+			host: "mock-qdrant",
+			https: false,
+			port: 6333,
 			apiKey: undefined,
 			headers: {
 				"User-Agent": "Roo-Code",
 			},
+		})
+	})
+
+	describe("URL Parsing and Explicit Port Handling", () => {
+		describe("HTTPS URL handling", () => {
+			it("should use explicit port 443 for HTTPS URLs without port (fixes the main bug)", () => {
+				const vectorStore = new QdrantVectorStore(
+					mockWorkspacePath,
+					"https://qdrant.ashbyfam.com",
+					mockVectorSize,
+				)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "qdrant.ashbyfam.com",
+					https: true,
+					port: 443,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("https://qdrant.ashbyfam.com")
+			})
+
+			it("should use explicit port for HTTPS URLs with explicit port", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "https://example.com:9000", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "example.com",
+					https: true,
+					port: 9000,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("https://example.com:9000")
+			})
+
+			it("should use port 443 for HTTPS URLs with paths and query parameters", () => {
+				const vectorStore = new QdrantVectorStore(
+					mockWorkspacePath,
+					"https://example.com/api/v1?key=value",
+					mockVectorSize,
+				)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "example.com",
+					https: true,
+					port: 443,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("https://example.com/api/v1?key=value")
+			})
+		})
+
+		describe("HTTP URL handling", () => {
+			it("should use explicit port 80 for HTTP URLs without port", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "http://example.com", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "example.com",
+					https: false,
+					port: 80,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://example.com")
+			})
+
+			it("should use explicit port for HTTP URLs with explicit port", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "http://localhost:8080", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 8080,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:8080")
+			})
+
+			it("should use port 80 for HTTP URLs while preserving paths and query parameters", () => {
+				const vectorStore = new QdrantVectorStore(
+					mockWorkspacePath,
+					"http://example.com/api/v1?key=value",
+					mockVectorSize,
+				)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "example.com",
+					https: false,
+					port: 80,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://example.com/api/v1?key=value")
+			})
+		})
+
+		describe("Hostname handling", () => {
+			it("should convert hostname to http with port 80", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "qdrant.example.com", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "qdrant.example.com",
+					https: false,
+					port: 80,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://qdrant.example.com")
+			})
+
+			it("should handle hostname:port format with explicit port", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "localhost:6333", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 6333,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:6333")
+			})
+
+			it("should handle explicit HTTP URLs correctly", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "http://localhost:9000", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 9000,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:9000")
+			})
+		})
+
+		describe("IP address handling", () => {
+			it("should convert IP address to http with port 80", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "192.168.1.100", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "192.168.1.100",
+					https: false,
+					port: 80,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://192.168.1.100")
+			})
+
+			it("should handle IP:port format with explicit port", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "192.168.1.100:6333", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "192.168.1.100",
+					https: false,
+					port: 6333,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://192.168.1.100:6333")
+			})
+		})
+
+		describe("Edge cases", () => {
+			it("should handle undefined URL with host-based config", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, undefined as any, mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 6333,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:6333")
+			})
+
+			it("should handle empty string URL with host-based config", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 6333,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:6333")
+			})
+
+			it("should handle whitespace-only URL with host-based config", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "   ", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "localhost",
+					https: false,
+					port: 6333,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://localhost:6333")
+			})
+		})
+
+		describe("Invalid URL fallback", () => {
+			it("should treat invalid URLs as hostnames with port 80", () => {
+				const vectorStore = new QdrantVectorStore(mockWorkspacePath, "invalid-url-format", mockVectorSize)
+				expect(QdrantClient).toHaveBeenLastCalledWith({
+					host: "invalid-url-format",
+					https: false,
+					port: 80,
+					apiKey: undefined,
+					headers: {
+						"User-Agent": "Roo-Code",
+					},
+				})
+				expect((vectorStore as any).qdrantUrl).toBe("http://invalid-url-format")
+			})
 		})
 	})
 

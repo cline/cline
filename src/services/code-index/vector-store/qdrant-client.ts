@@ -24,19 +24,103 @@ export class QdrantVectorStore implements IVectorStore {
 	 * @param url Optional URL to the Qdrant server
 	 */
 	constructor(workspacePath: string, url: string, vectorSize: number, apiKey?: string) {
-		this.qdrantUrl = url || "http://localhost:6333"
-		this.client = new QdrantClient({
-			url: this.qdrantUrl,
-			apiKey,
-			headers: {
-				"User-Agent": "Roo-Code",
-			},
-		})
+		// Parse the URL to determine the appropriate QdrantClient configuration
+		const parsedUrl = this.parseQdrantUrl(url)
+
+		// Store the resolved URL for our property
+		this.qdrantUrl = parsedUrl
+
+		try {
+			const urlObj = new URL(parsedUrl)
+
+			// Always use host-based configuration with explicit ports to avoid QdrantClient defaults
+			let port: number
+			let useHttps: boolean
+
+			if (urlObj.port) {
+				// Explicit port specified - use it and determine protocol
+				port = Number(urlObj.port)
+				useHttps = urlObj.protocol === "https:"
+			} else {
+				// No explicit port - use protocol defaults
+				if (urlObj.protocol === "https:") {
+					port = 443
+					useHttps = true
+				} else {
+					// http: or other protocols default to port 80
+					port = 80
+					useHttps = false
+				}
+			}
+
+			this.client = new QdrantClient({
+				host: urlObj.hostname,
+				https: useHttps,
+				port: port,
+				apiKey,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+		} catch (urlError) {
+			// If URL parsing fails, fall back to URL-based config
+			this.client = new QdrantClient({
+				url: parsedUrl,
+				apiKey,
+				headers: {
+					"User-Agent": "Roo-Code",
+				},
+			})
+		}
 
 		// Generate collection name from workspace path
 		const hash = createHash("sha256").update(workspacePath).digest("hex")
 		this.vectorSize = vectorSize
 		this.collectionName = `ws-${hash.substring(0, 16)}`
+	}
+
+	/**
+	 * Parses and normalizes Qdrant server URLs to handle various input formats
+	 * @param url Raw URL input from user
+	 * @returns Properly formatted URL for QdrantClient
+	 */
+	private parseQdrantUrl(url: string | undefined): string {
+		// Handle undefined/null/empty cases
+		if (!url || url.trim() === "") {
+			return "http://localhost:6333"
+		}
+
+		const trimmedUrl = url.trim()
+
+		// Check if it starts with a protocol
+		if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://") && !trimmedUrl.includes("://")) {
+			// No protocol - treat as hostname
+			return this.parseHostname(trimmedUrl)
+		}
+
+		try {
+			// Attempt to parse as complete URL - return as-is, let constructor handle ports
+			const parsedUrl = new URL(trimmedUrl)
+			return trimmedUrl
+		} catch {
+			// Failed to parse as URL - treat as hostname
+			return this.parseHostname(trimmedUrl)
+		}
+	}
+
+	/**
+	 * Handles hostname-only inputs
+	 * @param hostname Raw hostname input
+	 * @returns Properly formatted URL with http:// prefix
+	 */
+	private parseHostname(hostname: string): string {
+		if (hostname.includes(":")) {
+			// Has port - add http:// prefix if missing
+			return hostname.startsWith("http") ? hostname : `http://${hostname}`
+		} else {
+			// No port - add http:// prefix without port (let constructor handle port assignment)
+			return `http://${hostname}`
+		}
 	}
 
 	private async getCollectionInfo(): Promise<Schemas["CollectionInfo"] | null> {
