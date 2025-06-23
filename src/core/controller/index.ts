@@ -130,7 +130,24 @@ export class Controller {
 	}
 
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
+		console.log("[TASK_LOAD] Controller: initTask called with historyItem:", historyItem?.id)
+		console.log("[TASK_LOAD] Controller: Task details:", {
+			hasTask: !!task,
+			hasImages: !!images,
+			hasFiles: !!files,
+			historyItemDetails: historyItem
+				? {
+						id: historyItem.id,
+						task: historyItem.task?.substring(0, 50) + "...",
+						ts: historyItem.ts,
+						isFavorited: historyItem.isFavorited,
+					}
+				: null,
+		})
+
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+		console.log("[TASK_LOAD] Controller: Cleared existing task")
+
 		const {
 			apiConfiguration,
 			autoApprovalSettings,
@@ -144,6 +161,8 @@ export class Controller {
 			isNewUser,
 			taskHistory,
 		} = await getAllExtensionState(this.context)
+
+		console.log("[TASK_LOAD] Controller: Got extension state, taskHistory length:", taskHistory?.length)
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -160,6 +179,7 @@ export class Controller {
 			}
 			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
 		}
+		console.log("[TASK_LOAD] Controller: Creating new Task instance")
 		this.task = new Task(
 			this.context,
 			this.mcpHub,
@@ -183,6 +203,7 @@ export class Controller {
 			files,
 			historyItem,
 		)
+		console.log("[TASK_LOAD] Controller: Task instance created successfully")
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {

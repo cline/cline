@@ -276,8 +276,10 @@ export class Task {
 
 		// Continue with task initialization
 		if (historyItem) {
+			console.log("[TASK_LOAD] Task: Resuming task from history item:", historyItem.id)
 			this.resumeTaskFromHistory()
 		} else if (task || images || files) {
+			console.log("[TASK_LOAD] Task: Starting new task")
 			this.startTask(task, images, files)
 		}
 
@@ -977,6 +979,7 @@ export class Task {
 	}
 
 	private async resumeTaskFromHistory() {
+		console.log("[TASK_LOAD] Task: resumeTaskFromHistory called for task:", this.taskId)
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -991,6 +994,7 @@ export class Task {
 		// }
 
 		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+		console.log("[TASK_LOAD] Task: Loaded saved Cline messages, count:", savedClineMessages.length)
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
@@ -1018,6 +1022,7 @@ export class Task {
 		// This is important in case the user deletes messages without resuming the task first
 		const context = this.getContext()
 		const savedApiConversationHistory = await getSavedApiConversationHistory(context, this.taskId)
+		console.log("[TASK_LOAD] Task: Loaded saved API conversation history, count:", savedApiConversationHistory.length)
 		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
 
 		// load the context history state
@@ -1039,6 +1044,7 @@ export class Task {
 		}
 
 		this.taskState.isInitialized = true
+		console.log("[TASK_LOAD] Task: Task initialized, asking user to resume with type:", askType)
 
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined

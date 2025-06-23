@@ -12,20 +12,25 @@ import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 export async function showTaskWithId(controller: Controller, request: StringRequest): Promise<TaskResponse> {
 	try {
 		const id = request.value
+		console.log("[TASK_LOAD] Backend: showTaskWithId called with ID:", id)
 
 		// First check if task exists in global state for faster access
 		const taskHistory = ((await controller.context.globalState.get("taskHistory")) as any[]) || []
+		console.log("[TASK_LOAD] Backend: Total tasks in history:", taskHistory.length)
 		const historyItem = taskHistory.find((item) => item.id === id)
 
 		// We need to initialize the task before returning data
 		if (historyItem) {
+			console.log("[TASK_LOAD] Backend: Found task in global state, initializing...")
 			// Always initialize the task with the history item
 			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Send UI update to show the chat view
+			console.log("[TASK_LOAD] Backend: Sending chat button clicked event")
 			await sendChatButtonClickedEvent(controller.id)
 
 			// Return task data for gRPC response
+			console.log("[TASK_LOAD] Backend: Returning task data from global state")
 			return TaskResponse.create({
 				id: historyItem.id,
 				task: historyItem.task || "",
@@ -41,14 +46,18 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		}
 
 		// If not in global state, fetch from storage
+		console.log("[TASK_LOAD] Backend: Task not in global state, fetching from storage...")
 		const { historyItem: fetchedItem } = await controller.getTaskWithId(id)
 
 		// Initialize the task with the fetched item
+		console.log("[TASK_LOAD] Backend: Fetched task from storage, initializing...")
 		await controller.initTask(undefined, undefined, undefined, fetchedItem)
 
 		// Send UI update to show the chat view
+		console.log("[TASK_LOAD] Backend: Sending chat button clicked event")
 		await sendChatButtonClickedEvent(controller.id)
 
+		console.log("[TASK_LOAD] Backend: Returning task data from storage")
 		return TaskResponse.create({
 			id: fetchedItem.id,
 			task: fetchedItem.task || "",
@@ -62,7 +71,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			cacheReads: fetchedItem.cacheReads || 0,
 		})
 	} catch (error) {
-		console.error("Error in showTaskWithId:", error)
+		console.error("[TASK_LOAD] Backend: Error in showTaskWithId:", error)
 		throw error
 	}
 }

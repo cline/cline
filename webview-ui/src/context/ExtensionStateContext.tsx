@@ -262,7 +262,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
+						console.log("[TASK_LOAD] Frontend: Received state update from backend")
+						console.log("[TASK_LOAD] Frontend: Number of messages:", stateData.clineMessages?.length || 0)
+						console.log("[TASK_LOAD] Frontend: Number of tasks in history:", stateData.taskHistory?.length || 0)
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
