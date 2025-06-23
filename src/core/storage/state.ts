@@ -7,7 +7,7 @@ import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@share
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { ChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -169,6 +169,28 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 		}
 	} catch (error) {
 		console.error("Failed to migrate custom instructions to global rules:", error)
+		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
+export async function cleanupModeFromWorkspaceStorage(context: vscode.ExtensionContext) {
+	try {
+		// Get current chatSettings from workspace storage
+		const chatSettings = (await getWorkspaceState(context, "chatSettings")) as any
+
+		if (chatSettings && typeof chatSettings === "object" && "mode" in chatSettings) {
+			console.log("Cleaning up mode from workspace storage...")
+
+			// Remove mode property from chatSettings
+			const { mode, ...cleanedChatSettings } = chatSettings
+
+			// Save cleaned chatSettings back to workspace storage
+			await updateWorkspaceState(context, "chatSettings", cleanedChatSettings)
+
+			console.log("Successfully removed mode from workspace storage chatSettings")
+		}
+	} catch (error) {
+		console.error("Failed to cleanup mode from workspace storage:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
@@ -360,7 +382,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
 	] = await Promise.all([
-		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
+		getWorkspaceState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getWorkspaceState(context, "apiModelId") as Promise<string | undefined>,
 		getWorkspaceState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
