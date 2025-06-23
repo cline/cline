@@ -73,11 +73,11 @@ export async function writeToFileTool(
 	// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
 	if (newContent.startsWith("```")) {
 		// cline handles cases where it includes language specifiers like ```python ```js
-		newContent = newContent.split("\n").slice(1).join("\n").trim()
+		newContent = newContent.split("\n").slice(1).join("\n")
 	}
 
 	if (newContent.endsWith("```")) {
-		newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+		newContent = newContent.split("\n").slice(0, -1).join("\n")
 	}
 
 	if (!cline.api.getModel().id.includes("claude")) {
