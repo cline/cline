@@ -30,5 +30,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "语言模型的供应商（例如：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "语言模型的系列（例如：gpt-4）",
 	"settings.customStoragePath.description": "自定义存储路径。留空以使用默认位置。支持绝对路径（例如：'D:\\RooCodeStorage'）",
-	"settings.rooCodeCloudEnabled.description": "启用 Roo Code Cloud。"
+	"settings.rooCodeCloudEnabled.description": "启用 Roo Code Cloud。",
+	"settings.enableCodeActions.description": "启用 Roo Code 快速修复"
 }

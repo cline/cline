@@ -25,6 +25,11 @@ vi.mock("vscode", () => ({
 		Information: 2,
 		Hint: 3,
 	},
+	workspace: {
+		getConfiguration: vi.fn().mockReturnValue({
+			get: vi.fn().mockReturnValue(true),
+		}),
+	},
 }))
 
 vi.mock("../../integrations/editor/EditorUtils", () => ({
@@ -94,9 +99,30 @@ describe("CodeActionProvider", () => {
 			expect(actions).toEqual([])
 		})
 
+		it("should return empty array when enableCodeActions is disabled", () => {
+			// Mock the configuration to return false for enableCodeActions
+			const mockGet = vi.fn().mockReturnValue(false)
+			const mockGetConfiguration = vi.fn().mockReturnValue({
+				get: mockGet,
+			})
+			;(vscode.workspace.getConfiguration as Mock).mockReturnValue(mockGetConfiguration())
+
+			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
+
+			expect(actions).toEqual([])
+			expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith("roo-cline")
+			expect(mockGet).toHaveBeenCalledWith("enableCodeActions", true)
+		})
+
 		it("should handle errors gracefully", () => {
 			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 
+			// Reset the workspace mock to return true for enableCodeActions
+			const mockGet = vi.fn().mockReturnValue(true)
+			const mockGetConfiguration = vi.fn().mockReturnValue({
+				get: mockGet,
+			})
+			;(vscode.workspace.getConfiguration as Mock).mockReturnValue(mockGetConfiguration())
 			;(EditorUtils.getEffectiveRange as Mock).mockImplementation(() => {
 				throw new Error("Test error")
 			})

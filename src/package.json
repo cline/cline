@@ -344,6 +344,11 @@
 					"type": "boolean",
 					"default": false,
 					"description": "%settings.rooCodeCloudEnabled.description%"
+				},
+				"roo-cline.enableCodeActions": {
+					"type": "boolean",
+					"default": true,
+					"description": "%settings.enableCodeActions.description%"
 				}
 			}
 		}

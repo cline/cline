@@ -30,5 +30,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "Поставщик языковой модели (например, copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Семейство языковой модели (например, gpt-4)",
 	"settings.customStoragePath.description": "Пользовательский путь хранения. Оставьте пустым для использования пути по умолчанию. Поддерживает абсолютные пути (например, 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Включить Roo Code Cloud."
+	"settings.rooCodeCloudEnabled.description": "Включить Roo Code Cloud.",
+	"settings.enableCodeActions.description": "Включить быстрые исправления Roo Code."
 }

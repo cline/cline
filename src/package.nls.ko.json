@@ -30,5 +30,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "언어 모델 공급자 (예: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "언어 모델 계열 (예: gpt-4)",
 	"settings.customStoragePath.description": "사용자 지정 저장소 경로. 기본 위치를 사용하려면 비워두세요. 절대 경로를 지원합니다 (예: 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Roo Code Cloud 사용 설정"
+	"settings.rooCodeCloudEnabled.description": "Roo Code Cloud 사용 설정",
+	"settings.enableCodeActions.description": "Roo Code 빠른 수정 사용 설정"
 }
