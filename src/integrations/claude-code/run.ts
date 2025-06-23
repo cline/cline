@@ -105,7 +105,7 @@ const claudeCodeTools = [
 	"WebSearch",
 ].join(",")
 
-const CLAUDE_CODE_TIMEOUT = 900000 // 15 minutes
+const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
 	const claudePath = path || "claude"
