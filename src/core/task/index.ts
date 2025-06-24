@@ -257,6 +257,7 @@ export class Task {
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				messageStateHandler: this.messageStateHandler,
+				cancelTask: this.cancelTask,
 			},
 			{
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
@@ -465,9 +466,6 @@ export class Task {
 			this.taskState.checkpointTrackerErrorMessage = this.checkpointManager.getCurrentState().checkpointTrackerErrorMessage
 			await this.postStateToWebview()
 		}
-
-		// Cancel and reinitialize the task to get updated messages
-		this.cancelTask()
 	}
 
 	// Communicate with webview
@@ -991,7 +989,7 @@ export class Task {
 		}
 	}
 
-	// Checkpoints
+	// Checkpoints logic moved to checkpointManager
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
 		await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage)
