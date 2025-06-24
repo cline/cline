@@ -1,4 +1,8 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
+import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/parse-assistant-message-06-06-25"
+import { constructNewFileContent as constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
+import { constructNewFileContent as constructNewFileContentV2_1 } from "./diff-apply/diff-06-23-25"
+import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
 import { formatResponse } from "./helpers"
@@ -474,7 +478,20 @@ class NodeTestRunner {
 		log(isVerbose, `Starting database replay for run_id: ${replayRunId}`)
 		log(isVerbose, `Using diff apply file: ${diffApplyFile}`)
 
-		// 1. Fetch original run data
+		// 1. Get the correct diffing function
+		const diffEditingFunctions: Record<string, any> = {
+			"diff-06-06-25": constructNewFileContentV2,
+			"diff-06-23-25": constructNewFileContentV2_1,
+			constructNewFileContentV3: constructNewFileContentV3,
+		}
+		const constructNewFileContent = diffEditingFunctions[diffApplyFile]
+
+		if (!constructNewFileContent) {
+			throw new Error(`Could not find diff apply function for: ${diffApplyFile}`)
+		}
+		log(isVerbose, `Successfully loaded diff apply function: ${diffApplyFile}`)
+
+		// 2. Fetch original run data
 		const originalResults = await getResultsByRun(replayRunId)
 		if (originalResults.length === 0) {
 			throw new Error(`No results found for run_id: ${replayRunId}`)
@@ -486,86 +503,110 @@ class NodeTestRunner {
 			throw new Error(`Could not find original run with id ${replayRunId}`)
 		}
 
-		// 2. Create a new benchmark run for the replay
+		// 3. Create a new benchmark run for the replay
 		const replayRunDescription = `Replay of run ${replayRunId} using ${diffApplyFile}`
 		this.currentRunId = await createBenchmarkRun({
 			description: replayRunDescription,
-			system_prompt_hash: originalRun.system_prompt_hash, // Use the same system prompt
+			system_prompt_hash: originalRun.system_prompt_hash,
 		})
 		log(isVerbose, `Created new run for replay: ${this.currentRunId}`)
 
-		// 3. Set up processing functions for the new run
+		// 4. Set up processing functions for the new run
 		this.processingFunctionsHash = await upsertProcessingFunctions({
 			name: `replay-${diffApplyFile}`,
-			parsing_function: "parseAssistantMessageV2", // Assuming this is standard for replay
+			parsing_function: "parseAssistantMessageV2",
 			diff_edit_function: diffApplyFile,
 		})
 
-		// 4. Process each result from the original run
+		// 5. Process each result from the original run
+		let replayedCount = 0
+		const caseIdMirror: Map<string, string> = new Map()
+
 		for (const originalResult of originalResults) {
-			if (!originalResult.case_id || !originalResult.raw_model_output) {
-				log(isVerbose, `Skipping result ${originalResult.result_id} due to missing case_id or raw_model_output`)
+			// 5a. Basic validation to ensure we can even process this
+			if (!originalResult.case_id) {
+				log(isVerbose, `Skipping result ${originalResult.result_id} due to missing case_id.`)
 				continue
 			}
 
-			// 5. Fetch original case and file data
-			const originalCase = await getCaseById(originalResult.case_id)
-			if (!originalCase || !originalCase.file_hash) {
-				log(isVerbose, `Skipping result ${originalResult.result_id} because original case or file_hash could not be found.`)
-				continue
+			// 5b. Mirror the case for the new run, reusing if already created
+			let newCaseId = caseIdMirror.get(originalResult.case_id)
+			if (!newCaseId) {
+				const originalCase = await getCaseById(originalResult.case_id)
+				if (!originalCase) {
+					log(isVerbose, `Skipping result ${originalResult.result_id} because original case could not be found.`)
+					continue
+				}
+				newCaseId = await createCase({
+					run_id: this.currentRunId,
+					description: `Replay of case ${originalCase.case_id} from run ${replayRunId}`,
+					system_prompt_hash: originalCase.system_prompt_hash,
+					task_id: originalCase.task_id,
+					tokens_in_context: originalCase.tokens_in_context,
+					file_hash: originalCase.file_hash,
+				})
+				caseIdMirror.set(originalResult.case_id, newCaseId)
 			}
 
-			const originalFile = await getFileByHash(originalCase.file_hash)
-			if (!originalFile) {
-				log(isVerbose, `Skipping result ${originalResult.result_id} because original file content could not be found.`)
-				continue
-			}
+			// 5c. Determine if the original attempt was a "valid attempt"
+			const isValidOriginalAttempt = originalResult.error_enum === null || originalResult.error_enum === 3 // 3 is diff_edit_error
 
-			// 6. Create a new case that mirrors the original case, linked to the new run
-			const newCaseId = await createCase({
+			const newResultInput: CreateResultInput = {
+				...(originalResult as any),
 				run_id: this.currentRunId,
-				description: `Replay of case ${originalCase.case_id} from run ${replayRunId}`,
-				system_prompt_hash: originalCase.system_prompt_hash,
-				task_id: originalCase.task_id,
-				tokens_in_context: originalCase.tokens_in_context,
-				file_hash: originalCase.file_hash,
-			})
-			this.caseIdMap.set(originalCase.task_id, newCaseId) // Map by task_id for consistency
+				case_id: newCaseId,
+				processing_functions_hash: this.processingFunctionsHash,
+			}
+			delete (newResultInput as any).result_id
 
-			// 7. Construct the input for the evaluation
-			const testInput: TestInput = {
-				// No API key needed for replay
-				systemPrompt: "replay-mode", // Dummy value to pass validation
-				messages: [], // Not needed
-				modelId: originalResult.model_id,
-				originalFile: originalFile.content,
-				originalFilePath: originalFile.filepath,
-				parsingFunction: "parseAssistantMessageV2",
-				diffEditFunction: diffApplyFile, // The new function to test
-				thinkingBudgetTokens: 0,
-				originalDiffEditToolCallMessage: originalResult.raw_model_output,
-				diffApplyFile: diffApplyFile,
+			if (isValidOriginalAttempt) {
+				// This was a valid attempt. Re-run the diff algorithm.
+				const originalCase = await getCaseById(originalResult.case_id)
+				if (!originalCase) {
+					log(isVerbose, `  [WARN] Replay for result ${originalResult.result_id}: Could not find original case. Copying original result.`)
+					newResultInput.succeeded = originalResult.succeeded
+					newResultInput.error_enum = originalResult.error_enum
+				} else {
+					const originalFile = originalCase.file_hash ? await getFileByHash(originalCase.file_hash) : null
+					const parsedToolCall = originalResult.parsed_tool_call_json ? JSON.parse(originalResult.parsed_tool_call_json)[0] : null
+					const diffContent = parsedToolCall?.input?.diff
+
+					if (originalFile && diffContent) {
+						let diffSuccess = false
+						try {
+							await constructNewFileContent(diffContent, originalFile.content, true)
+							diffSuccess = true
+							log(isVerbose, `  [OK] Replay for task ${originalCase.task_id}: Diff applied successfully.`)
+						} catch (e) {
+							diffSuccess = false
+							log(isVerbose, `  [FAIL] Replay for task ${originalCase.task_id}: New diff algorithm failed.`)
+						}
+						newResultInput.succeeded = diffSuccess
+						newResultInput.error_enum = diffSuccess ? undefined : 3 // 3 = diff_edit_error
+					} else {
+						// Something is wrong with the ground truth data, just copy it.
+						log(
+							isVerbose,
+							`  [WARN] Replay for task ${originalCase.task_id}: Valid original attempt but missing file or diff content. Copying original result.`,
+						)
+						newResultInput.succeeded = originalResult.succeeded
+						newResultInput.error_enum = originalResult.error_enum
+					}
+				}
+			} else {
+				// This was not a valid attempt. Just copy the original result's outcome.
+				log(isVerbose, `  [SKIP] Replay for task ${originalResult.case_id}: Invalid original attempt. Copying original result.`)
+				newResultInput.succeeded = originalResult.succeeded
+				newResultInput.error_enum = originalResult.error_enum
 			}
 
-		// 8. Run the evaluation with the new diffing logic
-		log(isVerbose, `Replaying test for original case ${originalCase.case_id} (task: ${originalCase.task_id})`)
-		const replayResult = await runSingleEvaluation(testInput)
-
-		// Add detailed logging for debugging
-		log(isVerbose, `  Raw replay result:`)
-		log(isVerbose, `    success: ${replayResult.success}`)
-		log(isVerbose, `    diffEditSuccess: ${replayResult.diffEditSuccess}`)
-		log(isVerbose, `    error: ${replayResult.error}`)
-		log(isVerbose, `    errorString: ${replayResult.errorString}`)
-		log(isVerbose, `    diffEdit length: ${replayResult.diffEdit ? replayResult.diffEdit.length : 'null'}`)
-		log(isVerbose, `    toolCalls: ${replayResult.toolCalls ? JSON.stringify(replayResult.toolCalls).substring(0, 100) + '...' : 'null'}`)
-
-		// 9. Store the new result in the database, copying original data but with new diffing results
-		await this.storeReplayResultInDatabase(replayResult, originalResult, originalCase.task_id, newCaseId)
-		log(isVerbose, `  Stored new result for task ${originalCase.task_id}. Success: ${replayResult.success}, DiffEditSuccess: ${replayResult.diffEditSuccess}`)
+			await insertResult(newResultInput)
+			replayedCount++
 		}
 
 		log(isVerbose, `\n✓ Database replay completed successfully.`)
+		log(isVerbose, `  Total original results: ${originalResults.length}`)
+		log(isVerbose, `  Total replayed results: ${replayedCount}`)
 		log(isVerbose, `  New run ID: ${this.currentRunId}`)
 	}
 
