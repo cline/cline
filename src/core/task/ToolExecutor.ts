@@ -116,6 +116,13 @@ export class ToolExecutor {
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
 	}
 
+	/**
+	 * Updates the auto approval settings
+	 */
+	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		this.autoApprover.updateSettings(settings)
+	}
+
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
 		const isClaude4Model = isClaude4ModelFamily(this.api)
 

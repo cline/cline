@@ -95,7 +95,6 @@ import { MessageStateHandler } from "./message-state"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { AutoApprove } from "@/core/task/tools/autoApprove"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -130,7 +129,6 @@ export class Task {
 	private checkpointTracker?: CheckpointTracker
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
-	autoApprover: AutoApprove
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
@@ -198,7 +196,6 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
-		this.autoApprover = new AutoApprove(autoApprovalSettings)
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
@@ -332,6 +329,13 @@ export class Task {
 			throw new Error("Unable to access extension context")
 		}
 		return context
+	}
+
+	/**
+	 * Updates the auto approval settings for this task
+	 */
+	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		this.toolExecutor.updateAutoApprovalSettings(settings)
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
