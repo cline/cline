@@ -253,9 +253,135 @@ export class TaskCheckpointManager {
 	 * @param messageTs - Timestamp of the message to show diff for
 	 * @param seeNewChangesSinceLastTaskCompletion - Whether to show changes since last completion
 	 */
-	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean): Promise<void> {
-		// TODO: Move presentMultifileDiff implementation here
-		throw new Error("presentMultifileDiff not yet implemented - move from Task class")
+	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
+		const relinquishButton = () => {
+			sendRelinquishControlEvent()
+		}
+		if (!this.enableCheckpoints) {
+			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
+			relinquishButton()
+			return
+		}
+
+		console.log("presentMultifileDiff", messageTs)
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
+		const message = clineMessages[messageIndex]
+		if (!message) {
+			console.error("Message not found")
+			relinquishButton()
+			return
+		}
+		const hash = message.lastCheckpointHash
+		if (!hash) {
+			console.error("No checkpoint hash found")
+			relinquishButton()
+			return
+		}
+
+		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
+		if (!this.checkpointTracker && this.enableCheckpoints && !this.taskState.checkpointTrackerErrorMessage) {
+			try {
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.context.globalStorageUri.fsPath,
+					this.enableCheckpoints,
+				)
+				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				console.error("Failed to initialize checkpoint tracker:", errorMessage)
+				this.taskState.checkpointTrackerErrorMessage = errorMessage
+				await this.postStateToWebview()
+				vscode.window.showErrorMessage(errorMessage)
+				relinquishButton()
+				return
+			}
+		}
+
+		let changedFiles:
+			| {
+					relativePath: string
+					absolutePath: string
+					before: string
+					after: string
+			  }[]
+			| undefined
+
+		try {
+			if (seeNewChangesSinceLastTaskCompletion) {
+				// Get last task completed
+				const lastTaskCompletedMessageCheckpointHash = findLast(
+					this.messageStateHandler.getClineMessages().slice(0, messageIndex),
+					(m) => m.say === "completion_result",
+				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
+				// if undefined, then we get diff from beginning of git
+				// if (!lastTaskCompletedMessage) {
+				// 	console.error("No previous task completion message found")
+				// 	return
+				// }
+				// This value *should* always exist
+				const firstCheckpointMessageCheckpointHash = this.messageStateHandler
+					.getClineMessages()
+					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
+
+				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
+
+				if (!previousCheckpointHash) {
+					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
+					relinquishButton()
+					return
+				}
+
+				// Get changed files between current state and commit
+				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
+				if (!changedFiles?.length) {
+					vscode.window.showInformationMessage("No changes found")
+					relinquishButton()
+					return
+				}
+			} else {
+				// Get changed files between current state and commit
+				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
+				if (!changedFiles?.length) {
+					vscode.window.showInformationMessage("No changes found")
+					relinquishButton()
+					return
+				}
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+			relinquishButton()
+			return
+		}
+
+		// Check if multi-diff editor is enabled in VS Code settings
+		// const config = vscode.workspace.getConfiguration()
+		// const isMultiDiffEnabled = config.get("multiDiffEditor.experimental.enabled")
+
+		// if (!isMultiDiffEnabled) {
+		// 	vscode.window.showErrorMessage(
+		// 		"Please enable 'multiDiffEditor.experimental.enabled' in your VS Code settings to use this feature.",
+		// 	)
+		// 	relinquishButton()
+		// 	return
+		// }
+		// Open multi-diff editor
+		await vscode.commands.executeCommand(
+			"vscode.changes",
+			seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
+			changedFiles.map((file) => [
+				vscode.Uri.file(file.absolutePath),
+				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
+					query: Buffer.from(file.before ?? "").toString("base64"),
+				}),
+				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
+					query: Buffer.from(file.after ?? "").toString("base64"),
+				}),
+			]),
+		)
+		relinquishButton()
 	}
 
 	/**
@@ -304,6 +430,7 @@ export class TaskCheckpointManager {
 
 				// Note: File context warning detection is handled by the Task class
 				// since FileContextTracker is not available in checkpoint manager dependencies
+				// TODO REVIEW TO CONFIRM THIS IS COOL BRO	
 
 				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
 				await this.dependencies.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
