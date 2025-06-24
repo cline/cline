@@ -168,8 +168,84 @@ export class TaskCheckpointManager {
 	 * @param offset - Optional offset for the message index
 	 */
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number): Promise<void> {
-		// TODO: Move restoreCheckpoint implementation here
-		throw new Error("restoreCheckpoint not yet implemented - move from Task class")
+		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
+		// Find the last message before messageIndex that has a lastCheckpointHash
+		const lastHashIndex = findLastIndex(clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
+		const message = clineMessages[messageIndex]
+		const lastMessageWithHash = clineMessages[lastHashIndex]
+
+		if (!message) {
+			console.error("Message not found", clineMessages)
+			return
+		}
+
+		let didWorkspaceRestoreFail = false
+
+		switch (restoreType) {
+			case "task":
+				break
+			case "taskAndWorkspace":
+			case "workspace":
+				if (!this.dependencies.enableCheckpoints) {
+					vscode.window.showErrorMessage("Checkpoints are disabled in settings.")
+					didWorkspaceRestoreFail = true
+					break
+				}
+
+				if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+					try {
+						this.state.checkpointTracker = await CheckpointTracker.create(
+							this.dependencies.taskId,
+							this.dependencies.context.globalStorageUri.fsPath,
+							this.dependencies.enableCheckpoints,
+						)
+						this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						console.error("Failed to initialize checkpoint tracker:", errorMessage)
+						this.state.checkpointTrackerErrorMessage = errorMessage
+						vscode.window.showErrorMessage(errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				}
+				if (message.lastCheckpointHash && this.state.checkpointTracker) {
+					try {
+						await this.state.checkpointTracker.resetHead(message.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.state.checkpointTracker) {
+					try {
+						await this.state.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.state.checkpointTracker) {
+					// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
+					console.warn(`Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint`)
+					try {
+						await this.state.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else {
+					vscode.window.showErrorMessage("Failed to restore checkpoint")
+				}
+				break
+		}
+
+		if (!didWorkspaceRestoreFail) {
+			await this.handleSuccessfulRestore(restoreType, message, messageIndex, messageTs)
+		} else {
+			sendRelinquishControlEvent()
+		}
 	}
 
 	/**
@@ -189,6 +265,94 @@ export class TaskCheckpointManager {
 	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
 		// TODO: Move doesLatestTaskCompletionHaveNewChanges implementation here
 		throw new Error("doesLatestTaskCompletionHaveNewChanges not yet implemented - move from Task class")
+	}
+
+	/**
+	 * Handles the successful restoration logic for different restore types
+	 */
+	private async handleSuccessfulRestore(
+		restoreType: ClineCheckpointRestore,
+		message: ClineMessage,
+		messageIndex: number,
+		messageTs: number,
+	): Promise<void> {
+		switch (restoreType) {
+			case "task":
+			case "taskAndWorkspace":
+				// Update conversation history deleted range in our state
+				this.state.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
+
+				const apiConversationHistory = this.dependencies.messageStateHandler.getApiConversationHistory()
+				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
+				await this.dependencies.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
+
+				// update the context history state - we need to import the required functions
+				const { ContextManager } = await import("@core/context/context-management/ContextManager")
+				const contextManager = new ContextManager()
+				await contextManager.truncateContextHistory(
+					message.ts,
+					await ensureTaskDirectoryExists(this.getContext(), this.dependencies.taskId),
+				)
+
+				// aggregate deleted api reqs info so we don't lose costs/tokens
+				const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+				const deletedMessages = clineMessages.slice(messageIndex + 1)
+				const { getApiMetrics } = await import("@shared/getApiMetrics")
+				const { combineApiRequests } = await import("@shared/combineApiRequests")
+				const { combineCommandSequences } = await import("@shared/combineCommandSequences")
+				const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
+
+				// Note: File context warning detection is handled by the Task class
+				// since FileContextTracker is not available in checkpoint manager dependencies
+
+				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
+				await this.dependencies.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
+
+				await this.dependencies.say(
+					"deleted_api_reqs",
+					JSON.stringify({
+						tokensIn: deletedApiReqsMetrics.totalTokensIn,
+						tokensOut: deletedApiReqsMetrics.totalTokensOut,
+						cacheWrites: deletedApiReqsMetrics.totalCacheWrites,
+						cacheReads: deletedApiReqsMetrics.totalCacheReads,
+						cost: deletedApiReqsMetrics.totalCost,
+					} satisfies ClineApiReqInfo),
+				)
+				break
+			case "workspace":
+				break
+		}
+
+		switch (restoreType) {
+			case "task":
+				vscode.window.showInformationMessage("Task messages have been restored to the checkpoint")
+				break
+			case "workspace":
+				vscode.window.showInformationMessage("Workspace files have been restored to the checkpoint")
+				break
+			case "taskAndWorkspace":
+				vscode.window.showInformationMessage("Task and workspace have been restored to the checkpoint")
+				break
+		}
+
+		if (restoreType !== "task") {
+			// Set isCheckpointCheckedOut flag on the message
+			// Find all checkpoint messages before this one
+			const checkpointMessages = this.dependencies.messageStateHandler
+				.getClineMessages()
+				.filter((m) => m.say === "checkpoint_created")
+			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
+
+			// Set isCheckpointCheckedOut to false for all checkpoint messages
+			checkpointMessages.forEach((m, i) => {
+				m.isCheckpointCheckedOut = i === currentMessageIndex
+			})
+		}
+
+		await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+
+		// Note: cancelTask is not available in checkpoint manager dependencies
+		// This will need to be handled by the Task class after this method returns
 	}
 
 	// ============================================================================
@@ -257,6 +421,13 @@ export class TaskCheckpointManager {
 	 * Provides read-only access to current state for internal operations
 	 */
 	private get currentState(): Readonly<CheckpointManagerState> {
+		return Object.freeze({ ...this.state })
+	}
+
+	/**
+	 * Provides public read-only access to current state
+	 */
+	public getCurrentState(): Readonly<CheckpointManagerState> {
 		return Object.freeze({ ...this.state })
 	}
 
