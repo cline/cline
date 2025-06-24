@@ -71,21 +71,32 @@ export class TaskCheckpointManager {
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
 	 * @param taskIsFavorited - Whether the task is favorited (passed from Task class)
 	 */
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, taskIsFavorited: boolean = false): Promise<void> {
+	async saveCheckpoint(
+		isAttemptCompletionMessage: boolean = false,
+		legacyCheckpointsHashStorage: boolean = true,
+	): Promise<void> {
 		if (!this.dependencies.enableCheckpoints) {
+			console.log("Checkpoints are disabled")
 			// If checkpoints are disabled, do nothing.
 			return
 		}
-		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
+
 		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
-		clineMessages.forEach((message) => {
-			if (message.say === "checkpoint_created") {
-				message.isCheckpointCheckedOut = false
-			}
-		})
+
+		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
+		if (legacyCheckpointsHashStorage === true) {
+			clineMessages.forEach((message) => {
+				if (message.say === "checkpoint_created") {
+					message.isCheckpointCheckedOut = false
+				}
+			})
+		} else {
+			console.log("TESTING - Using new checkpoints commit hash storage method (not yet implemented)")
+		}
 
 		if (!isAttemptCompletionMessage) {
 			// ensure we aren't creating a duplicate checkpoint
+
 			const lastMessage = clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
@@ -94,11 +105,7 @@ export class TaskCheckpointManager {
 			// If checkpointTracker is not initialized and we have no error for it, we will initialize it.
 			if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(
-						this.dependencies.taskId,
-						this.dependencies.context.globalStorageUri.fsPath,
-						this.dependencies.enableCheckpoints,
-					)
+					this.checkpointTrackerCheckAndInit()
 				} catch (error) {
 					// If there is an error initializing checpoints, we want to set the checkpointTrackerErrorMessage for future use
 					console.error("Error initializing checkpoint")
@@ -127,11 +134,8 @@ export class TaskCheckpointManager {
 			// Check if checkpoint tracker exists, if not, create it
 			if (!this.state.checkpointTracker) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(
-						this.dependencies.taskId,
-						this.dependencies.context.globalStorageUri.fsPath,
-						this.dependencies.enableCheckpoints,
-					)
+					this.checkpointTrackerCheckAndInit()
+					this.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
 					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
@@ -188,8 +192,31 @@ export class TaskCheckpointManager {
 	}
 
 	// ============================================================================
-	// State management - Clean interface for updating internal state
+	// State management - interface for updating internal state
 	// ============================================================================
+
+	/**
+	 * Checks for an active checkpoint tracker instance, creates if needed
+	 */
+	async checkpointTrackerCheckAndInit(): Promise<CheckpointTracker | undefined> {
+		//console.log("Checkpoint Tracker checkpointTrackerCheckAndInit")
+		//console.log("Values: ", this.dependencies.taskId, this.dependencies.context.globalStorageUri.fsPath, this.dependencies.enableCheckpoints)
+
+		if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+			const tracker = await CheckpointTracker.create(
+				this.dependencies.taskId,
+				this.dependencies.context.globalStorageUri.fsPath,
+				this.dependencies.enableCheckpoints,
+			)
+
+			// Update the state with the created tracker
+			this.state.checkpointTracker = tracker
+			return tracker
+		} else {
+			// CheckpointTracker already exists or there was an error
+			return this.state.checkpointTracker
+		}
+	}
 
 	/**
 	 * Updates the checkpoint tracker instance
