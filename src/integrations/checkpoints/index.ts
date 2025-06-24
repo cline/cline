@@ -21,12 +21,14 @@ interface CheckpointManagerDependencies {
 	readonly updateTaskHistory: UpdateTaskHistoryFunction
 	readonly say: SayFunction
 	readonly messageStateHandler: MessageStateHandler
+	readonly cancelTask: () => Promise<void>
 }
 
 interface CheckpointManagerState {
 	conversationHistoryDeletedRange?: [number, number]
 	checkpointTracker?: CheckpointTracker
 	checkpointTrackerErrorMessage?: string
+	checkpointTrackerInitPromise?: Promise<CheckpointTracker | undefined>
 }
 
 /**
@@ -105,7 +107,7 @@ export class TaskCheckpointManager {
 			// If checkpointTracker is not initialized and we have no error for it, we will initialize it.
 			if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
 				try {
-					this.checkpointTrackerCheckAndInit()
+					await this.checkpointTrackerCheckAndInit()
 				} catch (error) {
 					// If there is an error initializing checpoints, we want to set the checkpointTrackerErrorMessage for future use
 					console.error("Error initializing checkpoint")
@@ -134,8 +136,7 @@ export class TaskCheckpointManager {
 			// Check if checkpoint tracker exists, if not, create it
 			if (!this.state.checkpointTracker) {
 				try {
-					this.checkpointTrackerCheckAndInit()
-					this.setCheckpointTracker(this.state.checkpointTracker)
+					await this.checkpointTrackerCheckAndInit()
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
 					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
@@ -543,8 +544,8 @@ export class TaskCheckpointManager {
 
 		await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-		// Note: cancelTask is not available in checkpoint manager dependencies
-		// This will need to be handled by the Task class after this method returns
+		// Cancel and reinitialize the task to get updated messages
+		await this.dependencies.cancelTask()
 	}
 
 	// ============================================================================
@@ -553,12 +554,36 @@ export class TaskCheckpointManager {
 
 	/**
 	 * Checks for an active checkpoint tracker instance, creates if needed
+	 * Uses promise-based synchronization to prevent race conditions when called concurrently
 	 */
 	async checkpointTrackerCheckAndInit(): Promise<CheckpointTracker | undefined> {
-		//console.log("Checkpoint Tracker checkpointTrackerCheckAndInit")
-		//console.log("Values: ", this.dependencies.taskId, this.dependencies.context.globalStorageUri.fsPath, this.dependencies.enableCheckpoints)
+		// If tracker already exists or there was an error, return immediately
+		if (this.state.checkpointTracker || this.state.checkpointTrackerErrorMessage) {
+			return this.state.checkpointTracker
+		}
 
-		if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+		// If initialization is already in progress, wait for it to complete
+		if (this.state.checkpointTrackerInitPromise) {
+			return await this.state.checkpointTrackerInitPromise
+		}
+
+		// Start initialization and store the promise to prevent concurrent attempts
+		this.state.checkpointTrackerInitPromise = this.initializeCheckpointTracker()
+
+		try {
+			const tracker = await this.state.checkpointTrackerInitPromise
+			return tracker
+		} finally {
+			// Clear the promise once initialization is complete (success or failure)
+			this.state.checkpointTrackerInitPromise = undefined
+		}
+	}
+
+	/**
+	 * Internal method to actually create the checkpoint tracker
+	 */
+	private async initializeCheckpointTracker(): Promise<CheckpointTracker | undefined> {
+		try {
 			const tracker = await CheckpointTracker.create(
 				this.dependencies.taskId,
 				this.dependencies.context.globalStorageUri.fsPath,
@@ -568,9 +593,12 @@ export class TaskCheckpointManager {
 			// Update the state with the created tracker
 			this.state.checkpointTracker = tracker
 			return tracker
-		} else {
-			// CheckpointTracker already exists or there was an error
-			return this.state.checkpointTracker
+		} catch (error) {
+			// Store error message to prevent future initialization attempts
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			this.state.checkpointTrackerErrorMessage = errorMessage
+			console.error("Failed to initialize checkpoint tracker:", errorMessage)
+			return undefined
 		}
 	}
 
@@ -636,7 +664,7 @@ export class TaskCheckpointManager {
 // ============================================================================
 
 /**
- * Creates a new TaskCheckpointManager instance with proper dependency injection
+ * Creates a new TaskCheckpointManager instance
  */
 export function createTaskCheckpointManager(
 	dependencies: CheckpointManagerDependencies,
