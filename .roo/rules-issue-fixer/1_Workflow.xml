@@ -491,4 +491,62 @@
       ```
     </instructions>
   </step>
+
+  <step number="11">
+    <name>Monitor PR Checks</name>
+    <instructions>
+      After the PR is created, monitor the CI/CD checks to ensure they pass:
+      
+      <execute_command>
+      <command>gh pr checks --watch</command>
+      </execute_command>
+      
+      This command will:
+      1. Display all CI/CD checks configured for the repository
+      2. Show the status of each check in real-time
+      3. Update automatically as checks complete
+      4. Exit when all checks have finished running
+      
+      Monitor the output and note:
+      - Which checks are running (e.g., tests, linting, build)
+      - Any checks that fail and their error messages
+      - The overall status of the PR checks
+      
+      If any checks fail:
+      1. Analyze the failure logs
+      2. Identify what needs to be fixed
+      3. Ask the user if they want you to address the failures
+      
+      <ask_followup_question>
+      <question>The PR checks have completed. Here's the status:
+
+      [Show check results - passing/failing]
+
+      [If all pass]: All checks have passed successfully! The PR is ready for review.
+
+      [If any fail]: Some checks have failed:
+      - [Failed check 1]: [Brief error description]
+      - [Failed check 2]: [Brief error description]
+
+      Would you like me to fix these issues?</question>
+      <follow_up>
+      <suggest>Yes, please fix the failing checks</suggest>
+      <suggest>Show me the detailed error logs</suggest>
+      <suggest>I'll handle the failures manually</suggest>
+      <suggest>The PR is fine as-is, these failures are expected</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      If user wants fixes:
+      1. Create a plan to address each failure
+      2. Make necessary code changes
+      3. Commit and push the fixes
+      4. Monitor checks again to ensure they pass
+      
+      Important notes:
+      - The --watch flag will keep the command running until all checks complete
+      - This step helps ensure the PR meets all quality standards before review
+      - Early detection of CI/CD failures saves reviewer time
+    </instructions>
+  </step>
 </workflow>
