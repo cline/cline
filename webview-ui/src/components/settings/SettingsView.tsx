@@ -112,6 +112,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState(false)
 	// Store the action to perform after confirmation
 	const pendingAction = useRef<() => void>()
+	// Track if we're currently switching modes
+	const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 	const {
 		apiConfiguration,
 		version,
@@ -446,14 +448,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	}
 
 	const handlePlanActModeChange = async (tab: "plan" | "act") => {
-		if (tab === chatSettings.mode) {
+		// Prevent switching if already in that mode or if currently switching
+		if (tab === chatSettings.mode || isSwitchingMode) {
 			return
 		}
 
-		// Update settings first to ensure any changes to the current tab are saved
-		await handleSubmit(true)
+		// Set switching state to prevent concurrent operations
+		setIsSwitchingMode(true)
 
 		try {
+			// Update settings first to ensure any changes to the current tab are saved
+			await handleSubmit(true)
+
+			// Then perform the mode switch
 			await StateServiceClient.togglePlanActMode(
 				TogglePlanActModeRequest.create({
 					chatSettings: {
@@ -465,6 +472,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			)
 		} catch (error) {
 			console.error("Failed to toggle Plan/Act mode:", error)
+		} finally {
+			// Always re-enable mode switching, even on error
+			setIsSwitchingMode(false)
 		}
 	}
 
@@ -612,13 +622,27 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 													<TabButton
 														isActive={chatSettings.mode === "plan"}
-														onClick={() => handlePlanActModeChange("plan")}>
-														Plan Mode
+														onClick={() => handlePlanActModeChange("plan")}
+														disabled={isSwitchingMode}
+														style={{
+															opacity: isSwitchingMode ? 0.6 : 1,
+															cursor: isSwitchingMode ? "not-allowed" : "pointer",
+														}}>
+														{isSwitchingMode && chatSettings.mode === "act"
+															? "Switching..."
+															: "Plan Mode"}
 													</TabButton>
 													<TabButton
 														isActive={chatSettings.mode === "act"}
-														onClick={() => handlePlanActModeChange("act")}>
-														Act Mode
+														onClick={() => handlePlanActModeChange("act")}
+														disabled={isSwitchingMode}
+														style={{
+															opacity: isSwitchingMode ? 0.6 : 1,
+															cursor: isSwitchingMode ? "not-allowed" : "pointer",
+														}}>
+														{isSwitchingMode && chatSettings.mode === "plan"
+															? "Switching..."
+															: "Act Mode"}
 													</TabButton>
 												</div>
 
