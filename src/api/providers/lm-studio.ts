@@ -13,12 +13,10 @@ import { ApiStream } from "../transform/stream"
 
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
-import { getLMStudioModels } from "./fetchers/lmstudio"
 
 export class LmStudioHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 	private client: OpenAI
-	private models: Record<string, ModelInfo> = {}
 
 	constructor(options: ApiHandlerOptions) {
 		super()
@@ -132,25 +130,10 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	public async fetchModel() {
-		try {
-			this.models = await getLMStudioModels(this.options.lmStudioBaseUrl)
-		} catch (error) {
-			console.warn("Failed to fetch LM Studio models, using defaults:", error)
-			this.models = {}
-		}
-		return this.getModel()
-	}
-
 	override getModel(): { id: string; info: ModelInfo } {
-		const id = this.options.lmStudioModelId || ""
-
-		// Try to get the actual model info from fetched models
-		const info = this.models[id] || openAiModelInfoSaneDefaults
-
 		return {
-			id,
-			info,
+			id: this.options.lmStudioModelId || "",
+			info: openAiModelInfoSaneDefaults,
 		}
 	}
 
