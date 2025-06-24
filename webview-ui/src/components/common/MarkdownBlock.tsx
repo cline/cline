@@ -15,25 +15,36 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 
 // Styled component for Act Mode text with more specific styling
-const ActModeHighlight: React.FC = () => (
-	<span
-		onClick={() => {
-			StateServiceClient.togglePlanActMode(
-				TogglePlanActModeRequest.create({
-					chatSettings: {
-						mode: PlanActMode.ACT,
-					},
-				}),
-			)
-		}}
-		title="Click to toggle to Act Mode"
-		className="text-[var(--vscode-textLink-foreground)] hover:opacity-90 cursor-pointer inline-flex items-center gap-1">
-		<div className="p-1 rounded-[12px] bg-[var(--vscode-editor-background)] flex items-center justify-end w-4 border-[1px] border-[var(--vscode-input-border)]">
-			<div className="rounded-full bg-[var(--vscode-textLink-foreground)] w-2 h-2" />
-		</div>
-		Act Mode (⌘⇧A)
-	</span>
-)
+const ActModeHighlight: React.FC = () => {
+	const { chatSettings } = useExtensionState()
+
+	return (
+		<span
+			onClick={() => {
+				// Only toggle to Act mode if we're currently in Plan mode
+				if (chatSettings.mode === "plan") {
+					StateServiceClient.togglePlanActMode(
+						TogglePlanActModeRequest.create({
+							chatSettings: {
+								mode: PlanActMode.ACT,
+								preferredLanguage: chatSettings.preferredLanguage,
+								openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+							},
+						}),
+					)
+				}
+			}}
+			title={chatSettings.mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}
+			className={`text-[var(--vscode-textLink-foreground)] inline-flex items-center gap-1 ${
+				chatSettings.mode === "plan" ? "hover:opacity-90 cursor-pointer" : "cursor-default opacity-60"
+			}`}>
+			<div className="p-1 rounded-[12px] bg-[var(--vscode-editor-background)] flex items-center justify-end w-4 border-[1px] border-[var(--vscode-input-border)]">
+				<div className="rounded-full bg-[var(--vscode-textLink-foreground)] w-2 h-2" />
+			</div>
+			Act Mode (⌘⇧A)
+		</span>
+	)
+}
 
 interface MarkdownBlockProps {
 	markdown?: string
