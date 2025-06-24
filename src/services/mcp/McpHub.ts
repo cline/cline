@@ -36,11 +36,10 @@ import * as vscode from "vscode"
 import { z } from "zod"
 import { Metadata } from "../../shared/proto/common"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { transformCommandForPlatform } from "../../utils/platform"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig } from "./types"
-
-// Import platform utilities for cross-platform command execution
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -185,33 +184,6 @@ export class McpHub {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
-	/**
-	 * Transforms command and args for Windows compatibility
-	 * @param command The command to execute
-	 * @param args The command arguments
-	 * @returns Transformed command and args that work cross-platform
-	 */
-	private transformCommandForPlatform(command: string, args: string[] = []): { command: string; args: string[] } {
-		// Only transform on Windows
-		if (process.platform !== "win32") {
-			return { command, args }
-		}
-
-		// Node.js package managers that require shell execution on Windows
-		const NODE_SHELL_COMMANDS = ["npx", "npm", "yarn", "pnpm"]
-
-		// Check if this command needs shell execution on Windows
-		if (NODE_SHELL_COMMANDS.includes(command)) {
-			return {
-				command: "cmd",
-				args: ["/c", command, ...args],
-			}
-		}
-
-		// Return unchanged for other commands
-		return { command, args }
-	}
-
 	private async connectToServer(
 		name: string,
 		config: z.infer<typeof ServerConfigSchema>,
@@ -237,7 +209,7 @@ export class McpHub {
 			switch (config.type) {
 				case "stdio": {
 					// Transform command for Windows compatibility
-					const transformedCommand = this.transformCommandForPlatform(config.command, config.args || [])
+					const transformedCommand = transformCommandForPlatform(config.command, config.args || [])
 
 					transport = new StdioClientTransport({
 						command: transformedCommand.command,
