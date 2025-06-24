@@ -76,11 +76,23 @@ export function UnsavedChangesDialog({
 	onOpenChange,
 	onConfirm,
 	onCancel,
+	onSave,
+	title = "Unsaved Changes",
+	description = "You have unsaved changes. Are you sure you want to discard them?",
+	confirmText = "Discard Changes",
+	saveText = "Save & Continue",
+	showSaveOption = false,
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	onConfirm: () => void
 	onCancel: () => void
+	onSave?: () => void
+	title?: string
+	description?: string
+	confirmText?: string
+	saveText?: string
+	showSaveOption?: boolean
 }) {
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -88,15 +100,16 @@ export function UnsavedChangesDialog({
 				<AlertDialogHeader>
 					<AlertDialogTitle>
 						<AlertTriangle className="w-5 h-5 text-[var(--vscode-errorForeground)]" />
-						Unsaved Changes
+						{title}
 					</AlertDialogTitle>
-					<AlertDialogDescription>
-						You have unsaved changes. Are you sure you want to discard them?
-					</AlertDialogDescription>
+					<AlertDialogDescription>{description}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-					<AlertDialogAction onClick={onConfirm}>Discard Changes</AlertDialogAction>
+					{showSaveOption && onSave && <AlertDialogAction onClick={onSave}>{saveText}</AlertDialogAction>}
+					<AlertDialogAction onClick={onConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
+						{confirmText}
+					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
