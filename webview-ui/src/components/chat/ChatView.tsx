@@ -260,10 +260,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "auto_approval_max_req_reached":
-							setSendingDisabled(true)
+							setSendingDisabled(false)
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed")
-							setSecondaryButtonText("Start New Task")
+							setSecondaryButtonText("Stop")
 							break
 						case "followup":
 							setSendingDisabled(isPartial)
@@ -371,6 +371,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setEnableButtons(false)
 							}
 							break
+						case "tool":
+							// Reset primary button text when tool completes to prevent "Proceed While Running" from sticking
+							setPrimaryButtonText("Approve")
+							break
 						case "task":
 						case "error":
 						case "api_req_finished":
@@ -384,7 +388,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mcp_server_request_started":
 						case "mcp_server_response":
 						case "completion_result":
-						case "tool":
 						case "load_mcp_documentation":
 							break
 					}
@@ -450,6 +453,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "new_task": // user can provide feedback or reject the new task suggestion
 						case "condense":
 						case "report_bug":
+						case "auto_approval_max_req_reached":
 							await TaskServiceClient.askResponse(
 								AskResponseRequest.create({
 									responseType: "messageResponse",
@@ -566,9 +570,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "mistake_limit_reached":
-				case "auto_approval_max_req_reached":
 					startNewTask()
 					break
+				case "auto_approval_max_req_reached":
 				case "command":
 				case "tool":
 				case "browser_action_launch":

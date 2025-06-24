@@ -2005,12 +2005,80 @@ export class Task {
 					message: `Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests.`,
 				})
 			}
-			await this.ask(
+			const { response, text, images, files } = await this.ask(
 				"auto_approval_max_req_reached",
 				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
 			)
-			// if we get past the promise it means the user approved and did not start a new task
+
+			if (response !== "yesButtonClicked") {
+				// This userContent is for the *next* API call.
+
+				const feedbackUserContent: UserContent = []
+				feedbackUserContent.push({
+					type: "text",
+					text: formatResponse.autoApprovalRejection(),
+				})
+
+				if (text) {
+					await this.say("user_feedback", text, images, files) // Save feedback to history
+					feedbackUserContent.push({
+						type: "text",
+						text: formatResponse.autoApprovalFeedback(text),
+					})
+				}
+
+				if (images && images.length > 0) {
+					feedbackUserContent.push(...formatResponse.imageBlocks(images))
+				}
+
+				let fileContentString = ""
+				if (files && files.length > 0) {
+					fileContentString = await processFilesIntoText(files)
+				}
+
+				if (fileContentString) {
+					feedbackUserContent.push({
+						type: "text",
+						text: fileContentString,
+					})
+				}
+
+				userContent = feedbackUserContent
+			} else {
+				// User hit the approve button, and may have provided feedback
+				const feedbackUserContent: UserContent = []
+
+				if (text) {
+					await this.say("user_feedback", text, images, files)
+					feedbackUserContent.push({
+						type: "text",
+						text: formatResponse.autoApprovalFeedback(text),
+					})
+				}
+
+				if (images && images.length > 0) {
+					feedbackUserContent.push(...formatResponse.imageBlocks(images))
+				}
+
+				let fileContentString = ""
+				if (files && files.length > 0) {
+					fileContentString = await processFilesIntoText(files)
+				}
+
+				if (fileContentString) {
+					feedbackUserContent.push({
+						type: "text",
+						text: fileContentString,
+					})
+				}
+
+				userContent = feedbackUserContent
+			}
+
 			this.taskState.consecutiveAutoApprovedRequestsCount = 0
+			if (userContent.length > 0) {
+				await this.saveCheckpoint()
+			}
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
