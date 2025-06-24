@@ -54,6 +54,8 @@ import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { TogetherProvider } from "./providers/TogetherProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
+import { AnthropicProvider } from "./providers/AnthropicProvider"
+import { AskSageProvider } from "./providers/AskSageProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -64,7 +66,6 @@ interface ApiOptionsProps {
 }
 
 const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
-	anthropic: ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
 	vertex: [
 		"claude-3-7-sonnet@20250219",
 		"claude-sonnet-4@20250514",
@@ -300,90 +301,23 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "asksage" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.asksageApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("asksageApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>AskSage API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-					</p>
-					<VSCodeTextField
-						value={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
-						style={{ width: "100%" }}
-						type="url"
-						onInput={handleInputChange("asksageApiUrl")}
-						placeholder="Enter AskSage API URL...">
-						<span style={{ fontWeight: 500 }}>AskSage API URL</span>
-					</VSCodeTextField>
-				</div>
+			{apiConfiguration && selectedProvider === "asksage" && (
+				<AskSageProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
-			{selectedProvider === "anthropic" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.apiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("apiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
-					</VSCodeTextField>
-
-					<VSCodeCheckbox
-						checked={anthropicBaseUrlSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setAnthropicBaseUrlSelected(isChecked)
-							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									anthropicBaseUrl: "",
-								})
-							}
-						}}>
-						Use custom base URL
-					</VSCodeCheckbox>
-
-					{anthropicBaseUrlSelected && (
-						<VSCodeTextField
-							value={apiConfiguration?.anthropicBaseUrl || ""}
-							style={{ width: "100%", marginTop: 3 }}
-							type="url"
-							onInput={handleInputChange("anthropicBaseUrl")}
-							placeholder="Default: https://api.anthropic.com"
-						/>
-					)}
-
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.apiKey && (
-							<VSCodeLink
-								href="https://console.anthropic.com/settings/keys"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get an Anthropic API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "anthropic" && (
+				<AnthropicProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+					setApiConfiguration={setApiConfiguration}
+				/>
 			)}
 
 			{selectedProvider === "claude-code" && (
@@ -1731,6 +1665,8 @@ const ApiOptions = ({
 
 			{selectedProvider !== "openrouter" &&
 				selectedProvider !== "cline" &&
+				selectedProvider !== "anthropic" &&
+				selectedProvider !== "asksage" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1747,7 +1683,6 @@ const ApiOptions = ({
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
@@ -1758,7 +1693,6 @@ const ApiOptions = ({
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
 							{selectedProvider === "doubao" && createDropdown(doubaoModels)}
-							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
