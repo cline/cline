@@ -30,11 +30,16 @@ interface CheckpointManagerDependencies {
 	readonly fileContextTracker: FileContextTracker
 }
 
-interface CheckpointManagerState {
+interface CheckpointManagerInternalState {
 	conversationHistoryDeletedRange?: [number, number]
 	checkpointTracker?: CheckpointTracker
 	checkpointTrackerErrorMessage?: string
 	checkpointTrackerInitPromise?: Promise<CheckpointTracker | undefined>
+}
+
+interface CheckpointRestoreStateUpdate {
+	conversationHistoryDeletedRange?: [number, number]
+	checkpointTrackerErrorMessage?: string
 }
 
 /**
@@ -63,9 +68,9 @@ export class TaskCheckpointManager {
 
 	// Mutable state - updated as task progresses
 	// This gets updated as the user works and checkpoints are created
-	private state: CheckpointManagerState
+	private state: CheckpointManagerInternalState
 
-	constructor(dependencies: CheckpointManagerDependencies, initialState: CheckpointManagerState) {
+	constructor(dependencies: CheckpointManagerDependencies, initialState: CheckpointManagerInternalState) {
 		this.dependencies = Object.freeze(dependencies)
 		this.state = { ...initialState }
 	}
@@ -173,8 +178,13 @@ export class TaskCheckpointManager {
 	 * @param messageTs - Timestamp of the message to restore to
 	 * @param restoreType - Type of restoration (task, workspace, or both)
 	 * @param offset - Optional offset for the message index
+	 * @returns checkpointManagerStateUpdate with any state changes that need to be applied
 	 */
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number): Promise<void> {
+	async restoreCheckpoint(
+		messageTs: number,
+		restoreType: ClineCheckpointRestore,
+		offset?: number,
+	): Promise<CheckpointRestoreStateUpdate> {
 		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
 		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
@@ -184,7 +194,7 @@ export class TaskCheckpointManager {
 
 		if (!message) {
 			console.error("Message not found", clineMessages)
-			return
+			return {}
 		}
 
 		let didWorkspaceRestoreFail = false
@@ -248,11 +258,24 @@ export class TaskCheckpointManager {
 				break
 		}
 
+		const checkpointManagerStateUpdate: CheckpointRestoreStateUpdate = {}
+
 		if (!didWorkspaceRestoreFail) {
 			await this.handleSuccessfulRestore(restoreType, message, messageIndex, messageTs)
+
+			// Collect state updates
+			if (this.state.conversationHistoryDeletedRange !== undefined) {
+				checkpointManagerStateUpdate.conversationHistoryDeletedRange = this.state.conversationHistoryDeletedRange
+			}
 		} else {
 			sendRelinquishControlEvent()
 		}
+
+		if (this.state.checkpointTrackerErrorMessage !== undefined) {
+			checkpointManagerStateUpdate.checkpointTrackerErrorMessage = this.state.checkpointTrackerErrorMessage
+		}
+
+		return checkpointManagerStateUpdate
 	}
 
 	/**
@@ -650,14 +673,14 @@ export class TaskCheckpointManager {
 	/**
 	 * Provides read-only access to current state for internal operations
 	 */
-	private get currentState(): Readonly<CheckpointManagerState> {
+	private get currentState(): Readonly<CheckpointManagerInternalState> {
 		return Object.freeze({ ...this.state })
 	}
 
 	/**
 	 * Provides public read-only access to current state
 	 */
-	public getCurrentState(): Readonly<CheckpointManagerState> {
+	public getCurrentState(): Readonly<CheckpointManagerInternalState> {
 		return Object.freeze({ ...this.state })
 	}
 
@@ -678,7 +701,7 @@ export class TaskCheckpointManager {
  */
 export function createTaskCheckpointManager(
 	dependencies: CheckpointManagerDependencies,
-	initialState: CheckpointManagerState,
+	initialState: CheckpointManagerInternalState,
 ): TaskCheckpointManager {
 	return new TaskCheckpointManager(dependencies, initialState)
 }
