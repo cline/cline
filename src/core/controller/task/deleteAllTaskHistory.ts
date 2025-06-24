@@ -44,10 +44,14 @@ export async function deleteAllTaskHistory(controller: Controller, request: Bool
 				return DeleteAllTaskHistoryCount.create({
 					tasksDeleted: totalTasks - favoritedTasks.length,
 				})
+			} else {
+				return DeleteAllTaskHistoryCount.create({
+					tasksDeleted: 0,
+				})
 			}
 		}
 
-		// If not preserving favorites or no favorites exist, delete everything
+		// Delete everything (not preserving favorites)
 		await updateGlobalState(controller.context, "taskHistory", undefined)
 
 		try {
