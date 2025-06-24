@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.17.16]
+
+-   Fix Claude Code provider error handling for incomplete messages during long-running tasks (Thanks @BarreiroT!)
+-   Add taskId as metadata to LiteLLM API requests for better request tracing (Thanks @jorgegarciarey!)
+
 ## [3.17.15]
 
 -   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
