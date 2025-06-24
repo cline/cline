@@ -35,6 +35,7 @@ import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
 import { serializeError } from "serialize-error"
 import * as path from "path"
 import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
+import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { constructNewFileContent } from "../assistant-message/diff"
@@ -823,12 +824,18 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 						}
 						// now execute the tool like normal
-						const content = await extractTextFromFile(absolutePath)
+						const supportsImages = this.api.getModel().info.supportsImages ?? false
+						const result = await extractFileContent(absolutePath, supportsImages)
 
 						// Track file read operation
 						await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-						this.pushToolResult(content, block)
+						this.pushToolResult(result.text, block)
+
+						if (result.imageBlock) {
+							this.taskState.userMessageContent.push(result.imageBlock)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
