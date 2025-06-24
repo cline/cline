@@ -13,7 +13,6 @@
 	"dependencies": {
 		"@roo-code/telemetry": "workspace:^",
 		"@roo-code/types": "workspace:^",
-		"axios": "^1.7.4",
 		"zod": "^3.25.61"
 	},
 	"devDependencies": {

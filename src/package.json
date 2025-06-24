@@ -98,8 +98,7 @@
 			{
 				"command": "roo-cline.accountButtonClicked",
 				"title": "Account",
-				"icon": "$(account)",
-				"when": "config.roo-cline.rooCodeCloudEnabled"
+				"icon": "$(account)"
 			},
 			{
 				"command": "roo-cline.settingsButtonClicked",
@@ -237,7 +236,7 @@
 				{
 					"command": "roo-cline.accountButtonClicked",
 					"group": "navigation@6",
-					"when": "view == roo-cline.SidebarProvider && config.roo-cline.rooCodeCloudEnabled"
+					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
 					"command": "roo-cline.settingsButtonClicked",
@@ -269,7 +268,7 @@
 				{
 					"command": "roo-cline.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider && config.roo-cline.rooCodeCloudEnabled"
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
 					"command": "roo-cline.settingsButtonClicked",
@@ -324,11 +323,6 @@
 					"type": "string",
 					"default": "",
 					"description": "%settings.customStoragePath.description%"
-				},
-				"roo-cline.rooCodeCloudEnabled": {
-					"type": "boolean",
-					"default": false,
-					"description": "%settings.rooCodeCloudEnabled.description%"
 				},
 				"roo-cline.enableCodeActions": {
 					"type": "boolean",

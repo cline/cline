@@ -43,6 +43,7 @@ const App = () => {
 		machineId,
 		cloudUserInfo,
 		cloudIsAuthenticated,
+		cloudApiUrl,
 		renderContext,
 		mdmCompliant,
 	} = useExtensionState()
@@ -186,6 +187,7 @@ const App = () => {
 				<AccountView
 					userInfo={cloudUserInfo}
 					isAuthenticated={cloudIsAuthenticated}
+					cloudApiUrl={cloudApiUrl}
 					onDone={() => switchTab("chat")}
 				/>
 			)}

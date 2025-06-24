@@ -30,6 +30,5 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "El proveedor del modelo de lenguaje (ej. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "La familia del modelo de lenguaje (ej. gpt-4)",
 	"settings.customStoragePath.description": "Ruta de almacenamiento personalizada. Dejar vacío para usar la ubicación predeterminada. Admite rutas absolutas (ej. 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Habilitar Roo Code Cloud.",
 	"settings.enableCodeActions.description": "Habilitar correcciones rápidas de Roo Code."
 }

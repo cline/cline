@@ -16,7 +16,12 @@
 		"shareWithOrganization": "Поделиться с организацией",
 		"shareWithOrganizationDescription": "Только члены вашей организации могут получить доступ",
 		"sharePublicly": "Поделиться публично",
-		"sharePubliclyDescription": "Любой, у кого есть ссылка, может получить доступ"
+		"sharePubliclyDescription": "Любой, у кого есть ссылка, может получить доступ",
+		"connectToCloud": "Подключиться к облаку",
+		"connectToCloudDescription": "Войди в Roo Code Cloud, чтобы делиться задачами",
+		"sharingDisabledByOrganization": "Обмен отключен организацией",
+		"shareSuccessOrganization": "Ссылка организации скопирована в буфер обмена",
+		"shareSuccessPublic": "Публичная ссылка скопирована в буфер обмена"
 	},
 	"unpin": "Открепить",
 	"pin": "Закрепить",

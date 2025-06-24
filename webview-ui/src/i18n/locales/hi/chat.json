@@ -16,7 +16,12 @@
 		"shareWithOrganization": "संगठन के साथ साझा करें",
 		"shareWithOrganizationDescription": "केवल आपके संगठन के सदस्य पहुंच सकते हैं",
 		"sharePublicly": "सार्वजनिक रूप से साझा करें",
-		"sharePubliclyDescription": "लिंक वाला कोई भी व्यक्ति पहुंच सकता है"
+		"sharePubliclyDescription": "लिंक वाला कोई भी व्यक्ति पहुंच सकता है",
+		"connectToCloud": "Cloud से कनेक्ट करें",
+		"connectToCloudDescription": "कार्य साझा करने के लिए Roo Code Cloud में साइन इन करें",
+		"sharingDisabledByOrganization": "संगठन द्वारा साझाकरण अक्षम किया गया",
+		"shareSuccessOrganization": "संगठन लिंक क्लिपबोर्ड में कॉपी किया गया",
+		"shareSuccessPublic": "सार्वजनिक लिंक क्लिपबोर्ड में कॉपी किया गया"
 	},
 	"unpin": "पिन करें",
 	"pin": "अवपिन करें",

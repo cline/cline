@@ -1,8 +1,14 @@
 {
 	"title": "アカウント",
 	"profilePicture": "プロフィール画像",
-	"unknownUser": "不明なユーザー",
 	"logOut": "ログアウト",
 	"testApiAuthentication": "API認証をテスト",
-	"signIn": "Roo Code Cloud に接続"
+	"signIn": "Roo Code Cloud に接続",
+	"connect": "接続",
+	"cloudBenefitsTitle": "Roo Code Cloudに接続",
+	"cloudBenefitsSubtitle": "プロンプトとテレメトリを同期して以下を有効にする：",
+	"cloudBenefitHistory": "オンラインタスク履歴",
+	"cloudBenefitSharing": "共有とコラボレーション機能",
+	"cloudBenefitMetrics": "タスク、Token、コストベースの使用メトリクス",
+	"visitCloudWebsite": "Roo Code Cloudを訪問"
 }

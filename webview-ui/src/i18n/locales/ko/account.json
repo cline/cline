@@ -1,8 +1,14 @@
 {
 	"title": "계정",
 	"profilePicture": "프로필 사진",
-	"unknownUser": "알 수 없는 사용자",
 	"logOut": "로그아웃",
 	"testApiAuthentication": "API 인증 테스트",
-	"signIn": "Roo Code Cloud에 연결"
+	"signIn": "Roo Code Cloud에 연결",
+	"connect": "연결",
+	"cloudBenefitsTitle": "Roo Code Cloud에 연결",
+	"cloudBenefitsSubtitle": "프롬프트와 텔레메트리를 동기화하여 다음을 활성화:",
+	"cloudBenefitHistory": "온라인 작업 기록",
+	"cloudBenefitSharing": "공유 및 협업 기능",
+	"cloudBenefitMetrics": "작업, 토큰, 비용 기반 사용 메트릭",
+	"visitCloudWebsite": "Roo Code Cloud 방문"
 }

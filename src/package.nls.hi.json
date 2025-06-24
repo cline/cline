@@ -30,6 +30,5 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "भाषा मॉडल का विक्रेता (उदा. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "भाषा मॉडल का परिवार (उदा. gpt-4)",
 	"settings.customStoragePath.description": "कस्टम स्टोरेज पाथ। डिफ़ॉल्ट स्थान का उपयोग करने के लिए खाली छोड़ें। पूर्ण पथ का समर्थन करता है (उदा. 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Roo Code Cloud सक्षम करें।",
 	"settings.enableCodeActions.description": "Roo Code त्वरित सुधार सक्षम करें"
 }

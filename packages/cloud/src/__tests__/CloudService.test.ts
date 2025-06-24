@@ -1,10 +1,13 @@
 // npx vitest run src/__tests__/CloudService.test.ts
 
 import * as vscode from "vscode"
+import type { ClineMessage } from "@roo-code/types"
 
 import { CloudService } from "../CloudService"
 import { AuthService } from "../AuthService"
 import { SettingsService } from "../SettingsService"
+import { ShareService, TaskNotFoundError } from "../ShareService"
+import { TelemetryClient } from "../TelemetryClient"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudServiceCallbacks } from "../types"
 
@@ -28,6 +31,10 @@ vi.mock("../AuthService")
 
 vi.mock("../SettingsService")
 
+vi.mock("../ShareService")
+
+vi.mock("../TelemetryClient")
+
 describe("CloudService", () => {
 	let mockContext: vscode.ExtensionContext
 	let mockAuthService: {
@@ -36,6 +43,7 @@ describe("CloudService", () => {
 		logout: ReturnType<typeof vi.fn>
 		isAuthenticated: ReturnType<typeof vi.fn>
 		hasActiveSession: ReturnType<typeof vi.fn>
+		hasOrIsAcquiringActiveSession: ReturnType<typeof vi.fn>
 		getUserInfo: ReturnType<typeof vi.fn>
 		getState: ReturnType<typeof vi.fn>
 		getSessionToken: ReturnType<typeof vi.fn>
@@ -52,6 +60,13 @@ describe("CloudService", () => {
 		getAllowList: ReturnType<typeof vi.fn>
 		dispose: ReturnType<typeof vi.fn>
 	}
+	let mockShareService: {
+		shareTask: ReturnType<typeof vi.fn>
+		canShareTask: ReturnType<typeof vi.fn>
+	}
+	let mockTelemetryClient: {
+		backfillMessages: ReturnType<typeof vi.fn>
+	}
 	let mockTelemetryService: {
 		hasInstance: ReturnType<typeof vi.fn>
 		instance: {
@@ -63,15 +78,29 @@ describe("CloudService", () => {
 		CloudService.resetInstance()
 
 		mockContext = {
+			subscriptions: [],
+			workspaceState: {
+				get: vi.fn(),
+				update: vi.fn(),
+				keys: vi.fn().mockReturnValue([]),
+			},
 			secrets: {
 				get: vi.fn(),
 				store: vi.fn(),
 				delete: vi.fn(),
+				onDidChange: vi.fn().mockReturnValue({ dispose: vi.fn() }),
 			},
 			globalState: {
 				get: vi.fn(),
 				update: vi.fn(),
+				setKeysForSync: vi.fn(),
+				keys: vi.fn().mockReturnValue([]),
 			},
+			extensionUri: { scheme: "file", path: "/mock/path" },
+			extensionPath: "/mock/path",
+			extensionMode: 1,
+			asAbsolutePath: vi.fn((relativePath: string) => `/mock/path/${relativePath}`),
+			storageUri: { scheme: "file", path: "/mock/storage" },
 			extension: {
 				packageJSON: {
 					version: "1.0.0",
@@ -85,6 +114,7 @@ describe("CloudService", () => {
 			logout: vi.fn(),
 			isAuthenticated: vi.fn().mockReturnValue(false),
 			hasActiveSession: vi.fn().mockReturnValue(false),
+			hasOrIsAcquiringActiveSession: vi.fn().mockReturnValue(false),
 			getUserInfo: vi.fn(),
 			getState: vi.fn().mockReturnValue("logged-out"),
 			getSessionToken: vi.fn(),
@@ -103,6 +133,15 @@ describe("CloudService", () => {
 			dispose: vi.fn(),
 		}
 
+		mockShareService = {
+			shareTask: vi.fn(),
+			canShareTask: vi.fn().mockResolvedValue(true),
+		}
+
+		mockTelemetryClient = {
+			backfillMessages: vi.fn().mockResolvedValue(undefined),
+		}
+
 		mockTelemetryService = {
 			hasInstance: vi.fn().mockReturnValue(true),
 			instance: {
@@ -112,6 +151,8 @@ describe("CloudService", () => {
 
 		vi.mocked(AuthService).mockImplementation(() => mockAuthService as unknown as AuthService)
 		vi.mocked(SettingsService).mockImplementation(() => mockSettingsService as unknown as SettingsService)
+		vi.mocked(ShareService).mockImplementation(() => mockShareService as unknown as ShareService)
+		vi.mocked(TelemetryClient).mockImplementation(() => mockTelemetryClient as unknown as TelemetryClient)
 
 		vi.mocked(TelemetryService.hasInstance).mockReturnValue(true)
 		Object.defineProperty(TelemetryService, "instance", {
@@ -340,6 +381,121 @@ describe("CloudService", () => {
 			cloudService.dispose()
 
 			expect(mockSettingsService.dispose).toHaveBeenCalled()
+		})
+	})
+
+	describe("shareTask with ClineMessage retry logic", () => {
+		let cloudService: CloudService
+
+		beforeEach(async () => {
+			// Reset mocks for shareTask tests
+			vi.clearAllMocks()
+
+			// Reset authentication state for shareTask tests
+			mockAuthService.isAuthenticated.mockReturnValue(true)
+			mockAuthService.hasActiveSession.mockReturnValue(true)
+			mockAuthService.hasOrIsAcquiringActiveSession.mockReturnValue(true)
+			mockAuthService.getState.mockReturnValue("active")
+
+			cloudService = await CloudService.createInstance(mockContext, {})
+		})
+
+		it("should call shareTask without retry when successful", async () => {
+			const taskId = "test-task-id"
+			const visibility = "organization"
+			const clineMessages: ClineMessage[] = [
+				{
+					ts: Date.now(),
+					type: "say",
+					say: "text",
+					text: "Hello world",
+				},
+			]
+
+			const expectedResult = { success: true, shareUrl: "https://example.com/share/123" }
+			mockShareService.shareTask.mockResolvedValue(expectedResult)
+
+			const result = await cloudService.shareTask(taskId, visibility, clineMessages)
+
+			expect(mockShareService.shareTask).toHaveBeenCalledTimes(1)
+			expect(mockShareService.shareTask).toHaveBeenCalledWith(taskId, visibility)
+			expect(mockTelemetryClient.backfillMessages).not.toHaveBeenCalled()
+			expect(result).toEqual(expectedResult)
+		})
+
+		it("should retry with backfill when TaskNotFoundError occurs", async () => {
+			const taskId = "test-task-id"
+			const visibility = "organization"
+			const clineMessages: ClineMessage[] = [
+				{
+					ts: Date.now(),
+					type: "say",
+					say: "text",
+					text: "Hello world",
+				},
+			]
+
+			const expectedResult = { success: true, shareUrl: "https://example.com/share/123" }
+
+			// First call throws TaskNotFoundError, second call succeeds
+			mockShareService.shareTask
+				.mockRejectedValueOnce(new TaskNotFoundError(taskId))
+				.mockResolvedValueOnce(expectedResult)
+
+			const result = await cloudService.shareTask(taskId, visibility, clineMessages)
+
+			expect(mockShareService.shareTask).toHaveBeenCalledTimes(2)
+			expect(mockShareService.shareTask).toHaveBeenNthCalledWith(1, taskId, visibility)
+			expect(mockShareService.shareTask).toHaveBeenNthCalledWith(2, taskId, visibility)
+			expect(mockTelemetryClient.backfillMessages).toHaveBeenCalledTimes(1)
+			expect(mockTelemetryClient.backfillMessages).toHaveBeenCalledWith(clineMessages, taskId)
+			expect(result).toEqual(expectedResult)
+		})
+
+		it("should not retry when TaskNotFoundError occurs but no clineMessages provided", async () => {
+			const taskId = "test-task-id"
+			const visibility = "organization"
+
+			const taskNotFoundError = new TaskNotFoundError(taskId)
+			mockShareService.shareTask.mockRejectedValue(taskNotFoundError)
+
+			await expect(cloudService.shareTask(taskId, visibility)).rejects.toThrow(TaskNotFoundError)
+
+			expect(mockShareService.shareTask).toHaveBeenCalledTimes(1)
+			expect(mockTelemetryClient.backfillMessages).not.toHaveBeenCalled()
+		})
+
+		it("should not retry when non-TaskNotFoundError occurs", async () => {
+			const taskId = "test-task-id"
+			const visibility = "organization"
+			const clineMessages: ClineMessage[] = [
+				{
+					ts: Date.now(),
+					type: "say",
+					say: "text",
+					text: "Hello world",
+				},
+			]
+
+			const genericError = new Error("Some other error")
+			mockShareService.shareTask.mockRejectedValue(genericError)
+
+			await expect(cloudService.shareTask(taskId, visibility, clineMessages)).rejects.toThrow(genericError)
+
+			expect(mockShareService.shareTask).toHaveBeenCalledTimes(1)
+			expect(mockTelemetryClient.backfillMessages).not.toHaveBeenCalled()
+		})
+
+		it("should work with default parameters", async () => {
+			const taskId = "test-task-id"
+			const expectedResult = { success: true, shareUrl: "https://example.com/share/123" }
+			mockShareService.shareTask.mockResolvedValue(expectedResult)
+
+			const result = await cloudService.shareTask(taskId)
+
+			expect(mockShareService.shareTask).toHaveBeenCalledTimes(1)
+			expect(mockShareService.shareTask).toHaveBeenCalledWith(taskId, "organization")
+			expect(result).toEqual(expectedResult)
 		})
 	})
 })

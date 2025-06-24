@@ -1,8 +1,14 @@
 {
 	"title": "Konto",
 	"profilePicture": "Zdjęcie profilowe",
-	"unknownUser": "Nieznany użytkownik",
 	"logOut": "Wyloguj",
 	"testApiAuthentication": "Testuj uwierzytelnianie API",
-	"signIn": "Połącz z Roo Code Cloud"
+	"signIn": "Połącz z Roo Code Cloud",
+	"connect": "Połącz",
+	"cloudBenefitsTitle": "Połącz z Roo Code Cloud",
+	"cloudBenefitsSubtitle": "Synchronizuj swoje prompty i telemetrię, aby włączyć:",
+	"cloudBenefitHistory": "Historia zadań online",
+	"cloudBenefitSharing": "Funkcje udostępniania i współpracy",
+	"cloudBenefitMetrics": "Metryki użycia oparte na zadaniach, tokenach i kosztach",
+	"visitCloudWebsite": "Odwiedź Roo Code Cloud"
 }

@@ -30,6 +30,5 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "Nhà cung cấp mô hình ngôn ngữ (ví dụ: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Họ mô hình ngôn ngữ (ví dụ: gpt-4)",
 	"settings.customStoragePath.description": "Đường dẫn lưu trữ tùy chỉnh. Để trống để sử dụng vị trí mặc định. Hỗ trợ đường dẫn tuyệt đối (ví dụ: 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Bật Roo Code Cloud.",
 	"settings.enableCodeActions.description": "Bật sửa lỗi nhanh Roo Code."
 }

@@ -308,6 +308,18 @@ vi.mock("../diff/strategies/multi-search-replace", () => ({
 	})),
 }))
 
+vi.mock("@roo-code/cloud", () => ({
+	CloudService: {
+		hasInstance: vi.fn().mockReturnValue(true),
+		get instance() {
+			return {
+				isAuthenticated: vi.fn().mockReturnValue(false),
+			}
+		},
+	},
+	getRooCodeApiUrl: vi.fn().mockReturnValue("https://app.roocode.com"),
+}))
+
 afterAll(() => {
 	vi.restoreAllMocks()
 })
@@ -2090,6 +2102,11 @@ describe("getTelemetryProperties", () => {
 		// Reset mocks
 		vi.clearAllMocks()
 
+		// Initialize TelemetryService if not already initialized
+		if (!TelemetryService.hasInstance()) {
+			TelemetryService.createInstance([])
+		}
+
 		// Setup basic mocks
 		mockContext = {
 			globalState: {
@@ -2142,6 +2159,96 @@ describe("getTelemetryProperties", () => {
 		const properties = await provider.getTelemetryProperties()
 
 		expect(properties).toHaveProperty("modelId", "claude-sonnet-4-20250514")
+	})
+
+	describe("cloud authentication telemetry", () => {
+		beforeEach(() => {
+			// Reset all mocks before each test
+			vi.clearAllMocks()
+		})
+
+		test("includes cloud authentication property when user is authenticated", async () => {
+			// Import the CloudService mock and update it
+			const { CloudService } = await import("@roo-code/cloud")
+			const mockCloudService = {
+				isAuthenticated: vi.fn().mockReturnValue(true),
+			}
+
+			// Update the existing mock
+			Object.defineProperty(CloudService, "instance", {
+				get: vi.fn().mockReturnValue(mockCloudService),
+				configurable: true,
+			})
+
+			const properties = await provider.getTelemetryProperties()
+
+			expect(properties).toHaveProperty("cloudIsAuthenticated", true)
+		})
+
+		test("includes cloud authentication property when user is not authenticated", async () => {
+			// Import the CloudService mock and update it
+			const { CloudService } = await import("@roo-code/cloud")
+			const mockCloudService = {
+				isAuthenticated: vi.fn().mockReturnValue(false),
+			}
+
+			// Update the existing mock
+			Object.defineProperty(CloudService, "instance", {
+				get: vi.fn().mockReturnValue(mockCloudService),
+				configurable: true,
+			})
+
+			const properties = await provider.getTelemetryProperties()
+
+			expect(properties).toHaveProperty("cloudIsAuthenticated", false)
+		})
+
+		test("handles CloudService errors gracefully", async () => {
+			// Import the CloudService mock and update it to throw an error
+			const { CloudService } = await import("@roo-code/cloud")
+			Object.defineProperty(CloudService, "instance", {
+				get: vi.fn().mockImplementation(() => {
+					throw new Error("CloudService not available")
+				}),
+				configurable: true,
+			})
+
+			const properties = await provider.getTelemetryProperties()
+
+			// Should still include basic telemetry properties
+			expect(properties).toHaveProperty("vscodeVersion")
+			expect(properties).toHaveProperty("platform")
+			expect(properties).toHaveProperty("appVersion", "1.0.0")
+
+			// Cloud property should be undefined when CloudService is not available
+			expect(properties).toHaveProperty("cloudIsAuthenticated", undefined)
+		})
+
+		test("handles CloudService method errors gracefully", async () => {
+			// Import the CloudService mock and update it
+			const { CloudService } = await import("@roo-code/cloud")
+			const mockCloudService = {
+				isAuthenticated: vi.fn().mockImplementation(() => {
+					throw new Error("Authentication check error")
+				}),
+			}
+
+			// Update the existing mock
+			Object.defineProperty(CloudService, "instance", {
+				get: vi.fn().mockReturnValue(mockCloudService),
+				configurable: true,
+			})
+
+			const properties = await provider.getTelemetryProperties()
+
+			// Should still include basic telemetry properties
+			expect(properties).toHaveProperty("vscodeVersion")
+			expect(properties).toHaveProperty("platform")
+			expect(properties).toHaveProperty("appVersion", "1.0.0")
+
+			// Property that errored should be undefined
+			expect(properties).toHaveProperty("cloudIsAuthenticated", undefined)
+		})
 	})
 })
 

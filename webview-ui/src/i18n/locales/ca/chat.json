@@ -16,7 +16,12 @@
 		"shareWithOrganization": "Compartir amb l'organització",
 		"shareWithOrganizationDescription": "Només els membres de la teva organització poden accedir",
 		"sharePublicly": "Compartir públicament",
-		"sharePubliclyDescription": "Qualsevol amb l'enllaç pot accedir"
+		"sharePubliclyDescription": "Qualsevol amb l'enllaç pot accedir",
+		"connectToCloud": "Connecta al núvol",
+		"connectToCloudDescription": "Inicia sessió a Roo Code Cloud per compartir tasques",
+		"sharingDisabledByOrganization": "Compartició deshabilitada per l'organització",
+		"shareSuccessOrganization": "Enllaç d'organització copiat al porta-retalls",
+		"shareSuccessPublic": "Enllaç públic copiat al porta-retalls"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",

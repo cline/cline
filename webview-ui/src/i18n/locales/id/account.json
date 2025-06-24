@@ -1,8 +1,14 @@
 {
 	"title": "Akun",
 	"profilePicture": "Foto profil",
-	"unknownUser": "Pengguna Tidak Dikenal",
 	"logOut": "Keluar",
 	"testApiAuthentication": "Uji Autentikasi API",
-	"signIn": "Hubungkan ke Roo Code Cloud"
+	"signIn": "Hubungkan ke Roo Code Cloud",
+	"connect": "Hubungkan",
+	"cloudBenefitsTitle": "Hubungkan ke Roo Code Cloud",
+	"cloudBenefitsSubtitle": "Sinkronkan prompt dan telemetri kamu untuk mengaktifkan:",
+	"cloudBenefitHistory": "Riwayat tugas online",
+	"cloudBenefitSharing": "Fitur berbagi dan kolaborasi",
+	"cloudBenefitMetrics": "Metrik penggunaan berdasarkan tugas, token, dan biaya",
+	"visitCloudWebsite": "Kunjungi Roo Code Cloud"
 }

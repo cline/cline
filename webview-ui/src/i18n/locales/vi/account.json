@@ -1,8 +1,14 @@
 {
 	"title": "Tài khoản",
 	"profilePicture": "Ảnh hồ sơ",
-	"unknownUser": "Người dùng không xác định",
 	"logOut": "Đăng xuất",
 	"testApiAuthentication": "Kiểm tra xác thực API",
-	"signIn": "Kết nối với Roo Code Cloud"
+	"signIn": "Kết nối với Roo Code Cloud",
+	"connect": "Kết nối",
+	"cloudBenefitsTitle": "Kết nối với Roo Code Cloud",
+	"cloudBenefitsSubtitle": "Đồng bộ prompts và telemetry của bạn để kích hoạt:",
+	"cloudBenefitHistory": "Lịch sử tác vụ trực tuyến",
+	"cloudBenefitSharing": "Tính năng chia sẻ và cộng tác",
+	"cloudBenefitMetrics": "Số liệu sử dụng dựa trên tác vụ, token và chi phí",
+	"visitCloudWebsite": "Truy cập Roo Code Cloud"
 }

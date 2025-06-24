@@ -17,6 +17,7 @@ import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
 import Thumbnails from "../common/Thumbnails"
 
 import { TaskActions } from "./TaskActions"
+import { ShareButton } from "./ShareButton"
 import { ContextWindowProgress } from "./ContextWindowProgress"
 import { Mention } from "./Mention"
 
@@ -118,6 +119,7 @@ const TaskHeader = ({
 							}
 						/>
 						{condenseButton}
+						<ShareButton item={currentTaskItem} disabled={buttonsDisabled} />
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
 					</div>
 				)}

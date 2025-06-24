@@ -40,6 +40,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
 			aria-label={title}
 			title={title}
 			className={buttonClasses}
+			disabled={disabled}
 			onClick={!disabled ? onClick : undefined}
 			style={{ fontSize: 16.5, ...style }}
 			{...props}>

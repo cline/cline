@@ -48,7 +48,12 @@ export const About = ({ telemetrySetting, setTelemetrySetting, className, ...pro
 						{t("settings:footer.telemetry.label")}
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						{t("settings:footer.telemetry.description")}
+						<Trans
+							i18nKey="settings:footer.telemetry.description"
+							components={{
+								privacyLink: <VSCodeLink href="https://roocode.com/privacy" />,
+							}}
+						/>
 					</p>
 				</div>
 

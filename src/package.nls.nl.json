@@ -30,6 +30,5 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "De leverancier van het taalmodel (bijv. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "De familie van het taalmodel (bijv. gpt-4)",
 	"settings.customStoragePath.description": "Aangepast opslagpad. Laat leeg om de standaardlocatie te gebruiken. Ondersteunt absolute paden (bijv. 'D:\\RooCodeStorage')",
-	"settings.rooCodeCloudEnabled.description": "Roo Code Cloud inschakelen.",
 	"settings.enableCodeActions.description": "Snelle correcties van Roo Code inschakelen."
 }

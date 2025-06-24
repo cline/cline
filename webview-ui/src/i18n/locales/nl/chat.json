@@ -16,7 +16,12 @@
 		"shareWithOrganization": "Delen met organisatie",
 		"shareWithOrganizationDescription": "Alleen leden van je organisatie kunnen toegang krijgen",
 		"sharePublicly": "Openbaar delen",
-		"sharePubliclyDescription": "Iedereen met de link kan toegang krijgen"
+		"sharePubliclyDescription": "Iedereen met de link kan toegang krijgen",
+		"connectToCloud": "Verbind met Cloud",
+		"connectToCloudDescription": "Meld je aan bij Roo Code Cloud om taken te delen",
+		"sharingDisabledByOrganization": "Delen uitgeschakeld door organisatie",
+		"shareSuccessOrganization": "Organisatielink gekopieerd naar klembord",
+		"shareSuccessPublic": "Openbare link gekopieerd naar klembord"
 	},
 	"unpin": "Losmaken",
 	"pin": "Vastmaken",

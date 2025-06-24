@@ -1,8 +1,14 @@
 {
 	"title": "Hesap",
 	"profilePicture": "Profil resmi",
-	"unknownUser": "Bilinmeyen kullanıcı",
 	"logOut": "Çıkış yap",
 	"testApiAuthentication": "API Kimlik Doğrulamayı Test Et",
-	"signIn": "Roo Code Cloud'a bağlan"
+	"signIn": "Roo Code Cloud'a bağlan",
+	"connect": "Bağlan",
+	"cloudBenefitsTitle": "Roo Code Cloud'a bağlan",
+	"cloudBenefitsSubtitle": "Aşağıdakileri etkinleştirmek için promptlarını ve telemetriyi senkronize et:",
+	"cloudBenefitHistory": "Çevrimiçi görev geçmişi",
+	"cloudBenefitSharing": "Paylaşım ve işbirliği özellikleri",
+	"cloudBenefitMetrics": "Görev, token ve maliyet tabanlı kullanım metrikleri",
+	"visitCloudWebsite": "Roo Code Cloud'u ziyaret et"
 }

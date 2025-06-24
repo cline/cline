@@ -35,8 +35,6 @@ export class MdmService {
 			this.mdmConfig = await this.loadMdmConfig()
 			if (this.mdmConfig) {
 				this.log("[MDM] Loaded MDM configuration:", this.mdmConfig)
-				// Automatically enable Roo Code Cloud when MDM config is present
-				await this.ensureCloudEnabled()
 			} else {
 				this.log("[MDM] No MDM configuration found")
 			}
@@ -58,23 +56,6 @@ export class MdmService {
 	 */
 	public getRequiredOrganizationId(): string | undefined {
 		return this.mdmConfig?.organizationId
-	}
-
-	/**
-	 * Ensure Roo Code Cloud is enabled when MDM config is present
-	 */
-	private async ensureCloudEnabled(): Promise<void> {
-		try {
-			const config = vscode.workspace.getConfiguration(Package.name)
-			const currentValue = config.get<boolean>("rooCodeCloudEnabled", false)
-
-			if (!currentValue) {
-				this.log("[MDM] Enabling Roo Code Cloud due to MDM policy")
-				await config.update("rooCodeCloudEnabled", true, vscode.ConfigurationTarget.Global)
-			}
-		} catch (error) {
-			this.log("[MDM] Error enabling Roo Code Cloud:", error)
-		}
 	}
 
 	/**

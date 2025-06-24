@@ -17,7 +17,7 @@
 	"startCustom": "Or you can bring your provider API key:",
 	"telemetry": {
 		"title": "Help Improve Roo Code",
-		"anonymousTelemetry": "Send anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal information is ever sent.",
+		"anonymousTelemetry": "Send anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal information is ever sent (unless you connect to Roo Code Cloud). See our <privacyLink>privacy policy</privacyLink> for more details.",
 		"changeSettings": "You can always change this at the bottom of the <settingsLink>settings</settingsLink>",
 		"settings": "settings",
 		"allow": "Allow",

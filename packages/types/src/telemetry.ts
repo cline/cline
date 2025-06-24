@@ -50,6 +50,16 @@ export enum TelemetryEventName {
 	MARKETPLACE_TAB_VIEWED = "Marketplace Tab Viewed",
 	MARKETPLACE_INSTALL_BUTTON_CLICKED = "Marketplace Install Button Clicked",
 
+	SHARE_BUTTON_CLICKED = "Share Button Clicked",
+	SHARE_ORGANIZATION_CLICKED = "Share Organization Clicked",
+	SHARE_PUBLIC_CLICKED = "Share Public Clicked",
+	SHARE_CONNECT_TO_CLOUD_CLICKED = "Share Connect To Cloud Clicked",
+
+	ACCOUNT_CONNECT_CLICKED = "Account Connect Clicked",
+	ACCOUNT_CONNECT_SUCCESS = "Account Connect Success",
+	ACCOUNT_LOGOUT_CLICKED = "Account Logout Clicked",
+	ACCOUNT_LOGOUT_SUCCESS = "Account Logout Success",
+
 	SCHEMA_VALIDATION_ERROR = "Schema Validation Error",
 	DIFF_APPLICATION_ERROR = "Diff Application Error",
 	SHELL_INTEGRATION_ERROR = "Shell Integration Error",
@@ -68,6 +78,7 @@ export const appPropertiesSchema = z.object({
 	editorName: z.string(),
 	language: z.string(),
 	mode: z.string(),
+	cloudIsAuthenticated: z.boolean().optional(),
 })
 
 export const taskPropertiesSchema = z.object({
@@ -117,6 +128,16 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.AUTHENTICATION_INITIATED,
 			TelemetryEventName.MARKETPLACE_ITEM_INSTALLED,
 			TelemetryEventName.MARKETPLACE_ITEM_REMOVED,
+			TelemetryEventName.MARKETPLACE_TAB_VIEWED,
+			TelemetryEventName.MARKETPLACE_INSTALL_BUTTON_CLICKED,
+			TelemetryEventName.SHARE_BUTTON_CLICKED,
+			TelemetryEventName.SHARE_ORGANIZATION_CLICKED,
+			TelemetryEventName.SHARE_PUBLIC_CLICKED,
+			TelemetryEventName.SHARE_CONNECT_TO_CLOUD_CLICKED,
+			TelemetryEventName.ACCOUNT_CONNECT_CLICKED,
+			TelemetryEventName.ACCOUNT_CONNECT_SUCCESS,
+			TelemetryEventName.ACCOUNT_LOGOUT_CLICKED,
+			TelemetryEventName.ACCOUNT_LOGOUT_SUCCESS,
 			TelemetryEventName.SCHEMA_VALIDATION_ERROR,
 			TelemetryEventName.DIFF_APPLICATION_ERROR,
 			TelemetryEventName.SHELL_INTEGRATION_ERROR,

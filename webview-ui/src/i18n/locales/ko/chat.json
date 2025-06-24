@@ -16,7 +16,12 @@
 		"shareWithOrganization": "조직과 공유",
 		"shareWithOrganizationDescription": "조직 구성원만 액세스할 수 있습니다",
 		"sharePublicly": "공개적으로 공유",
-		"sharePubliclyDescription": "링크가 있는 누구나 액세스할 수 있습니다"
+		"sharePubliclyDescription": "링크가 있는 누구나 액세스할 수 있습니다",
+		"connectToCloud": "클라우드에 연결",
+		"connectToCloudDescription": "작업을 공유하려면 Roo Code Cloud에 로그인하세요",
+		"sharingDisabledByOrganization": "조직에서 공유가 비활성화됨",
+		"shareSuccessOrganization": "조직 링크가 클립보드에 복사되었습니다",
+		"shareSuccessPublic": "공개 링크가 클립보드에 복사되었습니다"
 	},
 	"unpin": "고정 해제하기",
 	"pin": "고정하기",

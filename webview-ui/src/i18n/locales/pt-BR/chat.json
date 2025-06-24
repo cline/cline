@@ -16,7 +16,12 @@
 		"shareWithOrganization": "Compartilhar com organização",
 		"shareWithOrganizationDescription": "Apenas membros da sua organização podem acessar",
 		"sharePublicly": "Compartilhar publicamente",
-		"sharePubliclyDescription": "Qualquer pessoa com o link pode acessar"
+		"sharePubliclyDescription": "Qualquer pessoa com o link pode acessar",
+		"connectToCloud": "Conectar ao Cloud",
+		"connectToCloudDescription": "Entre no Roo Code Cloud para compartilhar tarefas",
+		"sharingDisabledByOrganization": "Compartilhamento desabilitado pela organização",
+		"shareSuccessOrganization": "Link da organização copiado para a área de transferência",
+		"shareSuccessPublic": "Link público copiado para a área de transferência"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",

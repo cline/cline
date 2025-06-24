@@ -30,6 +30,5 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "言語モデルのベンダー（例：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "言語モデルのファミリー（例：gpt-4）",
 	"settings.customStoragePath.description": "カスタムストレージパス。デフォルトの場所を使用する場合は空のままにします。絶対パスをサポートします（例：'D:\\RooCodeStorage'）",
-	"settings.rooCodeCloudEnabled.description": "Roo Code Cloud を有効にする。",
 	"settings.enableCodeActions.description": "Roo Codeのクイック修正を有効にする。"
 }

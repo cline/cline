@@ -42,8 +42,8 @@ const clerkCreateSessionTokenResponseSchema = z.object({
 
 const clerkMeResponseSchema = z.object({
 	response: z.object({
-		first_name: z.string().optional(),
-		last_name: z.string().optional(),
+		first_name: z.string().optional().nullable(),
+		last_name: z.string().optional().nullable(),
 		image_url: z.string().optional(),
 		primary_email_address_id: z.string().optional(),
 		email_addresses: z
@@ -531,7 +531,8 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		const userInfo: CloudUserInfo = {}
 
-		userInfo.name = `${userData.first_name} ${userData.last_name}`
+		const names = [userData.first_name, userData.last_name].filter((name) => !!name)
+		userInfo.name = names.length > 0 ? names.join(" ") : undefined
 		const primaryEmailAddressId = userData.primary_email_address_id
 		const emailAddresses = userData.email_addresses
 

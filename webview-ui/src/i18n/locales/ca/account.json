@@ -1,8 +1,14 @@
 {
 	"title": "Compte",
 	"profilePicture": "Imatge de perfil",
-	"unknownUser": "Usuari desconegut",
 	"logOut": "Tancar sessió",
 	"testApiAuthentication": "Provar autenticació d'API",
-	"signIn": "Connecta't a Roo Code Cloud"
+	"signIn": "Connecta't a Roo Code Cloud",
+	"connect": "Connecta",
+	"cloudBenefitsTitle": "Connecta't a Roo Code Cloud",
+	"cloudBenefitsSubtitle": "Sincronitza els teus prompts i telemetria per habilitar:",
+	"cloudBenefitHistory": "Historial de tasques en línia",
+	"cloudBenefitSharing": "Funcions de compartició i col·laboració",
+	"cloudBenefitMetrics": "Mètriques d'ús basades en tasques, tokens i costos",
+	"visitCloudWebsite": "Visita Roo Code Cloud"
 }

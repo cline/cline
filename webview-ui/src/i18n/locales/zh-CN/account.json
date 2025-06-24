@@ -1,8 +1,14 @@
 {
 	"title": "账户",
 	"profilePicture": "头像",
-	"unknownUser": "未知用户",
 	"logOut": "退出登录",
 	"testApiAuthentication": "测试 API 认证",
-	"signIn": "连接到 Roo Code Cloud"
+	"signIn": "连接到 Roo Code Cloud",
+	"connect": "连接",
+	"cloudBenefitsTitle": "连接到 Roo Code Cloud",
+	"cloudBenefitsSubtitle": "同步你的提示词和遥测数据以启用：",
+	"cloudBenefitHistory": "在线任务历史",
+	"cloudBenefitSharing": "共享和协作功能",
+	"cloudBenefitMetrics": "基于任务、Token 和成本的使用指标",
+	"visitCloudWebsite": "访问 Roo Code Cloud"
 }

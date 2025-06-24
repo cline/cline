@@ -16,7 +16,12 @@
 		"shareWithOrganization": "Bagikan dengan organisasi",
 		"shareWithOrganizationDescription": "Hanya anggota organisasi Anda yang dapat mengakses",
 		"sharePublicly": "Bagikan secara publik",
-		"sharePubliclyDescription": "Siapa pun dengan tautan dapat mengakses"
+		"sharePubliclyDescription": "Siapa pun dengan tautan dapat mengakses",
+		"connectToCloud": "Hubungkan ke Cloud",
+		"connectToCloudDescription": "Masuk ke Roo Code Cloud untuk berbagi tugas",
+		"sharingDisabledByOrganization": "Berbagi dinonaktifkan oleh organisasi",
+		"shareSuccessOrganization": "Tautan organisasi disalin ke clipboard",
+		"shareSuccessPublic": "Tautan publik disalin ke clipboard"
 	},
 	"history": {
 		"title": "Riwayat"

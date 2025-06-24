@@ -16,7 +16,12 @@
 		"shareWithOrganization": "與組織分享",
 		"shareWithOrganizationDescription": "僅組織成員可存取",
 		"sharePublicly": "公開分享",
-		"sharePubliclyDescription": "任何擁有連結的人都可存取"
+		"sharePubliclyDescription": "任何擁有連結的人都可存取",
+		"connectToCloud": "連接到雲端",
+		"connectToCloudDescription": "登入 Roo Code Cloud 以分享工作",
+		"sharingDisabledByOrganization": "組織已停用分享功能",
+		"shareSuccessOrganization": "組織連結已複製到剪貼簿",
+		"shareSuccessPublic": "公開連結已複製到剪貼簿"
 	},
 	"unpin": "取消置頂",
 	"pin": "置頂",

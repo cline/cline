@@ -359,9 +359,6 @@ importers:
       '@roo-code/types':
         specifier: workspace:^
         version: link:../types
-      axios:
-        specifier: ^1.7.4
-        version: 1.9.0
       zod:
         specifier: ^3.25.61
         version: 3.25.61
