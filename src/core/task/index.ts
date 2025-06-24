@@ -5,6 +5,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
+//import { serializeError } from "serialize-error"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Logger } from "@services/logging/Logger"
@@ -323,8 +324,6 @@ export class Task {
 			this.saveCheckpoint.bind(this),
 			this.reinitExistingTaskFromId.bind(this),
 			this.cancelTask.bind(this),
-			this.shouldAutoApproveTool.bind(this),
-			this.shouldAutoApproveToolWithPath.bind(this),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),

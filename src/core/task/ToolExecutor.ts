@@ -11,6 +11,7 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ChatSettings } from "@shared/ChatSettings"
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
+import { AutoApprove } from "./tools/autoApprove"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -57,6 +58,17 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
 
 export class ToolExecutor {
+	private autoApprover: AutoApprove
+
+	// Auto-approval methods using the AutoApprove class
+	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+		return this.autoApprover.shouldAutoApproveTool(toolName)
+	}
+
+	private shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
+	}
+
 	constructor(
 		// Core Services & Managers
 		private context: vscode.ExtensionContext,
@@ -96,13 +108,13 @@ export class ToolExecutor {
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
 		private reinitExistingTaskFromId: (taskId: string) => Promise<void>,
 		private cancelTask: () => Promise<void>,
-		private shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean],
-		private shouldAutoApproveToolWithPath: (blockname: ToolUseName, autoApproveActionpath: string | undefined) => boolean,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
-	) {}
+	) {
+		this.autoApprover = new AutoApprove(autoApprovalSettings)
+	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
 		const isClaude4Model = isClaude4ModelFamily(this.api)
