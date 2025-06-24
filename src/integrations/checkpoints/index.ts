@@ -8,6 +8,11 @@ import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/Dif
 import { MessageStateHandler } from "../../core/task/message-state"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
+import { ContextManager } from "@core/context/context-management/ContextManager"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 
 // Type definitions for better code organization
 type SayFunction = (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
@@ -22,6 +27,7 @@ interface CheckpointManagerDependencies {
 	readonly say: SayFunction
 	readonly messageStateHandler: MessageStateHandler
 	readonly cancelTask: () => Promise<void>
+	readonly fileContextTracker: FileContextTracker
 }
 
 interface CheckpointManagerState {
@@ -478,8 +484,7 @@ export class TaskCheckpointManager {
 				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
 				await this.dependencies.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
 
-				// update the context history state - we need to import the required functions
-				const { ContextManager } = await import("@core/context/context-management/ContextManager")
+				// update the context history state
 				const contextManager = new ContextManager()
 				await contextManager.truncateContextHistory(
 					message.ts,
@@ -489,14 +494,19 @@ export class TaskCheckpointManager {
 				// aggregate deleted api reqs info so we don't lose costs/tokens
 				const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
 				const deletedMessages = clineMessages.slice(messageIndex + 1)
-				const { getApiMetrics } = await import("@shared/getApiMetrics")
-				const { combineApiRequests } = await import("@shared/combineApiRequests")
-				const { combineCommandSequences } = await import("@shared/combineCommandSequences")
 				const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
-				// Note: File context warning detection is handled by the Task class
-				// since FileContextTracker is not available in checkpoint manager dependencies
-				// TODO REVIEW TO CONFIRM THIS IS COOL BRO
+				// Detect files edited after this message timestamp for file context warning
+				// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
+				if (restoreType === "task") {
+					const filesEditedAfterMessage = await this.dependencies.fileContextTracker.detectFilesEditedAfterMessage(
+						messageTs,
+						deletedMessages,
+					)
+					if (filesEditedAfterMessage.length > 0) {
+						await this.dependencies.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
+					}
+				}
 
 				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
 				await this.dependencies.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
