@@ -1529,20 +1529,6 @@ const ApiOptions = ({
 							</VSCodeLink>
 						)}
 					</p>
-					{/* Note: To fully implement this, you would need to add a handler in ClineProvider.ts */}
-					{/* {apiConfiguration?.xaiApiKey && (
-						<button
-							onClick={() => {
-								vscode.postMessage({
-									type: "requestXAIModels",
-									text: apiConfiguration?.xaiApiKey,
-								})
-							}}
-							style={{ margin: "5px 0 0 0" }}
-							className="vscode-button">
-							Fetch Available Models
-						</button>
-					)} */}
 				</div>
 			)}
 
