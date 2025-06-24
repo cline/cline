@@ -33,6 +33,7 @@ export interface TestConfig {
 	diff_edit_function: string
 	thinking_tokens_budget: number
 	replay: boolean
+	diff_apply_file?: string
 }
 
 export interface SystemPromptDetails {
@@ -100,4 +101,5 @@ export interface TestInput {
 	diffEditFunction: string
 	thinkingBudgetTokens: number
 	originalDiffEditToolCallMessage?: string
+	diffApplyFile?: string
 }

@@ -9,6 +9,7 @@ import {
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
 import { constructNewFileContent as constructNewFileContentV1, constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
+import { constructNewFileContent as constructNewFileContentV2_1 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff" // this defaults to the new v1 when called
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
@@ -21,6 +22,8 @@ const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
 }
 
 const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
+	"diff-06-06-25": constructNewFileContentV2,
+	"diff-06-23-25": constructNewFileContentV2_1,
 	constructNewFileContentV1: constructNewFileContentV1,
 	constructNewFileContentV2: constructNewFileContentV2,
 	constructNewFileContentV3: constructNewFileContentV3, // position invariant diff
@@ -151,6 +154,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			diffEditFunction,
 			thinkingBudgetTokens,
 			originalDiffEditToolCallMessage,
+			diffApplyFile,
 		} = input
 
 		const requiredParams = {
@@ -176,7 +180,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		}
 
 		const parseAssistantMessage = parsingFunctions[parsingFunction]
-		const constructNewFileContent = diffEditingFunctions[diffEditFunction]
+		const constructNewFileContent = diffEditingFunctions[diffApplyFile || diffEditFunction]
 
 		if (!parseAssistantMessage || !constructNewFileContent) {
 			return {

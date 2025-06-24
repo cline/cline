@@ -63,9 +63,22 @@ For example, if we ask for 5 valid attempts per test case, the system will keep 
 
 This way, if we're comparing two models and one gets a 10% success rate on its valid diff edit attempts, and another gets 90%, we have a much clearer picture of their actual diff-generating capabilities. It avoids muddying the waters with attempts where the model didn't even try to perform the specific action we're evaluating. This approach helps us isolate and measure the diff-editing skill more directly, despite the non-deterministic nature of these models.
 
-## Some known edge cases
+## Replays
 
-I noticed that some of the current conversation jsons in the `./cases` folder are a little big bogus. Here's a running list of these areas:
+You can also use the replay argument to replay a previous benchmark run. This is super useful for iterating on our diffing algorithms without having to re-run expensive and time-consuming LLM calls.
 
-- ~~What if the conversation json was using a model with a massive context window, like Google Gemini's 1M context window, and we're now re-rolling that case on a smaller context window model like claude 4 (200k) or grok-3 (128k)? It's def gonna fail, and we shouldn't just keep trying. We should have a smart system for selecting which cases we can use given the arguments passed in. For example, if we pass in claude and grok with `max cases = 2`, we shouldn't just pick the first two jsons in the folder. We should go through, use a tokenizer, and make sure it would fit with some padding like 20k tokens. Use tiktoken. 20k padding will be sufficient even though different models tokenize differently.~~
-- There are some weird jsons, where something weird happen, where essentially there's a fluke. Maybe the user was using an extremely dumb model that just hallucinated a fake filepath. Now when we try to reroll that case, we never get a valid case. This can easily be handled by making sure that the file is present before selecting that eval for testing. By "file is present" I mean, that file_contents is present in the eval. Additionally, we should in the streamlit dashboard show cases where getting a valid attempt is a challenge, so we can review those cases more easily and throw them out if they're bogus. Maybe a special tab/page in the dashboard for this purpose. Across all runs / cases, what the most consistently problematic cases are. Pop one open to see the case formatted json with all the user/assistant turns.
+When you run an evaluation, every detail is stored in the database—including the raw, unmodified output from the model. The replay feature takes advantage of this by pulling that raw output and feeding it into a *different* diffing algorithm. This lets you isolate the performance of the diffing logic itself. We can see if a new algorithm is better at applying the exact same set of diffs that a model generated in a previous run.
+
+This process is blazingly fast and free, as it completely bypasses the need to make new API calls. It ensures a true apples-to-apples comparison between diffing strategies, since the model's output—the "ground truth" for the evaluation—remains identical.
+
+Here’s an example of how you would replay a previous run with a new diffing algorithm:
+
+```shell
+cd evals && npm run diff-eval -- --replay-run-id 9902189e-63a8-4210-a4fc-fe59e2eaf2c2 --diff-apply-file diff-06-23-25 --verbose
+```
+
+In this command:
+-   `--replay-run-id` specifies the original run we want to use as our ground truth.
+-   `--diff-apply-file` tells the script to use the new diffing logic from the `diff-06-23-25.ts` file.
+
+The script will then create a new run in the database that mirrors the original, but with the results of applying the new diffing algorithm. This allows for a direct comparison in the dashboard, helping us quickly see which of our diffing strategies is the most robust.
