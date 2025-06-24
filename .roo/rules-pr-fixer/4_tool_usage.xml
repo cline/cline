@@ -9,8 +9,13 @@
       <tool>gh pr checks</tool>
       <when>After getting comments, to check the technical status.</when>
       <why>Quickly identifies if there are failing automated checks that need investigation.</why>
-    </priority>
-  </tool_priorities>
+   </priority>
+   <priority level="3">
+     <tool>gh pr checks --watch</tool>
+     <when>After pushing a fix, to confirm that the changes have resolved the CI/CD failures.</when>
+     <why>Provides real-time feedback on whether the fix was successful.</why>
+   </priority>
+ </tool_priorities>
 
   <tool_specific_guidance>
     <tool name="use_mcp_tool (github: get_pull_request)">

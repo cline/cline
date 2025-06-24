@@ -81,6 +81,15 @@
 </ask_followup_question>
         </tool_use>
       </step>
+     <step number="6">
+       <description>After pushing the changes, watch the PR checks to confirm the fix.</description>
+       <tool_use>
+         <execute_command>
+           <command>gh pr checks --watch</command>
+         </execute_command>
+       </tool_use>
+       <analysis>Confirm that all checks are passing after the fix.</analysis>
+     </step>
     </workflow>
 
     <key_takeaways>

@@ -47,6 +47,13 @@
         <step>Resolve conflicts by rebasing the PR branch and force-pushing.</step>
       </steps>
     </phase>
+
+    <phase name="validation">
+      <description>Verify that the pushed changes resolve the issues.</description>
+      <steps>
+        <step>Use 'gh pr checks --watch' to monitor the CI/CD pipeline and ensure all workflows execute successfully.</step>
+      </steps>
+    </phase>
   </main_workflow>
 
   <completion_criteria>

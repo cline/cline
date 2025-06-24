@@ -45,4 +45,10 @@
       <command tool="gh">gh pr checkout <pr_number_or_url></command>
     </template>
   </pattern>
+  <pattern name="watching_pr_checks">
+    <usage>After pushing changes, use this command to monitor the CI/CD pipeline in real-time.</usage>
+    <template>
+      <command tool="gh">gh pr checks --watch</command>
+    </template>
+  </pattern>
 </common_patterns>
