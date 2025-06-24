@@ -414,28 +414,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [task?.ts])
 
 	const isStreaming = useMemo(() => {
-		const isLastAsk = !!modifiedMessages.at(-1)?.ask // checking clineAsk isn't enough since messages effect may be called again for a tool for example, set clineAsk to its value, and if the next message is not an ask then it doesn't reset. This is likely due to how much more often we're updating messages as compared to before, and should be resolved with optimizations as it's likely a rendering bug. but as a final guard for now, the cancel button will show if the last message is not an ask
-		const isToolCurrentlyAsking = isLastAsk && clineAsk !== undefined && enableButtons && primaryButtonText !== undefined
-		if (isToolCurrentlyAsking) {
-			return false
-		}
-
-		const isLastMessagePartial = modifiedMessages.at(-1)?.partial === true
-		if (isLastMessagePartial) {
-			return true
-		} else {
-			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
-				const cost = JSON.parse(lastApiReqStarted.text).cost
-				if (cost === undefined) {
-					// api request has not finished yet
-					return true
-				}
-			}
-		}
-
-		return false
-	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
+		return modifiedMessages.at(-1)?.partial === true
+	}, [modifiedMessages])
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
