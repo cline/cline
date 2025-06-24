@@ -17,7 +17,7 @@ import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
 import {
@@ -697,15 +697,13 @@ export const ChatRowContent = ({
 								msUserSelect: "none",
 							}}
 							onClick={() => {
-								// Attempt to open the URL in the default browser
+								// Open the URL in the default browser using gRPC
 								if (tool.path) {
-									// Assuming 'openUrl' is a valid action the extension can handle.
-									// If not, this might need adjustment based on how other external link openings are handled.
-									vscode.postMessage({
-										type: "action", // This should be a valid MessageType from WebviewMessage
-										action: "openUrl", // This should be a valid WebviewAction from WebviewMessage
-										url: tool.path,
-									} as any) // Using 'as any' for now if 'openUrl' isn't strictly typed yet
+									UiServiceClient.openUrl(StringRequest.create({ value: tool.path }))
+
+										.catch((err) => {
+											console.error("Failed to open URL:", err)
+										})
 								}
 							}}>
 							<span
