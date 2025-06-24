@@ -257,14 +257,14 @@ export class TaskCheckpointManager {
 		const relinquishButton = () => {
 			sendRelinquishControlEvent()
 		}
-		if (!this.enableCheckpoints) {
+		if (!this.dependencies.enableCheckpoints) {
 			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
 			relinquishButton()
 			return
 		}
 
 		console.log("presentMultifileDiff", messageTs)
-		const clineMessages = this.messageStateHandler.getClineMessages()
+		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
 		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
 		const message = clineMessages[messageIndex]
 		if (!message) {
@@ -280,19 +280,18 @@ export class TaskCheckpointManager {
 		}
 
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
-		if (!this.checkpointTracker && this.enableCheckpoints && !this.taskState.checkpointTrackerErrorMessage) {
+		if (!this.state.checkpointTracker && this.dependencies.enableCheckpoints && !this.state.checkpointTrackerErrorMessage) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.context.globalStorageUri.fsPath,
-					this.enableCheckpoints,
+				this.state.checkpointTracker = await CheckpointTracker.create(
+					this.dependencies.taskId,
+					this.dependencies.context.globalStorageUri.fsPath,
+					this.dependencies.enableCheckpoints,
 				)
-				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
+				this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage
-				await this.postStateToWebview()
+				this.state.checkpointTrackerErrorMessage = errorMessage
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -312,7 +311,7 @@ export class TaskCheckpointManager {
 			if (seeNewChangesSinceLastTaskCompletion) {
 				// Get last task completed
 				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.messageStateHandler.getClineMessages().slice(0, messageIndex),
+					this.dependencies.messageStateHandler.getClineMessages().slice(0, messageIndex),
 					(m) => m.say === "completion_result",
 				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 				// if undefined, then we get diff from beginning of git
@@ -321,7 +320,7 @@ export class TaskCheckpointManager {
 				// 	return
 				// }
 				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.messageStateHandler
+				const firstCheckpointMessageCheckpointHash = this.dependencies.messageStateHandler
 					.getClineMessages()
 					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
@@ -334,7 +333,7 @@ export class TaskCheckpointManager {
 				}
 
 				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
+				changedFiles = await this.state.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
 					vscode.window.showInformationMessage("No changes found")
 					relinquishButton()
@@ -342,7 +341,7 @@ export class TaskCheckpointManager {
 				}
 			} else {
 				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
+				changedFiles = await this.state.checkpointTracker?.getDiffSet(hash)
 				if (!changedFiles?.length) {
 					vscode.window.showInformationMessage("No changes found")
 					relinquishButton()
@@ -389,8 +388,74 @@ export class TaskCheckpointManager {
 	 * @returns Promise<boolean> - True if there are new changes since last completion
 	 */
 	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
-		// TODO: Move doesLatestTaskCompletionHaveNewChanges implementation here
-		throw new Error("doesLatestTaskCompletionHaveNewChanges not yet implemented - move from Task class")
+		if (!this.dependencies.enableCheckpoints) {
+			return false
+		}
+
+		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
+		const message = clineMessages[messageIndex]
+		if (!message) {
+			console.error("Completion message not found")
+			return false
+		}
+		const hash = message.lastCheckpointHash
+		if (!hash) {
+			console.error("No checkpoint hash found")
+			return false
+		}
+
+		if (this.dependencies.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+			try {
+				this.state.checkpointTracker = await CheckpointTracker.create(
+					this.dependencies.taskId,
+					this.dependencies.context.globalStorageUri.fsPath,
+					this.dependencies.enableCheckpoints,
+				)
+				this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				console.error("Failed to initialize checkpoint tracker:", errorMessage)
+				return false
+			}
+		}
+
+		// Get last task completed
+		const lastTaskCompletedMessage = findLast(
+			this.dependencies.messageStateHandler.getClineMessages().slice(0, messageIndex),
+			(m) => m.say === "completion_result",
+		)
+
+		try {
+			// Get last task completed
+			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
+			// if undefined, then we get diff from beginning of git
+			// if (!lastTaskCompletedMessage) {
+			// 	console.error("No previous task completion message found")
+			// 	return
+			// }
+			// This value *should* always exist
+			const firstCheckpointMessageCheckpointHash = this.dependencies.messageStateHandler
+				.getClineMessages()
+				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
+
+			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
+
+			if (!previousCheckpointHash) {
+				return false
+			}
+
+			// Get count of changed files between current state and commit
+			const changedFilesCount = (await this.state.checkpointTracker?.getDiffCount(previousCheckpointHash, hash)) || 0
+			if (changedFilesCount > 0) {
+				return true
+			}
+		} catch (error) {
+			console.error("Failed to get diff set:", error)
+			return false
+		}
+
+		return false
 	}
 
 	/**
@@ -430,7 +495,7 @@ export class TaskCheckpointManager {
 
 				// Note: File context warning detection is handled by the Task class
 				// since FileContextTracker is not available in checkpoint manager dependencies
-				// TODO REVIEW TO CONFIRM THIS IS COOL BRO	
+				// TODO REVIEW TO CONFIRM THIS IS COOL BRO
 
 				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
 				await this.dependencies.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
