@@ -370,6 +370,18 @@ export class MarketplaceViewStateManager {
 				// Error case
 				void this.transition({ type: "FETCH_ERROR" })
 			} else {
+				// Check if a specific tab is requested
+				if (
+					message.values?.marketplaceTab &&
+					(message.values.marketplaceTab === "mcp" || message.values.marketplaceTab === "mode")
+				) {
+					// Set the active tab
+					void this.transition({
+						type: "SET_ACTIVE_TAB",
+						payload: { tab: message.values.marketplaceTab },
+					})
+				}
+
 				// Refresh request
 				void this.transition({ type: "FETCH_ITEMS" })
 			}

@@ -523,6 +523,7 @@ describe("ClineProvider", () => {
 			cloudIsAuthenticated: false,
 			sharingEnabled: false,
 			profileThresholds: {},
+			hasOpenedModeSelector: false,
 		}
 
 		const message: ExtensionMessage = {

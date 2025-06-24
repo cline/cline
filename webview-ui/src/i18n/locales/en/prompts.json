@@ -34,9 +34,14 @@
 		"resetToDefault": "Reset to default",
 		"description": "Define Roo's expertise and personality for this mode. This description shapes how Roo presents itself and approaches tasks."
 	},
+	"description": {
+		"title": "Short description (for humans)",
+		"resetToDefault": "Reset to default description",
+		"description": "A brief description shown in the mode selector dropdown."
+	},
 	"whenToUse": {
 		"title": "When to Use (optional)",
-		"description": "Describe when this mode should be used. This helps the Orchestrator choose the right mode for a task.",
+		"description": "Guidance for Roo for when this mode should be used. This helps the Orchestrator choose the right mode for a task.",
 		"resetToDefault": "Reset to default 'When to Use' description"
 	},
 	"customInstructions": {
@@ -137,9 +142,13 @@
 			"label": "Role Definition",
 			"description": "Define Roo's expertise and personality for this mode."
 		},
+		"description": {
+			"label": "Short description (for humans)",
+			"description": "A brief description shown in the mode selector dropdown."
+		},
 		"whenToUse": {
 			"label": "When to Use (optional)",
-			"description": "Provide a clear description of when this mode is most effective and what types of tasks it excels at."
+			"description": "Guidance for Roo for when this mode should be used. This helps the Orchestrator choose the right mode for a task."
 		},
 		"tools": {
 			"label": "Available Tools",

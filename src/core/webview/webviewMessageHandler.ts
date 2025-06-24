@@ -948,8 +948,27 @@ export const webviewMessageHandler = async (
 				const updatedPrompts = { ...existingPrompts, [message.promptMode]: message.customPrompt }
 				await updateGlobalState("customModePrompts", updatedPrompts)
 				const currentState = await provider.getStateToPostToWebview()
-				const stateWithPrompts = { ...currentState, customModePrompts: updatedPrompts }
+				const stateWithPrompts = {
+					...currentState,
+					customModePrompts: updatedPrompts,
+					hasOpenedModeSelector: currentState.hasOpenedModeSelector ?? false,
+				}
 				provider.postMessageToWebview({ type: "state", state: stateWithPrompts })
+
+				if (TelemetryService.hasInstance()) {
+					// Determine which setting was changed by comparing objects
+					const oldPrompt = existingPrompts[message.promptMode] || {}
+					const newPrompt = message.customPrompt
+					const changedSettings = Object.keys(newPrompt).filter(
+						(key) =>
+							JSON.stringify((oldPrompt as Record<string, unknown>)[key]) !==
+							JSON.stringify((newPrompt as Record<string, unknown>)[key]),
+					)
+
+					if (changedSettings.length > 0) {
+						TelemetryService.instance.captureModeSettingChanged(changedSettings[0])
+					}
+				}
 			}
 			break
 		case "deleteMessage": {
@@ -1083,6 +1102,10 @@ export const webviewMessageHandler = async (
 			break
 		case "showRooIgnoredFiles":
 			await updateGlobalState("showRooIgnoredFiles", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
+		case "hasOpenedModeSelector":
+			await updateGlobalState("hasOpenedModeSelector", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
 		case "maxReadFileLine":
@@ -1414,12 +1437,41 @@ export const webviewMessageHandler = async (
 			break
 		case "updateCustomMode":
 			if (message.modeConfig) {
+				// Check if this is a new mode or an update to an existing mode
+				const existingModes = await provider.customModesManager.getCustomModes()
+				const isNewMode = !existingModes.some((mode) => mode.slug === message.modeConfig?.slug)
+
 				await provider.customModesManager.updateCustomMode(message.modeConfig.slug, message.modeConfig)
 				// Update state after saving the mode
 				const customModes = await provider.customModesManager.getCustomModes()
 				await updateGlobalState("customModes", customModes)
 				await updateGlobalState("mode", message.modeConfig.slug)
 				await provider.postStateToWebview()
+
+				// Track telemetry for custom mode creation or update
+				if (TelemetryService.hasInstance()) {
+					if (isNewMode) {
+						// This is a new custom mode
+						TelemetryService.instance.captureCustomModeCreated(
+							message.modeConfig.slug,
+							message.modeConfig.name,
+						)
+					} else {
+						// Determine which setting was changed by comparing objects
+						const existingMode = existingModes.find((mode) => mode.slug === message.modeConfig?.slug)
+						const changedSettings = existingMode
+							? Object.keys(message.modeConfig).filter(
+									(key) =>
+										JSON.stringify((existingMode as Record<string, unknown>)[key]) !==
+										JSON.stringify((message.modeConfig as Record<string, unknown>)[key]),
+								)
+							: []
+
+						if (changedSettings.length > 0) {
+							TelemetryService.instance.captureModeSettingChanged(changedSettings[0])
+						}
+					}
+				}
 			}
 			break
 		case "deleteCustomMode":
@@ -1604,6 +1656,7 @@ export const webviewMessageHandler = async (
 					)
 					await provider.postStateToWebview()
 					console.log(`Marketplace item installed and config file opened: ${configFilePath}`)
+
 					// Send success message to webview
 					provider.postMessageToWebview({
 						type: "marketplaceInstallResult",
@@ -1656,7 +1709,11 @@ export const webviewMessageHandler = async (
 
 		case "switchTab": {
 			if (message.tab) {
-				// Send a message to the webview to switch to the specified tab
+				// Capture tab shown event for all switchTab messages (which are user-initiated)
+				if (TelemetryService.hasInstance()) {
+					TelemetryService.instance.captureTabShown(message.tab)
+				}
+
 				await provider.postMessageToWebview({ type: "action", action: "switchTab", tab: message.tab })
 			}
 			break

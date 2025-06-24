@@ -195,8 +195,25 @@ export const MarketplaceInstallModal: React.FC<MarketplaceInstallModalProps> = (
 	}
 
 	const handlePostInstallAction = (tab: "mcp" | "modes") => {
-		// Send message to switch to the appropriate tab
-		vscode.postMessage({ type: "switchTab", tab })
+		if (tab === "mcp") {
+			// Navigate to MCP tab
+			window.postMessage(
+				{
+					type: "action",
+					action: "mcpButtonClicked",
+				},
+				"*",
+			)
+		} else {
+			// Navigate to Modes tab
+			window.postMessage(
+				{
+					type: "action",
+					action: "promptsButtonClicked",
+				},
+				"*",
+			)
+		}
 		// Close the modal
 		onClose()
 	}

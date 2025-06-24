@@ -91,7 +91,7 @@
 		"whatNextMode": "Możesz teraz używać tego trybu. Kliknij ikonę Tryby na pasku bocznym, aby przełączyć zakładki.",
 		"done": "Gotowe",
 		"goToMcp": "Przejdź do zakładki MCP",
-		"goToModes": "Przejdź do zakładki Tryby",
+		"goToModes": "Przejdź do ustawień Trybów",
 		"moreInfoMcp": "Zobacz dokumentację MCP {{name}}",
 		"validationRequired": "Podaj wartość dla {{paramName}}",
 		"prerequisites": "Wymagania wstępne"

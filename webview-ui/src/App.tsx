@@ -74,6 +74,7 @@ const App = () => {
 			}
 
 			setCurrentSection(undefined)
+			setCurrentMarketplaceTab(undefined)
 
 			if (settingsRef.current?.checkUnsaveChanges) {
 				settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
@@ -85,6 +86,7 @@ const App = () => {
 	)
 
 	const [currentSection, setCurrentSection] = useState<string | undefined>(undefined)
+	const [currentMarketplaceTab, setCurrentMarketplaceTab] = useState<string | undefined>(undefined)
 
 	const onMessage = useCallback(
 		(e: MessageEvent) => {
@@ -96,14 +98,17 @@ const App = () => {
 					const targetTab = message.tab as Tab
 					switchTab(targetTab)
 					setCurrentSection(undefined)
+					setCurrentMarketplaceTab(undefined)
 				} else {
 					// Handle other actions using the mapping
 					const newTab = tabsByMessageAction[message.action]
 					const section = message.values?.section as string | undefined
+					const marketplaceTab = message.values?.marketplaceTab as string | undefined
 
 					if (newTab) {
 						switchTab(newTab)
 						setCurrentSection(section)
+						setCurrentMarketplaceTab(marketplaceTab)
 					}
 				}
 			}
@@ -171,7 +176,11 @@ const App = () => {
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
 			{tab === "marketplace" && (
-				<MarketplaceView stateManager={marketplaceStateManager} onDone={() => switchTab("chat")} />
+				<MarketplaceView
+					stateManager={marketplaceStateManager}
+					onDone={() => switchTab("chat")}
+					targetTab={currentMarketplaceTab as "mcp" | "mode" | undefined}
+				/>
 			)}
 			{tab === "account" && (
 				<AccountView

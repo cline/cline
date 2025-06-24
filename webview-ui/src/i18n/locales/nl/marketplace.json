@@ -91,7 +91,7 @@
 		"whatNextMode": "Je kunt deze modus nu gebruiken. Klik op het modi-pictogram in de zijbalk om van tabblad te wisselen.",
 		"done": "Gereed",
 		"goToMcp": "Ga naar MCP-tabblad",
-		"goToModes": "Ga naar Modi-tabblad",
+		"goToModes": "Ga naar Modi-instellingen",
 		"moreInfoMcp": "{{name}} MCP-documentatie bekijken",
 		"validationRequired": "Geef een waarde op voor {{paramName}}",
 		"prerequisites": "Vereisten"

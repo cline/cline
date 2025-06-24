@@ -34,6 +34,11 @@
 		"resetToDefault": "Restablecer a valores predeterminados",
 		"description": "Define la experiencia y personalidad de Roo para este modo. Esta descripción determina cómo Roo se presenta y aborda las tareas."
 	},
+	"description": {
+		"title": "Descripción breve (para humanos)",
+		"resetToDefault": "Restablecer a la descripción predeterminada",
+		"description": "Una breve descripción que se muestra en el menú desplegable del selector de modo."
+	},
 	"whenToUse": {
 		"title": "Cuándo usar (opcional)",
 		"description": "Describe cuándo se debe usar este modo. Esto ayuda al Orchestrator a elegir el modo correcto para una tarea.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Herramientas disponibles",
 			"description": "Selecciona qué herramientas puede usar este modo."
+		},
+		"description": {
+			"label": "Descripción breve (para humanos)",
+			"description": "Una breve descripción que se muestra en el menú desplegable del selector de modo."
 		},
 		"customInstructions": {
 			"label": "Instrucciones personalizadas (opcional)",

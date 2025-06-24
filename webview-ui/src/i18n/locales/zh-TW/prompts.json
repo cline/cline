@@ -34,6 +34,11 @@
 		"resetToDefault": "重設為預設值",
 		"description": "定義此模式下 Roo 的專業知識和個性。此描述會形塑 Roo 如何展現自己並處理工作。"
 	},
+	"description": {
+		"title": "簡短描述（給人看的）",
+		"resetToDefault": "重置為預設描述",
+		"description": "在模式選擇下拉選單中顯示的簡短描述。"
+	},
 	"whenToUse": {
 		"title": "使用時機（選用）",
 		"description": "描述何時應使用此模式。這有助於 Orchestrator 為任務選擇適當的模式。",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "可用工具",
 			"description": "選擇此模式可使用的工具。"
+		},
+		"description": {
+			"label": "簡短描述（給人看的）",
+			"description": "在模式選擇下拉選單中顯示的簡短描述。"
 		},
 		"customInstructions": {
 			"label": "自訂指令（選用）",

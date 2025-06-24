@@ -91,7 +91,7 @@
 		"whatNextMode": "Du kannst diesen Modus jetzt verwenden. Klicke auf das Modi-Symbol in der Seitenleiste, um die Tabs zu wechseln.",
 		"done": "Fertig",
 		"goToMcp": "Zum MCP-Tab gehen",
-		"goToModes": "Zum Modi-Tab gehen",
+		"goToModes": "Zu den Modi-Einstellungen gehen",
 		"moreInfoMcp": "{{name}} MCP-Dokumentation anzeigen",
 		"validationRequired": "Bitte gib einen Wert für {{paramName}} an",
 		"prerequisites": "Voraussetzungen"

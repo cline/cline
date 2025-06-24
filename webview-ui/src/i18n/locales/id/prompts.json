@@ -34,6 +34,11 @@
 		"resetToDefault": "Reset ke default",
 		"description": "Tentukan keahlian dan kepribadian Roo untuk mode ini. Deskripsi ini membentuk bagaimana Roo mempresentasikan dirinya dan mendekati tugas."
 	},
+	"description": {
+		"title": "Deskripsi singkat (untuk manusia)",
+		"resetToDefault": "Setel ulang ke deskripsi default",
+		"description": "Deskripsi singkat yang ditampilkan di dropdown pemilih mode."
+	},
 	"whenToUse": {
 		"title": "Kapan Menggunakan (opsional)",
 		"description": "Jelaskan kapan mode ini harus digunakan. Ini membantu Orchestrator memilih mode yang tepat untuk suatu tugas.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Tools yang Tersedia",
 			"description": "Pilih tools mana yang dapat digunakan mode ini."
+		},
+		"description": {
+			"label": "Deskripsi singkat (untuk manusia)",
+			"description": "Deskripsi singkat yang ditampilkan di dropdown pemilih mode."
 		},
 		"customInstructions": {
 			"label": "Instruksi Kustom (opsional)",

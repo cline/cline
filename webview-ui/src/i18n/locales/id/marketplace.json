@@ -92,7 +92,7 @@
 		"whatNextMode": "Anda sekarang dapat menggunakan mode ini. Klik ikon Mode di sidebar untuk beralih tab.",
 		"done": "Selesai",
 		"goToMcp": "Ke Tab MCP",
-		"goToModes": "Ke Tab Mode",
+		"goToModes": "Ke Pengaturan Mode",
 		"moreInfoMcp": "Lihat dokumentasi MCP {{name}}",
 		"validationRequired": "Silakan berikan nilai untuk {{paramName}}"
 	},

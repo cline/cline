@@ -113,6 +113,12 @@
 	"selectApiConfig": "Pilih konfigurasi API",
 	"enhancePrompt": "Tingkatkan prompt dengan konteks tambahan",
 	"enhancePromptDescription": "Tombol 'Tingkatkan Prompt' membantu memperbaiki prompt kamu dengan memberikan konteks tambahan, klarifikasi, atau penyusunan ulang. Coba ketik prompt di sini dan klik tombol lagi untuk melihat cara kerjanya.",
+	"modeSelector": {
+		"title": "Mode",
+		"marketplace": "Marketplace Mode",
+		"settings": "Pengaturan Mode",
+		"description": "Persona khusus yang menyesuaikan perilaku Roo."
+	},
 	"addImages": "Tambahkan gambar ke pesan",
 	"sendMessage": "Kirim pesan",
 	"typeMessage": "Ketik pesan...",

@@ -34,6 +34,11 @@
 		"resetToDefault": "Terugzetten naar standaard",
 		"description": "Definieer Roo's expertise en persoonlijkheid voor deze modus. Deze beschrijving bepaalt hoe Roo zich presenteert en taken benadert."
 	},
+	"description": {
+		"title": "Korte beschrijving (voor mensen)",
+		"resetToDefault": "Terugzetten naar standaardbeschrijving",
+		"description": "Een korte beschrijving die wordt getoond in de modusselectie dropdown."
+	},
 	"whenToUse": {
 		"title": "Wanneer te gebruiken (optioneel)",
 		"description": "Beschrijf wanneer deze modus gebruikt moet worden. Dit helpt de Orchestrator om de juiste modus voor een taak te kiezen.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Beschikbare tools",
 			"description": "Selecteer welke tools deze modus kan gebruiken."
+		},
+		"description": {
+			"label": "Korte beschrijving (voor mensen)",
+			"description": "Een korte beschrijving die wordt getoond in de modusselectie dropdown."
 		},
 		"customInstructions": {
 			"label": "Aangepaste instructies (optioneel)",

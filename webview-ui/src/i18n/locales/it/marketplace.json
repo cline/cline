@@ -91,7 +91,7 @@
 		"whatNextMode": "Ora puoi utilizzare questa modalità. Clicca sull'icona delle modalità nella barra laterale per cambiare scheda.",
 		"done": "Fatto",
 		"goToMcp": "Vai alla scheda MCP",
-		"goToModes": "Vai alla scheda Modalità",
+		"goToModes": "Vai alle impostazioni Modalità",
 		"moreInfoMcp": "Visualizza documentazione MCP {{name}}",
 		"validationRequired": "Fornisci un valore per {{paramName}}",
 		"prerequisites": "Prerequisiti"

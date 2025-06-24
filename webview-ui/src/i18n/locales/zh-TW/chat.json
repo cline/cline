@@ -106,6 +106,12 @@
 	"dragFiles": "按住 Shift 鍵拖曳檔案",
 	"dragFilesImages": "按住 Shift 鍵拖曳檔案/圖片",
 	"enhancePromptDescription": "「增強提示」按鈕透過提供額外內容、說明或重新表述來幫助改進您的請求。嘗試在此處輸入請求，然後再次點選按鈕以了解其運作方式。",
+	"modeSelector": {
+		"title": "模式",
+		"marketplace": "模式市集",
+		"settings": "模式設定",
+		"description": "專門定制Roo行為的角色。"
+	},
 	"errorReadingFile": "讀取檔案時發生錯誤：",
 	"noValidImages": "未處理到任何有效圖片",
 	"separator": "分隔符號",

@@ -208,6 +208,7 @@ describe("mergeExtensionState", () => {
 			cloudIsAuthenticated: false,
 			sharingEnabled: false,
 			profileThresholds: {},
+			hasOpenedModeSelector: false, // Add the new required property
 		}
 
 		const prevState: ExtensionState = {

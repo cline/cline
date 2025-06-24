@@ -34,6 +34,11 @@
 		"resetToDefault": "기본값으로 재설정",
 		"description": "이 모드에 대한 Roo의 전문성과 성격을 정의하세요. 이 설명은 Roo가 자신을 어떻게 표현하고 작업에 접근하는지 형성합니다."
 	},
+	"description": {
+		"title": "짧은 설명 (사람용)",
+		"resetToDefault": "기본 설명으로 재설정",
+		"description": "모드 선택기 드롭다운에 표시되는 간단한 설명입니다."
+	},
 	"whenToUse": {
 		"title": "사용 시기 (선택 사항)",
 		"description": "이 모드를 언제 사용해야 하는지 설명합니다. 이는 Orchestrator가 작업에 적합한 모드를 선택하는 데 도움이 됩니다.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "사용 가능한 도구",
 			"description": "이 모드가 사용할 수 있는 도구를 선택하세요."
+		},
+		"description": {
+			"label": "짧은 설명 (사람용)",
+			"description": "모드 선택기 드롭다운에 표시되는 간단한 설명입니다."
 		},
 		"customInstructions": {
 			"label": "사용자 지정 지침 (선택 사항)",

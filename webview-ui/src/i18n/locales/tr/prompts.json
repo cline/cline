@@ -34,6 +34,11 @@
 		"resetToDefault": "Varsayılana sıfırla",
 		"description": "Bu mod için Roo'nun uzmanlığını ve kişiliğini tanımlayın. Bu açıklama, Roo'nun kendini nasıl sunduğunu ve görevlere nasıl yaklaştığını şekillendirir."
 	},
+	"description": {
+		"title": "Kısa açıklama (insanlar için)",
+		"resetToDefault": "Varsayılan açıklamaya sıfırla",
+		"description": "Mod seçici açılır menüsünde gösterilen kısa bir açıklama."
+	},
 	"whenToUse": {
 		"title": "Ne zaman kullanılmalı (isteğe bağlı)",
 		"description": "Bu modun ne zaman kullanılması gerektiğini açıklayın. Bu, Orchestrator'ın bir görev için doğru modu seçmesine yardımcı olur.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Kullanılabilir Araçlar",
 			"description": "Bu modun hangi araçları kullanabileceğini seçin."
+		},
+		"description": {
+			"label": "Kısa açıklama (insanlar için)",
+			"description": "Mod seçici açılır menüsünde gösterilen kısa bir açıklama."
 		},
 		"customInstructions": {
 			"label": "Özel Talimatlar (isteğe bağlı)",

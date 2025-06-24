@@ -91,7 +91,7 @@
 		"whatNextMode": "Bây giờ bạn có thể sử dụng chế độ này. Nhấp vào biểu tượng Chế độ trong thanh bên để chuyển tab.",
 		"done": "Hoàn thành",
 		"goToMcp": "Đi đến Tab MCP",
-		"goToModes": "Đi đến Tab Chế độ",
+		"goToModes": "Đi đến Cài đặt Chế độ",
 		"moreInfoMcp": "Xem tài liệu MCP {{name}}",
 		"validationRequired": "Vui lòng cung cấp giá trị cho {{paramName}}",
 		"prerequisites": "Điều kiện tiên quyết"

@@ -106,6 +106,12 @@
 	"dragFiles": "Shift+拖拽文件",
 	"dragFilesImages": "Shift+拖拽文件/图片",
 	"enhancePromptDescription": "'增强提示'按钮通过提供额外上下文、澄清或重新表述来帮助改进您的请求。尝试在此处输入请求，然后再次点击按钮查看其工作原理。",
+	"modeSelector": {
+		"title": "模式",
+		"marketplace": "模式市场",
+		"settings": "模式设置",
+		"description": "专门定制Roo行为的角色。"
+	},
 	"errorReadingFile": "读取文件时出错:",
 	"noValidImages": "没有处理有效图片",
 	"separator": "分隔符",

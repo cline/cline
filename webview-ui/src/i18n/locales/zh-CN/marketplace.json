@@ -91,7 +91,7 @@
 		"whatNextMode": "现在您可以使用此模式。点击侧边栏中的模式图标切换标签页。",
 		"done": "完成",
 		"goToMcp": "转到 MCP 标签页",
-		"goToModes": "转到模式标签页",
+		"goToModes": "转到模式设置",
 		"moreInfoMcp": "查看 {{name}} MCP 文档",
 		"validationRequired": "请为 {{paramName}} 提供值",
 		"prerequisites": "前置条件"

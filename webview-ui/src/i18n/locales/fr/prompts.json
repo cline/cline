@@ -34,6 +34,11 @@
 		"resetToDefault": "Réinitialiser aux valeurs par défaut",
 		"description": "Définissez l'expertise et la personnalité de Roo pour ce mode. Cette description façonne la manière dont Roo se présente et aborde les tâches."
 	},
+	"description": {
+		"title": "Description courte (pour humains)",
+		"resetToDefault": "Réinitialiser à la description par défaut",
+		"description": "Une brève description affichée dans le menu déroulant du sélecteur de mode."
+	},
 	"whenToUse": {
 		"title": "Quand utiliser (optionnel)",
 		"description": "Décrivez quand ce mode doit être utilisé. Cela aide l'Orchestrateur à choisir le mode approprié pour une tâche.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Outils disponibles",
 			"description": "Sélectionnez quels outils ce mode peut utiliser."
+		},
+		"description": {
+			"label": "Description courte (pour humains)",
+			"description": "Une brève description affichée dans le menu déroulant du sélecteur de mode."
 		},
 		"customInstructions": {
 			"label": "Instructions personnalisées (optionnel)",

@@ -91,7 +91,7 @@
 		"whatNextMode": "Vous pouvez maintenant utiliser ce mode. Cliquez sur l'icône Modes dans la barre latérale pour changer d'onglet.",
 		"done": "Terminé",
 		"goToMcp": "Aller à l'onglet MCP",
-		"goToModes": "Aller à l'onglet Modes",
+		"goToModes": "Aller aux paramètres des Modes",
 		"moreInfoMcp": "Voir la documentation MCP de {{name}}",
 		"validationRequired": "Veuillez fournir une valeur pour {{paramName}}",
 		"prerequisites": "Prérequis"

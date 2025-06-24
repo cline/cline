@@ -106,6 +106,12 @@
 	"dragFiles": "segure shift para arrastar arquivos",
 	"dragFilesImages": "segure shift para arrastar arquivos/imagens",
 	"enhancePromptDescription": "O botão 'Aprimorar prompt' ajuda a melhorar seu pedido fornecendo contexto adicional, esclarecimentos ou reformulações. Tente digitar um pedido aqui e clique no botão novamente para ver como funciona.",
+	"modeSelector": {
+		"title": "Modos",
+		"marketplace": "Marketplace de Modos",
+		"settings": "Configurações de Modos",
+		"description": "Personas especializadas que adaptam o comportamento do Roo."
+	},
 	"errorReadingFile": "Erro ao ler arquivo:",
 	"noValidImages": "Nenhuma imagem válida foi processada",
 	"separator": "Separador",

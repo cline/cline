@@ -106,6 +106,12 @@
 	"dragFiles": "tieni premuto shift per trascinare file",
 	"dragFilesImages": "tieni premuto shift per trascinare file/immagini",
 	"enhancePromptDescription": "Il pulsante 'Migliora prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e fai di nuovo clic sul pulsante per vedere come funziona.",
+	"modeSelector": {
+		"title": "Modalità",
+		"marketplace": "Marketplace delle Modalità",
+		"settings": "Impostazioni Modalità",
+		"description": "Personalità specializzate che adattano il comportamento di Roo."
+	},
 	"errorReadingFile": "Errore nella lettura del file:",
 	"noValidImages": "Nessuna immagine valida è stata elaborata",
 	"separator": "Separatore",

@@ -91,7 +91,7 @@
 		"whatNextMode": "このモードを使用できるようになりました。サイドバーのモードアイコンをクリックしてタブを切り替えてください。",
 		"done": "完了",
 		"goToMcp": "MCPタブに移動",
-		"goToModes": "モードタブに移動",
+		"goToModes": "モード設定に移動",
 		"moreInfoMcp": "{{name}} MCPドキュメントを表示",
 		"validationRequired": "{{paramName}}の値を入力してください",
 		"prerequisites": "前提条件"

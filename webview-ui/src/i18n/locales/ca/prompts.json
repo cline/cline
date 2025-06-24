@@ -34,6 +34,11 @@
 		"resetToDefault": "Restablir a valors predeterminats",
 		"description": "Definiu l'experiència i personalitat de Roo per a aquest mode. Aquesta descripció determina com Roo es presenta i aborda les tasques."
 	},
+	"description": {
+		"title": "Descripció curta (per a humans)",
+		"resetToDefault": "Restablir a la descripció predeterminada",
+		"description": "Una breu descripció que es mostra al desplegable del selector de mode."
+	},
 	"whenToUse": {
 		"title": "Quan utilitzar (opcional)",
 		"description": "Descriviu quan s'hauria d'utilitzar aquest mode. Això ajuda l'Orchestrator a escollir el mode correcte per a una tasca.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Eines disponibles",
 			"description": "Seleccioneu quines eines pot utilitzar aquest mode."
+		},
+		"description": {
+			"label": "Descripció curta (per a humans)",
+			"description": "Una breu descripció que es mostra al desplegable del selector de mode."
 		},
 		"customInstructions": {
 			"label": "Instruccions personalitzades (opcional)",

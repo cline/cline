@@ -106,6 +106,12 @@
 	"dragFiles": "mantén shift para arrastrar archivos",
 	"dragFilesImages": "mantén shift para arrastrar archivos/imágenes",
 	"enhancePromptDescription": "El botón 'Mejorar el mensaje' ayuda a mejorar tu petición proporcionando contexto adicional, aclaraciones o reformulaciones. Intenta escribir una petición aquí y haz clic en el botón nuevamente para ver cómo funciona.",
+	"modeSelector": {
+		"title": "Modos",
+		"marketplace": "Marketplace de Modos",
+		"settings": "Configuración de Modos",
+		"description": "Personalidades especializadas que adaptan el comportamiento de Roo."
+	},
 	"errorReadingFile": "Error al leer el archivo:",
 	"noValidImages": "No se procesaron imágenes válidas",
 	"separator": "Separador",

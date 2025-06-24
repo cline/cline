@@ -31,6 +31,10 @@ export enum TelemetryEventName {
 	CHECKPOINT_RESTORED = "Checkpoint Restored",
 	CHECKPOINT_DIFFED = "Checkpoint Diffed",
 
+	TAB_SHOWN = "Tab Shown",
+	MODE_SETTINGS_CHANGED = "Mode Setting Changed",
+	CUSTOM_MODE_CREATED = "Custom Mode Created",
+
 	CONTEXT_CONDENSED = "Context Condensed",
 	SLIDING_WINDOW_TRUNCATION = "Sliding Window Truncation",
 
@@ -119,6 +123,9 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.CONSECUTIVE_MISTAKE_ERROR,
 			TelemetryEventName.CONTEXT_CONDENSED,
 			TelemetryEventName.SLIDING_WINDOW_TRUNCATION,
+			TelemetryEventName.TAB_SHOWN,
+			TelemetryEventName.MODE_SETTINGS_CHANGED,
+			TelemetryEventName.CUSTOM_MODE_CREATED,
 		]),
 		properties: telemetryPropertiesSchema,
 	}),

@@ -106,6 +106,12 @@
 	"dragFiles": "manté premut shift per arrossegar fitxers",
 	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges",
 	"enhancePromptDescription": "El botó 'Millora la sol·licitud' ajuda a millorar la teva sol·licitud proporcionant context addicional, aclariments o reformulacions. Prova d'escriure una sol·licitud aquí i fes clic al botó de nou per veure com funciona.",
+	"modeSelector": {
+		"title": "Modes",
+		"marketplace": "Marketplace de Modes",
+		"settings": "Configuració de Modes",
+		"description": "Personalitats especialitzades que adapten el comportament de Roo."
+	},
 	"errorReadingFile": "Error en llegir el fitxer:",
 	"noValidImages": "No s'ha processat cap imatge vàlida",
 	"separator": "Separador",

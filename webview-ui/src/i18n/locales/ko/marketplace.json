@@ -91,7 +91,7 @@
 		"whatNextMode": "이제 이 모드를 사용할 수 있습니다. 사이드바의 모드 아이콘을 클릭하여 탭을 전환하세요.",
 		"done": "완료",
 		"goToMcp": "MCP 탭으로 이동",
-		"goToModes": "모드 탭으로 이동",
+		"goToModes": "모드 설정으로 이동",
 		"moreInfoMcp": "{{name}} MCP 문서 보기",
 		"validationRequired": "{{paramName}}에 대한 값을 입력해주세요",
 		"prerequisites": "전제 조건"

@@ -106,6 +106,12 @@
 	"dragFiles": "ファイルをドラッグするにはShiftキーを押したまま",
 	"dragFilesImages": "ファイル/画像をドラッグするにはShiftキーを押したまま",
 	"enhancePromptDescription": "「プロンプトを強化」ボタンは、追加コンテキスト、説明、または言い換えを提供することで、リクエストを改善します。ここにリクエストを入力し、ボタンを再度クリックして動作を確認してください。",
+	"modeSelector": {
+		"title": "モード",
+		"marketplace": "モードマーケットプレイス",
+		"settings": "モード設定",
+		"description": "Rooの動作をカスタマイズする専門的なペルソナ。"
+	},
 	"errorReadingFile": "ファイル読み込みエラー:",
 	"noValidImages": "有効な画像が処理されませんでした",
 	"separator": "区切り",

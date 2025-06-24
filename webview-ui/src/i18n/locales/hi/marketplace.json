@@ -91,7 +91,7 @@
 		"whatNextMode": "अब आप इस मोड का उपयोग कर सकते हैं। टैब स्विच करने के लिए साइडबार में मोड आइकन पर क्लिक करें।",
 		"done": "पूर्ण",
 		"goToMcp": "MCP टैब पर जाएं",
-		"goToModes": "मोड टैब पर जाएं",
+		"goToModes": "मोड सेटिंग्स पर जाएं",
 		"moreInfoMcp": "{{name}} MCP दस्तावेज़ देखें",
 		"validationRequired": "कृपया {{paramName}} के लिए एक मान प्रदान करें",
 		"prerequisites": "आवश्यकताएं"

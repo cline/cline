@@ -34,6 +34,11 @@
 		"resetToDefault": "重置为默认值",
 		"description": "设定专业领域和应答风格"
 	},
+	"description": {
+		"title": "简短描述（给人看的）",
+		"resetToDefault": "重置为默认描述",
+		"description": "在模式选择下拉菜单中显示的简短描述。"
+	},
 	"whenToUse": {
 		"title": "使用场景（可选）",
 		"description": "描述何时应该使用此模式。这有助于 Orchestrator 为任务选择合适的模式。",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "可用工具",
 			"description": "选择可用工具"
+		},
+		"description": {
+			"label": "简短描述（给人看的）",
+			"description": "在模式选择下拉菜单中显示的简短描述。"
 		},
 		"customInstructions": {
 			"label": "自定义指令（可选）",

@@ -12,8 +12,9 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 interface MarketplaceViewProps {
 	onDone?: () => void
 	stateManager: MarketplaceViewStateManager
+	targetTab?: "mcp" | "mode"
 }
-export function MarketplaceView({ stateManager, onDone }: MarketplaceViewProps) {
+export function MarketplaceView({ stateManager, onDone, targetTab }: MarketplaceViewProps) {
 	const { t } = useAppTranslation()
 	const [state, manager] = useStateManager(stateManager)
 	const [hasReceivedInitialState, setHasReceivedInitialState] = useState(false)
@@ -25,6 +26,12 @@ export function MarketplaceView({ stateManager, onDone }: MarketplaceViewProps) 
 			setHasReceivedInitialState(true)
 		}
 	}, [state.allItems, hasReceivedInitialState])
+
+	useEffect(() => {
+		if (targetTab && (targetTab === "mcp" || targetTab === "mode")) {
+			manager.transition({ type: "SET_ACTIVE_TAB", payload: { tab: targetTab } })
+		}
+	}, [targetTab, manager])
 
 	// Ensure marketplace state manager processes messages when component mounts
 	useEffect(() => {

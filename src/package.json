@@ -81,11 +81,6 @@
 				"icon": "$(server)"
 			},
 			{
-				"command": "roo-cline.promptsButtonClicked",
-				"title": "%command.prompts.title%",
-				"icon": "$(organization)"
-			},
-			{
 				"command": "roo-cline.historyButtonClicked",
 				"title": "%command.history.title%",
 				"icon": "$(history)"
@@ -220,38 +215,33 @@
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.promptsButtonClicked",
+					"command": "roo-cline.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.mcpButtonClicked",
+					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@3",
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.marketplaceButtonClicked",
+					"command": "roo-cline.historyButtonClicked",
 					"group": "navigation@4",
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.historyButtonClicked",
+					"command": "roo-cline.popoutButtonClicked",
 					"group": "navigation@5",
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.popoutButtonClicked",
-					"group": "navigation@6",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
 					"command": "roo-cline.accountButtonClicked",
-					"group": "navigation@7",
+					"group": "navigation@6",
 					"when": "view == roo-cline.SidebarProvider && config.roo-cline.rooCodeCloudEnabled"
 				},
 				{
 					"command": "roo-cline.settingsButtonClicked",
-					"group": "navigation@8",
+					"group": "navigation@7",
 					"when": "view == roo-cline.SidebarProvider"
 				}
 			],
@@ -262,33 +252,28 @@
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.promptsButtonClicked",
+					"command": "roo-cline.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.mcpButtonClicked",
+					"command": "roo-cline.marketplaceButtonClicked",
 					"group": "navigation@3",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.marketplaceButtonClicked",
+					"command": "roo-cline.historyButtonClicked",
 					"group": "navigation@4",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.historyButtonClicked",
-					"group": "navigation@5",
-					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
-				},
-				{
 					"command": "roo-cline.accountButtonClicked",
-					"group": "navigation@6",
+					"group": "navigation@5",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider && config.roo-cline.rooCodeCloudEnabled"
 				},
 				{
 					"command": "roo-cline.settingsButtonClicked",
-					"group": "navigation@7",
+					"group": "navigation@6",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				}
 			]

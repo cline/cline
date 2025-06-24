@@ -106,6 +106,12 @@
 	"dragFiles": "maintenir Maj pour glisser des fichiers",
 	"dragFilesImages": "maintenir Maj pour glisser des fichiers/images",
 	"enhancePromptDescription": "Le bouton 'Améliorer la requête' aide à améliorer votre demande en fournissant un contexte supplémentaire, des clarifications ou des reformulations. Essayez de taper une demande ici et cliquez à nouveau sur le bouton pour voir comment cela fonctionne.",
+	"modeSelector": {
+		"title": "Modes",
+		"marketplace": "Marketplace de Modes",
+		"settings": "Paramètres des Modes",
+		"description": "Personas spécialisés qui adaptent le comportement de Roo."
+	},
 	"errorReadingFile": "Erreur lors de la lecture du fichier :",
 	"noValidImages": "Aucune image valide n'a été traitée",
 	"separator": "Séparateur",

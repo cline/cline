@@ -106,6 +106,12 @@
 	"selectMode": "Select mode for interaction",
 	"selectApiConfig": "Select API configuration",
 	"enhancePrompt": "Enhance prompt with additional context",
+	"modeSelector": {
+		"title": "Modes",
+		"marketplace": "Mode Marketplace",
+		"settings": "Mode Settings",
+		"description": "Specialized personas that tailor Roo's behavior."
+	},
 	"enhancePromptDescription": "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works.",
 	"addImages": "Add images to message",
 	"sendMessage": "Send message",

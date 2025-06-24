@@ -91,7 +91,7 @@
 		"whatNextMode": "現在您可以使用此模式。點擊側邊欄中的模式圖示以切換標籤頁。",
 		"done": "完成",
 		"goToMcp": "前往 MCP 標籤頁",
-		"goToModes": "前往模式標籤頁",
+		"goToModes": "前往模式設定",
 		"moreInfoMcp": "檢視 {{name}} MCP 文件",
 		"validationRequired": "請為 {{paramName}} 提供值",
 		"prerequisites": "前置條件"

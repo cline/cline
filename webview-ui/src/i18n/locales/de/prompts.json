@@ -34,6 +34,11 @@
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Definiere Roos Expertise und Persönlichkeit für diesen Modus. Diese Beschreibung prägt, wie Roo sich präsentiert und an Aufgaben herangeht."
 	},
+	"description": {
+		"title": "Kurzbeschreibung (für Menschen)",
+		"resetToDefault": "Auf Standardbeschreibung zurücksetzen",
+		"description": "Eine kurze Beschreibung, die im Dropdown-Menü der Modusauswahl angezeigt wird."
+	},
 	"whenToUse": {
 		"title": "Wann zu verwenden (optional)",
 		"description": "Beschreibe, wann dieser Modus verwendet werden sollte. Dies hilft dem Orchestrator, den richtigen Modus für eine Aufgabe auszuwählen.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Verfügbare Werkzeuge",
 			"description": "Wähle, welche Werkzeuge dieser Modus verwenden kann."
+		},
+		"description": {
+			"label": "Kurzbeschreibung (für Menschen)",
+			"description": "Eine kurze Beschreibung, die im Dropdown-Menü der Modusauswahl angezeigt wird."
 		},
 		"customInstructions": {
 			"label": "Benutzerdefinierte Anweisungen (optional)",

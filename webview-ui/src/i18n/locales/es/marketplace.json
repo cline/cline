@@ -91,7 +91,7 @@
 		"whatNextMode": "Ahora puedes usar este modo. Haz clic en el icono Modos en la barra lateral para cambiar de pestaña.",
 		"done": "Hecho",
 		"goToMcp": "Ir a la pestaña MCP",
-		"goToModes": "Ir a la pestaña Modos",
+		"goToModes": "Ir a la configuración de Modos",
 		"moreInfoMcp": "Ver documentación MCP de {{name}}",
 		"validationRequired": "Por favor proporciona un valor para {{paramName}}",
 		"prerequisites": "Requisitos previos"

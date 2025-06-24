@@ -91,7 +91,7 @@
 		"whatNextMode": "Artık bu modu kullanabilirsiniz. Sekmeleri değiştirmek için kenar çubuğundaki Modlar simgesine tıklayın.",
 		"done": "Tamamlandı",
 		"goToMcp": "MCP Sekmesine Git",
-		"goToModes": "Modlar Sekmesine Git",
+		"goToModes": "Modlar Ayarlarına Git",
 		"moreInfoMcp": "{{name}} MCP belgelerini görüntüle",
 		"validationRequired": "Lütfen {{paramName}} için bir değer sağlayın",
 		"prerequisites": "Ön koşullar"

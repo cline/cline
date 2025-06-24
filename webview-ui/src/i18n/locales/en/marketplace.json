@@ -92,7 +92,7 @@
 		"whatNextMode": "You can now use this mode. Click the Modes icon in the sidebar to switch tabs.",
 		"done": "Done",
 		"goToMcp": "Go to MCP Tab",
-		"goToModes": "Go to Modes Tab",
+		"goToModes": "Go to Modes Settings",
 		"moreInfoMcp": "View {{name}} MCP documentation",
 		"validationRequired": "Please provide a value for {{paramName}}"
 	},

@@ -34,6 +34,11 @@
 		"resetToDefault": "Đặt lại về mặc định",
 		"description": "Xác định chuyên môn và tính cách của Roo cho chế độ này. Mô tả này định hình cách Roo giới thiệu bản thân và tiếp cận nhiệm vụ."
 	},
+	"description": {
+		"title": "Mô tả ngắn (cho con người)",
+		"resetToDefault": "Đặt lại về mô tả mặc định",
+		"description": "Mô tả ngắn gọn hiển thị trong menu thả xuống bộ chọn chế độ."
+	},
 	"whenToUse": {
 		"title": "Khi nào nên sử dụng (tùy chọn)",
 		"description": "Mô tả khi nào nên sử dụng chế độ này. Điều này giúp Orchestrator chọn chế độ phù hợp cho một nhiệm vụ.",
@@ -144,6 +149,10 @@
 		"tools": {
 			"label": "Công cụ có sẵn",
 			"description": "Chọn công cụ nào chế độ này có thể sử dụng."
+		},
+		"description": {
+			"label": "Mô tả ngắn (cho con người)",
+			"description": "Mô tả ngắn gọn hiển thị trong menu thả xuống bộ chọn chế độ."
 		},
 		"customInstructions": {
 			"label": "Hướng dẫn tùy chỉnh (tùy chọn)",

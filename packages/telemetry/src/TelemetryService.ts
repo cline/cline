@@ -153,6 +153,31 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Captures when a tab is shown due to user action
+	 * @param tab The tab that was shown
+	 */
+	public captureTabShown(tab: string): void {
+		this.captureEvent(TelemetryEventName.TAB_SHOWN, { tab })
+	}
+
+	/**
+	 * Captures when a setting is changed in ModesView
+	 * @param settingName The name of the setting that was changed
+	 */
+	public captureModeSettingChanged(settingName: string): void {
+		this.captureEvent(TelemetryEventName.MODE_SETTINGS_CHANGED, { settingName })
+	}
+
+	/**
+	 * Captures when a user creates a new custom mode
+	 * @param modeSlug The slug of the custom mode
+	 * @param modeName The name of the custom mode
+	 */
+	public captureCustomModeCreated(modeSlug: string, modeName: string): void {
+		this.captureEvent(TelemetryEventName.CUSTOM_MODE_CREATED, { modeSlug, modeName })
+	}
+
+	/**
 	 * Captures a marketplace item installation event
 	 * @param itemId The unique identifier of the marketplace item
 	 * @param itemType The type of item (mode or mcp)
