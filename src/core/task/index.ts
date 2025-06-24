@@ -5,7 +5,6 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
-//import { serializeError } from "serialize-error"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Logger } from "@services/logging/Logger"
@@ -96,8 +95,6 @@ import { MessageStateHandler } from "./message-state"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-
-// Tools refactor
 import { AutoApprove } from "@/core/task/tools/autoApprove"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
@@ -133,6 +130,7 @@ export class Task {
 	private checkpointTracker?: CheckpointTracker
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
+	autoApprover: AutoApprove
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
@@ -152,9 +150,6 @@ export class Task {
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
-	// Tools refactor
-	autoApprover: AutoApprove
-
 	constructor(
 		context: vscode.ExtensionContext,
 		mcpHub: McpHub,
@@ -203,8 +198,6 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
-
-		// Tools refactor
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
 
 		// Set up MCP notification callback for real-time notifications
@@ -1560,14 +1553,6 @@ export class Task {
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
-	}
-
-	private formatErrorWithStatusCode(error: any): string {
-		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
-		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
-
-		// Only prepend the statusCode if it's not already part of the message
-		return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
 	}
 
 	/**
