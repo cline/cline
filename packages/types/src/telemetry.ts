@@ -89,12 +89,25 @@ export const taskPropertiesSchema = z.object({
 	isSubtask: z.boolean().optional(),
 })
 
+export const gitPropertiesSchema = z.object({
+	repositoryUrl: z.string().optional(),
+	repositoryName: z.string().optional(),
+	defaultBranch: z.string().optional(),
+})
+
 export const telemetryPropertiesSchema = z.object({
 	...appPropertiesSchema.shape,
 	...taskPropertiesSchema.shape,
+	...gitPropertiesSchema.shape,
+})
+
+export const cloudTelemetryPropertiesSchema = z.object({
+	...telemetryPropertiesSchema.shape,
 })
 
 export type TelemetryProperties = z.infer<typeof telemetryPropertiesSchema>
+export type CloudTelemetryProperties = z.infer<typeof cloudTelemetryPropertiesSchema>
+export type GitProperties = z.infer<typeof gitPropertiesSchema>
 
 /**
  * TelemetryEvent
@@ -148,12 +161,12 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.MODE_SETTINGS_CHANGED,
 			TelemetryEventName.CUSTOM_MODE_CREATED,
 		]),
-		properties: telemetryPropertiesSchema,
+		properties: cloudTelemetryPropertiesSchema,
 	}),
 	z.object({
 		type: z.literal(TelemetryEventName.TASK_MESSAGE),
 		properties: z.object({
-			...telemetryPropertiesSchema.shape,
+			...cloudTelemetryPropertiesSchema.shape,
 			taskId: z.string(),
 			message: clineMessageSchema,
 		}),
@@ -161,7 +174,7 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal(TelemetryEventName.LLM_COMPLETION),
 		properties: z.object({
-			...telemetryPropertiesSchema.shape,
+			...cloudTelemetryPropertiesSchema.shape,
 			inputTokens: z.number(),
 			outputTokens: z.number(),
 			cacheReadTokens: z.number().optional(),
@@ -187,6 +200,7 @@ export type TelemetryEventSubscription =
 
 export interface TelemetryPropertiesProvider {
 	getTelemetryProperties(): Promise<TelemetryProperties>
+	getCloudTelemetryProperties?(): Promise<CloudTelemetryProperties>
 }
 
 /**
