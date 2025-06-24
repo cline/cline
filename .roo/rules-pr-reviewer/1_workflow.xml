@@ -163,12 +163,10 @@
       [Summary of findings organized by priority]
 
       Would you like me to:
-      1. Submit these as individual review comments
-      2. Create a comprehensive review with all comments
-      3. Modify any of the suggestions
-      4. Skip the review submission</question>
+      1. Create a comprehensive review with all comments
+      2. Modify any of the suggestions
+      3. Skip the review submission</question>
       <follow_up>
-      <suggest>Submit as individual review comments</suggest>
       <suggest>Create a comprehensive review</suggest>
       <suggest>Let me modify the suggestions first</suggest>
       <suggest>Skip submission - just wanted the analysis</suggest>
@@ -180,9 +178,22 @@
   <step number="9">
     <name>Submit Review</name>
     <instructions>
-      Based on user preference, submit the review:
+      Based on user preference, submit the review as a comprehensive review:
       
-      For individual comments:
+      1. First create a pending review:
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>create_pending_pull_request_review</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      2. Add comments to the pending review using:
       <use_mcp_tool>
       <server_name>github</server_name>
       <tool_name>add_pull_request_review_comment_to_pending_review</tool_name>
@@ -198,22 +209,6 @@
       }
       </arguments>
       </use_mcp_tool>
-      
-      For comprehensive review:
-      1. First create a pending review:
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>create_pending_pull_request_review</tool_name>
-      <arguments>
-      {
-        "owner": "[owner]",
-        "repo": "[repo]",
-        "pullNumber": [number]
-      }
-      </arguments>
-      </use_mcp_tool>
-      
-      2. Add comments to the pending review
       
       3. Submit the review:
       <use_mcp_tool>
