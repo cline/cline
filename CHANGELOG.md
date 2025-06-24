@@ -1,12 +1,9 @@
 # Changelog
 
-## 3.18.0
+## [3.17.16]
 
--   39718cc: Remove the clsx / tailwind merge dependencies and replace with template literals
--   e2f9c38: Migrate fetchUserCreditsData to protobus
--   b26997a: Migrate authStateChanged to protobus
--   b840849: fix: Improve claude code error handling
--   e945a45: Add taskId as metadata to use from LiteLLM
+-   Fix Claude Code provider error handling for incomplete messages during long-running tasks (Thanks @BarreiroT!)
+-   Add taskId as metadata to LiteLLM API requests for better request tracing (Thanks @jorgegarciarey!)
 
 ## [3.17.15]
 
