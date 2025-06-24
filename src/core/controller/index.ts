@@ -59,7 +59,7 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
+	private mode: "plan" | "act" = "act" // In-memory plan/act mode state
 	task?: Task
 	public phaseTracker?: PhaseTracker
 	workspaceTracker: WorkspaceTracker
