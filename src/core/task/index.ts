@@ -427,15 +427,16 @@ export class Task {
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
-		// Delegate to the checkpoint manager
-		await this.checkpointManager.restoreCheckpoint(messageTs, restoreType, offset)
+		// Delegate to the checkpoint manager and get state updates
+		const stateUpdate = await this.checkpointManager.restoreCheckpoint(messageTs, restoreType, offset)
 
-		// Update task state conversation history deleted range from checkpoint manager
-		this.taskState.conversationHistoryDeletedRange = this.checkpointManager.getCurrentState().conversationHistoryDeletedRange
+		// Apply state updates
+		if (stateUpdate.conversationHistoryDeletedRange !== undefined) {
+			this.taskState.conversationHistoryDeletedRange = stateUpdate.conversationHistoryDeletedRange
+		}
 
-		// Post updated state to webview if there was an error during checkpoint tracker initialization
-		if (this.checkpointManager.getCurrentState().checkpointTrackerErrorMessage) {
-			this.taskState.checkpointTrackerErrorMessage = this.checkpointManager.getCurrentState().checkpointTrackerErrorMessage
+		if (stateUpdate.checkpointTrackerErrorMessage !== undefined) {
+			this.taskState.checkpointTrackerErrorMessage = stateUpdate.checkpointTrackerErrorMessage
 			await this.postStateToWebview()
 		}
 	}
