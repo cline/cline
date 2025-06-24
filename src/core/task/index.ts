@@ -455,123 +455,6 @@ export class Task {
 		this.cancelTask()
 	}
 
-	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		try {
-			if (!this.enableCheckpoints) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: "Checkpoints are disabled in settings. Cannot show diff.",
-				})
-				return
-			}
-			// TODO: handle if this is called from outside original workspace, in which case we need to
-			// show user error message we can't show diff outside of workspace?
-			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-				try {
-					this.checkpointTracker = await CheckpointTracker.create(
-						this.taskId,
-						this.controller.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
-					)
-					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-				} catch (error) {
-					console.error("Failed to initialize checkpoint tracker:", error)
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					this.taskState.checkpointTrackerErrorMessage = errorMessage
-					await this.postStateToWebview()
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: errorMessage,
-					})
-					return
-				}
-			}
-			if (!this.checkpointTracker) {
-				return
-			}
-
-			showChangedFilesDiff(
-				this.messageStateHandler,
-				this.checkpointTracker,
-				messageTs,
-				seeNewChangesSinceLastTaskCompletion,
-			)
-		} finally {
-			sendRelinquishControlEvent()
-		}
-	}
-
-	async doesLatestTaskCompletionHaveNewChanges() {
-		if (!this.enableCheckpoints) {
-			return false
-		}
-
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
-		const message = clineMessages[messageIndex]
-		if (!message) {
-			console.error("Completion message not found")
-			return false
-		}
-		const hash = message.lastCheckpointHash
-		if (!hash) {
-			console.error("No checkpoint hash found")
-			return false
-		}
-
-		if (this.enableCheckpoints && !this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controller.context.globalStorageUri.fsPath,
-					this.enableCheckpoints,
-				)
-				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				return false
-			}
-		}
-
-		// Get last task completed
-		const lastTaskCompletedMessage = findLast(
-			this.messageStateHandler.getClineMessages().slice(0, messageIndex),
-			(m) => m.say === "completion_result",
-		)
-
-		try {
-			// Get last task completed
-			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-			// if undefined, then we get diff from beginning of git
-			// if (!lastTaskCompletedMessage) {
-			// 	console.error("No previous task completion message found")
-			// 	return
-			// }
-			// This value *should* always exist
-			const firstCheckpointMessageCheckpointHash = this.messageStateHandler
-				.getClineMessages()
-				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
-
-			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-			if (!previousCheckpointHash) {
-				return false
-			}
-
-			// Get count of changed files between current state and commit
-			const changedFilesCount = (await this.checkpointTracker?.getDiffCount(previousCheckpointHash, hash)) || 0
-			if (changedFilesCount > 0) {
-				return true
-			}
-		} catch (error) {
-			console.error("Failed to get diff set:", error)
-			return false
-		}
-
-		return false
-	}
-
 	// Communicate with webview
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
@@ -1097,6 +980,14 @@ export class Task {
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
 		await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage)
+	}
+
+	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
+		await this.checkpointManager.presentMultifileDiff(messageTs, seeNewChangesSinceLastTaskCompletion)
+	}
+
+	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
+		return await this.checkpointManager.doesLatestTaskCompletionHaveNewChanges()
 	}
 
 	// Tools
