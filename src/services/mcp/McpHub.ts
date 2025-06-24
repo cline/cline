@@ -1,8 +1,10 @@
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
+import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
-import ReconnectingEventSource from "reconnecting-eventsource"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -10,20 +12,9 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import chokidar, { FSWatcher } from "chokidar"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import deepEqual from "fast-deep-equal"
-import * as fs from "fs/promises"
-import * as path from "path"
-import * as vscode from "vscode"
-import { z } from "zod"
-import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
-import { Metadata } from "../../shared/proto/common"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
-	McpMode,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -32,15 +23,24 @@ import {
 	McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fileExistsAtPath } from "@utils/fs"
-import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
-import { GlobalFileNames } from "@core/storage/disk"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import chokidar, { FSWatcher } from "chokidar"
+import deepEqual from "fast-deep-equal"
+import * as fs from "fs/promises"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import * as path from "path"
+import ReconnectingEventSource from "reconnecting-eventsource"
+import * as vscode from "vscode"
+import { z } from "zod"
+import { Metadata } from "../../shared/proto/common"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
-import { Transport, McpConnection, McpTransportType, McpServerConfig } from "./types"
-import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { McpConnection, McpServerConfig } from "./types"
+
+// Import platform utilities for cross-platform command execution
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -185,6 +185,33 @@ export class McpHub {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
+	/**
+	 * Transforms command and args for Windows compatibility
+	 * @param command The command to execute
+	 * @param args The command arguments
+	 * @returns Transformed command and args that work cross-platform
+	 */
+	private transformCommandForPlatform(command: string, args: string[] = []): { command: string; args: string[] } {
+		// Only transform on Windows
+		if (process.platform !== "win32") {
+			return { command, args }
+		}
+
+		// Node.js package managers that require shell execution on Windows
+		const NODE_SHELL_COMMANDS = ["npx", "npm", "yarn", "pnpm"]
+
+		// Check if this command needs shell execution on Windows
+		if (NODE_SHELL_COMMANDS.includes(command)) {
+			return {
+				command: "cmd",
+				args: ["/c", command, ...args],
+			}
+		}
+
+		// Return unchanged for other commands
+		return { command, args }
+	}
+
 	private async connectToServer(
 		name: string,
 		config: z.infer<typeof ServerConfigSchema>,
@@ -209,9 +236,12 @@ export class McpHub {
 
 			switch (config.type) {
 				case "stdio": {
+					// Transform command for Windows compatibility
+					const transformedCommand = this.transformCommandForPlatform(config.command, config.args || [])
+
 					transport = new StdioClientTransport({
-						command: config.command,
-						args: config.args,
+						command: transformedCommand.command,
+						args: transformedCommand.args,
 						cwd: config.cwd,
 						env: {
 							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
