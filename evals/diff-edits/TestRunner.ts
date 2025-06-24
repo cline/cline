@@ -925,7 +925,7 @@ async function main() {
 		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
 		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+		.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-23-25")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
