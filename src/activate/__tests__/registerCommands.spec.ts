@@ -16,6 +16,15 @@ vi.mock("vscode", () => ({
 	window: {
 		createTextEditorDecorationType: vi.fn().mockReturnValue({ dispose: vi.fn() }),
 	},
+	workspace: {
+		workspaceFolders: [
+			{
+				uri: {
+					fsPath: "/mock/workspace",
+				},
+			},
+		],
+	},
 }))
 
 vi.mock("../../core/webview/ClineProvider")

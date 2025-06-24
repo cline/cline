@@ -5,9 +5,29 @@ import { anthropicModels } from "./anthropic.js"
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
 export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
 export const claudeCodeModels = {
-	"claude-sonnet-4-20250514": anthropicModels["claude-sonnet-4-20250514"],
-	"claude-opus-4-20250514": anthropicModels["claude-opus-4-20250514"],
-	"claude-3-7-sonnet-20250219": anthropicModels["claude-3-7-sonnet-20250219"],
-	"claude-3-5-sonnet-20241022": anthropicModels["claude-3-5-sonnet-20241022"],
-	"claude-3-5-haiku-20241022": anthropicModels["claude-3-5-haiku-20241022"],
+	"claude-sonnet-4-20250514": {
+		...anthropicModels["claude-sonnet-4-20250514"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-20250514": {
+		...anthropicModels["claude-opus-4-20250514"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-7-sonnet-20250219": {
+		...anthropicModels["claude-3-7-sonnet-20250219"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-5-sonnet-20241022": {
+		...anthropicModels["claude-3-5-sonnet-20241022"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-5-haiku-20241022": {
+		...anthropicModels["claude-3-5-haiku-20241022"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 } as const satisfies Record<string, ModelInfo>
