@@ -101,7 +101,9 @@
 	},
 	"tasks": {
 		"canceled": "Error de tasca: Ha estat aturada i cancel·lada per l'usuari.",
-		"deleted": "Fallada de tasca: Ha estat aturada i eliminada per l'usuari."
+		"deleted": "Fallada de tasca: Ha estat aturada i eliminada per l'usuari.",
+		"incomplete": "Tasca #{{taskNumber}} (Incompleta)",
+		"no_messages": "Tasca #{{taskNumber}} (Sense missatges)"
 	},
 	"storage": {
 		"prompt_custom_path": "Introdueix una ruta d'emmagatzematge personalitzada per a l'historial de converses o deixa-ho buit per utilitzar la ubicació predeterminada",

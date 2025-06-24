@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Błąd zadania: Zostało zatrzymane i anulowane przez użytkownika.",
-		"deleted": "Niepowodzenie zadania: Zostało zatrzymane i usunięte przez użytkownika."
+		"deleted": "Niepowodzenie zadania: Zostało zatrzymane i usunięte przez użytkownika.",
+		"incomplete": "Zadanie #{{taskNumber}} (Niekompletne)",
+		"no_messages": "Zadanie #{{taskNumber}} (Brak wiadomości)"
 	},
 	"storage": {
 		"prompt_custom_path": "Wprowadź niestandardową ścieżkę przechowywania dla historii konwersacji lub pozostaw puste, aby użyć lokalizacji domyślnej",

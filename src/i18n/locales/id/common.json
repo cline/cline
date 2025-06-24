@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Error tugas: Dihentikan dan dibatalkan oleh pengguna.",
-		"deleted": "Kegagalan tugas: Dihentikan dan dihapus oleh pengguna."
+		"deleted": "Kegagalan tugas: Dihentikan dan dihapus oleh pengguna.",
+		"incomplete": "Tugas #{{taskNumber}} (Tidak lengkap)",
+		"no_messages": "Tugas #{{taskNumber}} (Tidak ada pesan)"
 	},
 	"storage": {
 		"prompt_custom_path": "Masukkan path penyimpanan riwayat percakapan kustom, biarkan kosong untuk menggunakan lokasi default",

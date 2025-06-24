@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Lỗi nhiệm vụ: Nó đã bị dừng và hủy bởi người dùng.",
-		"deleted": "Nhiệm vụ thất bại: Nó đã bị dừng và xóa bởi người dùng."
+		"deleted": "Nhiệm vụ thất bại: Nó đã bị dừng và xóa bởi người dùng.",
+		"incomplete": "Nhiệm vụ #{{taskNumber}} (Chưa hoàn thành)",
+		"no_messages": "Nhiệm vụ #{{taskNumber}} (Không có tin nhắn)"
 	},
 	"storage": {
 		"prompt_custom_path": "Nhập đường dẫn lưu trữ tùy chỉnh cho lịch sử hội thoại, để trống để sử dụng vị trí mặc định",

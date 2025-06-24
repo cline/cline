@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Taakfout: gestopt en geannuleerd door gebruiker.",
-		"deleted": "Taakfout: gestopt en verwijderd door gebruiker."
+		"deleted": "Taakfout: gestopt en verwijderd door gebruiker.",
+		"incomplete": "Taak #{{taskNumber}} (Onvolledig)",
+		"no_messages": "Taak #{{taskNumber}} (Geen berichten)"
 	},
 	"storage": {
 		"prompt_custom_path": "Voer een aangepast opslagpad voor gespreksgeschiedenis in, laat leeg voor standaardlocatie",

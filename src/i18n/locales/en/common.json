@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Task error: It was stopped and canceled by the user.",
-		"deleted": "Task failure: It was stopped and deleted by the user."
+		"deleted": "Task failure: It was stopped and deleted by the user.",
+		"incomplete": "Task #{{taskNumber}} (Incomplete)",
+		"no_messages": "Task #{{taskNumber}} (No messages)"
 	},
 	"storage": {
 		"prompt_custom_path": "Enter custom conversation history storage path, leave empty to use default location",

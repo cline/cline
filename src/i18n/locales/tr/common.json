@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Görev hatası: Kullanıcı tarafından durduruldu ve iptal edildi.",
-		"deleted": "Görev başarısız: Kullanıcı tarafından durduruldu ve silindi."
+		"deleted": "Görev başarısız: Kullanıcı tarafından durduruldu ve silindi.",
+		"incomplete": "Görev #{{taskNumber}} (Tamamlanmamış)",
+		"no_messages": "Görev #{{taskNumber}} (Mesaj yok)"
 	},
 	"storage": {
 		"prompt_custom_path": "Konuşma geçmişi için özel depolama yolunu girin, varsayılan konumu kullanmak için boş bırakın",

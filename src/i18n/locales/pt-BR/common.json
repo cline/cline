@@ -101,7 +101,9 @@
 	},
 	"tasks": {
 		"canceled": "Erro na tarefa: Foi interrompida e cancelada pelo usuário.",
-		"deleted": "Falha na tarefa: Foi interrompida e excluída pelo usuário."
+		"deleted": "Falha na tarefa: Foi interrompida e excluída pelo usuário.",
+		"incomplete": "Tarefa #{{taskNumber}} (Incompleta)",
+		"no_messages": "Tarefa #{{taskNumber}} (Sem mensagens)"
 	},
 	"storage": {
 		"prompt_custom_path": "Digite o caminho de armazenamento personalizado para o histórico de conversas, deixe em branco para usar o local padrão",

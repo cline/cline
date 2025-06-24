@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Error de tarea: Fue detenida y cancelada por el usuario.",
-		"deleted": "Fallo de tarea: Fue detenida y eliminada por el usuario."
+		"deleted": "Fallo de tarea: Fue detenida y eliminada por el usuario.",
+		"incomplete": "Tarea #{{taskNumber}} (Incompleta)",
+		"no_messages": "Tarea #{{taskNumber}} (Sin mensajes)"
 	},
 	"storage": {
 		"prompt_custom_path": "Ingresa la ruta de almacenamiento personalizada para el historial de conversaciones, déjala vacía para usar la ubicación predeterminada",

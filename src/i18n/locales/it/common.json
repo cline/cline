@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Errore attività: È stata interrotta e annullata dall'utente.",
-		"deleted": "Fallimento attività: È stata interrotta ed eliminata dall'utente."
+		"deleted": "Fallimento attività: È stata interrotta ed eliminata dall'utente.",
+		"incomplete": "Attività #{{taskNumber}} (Incompleta)",
+		"no_messages": "Attività #{{taskNumber}} (Nessun messaggio)"
 	},
 	"storage": {
 		"prompt_custom_path": "Inserisci il percorso di archiviazione personalizzato per la cronologia delle conversazioni, lascia vuoto per utilizzare la posizione predefinita",

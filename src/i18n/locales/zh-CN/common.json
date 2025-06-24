@@ -102,7 +102,9 @@
 	},
 	"tasks": {
 		"canceled": "任务错误：它已被用户停止并取消。",
-		"deleted": "任务失败：它已被用户停止并删除。"
+		"deleted": "任务失败：它已被用户停止并删除。",
+		"incomplete": "任务 #{{taskNumber}} (未完成)",
+		"no_messages": "任务 #{{taskNumber}} (无消息)"
 	},
 	"storage": {
 		"prompt_custom_path": "输入自定义会话历史存储路径，留空以使用默认位置",

@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "Erreur de tâche : Elle a été arrêtée et annulée par l'utilisateur.",
-		"deleted": "Échec de la tâche : Elle a été arrêtée et supprimée par l'utilisateur."
+		"deleted": "Échec de la tâche : Elle a été arrêtée et supprimée par l'utilisateur.",
+		"incomplete": "Tâche #{{taskNumber}} (Incomplète)",
+		"no_messages": "Tâche #{{taskNumber}} (Aucun message)"
 	},
 	"storage": {
 		"prompt_custom_path": "Entrez le chemin de stockage personnalisé pour l'historique des conversations, laissez vide pour utiliser l'emplacement par défaut",

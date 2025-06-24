@@ -97,7 +97,9 @@
 	},
 	"tasks": {
 		"canceled": "工作錯誤：它已被使用者停止並取消。",
-		"deleted": "工作失敗：它已被使用者停止並刪除。"
+		"deleted": "工作失敗：它已被使用者停止並刪除。",
+		"incomplete": "工作 #{{taskNumber}} (未完成)",
+		"no_messages": "工作 #{{taskNumber}} (無訊息)"
 	},
 	"storage": {
 		"prompt_custom_path": "輸入自訂會話歷史儲存路徑，留空以使用預設位置",
