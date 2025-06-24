@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   39718cc: Remove the clsx / tailwind merge dependencies and replace with template literals
+-   e2f9c38: Migrate fetchUserCreditsData to protobus
+-   b26997a: Migrate authStateChanged to protobus
+
+### Patch Changes
+
+-   b840849: fix: Improve claude code error handling
+-   e945a45: Add taskId as metadata to use from LiteLLM
+
 ## [3.17.15]
 
 -   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)
