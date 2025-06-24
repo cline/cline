@@ -420,16 +420,25 @@ def render_model_comparison_cards(model_performance):
                 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
                 
                 with metric_col1:
-                    st.metric("Avg Latency", f"{model['avg_round_trip_ms']:.0f}ms")
+                    if pd.notna(model['avg_round_trip_ms']):
+                        st.metric("Avg Latency", f"{model['avg_round_trip_ms']:.0f}ms")
+                    else:
+                        st.metric("Avg Latency", "N/A")
                 
                 with metric_col2:
-                    st.metric("Avg Cost", f"${model['avg_cost']:.4f}")
+                    if pd.notna(model['avg_cost']):
+                        st.metric("Avg Cost", f"${model['avg_cost']:.4f}")
+                    else:
+                        st.metric("Avg Cost", "N/A")
                 
                 with metric_col3:
                     st.metric("Valid Results", f"{model['total_results']}")
                 
                 with metric_col4:
-                    st.metric("First Token", f"{model['avg_first_token_ms']:.0f}ms")
+                    if pd.notna(model['avg_first_token_ms']):
+                        st.metric("First Token", f"{model['avg_first_token_ms']:.0f}ms")
+                    else:
+                        st.metric("First Token", "N/A")
             
             with col2:
                 st.write("")  # Add some spacing
