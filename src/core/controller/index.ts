@@ -44,6 +44,8 @@ import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
+import { handleTaskServiceRequest } from "./task"
+import { BooleanRequest } from "@shared/proto/common"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -223,26 +225,6 @@ export class Controller {
 					await this.updateTelemetrySetting(message.telemetrySetting)
 				}
 				await this.postStateToWebview()
-				break
-			}
-
-			case "clearAllTaskHistory": {
-				const answer = await vscode.window.showWarningMessage(
-					"What would you like to delete?",
-					{ modal: true },
-					"Delete All Except Favorites",
-					"Delete Everything",
-					"Cancel",
-				)
-
-				if (answer === "Delete All Except Favorites") {
-					await this.deleteNonFavoriteTaskHistory()
-					await this.postStateToWebview()
-				} else if (answer === "Delete Everything") {
-					await this.deleteAllTaskHistory()
-					await this.postStateToWebview()
-				}
-				sendRelinquishControlEvent()
 				break
 			}
 			case "grpc_request": {
@@ -840,110 +822,6 @@ export class Controller {
 	async exportTaskWithId(id: string) {
 		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
 		await downloadTask(historyItem.ts, apiConversationHistory)
-	}
-
-	async deleteAllTaskHistory() {
-		await this.clearTask()
-		await updateGlobalState(this.context, "taskHistory", undefined)
-		try {
-			// Remove all contents of tasks directory
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
-			if (await fileExistsAtPath(taskDirPath)) {
-				await fs.rm(taskDirPath, { recursive: true, force: true })
-			}
-			// Remove checkpoints directory contents
-			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
-			if (await fileExistsAtPath(checkpointsDirPath)) {
-				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
-			}
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-		// await this.postStateToWebview()
-	}
-
-	async deleteNonFavoriteTaskHistory() {
-		await this.clearTask()
-
-		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
-		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
-
-		// If user has no favorited tasks, show a warning message
-		if (favoritedTasks.length === 0) {
-			vscode.window.showWarningMessage("No favorited tasks found. Please favorite tasks before using this option.")
-			await this.postStateToWebview()
-			return
-		}
-
-		await updateGlobalState(this.context, "taskHistory", favoritedTasks)
-
-		// Delete non-favorited task directories
-		try {
-			const preserveTaskIds = favoritedTasks.map((task) => task.id)
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
-
-			if (await fileExistsAtPath(taskDirPath)) {
-				const taskDirs = await fs.readdir(taskDirPath)
-				for (const taskDir of taskDirs) {
-					if (!preserveTaskIds.includes(taskDir)) {
-						await fs.rm(path.join(taskDirPath, taskDir), { recursive: true, force: true })
-					}
-				}
-			}
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-
-		await this.postStateToWebview()
-	}
-
-	async deleteTaskWithId(id: string) {
-		console.info("deleteTaskWithId: ", id)
-
-		try {
-			if (id === this.task?.taskId) {
-				await this.clearTask()
-				console.debug("cleared task")
-			}
-
-			const {
-				taskDirPath,
-				apiConversationHistoryFilePath,
-				uiMessagesFilePath,
-				contextHistoryFilePath,
-				taskMetadataFilePath,
-			} = await this.getTaskWithId(id)
-			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			const updatedTaskHistory = await this.deleteTaskFromState(id)
-
-			// Delete the task files
-			for (const filePath of [
-				apiConversationHistoryFilePath,
-				uiMessagesFilePath,
-				contextHistoryFilePath,
-				taskMetadataFilePath,
-				legacyMessagesFilePath,
-			]) {
-				const fileExists = await fileExistsAtPath(filePath)
-				if (fileExists) {
-					await fs.unlink(filePath)
-				}
-			}
-
-			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-
-			if (updatedTaskHistory.length === 0) {
-				await this.deleteAllTaskHistory()
-			}
-		} catch (error) {
-			console.debug(`Error deleting task:`, error)
-		}
-
-		await this.postStateToWebview()
 	}
 
 	async deleteTaskFromState(id: string) {
