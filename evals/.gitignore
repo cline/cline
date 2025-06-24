@@ -20,3 +20,5 @@ diff_editing/test_outputs/
 
 # Python bytecode cache
 *__pycache__/
+
+diff-edits/cases.zip
