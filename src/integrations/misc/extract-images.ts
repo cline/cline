@@ -25,7 +25,6 @@ export async function extractImageContent(
 			return { success: false, error: "Could not determine image dimensions, so image could not be read" }
 		}
 
-		// we optimistically assume
 		if (dimensions.width > 7500 || dimensions.height > 7500) {
 			return {
 				success: false,

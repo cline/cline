@@ -18,7 +18,7 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 	try {
 		await fs.access(absolutePath)
 	} catch (error) {
-		return { text: `File not found: ${absolutePath}` }
+		throw new Error(`File not found: ${absolutePath}`)
 	}
 
 	const fileExtension = path.extname(absolutePath).toLowerCase()
@@ -34,14 +34,10 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 				imageBlock: imageResult.imageBlock,
 			}
 		} else {
-			return {
-				text: imageResult.error,
-			}
+			throw new Error(imageResult.error)
 		}
 	} else if (isImage && !modelSupportsImages) {
-		return {
-			text: `Current model does not support image input`,
-		}
+		throw new Error(`Current model does not support image input`)
 	} else {
 		// Handle text files using existing extraction functions
 		try {
@@ -51,9 +47,7 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			return {
-				text: `Error reading file: ${errorMessage}`,
-			}
+			throw new Error(`Error reading file: ${errorMessage}`)
 		}
 	}
 }
