@@ -123,6 +123,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const anthropicModels = [
 			"anthropic--claude-4-sonnet",
+			"anthropic--claude-4-opus",
 			"anthropic--claude-3.7-sonnet",
 			"anthropic--claude-3.5-sonnet",
 			"anthropic--claude-3-sonnet",
@@ -137,7 +138,11 @@ export class SapAiCoreHandler implements ApiHandler {
 		if (anthropicModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
-			if (model.id === "anthropic--claude-4-sonnet" || model.id === "anthropic--claude-3.7-sonnet") {
+			if (
+				model.id === "anthropic--claude-4-sonnet" ||
+				model.id === "anthropic--claude-4-opus" ||
+				model.id === "anthropic--claude-3.7-sonnet"
+			) {
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
 				payload = {
 					inferenceConfig: {
@@ -222,7 +227,11 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			} else if (openAIModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
-			} else if (model.id === "anthropic--claude-4-sonnet" || model.id === "anthropic--claude-3.7-sonnet") {
+			} else if (
+				model.id === "anthropic--claude-4-sonnet" ||
+				model.id === "anthropic--claude-4-opus" ||
+				model.id === "anthropic--claude-3.7-sonnet"
+			) {
 				yield* this.streamCompletionSonnet37(response.data, model)
 			} else {
 				yield* this.streamCompletion(response.data, model)
