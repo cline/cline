@@ -38,7 +38,7 @@ export interface ExtensionState {
 	preferredLanguage?: string
 	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	currentFocusChainChecklist?: string | null
