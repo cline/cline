@@ -148,7 +148,6 @@ export class TaskCheckpointManager {
 				// Create a new checkpoint_created message and asynchronously add the commitHash to the say message
 				const messageTs = await this.callbacks.say("checkpoint_created")
 				if (messageTs) {
-					// Get direct reference to the message - no need to re-fetch since getClineMessages() returns the actual array
 					const messages = this.services.messageStateHandler.getClineMessages()
 					const targetMessage = messages.find((m) => m.ts === messageTs)
 
