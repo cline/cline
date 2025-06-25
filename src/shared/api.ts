@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "ollama"
 	| "lmstudio"
 	| "gemini"
+	| "gemini-cli"
 	| "openai-native"
 	| "requesty"
 	| "together"
@@ -69,6 +70,8 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
+	geminiCliOAuthPath?: string
+	geminiCliProjectId?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
@@ -872,6 +875,21 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Gemini CLI (OAuth-based)
+export type GeminiCliModelId = keyof typeof geminiCliModels
+export const geminiCliDefaultModelId: GeminiCliModelId = "gemini-2.5-flash"
+export const geminiCliModels = {
+	"gemini-2.5-flash": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free tier
+		outputPrice: 0, // Free tier
+		description: "Google's Gemini 2.5 Flash model via OAuth (free tier)",
 	},
 } as const satisfies Record<string, ModelInfo>
 
