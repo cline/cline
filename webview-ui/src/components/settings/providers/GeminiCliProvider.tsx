@@ -67,11 +67,11 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 						padding: "2px 4px",
 						borderRadius: "3px",
 					}}>
-					gemini auth
+					gemini
 				</code>{" "}
-				in your terminal first.{" "}
+				in your terminal first.{" \n"}
 				<VSCodeLink
-					href="https://github.com/google/generative-ai-python/tree/main/gemini-cli"
+					href="https://github.com/google-gemini/gemini-cli?tab=readme-ov-file#quickstart"
 					style={{ display: "inline", fontSize: "inherit" }}>
 					Learn more about Gemini CLI
 				</VSCodeLink>
