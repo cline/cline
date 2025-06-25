@@ -936,7 +936,10 @@ def main():
         st.markdown("### 🔗 Share This View")
         
         # Build current URL
-        base_url = "http://localhost:8501"
+        # Dynamically derive the base URL
+        server_address = st.server.server_address if hasattr(st.server, 'server_address') else "localhost"
+        server_port = st.server.server_port if hasattr(st.server, 'server_port') else "8501"
+        base_url = f"http://{server_address}:{server_port}"
         current_url = f"{base_url}/?run_id={st.session_state.selected_run_id}"
         if st.session_state.drill_down_model:
             current_url += f"&model_id={st.session_state.drill_down_model}"
