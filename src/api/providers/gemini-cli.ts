@@ -296,59 +296,87 @@ export class GeminiCliHandler implements ApiHandler {
 			},
 		}
 
-		// Make the streaming request
-		const response = await this.authClient.request({
-			url: `${CODE_ASSIST_ENDPOINT}/${CODE_ASSIST_API_VERSION}:streamGenerateContent`,
-			method: "POST",
-			params: { alt: "sse" },
-			headers: {
-				"Content-Type": "application/json",
-			},
-			responseType: "stream",
-			body: JSON.stringify(streamRequest),
-		})
-
 		let totalContent = ""
 		let promptTokens = 0
 		let outputTokens = 0
 		let lastUsageMetadata: any = null
 
-		// Process the SSE stream
-		for await (const jsonData of this.parseSSEStream(response.data as Readable)) {
-			// Extract content from the response
-			const candidate = jsonData.response?.candidates?.[0]
-			if (candidate?.content?.parts?.[0]?.text) {
-				const content = candidate.content.parts[0].text
-				totalContent += content
+		try {
+			// Make the streaming request
+			const response = await this.authClient.request({
+				url: `${CODE_ASSIST_ENDPOINT}/${CODE_ASSIST_API_VERSION}:streamGenerateContent`,
+				method: "POST",
+				params: { alt: "sse" },
+				headers: {
+					"Content-Type": "application/json",
+				},
+				responseType: "stream",
+				body: JSON.stringify(streamRequest),
+			})
 
-				// Yield text chunk
-				yield {
-					type: "text",
-					text: content,
+			// Process the SSE stream
+			for await (const jsonData of this.parseSSEStream(response.data as Readable)) {
+				// Extract content from the response
+				const candidate = jsonData.response?.candidates?.[0]
+				if (candidate?.content?.parts?.[0]?.text) {
+					const content = candidate.content.parts[0].text
+					totalContent += content
+
+					// Yield text chunk
+					yield {
+						type: "text",
+						text: content,
+					}
+				}
+
+				// Store usage metadata for final reporting
+				if (jsonData.response?.usageMetadata) {
+					lastUsageMetadata = jsonData.response.usageMetadata
+					promptTokens = lastUsageMetadata.promptTokenCount || promptTokens
+					outputTokens = lastUsageMetadata.candidatesTokenCount || outputTokens
+				}
+
+				// Check if this is the final chunk
+				if (candidate?.finishReason) {
+					break
 				}
 			}
 
-			// Store usage metadata for final reporting
-			if (jsonData.response?.usageMetadata) {
-				lastUsageMetadata = jsonData.response.usageMetadata
-				promptTokens = lastUsageMetadata.promptTokenCount || promptTokens
-				outputTokens = lastUsageMetadata.candidatesTokenCount || outputTokens
+			// Yield usage information
+			if (lastUsageMetadata) {
+				yield {
+					type: "usage",
+					inputTokens: promptTokens,
+					outputTokens: outputTokens,
+					totalCost: 0, // Free tier
+				}
+			}
+		} catch (error) {
+			// Handle rate limit errors similar to the Gemini provider
+			if (error instanceof Error) {
+				// Check for rate limit patterns in the error message
+				const rateLimitPatterns = [
+					/got status: 429/i,
+					/429 Too Many Requests/i,
+					/rate limit exceeded/i,
+					/too many requests/i,
+					/quota exceeded/i,
+					/resource exhausted/i,
+				]
+
+				const isRateLimit = rateLimitPatterns.some((pattern) => pattern.test(error.message))
+
+				if (isRateLimit) {
+					const rateLimitError = Object.assign(new Error(error.message), {
+						...error,
+						status: 429,
+					})
+					throw rateLimitError
+				}
 			}
 
-			// Check if this is the final chunk
-			if (candidate?.finishReason) {
-				break
-			}
-		}
-
-		// Yield usage information
-		if (lastUsageMetadata) {
-			yield {
-				type: "usage",
-				inputTokens: promptTokens,
-				outputTokens: outputTokens,
-				totalCost: 0, // Free tier
-			}
+			// Re-throw the original error if it's not a rate limit error
+			throw error
 		}
 	}
 
