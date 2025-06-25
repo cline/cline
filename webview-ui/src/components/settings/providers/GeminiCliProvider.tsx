@@ -107,10 +107,10 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 
 			<div
 				style={{
-					backgroundColor: "rgba(255, 191, 0, 0.1)",
+					backgroundColor: "var(--vscode-editorWarning-background, rgba(255, 191, 0, 0.1))",
 					padding: "8px",
 					borderRadius: "4px",
-					border: "1px solid rgba(255, 191, 0, 0.3)",
+					border: "1px solid var(--vscode-editorWarning-border, rgba(255, 191, 0, 0.3))",
 					marginTop: "8px",
 					marginBottom: "16px",
 				}}>
