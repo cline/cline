@@ -85,7 +85,7 @@ const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
 		"qwen-plus-latest",
 		"qwen-turbo-latest",
 	],
-	gemini: ["gemini-2.5-flash-preview-05-20", "gemini-2.5-flash-preview-04-17", "gemini-2.5-pro-preview-06-05"],
+	gemini: ["gemini-2.5-pro", "gemini-2.5-flash"],
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
