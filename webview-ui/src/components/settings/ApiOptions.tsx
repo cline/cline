@@ -971,7 +971,7 @@ const ApiOptions = ({
 								}}>
 								The VS Code Language Model API allows you to run models provided by other VS Code extensions
 								(including but not limited to GitHub Copilot). The easiest way to get started is to install the
-								Copilot extension from the VS Marketplace and enabling Claude 3.7 Sonnet.
+								Copilot extension from the VS Marketplace and enabling Claude 4 Sonnet.
 							</p>
 						)}
 
