@@ -444,6 +444,9 @@ def render_model_comparison_cards(model_performance):
                 st.write("")  # Add some spacing
                 if st.button(f"Drill Down", key=f"drill_{model['model_id']}", use_container_width=True):
                     st.session_state.drill_down_model = model['model_id']
+                    # Update URL with model_id for drill down
+                    st.query_params["model_id"] = model['model_id']
+                    st.rerun()
             
             st.divider()  # Add a divider between models
 
@@ -844,12 +847,29 @@ def main():
     if 'selected_run_id' not in st.session_state:
         st.session_state.selected_run_id = None
     
+    # Handle URL parameters for direct linking
+    query_params = st.query_params
+    url_run_id = query_params.get("run_id")
+    url_model_id = query_params.get("model_id")
+    
     # Load all runs for sidebar
     all_runs = load_all_runs()
     
     if all_runs.empty:
         st.error("No evaluation runs found in the database.")
         st.stop()
+    
+    # Set initial run selection from URL or default to latest
+    if url_run_id and url_run_id in all_runs['run_id'].values:
+        if st.session_state.selected_run_id != url_run_id:
+            st.session_state.selected_run_id = url_run_id
+            st.session_state.drill_down_model = None  # Reset drill down when changing runs via URL
+    elif st.session_state.selected_run_id is None:
+        st.session_state.selected_run_id = all_runs.iloc[0]['run_id']  # Default to latest
+    
+    # Set drill down model from URL
+    if url_model_id and st.session_state.selected_run_id == url_run_id:
+        st.session_state.drill_down_model = url_model_id
     
     # Sidebar for run selection
     with st.sidebar:
@@ -896,6 +916,10 @@ def main():
         if run_ids[selected_run_idx] != st.session_state.selected_run_id:
             st.session_state.selected_run_id = run_ids[selected_run_idx]
             st.session_state.drill_down_model = None  # Reset drill down when changing runs
+            # Update URL with new run_id
+            st.query_params["run_id"] = st.session_state.selected_run_id
+            if "model_id" in st.query_params:
+                del st.query_params["model_id"]  # Clear model_id when changing runs
             st.rerun()
         
         # Show run details in sidebar
@@ -906,6 +930,57 @@ def main():
         st.markdown(f"**Created:** {selected_run['created_at']}")
         if selected_run['description']:
             st.markdown(f"**Description:** {selected_run['description']}")
+        
+        # Show shareable URL
+        st.markdown("---")
+        st.markdown("### 🔗 Share This View")
+        
+        # Build current URL
+        # Dynamically derive the base URL
+        server_address = st.server.server_address if hasattr(st.server, 'server_address') else "localhost"
+        server_port = st.server.server_port if hasattr(st.server, 'server_port') else "8501"
+        base_url = f"http://{server_address}:{server_port}"
+        current_url = f"{base_url}/?run_id={st.session_state.selected_run_id}"
+        if st.session_state.drill_down_model:
+            current_url += f"&model_id={st.session_state.drill_down_model}"
+        
+        st.markdown("**Current URL:**")
+        st.code(current_url, language=None)
+        
+        # Copy button using HTML/JS
+        copy_button_html = f"""
+        <button onclick="copyToClipboard('{current_url}')" style="
+            padding: 8px 16px; 
+            border-radius: 5px; 
+            border: 1px solid #ccc; 
+            background: #f0f2f6;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 5px;
+        ">📋 Copy Link</button>
+        <script>
+            function copyToClipboard(text) {{
+                navigator.clipboard.writeText(text).then(function() {{
+                    // Success feedback
+                    event.target.innerText = '✅ Copied!';
+                    event.target.style.backgroundColor = '#d4edda';
+                    setTimeout(() => {{ 
+                        event.target.innerText = '📋 Copy Link'; 
+                        event.target.style.backgroundColor = '#f0f2f6';
+                    }}, 2000);
+                }}, function(err) {{
+                    // Error feedback
+                    event.target.innerText = '❌ Failed';
+                    event.target.style.backgroundColor = '#f8d7da';
+                    setTimeout(() => {{ 
+                        event.target.innerText = '📋 Copy Link'; 
+                        event.target.style.backgroundColor = '#f0f2f6';
+                    }}, 2000);
+                }});
+            }}
+        </script>
+        """
+        st.components.v1.html(copy_button_html, height=50)
     
     # Load data for selected run
     current_run, model_performance = load_run_comparison(st.session_state.selected_run_id)
@@ -923,6 +998,9 @@ def main():
         with col1:
             if st.button("Back to Overview", use_container_width=True):
                 st.session_state.drill_down_model = None
+                # Clear model_id from URL when going back to overview
+                if "model_id" in st.query_params:
+                    del st.query_params["model_id"]
                 st.rerun()
         
         render_detailed_analysis(current_run['run_id'], st.session_state.drill_down_model)
