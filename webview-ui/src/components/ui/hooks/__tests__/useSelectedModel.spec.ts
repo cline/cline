@@ -369,4 +369,76 @@ describe("useSelectedModel", () => {
 			expect(result.current.info).toBeUndefined()
 		})
 	})
+
+	describe("claude-code provider", () => {
+		it("should return claude-code model with supportsImages disabled", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					glama: {},
+					unbound: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "claude-code",
+				apiModelId: "claude-sonnet-4-20250514",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("claude-code")
+			expect(result.current.id).toBe("claude-sonnet-4-20250514")
+			expect(result.current.info).toBeDefined()
+			expect(result.current.info?.supportsImages).toBe(false)
+			expect(result.current.info?.supportsPromptCache).toBe(false)
+			// Verify it inherits other properties from anthropic models
+			expect(result.current.info?.maxTokens).toBe(64_000)
+			expect(result.current.info?.contextWindow).toBe(200_000)
+			expect(result.current.info?.supportsComputerUse).toBe(true)
+		})
+
+		it("should use default claude-code model when no modelId is specified", () => {
+			mockUseRouterModels.mockReturnValue({
+				data: {
+					openrouter: {},
+					requesty: {},
+					glama: {},
+					unbound: {},
+					litellm: {},
+				},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			mockUseOpenRouterModelProviders.mockReturnValue({
+				data: {},
+				isLoading: false,
+				isError: false,
+			} as any)
+
+			const apiConfiguration: ProviderSettings = {
+				apiProvider: "claude-code",
+			}
+
+			const wrapper = createWrapper()
+			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
+
+			expect(result.current.provider).toBe("claude-code")
+			expect(result.current.id).toBe("claude-sonnet-4-20250514") // Default model
+			expect(result.current.info).toBeDefined()
+			expect(result.current.info?.supportsImages).toBe(false)
+		})
+	})
 })
