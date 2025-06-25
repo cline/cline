@@ -13,6 +13,7 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { is } from "node_modules/cheerio/dist/esm/api/traversing"
 
 // Type definitions for better code organization
 type SayFunction = (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
@@ -72,45 +73,50 @@ export class TaskCheckpointManager {
 	/**
 	 * Creates a checkpoint of the current state
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
-	 * @param taskIsFavorited - Whether the task is favorited (passed from Task class)
 	 */
 	async saveCheckpoint(
 		isAttemptCompletionMessage: boolean = false,
-		legacyCheckpointsHashStorage: boolean = true,
 	): Promise<void> {
+		// If checkpoints are disabled, return early
 		if (!this.dependencies.enableCheckpoints) {
-			console.log("Checkpoints are disabled")
 			return
 		}
 
-		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
-
 		// Set isCheckpointCheckedOut to false for all prior checkpoint_created messages
-		if (legacyCheckpointsHashStorage === true) {
-			clineMessages.forEach((message) => {
-				if (message.say === "checkpoint_created") {
-					message.isCheckpointCheckedOut = false
-				}
-			})
-		} else {
-			// future checkpoint commitHash storage
+		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		clineMessages.forEach((message) => {
+			if (message.say === "checkpoint_created") {
+				message.isCheckpointCheckedOut = false
+			}
+		})
+
+		// Prevent repetitive checkpointTracker initialization errors on non-attempt completion messages
+		if (!this.state.checkpointTracker && !isAttemptCompletionMessage && !this.state.checkpointTrackerErrorMessage) {
+			await this.checkpointTrackerCheckAndInit()
+		}
+		// attempt completion messages give it one last chance
+		else if (!this.state.checkpointTracker && isAttemptCompletionMessage) {
+			await this.checkpointTrackerCheckAndInit()
 		}
 
-		// For non-attempt completion, we create a checkpoint_created message
+		// Critical failure to initialize checkpoint tracker, return early
+		if (!this.state.checkpointTracker) {
+			return
+		}
+
+
+
+		// For non-attempt completion, we write a checkpoint_created message
 		if (!isAttemptCompletionMessage) {
-			// Ensure we aren't creating a duplicate checkpoint
+
+			// Ensure we aren't creating back-to-back checkpoint_created messages
 			const lastMessage = clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
 				return
 			}
 
-			// If checkpointTracker is not initialized and we have not stored an error message for it, initialize
-			if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
-				await this.checkpointTrackerCheckAndInit()
-			}
-
-			// Save checkpoint_created message (with hash) in clineMessages
-			if (this.state.checkpointTracker) {
+			// Create a new checkpoint_created message and asynchronously add the commitHash
+			try {	
 				await this.dependencies.say("checkpoint_created")
 				this.state.checkpointTracker?.commit().then(async (commitHash) => {
 					const lastCheckpointMessage = findLast(
@@ -122,12 +128,11 @@ export class TaskCheckpointManager {
 						await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					}
 				})
-			} // silently fails for now
-		} else {
-			// If checkpointTracker is not initialized, initialize. Ignore previous error messages
-			if (!this.state.checkpointTracker) {
-				await this.checkpointTrackerCheckAndInit()
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			}
+			
+
 
 			if (this.state.checkpointTracker) {
 				const commitHash = await this.state.checkpointTracker.commit()
@@ -565,7 +570,7 @@ export class TaskCheckpointManager {
 	 */
 	async checkpointTrackerCheckAndInit(): Promise<CheckpointTracker | undefined> {
 		// If tracker already exists or there was an error, return immediately
-		if (this.state.checkpointTracker || this.state.checkpointTrackerErrorMessage) {
+		if (this.state.checkpointTracker) {
 			return this.state.checkpointTracker
 		}
 
@@ -601,11 +606,11 @@ export class TaskCheckpointManager {
 			this.state.checkpointTracker = tracker
 			return tracker
 		} catch (error) {
-			// Store error message to prevent future initialization attempts
+			// Store error message to prevent future repetative initialization attempts
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			this.setCheckpointTrackerErrorMessage(errorMessage)
 			console.error("Failed to initialize checkpoint tracker:", errorMessage)
-			// TODO - Do we need to postState to webview here? TBD
+			// TODO - Do we need to post state to webview here? TBD
 			return undefined
 		}
 	}
@@ -622,7 +627,7 @@ export class TaskCheckpointManager {
 	 */
 	setCheckpointTrackerErrorMessage(errorMessage: string | undefined): void {
 		this.state.checkpointTrackerErrorMessage = errorMessage
-		// Future telemetry event capture here
+		// TODO - Future telemetry event capture here
 	}
 
 	/**
