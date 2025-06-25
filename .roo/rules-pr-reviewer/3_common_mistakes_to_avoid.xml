@@ -7,7 +7,7 @@
   - Using markdown headings (###, ##, #) in review comments
   - Using excessive markdown formatting when plain text would suffice
   - Submitting comments without user preview/approval
-  - Ignoring existing PR comments and discussions
+  - Ignoring existing PR comments or failing to verify if they have already been resolved by checking the code
   - Forgetting to check for an associated issue for additional context
   - Missing critical security or performance issues
   - Not checking for proper i18n in UI changes

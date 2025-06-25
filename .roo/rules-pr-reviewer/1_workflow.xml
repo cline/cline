@@ -100,7 +100,7 @@
       </arguments>
       </use_mcp_tool>
       
-      Examine existing PR comments to understand the current state of discussion. Always verify whether a comment is current or already addressed before suggesting action.
+      Examine existing PR comments to understand the current state of discussion. When reading the comments and reviews, you must verify which are resolved by reading the files they refer to, since they might already be resolved. This prevents you from making redundant suggestions.
     </instructions>
   </step>
 
