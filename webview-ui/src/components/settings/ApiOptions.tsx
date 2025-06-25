@@ -7,7 +7,6 @@ import {
 	bedrockModels,
 	cerebrasModels,
 	claudeCodeModels,
-	doubaoModels,
 	geminiModels,
 	internationalQwenModels,
 	liteLlmModelInfoSaneDefaults,
@@ -54,6 +53,7 @@ import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { GeminiProvider } from "./providers/GeminiProvider"
+import { DoubaoProvider } from "./providers/DoubaoProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -401,35 +401,13 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "doubao" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.doubaoApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("doubaoApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Doubao API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.doubaoApiKey && (
-							<VSCodeLink
-								href="https://console.volcengine.com/home"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Doubao API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "doubao" && (
+				<DoubaoProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "mistral" && (
@@ -1591,6 +1569,7 @@ const ApiOptions = ({
 				selectedProvider !== "sambanova" &&
 				selectedProvider !== "openai-native" &&
 				selectedProvider !== "gemini" &&
+				selectedProvider !== "doubao" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1604,7 +1583,6 @@ const ApiOptions = ({
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
-							{selectedProvider === "doubao" && createDropdown(doubaoModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
