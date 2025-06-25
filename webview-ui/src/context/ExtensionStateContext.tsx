@@ -14,7 +14,7 @@ import { TerminalProfile } from "@shared/proto/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -79,6 +79,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setAvailableTerminalProfiles: (profiles: TerminalProfile[]) => void // Setter for profiles
+	setBrowserSettings: (value: BrowserSettings) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -838,6 +839,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		setBrowserSettings: (value: BrowserSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				browserSettings: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
