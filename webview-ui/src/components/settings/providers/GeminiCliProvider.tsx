@@ -1,6 +1,9 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, geminiCliModels } from "@shared/api"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
+import { ModelSelector } from "../common/ModelSelector"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 interface GeminiCliProviderProps {
 	apiConfiguration: ApiConfiguration
@@ -10,6 +13,8 @@ interface GeminiCliProviderProps {
 }
 
 const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: GeminiCliProviderProps) => {
+	// Get the normalized configuration
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 	return (
 		<div>
 			<VSCodeTextField
@@ -72,6 +77,19 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 				</VSCodeLink>
 			</p>
 
+			{showModelOptions && (
+				<>
+					<ModelSelector
+						models={geminiCliModels}
+						selectedModelId={selectedModelId}
+						onChange={handleInputChange("apiModelId")}
+						label="Model"
+					/>
+
+					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+				</>
+			)}
+
 			<p
 				style={{
 					fontSize: "12px",
@@ -79,7 +97,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					color: "var(--vscode-charts-green)",
 					fontWeight: 500,
 				}}>
-				✓ Free tier access with gemini-2.5-flash model
+				✓ Free tier access via OAuth authentication
 			</p>
 		</div>
 	)

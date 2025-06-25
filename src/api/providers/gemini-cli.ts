@@ -274,9 +274,12 @@ export class GeminiCliHandler implements ApiHandler {
 		// Convert messages to Gemini format
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
+		// Get the selected model
+		const { id: modelId, info: modelInfo } = this.getModel()
+
 		// Build the request
 		const streamRequest = {
-			model: "gemini-2.5-flash",
+			model: modelId,
 			project: projectId,
 			request: {
 				contents: [
@@ -288,7 +291,7 @@ export class GeminiCliHandler implements ApiHandler {
 				],
 				generationConfig: {
 					temperature: 0.7,
-					maxOutputTokens: 4000,
+					maxOutputTokens: modelInfo.maxTokens || 8192,
 				},
 			},
 		}

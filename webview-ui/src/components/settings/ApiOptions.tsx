@@ -1602,6 +1602,7 @@ const ApiOptions = ({
 				selectedProvider !== "sambanova" &&
 				selectedProvider !== "openai-native" &&
 				selectedProvider !== "gemini" &&
+				selectedProvider !== "gemini-cli" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
