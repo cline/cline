@@ -60,6 +60,9 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	const provider = apiConfiguration?.apiProvider || "anthropic"
 	const modelId = apiConfiguration?.apiModelId
 
+	console.log(`[normalizeApiConfiguration] provider: ${provider}, modelId: ${modelId}`)
+	console.log(`[normalizeApiConfiguration] full apiConfiguration:`, apiConfiguration)
+
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
 		let selectedModelId: string
 		let selectedModelInfo: ModelInfo
@@ -95,6 +98,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
 		case "gemini":
+			return getProviderData(geminiModels, geminiDefaultModelId)
+		case "gemini-cli":
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)

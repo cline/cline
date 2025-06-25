@@ -137,6 +137,8 @@ const ApiOptions = ({
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
 
+		console.log(`[ApiOptions] handleInputChange - field: ${field}, newValue: ${newValue}`)
+
 		// Update local state
 		setApiConfiguration({
 			...apiConfiguration,
@@ -145,6 +147,7 @@ const ApiOptions = ({
 
 		// If the field is the provider AND saveImmediately is true, save it immediately using the full context state
 		if (saveImmediately && field === "apiProvider") {
+			console.log(`[ApiOptions] Saving provider immediately: ${newValue}`)
 			// Use apiConfiguration from the full extensionState context to send the most complete data
 			const currentFullApiConfig = extensionState.apiConfiguration
 
@@ -153,13 +156,14 @@ const ApiOptions = ({
 				...currentFullApiConfig,
 				apiProvider: newValue,
 			}
+			console.log(`[ApiOptions] Updated config:`, updatedConfig)
 			const protoConfig = convertApiConfigurationToProto(updatedConfig)
 			ModelsServiceClient.updateApiConfigurationProto(
 				UpdateApiConfigurationRequest.create({
 					apiConfiguration: protoConfig,
 				}),
 			).catch((error) => {
-				console.error("Failed to update API configuration:", error)
+				console.error("[ApiOptions] Failed to update API configuration:", error)
 			})
 		}
 	}
@@ -274,6 +278,7 @@ const ApiOptions = ({
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+					<VSCodeOption value="gemini-cli">Gemini CLI</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -891,6 +896,36 @@ const ApiOptions = ({
 								You can get a Gemini API key by signing up here.
 							</VSCodeLink>
 						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "gemini-cli" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.geminiCliPath || ""}
+						style={{ width: "100%", marginTop: 3 }}
+						type="text"
+						onInput={handleInputChange("geminiCliPath")}
+						placeholder="Default: gemini">
+						<span style={{ fontWeight: 500 }}>Gemini CLI Path</span>
+					</VSCodeTextField>
+
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Path to the Gemini CLI executable. The CLI must be installed and configured with authentication.{" "}
+						<VSCodeLink
+							href="https://github.com/google/gemini-cli"
+							style={{
+								display: "inline",
+								fontSize: "inherit",
+							}}>
+							Learn more about Gemini CLI
+						</VSCodeLink>
 					</p>
 				</div>
 			)}
@@ -1673,6 +1708,7 @@ const ApiOptions = ({
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
+							{selectedProvider === "gemini-cli" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "qwen" &&
 								createDropdown(

@@ -123,6 +123,7 @@ enum ApiProvider {
   CEREBRAS = 23;
   SAPAICORE = 24;
   CLAUDE_CODE = 25;
+  GEMINI_CLI = 26;
 }
 
 // Model info for OpenAI-compatible models
@@ -236,4 +237,5 @@ message ModelsApiConfiguration {
   optional string sap_ai_core_token_url = 71;
   optional string sap_ai_core_base_url = 72;
   optional string claude_code_path = 73;
+  optional string gemini_cli_path = 74;
 }

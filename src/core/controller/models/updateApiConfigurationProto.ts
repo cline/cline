@@ -21,8 +21,14 @@ export async function updateApiConfigurationProto(
 			throw new Error("API configuration is required")
 		}
 
+		console.log("[updateApiConfigurationProto] Received request with provider:", request.apiConfiguration.apiProvider)
+		console.log("[updateApiConfigurationProto] Full proto config:", request.apiConfiguration)
+
 		// Convert proto ApiConfiguration to application ApiConfiguration
 		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
+
+		console.log("[updateApiConfigurationProto] Converted to app config with provider:", appApiConfiguration.apiProvider)
+		console.log("[updateApiConfigurationProto] Full app config:", appApiConfiguration)
 
 		// Update the API configuration in storage
 		await updateApiConfiguration(controller.context, appApiConfiguration)
