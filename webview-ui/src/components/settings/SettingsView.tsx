@@ -155,6 +155,40 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
 	})
+
+	// Initialise original state when component mounts with data
+	useEffect(() => {
+		// Only update if we haven't set the original state yet or if it's empty
+		if (!originalState.current.apiConfiguration || Object.keys(originalState.current.apiConfiguration).length === 0) {
+			originalState.current = {
+				apiConfiguration,
+				telemetrySetting,
+				planActSeparateModelsSetting,
+				enableCheckpointsSetting,
+				mcpMarketplaceEnabled,
+				mcpRichDisplayEnabled,
+				mcpResponsesCollapsed,
+				chatSettings,
+				shellIntegrationTimeout,
+				terminalReuseEnabled,
+				terminalOutputLineLimit,
+				defaultTerminalProfile,
+			}
+		}
+	}, [
+		apiConfiguration,
+		telemetrySetting,
+		planActSeparateModelsSetting,
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		mcpResponsesCollapsed,
+		chatSettings,
+		shellIntegrationTimeout,
+		terminalReuseEnabled,
+		terminalOutputLineLimit,
+		defaultTerminalProfile,
+	])
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = async (withoutDone: boolean = false) => {
@@ -247,7 +281,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			mcpRichDisplayEnabled !== originalState.current.mcpRichDisplayEnabled ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			mcpResponsesCollapsed !== originalState.current.mcpResponsesCollapsed ||
-			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings) ||
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
 			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
@@ -355,11 +388,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	// validate as soon as the component is mounted
 	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. 
-	so trying to use useEffect with a dependency array of only one value for example will use any 
-	other variables' old values. In most cases you don't want this, and should opt to use react-use 
+	useEffect will use stale values of variables if they are not included in the dependency array.
+	so trying to use useEffect with a dependency array of only one value for example will use any
+	other variables' old values. In most cases you don't want this, and should opt to use react-use
 	hooks.
-    
+
 		// uses someVar and anotherVar
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [someVar])
