@@ -347,11 +347,12 @@ export class Task {
 			this.chatSettings,
 			this.say.bind(this),
 			this.ask.bind(this),
-			this.saveCheckpoint.bind(this),
+			(isAttemptCompletionMessage?: boolean, completionMessageTs?: number) =>
+				this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve(),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
-			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
+			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 		)
 	}
 
@@ -739,7 +740,7 @@ export class Task {
 		let responseFiles: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images, files)
-			await this.saveCheckpoint()
+			await this.checkpointManager?.saveCheckpoint()
 			responseText = text
 			responseImages = images
 			responseFiles = files
@@ -895,27 +896,7 @@ export class Task {
 		this.mcpHub.clearNotificationCallback()
 	}
 
-	// Checkpoints logic moved to checkpointManager
-
-	// TODO review these
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number) {
-		if (this.checkpointManager) {
-			await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs)
-		}
-	}
-
-	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		if (this.checkpointManager) {
-			await this.checkpointManager.presentMultifileDiff(messageTs, seeNewChangesSinceLastTaskCompletion)
-		}
-	}
-
-	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
-		if (this.checkpointManager) {
-			return await this.checkpointManager.doesLatestTaskCompletionHaveNewChanges()
-		}
-		return false
-	}
+	// Checkpoints logic moved to checkpointManager - call directly on this.checkpointManager
 
 	// Tools
 
@@ -1113,7 +1094,7 @@ export class Task {
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
-			await this.saveCheckpoint()
+			await this.checkpointManager?.saveCheckpoint()
 
 			let fileContentString = ""
 			if (userFeedback.files && userFeedback.files.length > 0) {
