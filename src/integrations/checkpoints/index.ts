@@ -16,7 +16,13 @@ import { FileContextTracker } from "@core/context/context-tracking/FileContextTr
 import { is } from "node_modules/cheerio/dist/esm/api/traversing"
 
 // Type definitions for better code organization
-type SayFunction = (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
+type SayFunction = (
+	type: ClineSay,
+	text?: string,
+	images?: string[],
+	files?: string[],
+	partial?: boolean,
+) => Promise<number | undefined>
 type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryItem[]>
 
 interface CheckpointManagerDependencies {
@@ -74,9 +80,7 @@ export class TaskCheckpointManager {
 	 * Creates a checkpoint of the current state
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
 	 */
-	async saveCheckpoint(
-		isAttemptCompletionMessage: boolean = false,
-	): Promise<void> {
+	async saveCheckpoint(isAttemptCompletionMessage: boolean = false): Promise<void> {
 		// If checkpoints are disabled, return early
 		if (!this.dependencies.enableCheckpoints) {
 			return
@@ -104,11 +108,8 @@ export class TaskCheckpointManager {
 			return
 		}
 
-
-
 		// For non-attempt completion, we write a checkpoint_created message
 		if (!isAttemptCompletionMessage) {
-
 			// Ensure we aren't creating back-to-back checkpoint_created messages
 			const lastMessage = clineMessages.at(-1)
 			if (lastMessage?.say === "checkpoint_created") {
@@ -116,23 +117,22 @@ export class TaskCheckpointManager {
 			}
 
 			// Create a new checkpoint_created message and asynchronously add the commitHash
-			try {	
-				await this.dependencies.say("checkpoint_created")
+			try {
+				const messageTs = await this.dependencies.say("checkpoint_created")
 				this.state.checkpointTracker?.commit().then(async (commitHash) => {
-					const lastCheckpointMessage = findLast(
-						this.dependencies.messageStateHandler.getClineMessages(),
-						(m) => m.say === "checkpoint_created",
-					)
-					if (lastCheckpointMessage) {
-						lastCheckpointMessage.lastCheckpointHash = commitHash
-						await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					if (messageTs) {
+						const targetMessage = this.dependencies.messageStateHandler
+							.getClineMessages()
+							.find((m) => m.ts === messageTs)
+						if (targetMessage) {
+							targetMessage.lastCheckpointHash = commitHash
+							await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						}
 					}
 				})
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			}
-			
-
 
 			if (this.state.checkpointTracker) {
 				const commitHash = await this.state.checkpointTracker.commit()
