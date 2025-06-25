@@ -24,8 +24,10 @@ type SayFunction = (
 ) => Promise<number | undefined>
 type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryItem[]>
 
-interface CheckpointManagerDependencies {
+interface CheckpointManagerTask {
 	readonly taskId: string
+}
+interface CheckpointManagerConfig {
 	readonly enableCheckpoints: boolean
 }
 interface CheckpointManagerServices {
@@ -73,20 +75,23 @@ interface CheckpointRestoreStateUpdate {
  * For checkpoint operations, the CheckpointTracker class is used to interact with the underlying git logic.
  */
 export class TaskCheckpointManager {
-	private readonly dependencies: CheckpointManagerDependencies
+	private readonly task: CheckpointManagerTask
+	private readonly config: CheckpointManagerConfig
 	private readonly services: CheckpointManagerServices
 	private readonly callbacks: CheckpointManagerCallbacks
 
 	private state: CheckpointManagerInternalState
 
 	constructor(
-		dependencies: CheckpointManagerDependencies,
+		task: CheckpointManagerTask,
+		config: CheckpointManagerConfig,
 		services: CheckpointManagerServices,
 		callbacks: CheckpointManagerCallbacks,
 		initialState: CheckpointManagerInternalState,
 	) {
-		this.dependencies = Object.freeze(dependencies)
-		this.services = Object.freeze(services)
+		this.task = Object.freeze(task)
+		this.config = config
+		this.services = services
 		this.callbacks = Object.freeze(callbacks)
 		this.state = { ...initialState }
 	}
@@ -102,7 +107,7 @@ export class TaskCheckpointManager {
 	 */
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number): Promise<void> {
 		// If checkpoints are disabled, return early
-		if (!this.dependencies.enableCheckpoints) {
+		if (!this.config.enableCheckpoints) {
 			return
 		}
 
@@ -197,6 +202,7 @@ export class TaskCheckpointManager {
 	 * @param offset - Optional offset for the message index
 	 * @returns checkpointManagerStateUpdate with any state changes that need to be applied
 	 */
+	// Largely unchanged from original Task class implementation
 	async restoreCheckpoint(
 		messageTs: number,
 		restoreType: ClineCheckpointRestore,
@@ -221,7 +227,7 @@ export class TaskCheckpointManager {
 				break
 			case "taskAndWorkspace":
 			case "workspace":
-				if (!this.dependencies.enableCheckpoints) {
+				if (!this.config.enableCheckpoints) {
 					vscode.window.showErrorMessage("Checkpoints are disabled in settings.")
 					didWorkspaceRestoreFail = true
 					break
@@ -230,9 +236,9 @@ export class TaskCheckpointManager {
 				if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
 					try {
 						this.state.checkpointTracker = await CheckpointTracker.create(
-							this.dependencies.taskId,
+							this.task.taskId,
 							this.services.context.globalStorageUri.fsPath,
-							this.dependencies.enableCheckpoints,
+							this.config.enableCheckpoints,
 						)
 						this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 					} catch (error) {
@@ -300,11 +306,12 @@ export class TaskCheckpointManager {
 	 * @param messageTs - Timestamp of the message to show diff for
 	 * @param seeNewChangesSinceLastTaskCompletion - Whether to show changes since last completion
 	 */
+	// Largely unchanged from original Task class implementation
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
 			sendRelinquishControlEvent()
 		}
-		if (!this.dependencies.enableCheckpoints) {
+		if (!this.config.enableCheckpoints) {
 			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
 			relinquishButton()
 			return
@@ -327,12 +334,12 @@ export class TaskCheckpointManager {
 		}
 
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
-		if (!this.state.checkpointTracker && this.dependencies.enableCheckpoints && !this.state.checkpointTrackerErrorMessage) {
+		if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointTrackerErrorMessage) {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
-					this.dependencies.taskId,
+					this.task.taskId,
 					this.services.context.globalStorageUri.fsPath,
-					this.dependencies.enableCheckpoints,
+					this.config.enableCheckpoints,
 				)
 				this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 			} catch (error) {
@@ -434,8 +441,9 @@ export class TaskCheckpointManager {
 	 * Checks if the latest task completion has new changes
 	 * @returns Promise<boolean> - True if there are new changes since last completion
 	 */
+	// Largely unchanged from original Task class implementation
 	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
-		if (!this.dependencies.enableCheckpoints) {
+		if (!this.config.enableCheckpoints) {
 			return false
 		}
 
@@ -452,12 +460,12 @@ export class TaskCheckpointManager {
 			return false
 		}
 
-		if (this.dependencies.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+		if (this.config.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
-					this.dependencies.taskId,
+					this.task.taskId,
 					this.services.context.globalStorageUri.fsPath,
-					this.dependencies.enableCheckpoints,
+					this.config.enableCheckpoints,
 				)
 				this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 			} catch (error) {
@@ -508,6 +516,7 @@ export class TaskCheckpointManager {
 	/**
 	 * Handles the successful restoration logic for different restore types
 	 */
+	// Largely unchanged from original Task class implementation
 	private async handleSuccessfulRestore(
 		restoreType: ClineCheckpointRestore,
 		message: ClineMessage,
@@ -528,7 +537,7 @@ export class TaskCheckpointManager {
 				const contextManager = new ContextManager()
 				await contextManager.truncateContextHistory(
 					message.ts,
-					await ensureTaskDirectoryExists(this.getContext(), this.dependencies.taskId),
+					await ensureTaskDirectoryExists(this.getContext(), this.task.taskId),
 				)
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
@@ -635,9 +644,9 @@ export class TaskCheckpointManager {
 	private async initializeCheckpointTracker(): Promise<CheckpointTracker | undefined> {
 		try {
 			const tracker = await CheckpointTracker.create(
-				this.dependencies.taskId,
+				this.task.taskId,
 				this.services.context.globalStorageUri.fsPath,
-				this.dependencies.enableCheckpoints,
+				this.config.enableCheckpoints,
 			)
 
 			// Update the state with the created tracker
@@ -720,10 +729,11 @@ export class TaskCheckpointManager {
  * Creates a new TaskCheckpointManager instance
  */
 export function createTaskCheckpointManager(
-	dependencies: CheckpointManagerDependencies,
+	task: CheckpointManagerTask,
+	config: CheckpointManagerConfig,
 	services: CheckpointManagerServices,
 	callbacks: CheckpointManagerCallbacks,
 	initialState: CheckpointManagerInternalState,
 ): TaskCheckpointManager {
-	return new TaskCheckpointManager(dependencies, services, callbacks, initialState)
+	return new TaskCheckpointManager(task, config, services, callbacks, initialState)
 }
