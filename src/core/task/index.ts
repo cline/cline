@@ -4,7 +4,6 @@ import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
 import { ApiStream } from "@api/transform/stream"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { TaskCheckpointManager, createTaskCheckpointManager } from "@integrations/checkpoints"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
@@ -114,8 +113,7 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	private checkpointTracker?: CheckpointTracker
-	private checkpointManager: TaskCheckpointManager
+	public checkpointManager: TaskCheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
@@ -246,8 +244,7 @@ export class Task {
 			},
 			{
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				checkpointTracker: this.checkpointTracker,
-				checkpointTrackerErrorMessage: this.taskState.checkpointTrackerErrorMessage,
+				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 			},
 		)
 
@@ -374,21 +371,6 @@ export class Task {
 		// Reset counter if max requests limit changed
 		if (maxRequestsChanged) {
 			this.taskState.consecutiveAutoApprovedRequestsCount = 0
-		}
-	}
-
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
-		// Delegate to the checkpoint manager and get state updates
-		const stateUpdate = await this.checkpointManager.restoreCheckpoint(messageTs, restoreType, offset)
-
-		// Apply state updates
-		if (stateUpdate.conversationHistoryDeletedRange !== undefined) {
-			this.taskState.conversationHistoryDeletedRange = stateUpdate.conversationHistoryDeletedRange
-		}
-
-		if (stateUpdate.checkpointTrackerErrorMessage !== undefined) {
-			this.taskState.checkpointTrackerErrorMessage = stateUpdate.checkpointTrackerErrorMessage
-			await this.postStateToWebview()
 		}
 	}
 
@@ -692,12 +674,6 @@ export class Task {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
-		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
-		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
-		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
-		// if (!doesShadowGitExist) {
-		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
-		// }
 
 		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
@@ -1624,29 +1600,26 @@ export class Task {
 		if (
 			isFirstRequest &&
 			this.enableCheckpoints &&
-			!this.checkpointTracker &&
-			!this.taskState.checkpointTrackerErrorMessage
+			//!this.checkpointManager &&
+			!this.taskState.checkpointManagerErrorMessage
 		) {
 			try {
-				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
-					{
-						milliseconds: 15_000,
-						message:
-							"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-					},
-				)
+				await pTimeout(this.checkpointManager.checkpointTrackerCheckAndInit(), {
+					milliseconds: 15_000,
+					message:
+						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+				})
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				console.error("Failed to initialize checkpoint manager:", errorMessage)
+				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
 			}
 		}
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.enableCheckpoints && this.checkpointTracker) {
-			const commitHash = await this.checkpointTracker.commit() // Actual commit
+		if (isFirstRequest && this.enableCheckpoints && this.checkpointManager) {
+			const commitHash = await this.checkpointManager.commit() // Actual commit
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
@@ -1663,11 +1636,11 @@ export class Task {
 		} else if (
 			isFirstRequest &&
 			this.enableCheckpoints &&
-			!this.checkpointTracker &&
-			this.taskState.checkpointTrackerErrorMessage
+			!this.checkpointManager &&
+			this.taskState.checkpointManagerErrorMessage
 		) {
 			// Checkpoints are enabled, but tracker failed to initialize.
-			// checkpointTrackerErrorMessage is already set and will be part of the state.
+			// checkpointManagerErrorMessage is already set and will be part of the state.
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
