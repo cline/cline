@@ -400,7 +400,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-4" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -412,7 +412,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. \n\nClaude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
@@ -721,7 +721,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.5-pro"
 export const geminiModels = {
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
@@ -1876,7 +1876,7 @@ export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 // AskSage Models
 // https://docs.asksage.ai/
 export type AskSageModelId = keyof typeof askSageModels
-export const askSageDefaultModelId: AskSageModelId = "claude-35-sonnet"
+export const askSageDefaultModelId: AskSageModelId = "claude-4-sonnet"
 export const askSageDefaultURL: string = "https://api.asksage.ai/server"
 export const askSageModels = {
 	"gpt-4o": {
