@@ -8,9 +8,9 @@ import {
 	parseAssistantMessageV3,
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
-import { constructNewFileContent as constructNewFileContentV1, constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
-import { constructNewFileContent as constructNewFileContentV2_1 } from "./diff-apply/diff-06-23-25"
-import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff" // this defaults to the new v1 when called
+import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
+import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
+import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
@@ -22,11 +22,9 @@ const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
 }
 
 const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
-	"diff-06-06-25": constructNewFileContentV2,
-	"diff-06-23-25": constructNewFileContentV2_1,
-	constructNewFileContentV1: constructNewFileContentV1,
-	constructNewFileContentV2: constructNewFileContentV2,
-	constructNewFileContentV3: constructNewFileContentV3, // position invariant diff
+	"diff-06-06-25": constructNewFileContent_06_06_25,
+	"diff-06-23-25": constructNewFileContent_06_23_25,
+	"diff-06-25-25": constructNewFileContent_06_25_25,
 }
 
 import { TestInput, TestResult, ExtractedToolCall } from "./types"

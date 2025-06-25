@@ -1,7 +1,8 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
 import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/parse-assistant-message-06-06-25"
-import { constructNewFileContent as constructNewFileContentV2 } from "./diff-apply/diff-06-06-25"
-import { constructNewFileContent as constructNewFileContentV2_1 } from "./diff-apply/diff-06-23-25"
+import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
+import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
+import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
@@ -480,8 +481,9 @@ class NodeTestRunner {
 
 		// 1. Get the correct diffing function
 		const diffEditingFunctions: Record<string, any> = {
-			"diff-06-06-25": constructNewFileContentV2,
-			"diff-06-23-25": constructNewFileContentV2_1,
+			"diff-06-06-25": constructNewFileContent_06_06_25,
+			"diff-06-23-25": constructNewFileContent_06_23_25,
+			"diff-06-25-25": constructNewFileContent_06_25_25,
 			constructNewFileContentV3: constructNewFileContentV3,
 		}
 		const constructNewFileContent = diffEditingFunctions[diffApplyFile]
