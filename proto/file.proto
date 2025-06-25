@@ -29,9 +29,6 @@ service FileService {
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
 
-  // Select images from the file system and return as data URLs
-  rpc selectImages(EmptyRequest) returns (StringArray);
-
   // Select images and other files from the file system and returns as data URLs & paths respectively
   rpc selectFiles(BooleanRequest) returns (StringArrays);
   
