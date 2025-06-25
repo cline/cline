@@ -1017,7 +1017,7 @@ export class Task {
 				}
 
 				await this.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
-				let refinedResult = await refinePrompt(task, this.api)
+				let refinedResult = await refinePrompt(task, this.api, this)
 				updatePromptRefinementStatus("Prompt refinement completed")
 
 				if (refinedResult.needsMoreInfo) {
@@ -1036,7 +1036,7 @@ export class Task {
 					}
 
 					await this.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
-					refinedResult = await refinePrompt(task, this.api)
+					refinedResult = await refinePrompt(task, this.api, this)
 					updatePromptRefinementStatus("Prompt refinement completed")
 				}
 				finalTask = refinedResult.refinedPrompt
