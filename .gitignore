@@ -38,3 +38,4 @@ src/hosts/vscode/*/index.ts
 src/hosts/vscode/client/host-grpc-client.ts
 src/hosts/vscode/host-grpc-service-config.ts
 src/standalone/server-setup.ts
+gemini-cli

@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "ollama"
 	| "lmstudio"
 	| "gemini"
+	| "gemini-cli"
 	| "openai-native"
 	| "requesty"
 	| "together"
@@ -69,6 +70,7 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
+	geminiCliPath?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string

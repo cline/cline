@@ -27,6 +27,7 @@ import { SambanovaHandler } from "./providers/sambanova"
 import { CerebrasHandler } from "./providers/cerebras"
 import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
+import { GeminiCliHandler } from "./providers/gemini-cli"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -92,6 +93,8 @@ function createHandlerForProvider(apiProvider: string | undefined, options: any)
 			return new SapAiCoreHandler(options)
 		case "claude-code":
 			return new ClaudeCodeHandler(options)
+		case "gemini-cli":
+			return new GeminiCliHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
