@@ -147,25 +147,28 @@ export class TaskCheckpointManager {
 
 				// Create a new checkpoint_created message and asynchronously add the commitHash to the say message
 				const messageTs = await this.callbacks.say("checkpoint_created")
-				this.state.checkpointTracker
-					?.commit()
-					.then(async (commitHash) => {
-						if (messageTs) {
-							const targetMessage = this.services.messageStateHandler
-								.getClineMessages()
-								.find((m) => m.ts === messageTs)
-							if (targetMessage) {
-								targetMessage.lastCheckpointHash = commitHash
-								await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
-							}
-						}
-					})
-					.catch((error) => {
-						console.error(
-							`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.task.taskId}:`,
-							error,
-						)
-					})
+				if (messageTs) {
+					// Get direct reference to the message - no need to re-fetch since getClineMessages() returns the actual array
+					const messages = this.services.messageStateHandler.getClineMessages()
+					const targetMessage = messages.find((m) => m.ts === messageTs)
+
+					if (targetMessage) {
+						this.state.checkpointTracker
+							?.commit()
+							.then(async (commitHash) => {
+								if (commitHash) {
+									targetMessage.lastCheckpointHash = commitHash
+									await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+								}
+							})
+							.catch((error) => {
+								console.error(
+									`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.task.taskId}:`,
+									error,
+								)
+							})
+					}
+				}
 			} else {
 				// attempt_completion messages are special
 				// First check last 3 messages to see if we already have a recent completion checkpoint
