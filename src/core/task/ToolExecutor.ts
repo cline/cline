@@ -30,7 +30,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { fileExistsAtPath } from "@utils/fs"
 import { formatResponse } from "../prompts/responses"
-import { isClaude4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
 import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
 import { serializeError } from "serialize-error"
 import * as path from "path"
@@ -105,12 +105,12 @@ export class ToolExecutor {
 	) {}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isClaude4Model = isClaude4ModelFamily(this.api)
+		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+			if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 				// Claude 4 family: Use function_results format
 				this.taskState.userMessageContent.push({
 					type: "text",
@@ -472,9 +472,9 @@ export class ToolExecutor {
 
 						const currentFullJson = block.params.diff
 						// Check if we should use streaming (e.g., for specific models)
-						const isClaude4Model = isClaude4ModelFamily(this.api)
+						const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 						// Going through claude family of models
-						if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
+						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
 
 							if (streamingResult.error) {
@@ -839,7 +839,6 @@ export class ToolExecutor {
 				}
 			}
 			case "list_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const recursiveRaw: string | undefined = block.params.recursive
 				const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -989,7 +988,6 @@ export class ToolExecutor {
 				}
 			}
 			case "search_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const regex: string | undefined = block.params.regex
 				const filePattern: string | undefined = block.params.file_pattern
