@@ -993,23 +993,7 @@ export class Task {
 		if (this.isPhaseRoot && task && this.autoApprovalSettings.actions.usePromptRefinement) {
 			try {
 				console.log("[Task] Applying prompt refinement...")
-				const updatePromptRefinementStatus = (message: string) => {
-					const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
-					if (lastApiReqStartedIndex !== -1) {
-						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(
-							this.clineMessages[lastApiReqStartedIndex].text || "{}",
-						)
-						this.clineMessages[lastApiReqStartedIndex].text = JSON.stringify({
-							...currentApiReqInfo,
-							request: message,
-							cost: 0.001,
-						} satisfies ClineApiReqInfo)
-					}
-				}
-
-				await this.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
-				let refinedResult = await refinePrompt(task, this.api)
-				updatePromptRefinementStatus("Prompt refinement completed")
+				let refinedResult = await refinePrompt(task, this.api, this)
 
 				if (refinedResult.needsMoreInfo) {
 					const questionList = refinedResult.followUpQuestions.map(
@@ -1026,9 +1010,7 @@ export class Task {
 						task += `\n\nQ: ${ques.question}\nA: ${ques.selected}`
 					}
 
-					await this.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
-					refinedResult = await refinePrompt(task, this.api)
-					updatePromptRefinementStatus("Prompt refinement completed")
+					refinedResult = await refinePrompt(task, this.api, this)
 				}
 				finalTask = refinedResult.refinedPrompt
 				await this.say("text", `Refined prompt: \n${finalTask}`)

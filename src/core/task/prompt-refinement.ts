@@ -1,4 +1,14 @@
 import { ApiHandler } from "@api/index"
+import { findLast, findLastIndex } from "@shared/array"
+import {
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
+	ClineAsk,
+	ClineAskQuestion,
+	ClineMessage,
+	ClineSay,
+	ExtensionMessage,
+} from "@shared/ExtensionMessage"
 
 // 팔로우업 질문 인터페이스
 export interface FollowUpQuestion {
@@ -22,33 +32,9 @@ export interface RefinedPromptResult {
 	explanation: string
 }
 
-export async function refinePrompt(prompt: string, apiHandler: ApiHandler): Promise<RefinedPromptResult> {
-	try {
-		// Apply LLM-based prompt refinement
-		const refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler)
-
-		return {
-			originalPrompt: prompt,
-			refinedPrompt: refinedPrompt.refinedPrompt,
-			explanation: refinedPrompt.explanation,
-			needsMoreInfo: refinedPrompt.needsMoreInfo || false,
-			followUpQuestions: refinedPrompt.followUpQuestions || [],
-		}
-	} catch (error) {
-		console.error("Error in prompt refinement:", error)
-		return {
-			originalPrompt: prompt,
-			refinedPrompt: prompt,
-			explanation: `LLM refinement failed.`,
-			needsMoreInfo: false,
-			followUpQuestions: [],
-		}
-	}
-}
-
-async function performLLMPromptRefinement(prompt: string, apiHandler: ApiHandler): Promise<EnhancedRefinementResult> {
-	// 웹 프로젝트 템플릿 (RAG를 통해 가져왔다고 가정)
-	const webProjectTemplate = {
+// 웹 프로젝트 템플릿 정의
+function getWebProjectTemplate() {
+	return {
 		name: "Modern Web Application Template",
 		description: "A template for creating modern web applications",
 		slots: {
@@ -91,9 +77,11 @@ async function performLLMPromptRefinement(prompt: string, apiHandler: ApiHandler
 			},
 		},
 	}
+}
 
-	// Project Specification Format (Markdown format)
-	const projectSpecificationFormat = `
+// 프로젝트 명세 포맷 정의
+function getProjectSpecificationFormat(): string {
+	return `
 	## Project Specification Format
 
 	Create a comprehensive project specification using the following structure:
@@ -153,21 +141,17 @@ async function performLLMPromptRefinement(prompt: string, apiHandler: ApiHandler
 	  - Build Output: [Distribution, compiled files location]
 
 	Use this format to create a clear, actionable specification that a developer can immediately use to build the project.`
+}
 
-	// Dynamically extract required and optional fields from template
-	const requiredFields = Object.entries(webProjectTemplate.slots)
-		.filter(([_, slot]) => slot.required === true)
-		.map(([key, _]) => key)
-
-	const optionalFields = Object.entries(webProjectTemplate.slots)
-		.filter(([_, slot]) => slot.required === false)
-		.map(([key, _]) => key)
-
-	// Generate extractedData structure dynamically
-	const allSlotKeys = Object.keys(webProjectTemplate.slots)
-	const extractedDataStructure = allSlotKeys.map((key) => `    "${key}": "extracted value or null"`).join(",\n")
-
-	const systemPrompt = `You are a web project specification assistant. Extract information from user prompts and generate follow-up questions for any missing required data.
+// 시스템 프롬프트 생성
+function buildSystemPrompt(
+	webProjectTemplate: any,
+	projectSpecificationFormat: string,
+	requiredFields: string[],
+	optionalFields: string[],
+	extractedDataStructure: string,
+): string {
+	return `You are a web project specification assistant. Extract information from user prompts and generate follow-up questions for any missing required data.
 
 IMPORTANT: All follow-up questions and options must be generated in Korean language.
 
@@ -212,12 +196,72 @@ RULES:
 - Include concrete technical specifications, specific recommendations, and actionable implementation details
 - NEVER use "..." or truncate any part of the JSON response
 - Always close all brackets and quotes properly`
+}
+
+export async function refinePrompt(prompt: string, apiHandler: ApiHandler, taskInstance?: any): Promise<RefinedPromptResult> {
+	try {
+		// Apply LLM-based prompt refinement
+		const refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler, taskInstance)
+
+		return {
+			originalPrompt: prompt,
+			refinedPrompt: refinedPrompt.refinedPrompt,
+			explanation: refinedPrompt.explanation,
+			needsMoreInfo: refinedPrompt.needsMoreInfo || false,
+			followUpQuestions: refinedPrompt.followUpQuestions || [],
+		}
+	} catch (error) {
+		console.error("Error in prompt refinement:", error)
+		return {
+			originalPrompt: prompt,
+			refinedPrompt: prompt,
+			explanation: `LLM refinement failed.`,
+			needsMoreInfo: false,
+			followUpQuestions: [],
+		}
+	}
+}
+
+async function performLLMPromptRefinement(
+	prompt: string,
+	apiHandler: ApiHandler,
+	taskInstance?: any,
+): Promise<EnhancedRefinementResult> {
+	// 템플릿과 포맷 가져오기
+	const webProjectTemplate = getWebProjectTemplate()
+	const projectSpecificationFormat = getProjectSpecificationFormat()
+
+	// 필수 및 선택 필드 추출
+	const requiredFields = Object.entries(webProjectTemplate.slots)
+		.filter(([_, slot]: [string, any]) => slot.required === true)
+		.map(([key, _]) => key)
+
+	const optionalFields = Object.entries(webProjectTemplate.slots)
+		.filter(([_, slot]: [string, any]) => slot.required === false)
+		.map(([key, _]) => key)
+
+	// 추출된 데이터 구조 생성
+	const allSlotKeys = Object.keys(webProjectTemplate.slots)
+	const extractedDataStructure = allSlotKeys.map((key) => `    "${key}": "extracted value or null"`).join(",\n")
+
+	// 시스템 프롬프트 생성
+	const systemPrompt = buildSystemPrompt(
+		webProjectTemplate,
+		projectSpecificationFormat,
+		requiredFields,
+		optionalFields,
+		extractedDataStructure,
+	)
 
 	const userMessage = `Analyze this web project request and extract template slot information:
 
 User Request: "${prompt}"
 
 Please extract available information, identify missing required elements, and generate follow-up questions if needed.`
+
+	if (taskInstance && taskInstance.say) {
+		await taskInstance.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
+	}
 
 	// Call LLM for template-based analysis
 	const stream = apiHandler.createMessage(systemPrompt, [
@@ -227,12 +271,50 @@ Please extract available information, identify missing required elements, and ge
 		},
 	])
 
+	// 스트리밍 시작 메시지
+	if (taskInstance && taskInstance.say) {
+		await taskInstance.say("text", "Refining prompt...", undefined, undefined, true)
+	}
+
 	let response = ""
+	const start = performance.now()
+	let lastUpdateTime = Date.now()
+	const updateInterval = 250 // Update UI every 250ms to avoid too many updates
+
+	// Process stream chunks and update UI with refinement progress
 	for await (const chunk of stream) {
 		if (chunk.type === "text") {
 			response += chunk.text
+
+			// Update UI periodically to show progress without overwhelming it
+			const now = Date.now()
+			if (now - lastUpdateTime > updateInterval && taskInstance && taskInstance.say) {
+				// Update progress message with latest refinement content
+				// Using the partial flag to indicate this is a progressive update
+				await taskInstance.say(
+					"reasoning",
+					`Refining prompt... (${(now - start) / 1000}s)\n\n${response.slice(-500)}`,
+					undefined,
+					undefined,
+					true,
+				)
+				lastUpdateTime = now
+			}
 		}
 	}
+
+	// Finalize the partial message
+	if (taskInstance && taskInstance.say) {
+		await taskInstance.say(
+			"text",
+			`Prompt refinement completed in ${((performance.now() - start) / 1000).toFixed(1)}s`,
+			undefined,
+			undefined,
+			false,
+		)
+	}
+
+	updatePromptRefinementStatus("Prompt refinement completed", taskInstance)
 
 	// Parse LLM response
 	try {
@@ -286,4 +368,23 @@ export function escapeNewlinesInJsonStrings(raw: string): string {
 	}
 
 	return result
+}
+
+const updatePromptRefinementStatus = (message: string, taskInstance?: any) => {
+	if (!taskInstance || !taskInstance.messageStateHandler) {
+		return
+	}
+
+	const clineMessages = taskInstance.messageStateHandler.getClineMessages()
+	const lastApiReqStartedIndex = findLastIndex(clineMessages, (m: ClineMessage) => m.say === "api_req_started")
+	if (lastApiReqStartedIndex !== -1) {
+		const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
+		taskInstance.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+			text: JSON.stringify({
+				...currentApiReqInfo,
+				request: message,
+				cost: 0.001,
+			} satisfies ClineApiReqInfo),
+		})
+	}
 }
