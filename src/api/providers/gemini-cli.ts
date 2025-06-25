@@ -261,7 +261,7 @@ export class GeminiCliHandler implements ApiHandler {
 	 * Create a message using the Gemini CLI OAuth API
 	 */
 	@withRetry({
-		maxRetries: 3,
+		maxRetries: 2,
 		baseDelay: 2000,
 		maxDelay: 10000,
 	})
@@ -362,6 +362,7 @@ export class GeminiCliHandler implements ApiHandler {
 					/too many requests/i,
 					/quota exceeded/i,
 					/resource exhausted/i,
+					/code 429/i,
 				]
 
 				const isRateLimit = rateLimitPatterns.some((pattern) => pattern.test(error.message))
