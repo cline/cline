@@ -20,7 +20,6 @@ const OAUTH_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.goog
 const OAUTH_CLIENT_SECRET = "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"
 
 const OAUTH_REDIRECT_URI = "http://localhost:45289"
-const OAUTH_SCOPES = ["https://www.googleapis.com/auth/userinfo.email"]
 
 interface OAuthCredentials {
 	access_token: string
@@ -46,6 +45,7 @@ export class GeminiCliHandler implements ApiHandler {
 	private options: GeminiCliHandlerOptions
 	private authClient: OAuth2Client
 	private projectId: string | null = null
+	private authInitialized: boolean = false
 
 	constructor(options: GeminiCliHandlerOptions) {
 		this.options = options
@@ -68,7 +68,7 @@ export class GeminiCliHandler implements ApiHandler {
 	/**
 	 * Call a Code Assist API endpoint
 	 */
-	private async callEndpoint(method: string, body: any): Promise<any> {
+	private async callEndpoint(method: string, body: any, retryAuth: boolean = true): Promise<any> {
 		console.log(`[GeminiCLI] Calling endpoint: ${method}`)
 		console.log(`[GeminiCLI] Request body:`, JSON.stringify(body, null, 2))
 
@@ -90,6 +90,14 @@ export class GeminiCliHandler implements ApiHandler {
 			console.error(`[GeminiCLI] Error response:`, error.response?.data)
 			console.error(`[GeminiCLI] Error status:`, error.response?.status)
 			console.error(`[GeminiCLI] Error message:`, error.message)
+
+			// If we get a 401 and haven't retried yet, try refreshing auth
+			if (error.response?.status === 401 && retryAuth) {
+				console.log(`[GeminiCLI] Got 401, attempting to refresh authentication...`)
+				await this.initializeAuth(true) // Force refresh
+				return this.callEndpoint(method, body, false) // Retry without further auth retries
+			}
+
 			throw error
 		}
 	}
@@ -164,17 +172,46 @@ export class GeminiCliHandler implements ApiHandler {
 	/**
 	 * Initialize the OAuth client with credentials
 	 */
-	private async initializeAuth(): Promise<void> {
+	private async initializeAuth(forceRefresh: boolean = false): Promise<void> {
+		// Check if we need to initialize or refresh
+		if (this.authInitialized && !forceRefresh) {
+			// Check if token is still valid
+			const credentials = this.authClient.credentials
+			if (credentials && credentials.expiry_date && Date.now() < credentials.expiry_date) {
+				console.log(`[GeminiCLI] Auth already initialized and token still valid`)
+				return
+			}
+		}
+
 		console.log(`[GeminiCLI] Initializing OAuth authentication...`)
 		const credentials = await this.loadOAuthCredentials()
+		const isExpired = credentials.expiry_date ? Date.now() > credentials.expiry_date : false
+
 		console.log(`[GeminiCLI] Loaded credentials:`, {
 			hasAccessToken: !!credentials.access_token,
 			hasRefreshToken: !!credentials.refresh_token,
 			tokenType: credentials.token_type,
 			expiryDate: credentials.expiry_date,
-			isExpired: credentials.expiry_date ? Date.now() > credentials.expiry_date : "no expiry date",
+			isExpired: isExpired,
 		})
+
 		this.authClient.setCredentials(credentials)
+
+		// If token is expired and we have a refresh token, try to refresh
+		if (isExpired && credentials.refresh_token) {
+			console.log(`[GeminiCLI] Token expired, attempting to refresh...`)
+			try {
+				const { credentials: newCredentials } = await this.authClient.refreshAccessToken()
+				console.log(`[GeminiCLI] Token refreshed successfully`)
+				// Note: In a real implementation, you'd want to save the new credentials back to the file
+				// For now, we'll just use them in memory
+			} catch (error) {
+				console.error(`[GeminiCLI] Failed to refresh token:`, error)
+				// Continue with the expired token - the API might still accept it
+			}
+		}
+
+		this.authInitialized = true
 		console.log(`[GeminiCLI] OAuth client configured`)
 	}
 
@@ -230,10 +267,7 @@ export class GeminiCliHandler implements ApiHandler {
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Initialize auth if not already done
-		if (!this.authClient.credentials) {
-			await this.initializeAuth()
-		}
-
+		await this.initializeAuth()
 		// Discover project ID if needed
 		const projectId = await this.discoverProjectId()
 
