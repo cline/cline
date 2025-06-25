@@ -2,7 +2,7 @@ import { ApiHandler } from "@api/index"
 
 export function isClaude4ModelFamily(api: ApiHandler): boolean {
 	const model = api.getModel()
-	const modelId = model.id
+	const modelId = model.id.toLowerCase()
 	return (
 		modelId.includes("sonnet-4") || modelId.includes("opus-4") || modelId.includes("4-sonnet") || modelId.includes("4-opus")
 	)
