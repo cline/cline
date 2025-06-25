@@ -88,9 +88,22 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 				<VSCodeLink
 					href="https://github.com/google-gemini/gemini-cli?tab=readme-ov-file#quickstart"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					Learn more about Gemini CLI
+					Gemini CLI Setup Instructions
 				</VSCodeLink>
 			</p>
+
+			{showModelOptions && (
+				<>
+					<ModelSelector
+						models={geminiCliModels}
+						selectedModelId={selectedModelId}
+						onChange={handleInputChange("apiModelId")}
+						label="Model"
+					/>
+
+					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+				</>
+			)}
 
 			<div
 				style={{
@@ -130,25 +143,15 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 						lineHeight: "1.4",
 						color: "var(--vscode-foreground)",
 					}}>
-					• Only works with <strong>personal Google accounts</strong> (not Google Workspace accounts)
+					• First, you need to install the <strong>Gemini CLI tool</strong>
+					<br />• Then, run <strong>gemini</strong> in your terminal and make sure you{" "}
+					<strong>Log in with Google</strong>
+					<br />• Only works with <strong>personal Google accounts</strong> (not Google Workspace accounts)
 					<br />
 					• Does not use API keys - authentication is handled via OAuth
 					<br />• Requires the Gemini CLI tool to be installed and authenticated first
 				</p>
 			</div>
-
-			{showModelOptions && (
-				<>
-					<ModelSelector
-						models={geminiCliModels}
-						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
-						label="Model"
-					/>
-
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
-				</>
-			)}
 
 			<p
 				style={{
