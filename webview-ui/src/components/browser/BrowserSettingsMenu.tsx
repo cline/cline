@@ -1,9 +1,8 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import styled from "styled-components"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
@@ -29,7 +28,7 @@ export const BrowserSettingsMenu = () => {
 		;(async () => {
 			try {
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
-				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
 				setConnectionInfo({
 					isConnected: info.isConnected,
@@ -71,7 +70,7 @@ export const BrowserSettingsMenu = () => {
 		// After a short delay, send a message to scroll to browser settings
 		setTimeout(async () => {
 			try {
-				await UiServiceClient.scrollToSettings({ value: "browser" })
+				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "browser" }))
 			} catch (error) {
 				console.error("Error scrolling to browser settings:", error)
 			}
@@ -85,7 +84,7 @@ export const BrowserSettingsMenu = () => {
 		if (!showInfoPopover) {
 			const fetchConnectionInfo = async () => {
 				try {
-					const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+					const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 					setConnectionInfo({
 						isConnected: info.isConnected,
 						isRemote: info.isRemote,
@@ -125,7 +124,7 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,

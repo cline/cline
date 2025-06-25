@@ -10,74 +10,28 @@ import { McpServer, McpMarketplaceCatalog, McpDownloadResponse, McpViewTab } fro
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
 import { ClineRulesToggles } from "./cline-rules"
+import { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "partialMessage"
-		| "openRouterModels"
-		| "openAiModels"
-		| "requestyModels"
-		| "mcpServers"
-		| "relinquishControl"
-		| "mcpMarketplaceCatalog"
-		| "mcpDownloadDetails"
-		| "commitSearchResults"
-		| "openGraphData"
-		| "didUpdateSettings"
-		| "userCreditsBalance"
-		| "userCreditsUsage"
-		| "userCreditsPayments"
-		| "addToInput"
-		| "browserConnectionResult"
-		| "fileSearchResults"
-		| "grpc_response" // New type for gRPC responses
+	type: "action" | "state" | "selectedImages" | "mcpDownloadDetails" | "grpc_response" // New type for gRPC responses
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
-		| "accountLogoutClicked"
-		| "accountButtonClicked"
-		| "focusChatInput"
+	action?: "accountLogoutClicked"
 	state?: ExtensionState
 	images?: string[]
+	files?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	filePaths?: string[]
-	partialMessage?: ClineMessage
-	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
-	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
-	openGraphData?: {
-		title?: string
-		description?: string
-		image?: string
-		url?: string
-		siteName?: string
-		type?: string
-	}
 	url?: string
 	isImage?: boolean
-	userCreditsBalance?: BalanceResponse
-	userCreditsUsage?: UsageTransaction[]
-	userCreditsPayments?: PaymentTransaction[]
 	success?: boolean
 	endpoint?: string
 	isBundled?: boolean
@@ -114,8 +68,8 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
+	mcpRichDisplayEnabled: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
@@ -123,12 +77,11 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
+	terminalReuseEnabled?: boolean
+	terminalOutputLineLimit: number
+	defaultTerminalProfile?: string
 	uriScheme?: string
-	userInfo?: {
-		displayName: string | null
-		email: string | null
-		photoURL: string | null
-	}
+	userInfo?: UserInfo
 	version: string
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
@@ -137,6 +90,7 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	mcpResponsesCollapsed?: boolean
 }
 
 export interface ClineMessage {
@@ -147,6 +101,7 @@ export interface ClineMessage {
 	text?: string
 	reasoning?: string
 	images?: string[]
+	files?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
@@ -193,6 +148,7 @@ export type ClineSay =
 	| "browser_action_result"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
+	| "mcp_notification"
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
@@ -210,6 +166,7 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "webFetch"
 	path?: string
 	diff?: string
 	content?: string

@@ -8,32 +8,18 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "apiConfiguration"
-		| "webviewDidLaunch"
-		| "newTask"
-		| "condense"
-		| "reportBug"
-		| "showChatView"
 		| "requestVsCodeLmModels"
-		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
-		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "updateSettings"
-		| "clearAllTaskHistory"
-		| "fetchUserCreditsData"
-		| "optionsResponse"
-		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleWorkflow"
-		| "executeQuickWin"
 
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
 	browserSettings?: BrowserSettings
@@ -54,8 +40,9 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
+	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
-	customInstructionsSetting?: string
+	mcpRichDisplayEnabled?: boolean
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -77,10 +64,10 @@ export interface WebviewMessage {
 	enabled?: boolean
 	filename?: string
 
-	payload?: { command: string; title: string }
-
 	offset?: number
 	shellIntegrationTimeout?: number
+	terminalReuseEnabled?: boolean
+	defaultTerminalProfile?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

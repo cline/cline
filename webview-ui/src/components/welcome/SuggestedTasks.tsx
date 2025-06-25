@@ -1,11 +1,12 @@
-import React from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { NewTaskRequest } from "@shared/proto/task"
+import React from "react"
 import QuickWinCard from "./QuickWinCard"
 import { QuickWinTask, quickWinTasks } from "./quickWinTasks"
 
 export const SuggestedTasks: React.FC<{ shouldShowQuickWins: boolean }> = ({ shouldShowQuickWins }) => {
 	const handleExecuteQuickWin = async (prompt: string) => {
-		await TaskServiceClient.newTask({ text: prompt, images: [] })
+		await TaskServiceClient.newTask(NewTaskRequest.create({ text: prompt, images: [] }))
 	}
 
 	if (shouldShowQuickWins) {

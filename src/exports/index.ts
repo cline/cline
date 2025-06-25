@@ -2,26 +2,17 @@ import * as vscode from "vscode"
 import { Controller } from "@core/controller"
 import { ClineAPI } from "./cline"
 import { getGlobalState } from "@core/storage/state"
+import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 
 export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
-		setCustomInstructions: async (value: string) => {
-			await sidebarController.updateCustomInstructions(value)
-			outputChannel.appendLine("Custom instructions set")
-		},
-
-		getCustomInstructions: async () => {
-			return (await getGlobalState(sidebarController.context, "customInstructions")) as string | undefined
-		},
-
 		startNewTask: async (task?: string, images?: string[]) => {
 			outputChannel.appendLine("Starting new task")
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()
-			await sidebarController.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
+
+			await sendChatButtonClickedEvent(sidebarController.id)
 			await sidebarController.initTask(task, images)
 			outputChannel.appendLine(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
