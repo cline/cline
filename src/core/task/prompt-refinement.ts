@@ -1,4 +1,14 @@
 import { ApiHandler } from "@api/index"
+import { findLast, findLastIndex } from "@shared/array"
+import {
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
+	ClineAsk,
+	ClineAskQuestion,
+	ClineMessage,
+	ClineSay,
+	ExtensionMessage,
+} from "@shared/ExtensionMessage"
 
 // 팔로우업 질문 인터페이스
 export interface FollowUpQuestion {
@@ -249,6 +259,10 @@ User Request: "${prompt}"
 
 Please extract available information, identify missing required elements, and generate follow-up questions if needed.`
 
+	if (taskInstance && taskInstance.say) {
+		await taskInstance.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
+	}
+
 	// Call LLM for template-based analysis
 	const stream = apiHandler.createMessage(systemPrompt, [
 		{
@@ -299,6 +313,8 @@ Please extract available information, identify missing required elements, and ge
 			false,
 		)
 	}
+
+	updatePromptRefinementStatus("Prompt refinement completed", taskInstance)
 
 	// Parse LLM response
 	try {
@@ -352,4 +368,23 @@ export function escapeNewlinesInJsonStrings(raw: string): string {
 	}
 
 	return result
+}
+
+const updatePromptRefinementStatus = (message: string, taskInstance?: any) => {
+	if (!taskInstance || !taskInstance.messageStateHandler) {
+		return
+	}
+
+	const clineMessages = taskInstance.messageStateHandler.getClineMessages()
+	const lastApiReqStartedIndex = findLastIndex(clineMessages, (m: ClineMessage) => m.say === "api_req_started")
+	if (lastApiReqStartedIndex !== -1) {
+		const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
+		taskInstance.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+			text: JSON.stringify({
+				...currentApiReqInfo,
+				request: message,
+				cost: 0.001,
+			} satisfies ClineApiReqInfo),
+		})
+	}
 }
