@@ -90,7 +90,7 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { isClaude4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
 import { MessageStateHandler } from "./message-state"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { TaskState } from "./TaskState"
@@ -1654,8 +1654,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isClaude4Model = isClaude4ModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4Model)
+		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
@@ -2223,8 +2223,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isClaude4Model = isClaude4ModelFamily(this.api)
-							if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+							const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
 							} else {
 								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
