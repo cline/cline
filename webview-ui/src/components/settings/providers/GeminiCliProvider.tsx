@@ -69,7 +69,8 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					}}>
 					gemini
 				</code>{" "}
-				in your terminal first.{" \n"}
+				in your terminal first.
+				<br />
 				<VSCodeLink
 					href="https://github.com/google-gemini/gemini-cli?tab=readme-ov-file#quickstart"
 					style={{ display: "inline", fontSize: "inherit" }}>

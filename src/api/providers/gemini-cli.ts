@@ -117,7 +117,7 @@ export class GeminiCliHandler implements ApiHandler {
 		}
 
 		// Start with a default project ID (can be anything for personal OAuth)
-		const initialProjectId = "nothing"
+		const initialProjectId = "default"
 
 		// Prepare client metadata
 		const clientMetadata = {
