@@ -15,6 +15,7 @@ import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import ApiOptions from "./ApiOptions"
 import BrowserSettingsSection from "./BrowserSettingsSection"
+import { BrowserSettings } from "@shared/BrowserSettings"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
 import Section from "./Section"
@@ -138,7 +139,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		mcpResponsesCollapsed,
 		setMcpResponsesCollapsed,
 		setApiConfiguration,
+		browserSettings,
 	} = useExtensionState()
+
+	// Local state for browser settings
+	const [localBrowserSettings, setLocalBrowserSettings] = useState<BrowserSettings>(browserSettings)
 
 	// Store the original state to detect changes
 	const originalState = useRef({
@@ -154,6 +159,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalReuseEnabled,
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
+		browserSettings,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -207,6 +213,23 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				} as StringRequest)
 			}
 
+			// Update browser settings if they have changed
+			if (JSON.stringify(localBrowserSettings) !== JSON.stringify(originalState.current.browserSettings)) {
+				const { BrowserServiceClient } = await import("@/services/grpc-client")
+				const { UpdateBrowserSettingsRequest } = await import("@shared/proto/browser")
+
+				await BrowserServiceClient.updateBrowserSettings(
+					UpdateBrowserSettingsRequest.create({
+						metadata: {},
+						viewport: localBrowserSettings.viewport,
+						remoteBrowserEnabled: localBrowserSettings.remoteBrowserEnabled,
+						remoteBrowserHost: localBrowserSettings.remoteBrowserHost,
+						chromeExecutablePath: localBrowserSettings.chromeExecutablePath,
+						disableToolUse: localBrowserSettings.disableToolUse,
+					}),
+				)
+			}
+
 			// Update the original state to reflect the saved changes
 			originalState.current = {
 				apiConfiguration,
@@ -221,6 +244,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				terminalReuseEnabled,
 				terminalOutputLineLimit,
 				defaultTerminalProfile,
+				browserSettings: localBrowserSettings,
 			}
 		} catch (error) {
 			console.error("Failed to update settings:", error)
@@ -251,7 +275,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			shellIntegrationTimeout !== originalState.current.shellIntegrationTimeout ||
 			terminalOutputLineLimit !== originalState.current.terminalOutputLineLimit ||
 			terminalReuseEnabled !== originalState.current.terminalReuseEnabled ||
-			defaultTerminalProfile !== originalState.current.defaultTerminalProfile
+			defaultTerminalProfile !== originalState.current.defaultTerminalProfile ||
+			JSON.stringify(localBrowserSettings) !== JSON.stringify(originalState.current.browserSettings)
 
 		setHasUnsavedChanges(hasChanges)
 	}, [
@@ -267,6 +292,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalReuseEnabled,
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
+		localBrowserSettings,
 	])
 
 	// Handle cancel button click
@@ -319,6 +345,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				if (typeof setMcpResponsesCollapsed === "function") {
 					setMcpResponsesCollapsed(originalState.current.mcpResponsesCollapsed ?? false)
 				}
+				// Reset browser settings
+				setLocalBrowserSettings(originalState.current.browserSettings)
 				// Close settings view
 				onDone()
 			}
@@ -689,7 +717,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 								<div>
 									{renderSectionHeader("browser")}
 									<Section>
-										<BrowserSettingsSection />
+										<BrowserSettingsSection
+											localBrowserSettings={localBrowserSettings}
+											onBrowserSettingsChange={setLocalBrowserSettings}
+										/>
 									</Section>
 								</div>
 							)}
