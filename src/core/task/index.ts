@@ -247,14 +247,20 @@ export class Task {
 		this.checkpointManager = createTaskCheckpointManager(
 			{
 				taskId: this.taskId,
-				context,
+			},
+			{
 				enableCheckpoints: enableCheckpointsSetting,
+			},
+			{
+				context,
 				diffViewProvider: this.diffViewProvider,
+				messageStateHandler: this.messageStateHandler,
+				fileContextTracker: this.fileContextTracker,
+			},
+			{
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
-				messageStateHandler: this.messageStateHandler,
 				cancelTask: this.cancelTask,
-				fileContextTracker: this.fileContextTracker,
 			},
 			{
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
@@ -979,8 +985,8 @@ export class Task {
 
 	// Checkpoints logic moved to checkpointManager
 
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage)
+	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number) {
+		await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs)
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {

@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { findLast, findLastIndex } from "@shared/array"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { ClineMessage, ClineApiReqInfo, COMPLETION_RESULT_CHANGES_FLAG, ClineSay } from "@shared/ExtensionMessage"
+import { ClineMessage, ClineApiReqInfo, ClineSay } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -13,7 +13,6 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import { is } from "node_modules/cheerio/dist/esm/api/traversing"
 
 // Type definitions for better code organization
 type SayFunction = (
@@ -27,16 +26,19 @@ type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryIt
 
 interface CheckpointManagerDependencies {
 	readonly taskId: string
-	readonly context: vscode.ExtensionContext
 	readonly enableCheckpoints: boolean
-	readonly diffViewProvider: DiffViewProvider
-	readonly updateTaskHistory: UpdateTaskHistoryFunction
-	readonly say: SayFunction
-	readonly messageStateHandler: MessageStateHandler
-	readonly cancelTask: () => Promise<void>
-	readonly fileContextTracker: FileContextTracker
 }
-
+interface CheckpointManagerServices {
+	readonly fileContextTracker: FileContextTracker
+	readonly diffViewProvider: DiffViewProvider
+	readonly messageStateHandler: MessageStateHandler
+	readonly context: vscode.ExtensionContext
+}
+interface CheckpointManagerCallbacks {
+	readonly updateTaskHistory: UpdateTaskHistoryFunction
+	readonly cancelTask: () => Promise<void>
+	readonly say: SayFunction
+}
 interface CheckpointManagerInternalState {
 	conversationHistoryDeletedRange?: [number, number]
 	checkpointTracker?: CheckpointTracker
@@ -61,33 +63,51 @@ interface CheckpointRestoreStateUpdate {
  * - restoreCheckpoint: Restores the task to a previous checkpoint
  * - presentMultifileDiff: Displays a multi-file diff view between checkpoints
  * - doesLatestTaskCompletionHaveNewChanges: Checks if the latest task completion has new changes, used by the "See New Changes" button
+ *
+ * This class is designed as the main interface between the task and the checkpoint system. It is responsible for:
+ * - Task-specific checkpoint operations (save/restore/diff)
+ * - State management and coordination with other Task components
+ * - Interaction with message state, file context tracking etc.
+ * - User interaction (error messages, notifications)
+ *
+ * For checkpoint operations, the CheckpointTracker class is used to interact with the underlying git logic.
  */
 export class TaskCheckpointManager {
 	private readonly dependencies: CheckpointManagerDependencies
+	private readonly services: CheckpointManagerServices
+	private readonly callbacks: CheckpointManagerCallbacks
 
 	private state: CheckpointManagerInternalState
 
-	constructor(dependencies: CheckpointManagerDependencies, initialState: CheckpointManagerInternalState) {
+	constructor(
+		dependencies: CheckpointManagerDependencies,
+		services: CheckpointManagerServices,
+		callbacks: CheckpointManagerCallbacks,
+		initialState: CheckpointManagerInternalState,
+	) {
 		this.dependencies = Object.freeze(dependencies)
+		this.services = Object.freeze(services)
+		this.callbacks = Object.freeze(callbacks)
 		this.state = { ...initialState }
 	}
 
 	// ============================================================================
-	// Public API - Core checkpoint operations
+	// Public API - Core checkpoints operations
 	// ============================================================================
 
 	/**
-	 * Creates a checkpoint of the current state
+	 * Creates a checkpoint of the current workspace state
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
+	 * @param completionMessageTs - Optional timestamp of the completion message to update with checkpoint hash
 	 */
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false): Promise<void> {
+	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number): Promise<void> {
 		// If checkpoints are disabled, return early
 		if (!this.dependencies.enableCheckpoints) {
 			return
 		}
 
 		// Set isCheckpointCheckedOut to false for all prior checkpoint_created messages
-		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const clineMessages = this.services.messageStateHandler.getClineMessages()
 		clineMessages.forEach((message) => {
 			if (message.say === "checkpoint_created") {
 				message.isCheckpointCheckedOut = false
@@ -108,7 +128,7 @@ export class TaskCheckpointManager {
 			return
 		}
 
-		// For non-attempt completion, we write a checkpoint_created message
+		// Non attempt-completion messages call for a checkpoint_created message to be added
 		if (!isAttemptCompletionMessage) {
 			// Ensure we aren't creating back-to-back checkpoint_created messages
 			const lastMessage = clineMessages.at(-1)
@@ -116,35 +136,53 @@ export class TaskCheckpointManager {
 				return
 			}
 
-			// Create a new checkpoint_created message and asynchronously add the commitHash
+			// Create a new checkpoint_created message and asynchronously add the commitHash to the say message
 			try {
-				const messageTs = await this.dependencies.say("checkpoint_created")
+				const messageTs = await this.callbacks.say("checkpoint_created")
 				this.state.checkpointTracker?.commit().then(async (commitHash) => {
 					if (messageTs) {
-						const targetMessage = this.dependencies.messageStateHandler
-							.getClineMessages()
-							.find((m) => m.ts === messageTs)
+						const targetMessage = this.services.messageStateHandler.getClineMessages().find((m) => m.ts === messageTs)
 						if (targetMessage) {
 							targetMessage.lastCheckpointHash = commitHash
-							await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+							await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
 						}
 					}
 				})
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			}
+		} else {
+			// attempt_completion messages are special
+			// First check last 3 messages to see if we already have a recent completion checkpoint
+			// If we do, skip creating a duplicate checkpoint
+			const lastFiveclineMessages = this.services.messageStateHandler.getClineMessages().slice(-3)
+			const lastCompletionResultMessage = findLast(lastFiveclineMessages, (m) => m.say === "completion_result")
+			if (lastCompletionResultMessage?.lastCheckpointHash) {
+				console.log("Completion checkpoint already exists, skipping duplicate checkpoint creation")
+				return
+			}
 
+			// For attempt_completion, commit then update the completion_result message with the checkpoint hash
 			if (this.state.checkpointTracker) {
 				const commitHash = await this.state.checkpointTracker.commit()
 
-				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-				const lastCompletionResultMessage = findLast(
-					this.dependencies.messageStateHandler.getClineMessages(),
-					(m) => m.say === "completion_result" || m.ask === "completion_result",
-				)
-				if (lastCompletionResultMessage) {
-					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				// If a completionMessageTs is provided, update that specific message with the checkpoint hash
+				if (completionMessageTs) {
+					//console.log("Attempt completion checkpoint save with Ts provided", completionMessageTs, commitHash)
+					const targetMessage = this.services.messageStateHandler
+						.getClineMessages()
+						.find((m) => m.ts === completionMessageTs)
+					if (targetMessage) {
+						targetMessage.lastCheckpointHash = commitHash
+						await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					}
+				} else {
+					// Fallback to findLast if no timestamp provided - update the last completion_result message
+					//console.log("No Ts provided on attempt_completion checkpoint save - Using legacy method to find last completion_result message")
+					if (lastCompletionResultMessage) {
+						lastCompletionResultMessage.lastCheckpointHash = commitHash
+						await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					}
 				}
 			} else {
 				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
@@ -164,7 +202,7 @@ export class TaskCheckpointManager {
 		restoreType: ClineCheckpointRestore,
 		offset?: number,
 	): Promise<CheckpointRestoreStateUpdate> {
-		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const clineMessages = this.services.messageStateHandler.getClineMessages()
 		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		// Find the last message before messageIndex that has a lastCheckpointHash
 		const lastHashIndex = findLastIndex(clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
@@ -193,10 +231,10 @@ export class TaskCheckpointManager {
 					try {
 						this.state.checkpointTracker = await CheckpointTracker.create(
 							this.dependencies.taskId,
-							this.dependencies.context.globalStorageUri.fsPath,
+							this.services.context.globalStorageUri.fsPath,
 							this.dependencies.enableCheckpoints,
 						)
-						this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+						this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -273,7 +311,7 @@ export class TaskCheckpointManager {
 		}
 
 		console.log("presentMultifileDiff", messageTs)
-		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const clineMessages = this.services.messageStateHandler.getClineMessages()
 		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
 		const message = clineMessages[messageIndex]
 		if (!message) {
@@ -293,10 +331,10 @@ export class TaskCheckpointManager {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
 					this.dependencies.taskId,
-					this.dependencies.context.globalStorageUri.fsPath,
+					this.services.context.globalStorageUri.fsPath,
 					this.dependencies.enableCheckpoints,
 				)
-				this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+				this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -320,7 +358,7 @@ export class TaskCheckpointManager {
 			if (seeNewChangesSinceLastTaskCompletion) {
 				// Get last task completed
 				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.dependencies.messageStateHandler.getClineMessages().slice(0, messageIndex),
+					this.services.messageStateHandler.getClineMessages().slice(0, messageIndex),
 					(m) => m.say === "completion_result",
 				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 				// if undefined, then we get diff from beginning of git
@@ -329,7 +367,7 @@ export class TaskCheckpointManager {
 				// 	return
 				// }
 				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.dependencies.messageStateHandler
+				const firstCheckpointMessageCheckpointHash = this.services.messageStateHandler
 					.getClineMessages()
 					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
@@ -401,7 +439,7 @@ export class TaskCheckpointManager {
 			return false
 		}
 
-		const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+		const clineMessages = this.services.messageStateHandler.getClineMessages()
 		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
 		const message = clineMessages[messageIndex]
 		if (!message) {
@@ -418,10 +456,10 @@ export class TaskCheckpointManager {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
 					this.dependencies.taskId,
-					this.dependencies.context.globalStorageUri.fsPath,
+					this.services.context.globalStorageUri.fsPath,
 					this.dependencies.enableCheckpoints,
 				)
-				this.dependencies.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+				this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -431,7 +469,7 @@ export class TaskCheckpointManager {
 
 		// Get last task completed
 		const lastTaskCompletedMessage = findLast(
-			this.dependencies.messageStateHandler.getClineMessages().slice(0, messageIndex),
+			this.services.messageStateHandler.getClineMessages().slice(0, messageIndex),
 			(m) => m.say === "completion_result",
 		)
 
@@ -444,7 +482,7 @@ export class TaskCheckpointManager {
 			// 	return
 			// }
 			// This value *should* always exist
-			const firstCheckpointMessageCheckpointHash = this.dependencies.messageStateHandler
+			const firstCheckpointMessageCheckpointHash = this.services.messageStateHandler
 				.getClineMessages()
 				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
@@ -482,9 +520,9 @@ export class TaskCheckpointManager {
 				// Update conversation history deleted range in our state
 				this.state.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 
-				const apiConversationHistory = this.dependencies.messageStateHandler.getApiConversationHistory()
+				const apiConversationHistory = this.services.messageStateHandler.getApiConversationHistory()
 				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
-				await this.dependencies.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
+				await this.services.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
 
 				// update the context history state
 				const contextManager = new ContextManager()
@@ -494,26 +532,26 @@ export class TaskCheckpointManager {
 				)
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
-				const clineMessages = this.dependencies.messageStateHandler.getClineMessages()
+				const clineMessages = this.services.messageStateHandler.getClineMessages()
 				const deletedMessages = clineMessages.slice(messageIndex + 1)
 				const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
 				// Detect files edited after this message timestamp for file context warning
 				// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
 				if (restoreType === "task") {
-					const filesEditedAfterMessage = await this.dependencies.fileContextTracker.detectFilesEditedAfterMessage(
+					const filesEditedAfterMessage = await this.services.fileContextTracker.detectFilesEditedAfterMessage(
 						messageTs,
 						deletedMessages,
 					)
 					if (filesEditedAfterMessage.length > 0) {
-						await this.dependencies.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
+						await this.services.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
 					}
 				}
 
 				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
-				await this.dependencies.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
+				await this.services.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
 
-				await this.dependencies.say(
+				await this.callbacks.say(
 					"deleted_api_reqs",
 					JSON.stringify({
 						tokensIn: deletedApiReqsMetrics.totalTokensIn,
@@ -543,7 +581,7 @@ export class TaskCheckpointManager {
 		if (restoreType !== "task") {
 			// Set isCheckpointCheckedOut flag on the message
 			// Find all checkpoint messages before this one
-			const checkpointMessages = this.dependencies.messageStateHandler
+			const checkpointMessages = this.services.messageStateHandler
 				.getClineMessages()
 				.filter((m) => m.say === "checkpoint_created")
 			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
@@ -554,14 +592,14 @@ export class TaskCheckpointManager {
 			})
 		}
 
-		await this.dependencies.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 		// Cancel and reinitialize the task to get updated messages
-		await this.dependencies.cancelTask()
+		await this.callbacks.cancelTask()
 	}
 
 	// ============================================================================
-	// State management - interface for updating internal state
+	// State management - interfaces for updating internal state
 	// ============================================================================
 
 	/**
@@ -598,7 +636,7 @@ export class TaskCheckpointManager {
 		try {
 			const tracker = await CheckpointTracker.create(
 				this.dependencies.taskId,
-				this.dependencies.context.globalStorageUri.fsPath,
+				this.services.context.globalStorageUri.fsPath,
 				this.dependencies.enableCheckpoints,
 			)
 
@@ -635,6 +673,7 @@ export class TaskCheckpointManager {
 	 */
 	updateConversationHistoryDeletedRange(range: [number, number] | undefined): void {
 		this.state.conversationHistoryDeletedRange = range
+		// TODO - Future telemetry event capture here
 	}
 
 	// ============================================================================
@@ -645,18 +684,18 @@ export class TaskCheckpointManager {
 	 * Gets the extension context with proper error handling
 	 */
 	private getContext(): vscode.ExtensionContext {
-		if (!this.dependencies.context) {
+		if (!this.services.context) {
 			throw new Error("Unable to access extension context")
 		}
-		return this.dependencies.context
+		return this.services.context
 	}
 
 	/**
 	 * Provides read-only access to current state for internal operations
 	 */
-	private get currentState(): Readonly<CheckpointManagerInternalState> {
-		return Object.freeze({ ...this.state })
-	}
+	//private get currentState(): Readonly<CheckpointManagerInternalState> {
+	//	return Object.freeze({ ...this.state })
+	//}
 
 	/**
 	 * Provides public read-only access to current state
@@ -668,9 +707,9 @@ export class TaskCheckpointManager {
 	/**
 	 * Provides read-only access to dependencies for internal operations
 	 */
-	private get deps(): Readonly<CheckpointManagerDependencies> {
-		return this.dependencies
-	}
+	//private get deps(): Readonly<CheckpointManagerDependencies> {
+	//	return this.dependencies
+	//}
 }
 
 // ============================================================================
@@ -682,7 +721,9 @@ export class TaskCheckpointManager {
  */
 export function createTaskCheckpointManager(
 	dependencies: CheckpointManagerDependencies,
+	services: CheckpointManagerServices,
+	callbacks: CheckpointManagerCallbacks,
 	initialState: CheckpointManagerInternalState,
 ): TaskCheckpointManager {
-	return new TaskCheckpointManager(dependencies, initialState)
+	return new TaskCheckpointManager(dependencies, services, callbacks, initialState)
 }
