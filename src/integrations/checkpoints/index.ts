@@ -44,13 +44,13 @@ interface CheckpointManagerCallbacks {
 interface CheckpointManagerInternalState {
 	conversationHistoryDeletedRange?: [number, number]
 	checkpointTracker?: CheckpointTracker
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 	checkpointTrackerInitPromise?: Promise<CheckpointTracker | undefined>
 }
 
 interface CheckpointRestoreStateUpdate {
 	conversationHistoryDeletedRange?: [number, number]
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 }
 
 /**
@@ -120,7 +120,7 @@ export class TaskCheckpointManager {
 		})
 
 		// Prevent repetitive checkpointTracker initialization errors on non-attempt completion messages
-		if (!this.state.checkpointTracker && !isAttemptCompletionMessage && !this.state.checkpointTrackerErrorMessage) {
+		if (!this.state.checkpointTracker && !isAttemptCompletionMessage && !this.state.checkpointManagerErrorMessage) {
 			await this.checkpointTrackerCheckAndInit()
 		}
 		// attempt completion messages give it one last chance
@@ -233,7 +233,7 @@ export class TaskCheckpointManager {
 					break
 				}
 
-				if (!this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+				if (!this.state.checkpointTracker && !this.state.checkpointManagerErrorMessage) {
 					try {
 						this.state.checkpointTracker = await CheckpointTracker.create(
 							this.task.taskId,
@@ -244,7 +244,7 @@ export class TaskCheckpointManager {
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
-						this.state.checkpointTrackerErrorMessage = errorMessage
+						this.state.checkpointManagerErrorMessage = errorMessage
 						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -293,8 +293,8 @@ export class TaskCheckpointManager {
 		} else {
 			sendRelinquishControlEvent()
 
-			if (this.state.checkpointTrackerErrorMessage !== undefined) {
-				checkpointManagerStateUpdate.checkpointTrackerErrorMessage = this.state.checkpointTrackerErrorMessage
+			if (this.state.checkpointManagerErrorMessage !== undefined) {
+				checkpointManagerStateUpdate.checkpointManagerErrorMessage = this.state.checkpointManagerErrorMessage
 			}
 		}
 
@@ -334,7 +334,7 @@ export class TaskCheckpointManager {
 		}
 
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
-		if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointTrackerErrorMessage) {
+		if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointManagerErrorMessage) {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
 					this.task.taskId,
@@ -345,7 +345,7 @@ export class TaskCheckpointManager {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.state.checkpointTrackerErrorMessage = errorMessage
+				this.state.checkpointManagerErrorMessage = errorMessage
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -460,7 +460,7 @@ export class TaskCheckpointManager {
 			return false
 		}
 
-		if (this.config.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointTrackerErrorMessage) {
+		if (this.config.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointManagerErrorMessage) {
 			try {
 				this.state.checkpointTracker = await CheckpointTracker.create(
 					this.task.taskId,
@@ -655,7 +655,7 @@ export class TaskCheckpointManager {
 		} catch (error) {
 			// Store error message to prevent future repetative initialization attempts
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			this.setCheckpointTrackerErrorMessage(errorMessage)
+			this.setcheckpointManagerErrorMessage(errorMessage)
 			console.error("Failed to initialize checkpoint tracker:", errorMessage)
 			// TODO - Do we need to post state to webview here? TBD
 			return undefined
@@ -672,8 +672,8 @@ export class TaskCheckpointManager {
 	/**
 	 * Updates the checkpoint tracker error message
 	 */
-	setCheckpointTrackerErrorMessage(errorMessage: string | undefined): void {
-		this.state.checkpointTrackerErrorMessage = errorMessage
+	setcheckpointManagerErrorMessage(errorMessage: string | undefined): void {
+		this.state.checkpointManagerErrorMessage = errorMessage
 		// TODO - Future telemetry event capture here
 	}
 
