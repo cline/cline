@@ -963,8 +963,6 @@ export class Task {
 		}
 	}
 
-	// Checkpoints logic moved to checkpointManager - call directly on this.checkpointManager
-
 	// Tools
 
 	/**
