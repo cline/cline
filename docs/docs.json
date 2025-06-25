@@ -146,6 +146,7 @@
 				"group": "Provider Configuration",
 				"pages": [
 					"provider-config/anthropic",
+					"provider-config/claude-code",
 					"provider-config/aws-bedrock-with-credentials-authentication",
 					"provider-config/aws-bedrock-with-profile-authentication",
 					"provider-config/gcp-vertex-ai",

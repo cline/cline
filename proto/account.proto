@@ -19,4 +19,58 @@ service AccountService {
 
     // Subscribe to auth callback events (when authentication tokens are received)
     rpc subscribeToAuthCallback(EmptyRequest) returns (stream String);
+    
+    // Handles authentication state changes from the Firebase context.
+    // Updates the user info in global state and returns the updated value.
+    rpc authStateChanged(AuthStateChangedRequest) returns (AuthStateChanged);
+    
+    // Fetches all user credits data (balance, usage transactions, payment transactions)
+    rpc fetchUserCreditsData(EmptyRequest) returns (UserCreditsData);
+}
+
+message AuthStateChangedRequest {
+    Metadata metadata = 1;
+    UserInfo user = 2;
+}
+
+message AuthStateChanged {
+    optional UserInfo user = 1;
+}
+
+message UserInfo {
+    optional string display_name = 1;
+    optional string email = 2;
+    optional string photo_url = 3;
+}
+
+// Response containing all user credits data
+message UserCreditsData {
+    UserCreditsBalance balance = 1;
+    repeated UsageTransaction usage_transactions = 2;
+    repeated PaymentTransaction payment_transactions = 3;
+}
+
+// User's current credit balance
+message UserCreditsBalance {
+    double current_balance = 1;
+}
+
+// Usage transaction record
+message UsageTransaction {
+    string spent_at = 1;
+    string creator_id = 2;
+    double credits = 3;
+    string model_provider = 4;
+    string model = 5;
+    int32 prompt_tokens = 6;
+    int32 completion_tokens = 7;
+    int32 total_tokens = 8;
+}
+
+// Payment transaction record
+message PaymentTransaction {
+    string paid_at = 1;
+    string creator_id = 2;
+    int32 amount_cents = 3;
+    double credits = 4;
 }

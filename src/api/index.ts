@@ -25,6 +25,8 @@ import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
 import { CerebrasHandler } from "./providers/cerebras"
+import { SapAiCoreHandler } from "./providers/sapaicore"
+import { ClaudeCodeHandler } from "./providers/claude-code"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -36,8 +38,7 @@ export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }
 
-export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
-	const { apiProvider, ...options } = configuration
+function createHandlerForProvider(apiProvider: string | undefined, options: any): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler(options)
@@ -87,7 +88,35 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new SambanovaHandler(options)
 		case "cerebras":
 			return new CerebrasHandler(options)
+		case "sapaicore":
+			return new SapAiCoreHandler(options)
+		case "claude-code":
+			return new ClaudeCodeHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
+}
+
+export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
+	const { apiProvider, ...options } = configuration
+
+	// Validate thinking budget tokens against model's maxTokens to prevent API errors
+	// wrapped in a try-catch for safety, but this should never throw
+	try {
+		if (options.thinkingBudgetTokens && options.thinkingBudgetTokens > 0) {
+			const handler = createHandlerForProvider(apiProvider, options)
+
+			const modelInfo = handler.getModel().info
+			if (modelInfo.maxTokens && options.thinkingBudgetTokens > modelInfo.maxTokens) {
+				const clippedValue = modelInfo.maxTokens - 1
+				options.thinkingBudgetTokens = clippedValue
+			} else {
+				return handler // don't rebuild unless its necessary
+			}
+		}
+	} catch (error) {
+		console.error("buildApiHandler error:", error)
+	}
+
+	return createHandlerForProvider(apiProvider, options)
 }

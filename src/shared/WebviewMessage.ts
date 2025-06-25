@@ -9,12 +9,9 @@ import { McpViewTab } from "./mcp"
 export interface WebviewMessage {
 	type:
 		| "requestVsCodeLmModels"
-		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "telemetrySetting"
-		| "clearAllTaskHistory"
-		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
 
@@ -45,6 +42,7 @@ export interface WebviewMessage {
 	mcpMarketplaceEnabled?: boolean
 	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
+	mcpRichDisplayEnabled?: boolean
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -69,6 +67,7 @@ export interface WebviewMessage {
 	offset?: number
 	shellIntegrationTimeout?: number
 	terminalReuseEnabled?: boolean
+	defaultTerminalProfile?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

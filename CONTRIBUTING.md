@@ -10,15 +10,76 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
      🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/cline/cline/security/advisories/new">Github security tool to report it privately</a>.
 </blockquote>
 
+
+## Before Contributing
+
+All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
+
+- **Check existing issues**: Search [GitHub Issues](https://github.com/cline/cline/issues).
+- **Create an issue**: Use appropriate templates:
+    - **Contributions:** Use the "Contribution Request" template to propose what you'd like to work on.
+    - **Bugs:** "Bug Report" template for reporting issues.
+    - **Features:** "Detailed Feature Proposal" template for suggesting new features.
+- **Wait for approval**: A core Cline contributor must approve your contribution request before you start implementation.
+- **Claim issues**: Once approved, the issue will be assigned to you.
+
+**PRs without approved issues may be closed.**
+
+
 ## Deciding What to Work On
 
 Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
 
 We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
 
-If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
-
 ## Development Setup
+
+
+### Local Development Instructions
+
+1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
+    ```bash
+    git clone https://github.com/cline/cline.git
+    ```
+2. Open the project in VSCode:
+    ```bash
+    code cline
+    ```
+3. Install the necessary dependencies for the extension and webview-gui:
+    ```bash
+    npm run install:all
+    ```
+4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+
+
+
+
+### Creating a Pull Request
+
+1. Before creating a PR, generate a changeset entry:
+    ```bash
+    npm run changeset
+    ```
+   This will prompt you for:
+   - Type of change (major, minor, patch)
+     - `major` → breaking changes (1.0.0 → 2.0.0)
+     - `minor` → new features (1.0.0 → 1.1.0)
+     - `patch` → bug fixes (1.0.0 → 1.0.1)
+   - Description of your changes
+
+2. Commit your changes and the generated `.changeset` file
+
+3. Push your branch and create a PR on GitHub. Our CI will:
+   - Run tests and checks
+   - Changesetbot will create a comment showing the version impact
+   - When merged to main, changesetbot will create a Version Packages PR
+   - When the Version Packages PR is merged, a new release will be published
+4. Testing
+    - Run `npm run test` to run tests locally. 
+    - Before submitting PR, run `npm run format:fix` to format your code
+    - Run `npm run test:ci` to run tests locally
+
+### Extension
 
 1. **VS Code Extensions**
 
@@ -29,6 +90,7 @@ If you're planning to work on a bigger feature, please create a [feature request
 2. **Local Development**
     - Run `npm run install:all` to install dependencies
     - Run `npm run test` to run tests locally
+    - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
     - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**
@@ -72,8 +134,6 @@ If you're planning to work on a bigger feature, please create a [feature request
       libxrandr2 \
       xvfb
     ```
-
-    - Run `npm run test:ci` to run tests locally
 
 ## Writing and Submitting Code
 

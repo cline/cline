@@ -56,13 +56,24 @@ archive.glob("**/*", {
 
 // Add the whole cline directory under "extension"
 archive.directory(process.cwd(), "extension", (entry) => {
-	// Skip certain directories
-	if (
-		entry.name.startsWith(BUILD_DIR + "/") ||
-		entry.name.startsWith("node_modules/") || // node_modules nearly 1GB.
-		entry.name.startsWith("webview-ui/node_modules/") || // node_modules nearly 1GB.
-		entry.name.match(/(^|\/)\./) // exclude dot directories
-	) {
+	// Skip certain directories.
+	const exclude = [
+		BUILD_DIR + "/",
+		"node_modules/", // node_modules nearly 1GB.
+		"webview-ui/node_modules/", // node_modules nearly 1GB.
+	]
+	// These node modules are used at runtime as assets, they need to be included.
+	const include = ["node_modules/@vscode/", "webview-ui/node_modules/katex"]
+	const name = entry.name
+
+	if (include.some((prefix) => name.startsWith(prefix))) {
+		return entry
+	}
+	if (exclude.some((prefix) => name.startsWith(prefix))) {
+		return false
+	}
+	if (name.match(/(^|\/)\./)) {
+		// exclude dot directories
 		return false
 	}
 	return entry

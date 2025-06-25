@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
-import { GrpcHandler, StreamingCallbacks } from "../host-grpc-handler"
+import { GrpcHandler } from "../host-grpc-handler"
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {
@@ -33,10 +34,11 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 	const grpcHandler = new GrpcHandler()
 
 	Object.values(service.methods).forEach((method) => {
+		// Use lowercase method name as the key in the client object
+		const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
+
 		// Streaming method implementation
 		if (method.responseStream) {
-			// Use lowercase method name as the key in the client object
-			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((
 				request: any,
 				options: StreamingCallbacks<InstanceType<typeof method.responseType>>,
@@ -75,7 +77,6 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			}) as any
 		} else {
 			// Unary method implementation
-			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((request: any) => {
 				return new Promise(async (resolve, reject) => {
 					const requestId = uuidv4()
@@ -84,15 +85,12 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						const response = await grpcHandler.handleRequest(service.fullName, methodKey, request, requestId)
 						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`)
 
-						// Check if the response is a function (streaming) or an object (unary)
+						// Check if the response is a function (streaming)
 						if (typeof response === "function") {
 							// This shouldn't happen for unary requests
 							throw new Error("Received streaming response for unary request")
-						} else if (response && response.message) {
-							resolve(response.message)
-						} else {
-							throw new Error("gRPC response didn't have a message")
 						}
+						resolve(response)
 					} catch (e) {
 						console.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
 						reject(e)
@@ -101,6 +99,5 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			}) as any
 		}
 	})
-
 	return client
 }

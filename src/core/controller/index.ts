@@ -16,10 +16,11 @@ import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { UserInfo } from "@shared/UserInfo"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
@@ -43,6 +44,8 @@ import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
+import { handleTaskServiceRequest } from "./task"
+import { BooleanRequest } from "@shared/proto/common"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -51,10 +54,11 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	readonly id: string = uuidv4()
+	readonly id: string
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
+	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
@@ -65,7 +69,9 @@ export class Controller {
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
+		id: string,
 	) {
+		this.id = id
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
@@ -122,7 +128,7 @@ export class Controller {
 		}
 	}
 
-	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
+	async setUserInfo(info?: UserInfo) {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
@@ -132,13 +138,21 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: storedChatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			terminalOutputLineLimit,
+			defaultTerminalProfile,
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
 		} = await getAllExtensionState(this.context)
+
+		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		const chatSettings: ChatSettings = {
+			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
+			mode: this.mode, // Use in-memory mode (override any stored mode)
+		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -170,6 +184,8 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
+			terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			task,
 			images,
@@ -198,45 +214,8 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
-			case "authStateChanged":
-				await this.setUserInfo(message.user || undefined)
-				await this.postStateToWebview()
-				break
-
-			case "fetchUserCreditsData": {
-				await this.fetchUserCreditsData()
-				break
-			}
 			case "fetchMcpMarketplace": {
 				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
-
-			// telemetry
-			case "telemetrySetting": {
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-				await this.postStateToWebview()
-				break
-			}
-			case "clearAllTaskHistory": {
-				const answer = await vscode.window.showWarningMessage(
-					"What would you like to delete?",
-					{ modal: true },
-					"Delete All Except Favorites",
-					"Delete Everything",
-					"Cancel",
-				)
-
-				if (answer === "Delete All Except Favorites") {
-					await this.deleteNonFavoriteTaskHistory()
-					await this.postStateToWebview()
-				} else if (answer === "Delete Everything") {
-					await this.deleteAllTaskHistory()
-					await this.postStateToWebview()
-				}
-				sendRelinquishControlEvent()
 				break
 			}
 			case "grpc_request": {
@@ -263,8 +242,11 @@ export class Controller {
 		telemetryService.updateTelemetryState(isOptedIn)
 	}
 
-	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
+	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
+
+		// Store mode in-memory only
+		this.mode = chatSettings.mode
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -280,6 +262,12 @@ export class Controller {
 			previousModeReasoningEffort: newReasoningEffort,
 			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
 			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
+			previousModeSapAiCoreClientId: newSapAiCoreClientId,
+			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
+			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
+			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
+			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -345,6 +333,23 @@ export class Controller {
 					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
+				case "sapaicore":
+					await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreClientSecret",
+						apiConfiguration.sapAiCoreClientSecret,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateWorkspaceState(
+						this.context,
+						"previousModeSapAiCoreResourceGroup",
+						apiConfiguration.sapAiResourceGroup,
+					)
+					await updateWorkspaceState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
+					break
 			}
 
 			// Restore the model used in previous mode
@@ -393,12 +398,15 @@ export class Controller {
 						await updateWorkspaceState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateWorkspaceState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateWorkspaceState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateWorkspaceState(this.context, "liteLlmModelId", newModelId)
+						await updateWorkspaceState(this.context, "liteLlmModelInfo", newModelInfo)
 						break
 					case "requesty":
 						await updateWorkspaceState(this.context, "requestyModelId", newModelId)
 						await updateWorkspaceState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "sapaicore":
+						await updateWorkspaceState(this.context, "apiModelId", newModelId)
 						break
 				}
 
@@ -409,13 +417,15 @@ export class Controller {
 			}
 		}
 
-		await updateWorkspaceState(this.context, "chatSettings", chatSettings)
+		// Save only non-mode properties to workspace storage
+		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
+		await updateWorkspaceState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
 			this.task.chatSettings = chatSettings
-			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
-				this.task.didRespondToPlanAskBySwitchingMode = true
+			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
+				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
 				await this.task.handleWebviewAskResponse(
 					"messageResponse",
@@ -423,10 +433,15 @@ export class Controller {
 					chatContent?.images || [],
 					chatContent?.files || [],
 				)
+
+				return true
 			} else {
 				this.cancelTask()
+				return false
 			}
 		}
+
+		return false
 	}
 
 	async cancelTask() {
@@ -440,9 +455,9 @@ export class Controller {
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
-					this.task.isStreaming === false ||
-					this.task.didFinishAbortingStream ||
-					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
+					this.task.taskState.isStreaming === false ||
+					this.task.taskState.didFinishAbortingStream ||
+					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
 				},
@@ -451,24 +466,10 @@ export class Controller {
 			})
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.abandoned = true
+				this.task.taskState.abandoned = true
 			}
 			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
-		}
-	}
-
-	// Account
-
-	async fetchUserCreditsData() {
-		try {
-			await Promise.all([
-				this.accountService?.fetchBalance(),
-				this.accountService?.fetchUsageTransactions(),
-				this.accountService?.fetchPaymentTransactions(),
-			])
-		} catch (error) {
-			console.error("Failed to fetch user credits data:", error)
 		}
 	}
 
@@ -814,110 +815,6 @@ export class Controller {
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
-	async deleteAllTaskHistory() {
-		await this.clearTask()
-		await updateGlobalState(this.context, "taskHistory", undefined)
-		try {
-			// Remove all contents of tasks directory
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
-			if (await fileExistsAtPath(taskDirPath)) {
-				await fs.rm(taskDirPath, { recursive: true, force: true })
-			}
-			// Remove checkpoints directory contents
-			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
-			if (await fileExistsAtPath(checkpointsDirPath)) {
-				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
-			}
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-		// await this.postStateToWebview()
-	}
-
-	async deleteNonFavoriteTaskHistory() {
-		await this.clearTask()
-
-		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
-		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
-
-		// If user has no favorited tasks, show a warning message
-		if (favoritedTasks.length === 0) {
-			vscode.window.showWarningMessage("No favorited tasks found. Please favorite tasks before using this option.")
-			await this.postStateToWebview()
-			return
-		}
-
-		await updateGlobalState(this.context, "taskHistory", favoritedTasks)
-
-		// Delete non-favorited task directories
-		try {
-			const preserveTaskIds = favoritedTasks.map((task) => task.id)
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
-
-			if (await fileExistsAtPath(taskDirPath)) {
-				const taskDirs = await fs.readdir(taskDirPath)
-				for (const taskDir of taskDirs) {
-					if (!preserveTaskIds.includes(taskDir)) {
-						await fs.rm(path.join(taskDirPath, taskDir), { recursive: true, force: true })
-					}
-				}
-			}
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-
-		await this.postStateToWebview()
-	}
-
-	async deleteTaskWithId(id: string) {
-		console.info("deleteTaskWithId: ", id)
-
-		try {
-			if (id === this.task?.taskId) {
-				await this.clearTask()
-				console.debug("cleared task")
-			}
-
-			const {
-				taskDirPath,
-				apiConversationHistoryFilePath,
-				uiMessagesFilePath,
-				contextHistoryFilePath,
-				taskMetadataFilePath,
-			} = await this.getTaskWithId(id)
-			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			const updatedTaskHistory = await this.deleteTaskFromState(id)
-
-			// Delete the task files
-			for (const filePath of [
-				apiConversationHistoryFilePath,
-				uiMessagesFilePath,
-				contextHistoryFilePath,
-				taskMetadataFilePath,
-				legacyMessagesFilePath,
-			]) {
-				const fileExists = await fileExistsAtPath(filePath)
-				if (fileExists) {
-					await fs.unlink(filePath)
-				}
-			}
-
-			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-
-			if (updatedTaskHistory.length === 0) {
-				await this.deleteAllTaskHistory()
-			}
-		} catch (error) {
-			console.debug(`Error deleting task:`, error)
-		}
-
-		await this.postStateToWebview()
-	}
-
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -932,7 +829,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		await sendStateUpdate(this.id, state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -942,9 +839,10 @@ export class Controller {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: storedChatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -952,9 +850,17 @@ export class Controller {
 			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
+
+		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		const chatSettings: ChatSettings = {
+			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
+			mode: this.mode, // Use in-memory mode (override any stored mode)
+		}
 
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
@@ -972,8 +878,8 @@ export class Controller {
 			apiConfiguration,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.clineMessages || [],
+			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
+			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
@@ -985,6 +891,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
+			mcpRichDisplayEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
@@ -997,8 +904,10 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			defaultTerminalProfile,
 			isNewUser,
 			mcpResponsesCollapsed,
+			terminalOutputLineLimit,
 		}
 	}
 

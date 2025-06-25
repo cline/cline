@@ -50,10 +50,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
+		// Update MCP responses collapsed setting
+		if (request.mcpRichDisplayEnabled !== undefined) {
+			await controller.context.globalState.update("mcpRichDisplayEnabled", request.mcpRichDisplayEnabled)
+		}
+
 		// Update chat settings
 		if (request.chatSettings) {
 			const chatSettings = convertProtoChatSettingsToChatSettings(request.chatSettings)
-			await controller.context.globalState.update("chatSettings", chatSettings)
+			await controller.context.workspaceState.update("chatSettings", chatSettings)
 			if (controller.task) {
 				controller.task.chatSettings = chatSettings
 			}
@@ -67,6 +72,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
 			await controller.context.globalState.update("terminalReuseEnabled", request.terminalReuseEnabled)
+		}
+
+		// Update terminal output line limit
+		if (request.terminalOutputLineLimit !== undefined) {
+			await controller.context.globalState.update("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
 		}
 
 		// Post updated state to webview
