@@ -8,6 +8,7 @@ import { OpenAiHandler } from "./providers/openai"
 import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
+import { GeminiCliHandler } from "./providers/gemini-cli"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
@@ -56,6 +57,8 @@ function createHandlerForProvider(apiProvider: string | undefined, options: any)
 			return new LmStudioHandler(options)
 		case "gemini":
 			return new GeminiHandler(options)
+		case "gemini-cli":
+			return new GeminiCliHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
