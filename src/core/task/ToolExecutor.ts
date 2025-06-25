@@ -105,7 +105,7 @@ export class ToolExecutor {
 			images?: string[],
 			files?: string[],
 			partial?: boolean,
-		) => Promise<undefined>,
+		) => Promise<number | undefined>,
 		private ask: (
 			type: ClineAsk,
 			text?: string,
