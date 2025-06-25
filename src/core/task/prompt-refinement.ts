@@ -12,8 +12,6 @@ export interface EnhancedRefinementResult {
 	explanation: string
 	needsMoreInfo?: boolean
 	followUpQuestions?: FollowUpQuestion[]
-	extractedData?: any
-	isInteractiveComplete?: boolean
 }
 
 export interface RefinedPromptResult {
@@ -238,7 +236,6 @@ Please extract available information, identify missing required elements, and ge
 
 	// Parse LLM response
 	try {
-		// Extract JSON from response (in case there's extra text)
 		const jsonMatch = response.match(/\{[\s\S]*\}/)
 		if (!jsonMatch) {
 			throw new Error("No JSON found in LLM response")
@@ -250,9 +247,7 @@ Please extract available information, identify missing required elements, and ge
 			refinedPrompt: analysisResult.refinedPrompt || "",
 			followUpQuestions: analysisResult.followUpQuestions || [],
 			explanation: `Generated ${analysisResult.followUpQuestions.length} follow-up questions to gather missing information.`,
-			needsMoreInfo: true,
-			extractedData: analysisResult.extractedData,
-			isInteractiveComplete: false,
+			needsMoreInfo: analysisResult.needsMoreInfo || false,
 		}
 	} catch (parseError) {
 		console.error("Error parsing LLM template analysis response:", parseError)
