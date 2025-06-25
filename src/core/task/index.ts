@@ -110,7 +110,7 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	public checkpointManager: TaskCheckpointManager
+	public checkpointManager?: TaskCheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
@@ -243,29 +243,37 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Initialize checkpoint manager
-		this.checkpointManager = createTaskCheckpointManager(
-			{
-				taskId: this.taskId,
-			},
-			{
-				enableCheckpoints: enableCheckpointsSetting,
-			},
-			{
-				context,
-				diffViewProvider: this.diffViewProvider,
-				messageStateHandler: this.messageStateHandler,
-				fileContextTracker: this.fileContextTracker,
-			},
-			{
-				updateTaskHistory: this.updateTaskHistory,
-				say: this.say.bind(this),
-				cancelTask: this.cancelTask,
-			},
-			{
-				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-			},
-		)
+		try {
+			this.checkpointManager = createTaskCheckpointManager(
+				{
+					taskId: this.taskId,
+				},
+				{
+					enableCheckpoints: enableCheckpointsSetting,
+				},
+				{
+					context,
+					diffViewProvider: this.diffViewProvider,
+					messageStateHandler: this.messageStateHandler,
+					fileContextTracker: this.fileContextTracker,
+				},
+				{
+					updateTaskHistory: this.updateTaskHistory,
+					say: this.say.bind(this),
+					cancelTask: this.cancelTask,
+				},
+				{
+					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				},
+			)
+		} catch (error) {
+			console.error("Failed to initialize checkpoint manager:", error)
+			if (enableCheckpointsSetting) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				vscode.window.showErrorMessage(`Failed to initialize checkpoint manager: ${errorMessage}`)
+			}
+		}
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
@@ -962,16 +970,24 @@ export class Task {
 
 	// Checkpoints logic moved to checkpointManager
 
+	// TODO review these
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number) {
-		await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs)
+		if (this.checkpointManager) {
+			await this.checkpointManager.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs)
+		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		await this.checkpointManager.presentMultifileDiff(messageTs, seeNewChangesSinceLastTaskCompletion)
+		if (this.checkpointManager) {
+			await this.checkpointManager.presentMultifileDiff(messageTs, seeNewChangesSinceLastTaskCompletion)
+		}
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges(): Promise<boolean> {
-		return await this.checkpointManager.doesLatestTaskCompletionHaveNewChanges()
+		if (this.checkpointManager) {
+			return await this.checkpointManager.doesLatestTaskCompletionHaveNewChanges()
+		}
+		return false
 	}
 
 	// Tools
@@ -1663,11 +1679,11 @@ export class Task {
 			}),
 		)
 
-		// Initialize checkpoint tracker first if enabled and it's the first request
+		// Initialize checkpointManager first if enabled and it's the first request
 		if (
 			isFirstRequest &&
 			this.enableCheckpoints &&
-			//!this.checkpointManager &&
+			this.checkpointManager && // TODO REVIEW: may be able to implement a replacement for the 15s timer
 			!this.taskState.checkpointManagerErrorMessage
 		) {
 			try {
@@ -1680,6 +1696,7 @@ export class Task {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint manager:", errorMessage)
 				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				vscode.window.showErrorMessage(`Checkpoint initialization timed out: ${errorMessage}`)
 			}
 		}
 
