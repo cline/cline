@@ -1,3 +1,24 @@
+/**
+ * Gemini CLI Provider - OAuth-based API Handler
+ *
+ * This implementation provides access to Google's Gemini models through OAuth authentication,
+ * leveraging the same authentication mechanism as the official Gemini CLI tool.
+ *
+ * Attribution: This implementation is inspired by and uses concepts from the Google Gemini CLI,
+ * which is licensed under the Apache License 2.0.
+ * Original project: https://github.com/google-gemini/gemini-cli
+ *
+ * Copyright 2025 Google LLC
+ * Licensed under the Apache License, Version 2.0
+ *
+ * Key features:
+ * - OAuth2 authentication (no API keys required)
+ * - Auto-discovery of Google Cloud project IDs
+ * - Real-time streaming via Server-Sent Events
+ * - Free tier access through Google's Code Assist API
+ * - Compatible with personal Google accounts only
+ */
+
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { OAuth2Client } from "google-auth-library"
 import fs from "fs/promises"

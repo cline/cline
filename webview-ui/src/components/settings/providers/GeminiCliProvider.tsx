@@ -1,3 +1,16 @@
+/**
+ * Gemini CLI Provider Component
+ *
+ * This component integrates with Google's Gemini CLI tool for OAuth authentication.
+ *
+ * Attribution: This implementation is inspired by and uses concepts from the Google Gemini CLI,
+ * which is licensed under the Apache License 2.0.
+ * Original project: https://github.com/google-gemini/gemini-cli
+ *
+ * Copyright 2025 Google LLC
+ * Licensed under the Apache License, Version 2.0
+ */
+
 import { ApiConfiguration, geminiCliModels } from "@shared/api"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
@@ -86,6 +99,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					borderRadius: "4px",
 					border: "1px solid rgba(255, 191, 0, 0.3)",
 					marginTop: "8px",
+					marginBottom: "16px",
 				}}>
 				<div
 					style={{
