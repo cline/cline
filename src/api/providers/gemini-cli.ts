@@ -22,6 +22,10 @@ export class GeminiCliHandler implements ApiHandler {
 		// Convert messages to Gemini CLI format
 		const prompt = convertAnthropicToGeminiCliFormat(systemPrompt, messages)
 
+		console.log("[GeminiCliHandler] Starting Gemini CLI with prompt length:", prompt.length)
+		console.log("[GeminiCliHandler] Model:", this.getModel().id)
+		console.log("[GeminiCliHandler] Path:", this.options.geminiCliPath || "gemini")
+
 		const geminiProcess = runGeminiCli({
 			prompt,
 			path: this.options.geminiCliPath,
@@ -35,11 +39,13 @@ export class GeminiCliHandler implements ApiHandler {
 			if (typeof chunk === "string") {
 				totalText += chunk
 				hasYieldedContent = true
+				console.log("[GeminiCliHandler] Received chunk:", chunk.substring(0, 100) + "...")
 				yield {
 					type: "text",
 					text: chunk,
 				}
 			} else if (chunk.type === "error") {
+				console.error("[GeminiCliHandler] Error from Gemini CLI:", chunk.message)
 				throw new Error(chunk.message)
 			}
 		}
