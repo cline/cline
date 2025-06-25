@@ -3,7 +3,7 @@ import { VSCodeTextField, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vsco
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { DropdownContainer } from "../ApiOptions"
+import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 
 /**
@@ -57,7 +57,7 @@ export const VertexProvider = ({
 				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 			</VSCodeTextField>
 
-			<DropdownContainer zIndex={100} className="dropdown-container">
+			<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 				<label htmlFor="vertex-region-dropdown">
 					<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 				</label>
@@ -102,6 +102,7 @@ export const VertexProvider = ({
 						selectedModelId={selectedModelId}
 						onChange={handleInputChange("apiModelId")}
 						label="Model"
+						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
