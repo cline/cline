@@ -56,6 +56,7 @@ import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
+import { OpenAINativeProvider } from "./providers/OpenAINative"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -341,35 +342,13 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "openai-native" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiNativeApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("openAiNativeApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>OpenAI API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.openAiNativeApiKey && (
-							<VSCodeLink
-								href="https://platform.openai.com/api-keys"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get an OpenAI API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "openai-native" && (
+				<OpenAINativeProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{selectedProvider === "qwen" && (
@@ -1663,6 +1642,7 @@ const ApiOptions = ({
 				selectedProvider !== "mistral" &&
 				selectedProvider !== "deepseek" &&
 				selectedProvider !== "sambanova" &&
+				selectedProvider !== "openai-native" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1673,7 +1653,6 @@ const ApiOptions = ({
 							{selectedProvider === "vertex" &&
 								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
-							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "qwen" &&
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
