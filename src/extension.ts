@@ -25,8 +25,8 @@ import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToA
 import {
 	migratePlanActGlobalToWorkspaceStorage,
 	migrateCustomInstructionsToGlobalRules,
-	cleanupModeFromWorkspaceStorage,
-} from "./core/storage/state"
+	migrateModeFromWorkspaceStorageToControllerState,
+} from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
@@ -64,8 +64,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
 
-	// Clean up mode from workspace storage (one-time cleanup)
-	await cleanupModeFromWorkspaceStorage(context)
+	// Migrate mode from workspace storage to controller state (one-time cleanup)
+	await migrateModeFromWorkspaceStorageToControllerState(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
