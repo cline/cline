@@ -1,3 +1,4 @@
+import { safeWriteJson } from "../../utils/safeWriteJson"
 import os from "os"
 import * as path from "path"
 import fs from "fs/promises"
@@ -116,6 +117,6 @@ export const exportSettings = async ({ providerSettingsManager, contextProxy }: 
 
 		const dirname = path.dirname(uri.fsPath)
 		await fs.mkdir(dirname, { recursive: true })
-		await fs.writeFile(uri.fsPath, JSON.stringify({ providerProfiles, globalSettings }, null, 2), "utf-8")
+		await safeWriteJson(uri.fsPath, { providerProfiles, globalSettings })
 	} catch (e) {}
 }

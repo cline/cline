@@ -2,6 +2,7 @@ import * as path from "path"
 import fs from "fs/promises"
 
 import NodeCache from "node-cache"
+import { safeWriteJson } from "../../../utils/safeWriteJson"
 import sanitize from "sanitize-filename"
 
 import { ContextProxy } from "../../../core/config/ContextProxy"
@@ -18,7 +19,7 @@ const getCacheKey = (router: RouterName, modelId: string) => sanitize(`${router}
 async function writeModelEndpoints(key: string, data: ModelRecord) {
 	const filename = `${key}_endpoints.json`
 	const cacheDir = await getCacheDirectoryPath(ContextProxy.instance.globalStorageUri.fsPath)
-	await fs.writeFile(path.join(cacheDir, filename), JSON.stringify(data, null, 2))
+	await safeWriteJson(path.join(cacheDir, filename), data)
 }
 
 async function readModelEndpoints(key: string): Promise<ModelRecord | undefined> {

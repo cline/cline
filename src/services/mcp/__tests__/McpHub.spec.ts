@@ -5,6 +5,43 @@ import { ServerConfigSchema, McpHub } from "../McpHub"
 import fs from "fs/promises"
 import { vi, Mock } from "vitest"
 
+// Mock fs/promises before importing anything that uses it
+vi.mock("fs/promises", () => ({
+	default: {
+		access: vi.fn().mockResolvedValue(undefined),
+		writeFile: vi.fn().mockResolvedValue(undefined),
+		readFile: vi.fn().mockResolvedValue("{}"),
+		unlink: vi.fn().mockResolvedValue(undefined),
+		rename: vi.fn().mockResolvedValue(undefined),
+		lstat: vi.fn().mockImplementation(() =>
+			Promise.resolve({
+				isDirectory: () => true,
+			}),
+		),
+		mkdir: vi.fn().mockResolvedValue(undefined),
+	},
+	access: vi.fn().mockResolvedValue(undefined),
+	writeFile: vi.fn().mockResolvedValue(undefined),
+	readFile: vi.fn().mockResolvedValue("{}"),
+	unlink: vi.fn().mockResolvedValue(undefined),
+	rename: vi.fn().mockResolvedValue(undefined),
+	lstat: vi.fn().mockImplementation(() =>
+		Promise.resolve({
+			isDirectory: () => true,
+		}),
+	),
+	mkdir: vi.fn().mockResolvedValue(undefined),
+}))
+
+// Mock safeWriteJson
+vi.mock("../../../utils/safeWriteJson", () => ({
+	safeWriteJson: vi.fn(async (filePath, data) => {
+		// Instead of trying to write to the file system, just call fs.writeFile mock
+		// This avoids the complex file locking and temp file operations
+		return fs.writeFile(filePath, JSON.stringify(data), "utf8")
+	}),
+}))
+
 vi.mock("vscode", () => ({
 	workspace: {
 		createFileSystemWatcher: vi.fn().mockReturnValue({
@@ -55,6 +92,7 @@ describe("McpHub", () => {
 
 		// Mock console.error to suppress error messages during tests
 		console.error = vi.fn()
+
 
 		const mockUri: Uri = {
 			scheme: "file",
