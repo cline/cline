@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "새 탭에서 열기",
 	"command.focusInput.title": "입력 필드 포커스",
 	"command.setCustomStoragePath.title": "사용자 지정 저장소 경로 설정",
+	"command.importSettings.title": "설정 가져오기",
 	"command.terminal.addToContext.title": "터미널 내용을 컨텍스트에 추가",
 	"command.terminal.fixCommand.title": "이 명령어 수정",
 	"command.terminal.explainCommand.title": "이 명령어 설명",

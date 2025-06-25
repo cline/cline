@@ -156,6 +156,11 @@
 				"category": "%configuration.title%"
 			},
 			{
+				"command": "roo-cline.importSettings",
+				"title": "%command.importSettings.title%",
+				"category": "%configuration.title%"
+			},
+			{
 				"command": "roo-cline.focusInput",
 				"title": "%command.focusInput.title%",
 				"category": "%configuration.title%"

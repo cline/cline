@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "Yeni Sekmede Aç",
 	"command.focusInput.title": "Giriş Alanına Odaklan",
 	"command.setCustomStoragePath.title": "Özel Depolama Yolunu Ayarla",
+	"command.importSettings.title": "Ayarları İçe Aktar",
 	"command.terminal.addToContext.title": "Terminal İçeriğini Bağlama Ekle",
 	"command.terminal.fixCommand.title": "Bu Komutu Düzelt",
 	"command.terminal.explainCommand.title": "Bu Komutu Açıkla",

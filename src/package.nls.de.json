@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "In Neuem Tab Öffnen",
 	"command.focusInput.title": "Eingabefeld Fokussieren",
 	"command.setCustomStoragePath.title": "Benutzerdefinierten Speicherpfad Festlegen",
+	"command.importSettings.title": "Einstellungen Importieren",
 	"command.terminal.addToContext.title": "Terminal-Inhalt zum Kontext Hinzufügen",
 	"command.terminal.fixCommand.title": "Diesen Befehl Reparieren",
 	"command.terminal.explainCommand.title": "Diesen Befehl Erklären",

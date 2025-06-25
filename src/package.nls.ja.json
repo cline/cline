@@ -20,6 +20,7 @@
 	"command.addToContext.title": "コンテキストに追加",
 	"command.focusInput.title": "入力フィールドにフォーカス",
 	"command.setCustomStoragePath.title": "カスタムストレージパスの設定",
+	"command.importSettings.title": "設定をインポート",
 	"command.terminal.addToContext.title": "ターミナルの内容をコンテキストに追加",
 	"command.terminal.fixCommand.title": "このコマンドを修正",
 	"command.terminal.explainCommand.title": "このコマンドを説明",

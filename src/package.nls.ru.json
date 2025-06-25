@@ -20,6 +20,7 @@
 	"command.addToContext.title": "Добавить в контекст",
 	"command.focusInput.title": "Фокус на поле ввода",
 	"command.setCustomStoragePath.title": "Указать путь хранения",
+	"command.importSettings.title": "Импортировать настройки",
 	"command.terminal.addToContext.title": "Добавить содержимое терминала в контекст",
 	"command.terminal.fixCommand.title": "Исправить эту команду",
 	"command.terminal.explainCommand.title": "Объяснить эту команду",

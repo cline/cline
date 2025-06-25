@@ -20,6 +20,7 @@
 	"command.addToContext.title": "Tambahkan ke Konteks",
 	"command.focusInput.title": "Fokus ke Field Input",
 	"command.setCustomStoragePath.title": "Atur Path Penyimpanan Kustom",
+	"command.importSettings.title": "Impor Pengaturan",
 	"command.terminal.addToContext.title": "Tambahkan Konten Terminal ke Konteks",
 	"command.terminal.fixCommand.title": "Perbaiki Perintah Ini",
 	"command.terminal.explainCommand.title": "Jelaskan Perintah Ini",

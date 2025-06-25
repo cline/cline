@@ -20,6 +20,7 @@
 	"command.addToContext.title": "Add To Context",
 	"command.focusInput.title": "Focus Input Field",
 	"command.setCustomStoragePath.title": "Set Custom Storage Path",
+	"command.importSettings.title": "Import Settings",
 	"command.terminal.addToContext.title": "Add Terminal Content to Context",
 	"command.terminal.fixCommand.title": "Fix This Command",
 	"command.terminal.explainCommand.title": "Explain This Command",

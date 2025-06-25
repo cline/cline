@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "Obrir en una Nova Pestanya",
 	"command.focusInput.title": "Enfocar Camp d'Entrada",
 	"command.setCustomStoragePath.title": "Establir Ruta d'Emmagatzematge Personalitzada",
+	"command.importSettings.title": "Importar Configuració",
 	"command.terminal.addToContext.title": "Afegir Contingut del Terminal al Context",
 	"command.terminal.fixCommand.title": "Corregir Aquesta Ordre",
 	"command.terminal.explainCommand.title": "Explicar Aquesta Ordre",

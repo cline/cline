@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "在新标签页中打开",
 	"command.focusInput.title": "聚焦输入框",
 	"command.setCustomStoragePath.title": "设置自定义存储路径",
+	"command.importSettings.title": "导入设置",
 	"command.terminal.addToContext.title": "将终端内容添加到上下文",
 	"command.terminal.fixCommand.title": "修复此命令",
 	"command.terminal.explainCommand.title": "解释此命令",

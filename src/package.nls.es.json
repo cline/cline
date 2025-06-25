@@ -9,6 +9,7 @@
 	"command.openInNewTab.title": "Abrir en Nueva Pestaña",
 	"command.focusInput.title": "Enfocar Campo de Entrada",
 	"command.setCustomStoragePath.title": "Establecer Ruta de Almacenamiento Personalizada",
+	"command.importSettings.title": "Importar Configuración",
 	"command.terminal.addToContext.title": "Añadir Contenido de Terminal al Contexto",
 	"command.terminal.fixCommand.title": "Corregir Este Comando",
 	"command.terminal.explainCommand.title": "Explicar Este Comando",
