@@ -8,11 +8,11 @@ const LEGACY_SEARCH_BLOCK_CHAR = "<"
 const LEGACY_REPLACE_BLOCK_CHAR = ">"
 
 // Replace the exact string constants with flexible regex patterns
-const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH>*$/
+const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH>?$/
 const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
-const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>*$/
-const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH$/
-const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE$/
+const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>?$/
+const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH>?$/
+const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
 
 // Helper functions to check if a line matches the flexible patterns
 function isSearchBlockStart(line: string): boolean {
