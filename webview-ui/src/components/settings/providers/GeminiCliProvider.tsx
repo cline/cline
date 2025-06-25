@@ -81,7 +81,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 						padding: "2px 4px",
 						borderRadius: "3px",
 					}}>
-					gemini auth
+					gemini
 				</code>{" "}
 				in your terminal first.
 				<br />
