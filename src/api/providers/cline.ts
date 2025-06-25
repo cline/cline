@@ -75,7 +75,7 @@ export class ClineHandler implements ApiHandler {
 
 			if (!didOutputUsage && chunk.usage) {
 				// @ts-ignore-next-line
-				let totalCost = chunk.usage.cost || 0
+				let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 				const modelId = this.getModel().id
 				const provider = modelId.split("/")[0]
 

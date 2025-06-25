@@ -81,7 +81,7 @@ export class OpenRouterHandler implements ApiHandler {
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
-					totalCost: chunk.usage.cost || 0,
+					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
 				}
 				didOutputUsage = true
 			}
