@@ -530,7 +530,13 @@ export class Task {
 		this.taskState.askResponseFiles = files
 	}
 
-	async say(type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean): Promise<undefined> {
+	async say(
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	): Promise<number | undefined> {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -548,6 +554,7 @@ export class Task {
 					lastMessage.partial = partial
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
+					return undefined
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
@@ -562,6 +569,7 @@ export class Task {
 						partial,
 					})
 					await this.postStateToWebview()
+					return sayTs
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -579,6 +587,7 @@ export class Task {
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+					return undefined
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
@@ -592,6 +601,7 @@ export class Task {
 						files,
 					})
 					await this.postStateToWebview()
+					return sayTs
 				}
 			}
 		} else {
@@ -607,6 +617,7 @@ export class Task {
 				files,
 			})
 			await this.postStateToWebview()
+			return sayTs
 		}
 	}
 
