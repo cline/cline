@@ -60,14 +60,15 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					marginTop: 5,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				This provider uses OAuth authentication from the Gemini CLI tool. If you haven't authenticated yet, please run{" "}
+				This provider uses OAuth authentication from the Gemini CLI tool and does not require API keys. If you haven't
+				authenticated yet, please run{" "}
 				<code
 					style={{
 						backgroundColor: "var(--vscode-textCodeBlock-background)",
 						padding: "2px 4px",
 						borderRadius: "3px",
 					}}>
-					gemini
+					gemini auth
 				</code>{" "}
 				in your terminal first.
 				<br />
@@ -77,6 +78,50 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					Learn more about Gemini CLI
 				</VSCodeLink>
 			</p>
+
+			<div
+				style={{
+					backgroundColor: "rgba(255, 191, 0, 0.1)",
+					padding: "8px",
+					borderRadius: "4px",
+					border: "1px solid rgba(255, 191, 0, 0.3)",
+					marginTop: "8px",
+				}}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						marginBottom: "4px",
+					}}>
+					<i
+						className="codicon codicon-info"
+						style={{
+							marginRight: "6px",
+							fontSize: "14px",
+							color: "#FFA500",
+						}}></i>
+					<span
+						style={{
+							fontWeight: "bold",
+							color: "#FFA500",
+							fontSize: "12px",
+						}}>
+						Important Requirements
+					</span>
+				</div>
+				<p
+					style={{
+						margin: 0,
+						fontSize: "11px",
+						lineHeight: "1.4",
+						color: "var(--vscode-foreground)",
+					}}>
+					• Only works with <strong>personal Google accounts</strong> (not Google Workspace accounts)
+					<br />
+					• Does not use API keys - authentication is handled via OAuth
+					<br />• Requires the Gemini CLI tool to be installed and authenticated first
+				</p>
+			</div>
 
 			{showModelOptions && (
 				<>
