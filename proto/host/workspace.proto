@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+// Provides methods for working with workspaces/projects.
+service WorkspaceService {
+  // Returns a list of the top level directories of the workspace.
+  rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+}
+
+message GetWorkspacePathsRequest {
+  // The unique ID for the workspace/project.
+  // This is currently optional in vscode. It is required in other environments where cline is running at
+  // the application level, and the user can open multiple projects.
+  optional string id = 1;
+}
+
+message GetWorkspacePathsResponse {
+  // The unique ID for the workspace/project.
+  optional string id = 1;
+  repeated string paths = 2;
+}

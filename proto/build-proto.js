@@ -58,6 +58,7 @@ const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(RO
 const hostServiceNameMap = {
 	uri: "host.UriService",
 	watch: "host.WatchService",
+	workspace: "host.WorkspaceService",
 	// Add new host services here
 }
 const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/hosts/vscode", serviceKey))
