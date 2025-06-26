@@ -11,7 +11,6 @@ import { writeTextToClipboard } from "@/utils/env"
  */
 export async function copyToClipboard(controller: Controller, request: StringRequest): Promise<Empty> {
 	try {
-		console.log("Copying to clipboard:", request.value)
 		if (request.value) {
 			await writeTextToClipboard(request.value)
 		}

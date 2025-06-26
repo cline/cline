@@ -6,8 +6,6 @@ import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
  * @returns The terminal contents as a string
  */
 export async function getLatestTerminalOutput(): Promise<string> {
-	console.log("Fetching latest terminal output...")
-
 	// Store original clipboard content to restore later
 	const originalClipboard = await readTextFromClipboard()
 
