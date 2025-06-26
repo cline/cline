@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { Controller } from ".."
 import { Empty, StringRequest } from "../../../shared/proto/common"
+import { writeTextToClipboard } from "@/utils/env"
 
 /**
  * Copies text to the system clipboard
@@ -10,8 +11,9 @@ import { Empty, StringRequest } from "../../../shared/proto/common"
  */
 export async function copyToClipboard(controller: Controller, request: StringRequest): Promise<Empty> {
 	try {
+		console.log("Copying to clipboard:", request.value)
 		if (request.value) {
-			await vscode.env.clipboard.writeText(request.value)
+			await writeTextToClipboard(request.value)
 		}
 	} catch (error) {
 		console.error("Error copying to clipboard:", error)

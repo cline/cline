@@ -1,12 +1,15 @@
 import * as vscode from "vscode"
+import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
 
 /**
  * Gets the contents of the active terminal
  * @returns The terminal contents as a string
  */
 export async function getLatestTerminalOutput(): Promise<string> {
+	console.log("Fetching latest terminal output...")
+
 	// Store original clipboard content to restore later
-	const originalClipboard = await vscode.env.clipboard.readText()
+	const originalClipboard = await readTextFromClipboard()
 
 	try {
 		// Select terminal content
@@ -19,7 +22,7 @@ export async function getLatestTerminalOutput(): Promise<string> {
 		await vscode.commands.executeCommand("workbench.action.terminal.clearSelection")
 
 		// Get terminal contents from clipboard
-		let terminalContents = (await vscode.env.clipboard.readText()).trim()
+		let terminalContents = (await readTextFromClipboard()).trim()
 
 		// Check if there's actually a terminal open
 		if (terminalContents === originalClipboard) {
@@ -40,6 +43,6 @@ export async function getLatestTerminalOutput(): Promise<string> {
 		return terminalContents
 	} finally {
 		// Restore original clipboard content
-		await vscode.env.clipboard.writeText(originalClipboard)
+		await writeTextToClipboard(originalClipboard)
 	}
 }
