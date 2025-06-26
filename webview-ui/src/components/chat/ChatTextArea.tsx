@@ -4,7 +4,8 @@ import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import ApiOptions from "@/components/settings/ApiOptions"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import {
@@ -81,7 +82,6 @@ interface ChatTextAreaProps {
 	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
-	isTaskView: boolean
 }
 
 interface GitCommit {
@@ -269,7 +269,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			shouldDisableFilesAndImages,
 			onHeightChange,
 			onFocusChange,
-			isTaskView,
 		},
 		ref,
 	) => {
@@ -999,9 +998,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				submitApiConfig()
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
-			setTimeout(() => {
+			setTimeout(async () => {
 				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				StateServiceClient.togglePlanActMode(
+				const response = await StateServiceClient.togglePlanActMode(
 					TogglePlanActModeRequest.create({
 						chatSettings: {
 							mode: newMode,
@@ -1017,7 +1016,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
-					if (isTaskView) {
+					if (response.value) {
 						setInputValue("")
 					}
 					textAreaRef.current?.focus()
@@ -1743,12 +1742,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption
 								isActive={chatSettings.mode === "plan"}
+								role="switch"
+								aria-checked={chatSettings.mode === "plan"}
 								onMouseOver={() => setShownTooltipMode("plan")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Plan
 							</SwitchOption>
 							<SwitchOption
 								isActive={chatSettings.mode === "act"}
+								role="switch"
+								aria-checked={chatSettings.mode === "act"}
 								onMouseOver={() => setShownTooltipMode("act")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Act

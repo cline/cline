@@ -1,8 +1,7 @@
 import * as fs from "fs"
-import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import * as health from "grpc-health-check"
-import { StreamingCallbacks } from "@hosts/vscode/host-grpc-handler"
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 
 const log = (...args: unknown[]) => {
 	const timestamp = new Date().toISOString()
@@ -12,9 +11,9 @@ const log = (...args: unknown[]) => {
 function getPackageDefinition() {
 	// Load service definitions.
 	const descriptorSet = fs.readFileSync("proto/descriptor_set.pb")
-	const clineDef = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
+	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
 	const healthDef = protoLoader.loadSync(health.protoPath)
-	const packageDefinition = { ...clineDef, ...healthDef }
+	const packageDefinition = { ...descriptorDefs, ...healthDef }
 	return packageDefinition
 }
 

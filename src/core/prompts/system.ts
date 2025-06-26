@@ -12,14 +12,14 @@ export const SYSTEM_PROMPT = async (
 	supportsBrowserUse: boolean,
 	mcpHub: McpHub,
 	browserSettings: BrowserSettings,
-	isClaude4ModelFamily: boolean = false,
+	isNextGenModel: boolean = false,
 ) => {
 
-	if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+	if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 		return SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL(cwd, supportsBrowserUse, mcpHub, browserSettings)
 	}
 
-  if (isClaude4ModelFamily) {
+  if (isNextGenModel) {
     return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
   }
 
@@ -466,7 +466,10 @@ ${
 					const config = JSON.parse(server.config)
 
 					return (
-						`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+						`## ${server.name}` +
+						(config.command
+							? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
+							: "") +
 						(tools ? `\n\n### Available Tools\n${tools}` : "") +
 						(templates ? `\n\n### Resource Templates\n${templates}` : "") +
 						(resources ? `\n\n### Direct Resources\n${resources}` : "")

@@ -3,9 +3,9 @@ import chalk from "chalk"
 import path from "path"
 
 interface RunDiffEvalOptions {
-	modelId: string
+	modelIds: string
 	systemPromptName: string
-	numberOfRuns: number
+	validAttemptsPerCase: number
 	parsingFunction: string
 	diffEditFunction: string
 	thinkingBudget: number
@@ -14,22 +14,25 @@ interface RunDiffEvalOptions {
 	testPath: string
 	outputPath: string
 	replay: boolean
+	replayRunId?: string
+	diffApplyFile?: string
+	maxCases?: number
 }
 
 export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 	console.log(chalk.blue("Starting diff editing evaluation..."))
 
 	// Resolve the path to the TestRunner.ts script relative to the current file
-	const scriptPath = path.resolve(__dirname, "../../../diff_editing/TestRunner.ts")
+	const scriptPath = path.resolve(__dirname, "../../../diff-edits/TestRunner.ts")
 
 	// Construct the arguments array for the execa call
 	const args = [
-		"--model-id",
-		options.modelId,
+		"--model-ids",
+		options.modelIds,
 		"--system-prompt-name",
 		options.systemPromptName,
-		"--number-of-runs",
-		String(options.numberOfRuns),
+		"--valid-attempts-per-case",
+		String(options.validAttemptsPerCase),
 		"--parsing-function",
 		options.parsingFunction,
 		"--diff-edit-function",
@@ -55,8 +58,20 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 		args.push("--replay")
 	}
 
+	if (options.replayRunId) {
+		args.push("--replay-run-id", options.replayRunId)
+	}
+
+	if (options.diffApplyFile) {
+		args.push("--diff-apply-file", options.diffApplyFile)
+	}
+
 	if (options.verbose) {
 		args.push("--verbose")
+	}
+
+	if (options.maxCases) {
+		args.push("--max-cases", String(options.maxCases))
 	}
 
 	try {
@@ -64,7 +79,7 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 		// Execute the script as a child process
 		// We use 'inherit' to stream the stdout/stderr directly to the user's terminal
-		const subprocess = execa("npx", ["tsx", scriptPath, ...args], {
+		const subprocess = execa("npx", ["tsx", "--tsconfig", path.resolve(__dirname, "../../../tsconfig.json"), scriptPath, ...args], {
 			stdio: "inherit",
 		})
 
