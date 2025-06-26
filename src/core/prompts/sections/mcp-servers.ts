@@ -39,7 +39,7 @@ export async function getMcpServersSection(
 						const config = JSON.parse(server.config)
 
 						return (
-							`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+							`## ${server.name}${config.command ? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` : ""}` +
 							(server.instructions ? `\n\n### Instructions\n${server.instructions}` : "") +
 							(tools ? `\n\n### Available Tools\n${tools}` : "") +
 							(templates ? `\n\n### Resource Templates\n${templates}` : "") +
