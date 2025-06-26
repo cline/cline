@@ -3,6 +3,7 @@ import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/pars
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
+import { constructNewFileContent as constructNewFileContent_06_25_26 } from "./diff-apply/diff-06-25-26"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
@@ -484,6 +485,7 @@ class NodeTestRunner {
 			"diff-06-06-25": constructNewFileContent_06_06_25,
 			"diff-06-23-25": constructNewFileContent_06_23_25,
 			"diff-06-25-25": constructNewFileContent_06_25_25,
+			"diff-06-25-26": constructNewFileContent_06_25_26,
 			constructNewFileContentV3: constructNewFileContentV3,
 		}
 		const constructNewFileContent = diffEditingFunctions[diffApplyFile]
