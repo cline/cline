@@ -53,6 +53,7 @@ import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { VertexProvider } from "./providers/VertexProvider"
+import GeminiCliProvider from "./providers/GeminiCliProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -260,6 +261,7 @@ const ApiOptions = ({
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+					<VSCodeOption value="gemini-cli">Gemini CLI Provider</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -747,6 +749,15 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{apiConfiguration && selectedProvider === "gemini-cli" && (
+				<GeminiCliProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
+			)}
+
 			{selectedProvider === "requesty" && (
 				<div>
 					<VSCodeTextField
@@ -897,7 +908,7 @@ const ApiOptions = ({
 								}}>
 								The VS Code Language Model API allows you to run models provided by other VS Code extensions
 								(including but not limited to GitHub Copilot). The easiest way to get started is to install the
-								Copilot extension from the VS Marketplace and enabling Claude 3.7 Sonnet.
+								Copilot extension from the VS Marketplace and enabling Claude 4 Sonnet.
 							</p>
 						)}
 
@@ -1519,6 +1530,7 @@ const ApiOptions = ({
 				selectedProvider !== "gemini" &&
 				selectedProvider !== "doubao" &&
 				selectedProvider !== "vertex" &&
+				selectedProvider !== "gemini-cli" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">

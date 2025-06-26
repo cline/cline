@@ -184,7 +184,7 @@ export const ChatRowContent = ({
 	sendMessageFromChatRow,
 	onSetQuote,
 }: ChatRowContentProps) => {
-	const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl } = useExtensionState()
+	const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 	const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 		visible: false,
@@ -949,6 +949,88 @@ export const ChatRowContent = ({
 														totalPromotions={errorData.total_promotions}
 														message={errorData.message}
 													/>
+												)
+											}
+										}
+
+										// Check for rate limit errors (status code 429)
+										const isRateLimitError =
+											apiRequestFailedMessage?.includes("status code 429") ||
+											apiRequestFailedMessage?.toLowerCase().includes("rate limit") ||
+											apiRequestFailedMessage?.toLowerCase().includes("too many requests") ||
+											apiRequestFailedMessage?.toLowerCase().includes("quota exceeded") ||
+											apiRequestFailedMessage?.toLowerCase().includes("resource exhausted")
+
+										if (isRateLimitError) {
+											// Check if current provider is Gemini CLI to show specific message
+											const isGeminiCliProvider = apiConfiguration?.apiProvider === "gemini-cli"
+
+											if (isGeminiCliProvider) {
+												return (
+													<div
+														style={{
+															backgroundColor: "rgba(255, 191, 0, 0.1)",
+															padding: "12px",
+															borderRadius: "4px",
+															border: "1px solid rgba(255, 191, 0, 0.3)",
+														}}>
+														<div
+															style={{
+																display: "flex",
+																alignItems: "center",
+																marginBottom: "8px",
+															}}>
+															<i
+																className="codicon codicon-warning"
+																style={{
+																	marginRight: "8px",
+																	fontSize: "16px",
+																	color: "#FFA500",
+																}}></i>
+															<span
+																style={{
+																	fontWeight: "bold",
+																	color: "#FFA500",
+																}}>
+																Rate Limit Exceeded
+															</span>
+														</div>
+														<p style={{ margin: 0, fontSize: "14px", lineHeight: "1.4" }}>
+															You've hit the API rate limit. This is likely due to free tier limits.
+														</p>
+														<p style={{ margin: "8px 0 0 0", fontSize: "12px", lineHeight: "1.4" }}>
+															You can read about the tier limits{" "}
+															<a
+																href="https://codeassist.google/"
+																style={{
+																	color: "inherit",
+																	textDecoration: "underline",
+																}}
+																onClick={(e) => {
+																	e.preventDefault()
+																	UiServiceClient.openUrl(
+																		StringRequest.create({
+																			value: "https://codeassist.google/",
+																		}),
+																	).catch((err) => console.error("Failed to open URL:", err))
+																}}>
+																here
+															</a>
+															, or alternatively, you can use the Gemini Flash Model that will give
+															you better limits.
+														</p>
+													</div>
+												)
+											} else {
+												// Generic rate limit error for other providers
+												return (
+													<p
+														style={{
+															...pStyle,
+															color: "var(--vscode-errorForeground)",
+														}}>
+														{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+													</p>
 												)
 											}
 										}
