@@ -14,15 +14,16 @@ import {
 	mainlandQwenModels,
 	ModelInfo,
 	nebiusModels,
-	sapAiCoreModels,
 	vertexGlobalModels,
 	vertexModels,
 	xaiModels,
+	sapAiCoreModels,
 } from "@shared/api"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { OpenAiModelsRequest, UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import {
+	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -31,7 +32,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
@@ -43,17 +44,17 @@ import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 
+import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import { MistralProvider } from "./providers/MistralProvider"
+import { DeepSeekProvider } from "./providers/DeepSeekProvider"
+import { TogetherProvider } from "./providers/TogetherProvider"
+import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
+import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
-import { DeepSeekProvider } from "./providers/DeepSeekProvider"
-import GeminiCliProvider from "./providers/GeminiCliProvider"
-import { GeminiProvider } from "./providers/GeminiProvider"
-import { MistralProvider } from "./providers/MistralProvider"
-import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
-import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { SambanovaProvider } from "./providers/SambanovaProvider"
-import { TogetherProvider } from "./providers/TogetherProvider"
+import { GeminiProvider } from "./providers/GeminiProvider"
+import GeminiCliProvider from "./providers/GeminiCliProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
