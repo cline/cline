@@ -190,6 +190,26 @@ export class McpHub {
 		config: z.infer<typeof ServerConfigSchema>,
 		source: "rpc" | "internal",
 	): Promise<void> {
+		if (config.disabled) {
+			console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
+			// Remove existing connection if it exists
+			this.connections = this.connections.filter((conn) => conn.server.name !== name)
+
+			// Create a connection object for disabled servers so they appear in UI
+			const disabledConnection: McpConnection = {
+				server: {
+					name,
+					config: JSON.stringify(config),
+					status: "disconnected",
+					disabled: true,
+				},
+				client: null as any, // No client for disabled servers
+				transport: null as any, // No transport for disabled servers
+			}
+			this.connections.push(disabledConnection)
+			return
+		}
+
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
@@ -441,6 +461,11 @@ export class McpHub {
 				throw new Error(`No connection found for server: ${serverName}`)
 			}
 
+			// Disabled servers don't have clients, so return empty tools list
+			if (connection.server.disabled || !connection.client) {
+				return []
+			}
+
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
@@ -466,9 +491,16 @@ export class McpHub {
 
 	private async fetchResourcesList(serverName: string): Promise<McpResource[]> {
 		try {
-			const response = await this.connections
-				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/list" }, ListResourcesResultSchema, { timeout: DEFAULT_REQUEST_TIMEOUT_MS })
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty resources list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
 			return response?.resources || []
 		} catch (error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
@@ -478,11 +510,20 @@ export class McpHub {
 
 	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[]> {
 		try {
-			const response = await this.connections
-				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema, {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty resource templates list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			const response = await connection.client.request(
+				{ method: "resources/templates/list" },
+				ListResourceTemplatesResultSchema,
+				{
 					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
-				})
+				},
+			)
 
 			return response?.resourceTemplates || []
 		} catch (error) {
@@ -495,8 +536,13 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
-				await connection.transport.close()
-				await connection.client.close()
+				// Only close transport and client if they exist (disabled servers don't have them)
+				if (connection.transport) {
+					await connection.transport.close()
+				}
+				if (connection.client) {
+					await connection.client.close()
+				}
 			} catch (error) {
 				console.error(`Failed to close transport for ${name}:`, error)
 			}
