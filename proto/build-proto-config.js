@@ -25,5 +25,6 @@ export const hostServiceNameMap = {
 	uri: "host.UriService",
 	watch: "host.WatchService",
 	workspace: "host.WorkspaceService",
+	env: "host.EnvService",
 	// Add new host services here
 }
