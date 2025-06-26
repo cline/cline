@@ -51,7 +51,6 @@ describe("ContextWindowProgress", () => {
 			task: { ts: Date.now(), type: "say" as const, say: "text" as const, text: "Test task" },
 			tokensIn: 100,
 			tokensOut: 50,
-			doesModelSupportPromptCache: true,
 			totalCost: 0.001,
 			contextTokens: 1000,
 			onClose: vi.fn(),

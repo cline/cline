@@ -1371,7 +1371,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						task={task}
 						tokensIn={apiMetrics.totalTokensIn}
 						tokensOut={apiMetrics.totalTokensOut}
-						doesModelSupportPromptCache={model?.supportsPromptCache ?? false}
 						cacheWrites={apiMetrics.totalCacheWrites}
 						cacheReads={apiMetrics.totalCacheReads}
 						totalCost={apiMetrics.totalCost}

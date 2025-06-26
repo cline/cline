@@ -49,7 +49,6 @@ describe("TaskHeader", () => {
 		task: { type: "say", ts: Date.now(), text: "Test task", images: [] },
 		tokensIn: 100,
 		tokensOut: 50,
-		doesModelSupportPromptCache: true,
 		totalCost: 0.05,
 		contextTokens: 200,
 		buttonsDisabled: false,
