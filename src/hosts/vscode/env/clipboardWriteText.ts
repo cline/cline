@@ -1,7 +1,7 @@
-import { StringRequest, Boolean } from "@/shared/proto/common"
+import { StringRequest, Empty } from "@/shared/proto/common"
 import * as vscode from "vscode"
 
-export async function clipboardWriteText(request: StringRequest): Promise<Boolean> {
+export async function clipboardWriteText(request: StringRequest): Promise<Empty> {
 	await vscode.env.clipboard.writeText(request.value)
-	return Boolean.create({ value: true })
+	return Empty.create({})
 }
