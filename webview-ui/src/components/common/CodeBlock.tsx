@@ -6,6 +6,7 @@ import { bundledLanguages } from "shiki"
 import type { ShikiTransformer } from "shiki"
 import { ChevronDown, ChevronUp, WrapText, AlignJustify, Copy, Check } from "lucide-react"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { StandardTooltip } from "@/components/ui"
 
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 export const WRAPPER_ALPHA = "cc" // 80% opacity
@@ -725,48 +726,55 @@ const CodeBlock = memo(
 							}
 						</LanguageSelect>
 						{showCollapseButton && (
-							<CodeBlockButton
-								onClick={() => {
-									// Get the current code block element
-									const codeBlock = codeBlockRef.current // Capture ref early
-									// Toggle window shade state
-									setWindowShade(!windowShade)
+							<StandardTooltip
+								content={t(`chat:codeblock.tooltips.${windowShade ? "expand" : "collapse"}`)}
+								side="top">
+								<CodeBlockButton
+									onClick={() => {
+										// Get the current code block element
+										const codeBlock = codeBlockRef.current // Capture ref early
+										// Toggle window shade state
+										setWindowShade(!windowShade)
 
-									// Clear any previous timeouts
-									if (collapseTimeout1Ref.current) clearTimeout(collapseTimeout1Ref.current)
-									if (collapseTimeout2Ref.current) clearTimeout(collapseTimeout2Ref.current)
+										// Clear any previous timeouts
+										if (collapseTimeout1Ref.current) clearTimeout(collapseTimeout1Ref.current)
+										if (collapseTimeout2Ref.current) clearTimeout(collapseTimeout2Ref.current)
 
-									// After UI updates, ensure code block is visible and update button position
-									collapseTimeout1Ref.current = setTimeout(
-										() => {
-											if (codeBlock) {
-												// Check if codeBlock element still exists
-												codeBlock.scrollIntoView({ behavior: "smooth", block: "nearest" })
+										// After UI updates, ensure code block is visible and update button position
+										collapseTimeout1Ref.current = setTimeout(
+											() => {
+												if (codeBlock) {
+													// Check if codeBlock element still exists
+													codeBlock.scrollIntoView({ behavior: "smooth", block: "nearest" })
 
-												// Wait for scroll to complete before updating button position
-												collapseTimeout2Ref.current = setTimeout(() => {
-													// updateCodeBlockButtonPosition itself should also check for refs if needed
-													updateCodeBlockButtonPosition()
-													collapseTimeout2Ref.current = null
-												}, 50)
-											}
-											collapseTimeout1Ref.current = null
-										},
-										WINDOW_SHADE_SETTINGS.transitionDelayS * 1000 + 50,
-									)
-								}}
-								title={t(`chat:codeblock.tooltips.${windowShade ? "expand" : "collapse"}`)}>
-								{windowShade ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-							</CodeBlockButton>
+													// Wait for scroll to complete before updating button position
+													collapseTimeout2Ref.current = setTimeout(() => {
+														// updateCodeBlockButtonPosition itself should also check for refs if needed
+														updateCodeBlockButtonPosition()
+														collapseTimeout2Ref.current = null
+													}, 50)
+												}
+												collapseTimeout1Ref.current = null
+											},
+											WINDOW_SHADE_SETTINGS.transitionDelayS * 1000 + 50,
+										)
+									}}>
+									{windowShade ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+								</CodeBlockButton>
+							</StandardTooltip>
 						)}
-						<CodeBlockButton
-							onClick={() => setWordWrap(!wordWrap)}
-							title={t(`chat:codeblock.tooltips.${wordWrap ? "disable_wrap" : "enable_wrap"}`)}>
-							{wordWrap ? <AlignJustify size={16} /> : <WrapText size={16} />}
-						</CodeBlockButton>
-						<CodeBlockButton onClick={handleCopy} title={t("chat:codeblock.tooltips.copy_code")}>
-							{showCopyFeedback ? <Check size={16} /> : <Copy size={16} />}
-						</CodeBlockButton>
+						<StandardTooltip
+							content={t(`chat:codeblock.tooltips.${wordWrap ? "disable_wrap" : "enable_wrap"}`)}
+							side="top">
+							<CodeBlockButton onClick={() => setWordWrap(!wordWrap)}>
+								{wordWrap ? <AlignJustify size={16} /> : <WrapText size={16} />}
+							</CodeBlockButton>
+						</StandardTooltip>
+						<StandardTooltip content={t("chat:codeblock.tooltips.copy_code")} side="top">
+							<CodeBlockButton onClick={handleCopy}>
+								{showCopyFeedback ? <Check size={16} /> : <Copy size={16} />}
+							</CodeBlockButton>
+						</StandardTooltip>
 					</CodeBlockButtonWrapper>
 				)}
 			</CodeBlockContainer>

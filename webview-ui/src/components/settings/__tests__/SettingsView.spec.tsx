@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { vscode } from "@/utils/vscode"
@@ -115,6 +115,7 @@ vi.mock("@/components/ui", () => ({
 			{children}
 		</button>
 	),
+	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
 	Input: ({ value, onChange, placeholder, "data-testid": dataTestId }: any) => (
 		<input type="text" value={value} onChange={onChange} placeholder={placeholder} data-testid={dataTestId} />
 	),

@@ -19,7 +19,7 @@ import {
 	SearchResult,
 } from "@src/utils/context-mentions"
 import { convertToMentionPath } from "@/utils/path-mentions"
-import { SelectDropdown, DropdownOptionType, Button } from "@/components/ui"
+import { SelectDropdown, DropdownOptionType, Button, StandardTooltip } from "@/components/ui"
 
 import Thumbnails from "../common/Thumbnails"
 import ModeSelector from "./ModeSelector"
@@ -1094,8 +1094,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											<div
 												className={cn("truncate min-w-0 overflow-hidden", {
 													"font-medium": isCurrentConfig,
-												})}
-												title={label}>
+												})}>
 												{label}
 											</div>
 											<div className="flex justify-end w-10 flex-shrink-0">
@@ -1106,21 +1105,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 													})}>
 													<Check className="size-3" />
 												</div>
-												<Button
-													variant="ghost"
-													size="icon"
-													title={pinned ? t("chat:unpin") : t("chat:pin")}
-													onClick={(e) => {
-														e.stopPropagation()
-														togglePinnedApiConfig(value)
-														vscode.postMessage({ type: "toggleApiConfigPin", text: value })
-													}}
-													className={cn("size-5", {
-														"hidden group-hover:flex": !pinned,
-														"bg-accent": pinned,
-													})}>
-													<Pin className="size-3 p-0.5 opacity-50" />
-												</Button>
+												<StandardTooltip content={pinned ? t("chat:unpin") : t("chat:pin")}>
+													<Button
+														variant="ghost"
+														size="icon"
+														onClick={(e) => {
+															e.stopPropagation()
+															togglePinnedApiConfig(value)
+															vscode.postMessage({
+																type: "toggleApiConfigPin",
+																text: value,
+															})
+														}}
+														className={cn("size-5", {
+															"hidden group-hover:flex": !pinned,
+															"bg-accent": pinned,
+														})}>
+														<Pin className="size-3 p-0.5 opacity-50" />
+													</Button>
+												</StandardTooltip>
 											</div>
 										</div>
 									)

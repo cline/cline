@@ -5,7 +5,7 @@ import { VSCodeTextField, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-
 import { type ProviderSettings, type ModelInfo, BEDROCK_REGIONS } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, StandardTooltip } from "@src/components/ui"
 
 import { inputEventTransform, noTransform } from "../transforms"
 
@@ -114,11 +114,12 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 						onChange={handleInputChange("awsUsePromptCache", noTransform)}>
 						<div className="flex items-center gap-1">
 							<span>{t("settings:providers.enablePromptCaching")}</span>
-							<i
-								className="codicon codicon-info text-vscode-descriptionForeground"
-								title={t("settings:providers.enablePromptCachingTitle")}
-								style={{ fontSize: "12px" }}
-							/>
+							<StandardTooltip content={t("settings:providers.enablePromptCachingTitle")}>
+								<i
+									className="codicon codicon-info text-vscode-descriptionForeground"
+									style={{ fontSize: "12px" }}
+								/>
+							</StandardTooltip>
 						</div>
 					</Checkbox>
 					<div className="text-sm text-vscode-descriptionForeground ml-6 mt-1">

@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/ThinkingBudget.spec.tsx
 
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 
 import type { ModelInfo } from "@roo-code/types"
 

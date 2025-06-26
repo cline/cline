@@ -2,6 +2,7 @@ import React from "react"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { IconButton } from "./IconButton"
 import { ZoomControls } from "./ZoomControls"
+import { StandardTooltip } from "@/components/ui"
 
 interface MermaidActionButtonsProps {
 	onZoom?: (e: React.MouseEvent) => void
@@ -40,41 +41,51 @@ export const MermaidActionButtons: React.FC<MermaidActionButtonsProps> = ({
 					zoomInTitle={t("common:mermaid.buttons.zoomIn")}
 					zoomOutTitle={t("common:mermaid.buttons.zoomOut")}
 				/>
-				<IconButton
-					icon="code"
-					onClick={(e: React.MouseEvent) => {
-						e.stopPropagation()
-						onViewCode()
-					}}
-					title={t("common:mermaid.buttons.viewCode")}
-				/>
-				<IconButton
-					icon={copyFeedback ? "check" : "copy"}
-					onClick={onCopy}
-					title={t("common:mermaid.buttons.copy")}
-				/>
+				<StandardTooltip content={t("common:mermaid.buttons.viewCode")}>
+					<IconButton
+						icon="code"
+						onClick={(e: React.MouseEvent) => {
+							e.stopPropagation()
+							onViewCode()
+						}}
+					/>
+				</StandardTooltip>
+				<StandardTooltip content={t("common:mermaid.buttons.copy")}>
+					<IconButton icon={copyFeedback ? "check" : "copy"} onClick={onCopy} />
+				</StandardTooltip>
 			</>
 		)
 	}
 
 	return (
 		<>
-			{onZoom && <IconButton icon="zoom-in" onClick={onZoom} title={t("common:mermaid.buttons.zoom")} />}
-			<IconButton
-				icon="code"
-				onClick={(e: React.MouseEvent) => {
-					e.stopPropagation()
-					onViewCode()
-				}}
-				title={t("common:mermaid.buttons.viewCode")}
-			/>
-			<IconButton
-				icon={copyFeedback ? "check" : "copy"}
-				onClick={onCopy}
-				title={t("common:mermaid.buttons.copy")}
-			/>
-			{onSave && <IconButton icon="save" onClick={onSave} title={t("common:mermaid.buttons.save")} />}
-			{onClose && <IconButton icon="close" onClick={onClose} title={t("common:mermaid.buttons.close")} />}
+			{onZoom && (
+				<StandardTooltip content={t("common:mermaid.buttons.zoom")}>
+					<IconButton icon="zoom-in" onClick={onZoom} />
+				</StandardTooltip>
+			)}
+			<StandardTooltip content={t("common:mermaid.buttons.viewCode")}>
+				<IconButton
+					icon="code"
+					onClick={(e: React.MouseEvent) => {
+						e.stopPropagation()
+						onViewCode()
+					}}
+				/>
+			</StandardTooltip>
+			<StandardTooltip content={t("common:mermaid.buttons.copy")}>
+				<IconButton icon={copyFeedback ? "check" : "copy"} onClick={onCopy} />
+			</StandardTooltip>
+			{onSave && (
+				<StandardTooltip content={t("common:mermaid.buttons.save")}>
+					<IconButton icon="save" onClick={onSave} />
+				</StandardTooltip>
+			)}
+			{onClose && (
+				<StandardTooltip content={t("common:mermaid.buttons.close")}>
+					<IconButton icon="close" onClick={onClose} />
+				</StandardTooltip>
+			)}
 		</>
 	)
 }

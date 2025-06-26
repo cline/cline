@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { Edit } from "lucide-react"
 
-import { Button } from "@/components/ui"
+import { Button, StandardTooltip } from "@/components/ui"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
@@ -36,18 +36,19 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }:
 						aria-label={suggestion}>
 						<div>{suggestion}</div>
 					</Button>
-					<div
-						className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-						onClick={(e) => {
-							e.stopPropagation()
-							// Simulate shift-click by directly calling the handler with shiftKey=true.
-							onSuggestionClick?.(suggestion, { ...e, shiftKey: true })
-						}}
-						title={t("chat:followUpSuggest.copyToInput")}>
-						<Button variant="ghost" size="icon">
-							<Edit />
-						</Button>
-					</div>
+					<StandardTooltip content={t("chat:followUpSuggest.copyToInput")}>
+						<div
+							className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+							onClick={(e) => {
+								e.stopPropagation()
+								// Simulate shift-click by directly calling the handler with shiftKey=true.
+								onSuggestionClick?.(suggestion, { ...e, shiftKey: true })
+							}}>
+							<Button variant="ghost" size="icon">
+								<Edit />
+							</Button>
+						</div>
+					</StandardTooltip>
 				</div>
 			))}
 		</div>

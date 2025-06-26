@@ -2,7 +2,7 @@ import { useState, useCallback } from "react"
 import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons"
 import { useTranslation } from "react-i18next"
 
-import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+import { Button, Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"
 import { useRooPortal } from "@/components/ui/hooks"
 
 import { vscode } from "@src/utils/vscode"
@@ -48,13 +48,11 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 	return (
 		<div className="flex flex-row gap-1">
 			{isDiffAvailable && (
-				<Button
-					variant="ghost"
-					size="icon"
-					onClick={onCheckpointDiff}
-					title={t("chat:checkpoint.menu.viewDiff")}>
-					<span className="codicon codicon-diff-single" />
-				</Button>
+				<StandardTooltip content={t("chat:checkpoint.menu.viewDiff")}>
+					<Button variant="ghost" size="icon" onClick={onCheckpointDiff}>
+						<span className="codicon codicon-diff-single" />
+					</Button>
+				</StandardTooltip>
 			)}
 			{isRestoreAvailable && (
 				<Popover
@@ -64,9 +62,11 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 						setIsConfirming(false)
 					}}>
 					<PopoverTrigger asChild>
-						<Button variant="ghost" size="icon" title={t("chat:checkpoint.menu.restore")}>
-							<span className="codicon codicon-history" />
-						</Button>
+						<StandardTooltip content={t("chat:checkpoint.menu.restore")}>
+							<Button variant="ghost" size="icon">
+								<span className="codicon codicon-history" />
+							</Button>
+						</StandardTooltip>
 					</PopoverTrigger>
 					<PopoverContent align="end" container={portalContainer}>
 						<div className="flex flex-col gap-2">

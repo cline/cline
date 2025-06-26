@@ -20,6 +20,7 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
+	StandardTooltip,
 } from "@/components/ui"
 
 interface ShareButtonProps {
@@ -144,15 +145,16 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 			{shareButtonState.showPopover ? (
 				<Popover open={shareDropdownOpen} onOpenChange={setShareDropdownOpen}>
 					<PopoverTrigger asChild>
-						<Button
-							variant="ghost"
-							size="icon"
-							disabled={disabled || shareButtonState.disabled}
-							className="h-7 w-7 p-1.5 hover:bg-vscode-toolbar-hoverBackground"
-							title={shareButtonState.title}
-							onClick={handleShareButtonClick}>
-							<span className="codicon codicon-link"></span>
-						</Button>
+						<StandardTooltip content={shareButtonState.title}>
+							<Button
+								variant="ghost"
+								size="icon"
+								disabled={disabled || shareButtonState.disabled}
+								className="h-7 w-7 p-1.5 hover:bg-vscode-toolbar-hoverBackground"
+								onClick={handleShareButtonClick}>
+								<span className="codicon codicon-link"></span>
+							</Button>
+						</StandardTooltip>
 					</PopoverTrigger>
 					<PopoverContent className="w-56 p-0" align="start">
 						{shareSuccess ? (
@@ -205,15 +207,16 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 					</PopoverContent>
 				</Popover>
 			) : (
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={disabled || shareButtonState.disabled}
-					className="h-7 w-7 p-1.5 hover:bg-vscode-toolbar-hoverBackground"
-					title={shareButtonState.title}
-					onClick={handleShareButtonClick}>
-					<span className="codicon codicon-link"></span>
-				</Button>
+				<StandardTooltip content={shareButtonState.title}>
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={disabled || shareButtonState.disabled}
+						className="h-7 w-7 p-1.5 hover:bg-vscode-toolbar-hoverBackground"
+						onClick={handleShareButtonClick}>
+						<span className="codicon codicon-link"></span>
+					</Button>
+				</StandardTooltip>
 			)}
 
 			{/* Connect to Cloud Modal */}

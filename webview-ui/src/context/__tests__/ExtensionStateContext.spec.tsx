@@ -1,4 +1,4 @@
-import { render, screen, act } from "@testing-library/react"
+import { render, screen, act } from "@/utils/test-utils"
 
 import { ProviderSettings, ExperimentId } from "@roo-code/types"
 

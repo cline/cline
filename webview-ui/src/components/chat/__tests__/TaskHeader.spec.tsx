@@ -1,7 +1,7 @@
 // npx vitest src/components/chat/__tests__/TaskHeader.spec.tsx
 
 import React from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { ProviderSettings } from "@roo-code/types"
@@ -93,22 +93,33 @@ describe("TaskHeader", () => {
 
 	it("should render the condense context button", () => {
 		renderTaskHeader()
-		expect(screen.getByTitle("chat:task.condenseContext")).toBeInTheDocument()
+		// Find the button that contains the FoldVertical icon
+		const buttons = screen.getAllByRole("button")
+		const condenseButton = buttons.find((button) => button.querySelector("svg.lucide-fold-vertical"))
+		expect(condenseButton).toBeDefined()
+		expect(condenseButton?.querySelector("svg")).toBeInTheDocument()
 	})
 
 	it("should call handleCondenseContext when condense context button is clicked", () => {
 		const handleCondenseContext = vi.fn()
 		renderTaskHeader({ handleCondenseContext })
-		const condenseButton = screen.getByTitle("chat:task.condenseContext")
-		fireEvent.click(condenseButton)
+		// Find the button that contains the FoldVertical icon
+		const buttons = screen.getAllByRole("button")
+		const condenseButton = buttons.find((button) => button.querySelector("svg.lucide-fold-vertical"))
+		expect(condenseButton).toBeDefined()
+		fireEvent.click(condenseButton!)
 		expect(handleCondenseContext).toHaveBeenCalledWith("test-task-id")
 	})
 
 	it("should disable the condense context button when buttonsDisabled is true", () => {
 		const handleCondenseContext = vi.fn()
 		renderTaskHeader({ buttonsDisabled: true, handleCondenseContext })
-		const condenseButton = screen.getByTitle("chat:task.condenseContext")
-		fireEvent.click(condenseButton)
+		// Find the button that contains the FoldVertical icon
+		const buttons = screen.getAllByRole("button")
+		const condenseButton = buttons.find((button) => button.querySelector("svg.lucide-fold-vertical"))
+		expect(condenseButton).toBeDefined()
+		expect(condenseButton).toBeDisabled()
+		fireEvent.click(condenseButton!)
 		expect(handleCondenseContext).not.toHaveBeenCalled()
 	})
 })

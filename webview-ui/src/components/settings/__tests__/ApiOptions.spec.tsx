@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/ApiOptions.spec.tsx
 
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { type ModelInfo, type ProviderSettings, openAiModelInfoSaneDefaults } from "@roo-code/types"
@@ -61,6 +61,7 @@ vi.mock("@/components/ui", () => ({
 			{children}
 		</button>
 	),
+	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
 	// Add missing components used by ModelPicker
 	Command: ({ children }: any) => <div className="command-mock">{children}</div>,
 	CommandEmpty: ({ children }: any) => <div className="command-empty-mock">{children}</div>,

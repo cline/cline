@@ -1,6 +1,6 @@
 // npx vitest run src/components/chat/__tests__/ChatView.auto-approve.spec.tsx
 
-import { render, waitFor } from "@testing-library/react"
+import { render, waitFor } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"

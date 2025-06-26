@@ -2,7 +2,7 @@ import type { GlobalSettings } from "@roo-code/types"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui"
+import { Button, StandardTooltip } from "@/components/ui"
 
 type AutoApproveToggles = Pick<
 	GlobalSettings,
@@ -100,20 +100,20 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 				"[@media(min-width:800px)]:max-w-[800px]",
 			)}>
 			{Object.values(autoApproveSettingsConfig).map(({ key, descriptionKey, labelKey, icon, testId }) => (
-				<Button
-					key={key}
-					variant={props[key] ? "default" : "outline"}
-					onClick={() => onToggle(key, !props[key])}
-					title={t(descriptionKey || "")}
-					aria-label={t(labelKey)}
-					aria-pressed={!!props[key]}
-					data-testid={testId}
-					className={cn(" aspect-square h-[80px]", !props[key] && "opacity-50")}>
-					<span className={cn("flex flex-col items-center gap-1")}>
-						<span className={`codicon codicon-${icon}`} />
-						<span className="text-sm text-center">{t(labelKey)}</span>
-					</span>
-				</Button>
+				<StandardTooltip key={key} content={t(descriptionKey || "")}>
+					<Button
+						variant={props[key] ? "default" : "outline"}
+						onClick={() => onToggle(key, !props[key])}
+						aria-label={t(labelKey)}
+						aria-pressed={!!props[key]}
+						data-testid={testId}
+						className={cn(" aspect-square h-[80px]", !props[key] && "opacity-50")}>
+						<span className={cn("flex flex-col items-center gap-1")}>
+							<span className={`codicon codicon-${icon}`} />
+							<span className="text-sm text-center">{t(labelKey)}</span>
+						</span>
+					</Button>
+				</StandardTooltip>
 			))}
 		</div>
 	)

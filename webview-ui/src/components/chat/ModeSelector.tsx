@@ -2,7 +2,7 @@ import React from "react"
 import { ChevronUp, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+import { Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"
 import { IconButton } from "./IconButton"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -61,6 +61,27 @@ export const ModeSelector = ({
 	// Find the selected mode
 	const selectedMode = React.useMemo(() => modes.find((mode) => mode.slug === value), [modes, value])
 
+	const trigger = (
+		<PopoverTrigger
+			disabled={disabled}
+			data-testid="mode-selector-trigger"
+			className={cn(
+				"inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
+				"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground",
+				"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
+				disabled
+					? "opacity-50 cursor-not-allowed"
+					: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
+				triggerClassName,
+				!disabled && !hasOpenedModeSelector
+					? "bg-primary opacity-90 hover:bg-primary-hover text-vscode-button-foreground"
+					: null,
+			)}>
+			<ChevronUp className="pointer-events-none opacity-80 flex-shrink-0 size-3" />
+			<span className="truncate">{selectedMode?.name || ""}</span>
+		</PopoverTrigger>
+	)
+
 	return (
 		<Popover
 			open={open}
@@ -69,25 +90,7 @@ export const ModeSelector = ({
 				setOpen(isOpen)
 			}}
 			data-testid="mode-selector-root">
-			<PopoverTrigger
-				disabled={disabled}
-				title={title}
-				data-testid="mode-selector-trigger"
-				className={cn(
-					"inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
-					"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground",
-					"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
-					disabled
-						? "opacity-50 cursor-not-allowed"
-						: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
-					triggerClassName,
-					!disabled && !hasOpenedModeSelector
-						? "bg-primary opacity-90 hover:bg-primary-hover text-vscode-button-foreground"
-						: null,
-				)}>
-				<ChevronUp className="pointer-events-none opacity-80 flex-shrink-0 size-3" />
-				<span className="truncate">{selectedMode?.name || ""}</span>
-			</PopoverTrigger>
+			{title ? <StandardTooltip content={title}>{trigger}</StandardTooltip> : trigger}
 
 			<PopoverContent
 				align="start"

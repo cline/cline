@@ -10,7 +10,7 @@ import { getModelMaxOutputTokens } from "@roo/api"
 
 import { formatLargeNumber } from "@src/utils/format"
 import { cn } from "@src/lib/utils"
-import { Button } from "@src/components/ui"
+import { Button, StandardTooltip } from "@src/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
 
@@ -58,13 +58,14 @@ const TaskHeader = ({
 	const { width: windowWidth } = useWindowSize()
 
 	const condenseButton = (
-		<button
-			title={t("chat:task.condenseContext")}
-			disabled={buttonsDisabled}
-			onClick={() => currentTaskItem && handleCondenseContext(currentTaskItem.id)}
-			className="shrink-0 min-h-[20px] min-w-[20px] p-[2px] cursor-pointer disabled:cursor-not-allowed opacity-85 hover:opacity-100 bg-transparent border-none rounded-md">
-			<FoldVertical size={16} />
-		</button>
+		<StandardTooltip content={t("chat:task.condenseContext")}>
+			<button
+				disabled={buttonsDisabled}
+				onClick={() => currentTaskItem && handleCondenseContext(currentTaskItem.id)}
+				className="shrink-0 min-h-[20px] min-w-[20px] p-[2px] cursor-pointer disabled:cursor-not-allowed opacity-85 hover:opacity-100 bg-transparent border-none rounded-md">
+				<FoldVertical size={16} />
+			</button>
+		</StandardTooltip>
 	)
 
 	return (
@@ -95,14 +96,11 @@ const TaskHeader = ({
 							)}
 						</div>
 					</div>
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={onClose}
-						title={t("chat:task.closeAndStart")}
-						className="shrink-0 w-5 h-5">
-						<span className="codicon codicon-close" />
-					</Button>
+					<StandardTooltip content={t("chat:task.closeAndStart")}>
+						<Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 w-5 h-5">
+							<span className="codicon codicon-close" />
+						</Button>
+					</StandardTooltip>
 				</div>
 				{/* Collapsed state: Track context and cost if we have any */}
 				{!isTaskExpanded && contextWindow > 0 && (

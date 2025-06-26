@@ -45,6 +45,7 @@ import {
 	CommandItem,
 	CommandGroup,
 	Input,
+	StandardTooltip,
 } from "@src/components/ui"
 
 // Get all available groups that should show in prompts view
@@ -431,30 +432,29 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
 						<h3 className="text-vscode-foreground m-0">{t("prompts:modes.title")}</h3>
 						<div className="flex gap-2">
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={openCreateModeDialog}
-								title={t("prompts:modes.createNewMode")}>
-								<span className="codicon codicon-add"></span>
-							</Button>
-							<div className="relative inline-block">
-								<Button
-									variant="ghost"
-									size="icon"
-									title={t("prompts:modes.editModesConfig")}
-									className="flex"
-									onClick={(e: React.MouseEvent) => {
-										e.preventDefault()
-										e.stopPropagation()
-										setShowConfigMenu((prev) => !prev)
-									}}
-									onBlur={() => {
-										// Add slight delay to allow menu item clicks to register
-										setTimeout(() => setShowConfigMenu(false), 200)
-									}}>
-									<span className="codicon codicon-json"></span>
+							<StandardTooltip content={t("prompts:modes.createNewMode")}>
+								<Button variant="ghost" size="icon" onClick={openCreateModeDialog}>
+									<span className="codicon codicon-add"></span>
 								</Button>
+							</StandardTooltip>
+							<div className="relative inline-block">
+								<StandardTooltip content={t("prompts:modes.editModesConfig")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="flex"
+										onClick={(e: React.MouseEvent) => {
+											e.preventDefault()
+											e.stopPropagation()
+											setShowConfigMenu((prev) => !prev)
+										}}
+										onBlur={() => {
+											// Add slight delay to allow menu item clicks to register
+											setTimeout(() => setShowConfigMenu(false), 200)
+										}}>
+										<span className="codicon codicon-json"></span>
+									</Button>
+								</StandardTooltip>
 								{showConfigMenu && (
 									<div
 										onClick={(e) => e.stopPropagation()}
@@ -652,18 +652,19 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 										}}
 										className="w-full"
 									/>
-									<Button
-										variant="ghost"
-										size="icon"
-										title={t("prompts:createModeDialog.deleteMode")}
-										onClick={() => {
-											vscode.postMessage({
-												type: "deleteCustomMode",
-												slug: visualMode,
-											})
-										}}>
-										<span className="codicon codicon-trash"></span>
-									</Button>
+									<StandardTooltip content={t("prompts:createModeDialog.deleteMode")}>
+										<Button
+											variant="ghost"
+											size="icon"
+											onClick={() => {
+												vscode.postMessage({
+													type: "deleteCustomMode",
+													slug: visualMode,
+												})
+											}}>
+											<span className="codicon codicon-trash"></span>
+										</Button>
+									</StandardTooltip>
 								</div>
 							</div>
 						</div>
@@ -674,19 +675,20 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						<div className="flex justify-between items-center mb-1">
 							<div className="font-bold">{t("prompts:roleDefinition.title")}</div>
 							{!findModeBySlug(visualMode, customModes) && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => {
-										const currentMode = getCurrentMode()
-										if (currentMode?.slug) {
-											handleAgentReset(currentMode.slug, "roleDefinition")
-										}
-									}}
-									title={t("prompts:roleDefinition.resetToDefault")}
-									data-testid="role-definition-reset">
-									<span className="codicon codicon-discard"></span>
-								</Button>
+								<StandardTooltip content={t("prompts:roleDefinition.resetToDefault")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={() => {
+											const currentMode = getCurrentMode()
+											if (currentMode?.slug) {
+												handleAgentReset(currentMode.slug, "roleDefinition")
+											}
+										}}
+										data-testid="role-definition-reset">
+										<span className="codicon codicon-discard"></span>
+									</Button>
+								</StandardTooltip>
 							)}
 						</div>
 						<div className="text-sm text-vscode-descriptionForeground mb-2">
@@ -733,19 +735,20 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						<div className="flex justify-between items-center mb-1">
 							<div className="font-bold">{t("prompts:description.title")}</div>
 							{!findModeBySlug(visualMode, customModes) && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => {
-										const currentMode = getCurrentMode()
-										if (currentMode?.slug) {
-											handleAgentReset(currentMode.slug, "description")
-										}
-									}}
-									title={t("prompts:description.resetToDefault")}
-									data-testid="description-reset">
-									<span className="codicon codicon-discard"></span>
-								</Button>
+								<StandardTooltip content={t("prompts:description.resetToDefault")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={() => {
+											const currentMode = getCurrentMode()
+											if (currentMode?.slug) {
+												handleAgentReset(currentMode.slug, "description")
+											}
+										}}
+										data-testid="description-reset">
+										<span className="codicon codicon-discard"></span>
+									</Button>
+								</StandardTooltip>
 							)}
 						</div>
 						<div className="text-sm text-vscode-descriptionForeground mb-2">
@@ -786,19 +789,20 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						<div className="flex justify-between items-center mb-1">
 							<div className="font-bold">{t("prompts:whenToUse.title")}</div>
 							{!findModeBySlug(visualMode, customModes) && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => {
-										const currentMode = getCurrentMode()
-										if (currentMode?.slug) {
-											handleAgentReset(currentMode.slug, "whenToUse")
-										}
-									}}
-									title={t("prompts:whenToUse.resetToDefault")}
-									data-testid="when-to-use-reset">
-									<span className="codicon codicon-discard"></span>
-								</Button>
+								<StandardTooltip content={t("prompts:whenToUse.resetToDefault")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={() => {
+											const currentMode = getCurrentMode()
+											if (currentMode?.slug) {
+												handleAgentReset(currentMode.slug, "whenToUse")
+											}
+										}}
+										data-testid="when-to-use-reset">
+										<span className="codicon codicon-discard"></span>
+									</Button>
+								</StandardTooltip>
 							)}
 						</div>
 						<div className="text-sm text-vscode-descriptionForeground mb-2">
@@ -843,18 +847,20 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 							<div className="flex justify-between items-center mb-1">
 								<div className="font-bold">{t("prompts:tools.title")}</div>
 								{findModeBySlug(visualMode, customModes) && (
-									<Button
-										variant="ghost"
-										size="icon"
-										onClick={() => setIsToolsEditMode(!isToolsEditMode)}
-										title={
+									<StandardTooltip
+										content={
 											isToolsEditMode
 												? t("prompts:tools.doneEditing")
 												: t("prompts:tools.editTools")
 										}>
-										<span
-											className={`codicon codicon-${isToolsEditMode ? "check" : "edit"}`}></span>
-									</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											onClick={() => setIsToolsEditMode(!isToolsEditMode)}>
+											<span
+												className={`codicon codicon-${isToolsEditMode ? "check" : "edit"}`}></span>
+										</Button>
+									</StandardTooltip>
 								)}
 							</div>
 							{!findModeBySlug(visualMode, customModes) && (
@@ -936,19 +942,20 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						<div className="flex justify-between items-center mb-1">
 							<div className="font-bold">{t("prompts:customInstructions.title")}</div>
 							{!findModeBySlug(visualMode, customModes) && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => {
-										const currentMode = getCurrentMode()
-										if (currentMode?.slug) {
-											handleAgentReset(currentMode.slug, "customInstructions")
-										}
-									}}
-									title={t("prompts:customInstructions.resetToDefault")}
-									data-testid="custom-instructions-reset">
-									<span className="codicon codicon-discard"></span>
-								</Button>
+								<StandardTooltip content={t("prompts:customInstructions.resetToDefault")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={() => {
+											const currentMode = getCurrentMode()
+											if (currentMode?.slug) {
+												handleAgentReset(currentMode.slug, "customInstructions")
+											}
+										}}
+										data-testid="custom-instructions-reset">
+										<span className="codicon codicon-discard"></span>
+									</Button>
+								</StandardTooltip>
 							)}
 						</div>
 						<div className="text-[13px] text-vscode-descriptionForeground mb-2">
@@ -1041,22 +1048,23 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 							data-testid="preview-prompt-button">
 							{t("prompts:systemPrompt.preview")}
 						</Button>
-						<Button
-							variant="ghost"
-							size="icon"
-							title={t("prompts:systemPrompt.copy")}
-							onClick={() => {
-								const currentMode = getCurrentMode()
-								if (currentMode) {
-									vscode.postMessage({
-										type: "copySystemPrompt",
-										mode: currentMode.slug,
-									})
-								}
-							}}
-							data-testid="copy-prompt-button">
-							<span className="codicon codicon-copy"></span>
-						</Button>
+						<StandardTooltip content={t("prompts:systemPrompt.copy")}>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => {
+									const currentMode = getCurrentMode()
+									if (currentMode) {
+										vscode.postMessage({
+											type: "copySystemPrompt",
+											mode: currentMode.slug,
+										})
+									}
+								}}
+								data-testid="copy-prompt-button">
+								<span className="codicon codicon-copy"></span>
+							</Button>
+						</StandardTooltip>
 					</div>
 
 					{/* Custom System Prompt Disclosure */}

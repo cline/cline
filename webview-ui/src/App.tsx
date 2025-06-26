@@ -20,6 +20,8 @@ import ModesView from "./components/modes/ModesView"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 import { AccountView } from "./components/account/AccountView"
 import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonInteractiveClick"
+import { TooltipProvider } from "./components/ui/tooltip"
+import { STANDARD_TOOLTIP_DELAY } from "./components/ui/standard-tooltip"
 
 type Tab = "settings" | "history" | "mcp" | "modes" | "chat" | "marketplace" | "account"
 
@@ -215,7 +217,9 @@ const AppWithProviders = () => (
 	<ExtensionStateContextProvider>
 		<TranslationProvider>
 			<QueryClientProvider client={queryClient}>
-				<App />
+				<TooltipProvider delayDuration={STANDARD_TOOLTIP_DELAY}>
+					<App />
+				</TooltipProvider>
 			</QueryClientProvider>
 		</TranslationProvider>
 	</ExtensionStateContextProvider>

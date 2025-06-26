@@ -1,5 +1,5 @@
 import React from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { OpenAICompatible } from "../OpenAICompatible"
 import { ProviderSettings } from "@roo-code/types"
 
@@ -64,6 +64,7 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 // Mock the UI components
 vi.mock("@src/components/ui", () => ({
 	Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+	StandardTooltip: ({ children, content }: any) => <div title={content}>{children}</div>,
 }))
 
 // Mock other components

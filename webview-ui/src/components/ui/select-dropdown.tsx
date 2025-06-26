@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { useRooPortal } from "./hooks/useRooPortal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+import { StandardTooltip } from "@/components/ui"
 
 export enum DropdownOptionType {
 	ITEM = "item",
@@ -185,25 +186,28 @@ export const SelectDropdown = React.memo(
 				[onChange, options],
 			)
 
+			const triggerContent = (
+				<PopoverTrigger
+					ref={ref}
+					disabled={disabled}
+					data-testid="dropdown-trigger"
+					className={cn(
+						"w-full min-w-0 max-w-full inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
+						"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground w-auto",
+						"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
+						disabled
+							? "opacity-50 cursor-not-allowed"
+							: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
+						triggerClassName,
+					)}>
+					<CaretUpIcon className="pointer-events-none opacity-80 flex-shrink-0 size-3" />
+					<span className="truncate">{displayText}</span>
+				</PopoverTrigger>
+			)
+
 			return (
 				<Popover open={open} onOpenChange={onOpenChange} data-testid="dropdown-root">
-					<PopoverTrigger
-						ref={ref}
-						disabled={disabled}
-						title={title}
-						data-testid="dropdown-trigger"
-						className={cn(
-							"w-full min-w-0 max-w-full inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
-							"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground w-auto",
-							"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
-							disabled
-								? "opacity-50 cursor-not-allowed"
-								: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
-							triggerClassName,
-						)}>
-						<CaretUpIcon className="pointer-events-none opacity-80 flex-shrink-0 size-3" />
-						<span className="truncate">{displayText}</span>
-					</PopoverTrigger>
+					{title ? <StandardTooltip content={title}>{triggerContent}</StandardTooltip> : triggerContent}
 					<PopoverContent
 						align={align}
 						sideOffset={sideOffset}

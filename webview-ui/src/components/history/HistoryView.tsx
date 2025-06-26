@@ -5,7 +5,16 @@ import { Virtuoso } from "react-virtuoso"
 
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { Button, Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
+import {
+	Button,
+	Checkbox,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	StandardTooltip,
+} from "@/components/ui"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
@@ -75,20 +84,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				<div className="flex justify-between items-center">
 					<h3 className="text-vscode-foreground m-0">{t("history:history")}</h3>
 					<div className="flex gap-2">
-						<Button
-							variant={isSelectionMode ? "default" : "secondary"}
-							onClick={toggleSelectionMode}
-							data-testid="toggle-selection-mode-button"
-							title={
+						<StandardTooltip
+							content={
 								isSelectionMode
 									? `${t("history:exitSelectionMode")}`
 									: `${t("history:enterSelectionMode")}`
 							}>
-							<span
-								className={`codicon ${isSelectionMode ? "codicon-check-all" : "codicon-checklist"} mr-1`}
-							/>
-							{isSelectionMode ? t("history:exitSelection") : t("history:selectionMode")}
-						</Button>
+							<Button
+								variant={isSelectionMode ? "default" : "secondary"}
+								onClick={toggleSelectionMode}
+								data-testid="toggle-selection-mode-button">
+								<span
+									className={`codicon ${isSelectionMode ? "codicon-check-all" : "codicon-checklist"} mr-1`}
+								/>
+								{isSelectionMode ? t("history:exitSelection") : t("history:selectionMode")}
+							</Button>
+						</StandardTooltip>
 						<Button onClick={onDone}>{t("history:done")}</Button>
 					</div>
 				</div>

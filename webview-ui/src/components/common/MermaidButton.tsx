@@ -7,6 +7,7 @@ import { Modal } from "./Modal"
 import { TabButton } from "./TabButton"
 import { IconButton } from "./IconButton"
 import { ZoomControls } from "./ZoomControls"
+import { StandardTooltip } from "@/components/ui"
 
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 20
@@ -160,11 +161,9 @@ export function MermaidButton({ containerRef, code, isLoading, svgToPng, childre
 					</div>
 
 					<div className="pr-3">
-						<IconButton
-							icon="close"
-							onClick={() => setShowModal(false)}
-							title={t("common:mermaid.buttons.close")}
-						/>
+						<StandardTooltip content={t("common:mermaid.buttons.close")}>
+							<IconButton icon="close" onClick={() => setShowModal(false)} />
+						</StandardTooltip>
 					</div>
 				</div>
 				<div
@@ -222,22 +221,23 @@ export function MermaidButton({ containerRef, code, isLoading, svgToPng, childre
 								zoomInStep={0.2}
 								zoomOutStep={-0.2}
 							/>
-							<IconButton
-								icon={copyFeedback ? "check" : "copy"}
-								onClick={handleCopy}
-								title={t("common:mermaid.buttons.copy")}
-							/>
-							<IconButton icon="save" onClick={handleSave} title={t("common:mermaid.buttons.save")} />
+							<StandardTooltip content={t("common:mermaid.buttons.copy")}>
+								<IconButton icon={copyFeedback ? "check" : "copy"} onClick={handleCopy} />
+							</StandardTooltip>
+							<StandardTooltip content={t("common:mermaid.buttons.save")}>
+								<IconButton icon="save" onClick={handleSave} />
+							</StandardTooltip>
 						</>
 					) : (
-						<IconButton
-							icon={copyFeedback ? "check" : "copy"}
-							onClick={(e) => {
-								e.stopPropagation()
-								copyWithFeedback(code, e)
-							}}
-							title={t("common:mermaid.buttons.copy")}
-						/>
+						<StandardTooltip content={t("common:mermaid.buttons.copy")}>
+							<IconButton
+								icon={copyFeedback ? "check" : "copy"}
+								onClick={(e) => {
+									e.stopPropagation()
+									copyWithFeedback(code, e)
+								}}
+							/>
+						</StandardTooltip>
 					)}
 				</div>
 			</Modal>
