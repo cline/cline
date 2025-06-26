@@ -86,7 +86,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		const deepseekReasoner = modelId.includes("deepseek-reasoner") || enabledR1Format
 		const ark = modelUrl.includes(".volces.com")
 
-		if (modelId.startsWith("o3-mini")) {
+		if (modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4")) {
 			yield* this.handleO3FamilyMessage(modelId, systemPrompt, messages)
 			return
 		}
@@ -306,7 +306,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				stream: true,
 				...(isGrokXAI ? {} : { stream_options: { include_usage: true } }),
 				reasoning_effort: modelInfo.reasoningEffort,
-				temperature: this.options.modelTemperature ?? 0,
+				temperature: undefined,
 			}
 
 			// O3 family models do not support the deprecated max_tokens parameter
@@ -331,7 +331,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 					...convertToOpenAiMessages(messages),
 				],
 				reasoning_effort: modelInfo.reasoningEffort,
-				temperature: this.options.modelTemperature ?? 0,
+				temperature: undefined,
 			}
 
 			// O3 family models do not support the deprecated max_tokens parameter
