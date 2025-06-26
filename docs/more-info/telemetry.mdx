@@ -6,7 +6,7 @@ title: "Telemetry"
 
 To help make Cline better for everyone, we collect anonymous usage data that helps us understand how developers are using our open-source AI coding agent. This feedback loop is crucial for improving Cline's capabilities and user experience.
 
-We use PostHog, an open-source analytics platform, for data collection and analysis. Our telemetry implementation is fully transparent - you can review the [source code](https://github.com/cline/cline/blob/main/src/services/telemetry/TelemetryService.ts) to see exactly what we track.
+We use PostHog, an open-source analytics platform, for data collection and analysis. Our telemetry implementation is fully transparent - you can review the [source code](https://github.com/cline/cline/blob/main/src/services/posthog/telemetry/TelemetryService.ts) to see exactly what we track.
 
 ### Tracking Policy
 
@@ -22,7 +22,7 @@ We collect basic anonymous usage data including:
 **System Context:** OS type and VS Code environment details\
 **UI Activity:** Navigation patterns and feature usage
 
-For complete transparency, you can inspect our [telemetry implementation](https://github.com/cline/cline/blob/main/src/services/telemetry/TelemetryService.ts) to see the exact events we track.
+For complete transparency, you can inspect our [telemetry implementation](https://github.com/cline/cline/blob/main/src/services/posthog/telemetry/TelemetryService.ts) to see the exact events we track.
 
 ### How to Opt Out
 
