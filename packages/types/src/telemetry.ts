@@ -25,6 +25,7 @@ export enum TelemetryEventName {
 	TASK_CONVERSATION_MESSAGE = "Conversation Message",
 	LLM_COMPLETION = "LLM Completion",
 	MODE_SWITCH = "Mode Switched",
+	MODE_SELECTOR_OPENED = "Mode Selector Opened",
 	TOOL_USED = "Tool Used",
 
 	CHECKPOINT_CREATED = "Checkpoint Created",
@@ -126,6 +127,7 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.TASK_COMPLETED,
 			TelemetryEventName.TASK_CONVERSATION_MESSAGE,
 			TelemetryEventName.MODE_SWITCH,
+			TelemetryEventName.MODE_SELECTOR_OPENED,
 			TelemetryEventName.TOOL_USED,
 			TelemetryEventName.CHECKPOINT_CREATED,
 			TelemetryEventName.CHECKPOINT_RESTORED,

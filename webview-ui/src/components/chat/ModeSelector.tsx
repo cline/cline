@@ -9,6 +9,8 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Mode, getAllModes } from "@roo/modes"
 import { ModeConfig, CustomModePrompts } from "@roo-code/types"
+import { telemetryClient } from "@/utils/TelemetryClient"
+import { TelemetryEventName } from "@roo-code/types"
 
 interface ModeSelectorProps {
 	value: Mode
@@ -37,6 +39,10 @@ export const ModeSelector = ({
 	const { t } = useAppTranslation()
 
 	const trackModeSelectorOpened = () => {
+		// Track telemetry every time the mode selector is opened
+		telemetryClient.capture(TelemetryEventName.MODE_SELECTOR_OPENED)
+
+		// Track first-time usage for UI purposes
 		if (!hasOpenedModeSelector) {
 			setHasOpenedModeSelector(true)
 			vscode.postMessage({ type: "hasOpenedModeSelector", bool: true })
