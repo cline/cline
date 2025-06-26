@@ -935,6 +935,7 @@ async function main() {
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
 		.option("--diff-apply-file <filename>", "The name of the diff apply file to use for the replay")
+		.option("--save-locally", "Save results to local JSON files in addition to database", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
 		.option("--max-concurrency <number>", "Maximum number of parallel requests", "80")
 
@@ -945,6 +946,7 @@ async function main() {
 	const isVerbose = options.verbose
 	const testPath = options.testPath
 	const outputPath = options.outputPath
+	const saveLocally = options.saveLocally
 	const maxConcurrency = parseInt(options.maxConcurrency, 10);
 
 	// Parse model IDs from comma-separated string
@@ -1151,6 +1153,12 @@ async function main() {
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
+
+		// Save results locally if requested
+		if (saveLocally) {
+			runner.saveTestResults(results, outputPath);
+			log(isVerbose, `✓ Results also saved to JSON files in ${outputPath}`);
+		}
 
 		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {
