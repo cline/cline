@@ -54,6 +54,7 @@ import { GeminiProvider } from "./providers/GeminiProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import GeminiCliProvider from "./providers/GeminiCliProvider"
+import { RequestyProvider } from "./providers/RequestyProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -758,18 +759,13 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "requesty" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.requestyApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("requestyApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>API Key</span>
-					</VSCodeTextField>
-					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
-				</div>
+			{apiConfiguration && selectedProvider === "requesty" && (
+				<RequestyProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{selectedProvider === "fireworks" && (
@@ -1618,7 +1614,6 @@ const ApiOptions = ({
 				)}
 
 			{selectedProvider === "cline" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
-			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
