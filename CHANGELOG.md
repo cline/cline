@@ -2,17 +2,12 @@
 
 ## [3.18.0]
 
-### Added
--   Add Gemini CLI Provider, allowing free access to Gemini models through OAuth authentication.
--   Optimized Cline to work with the Gemini 2.5 family of models.
-
-### Changed
--   Optimized Cline for Claude 4 with improved prompting and tool usage.
--   Updated the default and recommended model to Claude 4 Sonnet.
-
-### Fixed
+-   **Optimized for Claude 4:** Cline is now optimized to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities.
+-   **Gemini CLI Provider:** Added a new Gemini CLI provider that allows you to use your local Gemini CLI authentication to access Gemini models for free.
+-   **Optimized for Gemini 2.5:** Cline is now also optimized to work with the Gemini 2.5 family of models.
+-   **Default Model Updated:** The default and recommended model has been updated to Claude 4 Sonnet for the best performance.
 -   Fix race condition in Plan/Act mode switching.
--   Fix search and replace parsing to handle malformed tool use from models.
+-   Improve robustness of search and replace parsing.
 
 ## [3.17.16]
 
