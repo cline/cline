@@ -70,6 +70,29 @@ describe("PostHogTelemetryClient", () => {
 		})
 	})
 
+	describe("isPropertyCapturable", () => {
+		it("should filter out git repository properties", () => {
+			const client = new PostHogTelemetryClient()
+
+			const isPropertyCapturable = getPrivateProperty<(propertyName: string) => boolean>(
+				client,
+				"isPropertyCapturable",
+			).bind(client)
+
+			// Git properties should be filtered out
+			expect(isPropertyCapturable("repositoryUrl")).toBe(false)
+			expect(isPropertyCapturable("repositoryName")).toBe(false)
+			expect(isPropertyCapturable("defaultBranch")).toBe(false)
+
+			// Other properties should be included
+			expect(isPropertyCapturable("appVersion")).toBe(true)
+			expect(isPropertyCapturable("vscodeVersion")).toBe(true)
+			expect(isPropertyCapturable("platform")).toBe(true)
+			expect(isPropertyCapturable("mode")).toBe(true)
+			expect(isPropertyCapturable("customProperty")).toBe(true)
+		})
+	})
+
 	describe("getEventProperties", () => {
 		it("should merge provider properties with event properties", async () => {
 			const client = new PostHogTelemetryClient()
@@ -110,6 +133,54 @@ describe("PostHogTelemetryClient", () => {
 			})
 
 			expect(mockProvider.getTelemetryProperties).toHaveBeenCalledTimes(1)
+		})
+
+		it("should filter out git repository properties", async () => {
+			const client = new PostHogTelemetryClient()
+
+			const mockProvider: TelemetryPropertiesProvider = {
+				getTelemetryProperties: vi.fn().mockResolvedValue({
+					appVersion: "1.0.0",
+					vscodeVersion: "1.60.0",
+					platform: "darwin",
+					editorName: "vscode",
+					language: "en",
+					mode: "code",
+					// Git properties that should be filtered out
+					repositoryUrl: "https://github.com/example/repo",
+					repositoryName: "example/repo",
+					defaultBranch: "main",
+				}),
+			}
+
+			client.setProvider(mockProvider)
+
+			const getEventProperties = getPrivateProperty<
+				(event: { event: TelemetryEventName; properties?: Record<string, any> }) => Promise<Record<string, any>>
+			>(client, "getEventProperties").bind(client)
+
+			const result = await getEventProperties({
+				event: TelemetryEventName.TASK_CREATED,
+				properties: {
+					customProp: "value",
+				},
+			})
+
+			// Git properties should be filtered out
+			expect(result).not.toHaveProperty("repositoryUrl")
+			expect(result).not.toHaveProperty("repositoryName")
+			expect(result).not.toHaveProperty("defaultBranch")
+
+			// Other properties should be included
+			expect(result).toEqual({
+				appVersion: "1.0.0",
+				vscodeVersion: "1.60.0",
+				platform: "darwin",
+				editorName: "vscode",
+				language: "en",
+				mode: "code",
+				customProp: "value",
+			})
 		})
 
 		it("should handle errors from provider gracefully", async () => {
@@ -210,6 +281,48 @@ describe("PostHogTelemetryClient", () => {
 					test: "value",
 				}),
 			})
+		})
+
+		it("should filter out git repository properties when capturing events", async () => {
+			const client = new PostHogTelemetryClient()
+			client.updateTelemetryState(true)
+
+			const mockProvider: TelemetryPropertiesProvider = {
+				getTelemetryProperties: vi.fn().mockResolvedValue({
+					appVersion: "1.0.0",
+					vscodeVersion: "1.60.0",
+					platform: "darwin",
+					editorName: "vscode",
+					language: "en",
+					mode: "code",
+					// Git properties that should be filtered out
+					repositoryUrl: "https://github.com/example/repo",
+					repositoryName: "example/repo",
+					defaultBranch: "main",
+				}),
+			}
+
+			client.setProvider(mockProvider)
+
+			await client.capture({
+				event: TelemetryEventName.TASK_CREATED,
+				properties: { test: "value" },
+			})
+
+			expect(mockPostHogClient.capture).toHaveBeenCalledWith({
+				distinctId: "test-machine-id",
+				event: TelemetryEventName.TASK_CREATED,
+				properties: expect.objectContaining({
+					appVersion: "1.0.0",
+					test: "value",
+				}),
+			})
+
+			// Verify git properties are not included
+			const captureCall = mockPostHogClient.capture.mock.calls[0][0]
+			expect(captureCall.properties).not.toHaveProperty("repositoryUrl")
+			expect(captureCall.properties).not.toHaveProperty("repositoryName")
+			expect(captureCall.properties).not.toHaveProperty("defaultBranch")
 		})
 	})
 
