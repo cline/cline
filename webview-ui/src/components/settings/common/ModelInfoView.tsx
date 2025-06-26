@@ -195,10 +195,14 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 			</span>
 		),
 		outputPriceElement, // Add the generated output price block
-		isGeminiProvider && (
+		isGeminiProvider && selectedModelId !== "gemini-2.5-pro" && selectedModelId !== "gemini-2.5-flash" && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
 				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
-				billing depends on prompt size.{" "}
+				billing depends on prompt size.
+			</span>
+		),
+		isGeminiProvider && (
+			<span key="geminiPricing" style={{ fontStyle: "italic" }}>
 				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
 					For more info, see pricing details.
 				</VSCodeLink>
