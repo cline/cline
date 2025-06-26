@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.18.0]
+
+-   Optimized Cline to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities
+-   Added a new Gemini CLI provider that allows you to use your local Gemini CLI authentication to access Gemini models for free (Thanks @google-gemini!)
+-   Optimized Cline to work with the Gemini 2.5 family of models
+-   Updated the default and recommended model to Claude 4 Sonnet for the best performance
+-   Fix race condition in Plan/Act mode switching
+-   Improve robustness of search and replace parsing
+
 ## [3.17.16]
 
 -   Fix Claude Code provider error handling for incomplete messages during long-running tasks (Thanks @BarreiroT!)
