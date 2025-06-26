@@ -9,16 +9,18 @@ import chalk from "chalk"
 import os from "os"
 
 import { createRequire } from "module"
+import { serviceNameMap, hostServiceNameMap } from "./build-proto-config.js"
+
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
-const TS_OUT_DIR = path.join(ROOT_DIR, "src/shared/proto")
-const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/grpc-js")
-const NICE_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/nice-grpc")
-const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone/proto")
+const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
+const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-js")
+const NICE_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "nice-grpc")
+const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone", "proto")
 
 const isWindows = process.platform === "win32"
 const TS_PROTO_PLUGIN = isWindows
@@ -34,34 +36,13 @@ const TS_PROTO_OPTIONS = [
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
 
-// List of gRPC services
-// To add a new service, simply add it to this map and run this script
-// The service handler will be automatically discovered and used by grpc-handler.ts
-const serviceNameMap = {
-	account: "cline.AccountService",
-	browser: "cline.BrowserService",
-	checkpoints: "cline.CheckpointsService",
-	file: "cline.FileService",
-	mcp: "cline.McpService",
-	state: "cline.StateService",
-	task: "cline.TaskService",
-	web: "cline.WebService",
-	models: "cline.ModelsService",
-	slash: "cline.SlashService",
-	ui: "cline.UiService",
-	// Add new services here - no other code changes needed!
-}
-const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
+// Service directories derived from imported serviceNameMap
+const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
 
-// List of host gRPC services (IDE API bridge)
-// These services are implemented in the IDE extension and called by the standalone Cline Core
-const hostServiceNameMap = {
-	uri: "host.UriService",
-	watch: "host.WatchService",
-	workspace: "host.WorkspaceService",
-	// Add new host services here
-}
-const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/hosts/vscode", serviceKey))
+// Host service directories derived from imported hostServiceNameMap
+const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>
+	path.join(ROOT_DIR, "src", "hosts", "vscode", serviceKey),
+)
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
@@ -177,7 +158,7 @@ export {
 	${serviceExports.join(",\n\t")}
 }`
 
-	const filePath = path.join(ROOT_DIR, "webview-ui/src/services/grpc-client.ts")
+	const filePath = path.join(ROOT_DIR, "webview-ui", "src", "services", "grpc-client.ts")
 	await writeFileWithMkdirs(filePath, content)
 	log_verbose(chalk.green(`Generated gRPC client at ${filePath}`))
 }
@@ -386,7 +367,7 @@ export interface ServiceHandlerConfig {
 export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const configPath = path.join(ROOT_DIR, "src/core/controller/grpc-service-config.ts")
+	const configPath = path.join(ROOT_DIR, "src", "core", "controller", "grpc-service-config.ts")
 	await writeFileWithMkdirs(configPath, content)
 	log_verbose(chalk.green(`Generated service configuration at ${configPath}`))
 }
@@ -602,13 +583,12 @@ async function cleanup() {
 	for (const file of existingFiles) {
 		await fs.unlink(path.join(TS_OUT_DIR, file))
 	}
-	await rmdir(path.join(ROOT_DIR, "src/generated"))
+	await rmdir(path.join(ROOT_DIR, "src", "generated"))
 
 	// Clean up generated files that were moved.
-	await fs.rm(path.join(ROOT_DIR, "src/standalone/services/host-grpc-client.ts"), { force: true })
-	await rmdir(path.join(ROOT_DIR, "src/standalone/services"))
-
-	await fs.rm(path.join(ROOT_DIR, "hosts/vscode"), { force: true, recursive: true })
+	await fs.rm(path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts"), { force: true })
+	await rmdir(path.join(ROOT_DIR, "src", "standalone", "services"))
+	await fs.rm(path.join(ROOT_DIR, "hosts", "vscode"), { force: true, recursive: true })
 	await rmdir(path.join(ROOT_DIR, "hosts"))
 
 	await fs.rm(path.join(ROOT_DIR, "src/standalone/server-setup.ts"), { force: true })
@@ -634,13 +614,6 @@ async function rmdir(path) {
 			throw error
 		}
 	}
-}
-
-function serviceNameWithoutPackage(fullServiceName) {
-	return fullServiceName.replace(/.*\./, "")
-}
-function lowercaseFirstChar(str) {
-	return str.charAt(0).toLowerCase() + str.slice(1)
 }
 
 // Check for Apple Silicon compatibility
