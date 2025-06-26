@@ -9,16 +9,17 @@ import chalk from "chalk"
 import os from "os"
 
 import { createRequire } from "module"
+import { serviceNameMap, hostServiceNameMap } from "./build-proto-config.js"
+
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
-const TS_OUT_DIR = path.join(ROOT_DIR, "src/shared/proto")
-const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/grpc-js")
-const NICE_JS_OUT_DIR = path.join(ROOT_DIR, "src/generated/nice-grpc")
-const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone/proto")
+const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
+const GRPC_JS_OUT_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-js")
+const DESCRIPTOR_OUT_DIR = path.join(ROOT_DIR, "dist-standalone", "proto")
 
 const isWindows = process.platform === "win32"
 const TS_PROTO_PLUGIN = isWindows
@@ -28,40 +29,18 @@ const TS_PROTO_PLUGIN = isWindows
 const TS_PROTO_OPTIONS = [
 	"env=node",
 	"esModuleInterop=true",
-	"outputServices=generic-definitions", // output generic ServiceDefinitions
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
 	"useOptionals=messages", // Message fields are optional, scalars are not.
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
 
-// List of gRPC services
-// To add a new service, simply add it to this map and run this script
-// The service handler will be automatically discovered and used by grpc-handler.ts
-const serviceNameMap = {
-	account: "cline.AccountService",
-	browser: "cline.BrowserService",
-	checkpoints: "cline.CheckpointsService",
-	file: "cline.FileService",
-	mcp: "cline.McpService",
-	state: "cline.StateService",
-	task: "cline.TaskService",
-	web: "cline.WebService",
-	models: "cline.ModelsService",
-	slash: "cline.SlashService",
-	ui: "cline.UiService",
-	// Add new services here - no other code changes needed!
-}
-const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
+// Service directories derived from imported serviceNameMap
+const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
 
-// List of host gRPC services (IDE API bridge)
-// These services are implemented in the IDE extension and called by the standalone Cline Core
-const hostServiceNameMap = {
-	uri: "host.UriService",
-	watch: "host.WatchService",
-	workspace: "host.WorkspaceService",
-	// Add new host services here
-}
-const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/hosts/vscode", serviceKey))
+// Host service directories derived from imported hostServiceNameMap
+const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>
+	path.join(ROOT_DIR, "src", "hosts", "vscode", serviceKey),
+)
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
@@ -70,7 +49,7 @@ async function main() {
 	checkAppleSiliconCompatibility()
 
 	// Create output directories if they don't exist
-	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, NICE_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
+	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
 		await fs.mkdir(dir, { recursive: true })
 	}
 
@@ -83,11 +62,8 @@ async function main() {
 	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR, realpath: true })
 	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), SCRIPT_DIR)
 
-	tsProtoc(TS_OUT_DIR, protoFiles, TS_PROTO_OPTIONS)
-	// grpc-js is used to generate service impls for the ProtoBus service.
-	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js,outputClientImpl=false", ...TS_PROTO_OPTIONS])
-	// nice-js is used for the Host Bridge client impls because it uses promises.
-	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
+	tsProtoc(TS_OUT_DIR, protoFiles, ["outputServices=generic-definitions", ...TS_PROTO_OPTIONS])
+	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
 
 	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
 	const descriptorProtocCommand = [
@@ -119,18 +95,17 @@ async function main() {
 
 async function tsProtoc(outDir, protoFiles, protoOptions) {
 	// Build the protoc command with proper path handling for cross-platform
-	const command = [
+	const tsProtocCommand = [
 		PROTOC,
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
 		`--ts_proto_out="${outDir}"`,
 		`--ts_proto_opt=${protoOptions.join(",")} `,
-		...protoFiles.map((s) => `"${s}"`),
+		...protoFiles,
 	].join(" ")
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
-		log_verbose(command)
-		execSync(command, { stdio: "inherit" })
+		execSync(tsProtocCommand, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
@@ -177,9 +152,9 @@ export {
 	${serviceExports.join(",\n\t")}
 }`
 
-	const filePath = path.join(ROOT_DIR, "webview-ui/src/services/grpc-client.ts")
-	await writeFileWithMkdirs(filePath, content)
-	log_verbose(chalk.green(`Generated gRPC client at ${filePath}`))
+	const configPath = path.join(ROOT_DIR, "webview-ui", "src", "services", "grpc-client.ts")
+	await fs.writeFile(configPath, content)
+	log_verbose(chalk.green(`Generated gRPC client at ${configPath}`))
 }
 
 /**
@@ -248,7 +223,17 @@ async function generateMethodRegistrations() {
 	const streamingMethodsMap = await parseProtoForStreamingMethods(protoFiles, SCRIPT_DIR)
 
 	for (const serviceDir of serviceDirs) {
+		try {
+			await fs.access(serviceDir)
+		} catch (error) {
+			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new service`))
+			await fs.mkdir(serviceDir, { recursive: true })
+		}
+
 		const serviceName = path.basename(serviceDir)
+		const registryFile = path.join(serviceDir, "methods.ts")
+		const indexFile = path.join(serviceDir, "index.ts")
+
 		const fullServiceName = serviceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
@@ -304,8 +289,7 @@ export function registerAllMethods(): void {
 		methodsContent += `}`
 
 		// Write the methods.ts file
-		const registryFile = path.join(serviceDir, "methods.ts")
-		await writeFileWithMkdirs(registryFile, methodsContent)
+		await fs.writeFile(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
@@ -334,8 +318,7 @@ export const isStreamingMethod = ${serviceName}Service.isStreamingMethod
 registerAllMethods()`
 
 		// Write the index.ts file
-		const indexFile = path.join(serviceDir, "index.ts")
-		await writeFileWithMkdirs(indexFile, indexContent)
+		await fs.writeFile(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
@@ -386,8 +369,8 @@ export interface ServiceHandlerConfig {
 export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const configPath = path.join(ROOT_DIR, "src/core/controller/grpc-service-config.ts")
-	await writeFileWithMkdirs(configPath, content)
+	const configPath = path.join(ROOT_DIR, "src", "core", "controller", "grpc-service-config.ts")
+	await fs.writeFile(configPath, content)
 	log_verbose(chalk.green(`Generated service configuration at ${configPath}`))
 }
 
@@ -454,7 +437,17 @@ async function generateHostMethodRegistrations() {
 	const streamingMethodsMap = await parseProtoForStreamingMethods(hostProtoFiles, path.join(SCRIPT_DIR, "host"))
 
 	for (const serviceDir of hostServiceDirs) {
+		try {
+			await fs.access(serviceDir)
+		} catch (error) {
+			log_verbose(chalk.cyan(`Creating directory ${serviceDir} for new host service`))
+			await fs.mkdir(serviceDir, { recursive: true })
+		}
+
 		const serviceName = path.basename(serviceDir)
+		const registryFile = path.join(serviceDir, "methods.ts")
+		const indexFile = path.join(serviceDir, "index.ts")
+
 		const fullServiceName = hostServiceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
 
@@ -510,8 +503,7 @@ export function registerAllMethods(): void {
 		methodsContent += `}`
 
 		// Write the methods.ts file
-		const registryFile = path.join(serviceDir, "methods.ts")
-		await writeFileWithMkdirs(registryFile, methodsContent)
+		await fs.writeFile(registryFile, methodsContent)
 		log_verbose(chalk.green(`Generated ${registryFile}`))
 
 		// Generate index.ts file
@@ -540,8 +532,7 @@ export const isStreamingMethod = ${serviceName}Service.isStreamingMethod
 registerAllMethods()`
 
 		// Write the index.ts file
-		const indexFile = path.join(serviceDir, "index.ts")
-		await writeFileWithMkdirs(indexFile, indexContent)
+		await fs.writeFile(indexFile, indexContent)
 		log_verbose(chalk.green(`Generated ${indexFile}`))
 	}
 
@@ -590,9 +581,10 @@ export interface HostServiceHandlerConfig {
 export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {${serviceConfigs.join(",")}
 };`
 
-	const filePath = path.join(ROOT_DIR, "src/hosts/vscode/host-grpc-service-config.ts")
-	await writeFileWithMkdirs(filePath, content)
-	log_verbose(chalk.green(`Generated host service configuration at ${filePath}`))
+	const configPath = path.join(ROOT_DIR, "src", "hosts", "vscode", "host-grpc-service-config.ts")
+	await fs.mkdir(path.dirname(configPath), { recursive: true })
+	await fs.writeFile(configPath, content)
+	log_verbose(chalk.green(`Generated host service configuration at ${configPath}`))
 }
 
 async function cleanup() {
@@ -602,24 +594,12 @@ async function cleanup() {
 	for (const file of existingFiles) {
 		await fs.unlink(path.join(TS_OUT_DIR, file))
 	}
-	await rmdir(path.join(ROOT_DIR, "src/generated"))
 
 	// Clean up generated files that were moved.
-	await fs.rm(path.join(ROOT_DIR, "src/standalone/services/host-grpc-client.ts"), { force: true })
-	await rmdir(path.join(ROOT_DIR, "src/standalone/services"))
-
-	await fs.rm(path.join(ROOT_DIR, "hosts/vscode"), { force: true, recursive: true })
+	await fs.rm(path.join(ROOT_DIR, "src", "standalone", "services", "host-grpc-client.ts"), { force: true })
+	await rmdir(path.join(ROOT_DIR, "src", "standalone", "services"))
+	await fs.rm(path.join(ROOT_DIR, "hosts", "vscode"), { force: true, recursive: true })
 	await rmdir(path.join(ROOT_DIR, "hosts"))
-
-	await fs.rm(path.join(ROOT_DIR, "src/standalone/server-setup.ts"), { force: true })
-}
-
-/**
- * Write `contents` to `filePath`, creating any necessary directories in `filePath`.
- */
-async function writeFileWithMkdirs(filePath, content) {
-	await fs.mkdir(path.dirname(filePath), { recursive: true })
-	await fs.writeFile(filePath, content)
 }
 
 /**
@@ -634,13 +614,6 @@ async function rmdir(path) {
 			throw error
 		}
 	}
-}
-
-function serviceNameWithoutPackage(fullServiceName) {
-	return fullServiceName.replace(/.*\./, "")
-}
-function lowercaseFirstChar(str) {
-	return str.charAt(0).toLowerCase() + str.slice(1)
 }
 
 // Check for Apple Silicon compatibility
