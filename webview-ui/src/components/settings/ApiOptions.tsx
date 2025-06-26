@@ -1,7 +1,6 @@
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import {
 	anthropicDefaultModelId,
@@ -43,17 +42,18 @@ import {
 	requestyDefaultModelInfo,
 	sambanovaDefaultModelId,
 	sambanovaModels,
+	sapAiCoreDefaultModelId,
+	sapAiCoreModels,
 	vertexDefaultModelId,
 	vertexGlobalModels,
 	vertexModels,
+	vscodeLmModels,
 	xaiDefaultModelId,
 	xaiModels,
-	sapAiCoreDefaultModelId,
-	sapAiCoreModels,
 } from "@shared/api"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { OpenAiModelsRequest, UpdateApiConfigurationRequest } from "@shared/proto/models"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -74,7 +74,6 @@ import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -169,17 +168,6 @@ declare module "vscode" {
 		version?: string
 		id?: string
 	}
-}
-
-function getClaudeUIContextWindow(family: string): number | null {
-	const limits: Record<string, number> = {
-		"claude-3.5-sonnet": 90000,
-		"claude-sonnet-4": 80000,
-		"claude-opus-4": 80000,
-		"claude-3.7-sonnet": 106384,
-		"claude-3.7-sonnet-thought": 106384,
-	}
-	return limits[family] || null
 }
 
 const ApiOptions = ({
@@ -2612,6 +2600,11 @@ const ModelInfoSupportsItem = ({
 		{isSupported ? supportsLabel : doesNotSupportLabel}
 	</span>
 )
+
+function getClaudeUIContextWindow(family: string): number | null {
+	const contextWindow = family ? (vscodeLmModels as any)[family]?.contextWindow : null
+	return contextWindow
+}
 
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): {
 	selectedProvider: ApiProvider
