@@ -44,15 +44,11 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Claude 4 Models:</b> Now with support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and
-					Vertex providers.
+					<b>Optimized for Claude 4:</b> Experience improved performance with sub-6% diff edit failures and new
+					capabilities like the WebFetch tool.
 				</li>
 				<li>
-					<b>New Settings Page:</b> Redesigned settings, now split into tabs for easier navigation and a cleaner
-					experience.
-				</li>
-				<li>
-					<b>Nebius AI Studio:</b> Added Nebius AI Studio as a new provider. (Thanks @Aktsvigun!)
+					<b>Free Gemini Access:</b> The new Gemini CLI Provider offers free access to Gemini models through OAuth.
 				</li>
 			</ul>
 			<Accordion isCompact className="pl-0">
@@ -67,6 +63,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
 					}}>
 					<ul style={ulStyle}>
+						<li>
+							<b>Claude 4 Models:</b> Now with support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both
+							Anthropic and Vertex providers.
+						</li>
+						<li>
+							<b>New Settings Page:</b> Redesigned settings, now split into tabs for easier navigation and a cleaner
+							experience.
+						</li>
+						<li>
+							<b>Nebius AI Studio:</b> Added Nebius AI Studio as a new provider. (Thanks @Aktsvigun!)
+						</li>
 						<li>
 							<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash
 							commands, making it easy to automate repetitive tasks.

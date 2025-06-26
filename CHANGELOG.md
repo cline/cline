@@ -1,23 +1,18 @@
 # Changelog
 
-## 3.18.0
+## [3.18.0]
 
--   5b41cf7: Optimizing cline to work for gemini 2.5 family of models
--   a2f86bd: Optimized Cline for Claude 4
--   8d6a948: Updating default and recommended model to claude 4 sonnet
--   8901484: Adding Gemini CLI Provider
+### Added
+-   Add Gemini CLI Provider, allowing free access to Gemini models through OAuth authentication.
+-   Optimized Cline to work with the Gemini 2.5 family of models.
 
--   This implementation provides access to Google's Gemini models through OAuth authentication,
--   leveraging the same authentication mechanism as the official Gemini CLI tool.
--
--   Attribution: This implementation is inspired by and uses concepts from the Google Gemini CLI,
--   which is licensed under the Apache License 2.0.
--   Original project: https://github.com/google-gemini/gemini-cli
+### Changed
+-   Optimized Cline for Claude 4 with improved prompting and tool usage.
+-   Updated the default and recommended model to Claude 4 Sonnet.
 
--   d79722b: Fix race condition in model switching
--   090bddb: Modified diff regex to account for trailing > in search & replace blocks
--   936923d: telemtrySetting protobus migration
--   670f3a1: clearAllTaskHistory protobus migration
+### Fixed
+-   Fix race condition in Plan/Act mode switching.
+-   Fix search and replace parsing to handle malformed tool use from models.
 
 ## [3.17.16]
 
