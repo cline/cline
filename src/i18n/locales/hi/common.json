@@ -139,6 +139,16 @@
 			"cloud_auth_required": "आपके संगठन को Roo Code Cloud प्रमाणीकरण की आवश्यकता है। कृपया जारी रखने के लिए साइन इन करें।",
 			"organization_mismatch": "आपको अपने संगठन के Roo Code Cloud खाते से प्रमाणित होना होगा।",
 			"verification_failed": "संगठन प्रमाणीकरण सत्यापित करने में असमर्थ।"
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "OAuth क्रेडेंशियल लोड करने में विफल। कृपया पहले प्रमाणीकरण करें: {{error}}",
+			"tokenRefreshFailed": "OAuth टोकन रीफ्रेश करने में विफल: {{error}}",
+			"onboardingTimeout": "ऑनबोर्डिंग ऑपरेशन 60 सेकंड बाद टाइमआउट हो गया। कृपया बाद में पुनः प्रयास करें।",
+			"projectDiscoveryFailed": "प्रोजेक्ट ID खोजने में असमर्थ। सुनिश्चित करें कि आप 'gemini auth' के साथ प्रमाणित हैं।",
+			"rateLimitExceeded": "दर सीमा पार हो गई। मुफ्त टियर की सीमा पहुंच गई है।",
+			"badRequest": "गलत अनुरोध: {{details}}",
+			"apiError": "Gemini CLI API त्रुटि: {{error}}",
+			"completionError": "Gemini CLI पूर्णता त्रुटि: {{error}}"
 		}
 	}
 }

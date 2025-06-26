@@ -139,6 +139,16 @@
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",
 			"organization_mismatch": "Je moet geauthenticeerd zijn met het Roo Code Cloud-account van je organisatie.",
 			"verification_failed": "Kan organisatie-authenticatie niet verifiëren."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Kan OAuth-referenties niet laden. Authenticeer eerst: {{error}}",
+			"tokenRefreshFailed": "Kan OAuth-token niet vernieuwen: {{error}}",
+			"onboardingTimeout": "Onboarding-operatie is na 60 seconden verlopen. Probeer het later opnieuw.",
+			"projectDiscoveryFailed": "Kan project-ID niet ontdekken. Zorg ervoor dat je geauthenticeerd bent met 'gemini auth'.",
+			"rateLimitExceeded": "Snelheidslimiet overschreden. Gratis tier limieten zijn bereikt.",
+			"badRequest": "Ongeldig verzoek: {{details}}",
+			"apiError": "Gemini CLI API-fout: {{error}}",
+			"completionError": "Gemini CLI voltooiingsfout: {{error}}"
 		}
 	}
 }

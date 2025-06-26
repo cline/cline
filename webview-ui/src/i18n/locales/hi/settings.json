@@ -308,6 +308,21 @@
 			"pathLabel": "क्लाउड कोड पथ",
 			"description": "आपके क्लाउड कोड सीएलआई का वैकल्पिक पथ। यदि सेट नहीं है तो डिफ़ॉल्ट 'claude' है।",
 			"placeholder": "डिफ़ॉल्ट: claude"
+		},
+		"geminiCli": {
+			"description": "यह प्रदाता Gemini CLI टूल से OAuth प्रमाणीकरण का उपयोग करता है और API कुंजियों की आवश्यकता नहीं है।",
+			"oauthPath": "OAuth क्रेडेंशियल पथ (वैकल्पिक)",
+			"oauthPathDescription": "OAuth क्रेडेंशियल फ़ाइल का पथ। डिफ़ॉल्ट स्थान (~/.gemini/oauth_creds.json) का उपयोग करने के लिए खाली छोड़ें।",
+			"instructions": "यदि आपने अभी तक प्रमाणीकरण नहीं किया है, तो कृपया पहले",
+			"instructionsContinued": "को अपने टर्मिनल में चलाएं।",
+			"setupLink": "Gemini CLI सेटअप निर्देश",
+			"requirementsTitle": "महत्वपूर्ण आवश्यकताएं",
+			"requirement1": "पहले, आपको Gemini CLI टूल इंस्टॉल करना होगा",
+			"requirement2": "फिर, अपने टर्मिनल में gemini चलाएं और सुनिश्चित करें कि आप Google से लॉग इन करें",
+			"requirement3": "केवल व्यक्तिगत Google खातों के साथ काम करता है (Google Workspace खाते नहीं)",
+			"requirement4": "API कुंजियों का उपयोग नहीं करता - प्रमाणीकरण OAuth के माध्यम से संभाला जाता है",
+			"requirement5": "Gemini CLI टूल को पहले इंस्टॉल और प्रमाणित करने की आवश्यकता है",
+			"freeAccess": "OAuth प्रमाणीकरण के माध्यम से मुफ्त पहुंच"
 		}
 	},
 	"browser": {

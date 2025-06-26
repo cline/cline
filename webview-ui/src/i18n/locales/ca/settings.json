@@ -308,6 +308,21 @@
 			"pathLabel": "Ruta del Codi Claude",
 			"description": "Ruta opcional al teu CLI de Claude Code. Per defecte, 'claude' si no s'estableix.",
 			"placeholder": "Per defecte: claude"
+		},
+		"geminiCli": {
+			"description": "Aquest proveïdor utilitza l'autenticació OAuth de l'eina Gemini CLI i no requereix claus d'API.",
+			"oauthPath": "Ruta de Credencials OAuth (opcional)",
+			"oauthPathDescription": "Ruta al fitxer de credencials OAuth. Deixa buit per utilitzar la ubicació per defecte (~/.gemini/oauth_creds.json).",
+			"instructions": "Si encara no t'has autenticat, executa",
+			"instructionsContinued": "al teu terminal primer.",
+			"setupLink": "Instruccions de Configuració de Gemini CLI",
+			"requirementsTitle": "Requisits Importants",
+			"requirement1": "Primer, necessites instal·lar l'eina Gemini CLI",
+			"requirement2": "Després, executa gemini al teu terminal i assegura't d'iniciar sessió amb Google",
+			"requirement3": "Només funciona amb comptes personals de Google (no comptes de Google Workspace)",
+			"requirement4": "No utilitza claus d'API - l'autenticació es gestiona via OAuth",
+			"requirement5": "Requereix que l'eina Gemini CLI estigui instal·lada i autenticada primer",
+			"freeAccess": "Accés gratuït via autenticació OAuth"
 		}
 	},
 	"browser": {

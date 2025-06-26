@@ -308,6 +308,21 @@
 			"pathLabel": "Claude Code Pad",
 			"description": "Optioneel pad naar uw Claude Code CLI. Standaard 'claude' als niet ingesteld.",
 			"placeholder": "Standaard: claude"
+		},
+		"geminiCli": {
+			"description": "Deze provider gebruikt OAuth-authenticatie van de Gemini CLI-tool en vereist geen API-sleutels.",
+			"oauthPath": "OAuth-referentiepad (optioneel)",
+			"oauthPathDescription": "Pad naar het OAuth-referentiebestand. Laat leeg om de standaardlocatie te gebruiken (~/.gemini/oauth_creds.json).",
+			"instructions": "Als je nog niet bent geauthenticeerd, voer dan eerst",
+			"instructionsContinued": "uit in je terminal.",
+			"setupLink": "Gemini CLI Setup-instructies",
+			"requirementsTitle": "Belangrijke vereisten",
+			"requirement1": "Eerst moet je de Gemini CLI-tool installeren",
+			"requirement2": "Voer vervolgens gemini uit in je terminal en zorg ervoor dat je inlogt met Google",
+			"requirement3": "Werkt alleen met persoonlijke Google-accounts (geen Google Workspace-accounts)",
+			"requirement4": "Gebruikt geen API-sleutels - authenticatie wordt afgehandeld via OAuth",
+			"requirement5": "Vereist dat de Gemini CLI-tool eerst wordt geïnstalleerd en geauthenticeerd",
+			"freeAccess": "Gratis toegang via OAuth-authenticatie"
 		}
 	},
 	"browser": {

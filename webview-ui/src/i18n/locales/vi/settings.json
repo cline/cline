@@ -308,6 +308,21 @@
 			"pathLabel": "Đường dẫn Claude Code",
 			"description": "Đường dẫn tùy chọn đến Claude Code CLI của bạn. Mặc định là 'claude' nếu không được đặt.",
 			"placeholder": "Mặc định: claude"
+		},
+		"geminiCli": {
+			"description": "Nhà cung cấp này sử dụng xác thực OAuth từ công cụ Gemini CLI và không yêu cầu khóa API.",
+			"oauthPath": "Đường dẫn Thông tin xác thực OAuth (tùy chọn)",
+			"oauthPathDescription": "Đường dẫn đến tệp thông tin xác thực OAuth. Để trống để sử dụng vị trí mặc định (~/.gemini/oauth_creds.json).",
+			"instructions": "Nếu bạn chưa xác thực, vui lòng chạy",
+			"instructionsContinued": "trong terminal của bạn trước.",
+			"setupLink": "Hướng dẫn Thiết lập Gemini CLI",
+			"requirementsTitle": "Yêu cầu Quan trọng",
+			"requirement1": "Trước tiên, bạn cần cài đặt công cụ Gemini CLI",
+			"requirement2": "Sau đó, chạy gemini trong terminal của bạn và đảm bảo bạn đăng nhập bằng Google",
+			"requirement3": "Chỉ hoạt động với tài khoản Google cá nhân (không phải tài khoản Google Workspace)",
+			"requirement4": "Không sử dụng khóa API - xác thực được xử lý qua OAuth",
+			"requirement5": "Yêu cầu công cụ Gemini CLI được cài đặt và xác thực trước",
+			"freeAccess": "Truy cập miễn phí qua xác thực OAuth"
 		}
 	},
 	"browser": {
