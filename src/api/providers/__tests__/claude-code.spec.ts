@@ -34,7 +34,7 @@ describe("ClaudeCodeHandler", () => {
 		const model = handler.getModel()
 		expect(model.id).toBe("claude-3-5-sonnet-20241022")
 		expect(model.info.supportsImages).toBe(false)
-		expect(model.info.supportsPromptCache).toBe(false)
+		expect(model.info.supportsPromptCache).toBe(true) // Claude Code now supports prompt caching
 	})
 
 	test("should use default model when invalid model provided", () => {

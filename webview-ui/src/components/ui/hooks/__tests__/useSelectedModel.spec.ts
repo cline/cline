@@ -402,7 +402,7 @@ describe("useSelectedModel", () => {
 			expect(result.current.id).toBe("claude-sonnet-4-20250514")
 			expect(result.current.info).toBeDefined()
 			expect(result.current.info?.supportsImages).toBe(false)
-			expect(result.current.info?.supportsPromptCache).toBe(false)
+			expect(result.current.info?.supportsPromptCache).toBe(true) // Claude Code now supports prompt cache
 			// Verify it inherits other properties from anthropic models
 			expect(result.current.info?.maxTokens).toBe(64_000)
 			expect(result.current.info?.contextWindow).toBe(200_000)

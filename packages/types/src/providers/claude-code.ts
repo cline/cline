@@ -8,7 +8,7 @@ export const claudeCodeModels = {
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
 		supportsReasoningEffort: false,
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
@@ -16,7 +16,7 @@ export const claudeCodeModels = {
 	"claude-opus-4-20250514": {
 		...anthropicModels["claude-opus-4-20250514"],
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
 		supportsReasoningEffort: false,
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
@@ -24,7 +24,7 @@ export const claudeCodeModels = {
 	"claude-3-7-sonnet-20250219": {
 		...anthropicModels["claude-3-7-sonnet-20250219"],
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
 		supportsReasoningEffort: false,
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
@@ -32,7 +32,7 @@ export const claudeCodeModels = {
 	"claude-3-5-sonnet-20241022": {
 		...anthropicModels["claude-3-5-sonnet-20241022"],
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
 		supportsReasoningEffort: false,
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
@@ -40,7 +40,7 @@ export const claudeCodeModels = {
 	"claude-3-5-haiku-20241022": {
 		...anthropicModels["claude-3-5-haiku-20241022"],
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
 		supportsReasoningEffort: false,
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
