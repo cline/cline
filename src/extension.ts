@@ -34,6 +34,7 @@ import * as hostProviders from "@hosts/host-providers"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
+import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -369,17 +370,17 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			// Save current clipboard content
-			const tempCopyBuffer = await vscode.env.clipboard.readText()
+			const tempCopyBuffer = await readTextFromClipboard()
 
 			try {
 				// Copy the *existing* terminal selection (without selecting all)
 				await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
 
 				// Get copied content
-				let terminalContents = (await vscode.env.clipboard.readText()).trim()
+				let terminalContents = (await readTextFromClipboard()).trim()
 
 				// Restore original clipboard content
-				await vscode.env.clipboard.writeText(tempCopyBuffer)
+				await writeTextToClipboard(tempCopyBuffer)
 
 				if (!terminalContents) {
 					// No terminal content was copied (either nothing selected or some error)
@@ -405,7 +406,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				await visibleWebview?.controller.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
 			} catch (error) {
 				// Ensure clipboard is restored even if an error occurs
-				await vscode.env.clipboard.writeText(tempCopyBuffer)
+				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
 				vscode.window.showErrorMessage("Failed to get terminal contents")
 			}
