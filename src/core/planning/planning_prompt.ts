@@ -504,4 +504,7 @@ export const PROMPTS = {
     </execution_plan>
   </output_format>
 </ai_coding_agent>`,
+	MOVE_NEXT_PHASE_ASK: `Want to move to the next phase of the task?`,
+	PROCEED_WITH_PLAN_ASK: `Do you want to proceed with the plan?`,
+	PROCEED_TO_PLAN_MODE_ASK: `Do you want to proceed to plan mode?`,
 } as const
