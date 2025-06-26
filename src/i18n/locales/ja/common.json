@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": ".roomodes ファイルの {{line}} 行目で無効な YAML です。以下を確認してください：\n• 正しいインデント（タブではなくスペースを使用）\n• 引用符と括弧の対応\n• 有効な YAML 構文",
+			"schemaValidationError": ".roomodes のカスタムモード形式が無効です：\n{{issues}}",
+			"invalidFormat": "カスタムモード形式が無効です。設定が正しい YAML 形式に従っていることを確認してください。",
+			"updateFailed": "カスタムモードの更新に失敗しました：{{error}}",
+			"deleteFailed": "カスタムモードの削除に失敗しました：{{error}}",
+			"resetFailed": "カスタムモードのリセットに失敗しました：{{error}}",
+			"modeNotFound": "書き込みエラー：モードが見つかりません",
+			"noWorkspaceForProject": "プロジェクト固有モード用のワークスペースフォルダーが見つかりません"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "あなたの組織では Roo Code Cloud 認証が必要です。続行するにはサインインしてください。",

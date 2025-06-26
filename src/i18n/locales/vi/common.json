@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "YAML không hợp lệ trong tệp .roomodes tại dòng {{line}}. Vui lòng kiểm tra:\n• Thụt lề đúng (dùng dấu cách, không dùng tab)\n• Dấu ngoặc kép và ngoặc đơn khớp nhau\n• Cú pháp YAML hợp lệ",
+			"schemaValidationError": "Định dạng chế độ tùy chỉnh không hợp lệ trong .roomodes:\n{{issues}}",
+			"invalidFormat": "Định dạng chế độ tùy chỉnh không hợp lệ. Vui lòng đảm bảo cài đặt của bạn tuân theo định dạng YAML đúng.",
+			"updateFailed": "Cập nhật chế độ tùy chỉnh thất bại: {{error}}",
+			"deleteFailed": "Xóa chế độ tùy chỉnh thất bại: {{error}}",
+			"resetFailed": "Đặt lại chế độ tùy chỉnh thất bại: {{error}}",
+			"modeNotFound": "Lỗi ghi: Không tìm thấy chế độ",
+			"noWorkspaceForProject": "Không tìm thấy thư mục workspace cho chế độ dành riêng cho dự án"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Tổ chức của bạn yêu cầu xác thực Roo Code Cloud. Vui lòng đăng nhập để tiếp tục.",

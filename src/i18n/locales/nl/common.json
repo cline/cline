@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "Ongeldige YAML in .roomodes bestand op regel {{line}}. Controleer:\n• Juiste inspringing (gebruik spaties, geen tabs)\n• Overeenkomende aanhalingstekens en haakjes\n• Geldige YAML syntaxis",
+			"schemaValidationError": "Ongeldig aangepaste modi formaat in .roomodes:\n{{issues}}",
+			"invalidFormat": "Ongeldig aangepaste modi formaat. Zorg ervoor dat je instellingen het juiste YAML formaat volgen.",
+			"updateFailed": "Aangepaste modus bijwerken mislukt: {{error}}",
+			"deleteFailed": "Aangepaste modus verwijderen mislukt: {{error}}",
+			"resetFailed": "Aangepaste modi resetten mislukt: {{error}}",
+			"modeNotFound": "Schrijffout: Modus niet gevonden",
+			"noWorkspaceForProject": "Geen workspace map gevonden voor projectspecifieke modus"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",

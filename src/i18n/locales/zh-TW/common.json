@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": ".roomodes 檔案第 {{line}} 行 YAML 格式無效。請檢查：\n• 正確的縮排（使用空格，不要使用定位字元）\n• 匹配的引號和括號\n• 有效的 YAML 語法",
+			"schemaValidationError": ".roomodes 中自訂模式格式無效：\n{{issues}}",
+			"invalidFormat": "自訂模式格式無效。請確保你的設定遵循正確的 YAML 格式。",
+			"updateFailed": "更新自訂模式失敗：{{error}}",
+			"deleteFailed": "刪除自訂模式失敗：{{error}}",
+			"resetFailed": "重設自訂模式失敗：{{error}}",
+			"modeNotFound": "寫入錯誤：未找到模式",
+			"noWorkspaceForProject": "未找到專案特定模式的工作區資料夾"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "您的組織需要 Roo Code Cloud 身份驗證。請登入以繼續。",

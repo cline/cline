@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "Nieprawidłowy YAML w pliku .roomodes w linii {{line}}. Sprawdź:\n• Prawidłowe wcięcia (używaj spacji, nie tabulatorów)\n• Pasujące cudzysłowy i nawiasy\n• Prawidłową składnię YAML",
+			"schemaValidationError": "Nieprawidłowy format trybów niestandardowych w .roomodes:\n{{issues}}",
+			"invalidFormat": "Nieprawidłowy format trybów niestandardowych. Upewnij się, że twoje ustawienia są zgodne z prawidłowym formatem YAML.",
+			"updateFailed": "Aktualizacja trybu niestandardowego nie powiodła się: {{error}}",
+			"deleteFailed": "Usunięcie trybu niestandardowego nie powiodło się: {{error}}",
+			"resetFailed": "Resetowanie trybów niestandardowych nie powiodło się: {{error}}",
+			"modeNotFound": "Błąd zapisu: Tryb nie został znaleziony",
+			"noWorkspaceForProject": "Nie znaleziono folderu obszaru roboczego dla trybu specyficznego dla projektu"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Twoja organizacja wymaga uwierzytelnienia Roo Code Cloud. Zaloguj się, aby kontynuować.",

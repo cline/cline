@@ -111,6 +111,18 @@
 		"task_prompt": "What should Roo do?",
 		"task_placeholder": "Type your task here"
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "Invalid YAML in .roomodes file at line {{line}}. Please check for:\n• Proper indentation (use spaces, not tabs)\n• Matching quotes and brackets\n• Valid YAML syntax",
+			"schemaValidationError": "Invalid custom modes format in .roomodes:\n{{issues}}",
+			"invalidFormat": "Invalid custom modes format. Please ensure your settings follow the correct YAML format.",
+			"updateFailed": "Failed to update custom mode: {{error}}",
+			"deleteFailed": "Failed to delete custom mode: {{error}}",
+			"resetFailed": "Failed to reset custom modes: {{error}}",
+			"modeNotFound": "Write error: Mode not found",
+			"noWorkspaceForProject": "No workspace folder found for project-specific mode"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Your organization requires Roo Code Cloud authentication. Please sign in to continue.",

@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "YAML tidak valid dalam file .roomodes pada baris {{line}}. Silakan periksa:\n• Indentasi yang benar (gunakan spasi, bukan tab)\n• Tanda kutip dan kurung yang cocok\n• Sintaks YAML yang valid",
+			"schemaValidationError": "Format mode kustom tidak valid dalam .roomodes:\n{{issues}}",
+			"invalidFormat": "Format mode kustom tidak valid. Pastikan pengaturan kamu mengikuti format YAML yang benar.",
+			"updateFailed": "Gagal memperbarui mode kustom: {{error}}",
+			"deleteFailed": "Gagal menghapus mode kustom: {{error}}",
+			"resetFailed": "Gagal mereset mode kustom: {{error}}",
+			"modeNotFound": "Kesalahan tulis: Mode tidak ditemukan",
+			"noWorkspaceForProject": "Tidak ditemukan folder workspace untuk mode khusus proyek"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Organisasi kamu memerlukan autentikasi Roo Code Cloud. Silakan masuk untuk melanjutkan.",

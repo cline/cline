@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "YAML inválido no arquivo .roomodes na linha {{line}}. Verifique:\n• Indentação correta (use espaços, não tabs)\n• Aspas e colchetes correspondentes\n• Sintaxe YAML válida",
+			"schemaValidationError": "Formato de modos personalizados inválido em .roomodes:\n{{issues}}",
+			"invalidFormat": "Formato de modos personalizados inválido. Certifique-se de que suas configurações seguem o formato YAML correto.",
+			"updateFailed": "Falha ao atualizar modo personalizado: {{error}}",
+			"deleteFailed": "Falha ao excluir modo personalizado: {{error}}",
+			"resetFailed": "Falha ao redefinir modos personalizados: {{error}}",
+			"modeNotFound": "Erro de escrita: Modo não encontrado",
+			"noWorkspaceForProject": "Nenhuma pasta de workspace encontrada para modo específico do projeto"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Sua organização requer autenticação do Roo Code Cloud. Faça login para continuar.",

@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": ".roomodes 파일의 {{line}}번째 줄에서 유효하지 않은 YAML입니다. 다음을 확인하세요:\n• 올바른 들여쓰기 (탭이 아닌 공백 사용)\n• 일치하는 따옴표와 괄호\n• 유효한 YAML 구문",
+			"schemaValidationError": ".roomodes의 사용자 정의 모드 형식이 유효하지 않습니다:\n{{issues}}",
+			"invalidFormat": "사용자 정의 모드 형식이 유효하지 않습니다. 설정이 올바른 YAML 형식을 따르는지 확인하세요.",
+			"updateFailed": "사용자 정의 모드 업데이트 실패: {{error}}",
+			"deleteFailed": "사용자 정의 모드 삭제 실패: {{error}}",
+			"resetFailed": "사용자 정의 모드 재설정 실패: {{error}}",
+			"modeNotFound": "쓰기 오류: 모드를 찾을 수 없습니다",
+			"noWorkspaceForProject": "프로젝트별 모드용 작업 공간 폴더를 찾을 수 없습니다"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "조직에서 Roo Code Cloud 인증이 필요합니다. 계속하려면 로그인하세요.",

@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "Ungültiges YAML in .roomodes-Datei in Zeile {{line}}. Bitte überprüfe:\n• Korrekte Einrückung (verwende Leerzeichen, keine Tabs)\n• Passende Anführungszeichen und Klammern\n• Gültige YAML-Syntax",
+			"schemaValidationError": "Ungültiges Format für benutzerdefinierte Modi in .roomodes:\n{{issues}}",
+			"invalidFormat": "Ungültiges Format für benutzerdefinierte Modi. Bitte stelle sicher, dass deine Einstellungen dem korrekten YAML-Format folgen.",
+			"updateFailed": "Fehler beim Aktualisieren des benutzerdefinierten Modus: {{error}}",
+			"deleteFailed": "Fehler beim Löschen des benutzerdefinierten Modus: {{error}}",
+			"resetFailed": "Fehler beim Zurücksetzen der benutzerdefinierten Modi: {{error}}",
+			"modeNotFound": "Schreibfehler: Modus nicht gefunden",
+			"noWorkspaceForProject": "Kein Arbeitsbereich-Ordner für projektspezifischen Modus gefunden"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "Deine Organisation erfordert eine Roo Code Cloud-Authentifizierung. Bitte melde dich an, um fortzufahren.",

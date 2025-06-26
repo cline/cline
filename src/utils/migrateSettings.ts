@@ -92,8 +92,8 @@ async function migrateCustomModesToYaml(settingsDir: string, outputChannel: vsco
 			// Parse JSON to object (using the yaml library just to be safe/consistent)
 			const customModesData = yaml.parse(jsonContent)
 
-			// Convert to YAML
-			const yamlContent = yaml.stringify(customModesData)
+			// Convert to YAML with no line width limit to prevent line breaks
+			const yamlContent = yaml.stringify(customModesData, { lineWidth: 0, defaultStringType: "PLAIN" })
 
 			// Write YAML file
 			await fs.writeFile(newYamlPath, yamlContent, "utf-8")

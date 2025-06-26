@@ -122,6 +122,18 @@
 			}
 		}
 	},
+	"customModes": {
+		"errors": {
+			"yamlParseError": "YAML no vàlid al fitxer .roomodes a la línia {{line}}. Comprova:\n• Indentació correcta (utilitza espais, no tabuladors)\n• Cometes i claudàtors coincidents\n• Sintaxi YAML vàlida",
+			"schemaValidationError": "Format de modes personalitzats no vàlid a .roomodes:\n{{issues}}",
+			"invalidFormat": "Format de modes personalitzats no vàlid. Assegura't que la teva configuració segueix el format YAML correcte.",
+			"updateFailed": "Error en actualitzar el mode personalitzat: {{error}}",
+			"deleteFailed": "Error en eliminar el mode personalitzat: {{error}}",
+			"resetFailed": "Error en restablir els modes personalitzats: {{error}}",
+			"modeNotFound": "Error d'escriptura: Mode no trobat",
+			"noWorkspaceForProject": "No s'ha trobat cap carpeta d'espai de treball per al mode específic del projecte"
+		}
+	},
 	"mdm": {
 		"errors": {
 			"cloud_auth_required": "La teva organització requereix autenticació de Roo Code Cloud. Si us plau, inicia sessió per continuar.",
