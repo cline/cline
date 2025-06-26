@@ -190,11 +190,11 @@ export class McpHub {
 		config: z.infer<typeof ServerConfigSchema>,
 		source: "rpc" | "internal",
 	): Promise<void> {
+		// Remove existing connection if it exists
+		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+
 		if (config.disabled) {
 			console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
-			// Remove existing connection if it exists
-			this.connections = this.connections.filter((conn) => conn.server.name !== name)
-
 			// Create a connection object for disabled servers so they appear in UI
 			const disabledConnection: McpConnection = {
 				server: {
@@ -209,9 +209,6 @@ export class McpHub {
 			this.connections.push(disabledConnection)
 			return
 		}
-
-		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
-		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
 		try {
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
