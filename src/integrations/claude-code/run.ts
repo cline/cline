@@ -112,7 +112,6 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 
 	const args = [
 		"-p",
-		JSON.stringify(messages),
 		"--system-prompt",
 		systemPrompt,
 		"--verbose",
@@ -129,8 +128,8 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		args.push("--model", modelId)
 	}
 
-	return execa(claudePath, args, {
-		stdin: "ignore",
+	const claudeCodeProcess = execa(claudePath, args, {
+		stdin: "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
 		env: {
@@ -142,6 +141,11 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		maxBuffer: 1024 * 1024 * 1000,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
+
+	claudeCodeProcess.stdin.write(JSON.stringify(messages))
+	claudeCodeProcess.stdin.end()
+
+	return claudeCodeProcess
 }
 
 function parseChunk(data: string, processState: ProcessState) {
