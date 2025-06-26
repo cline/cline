@@ -9,7 +9,6 @@ import { OpenAiHandler } from "@api/providers/openai"
  */
 export function getContextWindowInfo(api: ApiHandler) {
 	let contextWindow = api.getModel().info.contextWindow || 128_000
-
 	// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
 
 	// Handle special cases like DeepSeek
@@ -22,19 +21,10 @@ export function getContextWindowInfo(api: ApiHandler) {
 		case 64_000: // deepseek models
 			maxAllowedSize = contextWindow - 27_000
 			break
-		case 80_000: // claude via vscode-lm (claude-sonnet-4, claude-opus-4)
-			maxAllowedSize = contextWindow - 30_000
-			break
-		case 90_000: // claude-3.5-sonnet via vscode-lm
-			maxAllowedSize = contextWindow - 30_000
-			break
-		case 106_384: // claude-3.7-sonnet via vscode-lm
-			maxAllowedSize = contextWindow - 35_000
-			break
 		case 128_000: // most models
 			maxAllowedSize = contextWindow - 30_000
 			break
-		case 200_000: // claude models (direct)
+		case 200_000: // claude models
 			maxAllowedSize = contextWindow - 40_000
 			break
 		default:
