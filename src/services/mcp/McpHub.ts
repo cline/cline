@@ -190,12 +190,12 @@ export class McpHub {
 		config: z.infer<typeof ServerConfigSchema>,
 		source: "rpc" | "internal",
 	): Promise<void> {
-		// Remove existing connection if it exists
+		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
 		if (config.disabled) {
 			console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
-			// Create a connection object for disabled servers so they appear in UI
+			// Create a connection object for disabled server so it appears in UI
 			const disabledConnection: McpConnection = {
 				server: {
 					name,
