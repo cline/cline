@@ -382,6 +382,13 @@ export class Task {
 
 		let didWorkspaceRestoreFail = false
 
+		let phaseIdx
+		if (this.taskState.phaseTracker && (phaseIdx = this.taskState.phaseTracker.getPhaseByTaskId(this.taskId)) > 0) {
+			this.taskState.phaseTracker.resetPhaseStatus(phaseIdx)
+			this.taskState.phaseTracker.updateTaskIdPhase(phaseIdx, this.taskId)
+			this.taskState.phaseTracker.currentPhaseIndex = phaseIdx
+		}
+
 		switch (restoreType) {
 			case "task":
 				break
@@ -1125,6 +1132,8 @@ export class Task {
 			const total = this.taskState.phaseTracker.totalPhases
 			const phaseIndex = this.taskState.phaseTracker.currentPhaseIndex
 			const prompt = buildPhasePrompt(phase, total, this.taskState.phaseTracker.getProjectOverview())
+
+			this.taskState.phaseTracker.updateTaskIdPhase(phaseIndex, this.taskId)
 
 			if (!this.taskState.newPhaseOpened) {
 				await this.sidebarController.spawnPhaseTask(prompt, phaseIndex)
