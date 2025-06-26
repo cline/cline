@@ -1,22 +1,12 @@
 import { ApiHandler } from "@api/index"
-import { findLast, findLastIndex } from "@shared/array"
-import {
-	ClineApiReqCancelReason,
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineAskQuestion,
-	ClineMessage,
-	ClineSay,
-	ExtensionMessage,
-} from "@shared/ExtensionMessage"
+import { findLastIndex } from "@shared/array"
+import { ClineApiReqInfo, ClineAskQuestion, ClineMessage } from "@shared/ExtensionMessage"
 
-// 팔로우업 질문 인터페이스
 export interface FollowUpQuestion {
 	question: string
 	options: string[]
 }
 
-// 개선된 결과 인터페이스
 export interface EnhancedRefinementResult {
 	refinedPrompt: string
 	explanation: string
@@ -32,7 +22,7 @@ export interface RefinedPromptResult {
 	explanation: string
 }
 
-// 웹 프로젝트 템플릿 정의
+// Template
 function getWebProjectTemplate() {
 	return {
 		name: "Modern Web Application Template",
@@ -79,7 +69,7 @@ function getWebProjectTemplate() {
 	}
 }
 
-// 프로젝트 명세 포맷 정의
+// Project Speicifiaction Format
 function getProjectSpecificationFormat(): string {
 	return `
 	## Project Specification Format
@@ -143,10 +133,8 @@ function getProjectSpecificationFormat(): string {
 	Use this format to create a clear, actionable specification that a developer can immediately use to build the project.`
 }
 
-// 시스템 프롬프트 생성
-function buildSystemPrompt(
+function buildAnalysisPrompt(
 	webProjectTemplate: any,
-	projectSpecificationFormat: string,
 	requiredFields: string[],
 	optionalFields: string[],
 	extractedDataStructure: string,
@@ -157,8 +145,6 @@ IMPORTANT: All follow-up questions and options must be generated in Korean langu
 
 TEMPLATE STRUCTURE:
 ${JSON.stringify(webProjectTemplate, null, 2)}
-
-${projectSpecificationFormat}
 
 QUESTION GENERATION RULES:
 - For ANY missing required field (required: true), MUST generate a specific follow-up question IN KOREAN with multiple choice options
@@ -181,8 +167,7 @@ ${extractedDataStructure}
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"]
     }
   ],
-  "needsMoreInfo": boolean,
-  "refinedPrompt": "A comprehensive project specification in English following the Project Specification Format above, filled with extracted information, detailed technical specifications, and professional recommendations"
+  "needsMoreInfo": boolean
 }
 
 RULES:
@@ -191,6 +176,27 @@ RULES:
 - MUST ask about ALL missing required fields individually: ${requiredFields.join(", ")}
 - Optional fields question format: "추가적으로 다음 항목들에 대해 선호사항이 있으시면 자유롭게 알려주세요: [list all optional fields with descriptions]" with "options": []
 - ALL questions must be written in Korean
+- NEVER use "..." or truncate any part of the JSON response
+- Always close all brackets and quotes properly`
+}
+
+function buildRefinementPrompt(projectSpecificationFormat: string, requiredFields: string[], optionalFields: string[]): string {
+	return `You are a web project specification expert. Create a comprehensive project specification based on the provided information.
+
+${projectSpecificationFormat}
+
+CRITICAL: You must respond with COMPLETE, VALID JSON only. No truncation, no "...", no partial responses.
+
+RESPONSE FORMAT (COMPLETE THIS EXACT STRUCTURE):
+{
+  "missingRequiredSlots": ["array of missing required slot names"],
+  "refinedPrompt": "A comprehensive project specification in English following the Project Specification Format above, filled with extracted information, detailed technical specifications, and professional recommendations"
+}
+
+RULES:
+- First, check if any required fields are still missing (${requiredFields.join(", ")})
+- If missing required fields exist, list them in missingRequiredSlots array
+- If all required fields are present, create a comprehensive refinedPrompt in English
 - REFINED PROMPT MUST BE WRITTEN IN ENGLISH with detailed, specific, and professional content
 - Use the Project Specification Format structure exactly, filling each section with comprehensive details in English
 - Include concrete technical specifications, specific recommendations, and actionable implementation details
@@ -200,8 +206,30 @@ RULES:
 
 export async function refinePrompt(prompt: string, apiHandler: ApiHandler, taskInstance?: any): Promise<RefinedPromptResult> {
 	try {
-		// Apply LLM-based prompt refinement
-		const refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler, taskInstance)
+		// 1단계: 데이터 추출 및 분석
+		let refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler, taskInstance, "analysis")
+
+		// 추가 질문
+		if (refinedPrompt.needsMoreInfo) {
+			const questionList = (refinedPrompt.followUpQuestions || []).map(
+				(followUpQ) =>
+					({
+						question: followUpQ.question,
+						options: followUpQ.options,
+						selected: "",
+					}) satisfies ClineAskQuestion,
+			)
+
+			await askMoreQuestion(questionList, taskInstance)
+			for (const ques of questionList) {
+				prompt += `\n\nQ: ${ques.question}\nA: ${ques.selected}`
+			}
+		}
+
+		// 2단계: 개선된 프롬프트 생성
+		refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler, taskInstance, "refinement")
+		let finalTask = refinedPrompt.refinedPrompt
+		await taskInstance.say("text", `Refined prompt: \n${finalTask}`)
 
 		return {
 			originalPrompt: prompt,
@@ -226,6 +254,7 @@ async function performLLMPromptRefinement(
 	prompt: string,
 	apiHandler: ApiHandler,
 	taskInstance?: any,
+	stage: "analysis" | "refinement" = "analysis",
 ): Promise<EnhancedRefinementResult> {
 	// 템플릿과 포맷 가져오기
 	const webProjectTemplate = getWebProjectTemplate()
@@ -244,20 +273,27 @@ async function performLLMPromptRefinement(
 	const allSlotKeys = Object.keys(webProjectTemplate.slots)
 	const extractedDataStructure = allSlotKeys.map((key) => `    "${key}": "extracted value or null"`).join(",\n")
 
-	// 시스템 프롬프트 생성
-	const systemPrompt = buildSystemPrompt(
-		webProjectTemplate,
-		projectSpecificationFormat,
-		requiredFields,
-		optionalFields,
-		extractedDataStructure,
-	)
+	// 단계에 따라 시스템 프롬프트 생성
+	let systemPrompt: string
+	let userMessage: string
 
-	const userMessage = `Analyze this web project request and extract template slot information:
+	if (stage === "analysis") {
+		// 1단계: 데이터 추출 및 분석
+		systemPrompt = buildAnalysisPrompt(webProjectTemplate, requiredFields, optionalFields, extractedDataStructure)
+		userMessage = `Analyze this web project request and extract template slot information:
 
 User Request: "${prompt}"
 
 Please extract available information, identify missing required elements, and generate follow-up questions if needed.`
+	} else {
+		// 2단계: 개선된 프롬프트 생성
+		systemPrompt = buildRefinementPrompt(projectSpecificationFormat, requiredFields, optionalFields)
+		userMessage = `Create a comprehensive project specification based on the following information:
+
+User Request: "${prompt}"
+
+Please create a detailed project specification following the Project Specification Format.`
+	}
 
 	if (taskInstance && taskInstance.say) {
 		await taskInstance.say("api_req_started", JSON.stringify({ request: "Refining prompt..." }))
@@ -272,9 +308,9 @@ Please extract available information, identify missing required elements, and ge
 	])
 
 	// 스트리밍 시작 메시지
-	if (taskInstance && taskInstance.say) {
-		await taskInstance.say("text", "Refining prompt...", undefined, undefined, true)
-	}
+	// if (taskInstance && taskInstance.say) {
+	// 	await taskInstance.say("text", "Refining prompt...", undefined, undefined, true)
+	// }
 
 	let response = ""
 	const start = performance.now()
@@ -307,7 +343,7 @@ Please extract available information, identify missing required elements, and ge
 	if (taskInstance && taskInstance.say) {
 		await taskInstance.say(
 			"text",
-			`Prompt refinement completed in ${((performance.now() - start) / 1000).toFixed(1)}s`,
+			`Completed in ${((performance.now() - start) / 1000).toFixed(1)}s`,
 			undefined,
 			undefined,
 			false,
@@ -325,11 +361,20 @@ Please extract available information, identify missing required elements, and ge
 
 		const analysisResult = JSON.parse(escapeNewlinesInJsonStrings(jsonMatch[0]))
 
-		return {
-			refinedPrompt: analysisResult.refinedPrompt || "",
-			followUpQuestions: analysisResult.followUpQuestions || [],
-			explanation: `Generated ${analysisResult.followUpQuestions.length} follow-up questions to gather missing information.`,
-			needsMoreInfo: analysisResult.needsMoreInfo || false,
+		if (stage === "analysis") {
+			return {
+				refinedPrompt: "", // 1단계에서는 빈 문자열
+				followUpQuestions: analysisResult.followUpQuestions || [],
+				explanation: `Generated ${analysisResult.followUpQuestions?.length || 0} follow-up questions to gather missing information.`,
+				needsMoreInfo: analysisResult.needsMoreInfo || false,
+			}
+		} else {
+			return {
+				refinedPrompt: analysisResult.refinedPrompt || "",
+				followUpQuestions: [], // 2단계에서는 빈 배열
+				explanation: "Generated comprehensive project specification.",
+				needsMoreInfo: false, // 2단계에서는 항상 false
+			}
 		}
 	} catch (parseError) {
 		console.error("Error parsing LLM template analysis response:", parseError)
@@ -387,4 +432,23 @@ const updatePromptRefinementStatus = (message: string, taskInstance?: any) => {
 			} satisfies ClineApiReqInfo),
 		})
 	}
+}
+
+const askMoreQuestion = async (questionList: ClineAskQuestion[], taskInstance?: any): Promise<ClineAskQuestion[]> => {
+	for (const ques of questionList) {
+		const sharedMessage = {
+			question: ques.question,
+			options: ques.options,
+		} satisfies ClineAskQuestion
+
+		const {
+			text,
+			// images,
+			// files: followupFiles,
+		} = await taskInstance.ask("followup", JSON.stringify(sharedMessage), false)
+
+		await taskInstance.say("text", `Here is the answer: ${text}`)
+		ques.selected = text
+	}
+	return questionList
 }

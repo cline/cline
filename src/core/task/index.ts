@@ -986,32 +986,11 @@ export class Task {
 		await this.say("text", task, images, files)
 		this.taskState.isInitialized = true
 
-		let finalTask = task
-		// Apply prompt refinement if enabled and task is provided
 		if (this.taskState.isPhaseRoot && task && this.autoApprovalSettings.actions.usePromptRefinement) {
 			try {
 				console.log("[Task] Applying prompt refinement...")
 				let refinedResult = await refinePrompt(task, this.api, this)
-
-				if (refinedResult.needsMoreInfo) {
-					const questionList = refinedResult.followUpQuestions.map(
-						(followUpQ) =>
-							({
-								question: followUpQ.question,
-								options: followUpQ.options,
-								selected: "",
-							}) satisfies ClineAskQuestion,
-					)
-
-					await this.askMoreQuestion(questionList)
-					for (const ques of questionList) {
-						task += `\n\nQ: ${ques.question}\nA: ${ques.selected}`
-					}
-
-					refinedResult = await refinePrompt(task, this.api, this)
-				}
-				finalTask = refinedResult.refinedPrompt
-				await this.say("text", `Refined prompt: \n${finalTask}`)
+				task = refinedResult.refinedPrompt
 			} catch (error) {
 				console.error("[Task] Prompt refinement failed:", error)
 			}
@@ -1042,7 +1021,7 @@ export class Task {
 						)
 					: (task ?? "")
 			if (this.taskState.isPhaseRoot) {
-				userContent = [{ type: "text", text: `${PROMPTS.PLANNING}\n\n<task>\n${finalTask}\n</task>` }, ...imageBlocks]
+				userContent = [{ type: "text", text: `${PROMPTS.PLANNING}\n\n<task>\n${task}\n</task>` }, ...imageBlocks]
 			} else {
 				userContent = [{ type: "text", text: `<task>\n${phaseAwarePrompt}\n</task>` }, ...imageBlocks]
 			}
@@ -1181,25 +1160,6 @@ export class Task {
 			await this.saveCheckpoint()
 			return true
 		}
-	}
-
-	async askMoreQuestion(questionList: ClineAskQuestion[]): Promise<ClineAskQuestion[]> {
-		for (const ques of questionList) {
-			const sharedMessage = {
-				question: ques.question,
-				options: ques.options,
-			} satisfies ClineAskQuestion
-
-			const {
-				text,
-				// images,
-				// files: followupFiles,
-			} = await this.ask("followup", JSON.stringify(sharedMessage), false)
-
-			await this.say("text", `Here is the answer: ${text}`)
-			ques.selected = text
-		}
-		return questionList
 	}
 
 	private async resumeTaskFromHistory() {
