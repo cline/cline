@@ -1,9 +1,9 @@
-import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs"
 import * as childProcess from "child_process"
 import * as readline from "readline"
 import { getBinPath } from "../ripgrep"
+import { getAppRoot } from "@utils/env"
 import type { Fzf, FzfResultItem } from "fzf"
 
 // Wrapper function for childProcess.spawn
@@ -96,7 +96,7 @@ export async function searchWorkspaceFiles(
 	limit: number = 20,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
-		const rgPath = await getBinPath(vscode.env.appRoot)
+		const rgPath = await getBinPath(await getAppRoot())
 
 		if (!rgPath) {
 			throw new Error("Could not find ripgrep binary")

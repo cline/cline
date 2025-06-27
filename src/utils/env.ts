@@ -45,3 +45,12 @@ export async function openExternal(url: string): Promise<void> {
 		throw new Error(`Failed to open external URL: ${errorMessage}`)
 	}
 }
+
+/**
+ * Gets the VSCode application root directory path
+ * @returns Promise resolving to the VSCode application root path
+ */
+export async function getAppRoot(): Promise<string> {
+	const response = await getHostBridgeProvider().envClient.getAppRoot(EmptyRequest.create())
+	return response.value
+}
