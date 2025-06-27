@@ -958,6 +958,9 @@ importers:
       fzf:
         specifier: ^0.5.2
         version: 0.5.2
+      hast-util-to-jsx-runtime:
+        specifier: ^2.3.6
+        version: 2.3.6
       i18next:
         specifier: ^25.0.0
         version: 25.2.1(typescript@5.8.3)

@@ -37,6 +37,43 @@ vi.mock("../../../utils/highlighter", () => {
 			const theme = options.theme === "github-light" ? "light" : "dark"
 			return `<pre><code class="hljs language-${options.lang}">${code} [${theme}-theme]</code></pre>`
 		}),
+		codeToHast: vi.fn().mockImplementation((code, options) => {
+			const theme = options.theme === "github-light" ? "light" : "dark"
+			// Return a comprehensive HAST node structure that matches Shiki's output
+			// Apply transformers if provided
+			const preNode = {
+				type: "element",
+				tagName: "pre",
+				properties: {},
+				children: [
+					{
+						type: "element",
+						tagName: "code",
+						properties: { className: [`hljs`, `language-${options.lang}`] },
+						children: [
+							{
+								type: "text",
+								value: `${code} [${theme}-theme]`,
+							},
+						],
+					},
+				],
+			}
+
+			// Apply transformers if they exist
+			if (options.transformers) {
+				for (const transformer of options.transformers) {
+					if (transformer.pre) {
+						transformer.pre(preNode)
+					}
+					if (transformer.code && preNode.children[0]) {
+						transformer.code(preNode.children[0])
+					}
+				}
+			}
+
+			return preNode
+		}),
 	}
 
 	return {
