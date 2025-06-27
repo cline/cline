@@ -12,10 +12,10 @@ import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/
  * @returns Results containing matching files/folders
  */
 export const searchFiles: FileMethodHandler = async (
-	controller: Controller,
+	_controller: Controller,
 	request: FileSearchRequest,
 ): Promise<FileSearchResults> => {
-	const workspacePath = getWorkspacePath()
+	const workspacePath = await getWorkspacePath()
 
 	if (!workspacePath) {
 		// Handle case where workspace path is not available

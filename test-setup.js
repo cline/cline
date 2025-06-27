@@ -16,7 +16,7 @@ const tsConfig = JSON.parse(fs.readFileSync(path.join(baseUrl, "tsconfig.json"),
 const outPaths = {}
 Object.keys(tsConfig.compilerOptions.paths).forEach((key) => {
 	const value = tsConfig.compilerOptions.paths[key]
-	outPaths[key] = value.map((path) => path.replace("src", "out"))
+	outPaths[key] = value.map((path) => path.replace("src", "out/src"))
 })
 
 tsConfigPaths.register({

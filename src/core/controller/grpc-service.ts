@@ -37,6 +37,7 @@ export class ServiceRegistry {
 	 * @param serviceName The name of the service (used for logging)
 	 */
 	constructor(serviceName: string) {
+		console.log(`Registering Protobus service: ${serviceName}...`)
 		this.serviceName = serviceName
 	}
 
@@ -56,7 +57,6 @@ export class ServiceRegistry {
 		}
 
 		this.methodMetadata[methodName] = { isStreaming, ...metadata }
-		console.log(`Registered ${this.serviceName} method: ${methodName}${isStreaming ? " (streaming)" : ""}`)
 	}
 
 	/**

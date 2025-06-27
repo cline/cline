@@ -46,6 +46,9 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
 import { handleTaskServiceRequest } from "./task"
 import { BooleanRequest } from "@shared/proto/common"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { GetWorkspacePathsRequest } from "@/shared/proto/index.host"
+import { getCwd } from "@/utils/path"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -683,8 +686,8 @@ export class Controller {
 
 	// Context menus and code actions
 
-	getFileMentionFromPath(filePath: string) {
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	async getFileMentionFromPath(filePath: string) {
+		const cwd = await getCwd()
 		if (!cwd) {
 			return "@/" + filePath
 		}
@@ -988,7 +991,7 @@ export class Controller {
 	async generateGitCommitMessage() {
 		try {
 			// Check if there's a workspace folder open
-			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			const cwd = await getCwd()
 			if (!cwd) {
 				vscode.window.showErrorMessage("No workspace folder open")
 				return
