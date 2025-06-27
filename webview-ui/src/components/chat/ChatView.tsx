@@ -1,17 +1,10 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useDeepCompareEffect, useEvent, useMount } from "react-use"
+import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
-import {
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineMessage,
-	ClineSayBrowserAction,
-	ClineSayTool,
-	ExtensionMessage,
-} from "@shared/ExtensionMessage"
+import { ClineApiReqInfo, ClineAsk, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
@@ -37,6 +30,7 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
 import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
+import { useChatState } from "@/hooks/chat/useChatState"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -106,6 +100,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+
+	// Use the chat state machine
+	const { state, context, actions } = useChatState(messages, task)
+
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
@@ -128,14 +126,41 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const [sendingDisabled, setSendingDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [selectedFiles, setSelectedFiles] = useState<string[]>([])
 
-	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
+	// Synchronize input changes with state machine
+	const handleInputValueChange = useCallback(
+		(value: string) => {
+			setInputValue(value)
+			// Notify state machine of input changes
+			actions.handleInputChange(value, selectedImages, selectedFiles)
+		},
+		[actions, selectedImages, selectedFiles],
+	)
+
+	const handleImagesChange = useCallback(
+		(images: string[]) => {
+			setSelectedImages(images)
+			// Notify state machine of input changes
+			actions.handleInputChange(inputValue, images, selectedFiles)
+		},
+		[actions, inputValue, selectedFiles],
+	)
+
+	const handleFilesChange = useCallback(
+		(files: string[]) => {
+			setSelectedFiles(files)
+			// Notify state machine of input changes
+			actions.handleInputChange(inputValue, selectedImages, files)
+		},
+		[actions, inputValue, selectedImages],
+	)
+
 	const [didClickCancel, setDidClickCancel] = useState(false)
+
+	// Extract UI state from state machine context
+	const { sendingDisabled, enableButtons, primaryButtonText, secondaryButtonText } = context
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -238,176 +263,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			document.removeEventListener("copy", handleCopy)
 		}
 	}, [])
-	useDeepCompareEffect(() => {
-		// if last message is an ask, show user ask UI
-		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
-		// basically as long as a task is active, the conversation history will be persisted
-		if (lastMessage) {
-			switch (lastMessage.type) {
-				case "ask":
-					const isPartial = lastMessage.partial === true
-					switch (lastMessage.ask) {
-						case "api_req_failed":
-							setSendingDisabled(true)
-							setEnableButtons(true)
-							setPrimaryButtonText("Retry")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "mistake_limit_reached":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed Anyways")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "auto_approval_max_req_reached":
-							setSendingDisabled(true)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed")
-							setSecondaryButtonText("Start New Task")
-							break
-						case "followup":
-							setSendingDisabled(isPartial)
-							setEnableButtons(false)
-							// setPrimaryButtonText(undefined)
-							// setSecondaryButtonText(undefined)
-							break
-						case "plan_mode_respond":
-							setSendingDisabled(isPartial)
-							setEnableButtons(false)
-							// setPrimaryButtonText(undefined)
-							// setSecondaryButtonText(undefined)
-							break
-						case "tool":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
-							switch (tool.tool) {
-								case "editedExistingFile":
-								case "newFileCreated":
-									setPrimaryButtonText("Save")
-									setSecondaryButtonText("Reject")
-									break
-								default:
-									setPrimaryButtonText("Approve")
-									setSecondaryButtonText("Reject")
-									break
-							}
-							break
-						case "browser_action_launch":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Reject")
-							break
-						case "command":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Run Command")
-							setSecondaryButtonText("Reject")
-							break
-						case "command_output":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed While Running")
-							setSecondaryButtonText(undefined)
-							break
-						case "use_mcp_server":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Reject")
-							break
-						case "completion_result":
-							// extension waiting for feedback. but we can just present a new task button
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Start New Task")
-							setSecondaryButtonText(undefined)
-							break
-						case "resume_task":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Resume Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false) // special case where we reset the cancel button state
-							break
-						case "resume_completed_task":
-							setSendingDisabled(false)
-							setEnableButtons(true)
-							setPrimaryButtonText("Start New Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false)
-							break
-						case "new_task":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Start New Task with Context")
-							setSecondaryButtonText(undefined)
-							break
-						case "condense":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Condense Conversation")
-							setSecondaryButtonText(undefined)
-							break
-						case "report_bug":
-							setSendingDisabled(isPartial)
-							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Report GitHub issue")
-							setSecondaryButtonText(undefined)
-							break
-					}
-					break
-				case "say":
-					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
-					switch (lastMessage.say) {
-						case "api_req_started":
-							if (secondLastMessage?.ask === "command_output") {
-								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
-								setInputValue("")
-								setSendingDisabled(true)
-								setSelectedImages([])
-								setSelectedFiles([])
-								setEnableButtons(false)
-							}
-							break
-						case "task":
-						case "error":
-						case "api_req_finished":
-						case "text":
-						case "browser_action":
-						case "browser_action_result":
-						case "browser_action_launch":
-						case "command":
-						case "use_mcp_server":
-						case "command_output":
-						case "mcp_server_request_started":
-						case "mcp_server_response":
-						case "completion_result":
-						case "tool":
-						case "load_mcp_documentation":
-							break
-					}
-					break
-			}
-		} else {
-			// this would get called after sending the first message, so we have to watch messages.length instead
-			// No messages, so user has to submit a task
-			// setTextAreaDisabled(false)
-			// setClineAsk(undefined)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
-		}
-	}, [lastMessage, secondLastMessage])
-
-	useEffect(() => {
-		if (messages.length === 0) {
-			setSendingDisabled(false)
-			setEnableButtons(false)
-			setPrimaryButtonText("Approve")
-			setSecondaryButtonText("Reject")
-		}
-	}, [messages.length])
 
 	useEffect(() => {
 		setExpandedRows({})
@@ -452,48 +307,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
-				if (messages.length === 0) {
-					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
-				} else if (clineAsk) {
-					switch (clineAsk) {
-						case "followup":
-						case "plan_mode_respond":
-						case "tool":
-						case "browser_action_launch":
-						case "command": // user can provide feedback to a tool or command use
-						case "command_output": // user can send input to command stdin
-						case "use_mcp_server":
-						case "completion_result": // if this happens then the user has feedback for the completion result
-						case "resume_task":
-						case "resume_completed_task":
-						case "mistake_limit_reached":
-						case "new_task": // user can provide feedback or reject the new task suggestion
-						case "condense":
-						case "report_bug":
-							await TaskServiceClient.askResponse(
-								AskResponseRequest.create({
-									responseType: "messageResponse",
-									text: messageToSend,
-									images,
-									files,
-								}),
-							)
-							break
-						// there is no other case that a textfield should be enabled
-					}
-				}
-				setInputValue("")
+
+				// Use state machine action to handle sending
+				// The state machine will determine whether to create a new task or send a message
+				// based on the current state and will handle the API calls
+				actions.handleInputChange(messageToSend, images, files)
+				actions.handleSend()
+
+				// Clear local state after sending
+				handleInputValueChange("")
 				setActiveQuote(null) // Clear quote when sending message
-				setSendingDisabled(true)
-				setSelectedImages([])
-				setSelectedFiles([])
-				setEnableButtons(false)
-				// setPrimaryButtonText(undefined)
-				// setSecondaryButtonText(undefined)
+				handleImagesChange([])
+				handleFilesChange([])
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk, activeQuote],
+		[activeQuote, actions],
 	)
 
 	const startNewTask = useCallback(async () => {
@@ -506,39 +335,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	*/
 	const handlePrimaryButtonClick = useCallback(
 		async (text?: string, images?: string[], files?: string[]) => {
-			const trimmedInput = text?.trim()
+			// For special cases that need direct handling
 			switch (clineAsk) {
-				case "api_req_failed":
-				case "command":
-				case "command_output":
-				case "tool":
-				case "browser_action_launch":
-				case "use_mcp_server":
-				case "resume_task":
-				case "mistake_limit_reached":
-				case "auto_approval_max_req_reached":
-					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
-					}
-					// Clear input state after sending
-					setInputValue("")
-					setActiveQuote(null) // Clear quote when using primary button
-					setSelectedImages([])
-					setSelectedFiles([])
-					break
 				case "completion_result":
 				case "resume_completed_task":
 					// extension waiting for feedback. but we can just present a new task button
@@ -564,14 +362,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						console.error(err),
 					)
 					break
+				default:
+					// Use state machine action for standard cases
+					const trimmedInput = text?.trim()
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+						// Update input state before sending
+						actions.handleInputChange(trimmedInput || "", images || [], files || [])
+					}
+					actions.handlePrimaryButton(trimmedInput)
+
+					// Clear input state after sending
+					handleInputValueChange("")
+					setActiveQuote(null) // Clear quote when using primary button
+					handleImagesChange([])
+					handleFilesChange([])
+					break
 			}
-			setSendingDisabled(true)
-			setEnableButtons(false)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask, lastMessage],
+		[clineAsk, startNewTask, lastMessage, messages, actions],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -583,47 +392,31 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				return
 			}
 
+			// For special cases that need direct handling
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					startNewTask()
 					break
-				case "command":
-				case "tool":
-				case "browser_action_launch":
-				case "use_mcp_server":
+				default:
+					// Use state machine action for standard cases
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						// responds to the API with a "This operation failed" and lets it try again
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-							}),
-						)
+						// Update input state before sending
+						actions.handleInputChange(trimmedInput || "", images || [], files || [])
 					}
+					actions.handleSecondaryButton(trimmedInput)
+
 					// Clear input state after sending
-					setInputValue("")
+					handleInputValueChange("")
 					setActiveQuote(null) // Clear quote when using secondary button
-					setSelectedImages([])
-					setSelectedFiles([])
+					handleImagesChange([])
+					handleFilesChange([])
 					break
 			}
-			setSendingDisabled(true)
-			setEnableButtons(false)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask, isStreaming],
+		[clineAsk, startNewTask, isStreaming, actions],
 	)
 
 	const handleTaskCloseButtonClick = useCallback(() => {
@@ -658,13 +451,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// Prioritize images first
 					const imagesToAdd = Math.min(response.values1.length, availableSlots)
 					if (imagesToAdd > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...response.values1.slice(0, imagesToAdd)])
+						handleImagesChange([...selectedImages, ...response.values1.slice(0, imagesToAdd)])
 					}
 
 					// Use remaining slots for files
 					const remainingSlots = availableSlots - imagesToAdd
 					if (remainingSlots > 0) {
-						setSelectedFiles((prevFiles) => [...prevFiles, ...response.values2.slice(0, remainingSlots)])
+						handleFilesChange([...selectedFiles, ...response.values2.slice(0, remainingSlots)])
 					}
 				}
 			}
@@ -696,11 +489,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
 			onResponse: (event) => {
 				if (event.value) {
-					setInputValue((prevValue) => {
-						const newText = event.value
-						const newTextWithNewline = newText + "\n"
-						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
-					})
+					const newText = event.value
+					const newTextWithNewline = newText + "\n"
+					const newValue = inputValue ? `${inputValue}\n${newTextWithNewline}` : newTextWithNewline
+					handleInputValueChange(newValue)
 					// Add scroll to bottom after state update
 					// Auto focus the input and start the cursor on a new line for easy typing
 					setTimeout(() => {
@@ -720,7 +512,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 
 		return cleanup
-	}, [])
+	}, [inputValue, handleInputValueChange])
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
@@ -1213,7 +1005,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: secondaryButtonText ? 1 : 2,
 										marginRight: secondaryButtonText ? "6px" : "0",
 									}}
-									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages, selectedFiles)}>
+									onClick={() => handlePrimaryButtonClick()}>
 									{primaryButtonText}
 								</VSCodeButton>
 							)}
@@ -1225,7 +1017,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
 									}}
-									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages, selectedFiles)}>
+									onClick={() => handleSecondaryButtonClick()}>
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
 							)}
