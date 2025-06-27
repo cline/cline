@@ -332,7 +332,7 @@
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
 		"protos": "node proto/build-proto.js && node scripts/generate-server-setup.mjs && node scripts/generate-host-bridge-client.mjs",
 		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
-		"clean": "rimraf dist dist-standalone webview-ui/build src/generated",
+		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"check-types": "npm run protos && tsc --noEmit",
