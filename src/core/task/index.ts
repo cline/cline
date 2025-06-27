@@ -1435,17 +1435,11 @@ export class Task {
 				totalChunks++
 
 				// Update UI periodically to show progress without overwhelming it
-				const now = performance.now()
+				const now = Date.now()
 				if (now - lastUpdateTime > updateInterval) {
 					// Update progress message with latest thinking content
 					// Using the partial flag to indicate this is a progressive update
-					await this.say(
-						"reasoning",
-						`Planning in progress... (${(now - start) / 1000}s)\n\n${assistantText.slice(-500)}`,
-						undefined,
-						undefined,
-						true,
-					)
+					await this.say("reasoning", `${assistantText.slice(-500)}`, undefined, undefined, true)
 					lastUpdateTime = now
 				}
 			}
