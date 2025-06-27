@@ -47,6 +47,7 @@ import { OllamaProvider } from "./providers/OllamaProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
+import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -92,7 +93,6 @@ const ApiOptions = ({
 	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
-	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
@@ -160,27 +160,14 @@ const ApiOptions = ({
 				console.error("Failed to fetch LM Studio models:", error)
 				setLmStudioModels([])
 			}
-		} else if (selectedProvider === "vscode-lm") {
-			try {
-				const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
-				if (response && response.models) {
-					setVsCodeLmModels(response.models)
-				}
-			} catch (error) {
-				console.error("Failed to fetch VS Code LM models:", error)
-				setVsCodeLmModels([])
-			}
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
+		if (selectedProvider === "ollama" || selectedProvider === "lmstudio") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(
-		requestLocalModels,
-		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
-	)
+	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" ? 2000 : null)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -435,66 +422,8 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "vscode-lm" && (
-				<div>
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
-						<label htmlFor="vscode-lm-model">
-							<span style={{ fontWeight: 500 }}>Language Model</span>
-						</label>
-						{vsCodeLmModels.length > 0 ? (
-							<VSCodeDropdown
-								id="vscode-lm-model"
-								value={
-									apiConfiguration?.vsCodeLmModelSelector
-										? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}`
-										: ""
-								}
-								onChange={(e) => {
-									const value = (e.target as HTMLInputElement).value
-									if (!value) {
-										return
-									}
-									const [vendor, family] = value.split("/")
-									handleInputChange("vsCodeLmModelSelector")({
-										target: {
-											value: { vendor, family },
-										},
-									})
-								}}
-								style={{ width: "100%" }}>
-								<VSCodeOption value="">Select a model...</VSCodeOption>
-								{vsCodeLmModels.map((model) => (
-									<VSCodeOption
-										key={`${model.vendor}/${model.family}`}
-										value={`${model.vendor}/${model.family}`}>
-										{model.vendor} - {model.family}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
-						) : (
-							<p
-								style={{
-									fontSize: "12px",
-									marginTop: "5px",
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								The VS Code Language Model API allows you to run models provided by other VS Code extensions
-								(including but not limited to GitHub Copilot). The easiest way to get started is to install the
-								Copilot extension from the VS Marketplace and enabling Claude 4 Sonnet.
-							</p>
-						)}
-
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-errorForeground)",
-								fontWeight: 500,
-							}}>
-							Note: This is a very experimental integration and may not work as expected.
-						</p>
-					</DropdownContainer>
-				</div>
+			{apiConfiguration && selectedProvider === "vscode-lm" && (
+				<VSCodeLmProvider apiConfiguration={apiConfiguration} handleInputChange={handleInputChange} />
 			)}
 
 			{selectedProvider === "lmstudio" && (
