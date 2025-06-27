@@ -1,3 +1,5 @@
+import { StandardTooltip } from "@/components/ui"
+
 interface IconButtonProps {
 	icon: string
 	onClick?: (e: React.MouseEvent) => void
@@ -31,15 +33,21 @@ export function IconButton({
 
 	const handleClick = onClick || ((_event: React.MouseEvent) => {})
 
-	return (
+	const button = (
 		<button
 			className={`${sizeClasses[size]} flex items-center justify-center border-none text-vscode-editor-foreground cursor-pointer rounded-[3px] ${variantClasses[variant]}`}
+			aria-label={title}
 			onClick={handleClick}
 			onMouseDown={onMouseDown}
 			onMouseUp={onMouseUp}
-			onMouseLeave={onMouseLeave}
-			title={title}>
+			onMouseLeave={onMouseLeave}>
 			<span className={`codicon codicon-${icon}`}></span>
 		</button>
 	)
+
+	if (title) {
+		return <StandardTooltip content={title}>{button}</StandardTooltip>
+	}
+
+	return button
 }

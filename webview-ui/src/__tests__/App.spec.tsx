@@ -1,7 +1,7 @@
 // npx vitest run src/__tests__/App.spec.tsx
 
 import React from "react"
-import { render, screen, act, cleanup } from "@testing-library/react"
+import { render, screen, act, cleanup } from "@/utils/test-utils"
 
 import AppWithProviders from "../App"
 

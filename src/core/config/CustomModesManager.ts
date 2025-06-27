@@ -123,18 +123,29 @@ export class CustomModesManager {
 
 		try {
 			return yaml.parse(cleanedContent)
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error)
-			console.error(`[CustomModesManager] Failed to parse YAML from ${filePath}:`, errorMsg)
-
-			// Show user-friendly error message for .roomodes files
+		} catch (yamlError) {
+			// For .roomodes files, try JSON as fallback
 			if (filePath.endsWith(ROOMODES_FILENAME)) {
-				const lineMatch = errorMsg.match(/at line (\d+)/)
-				const line = lineMatch ? lineMatch[1] : "unknown"
-				vscode.window.showErrorMessage(t("common:customModes.errors.yamlParseError", { line }))
+				try {
+					// Try parsing the original content as JSON (not the cleaned content)
+					return JSON.parse(content)
+				} catch (jsonError) {
+					// JSON also failed, show the original YAML error
+					const errorMsg = yamlError instanceof Error ? yamlError.message : String(yamlError)
+					console.error(`[CustomModesManager] Failed to parse YAML from ${filePath}:`, errorMsg)
+
+					const lineMatch = errorMsg.match(/at line (\d+)/)
+					const line = lineMatch ? lineMatch[1] : "unknown"
+					vscode.window.showErrorMessage(t("common:customModes.errors.yamlParseError", { line }))
+
+					// Return empty object to prevent duplicate error handling
+					return {}
+				}
 			}
 
-			// Return empty object to prevent duplicate error handling
+			// For non-.roomodes files, just log and return empty object
+			const errorMsg = yamlError instanceof Error ? yamlError.message : String(yamlError)
+			console.error(`[CustomModesManager] Failed to parse YAML from ${filePath}:`, errorMsg)
 			return {}
 		}
 	}
@@ -205,12 +216,7 @@ export class CustomModesManager {
 		const fileExists = await fileExistsAtPath(filePath)
 
 		if (!fileExists) {
-			await this.queueWrite(() =>
-				fs.writeFile(
-					filePath,
-					yaml.stringify({ customModes: [] }, { lineWidth: 0, defaultStringType: "PLAIN" }),
-				),
-			)
+			await this.queueWrite(() => fs.writeFile(filePath, yaml.stringify({ customModes: [] }, { lineWidth: 0 })))
 		}
 
 		return filePath
@@ -414,7 +420,7 @@ export class CustomModesManager {
 			content = await fs.readFile(filePath, "utf-8")
 		} catch (error) {
 			// File might not exist yet.
-			content = yaml.stringify({ customModes: [] }, { lineWidth: 0, defaultStringType: "PLAIN" })
+			content = yaml.stringify({ customModes: [] }, { lineWidth: 0 })
 		}
 
 		let settings
@@ -427,7 +433,7 @@ export class CustomModesManager {
 		}
 
 		settings.customModes = operation(settings.customModes || [])
-		await fs.writeFile(filePath, yaml.stringify(settings, { lineWidth: 0, defaultStringType: "PLAIN" }), "utf-8")
+		await fs.writeFile(filePath, yaml.stringify(settings, { lineWidth: 0 }), "utf-8")
 	}
 
 	private async refreshMergedState(): Promise<void> {
@@ -485,10 +491,7 @@ export class CustomModesManager {
 	public async resetCustomModes(): Promise<void> {
 		try {
 			const filePath = await this.getCustomModesFilePath()
-			await fs.writeFile(
-				filePath,
-				yaml.stringify({ customModes: [] }, { lineWidth: 0, defaultStringType: "PLAIN" }),
-			)
+			await fs.writeFile(filePath, yaml.stringify({ customModes: [] }, { lineWidth: 0 }))
 			await this.context.globalState.update("customModes", [])
 			this.clearCache()
 			await this.onUpdate()

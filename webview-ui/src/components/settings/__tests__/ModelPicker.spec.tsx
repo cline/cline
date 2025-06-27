@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/ModelPicker.spec.tsx
 
-import { screen, fireEvent, render } from "@testing-library/react"
+import { screen, fireEvent, render } from "@/utils/test-utils"
 import { act } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { vi } from "vitest"

@@ -26,7 +26,7 @@ export async function askFollowupQuestionTool(
 				return
 			}
 
-			type Suggest = { answer: string }
+			type Suggest = { answer: string; mode?: string }
 
 			let follow_up_json = {
 				question,
@@ -34,12 +34,17 @@ export async function askFollowupQuestionTool(
 			}
 
 			if (follow_up) {
+				// Define the actual structure returned by the XML parser
+				type ParsedSuggestion = string | { "#text": string; "@_mode"?: string }
+
 				let parsedSuggest: {
-					suggest: Suggest[] | Suggest
+					suggest: ParsedSuggestion[] | ParsedSuggestion
 				}
 
 				try {
-					parsedSuggest = parseXml(follow_up, ["suggest"]) as { suggest: Suggest[] | Suggest }
+					parsedSuggest = parseXml(follow_up, ["suggest"]) as {
+						suggest: ParsedSuggestion[] | ParsedSuggestion
+					}
 				} catch (error) {
 					cline.consecutiveMistakeCount++
 					cline.recordToolError("ask_followup_question")
@@ -48,9 +53,24 @@ export async function askFollowupQuestionTool(
 					return
 				}
 
-				const normalizedSuggest = Array.isArray(parsedSuggest?.suggest)
+				const rawSuggestions = Array.isArray(parsedSuggest?.suggest)
 					? parsedSuggest.suggest
-					: [parsedSuggest?.suggest].filter((sug): sug is Suggest => sug !== undefined)
+					: [parsedSuggest?.suggest].filter((sug): sug is ParsedSuggestion => sug !== undefined)
+
+				// Transform parsed XML to our Suggest format
+				const normalizedSuggest: Suggest[] = rawSuggestions.map((sug) => {
+					if (typeof sug === "string") {
+						// Simple string suggestion (no mode attribute)
+						return { answer: sug }
+					} else {
+						// XML object with text content and optional mode attribute
+						const result: Suggest = { answer: sug["#text"] }
+						if (sug["@_mode"]) {
+							result.mode = sug["@_mode"]
+						}
+						return result
+					}
+				})
 
 				follow_up_json.suggest = normalizedSuggest
 			}

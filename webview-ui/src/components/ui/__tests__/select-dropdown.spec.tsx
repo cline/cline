@@ -1,7 +1,7 @@
 // npx vitest run src/components/ui/__tests__/select-dropdown.spec.tsx
 
 import { ReactNode } from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 
 import { SelectDropdown, DropdownOptionType } from "../select-dropdown"
 

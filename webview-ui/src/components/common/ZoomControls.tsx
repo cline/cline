@@ -1,5 +1,6 @@
 import { IconButton } from "./IconButton"
 import { useRef, useEffect } from "react"
+import { StandardTooltip } from "@/components/ui"
 
 interface ZoomControlsProps {
 	zoomLevel: number
@@ -67,25 +68,27 @@ export function ZoomControls({
 
 	return (
 		<div className="flex items-center gap-2">
-			<IconButton
-				icon="zoom-out"
-				title={zoomOutTitle}
-				onClick={!useContinuousZoom ? onZoomOut || (() => adjustZoom?.(zoomOutStep)) : undefined}
-				onMouseDown={useContinuousZoom && adjustZoom ? () => startContinuousZoom(zoomOutStep) : undefined}
-				onMouseUp={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
-				onMouseLeave={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
-			/>
+			<StandardTooltip content={zoomOutTitle}>
+				<IconButton
+					icon="zoom-out"
+					onClick={!useContinuousZoom ? onZoomOut || (() => adjustZoom?.(zoomOutStep)) : undefined}
+					onMouseDown={useContinuousZoom && adjustZoom ? () => startContinuousZoom(zoomOutStep) : undefined}
+					onMouseUp={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
+					onMouseLeave={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
+				/>
+			</StandardTooltip>
 			<div className="text-sm text-vscode-editor-foreground min-w-[50px] text-center">
 				{Math.round(zoomLevel * 100)}%
 			</div>
-			<IconButton
-				icon="zoom-in"
-				title={zoomInTitle}
-				onClick={!useContinuousZoom ? onZoomIn || (() => adjustZoom?.(zoomInStep)) : undefined}
-				onMouseDown={useContinuousZoom && adjustZoom ? () => startContinuousZoom(zoomInStep) : undefined}
-				onMouseUp={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
-				onMouseLeave={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
-			/>
+			<StandardTooltip content={zoomInTitle}>
+				<IconButton
+					icon="zoom-in"
+					onClick={!useContinuousZoom ? onZoomIn || (() => adjustZoom?.(zoomInStep)) : undefined}
+					onMouseDown={useContinuousZoom && adjustZoom ? () => startContinuousZoom(zoomInStep) : undefined}
+					onMouseUp={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
+					onMouseLeave={useContinuousZoom && adjustZoom ? stopContinuousZoom : undefined}
+				/>
+			</StandardTooltip>
 		</div>
 	)
 }

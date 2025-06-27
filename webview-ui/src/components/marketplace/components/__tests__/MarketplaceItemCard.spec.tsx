@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen } from "@/utils/test-utils"
 import userEvent from "@testing-library/user-event"
 
 import { MarketplaceItem } from "@roo-code/types"
@@ -57,7 +57,7 @@ vi.mock("@/i18n/TranslationContext", () => ({
 }))
 
 const renderWithProviders = (ui: React.ReactElement) => {
-	return render(<TooltipProvider>{ui}</TooltipProvider>)
+	return render(<TooltipProvider delayDuration={300}>{ui}</TooltipProvider>)
 }
 
 describe("MarketplaceItemCard", () => {

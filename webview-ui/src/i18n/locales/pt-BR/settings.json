@@ -308,6 +308,21 @@
 			"pathLabel": "Caminho do Claude Code",
 			"description": "Caminho opcional para o seu Claude Code CLI. O padrão é 'claude' se não for definido.",
 			"placeholder": "Padrão: claude"
+		},
+		"geminiCli": {
+			"description": "Este provedor usa autenticação OAuth da ferramenta Gemini CLI e não requer chaves de API.",
+			"oauthPath": "Caminho das Credenciais OAuth (opcional)",
+			"oauthPathDescription": "Caminho para o arquivo de credenciais OAuth. Deixe vazio para usar o local padrão (~/.gemini/oauth_creds.json).",
+			"instructions": "Se você ainda não se autenticou, execute",
+			"instructionsContinued": "no seu terminal primeiro.",
+			"setupLink": "Instruções de Configuração do Gemini CLI",
+			"requirementsTitle": "Requisitos Importantes",
+			"requirement1": "Primeiro, você precisa instalar a ferramenta Gemini CLI",
+			"requirement2": "Em seguida, execute gemini no seu terminal e certifique-se de fazer login com o Google",
+			"requirement3": "Funciona apenas com contas pessoais do Google (não contas do Google Workspace)",
+			"requirement4": "Não usa chaves de API - a autenticação é tratada via OAuth",
+			"requirement5": "Requer que a ferramenta Gemini CLI seja instalada e autenticada primeiro",
+			"freeAccess": "Acesso gratuito via autenticação OAuth"
 		}
 	},
 	"browser": {

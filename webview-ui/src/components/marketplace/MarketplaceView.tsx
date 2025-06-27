@@ -81,7 +81,7 @@ export function MarketplaceView({ stateManager, onDone, targetTab }: Marketplace
 	const filteredTags = useMemo(() => allTags, [allTags])
 
 	return (
-		<TooltipProvider>
+		<TooltipProvider delayDuration={300}>
 			<Tab>
 				<TabHeader className="flex flex-col sticky top-0 z-10 px-3 py-2">
 					<div className="flex justify-between items-center px-2">

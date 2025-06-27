@@ -70,7 +70,7 @@ export const groqModels = {
 		description: "Alibaba Qwen QwQ 32B model, 128K context.",
 	},
 	"qwen/qwen3-32b": {
-		maxTokens: 131072,
+		maxTokens: 40960,
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,

@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/TemperatureControl.spec.tsx
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
 
 import { TemperatureControl } from "../TemperatureControl"
 

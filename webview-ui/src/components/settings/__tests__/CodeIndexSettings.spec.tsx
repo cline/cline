@@ -1,6 +1,6 @@
 // npx vitest src/components/settings/__tests__/CodeIndexSettings.spec.tsx
 
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import userEvent from "@testing-library/user-event"
 
 import { CodeIndexSettings } from "../CodeIndexSettings"

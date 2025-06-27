@@ -1,6 +1,6 @@
 // npx vitest run src/components/common/__tests__/CodeBlock.spec.tsx
 
-import { render, screen, fireEvent, act } from "@testing-library/react"
+import { render, screen, fireEvent, act } from "@/utils/test-utils"
 
 import CodeBlock from "../CodeBlock"
 
@@ -36,6 +36,43 @@ vi.mock("../../../utils/highlighter", () => {
 		codeToHtml: vi.fn().mockImplementation((code, options) => {
 			const theme = options.theme === "github-light" ? "light" : "dark"
 			return `<pre><code class="hljs language-${options.lang}">${code} [${theme}-theme]</code></pre>`
+		}),
+		codeToHast: vi.fn().mockImplementation((code, options) => {
+			const theme = options.theme === "github-light" ? "light" : "dark"
+			// Return a comprehensive HAST node structure that matches Shiki's output
+			// Apply transformers if provided
+			const preNode = {
+				type: "element",
+				tagName: "pre",
+				properties: {},
+				children: [
+					{
+						type: "element",
+						tagName: "code",
+						properties: { className: [`hljs`, `language-${options.lang}`] },
+						children: [
+							{
+								type: "text",
+								value: `${code} [${theme}-theme]`,
+							},
+						],
+					},
+				],
+			}
+
+			// Apply transformers if they exist
+			if (options.transformers) {
+				for (const transformer of options.transformers) {
+					if (transformer.pre) {
+						transformer.pre(preNode)
+					}
+					if (transformer.code && preNode.children[0]) {
+						transformer.code(preNode.children[0])
+					}
+				}
+			}
+
+			return preNode
 		}),
 	}
 
@@ -170,9 +207,15 @@ describe("CodeBlock", () => {
 			codeBlock.setAttribute("data-partially-visible", "true")
 		}
 
-		const copyButton = screen.getByTitle("Copy code")
-		await act(async () => {
-			fireEvent.click(copyButton)
-		})
+		// Find the copy button by looking for the button containing the Copy icon
+		const buttons = screen.getAllByRole("button")
+		const copyButton = buttons.find((btn) => btn.querySelector("svg.lucide-copy"))
+
+		expect(copyButton).toBeTruthy()
+		if (copyButton) {
+			await act(async () => {
+				fireEvent.click(copyButton)
+			})
+		}
 	})
 })

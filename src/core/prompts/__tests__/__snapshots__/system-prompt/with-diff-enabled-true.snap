@@ -387,12 +387,17 @@ Parameters:
   1. Be provided in its own <suggest> tag
   2. Be specific, actionable, and directly related to the completed task
   3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details. DO NOT include placeholders with brackets or parentheses.
+  4. Optionally include a mode attribute to switch to a specific mode when the suggestion is selected: <suggest mode="mode-slug">suggestion text</suggest>
+     - When using the mode attribute, focus the suggestion text on the action to be taken rather than mentioning the mode switch, as the mode change is handled automatically and indicated by a visual badge
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
 <follow_up>
 <suggest>
 Your suggested answer here
+</suggest>
+<suggest mode="code">
+Implement the solution
 </suggest>
 </follow_up>
 </ask_followup_question>
@@ -404,6 +409,16 @@ Example: Requesting to ask the user for the path to the frontend-config.json fil
 <suggest>./src/frontend-config.json</suggest>
 <suggest>./config/frontend-config.json</suggest>
 <suggest>./frontend-config.json</suggest>
+</follow_up>
+</ask_followup_question>
+
+Example: Asking a question with mode switching options
+<ask_followup_question>
+<question>How would you like to proceed with this task?</question>
+<follow_up>
+<suggest mode="code">Start implementing the solution</suggest>
+<suggest mode="architect">Plan the architecture first</suggest>
+<suggest>Continue with more details</suggest>
 </follow_up>
 </ask_followup_question>
 

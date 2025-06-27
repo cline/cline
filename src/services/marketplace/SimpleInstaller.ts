@@ -84,7 +84,7 @@ export class SimpleInstaller {
 
 		// Write back to file
 		await fs.mkdir(path.dirname(filePath), { recursive: true })
-		const yamlContent = yaml.stringify(existingData, { lineWidth: 0, defaultStringType: "PLAIN" })
+		const yamlContent = yaml.stringify(existingData, { lineWidth: 0 })
 		await fs.writeFile(filePath, yamlContent, "utf-8")
 
 		// Calculate approximate line number where the new mode was added
@@ -282,11 +282,7 @@ export class SimpleInstaller {
 				existingData.customModes = existingData.customModes.filter((mode: any) => mode.slug !== modeData.slug)
 
 				// Always write back the file, even if empty
-				await fs.writeFile(
-					filePath,
-					yaml.stringify(existingData, { lineWidth: 0, defaultStringType: "PLAIN" }),
-					"utf-8",
-				)
+				await fs.writeFile(filePath, yaml.stringify(existingData, { lineWidth: 0 }), "utf-8")
 			}
 		} catch (error: any) {
 			if (error.code === "ENOENT") {

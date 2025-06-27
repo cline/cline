@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 
-import { Button } from "@/components/ui"
+import { Button, StandardTooltip } from "@/components/ui"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 
@@ -25,14 +25,15 @@ export const DeleteButton = ({ itemId, onDelete }: DeleteButtonProps) => {
 	)
 
 	return (
-		<Button
-			variant="ghost"
-			size="icon"
-			title={t("history:deleteTaskTitle")}
-			data-testid="delete-task-button"
-			onClick={handleDeleteClick}
-			className="group-hover:opacity-100 opacity-50 transition-opacity">
-			<span className="codicon codicon-trash size-4 align-middle text-vscode-descriptionForeground" />
-		</Button>
+		<StandardTooltip content={t("history:deleteTaskTitle")}>
+			<Button
+				variant="ghost"
+				size="icon"
+				data-testid="delete-task-button"
+				onClick={handleDeleteClick}
+				className="group-hover:opacity-100 opacity-50 transition-opacity">
+				<span className="codicon codicon-trash size-4 align-middle text-vscode-descriptionForeground" />
+			</Button>
+		</StandardTooltip>
 	)
 }
