@@ -203,8 +203,8 @@ export class McpHub {
 					status: "disconnected",
 					disabled: true,
 				},
-				client: null as any, // No client for disabled servers
-				transport: null as any, // No transport for disabled servers
+				client: null as unknown as Client,
+				transport: null as unknown as Transport,
 			}
 			this.connections.push(disabledConnection)
 			return
