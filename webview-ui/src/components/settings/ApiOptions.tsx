@@ -21,7 +21,6 @@ import * as vscodemodels from "vscode"
 import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 
 import { ClineProvider } from "./providers/ClineProvider"
@@ -95,7 +94,6 @@ const ApiOptions = ({
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -774,17 +772,6 @@ const ApiOptions = ({
 					showModelOptions={showModelOptions}
 					isPopup={isPopup}
 				/>
-			)}
-
-			{apiErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{apiErrorMessage}
-				</p>
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (
