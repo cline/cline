@@ -2,7 +2,7 @@ import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
-import Section from "./Section"
+import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null

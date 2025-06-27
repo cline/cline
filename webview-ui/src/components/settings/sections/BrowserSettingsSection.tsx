@@ -2,12 +2,12 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextF
 import debounce from "debounce"
 import React, { useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
-import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { BrowserServiceClient } from "../../services/grpc-client"
+import { BROWSER_VIEWPORT_PRESETS } from "../../../../../src/shared/BrowserSettings"
+import { useExtensionState } from "../../../context/ExtensionStateContext"
+import { BrowserServiceClient } from "../../../services/grpc-client"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import Section from "./Section"
+import Section from "../Section"
 
 interface BrowserSettingsSectionProps {
 	localBrowserSettings: BrowserSettings
