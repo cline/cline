@@ -69,6 +69,16 @@
 			"processExitedWithError": "Claude Code proces beëindigd met code {{exitCode}}. Foutuitvoer: {{output}}",
 			"stoppedWithReason": "Claude Code gestopt om reden: {{reason}}",
 			"apiKeyModelPlanMismatch": "API-sleutels en abonnementsplannen staan verschillende modellen toe. Zorg ervoor dat het geselecteerde model is opgenomen in je plan."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Kan OAuth-referenties niet laden. Authenticeer eerst: {{error}}",
+			"tokenRefreshFailed": "Kan OAuth-token niet vernieuwen: {{error}}",
+			"onboardingTimeout": "Onboarding-operatie is na 60 seconden verlopen. Probeer het later opnieuw.",
+			"projectDiscoveryFailed": "Kan project-ID niet ontdekken. Zorg ervoor dat je geauthenticeerd bent met 'gemini auth'.",
+			"rateLimitExceeded": "Snelheidslimiet overschreden. Gratis tier limieten zijn bereikt.",
+			"badRequest": "Ongeldig verzoek: {{details}}",
+			"apiError": "Gemini CLI API-fout: {{error}}",
+			"completionError": "Gemini CLI voltooiingsfout: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",
 			"organization_mismatch": "Je moet geauthenticeerd zijn met het Roo Code Cloud-account van je organisatie.",
 			"verification_failed": "Kan organisatie-authenticatie niet verifiëren."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Kan OAuth-referenties niet laden. Authenticeer eerst: {{error}}",
-			"tokenRefreshFailed": "Kan OAuth-token niet vernieuwen: {{error}}",
-			"onboardingTimeout": "Onboarding-operatie is na 60 seconden verlopen. Probeer het later opnieuw.",
-			"projectDiscoveryFailed": "Kan project-ID niet ontdekken. Zorg ervoor dat je geauthenticeerd bent met 'gemini auth'.",
-			"rateLimitExceeded": "Snelheidslimiet overschreden. Gratis tier limieten zijn bereikt.",
-			"badRequest": "Ongeldig verzoek: {{details}}",
-			"apiError": "Gemini CLI API-fout: {{error}}",
-			"completionError": "Gemini CLI voltooiingsfout: {{error}}"
 		}
 	}
 }

@@ -69,6 +69,16 @@
 			"processExitedWithError": "Claude Code プロセスがコード {{exitCode}} で終了しました。エラー出力：{{output}}",
 			"stoppedWithReason": "Claude Code が理由により停止しました：{{reason}}",
 			"apiKeyModelPlanMismatch": "API キーとサブスクリプションプランでは異なるモデルが利用可能です。選択したモデルがプランに含まれていることを確認してください。"
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "OAuth認証情報の読み込みに失敗しました。まず認証してください: {{error}}",
+			"tokenRefreshFailed": "OAuthトークンの更新に失敗しました: {{error}}",
+			"onboardingTimeout": "オンボーディング操作が60秒でタイムアウトしました。後でもう一度お試しください。",
+			"projectDiscoveryFailed": "プロジェクトIDを発見できませんでした。'gemini auth'で認証されていることを確認してください。",
+			"rateLimitExceeded": "レート制限を超過しました。無料プランの制限に達しています。",
+			"badRequest": "不正なリクエスト: {{details}}",
+			"apiError": "Gemini CLI APIエラー: {{error}}",
+			"completionError": "Gemini CLI補完エラー: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "あなたの組織では Roo Code Cloud 認証が必要です。続行するにはサインインしてください。",
 			"organization_mismatch": "組織の Roo Code Cloud アカウントで認証する必要があります。",
 			"verification_failed": "組織認証の確認ができませんでした。"
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "OAuth認証情報の読み込みに失敗しました。まず認証してください: {{error}}",
-			"tokenRefreshFailed": "OAuthトークンの更新に失敗しました: {{error}}",
-			"onboardingTimeout": "オンボーディング操作が60秒でタイムアウトしました。後でもう一度お試しください。",
-			"projectDiscoveryFailed": "プロジェクトIDを発見できませんでした。'gemini auth'で認証されていることを確認してください。",
-			"rateLimitExceeded": "レート制限を超過しました。無料プランの制限に達しています。",
-			"badRequest": "不正なリクエスト: {{details}}",
-			"apiError": "Gemini CLI APIエラー: {{error}}",
-			"completionError": "Gemini CLI補完エラー: {{error}}"
 		}
 	}
 }

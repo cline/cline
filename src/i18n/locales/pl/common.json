@@ -69,6 +69,16 @@
 			"processExitedWithError": "Proces Claude Code zakończył się kodem {{exitCode}}. Wyjście błędu: {{output}}",
 			"stoppedWithReason": "Claude Code zatrzymał się z powodu: {{reason}}",
 			"apiKeyModelPlanMismatch": "Klucze API i plany subskrypcji pozwalają na różne modele. Upewnij się, że wybrany model jest zawarty w twoim planie."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Nie udało się załadować danych uwierzytelniających OAuth. Najpierw się uwierzytelnij: {{error}}",
+			"tokenRefreshFailed": "Nie udało się odświeżyć tokenu OAuth: {{error}}",
+			"onboardingTimeout": "Operacja wdrażania przekroczyła limit czasu po 60 sekundach. Spróbuj ponownie później.",
+			"projectDiscoveryFailed": "Nie można odkryć ID projektu. Upewnij się, że jesteś uwierzytelniony za pomocą 'gemini auth'.",
+			"rateLimitExceeded": "Przekroczono limit szybkości. Osiągnięto limity darmowego poziomu.",
+			"badRequest": "Nieprawidłowe żądanie: {{details}}",
+			"apiError": "Błąd API Gemini CLI: {{error}}",
+			"completionError": "Błąd uzupełniania Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Twoja organizacja wymaga uwierzytelnienia Roo Code Cloud. Zaloguj się, aby kontynuować.",
 			"organization_mismatch": "Musisz być uwierzytelniony kontem Roo Code Cloud swojej organizacji.",
 			"verification_failed": "Nie można zweryfikować uwierzytelnienia organizacji."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Nie udało się załadować danych uwierzytelniających OAuth. Najpierw się uwierzytelnij: {{error}}",
-			"tokenRefreshFailed": "Nie udało się odświeżyć tokenu OAuth: {{error}}",
-			"onboardingTimeout": "Operacja wdrażania przekroczyła limit czasu po 60 sekundach. Spróbuj ponownie później.",
-			"projectDiscoveryFailed": "Nie można odkryć ID projektu. Upewnij się, że jesteś uwierzytelniony za pomocą 'gemini auth'.",
-			"rateLimitExceeded": "Przekroczono limit szybkości. Osiągnięto limity darmowego poziomu.",
-			"badRequest": "Nieprawidłowe żądanie: {{details}}",
-			"apiError": "Błąd API Gemini CLI: {{error}}",
-			"completionError": "Błąd uzupełniania Gemini CLI: {{error}}"
 		}
 	}
 }

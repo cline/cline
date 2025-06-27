@@ -73,6 +73,16 @@
 			"processExitedWithError": "El procés Claude Code ha sortit amb codi {{exitCode}}. Sortida d'error: {{output}}",
 			"stoppedWithReason": "Claude Code s'ha aturat per la raó: {{reason}}",
 			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "No s'han pogut carregar les credencials OAuth. Si us plau, autentica't primer: {{error}}",
+			"tokenRefreshFailed": "No s'ha pogut actualitzar el token OAuth: {{error}}",
+			"onboardingTimeout": "L'operació d'onboarding ha esgotat el temps després de 60 segons. Si us plau, torna-ho a provar més tard.",
+			"projectDiscoveryFailed": "No s'ha pogut descobrir l'ID del projecte. Assegura't d'estar autenticat amb 'gemini auth'.",
+			"rateLimitExceeded": "S'ha superat el límit de velocitat. S'han assolit els límits del nivell gratuït.",
+			"badRequest": "Sol·licitud incorrecta: {{details}}",
+			"apiError": "Error de l'API Gemini CLI: {{error}}",
+			"completionError": "Error de compleció de Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "La teva organització requereix autenticació de Roo Code Cloud. Si us plau, inicia sessió per continuar.",
 			"organization_mismatch": "Has d'estar autenticat amb el compte de Roo Code Cloud de la teva organització.",
 			"verification_failed": "No s'ha pogut verificar l'autenticació de l'organització."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "No s'han pogut carregar les credencials OAuth. Si us plau, autentica't primer: {{error}}",
-			"tokenRefreshFailed": "No s'ha pogut actualitzar el token OAuth: {{error}}",
-			"onboardingTimeout": "L'operació d'onboarding ha esgotat el temps després de 60 segons. Si us plau, torna-ho a provar més tard.",
-			"projectDiscoveryFailed": "No s'ha pogut descobrir l'ID del projecte. Assegura't d'estar autenticat amb 'gemini auth'.",
-			"rateLimitExceeded": "S'ha superat el límit de velocitat. S'han assolit els límits del nivell gratuït.",
-			"badRequest": "Sol·licitud incorrecta: {{details}}",
-			"apiError": "Error de l'API Gemini CLI: {{error}}",
-			"completionError": "Error de compleció de Gemini CLI: {{error}}"
 		}
 	}
 }

@@ -69,6 +69,16 @@
 			"processExitedWithError": "Proses Claude Code keluar dengan kode {{exitCode}}. Output error: {{output}}",
 			"stoppedWithReason": "Claude Code berhenti karena alasan: {{reason}}",
 			"apiKeyModelPlanMismatch": "Kunci API dan paket berlangganan memungkinkan model yang berbeda. Pastikan model yang dipilih termasuk dalam paket Anda."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Gagal memuat kredensial OAuth. Silakan autentikasi terlebih dahulu: {{error}}",
+			"tokenRefreshFailed": "Gagal memperbarui token OAuth: {{error}}",
+			"onboardingTimeout": "Operasi onboarding habis waktu setelah 60 detik. Silakan coba lagi nanti.",
+			"projectDiscoveryFailed": "Tidak dapat menemukan ID proyek. Pastikan Anda terautentikasi dengan 'gemini auth'.",
+			"rateLimitExceeded": "Batas kecepatan terlampaui. Batas tingkat gratis telah tercapai.",
+			"badRequest": "Permintaan tidak valid: {{details}}",
+			"apiError": "Kesalahan API Gemini CLI: {{error}}",
+			"completionError": "Kesalahan penyelesaian Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Organisasi kamu memerlukan autentikasi Roo Code Cloud. Silakan masuk untuk melanjutkan.",
 			"organization_mismatch": "Kamu harus diautentikasi dengan akun Roo Code Cloud organisasi kamu.",
 			"verification_failed": "Tidak dapat memverifikasi autentikasi organisasi."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Gagal memuat kredensial OAuth. Silakan autentikasi terlebih dahulu: {{error}}",
-			"tokenRefreshFailed": "Gagal memperbarui token OAuth: {{error}}",
-			"onboardingTimeout": "Operasi onboarding timeout setelah 60 detik. Silakan coba lagi nanti.",
-			"projectDiscoveryFailed": "Tidak dapat menemukan ID proyek. Pastikan Anda sudah terautentikasi dengan 'gemini auth'.",
-			"rateLimitExceeded": "Batas kecepatan terlampaui. Batas tier gratis telah tercapai.",
-			"badRequest": "Permintaan tidak valid: {{details}}",
-			"apiError": "Error API Gemini CLI: {{error}}",
-			"completionError": "Error penyelesaian Gemini CLI: {{error}}"
 		}
 	}
 }

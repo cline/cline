@@ -69,6 +69,16 @@
 			"processExitedWithError": "Процесс Claude Code завершился с кодом {{exitCode}}. Вывод ошибки: {{output}}",
 			"stoppedWithReason": "Claude Code остановился по причине: {{reason}}",
 			"apiKeyModelPlanMismatch": "API-ключи и планы подписки позволяют использовать разные модели. Убедитесь, что выбранная модель включена в ваш план."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Не удалось загрузить учетные данные OAuth. Сначала выполните аутентификацию: {{error}}",
+			"tokenRefreshFailed": "Не удалось обновить токен OAuth: {{error}}",
+			"onboardingTimeout": "Операция подключения истекла через 60 секунд. Пожалуйста, попробуйте позже.",
+			"projectDiscoveryFailed": "Не удалось обнаружить идентификатор проекта. Убедитесь, что вы аутентифицированы с помощью 'gemini auth'.",
+			"rateLimitExceeded": "Превышен лимит скорости. Достигнуты лимиты бесплатного уровня.",
+			"badRequest": "Неверный запрос: {{details}}",
+			"apiError": "Ошибка API Gemini CLI: {{error}}",
+			"completionError": "Ошибка завершения Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Ваша организация требует аутентификации Roo Code Cloud. Войдите в систему, чтобы продолжить.",
 			"organization_mismatch": "Вы должны быть аутентифицированы с учетной записью Roo Code Cloud вашей организации.",
 			"verification_failed": "Не удается проверить аутентификацию организации."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Не удалось загрузить учетные данные OAuth. Сначала выполните аутентификацию: {{error}}",
-			"tokenRefreshFailed": "Не удалось обновить токен OAuth: {{error}}",
-			"onboardingTimeout": "Операция адаптации истекла через 60 секунд. Попробуйте позже.",
-			"projectDiscoveryFailed": "Не удалось обнаружить ID проекта. Убедитесь, что вы аутентифицированы с помощью 'gemini auth'.",
-			"rateLimitExceeded": "Превышен лимит скорости. Достигнуты ограничения бесплатного уровня.",
-			"badRequest": "Неверный запрос: {{details}}",
-			"apiError": "Ошибка API Gemini CLI: {{error}}",
-			"completionError": "Ошибка завершения Gemini CLI: {{error}}"
 		}
 	}
 }

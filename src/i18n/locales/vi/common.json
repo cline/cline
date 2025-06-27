@@ -69,6 +69,16 @@
 			"processExitedWithError": "Tiến trình Claude Code thoát với mã {{exitCode}}. Đầu ra lỗi: {{output}}",
 			"stoppedWithReason": "Claude Code dừng lại vì lý do: {{reason}}",
 			"apiKeyModelPlanMismatch": "Khóa API và gói đăng ký cho phép các mô hình khác nhau. Đảm bảo rằng mô hình đã chọn được bao gồm trong gói của bạn."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Không thể tải thông tin xác thực OAuth. Vui lòng xác thực trước: {{error}}",
+			"tokenRefreshFailed": "Không thể làm mới token OAuth: {{error}}",
+			"onboardingTimeout": "Thao tác onboarding đã hết thời gian chờ sau 60 giây. Vui lòng thử lại sau.",
+			"projectDiscoveryFailed": "Không thể khám phá ID dự án. Đảm bảo bạn đã xác thực bằng 'gemini auth'.",
+			"rateLimitExceeded": "Đã vượt quá giới hạn tốc độ. Đã đạt đến giới hạn của gói miễn phí.",
+			"badRequest": "Yêu cầu không hợp lệ: {{details}}",
+			"apiError": "Lỗi API Gemini CLI: {{error}}",
+			"completionError": "Lỗi hoàn thành Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Tổ chức của bạn yêu cầu xác thực Roo Code Cloud. Vui lòng đăng nhập để tiếp tục.",
 			"organization_mismatch": "Bạn phải được xác thực bằng tài khoản Roo Code Cloud của tổ chức.",
 			"verification_failed": "Không thể xác minh xác thực tổ chức."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Không thể tải thông tin xác thực OAuth. Vui lòng xác thực trước: {{error}}",
-			"tokenRefreshFailed": "Không thể làm mới token OAuth: {{error}}",
-			"onboardingTimeout": "Thao tác onboarding đã hết thời gian chờ sau 60 giây. Vui lòng thử lại sau.",
-			"projectDiscoveryFailed": "Không thể khám phá ID dự án. Đảm bảo bạn đã xác thực bằng 'gemini auth'.",
-			"rateLimitExceeded": "Đã vượt quá giới hạn tốc độ. Đã đạt đến giới hạn của gói miễn phí.",
-			"badRequest": "Yêu cầu không hợp lệ: {{details}}",
-			"apiError": "Lỗi API Gemini CLI: {{error}}",
-			"completionError": "Lỗi hoàn thành Gemini CLI: {{error}}"
 		}
 	}
 }

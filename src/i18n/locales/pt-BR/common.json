@@ -73,6 +73,16 @@
 			"processExitedWithError": "O processo Claude Code saiu com código {{exitCode}}. Saída de erro: {{output}}",
 			"stoppedWithReason": "Claude Code parou pela razão: {{reason}}",
 			"apiKeyModelPlanMismatch": "Chaves de API e planos de assinatura permitem modelos diferentes. Certifique-se de que o modelo selecionado esteja incluído no seu plano."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Falha ao carregar credenciais OAuth. Por favor, autentique-se primeiro: {{error}}",
+			"tokenRefreshFailed": "Falha ao atualizar token OAuth: {{error}}",
+			"onboardingTimeout": "A operação de integração expirou após 60 segundos. Por favor, tente novamente mais tarde.",
+			"projectDiscoveryFailed": "Não foi possível descobrir o ID do projeto. Certifique-se de estar autenticado com 'gemini auth'.",
+			"rateLimitExceeded": "Limite de taxa excedido. Os limites do nível gratuito foram atingidos.",
+			"badRequest": "Solicitação inválida: {{details}}",
+			"apiError": "Erro da API Gemini CLI: {{error}}",
+			"completionError": "Erro de conclusão do Gemini CLI: {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Sua organização requer autenticação do Roo Code Cloud. Faça login para continuar.",
 			"organization_mismatch": "Você deve estar autenticado com a conta Roo Code Cloud da sua organização.",
 			"verification_failed": "Não foi possível verificar a autenticação da organização."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Falha ao carregar credenciais OAuth. Por favor, autentique-se primeiro: {{error}}",
-			"tokenRefreshFailed": "Falha ao atualizar token OAuth: {{error}}",
-			"onboardingTimeout": "A operação de integração expirou após 60 segundos. Tente novamente mais tarde.",
-			"projectDiscoveryFailed": "Não foi possível descobrir o ID do projeto. Certifique-se de estar autenticado com 'gemini auth'.",
-			"rateLimitExceeded": "Limite de taxa excedido. Os limites do nível gratuito foram atingidos.",
-			"badRequest": "Solicitação inválida: {{details}}",
-			"apiError": "Erro da API Gemini CLI: {{error}}",
-			"completionError": "Erro de conclusão do Gemini CLI: {{error}}"
 		}
 	}
 }

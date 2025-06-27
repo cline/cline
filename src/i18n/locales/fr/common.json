@@ -69,6 +69,16 @@
 			"processExitedWithError": "Le processus Claude Code s'est terminé avec le code {{exitCode}}. Sortie d'erreur : {{output}}",
 			"stoppedWithReason": "Claude Code s'est arrêté pour la raison : {{reason}}",
 			"apiKeyModelPlanMismatch": "Les clés API et les plans d'abonnement permettent différents modèles. Assurez-vous que le modèle sélectionné est inclus dans votre plan."
+		},
+		"geminiCli": {
+			"oauthLoadFailed": "Échec du chargement des identifiants OAuth. Veuillez vous authentifier d'abord : {{error}}",
+			"tokenRefreshFailed": "Échec du renouvellement du token OAuth : {{error}}",
+			"onboardingTimeout": "L'opération d'intégration a expiré après 60 secondes. Veuillez réessayer plus tard.",
+			"projectDiscoveryFailed": "Impossible de découvrir l'ID du projet. Assurez-vous d'être authentifié avec 'gemini auth'.",
+			"rateLimitExceeded": "Limite de débit dépassée. Les limites du niveau gratuit ont été atteintes.",
+			"badRequest": "Requête incorrecte : {{details}}",
+			"apiError": "Erreur API Gemini CLI : {{error}}",
+			"completionError": "Erreur de complétion Gemini CLI : {{error}}"
 		}
 	},
 	"warnings": {
@@ -139,16 +149,6 @@
 			"cloud_auth_required": "Votre organisation nécessite une authentification Roo Code Cloud. Veuillez vous connecter pour continuer.",
 			"organization_mismatch": "Vous devez être authentifié avec le compte Roo Code Cloud de votre organisation.",
 			"verification_failed": "Impossible de vérifier l'authentification de l'organisation."
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "Échec du chargement des identifiants OAuth. Veuillez vous authentifier d'abord : {{error}}",
-			"tokenRefreshFailed": "Échec du renouvellement du token OAuth : {{error}}",
-			"onboardingTimeout": "L'opération d'intégration a expiré après 60 secondes. Veuillez réessayer plus tard.",
-			"projectDiscoveryFailed": "Impossible de découvrir l'ID du projet. Assurez-vous d'être authentifié avec 'gemini auth'.",
-			"rateLimitExceeded": "Limite de débit dépassée. Les limites du niveau gratuit ont été atteintes.",
-			"badRequest": "Requête incorrecte : {{details}}",
-			"apiError": "Erreur API Gemini CLI : {{error}}",
-			"completionError": "Erreur de complétion Gemini CLI : {{error}}"
 		}
 	}
 }
