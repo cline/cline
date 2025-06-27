@@ -6,7 +6,6 @@ import {
 	bedrockDefaultModelId,
 	bedrockModels,
 	cerebrasModels,
-	claudeCodeModels,
 	geminiModels,
 	internationalQwenModels,
 	liteLlmModelInfoSaneDefaults,
@@ -58,6 +57,7 @@ import { RequestyProvider } from "./providers/RequestyProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
+import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -312,25 +312,13 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "claude-code" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.claudeCodePath || ""}
-						style={{ width: "100%", marginTop: 3 }}
-						type="text"
-						onInput={handleInputChange("claudeCodePath")}
-						placeholder="Default: claude"
-					/>
-
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Path to the Claude Code CLI.
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "claude-code" && (
+				<ClaudeCodeProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
@@ -1329,6 +1317,7 @@ const ApiOptions = ({
 				selectedProvider !== "cline" &&
 				selectedProvider !== "anthropic" &&
 				selectedProvider !== "asksage" &&
+				selectedProvider !== "claude-code" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1352,7 +1341,6 @@ const ApiOptions = ({
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
 							{selectedProvider === "qwen" &&
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
