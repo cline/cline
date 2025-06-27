@@ -18,7 +18,6 @@ const DEFAULT_IGNORE_DIRECTORIES = [
 	"tmp",
 	"temp",
 	"deps",
-	"pkg",
 	"Pods",
 ]
 
