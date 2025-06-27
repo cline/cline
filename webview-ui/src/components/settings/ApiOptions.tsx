@@ -5,7 +5,6 @@ import {
 	ApiConfiguration,
 	bedrockDefaultModelId,
 	bedrockModels,
-	cerebrasModels,
 	claudeCodeModels,
 	geminiModels,
 	internationalQwenModels,
@@ -13,7 +12,6 @@ import {
 	mainlandQwenModels,
 	ModelInfo,
 	nebiusModels,
-	xaiModels,
 	sapAiCoreModels,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
@@ -36,7 +34,6 @@ import * as vscodemodels from "vscode"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
@@ -57,6 +54,7 @@ import GeminiCliProvider from "./providers/GeminiCliProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { XaiProvider } from "./providers/XaiProvider"
+import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 
 interface ApiOptionsProps {
@@ -1167,35 +1165,13 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "cerebras" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.cerebrasApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("cerebrasApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Cerebras API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.cerebrasApiKey && (
-							<VSCodeLink
-								href="https://cloud.cerebras.ai/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Cerebras API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "cerebras" && (
+				<CerebrasProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{selectedProvider === "sapaicore" && (
@@ -1346,6 +1322,7 @@ const ApiOptions = ({
 				selectedProvider !== "gemini-cli" &&
 				selectedProvider !== "fireworks" &&
 				selectedProvider !== "xai" &&
+				selectedProvider !== "cerebras" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1357,7 +1334,6 @@ const ApiOptions = ({
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
-							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 						</DropdownContainer>
