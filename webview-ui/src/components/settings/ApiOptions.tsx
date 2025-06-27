@@ -47,6 +47,7 @@ import { OllamaProvider } from "./providers/OllamaProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
+import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
 
 interface ApiOptionsProps {
@@ -92,7 +93,6 @@ const ApiOptions = ({
 	const extensionState = useExtensionState()
 	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
-	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
@@ -146,24 +146,14 @@ const ApiOptions = ({
 				console.error("Failed to fetch Ollama models:", error)
 				setOllamaModels([])
 			}
-		} else if (selectedProvider === "vscode-lm") {
-			try {
-				const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
-				if (response && response.models) {
-					setVsCodeLmModels(response.models)
-				}
-			} catch (error) {
-				console.error("Failed to fetch VS Code LM models:", error)
-				setVsCodeLmModels([])
-			}
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "vscode-lm") {
+		if (selectedProvider === "ollama") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "vscode-lm" ? 2000 : null)
+	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
