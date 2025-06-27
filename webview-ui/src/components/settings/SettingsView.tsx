@@ -22,6 +22,7 @@ import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 const IS_DEV = process.env.IS_DEV
@@ -776,43 +777,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 							{/* General Settings Tab */}
 							{activeTab === "general" && (
-								<div>
-									{renderSectionHeader("general")}
-									<Section>
-										{chatSettings && (
-											<PreferredLanguageSetting
-												chatSettings={chatSettings}
-												setChatSettings={setChatSettings}
-											/>
-										)}
-
-										<div className="mb-[5px]">
-											<VSCodeCheckbox
-												className="mb-[5px]"
-												checked={telemetrySetting !== "disabled"}
-												onChange={(e: any) => {
-													const checked = e.target.checked === true
-													setTelemetrySetting(checked ? "enabled" : "disabled")
-												}}>
-												Allow anonymous error and usage reporting
-											</VSCodeCheckbox>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												Help improve Cline by sending anonymous usage data and error reports. No code,
-												prompts, or personal information are ever sent. See our{" "}
-												<VSCodeLink
-													href="https://docs.cline.bot/more-info/telemetry"
-													className="text-inherit">
-													telemetry overview
-												</VSCodeLink>{" "}
-												and{" "}
-												<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
-													privacy policy
-												</VSCodeLink>{" "}
-												for more details.
-											</p>
-										</div>
-									</Section>
-								</div>
+								<GeneralSettingsSection
+									chatSettings={chatSettings}
+									setChatSettings={setChatSettings}
+									telemetrySetting={telemetrySetting}
+									setTelemetrySetting={setTelemetrySetting}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* Feature Settings Tab */}

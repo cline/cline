@@ -1,5 +1,4 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { memo } from "react"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
 import Section from "../Section"
@@ -96,4 +95,4 @@ const ApiConfigurationSection = ({
 	)
 }
 
-export default memo(ApiConfigurationSection)
+export default ApiConfigurationSection
