@@ -31,13 +31,13 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
-import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 
+import { ClineProvider } from "./providers/ClineProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { MistralProvider } from "./providers/MistralProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
@@ -120,7 +120,6 @@ const ApiOptions = ({
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -285,10 +284,13 @@ const ApiOptions = ({
 				</VSCodeDropdown>
 			</DropdownContainer>
 
-			{selectedProvider === "cline" && (
-				<div style={{ marginBottom: 14, marginTop: 4 }}>
-					<ClineAccountInfoCard />
-				</div>
+			{apiConfiguration && selectedProvider === "cline" && (
+				<ClineProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "asksage" && (
@@ -1250,57 +1252,6 @@ const ApiOptions = ({
 				</p>
 			)}
 
-			{selectedProvider === "cline" && showModelOptions && (
-				<>
-					<VSCodeCheckbox
-						style={{ marginTop: -10 }}
-						checked={providerSortingSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setProviderSortingSelected(isChecked)
-							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									openRouterProviderSorting: "",
-								})
-							}
-						}}>
-						Sort underlying provider routing
-					</VSCodeCheckbox>
-
-					{providerSortingSelected && (
-						<div style={{ marginBottom: -6 }}>
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
-								<VSCodeDropdown
-									style={{ width: "100%", marginTop: 3 }}
-									value={apiConfiguration?.openRouterProviderSorting}
-									onChange={(e: any) => {
-										setApiConfiguration({
-											...apiConfiguration,
-											openRouterProviderSorting: e.target.value,
-										})
-									}}>
-									<VSCodeOption value="">Default</VSCodeOption>
-									<VSCodeOption value="price">Price</VSCodeOption>
-									<VSCodeOption value="throughput">Throughput</VSCodeOption>
-									<VSCodeOption value="latency">Latency</VSCodeOption>
-								</VSCodeDropdown>
-							</DropdownContainer>
-							<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
-								{!apiConfiguration?.openRouterProviderSorting &&
-									"Default behavior is to load balance requests across providers (like AWS, Google Vertex, Anthropic), prioritizing price while considering provider uptime"}
-								{apiConfiguration?.openRouterProviderSorting === "price" &&
-									"Sort providers by price, prioritizing the lowest cost provider"}
-								{apiConfiguration?.openRouterProviderSorting === "throughput" &&
-									"Sort providers by throughput, prioritizing the provider with the highest throughput (may increase cost)"}
-								{apiConfiguration?.openRouterProviderSorting === "latency" &&
-									"Sort providers by response time, prioritizing the provider with the lowest latency"}
-							</p>
-						</div>
-					)}
-				</>
-			)}
-
 			{selectedProvider !== "openrouter" &&
 				selectedProvider !== "cline" &&
 				selectedProvider !== "anthropic" &&
@@ -1355,8 +1306,6 @@ const ApiOptions = ({
 						/>
 					</>
 				)}
-
-			{selectedProvider === "cline" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
