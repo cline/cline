@@ -13,7 +13,7 @@ import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/fi
  * @returns GitCommits containing the matching commits
  */
 export const searchCommits: FileMethodHandler = async (controller: Controller, request: StringRequest): Promise<GitCommits> => {
-	const cwd = getWorkspacePath()
+	const cwd = await getWorkspacePath()
 	if (!cwd) {
 		return GitCommits.create({ commits: [] })
 	}
