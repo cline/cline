@@ -56,6 +56,7 @@ import { VertexProvider } from "./providers/VertexProvider"
 import GeminiCliProvider from "./providers/GeminiCliProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
+import { XaiProvider } from "./providers/XaiProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -1214,34 +1215,14 @@ const ApiOptions = ({
 				</p>
 			)}
 
-			{selectedProvider === "xai" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.xaiApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("xaiApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>X AI API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.xaiApiKey && (
-							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
-								You can get an X AI API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "xai" && (
+				<XaiProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+					setApiConfiguration={setApiConfiguration}
+				/>
 			)}
 
 			{selectedProvider === "cerebras" && (
@@ -1447,6 +1428,7 @@ const ApiOptions = ({
 				selectedProvider !== "vertex" &&
 				selectedProvider !== "gemini-cli" &&
 				selectedProvider !== "fireworks" &&
+				selectedProvider !== "xai" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1458,7 +1440,6 @@ const ApiOptions = ({
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
-							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
@@ -1472,57 +1453,6 @@ const ApiOptions = ({
 							/>
 						)}
 
-						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
-							<>
-								<VSCodeCheckbox
-									style={{ marginTop: 0 }}
-									checked={reasoningEffortSelected}
-									onChange={(e: any) => {
-										const isChecked = e.target.checked === true
-										setReasoningEffortSelected(isChecked)
-										if (!isChecked) {
-											setApiConfiguration({
-												...apiConfiguration,
-												reasoningEffort: "",
-											})
-										}
-									}}>
-									Modify reasoning effort
-								</VSCodeCheckbox>
-
-								{reasoningEffortSelected && (
-									<div>
-										<label htmlFor="reasoning-effort-dropdown">
-											<span style={{}}>Reasoning Effort</span>
-										</label>
-										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
-											<VSCodeDropdown
-												id="reasoning-effort-dropdown"
-												style={{ width: "100%", marginTop: 3 }}
-												value={apiConfiguration?.reasoningEffort || "high"}
-												onChange={(e: any) => {
-													setApiConfiguration({
-														...apiConfiguration,
-														reasoningEffort: e.target.value,
-													})
-												}}>
-												<VSCodeOption value="low">low</VSCodeOption>
-												<VSCodeOption value="high">high</VSCodeOption>
-											</VSCodeDropdown>
-										</DropdownContainer>
-										<p
-											style={{
-												fontSize: "12px",
-												marginTop: 3,
-												marginBottom: 0,
-												color: "var(--vscode-descriptionForeground)",
-											}}>
-											High effort may produce more thorough analysis but takes longer and uses more tokens.
-										</p>
-									</div>
-								)}
-							</>
-						)}
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
