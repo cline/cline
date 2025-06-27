@@ -12,6 +12,7 @@ import {
 	extractRepositoryName,
 	getWorkspaceGitInfo,
 	GitRepositoryInfo,
+	convertGitUrlToHttps,
 } from "../git"
 import { truncateOutput } from "../../integrations/misc/extract-text"
 
@@ -559,6 +560,43 @@ describe("getGitRepositoryInfo", () => {
 			repositoryUrl: "https://github.com/RooCodeInc/Roo-Code.git",
 			repositoryName: "RooCodeInc/Roo-Code",
 		})
+	})
+})
+
+describe("convertGitUrlToHttps", () => {
+	it("should leave HTTPS URLs unchanged", () => {
+		const url = "https://github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should convert SSH URLs to HTTPS format", () => {
+		const url = "git@github.com:RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should convert SSH URLs with ssh:// prefix to HTTPS format", () => {
+		const url = "ssh://git@github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should handle URLs without git@ prefix", () => {
+		const url = "ssh://github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should handle invalid URLs gracefully", () => {
+		const url = "not-a-valid-url"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("not-a-valid-url")
 	})
 })
 
