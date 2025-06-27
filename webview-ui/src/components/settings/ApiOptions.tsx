@@ -1,22 +1,15 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { ApiConfiguration } from "@shared/api"
+import { StringRequest } from "@shared/proto/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import {
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodeRadio,
-	VSCodeRadioGroup,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import * as vscodemodels from "vscode"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 
 import { ClineProvider } from "./providers/ClineProvider"
@@ -159,29 +152,6 @@ const ApiOptions = ({
 
 	As a workaround, we create separate instances of the dropdown for each provider, and then conditionally render the one that matches the current provider.
 	*/
-	const createDropdown = (models: Record<string, ModelInfo>) => {
-		return (
-			<VSCodeDropdown
-				id="model-id"
-				value={selectedModelId}
-				onChange={handleInputChange("apiModelId")}
-				style={{ width: "100%" }}>
-				<VSCodeOption value="">Select a model...</VSCodeOption>
-				{Object.keys(models).map((modelId) => (
-					<VSCodeOption
-						key={modelId}
-						value={modelId}
-						style={{
-							whiteSpace: "normal",
-							wordWrap: "break-word",
-							maxWidth: "100%",
-						}}>
-						{modelId}
-					</VSCodeOption>
-				))}
-			</VSCodeDropdown>
-		)
-	}
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
