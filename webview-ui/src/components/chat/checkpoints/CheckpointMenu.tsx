@@ -61,13 +61,13 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 						setIsOpen(open)
 						setIsConfirming(false)
 					}}>
-					<PopoverTrigger asChild>
-						<StandardTooltip content={t("chat:checkpoint.menu.restore")}>
+					<StandardTooltip content={t("chat:checkpoint.menu.restore")}>
+						<PopoverTrigger asChild>
 							<Button variant="ghost" size="icon">
 								<span className="codicon codicon-history" />
 							</Button>
-						</StandardTooltip>
-					</PopoverTrigger>
+						</PopoverTrigger>
+					</StandardTooltip>
 					<PopoverContent align="end" container={portalContainer}>
 						<div className="flex flex-col gap-2">
 							{!isCurrent && (
