@@ -47,6 +47,7 @@ import { OllamaProvider } from "./providers/OllamaProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
+import { LMStudioProvider } from "./providers/LMStudioProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -91,7 +92,6 @@ const ApiOptions = ({
 	const extensionState = useExtensionState()
 	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
-	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -130,7 +130,7 @@ const ApiOptions = ({
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	// Poll ollama/lmstudio models
+	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
 			try {
@@ -146,20 +146,6 @@ const ApiOptions = ({
 				console.error("Failed to fetch Ollama models:", error)
 				setOllamaModels([])
 			}
-		} else if (selectedProvider === "lmstudio") {
-			try {
-				const response = await ModelsServiceClient.getLmStudioModels(
-					StringRequest.create({
-						value: apiConfiguration?.lmStudioBaseUrl || "",
-					}),
-				)
-				if (response && response.values) {
-					setLmStudioModels(response.values)
-				}
-			} catch (error) {
-				console.error("Failed to fetch LM Studio models:", error)
-				setLmStudioModels([])
-			}
 		} else if (selectedProvider === "vscode-lm") {
 			try {
 				const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
@@ -171,16 +157,13 @@ const ApiOptions = ({
 				setVsCodeLmModels([])
 			}
 		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
+	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
+		if (selectedProvider === "ollama" || selectedProvider === "vscode-lm") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(
-		requestLocalModels,
-		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
-	)
+	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "vscode-lm" ? 2000 : null)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -497,72 +480,6 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{selectedProvider === "lmstudio" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.lmStudioBaseUrl || ""}
-						style={{ width: "100%" }}
-						type="url"
-						onInput={handleInputChange("lmStudioBaseUrl")}
-						placeholder={"Default: http://localhost:1234"}>
-						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.lmStudioModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("lmStudioModelId")}
-						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					{lmStudioModels.length > 0 && (
-						<VSCodeRadioGroup
-							value={
-								lmStudioModels.includes(apiConfiguration?.lmStudioModelId || "")
-									? apiConfiguration?.lmStudioModelId
-									: ""
-							}
-							onChange={(e) => {
-								const value = (e.target as HTMLInputElement)?.value
-								// need to check value first since radio group returns empty string sometimes
-								if (value) {
-									handleInputChange("lmStudioModelId")({
-										target: { value },
-									})
-								}
-							}}>
-							{lmStudioModels.map((model) => (
-								<VSCodeRadio key={model} value={model} checked={apiConfiguration?.lmStudioModelId === model}>
-									{model}
-								</VSCodeRadio>
-							))}
-						</VSCodeRadioGroup>
-					)}
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						LM Studio allows you to run models locally on your computer. For instructions on how to get started, see
-						their
-						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide.
-						</VSCodeLink>
-						You will also need to start LM Studio's{" "}
-						<VSCodeLink
-							href="https://lmstudio.ai/docs/basics/server"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							local server
-						</VSCodeLink>{" "}
-						feature to use it with this extension.{" "}
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-					</p>
-				</div>
-			)}
-
 			{selectedProvider === "litellm" && (
 				<div>
 					<VSCodeTextField
@@ -754,6 +671,15 @@ const ApiOptions = ({
 						for more information.
 					</p>
 				</div>
+			)}
+
+			{apiConfiguration && selectedProvider === "lmstudio" && (
+				<LMStudioProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "ollama" && (
