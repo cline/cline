@@ -49,6 +49,7 @@ import { BooleanRequest } from "@shared/proto/common"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { GetWorkspacePathsRequest } from "@/shared/proto/index.host"
 import { getCwd } from "@/utils/path"
+import { getUriScheme } from "@/utils/env"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -876,10 +877,12 @@ export class Controller {
 
 		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
+		const uriScheme = await getUriScheme()
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
-			uriScheme: vscode.env.uriScheme,
+			uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
 			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],

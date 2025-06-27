@@ -30,3 +30,12 @@ export async function readTextFromClipboard(): Promise<string> {
 		throw new Error(`Failed to read from clipboard: ${errorMessage}`)
 	}
 }
+
+/**
+ * Gets the URI scheme for the current environment
+ * @returns Promise that resolves to the URI scheme string
+ */
+export async function getUriScheme(): Promise<string> {
+	const response = await getHostBridgeProvider().envClient.getUriScheme(EmptyRequest.create({}))
+	return response.value
+}
