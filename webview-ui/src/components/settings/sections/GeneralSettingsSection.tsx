@@ -7,7 +7,7 @@ import Section from "../Section"
 interface GeneralSettingsSectionProps {
 	chatSettings: ChatSettings
 	setChatSettings: (settings: ChatSettings) => void
-	telemetrySetting: TelemetrySetting
+	telemetrySetting: string
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
