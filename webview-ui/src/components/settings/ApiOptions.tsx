@@ -7,9 +7,7 @@ import {
 	bedrockModels,
 	claudeCodeModels,
 	geminiModels,
-	internationalQwenModels,
 	liteLlmModelInfoSaneDefaults,
-	mainlandQwenModels,
 	ModelInfo,
 	nebiusModels,
 	sapAiCoreModels,
@@ -49,6 +47,7 @@ import { AskSageProvider } from "./providers/AskSageProvider"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
+import { QwenProvider } from "./providers/QwenProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import GeminiCliProvider from "./providers/GeminiCliProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
@@ -63,21 +62,6 @@ interface ApiOptionsProps {
 	modelIdErrorMessage?: string
 	isPopup?: boolean
 	saveImmediately?: boolean // Add prop to control immediate saving
-}
-
-const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
-	qwen: [
-		"qwen3-235b-a22b",
-		"qwen3-32b",
-		"qwen3-30b-a3b",
-		"qwen3-14b",
-		"qwen3-8b",
-		"qwen3-4b",
-		"qwen3-1.7b",
-		"qwen3-0.6b",
-		"qwen-plus-latest",
-		"qwen-turbo-latest",
-	],
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -121,7 +105,6 @@ const ApiOptions = ({
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -340,60 +323,14 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "qwen" && (
-				<div>
-					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
-						<label htmlFor="qwen-line-provider">
-							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
-						</label>
-						<VSCodeDropdown
-							id="qwen-line-provider"
-							value={apiConfiguration?.qwenApiLine || "china"}
-							onChange={handleInputChange("qwenApiLine")}
-							style={{
-								minWidth: 130,
-								position: "relative",
-							}}>
-							<VSCodeOption value="china">China API</VSCodeOption>
-							<VSCodeOption value="international">International API</VSCodeOption>
-						</VSCodeDropdown>
-					</DropdownContainer>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Please select the appropriate API interface based on your location. If you are in China, choose the China
-						API interface. Otherwise, choose the International API interface.
-					</p>
-					<VSCodeTextField
-						value={apiConfiguration?.qwenApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("qwenApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Qwen API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.qwenApiKey && (
-							<VSCodeLink
-								href="https://bailian.console.aliyun.com/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Qwen API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "qwen" && (
+				<QwenProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+					setApiConfiguration={setApiConfiguration}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "doubao" && (
@@ -1318,6 +1255,7 @@ const ApiOptions = ({
 				selectedProvider !== "openai-native" &&
 				selectedProvider !== "gemini" &&
 				selectedProvider !== "doubao" &&
+				selectedProvider !== "qwen" &&
 				selectedProvider !== "vertex" &&
 				selectedProvider !== "gemini-cli" &&
 				selectedProvider !== "fireworks" &&
@@ -1330,22 +1268,9 @@ const ApiOptions = ({
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
-							{selectedProvider === "qwen" &&
-								createDropdown(
-									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
-								)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 						</DropdownContainer>
-
-						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
-							<ThinkingBudgetSlider
-								apiConfiguration={apiConfiguration}
-								setApiConfiguration={setApiConfiguration}
-								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-							/>
-						)}
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
