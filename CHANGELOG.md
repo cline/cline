@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.22.3] - 2025-06-27
+
+- Restore JSON backwards compatibility for .roomodes files (thanks @daniel-lxs!)
+
 ## [3.22.2] - 2025-06-27
 
 - Fix: eliminate XSS vulnerability in CodeBlock component (thanks @KJ7LNW!)
