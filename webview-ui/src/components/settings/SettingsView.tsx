@@ -11,16 +11,17 @@ import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointe
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import BrowserSettingsSection from "./BrowserSettingsSection"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import FeatureSettingsSection from "./FeatureSettingsSection"
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./TerminalSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+
 const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
@@ -783,37 +784,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							)}
 
 							{/* Feature Settings Tab */}
-							{activeTab === "features" && (
-								<div>
-									{renderSectionHeader("features")}
-									<Section>
-										<FeatureSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "features" && <FeatureSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Browser Settings Tab */}
 							{activeTab === "browser" && (
-								<div>
-									{renderSectionHeader("browser")}
-									<Section>
-										<BrowserSettingsSection
-											localBrowserSettings={localBrowserSettings}
-											onBrowserSettingsChange={setLocalBrowserSettings}
-										/>
-									</Section>
-								</div>
+								<BrowserSettingsSection
+									localBrowserSettings={localBrowserSettings}
+									onBrowserSettingsChange={setLocalBrowserSettings}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* Terminal Settings Tab */}
-							{activeTab === "terminal" && (
-								<div>
-									{renderSectionHeader("terminal")}
-									<Section>
-										<TerminalSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "terminal" && <TerminalSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Debug Tab (only in dev mode) */}
 							{IS_DEV && activeTab === "debug" && (
