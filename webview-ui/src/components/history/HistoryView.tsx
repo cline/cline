@@ -727,17 +727,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							disabled={deleteAllDisabled || taskHistory.length === 0}
 							onClick={() => {
 								setDeleteAllDisabled(true)
-								const confirmDelete = window.confirm("Are you sure you want to delete all task history?")
-								if (confirmDelete) {
-									const preserveFavorites = window.confirm(
-										"Would you like to preserve favorited tasks?\n\nClick 'OK' to preserve favorites, or 'Cancel' to delete everything.",
-									)
-									TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({ value: preserveFavorites }))
-										.catch((error) => console.error("Error deleting task history:", error))
-										.finally(() => setDeleteAllDisabled(false))
-								} else {
-									setDeleteAllDisabled(false)
-								}
+								TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
+									.catch((error) => console.error("Error deleting task history:", error))
+									.finally(() => setDeleteAllDisabled(false))
 							}}>
 							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 						</DangerButton>
