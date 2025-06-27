@@ -21,6 +21,7 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 const IS_DEV = process.env.IS_DEV
@@ -761,76 +762,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						<TabContent className="flex-1 overflow-auto">
 							{/* API Configuration Tab */}
 							{activeTab === "api-config" && (
-								<div>
-									{renderSectionHeader("api-config")}
-									<Section>
-										{/* Tabs container */}
-										{planActSeparateModelsSetting ? (
-											<div className="rounded-md mb-5 bg-[var(--vscode-panel-background)]">
-												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
-													<TabButton
-														isActive={chatSettings.mode === "plan"}
-														onClick={() => handlePlanActModeChange("plan")}
-														disabled={isSwitchingMode}
-														style={{
-															opacity: isSwitchingMode ? 0.6 : 1,
-															cursor: isSwitchingMode ? "not-allowed" : "pointer",
-														}}>
-														{isSwitchingMode && chatSettings.mode === "act"
-															? "Switching..."
-															: "Plan Mode"}
-													</TabButton>
-													<TabButton
-														isActive={chatSettings.mode === "act"}
-														onClick={() => handlePlanActModeChange("act")}
-														disabled={isSwitchingMode}
-														style={{
-															opacity: isSwitchingMode ? 0.6 : 1,
-															cursor: isSwitchingMode ? "not-allowed" : "pointer",
-														}}>
-														{isSwitchingMode && chatSettings.mode === "plan"
-															? "Switching..."
-															: "Act Mode"}
-													</TabButton>
-												</div>
-
-												{/* Content container */}
-												<div className="-mb-3">
-													<ApiOptions
-														key={chatSettings.mode}
-														showModelOptions={true}
-														apiErrorMessage={apiErrorMessage}
-														modelIdErrorMessage={modelIdErrorMessage}
-													/>
-												</div>
-											</div>
-										) : (
-											<ApiOptions
-												key={"single"}
-												showModelOptions={true}
-												apiErrorMessage={apiErrorMessage}
-												modelIdErrorMessage={modelIdErrorMessage}
-											/>
-										)}
-
-										<div className="mb-[5px]">
-											<VSCodeCheckbox
-												className="mb-[5px]"
-												checked={planActSeparateModelsSetting}
-												onChange={(e: any) => {
-													const checked = e.target.checked === true
-													setPlanActSeparateModelsSetting(checked)
-												}}>
-												Use different models for Plan and Act modes
-											</VSCodeCheckbox>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												Switching between Plan and Act mode will persist the API and model used in the
-												previous mode. This may be helpful e.g. when using a strong reasoning model to
-												architect a plan for a cheaper coding model to act on.
-											</p>
-										</div>
-									</Section>
-								</div>
+								<ApiConfigurationSection
+									planActSeparateModelsSetting={planActSeparateModelsSetting}
+									chatSettings={chatSettings}
+									isSwitchingMode={isSwitchingMode}
+									apiErrorMessage={apiErrorMessage}
+									modelIdErrorMessage={modelIdErrorMessage}
+									handlePlanActModeChange={handlePlanActModeChange}
+									setPlanActSeparateModelsSetting={setPlanActSeparateModelsSetting}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* General Settings Tab */}
