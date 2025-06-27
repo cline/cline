@@ -21,6 +21,7 @@ import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+
 const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
@@ -783,37 +784,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							)}
 
 							{/* Feature Settings Tab */}
-							{activeTab === "features" && (
-								<div>
-									{renderSectionHeader("features")}
-									<Section>
-										<FeatureSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "features" && <FeatureSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Browser Settings Tab */}
 							{activeTab === "browser" && (
-								<div>
-									{renderSectionHeader("browser")}
-									<Section>
-										<BrowserSettingsSection
-											localBrowserSettings={localBrowserSettings}
-											onBrowserSettingsChange={setLocalBrowserSettings}
-										/>
-									</Section>
-								</div>
+								<BrowserSettingsSection
+									localBrowserSettings={localBrowserSettings}
+									onBrowserSettingsChange={setLocalBrowserSettings}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* Terminal Settings Tab */}
-							{activeTab === "terminal" && (
-								<div>
-									{renderSectionHeader("terminal")}
-									<Section>
-										<TerminalSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "terminal" && <TerminalSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Debug Tab (only in dev mode) */}
 							{IS_DEV && activeTab === "debug" && (
