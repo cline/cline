@@ -1,24 +1,11 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
-import {
-	ApiConfiguration,
-	cerebrasModels,
-	claudeCodeModels,
-	geminiModels,
-	internationalQwenModels,
-	liteLlmModelInfoSaneDefaults,
-	mainlandQwenModels,
-	ModelInfo,
-	nebiusModels,
-	xaiModels,
-	sapAiCoreModels,
-} from "@shared/api"
+import { ApiConfiguration, geminiModels, liteLlmModelInfoSaneDefaults, ModelInfo, nebiusModels } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { OpenAiModelsRequest, UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import {
-	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -27,14 +14,13 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import OllamaModelPicker from "./OllamaModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import RequestyModelPicker from "./RequestyModelPicker"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { formatPrice } from "./utils/pricingUtils"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
@@ -50,12 +36,16 @@ import { AskSageProvider } from "./providers/AskSageProvider"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
+import { QwenProvider } from "./providers/QwenProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import GeminiCliProvider from "./providers/GeminiCliProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { XaiProvider } from "./providers/XaiProvider"
+import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
+import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
+import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 
 interface ApiOptionsProps {
@@ -64,21 +54,6 @@ interface ApiOptionsProps {
 	modelIdErrorMessage?: string
 	isPopup?: boolean
 	saveImmediately?: boolean // Add prop to control immediate saving
-}
-
-const SUPPORTED_THINKING_MODELS: Record<string, string[]> = {
-	qwen: [
-		"qwen3-235b-a22b",
-		"qwen3-32b",
-		"qwen3-30b-a3b",
-		"qwen3-14b",
-		"qwen3-8b",
-		"qwen3-4b",
-		"qwen3-1.7b",
-		"qwen3-0.6b",
-		"qwen-plus-latest",
-		"qwen-turbo-latest",
-	],
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -121,7 +96,6 @@ const ApiOptions = ({
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -310,25 +284,13 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "claude-code" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.claudeCodePath || ""}
-						style={{ width: "100%", marginTop: 3 }}
-						type="text"
-						onInput={handleInputChange("claudeCodePath")}
-						placeholder="Default: claude"
-					/>
-
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Path to the Claude Code CLI.
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "claude-code" && (
+				<ClaudeCodeProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
@@ -340,60 +302,14 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "qwen" && (
-				<div>
-					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
-						<label htmlFor="qwen-line-provider">
-							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
-						</label>
-						<VSCodeDropdown
-							id="qwen-line-provider"
-							value={apiConfiguration?.qwenApiLine || "china"}
-							onChange={handleInputChange("qwenApiLine")}
-							style={{
-								minWidth: 130,
-								position: "relative",
-							}}>
-							<VSCodeOption value="china">China API</VSCodeOption>
-							<VSCodeOption value="international">International API</VSCodeOption>
-						</VSCodeDropdown>
-					</DropdownContainer>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Please select the appropriate API interface based on your location. If you are in China, choose the China
-						API interface. Otherwise, choose the International API interface.
-					</p>
-					<VSCodeTextField
-						value={apiConfiguration?.qwenApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("qwenApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Qwen API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.qwenApiKey && (
-							<VSCodeLink
-								href="https://bailian.console.aliyun.com/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Qwen API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "qwen" && (
+				<QwenProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+					setApiConfiguration={setApiConfiguration}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "doubao" && (
@@ -904,100 +820,22 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedProvider === "cerebras" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.cerebrasApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("cerebrasApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Cerebras API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.cerebrasApiKey && (
-							<VSCodeLink
-								href="https://cloud.cerebras.ai/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a Cerebras API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "cerebras" && (
+				<CerebrasProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
-			{selectedProvider === "sapaicore" && (
-				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-					<VSCodeTextField
-						value={apiConfiguration?.sapAiCoreClientId || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("sapAiCoreClientId")}
-						placeholder="Enter AI Core Client Id...">
-						<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
-					</VSCodeTextField>
-					{apiConfiguration?.sapAiCoreClientId && (
-						<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
-							Client Id is set. To change it, please re-enter the value.
-						</p>
-					)}
-					<VSCodeTextField
-						value={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("sapAiCoreClientSecret")}
-						placeholder="Enter AI Core Client Secret...">
-						<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
-					</VSCodeTextField>
-					{apiConfiguration?.sapAiCoreClientSecret && (
-						<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
-							Client Secret is set. To change it, please re-enter the value.
-						</p>
-					)}
-					<VSCodeTextField
-						value={apiConfiguration?.sapAiCoreBaseUrl || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("sapAiCoreBaseUrl")}
-						placeholder="Enter AI Core Base URL...">
-						<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.sapAiCoreTokenUrl || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("sapAiCoreTokenUrl")}
-						placeholder="Enter AI Core Auth URL...">
-						<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.sapAiResourceGroup || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("sapAiResourceGroup")}
-						placeholder="Enter AI Core Resource Group...">
-						<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						These credentials are stored locally and only used to make API requests from this extension.
-						<VSCodeLink
-							href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
-							style={{ display: "inline" }}>
-							You can find more information about SAP AI Core API access here.
-						</VSCodeLink>
-					</p>
-				</div>
+			{apiConfiguration && selectedProvider === "sapaicore" && (
+				<SapAiCoreProvider
+					apiConfiguration={apiConfiguration}
+					handleInputChange={handleInputChange}
+					showModelOptions={showModelOptions}
+					isPopup={isPopup}
+				/>
 			)}
 
 			{apiErrorMessage && (
@@ -1066,6 +904,7 @@ const ApiOptions = ({
 				selectedProvider !== "cline" &&
 				selectedProvider !== "anthropic" &&
 				selectedProvider !== "asksage" &&
+				selectedProvider !== "claude-code" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1079,34 +918,21 @@ const ApiOptions = ({
 				selectedProvider !== "openai-native" &&
 				selectedProvider !== "gemini" &&
 				selectedProvider !== "doubao" &&
+				selectedProvider !== "qwen" &&
 				selectedProvider !== "vertex" &&
 				selectedProvider !== "gemini-cli" &&
 				selectedProvider !== "fireworks" &&
 				selectedProvider !== "xai" &&
+				selectedProvider !== "cerebras" &&
+				selectedProvider !== "sapaicore" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{selectedProvider === "claude-code" && createDropdown(claudeCodeModels)}
-							{selectedProvider === "qwen" &&
-								createDropdown(
-									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
-								)}
-							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
-							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 						</DropdownContainer>
-
-						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
-							<ThinkingBudgetSlider
-								apiConfiguration={apiConfiguration}
-								setApiConfiguration={setApiConfiguration}
-								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-							/>
-						)}
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
