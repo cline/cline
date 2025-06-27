@@ -89,7 +89,7 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 			expect(manager.isInitialized).toBe(true)
 
 			// Mock the methods that would be called during restart
-			const stopWatcherSpy = vitest.spyOn(manager, "stopWatcher").mockImplementation(() => {})
+			const recreateServicesSpy = vitest.spyOn(manager as any, "_recreateServices").mockImplementation(() => {})
 			const startIndexingSpy = vitest.spyOn(manager, "startIndexing").mockResolvedValue()
 
 			// Mock the feature state
@@ -100,7 +100,7 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 
 			// Verify that the restart sequence was called
 			expect(mockConfigManager.loadConfiguration).toHaveBeenCalled()
-			expect(stopWatcherSpy).toHaveBeenCalled()
+			expect(recreateServicesSpy).toHaveBeenCalled()
 			expect(startIndexingSpy).toHaveBeenCalled()
 		})
 
