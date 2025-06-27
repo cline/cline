@@ -33,7 +33,10 @@ export function deriveContextFromState(
 	}
 }
 
-export function deriveInitialState(lastMessage?: ClineMessage): ChatState {
+export function deriveInitialState(lastMessage?: ClineMessage, hasTask?: boolean): ChatState {
+	if (!hasTask) {
+		return { type: "NO_TASK" }
+	}
 	if (!lastMessage) {
 		return { type: "IDLE" }
 	}

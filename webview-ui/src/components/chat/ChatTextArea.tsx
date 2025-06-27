@@ -82,6 +82,7 @@ interface ChatTextAreaProps {
 	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
+	onModeToggle?: () => void
 }
 
 interface GitCommit {
@@ -269,6 +270,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			shouldDisableFilesAndImages,
 			onHeightChange,
 			onFocusChange,
+			onModeToggle,
 		},
 		ref,
 	) => {
@@ -990,8 +992,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, openRouterModels])
 
-		const onModeToggle = useCallback(() => {
-			// if (textAreaDisabled) return
+		const handleModeToggle = useCallback(() => {
+			// Use the onModeToggle prop if provided, otherwise use the default behavior
+			if (onModeToggle) {
+				onModeToggle()
+				return
+			}
+
+			// Default behavior (fallback if no prop provided)
 			let changeModeDelay = 0
 			if (showModelSelector) {
 				// user has model selector open, so we should save it before switching modes
@@ -1022,9 +1030,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles, onModeToggle])
 
-		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+		useShortcut("Meta+Shift+a", handleModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first
@@ -1738,7 +1746,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={handleModeToggle}>
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption
 								isActive={chatSettings.mode === "plan"}

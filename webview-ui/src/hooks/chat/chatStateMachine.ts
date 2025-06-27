@@ -29,22 +29,37 @@ export function chatStateReducer(
 	{ state, effects }: { state: ChatState; effects?: any[] },
 	event: ChatEvent,
 ): { state: ChatState; effects?: any[] } {
+	console.log("[ChatStateMachine] Current state:", state.type, "Event:", event.type, "Event data:", event)
+
+	// Handle INITIALIZE event regardless of current state
+	if (event.type === "INITIALIZE" && "state" in event) {
+		console.log("[ChatStateMachine] Initializing to state:", event.state)
+		return { state: event.state, effects: [] }
+	}
+
+	// Check if we're in NO_TASK state to determine if we should create a task
+	const shouldCreateTask =
+		state.type === "NO_TASK" || (state.type === "COMPOSING" && "wasNoTask" in state && state.wasNoTask === true)
+
 	switch (state.type) {
 		case "NO_TASK":
 			if (event.type === "INPUT_CHANGED") {
 				if (hasContent(event)) {
+					console.log("[ChatStateMachine] NO_TASK -> COMPOSING (for new task)")
 					return {
 						state: {
 							type: "COMPOSING",
 							content: event.content || "",
 							images: event.images || [],
 							files: event.files || [],
-						},
+							wasNoTask: true, // Mark that we came from NO_TASK
+						} as any, // Type assertion needed for the extra property
+						effects: [],
 					}
 				}
 			}
 			if (event.type === "SEND_CLICKED") {
-				// This case is handled by the COMPOSING state, but as a safeguard:
+				console.log("[ChatStateMachine] NO_TASK SEND_CLICKED - this shouldn't happen")
 				return { state, effects }
 			}
 			break
@@ -73,14 +88,31 @@ export function chatStateReducer(
 		case "COMPOSING":
 			if (event.type === "INPUT_CHANGED") {
 				if (!hasContent(event)) {
-					return { state: { type: "IDLE" } }
+					// Check if we should go back to NO_TASK or IDLE
+					const wasNoTask = "wasNoTask" in state && state.wasNoTask
+					return { state: wasNoTask ? { type: "NO_TASK" } : { type: "IDLE" }, effects: [] }
 				}
-				return { state: { ...state, content: event.content || "", images: event.images || [], files: event.files || [] } }
+				return {
+					state: { ...state, content: event.content || "", images: event.images || [], files: event.files || [] },
+					effects: [],
+				}
 			}
 			if (event.type === "SEND_CLICKED") {
-				return {
-					state: { type: "SENDING_MESSAGE", content: state.content, images: state.images, files: state.files },
-					effects: [{ type: "SEND_MESSAGE", content: state.content, images: state.images, files: state.files }],
+				console.log("[ChatStateMachine] COMPOSING -> SEND_CLICKED")
+				// Check if we should create a task or send a message
+				const wasNoTask = "wasNoTask" in state && state.wasNoTask
+				if (wasNoTask) {
+					console.log("[ChatStateMachine] Creating new task")
+					return {
+						state: { type: "CREATING_TASK", content: state.content, images: state.images, files: state.files },
+						effects: [{ type: "CREATE_TASK", content: state.content, images: state.images, files: state.files }],
+					}
+				} else {
+					console.log("[ChatStateMachine] Sending message")
+					return {
+						state: { type: "SENDING_MESSAGE", content: state.content, images: state.images, files: state.files },
+						effects: [{ type: "SEND_MESSAGE", content: state.content, images: state.images, files: state.files }],
+					}
 				}
 			}
 			if (event.type === "MODE_TOGGLE_CLICKED") {
@@ -95,5 +127,8 @@ export function chatStateReducer(
 
 		// TODO: Implement other state transitions
 	}
+
+	console.log("[ChatStateMachine] No state transition for:", state.type, "with event:", event.type)
+	console.log("[ChatStateMachine] Returning unchanged state:", state)
 	return { state, effects }
 }

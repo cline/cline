@@ -292,10 +292,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return false
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
+	// Reset didClickCancel when streaming ends
+	useEffect(() => {
+		if (!isStreaming && didClickCancel) {
+			setDidClickCancel(false)
+		}
+	}, [isStreaming, didClickCancel])
+
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
+			console.log("[ChatView] handleSendMessage called with:", { text, images, files })
 			let messageToSend = text.trim()
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
+			console.log("[ChatView] hasContent:", hasContent)
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
@@ -307,28 +316,38 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
+				console.log("[ChatView] Current state before sending:", state)
 
 				// Use state machine action to handle sending
 				// The state machine will determine whether to create a new task or send a message
 				// based on the current state and will handle the API calls
+				console.log("[ChatView] Calling actions.handleInputChange")
 				actions.handleInputChange(messageToSend, images, files)
+				console.log("[ChatView] Calling actions.handleSend")
 				actions.handleSend()
 
 				// Clear local state after sending
+				console.log("[ChatView] Clearing local state")
 				handleInputValueChange("")
 				setActiveQuote(null) // Clear quote when sending message
 				handleImagesChange([])
 				handleFilesChange([])
 				disableAutoScrollRef.current = false
+			} else {
+				console.log("[ChatView] No content to send")
 			}
 		},
-		[activeQuote, actions],
+		[activeQuote, actions, state],
 	)
 
 	const startNewTask = useCallback(async () => {
-		setActiveQuote(null) // Clear the active quote state
+		// Clear all input state when starting a new task
+		setActiveQuote(null)
+		handleInputValueChange("")
+		handleImagesChange([])
+		handleFilesChange([])
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [])
+	}, [handleInputValueChange, handleImagesChange, handleFilesChange])
 
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
@@ -1056,6 +1075,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					if (isAtBottom) {
 						scrollToBottomAuto()
 					}
+				}}
+				onModeToggle={() => {
+					console.log("[ChatView] Mode toggle requested")
+					actions.handleModeToggle()
 				}}
 			/>
 		</div>
