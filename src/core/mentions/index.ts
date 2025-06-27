@@ -12,6 +12,7 @@ import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { getCwd } from "@/utils/path"
+import { openExternal } from "@utils/env"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -36,7 +37,7 @@ export async function openMention(mention?: string): Promise<void> {
 	} else if (mention === "terminal") {
 		vscode.commands.executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
-		vscode.env.openExternal(vscode.Uri.parse(mention))
+		await openExternal(mention)
 	}
 }
 
