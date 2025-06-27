@@ -19,6 +19,7 @@ import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
+import DebugSection from "./sections/DebugSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 
@@ -800,26 +801,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 							{/* Debug Tab (only in dev mode) */}
 							{IS_DEV && activeTab === "debug" && (
-								<div>
-									{renderSectionHeader("debug")}
-									<Section>
-										<VSCodeButton
-											onClick={() => handleResetState()}
-											className="mt-[5px] w-auto"
-											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
-											Reset Workspace State
-										</VSCodeButton>
-										<VSCodeButton
-											onClick={() => handleResetState(true)}
-											className="mt-[5px] w-auto"
-											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
-											Reset Global State
-										</VSCodeButton>
-										<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-											This will reset all global state and secret storage in the extension.
-										</p>
-									</Section>
-								</div>
+								<DebugSection onResetState={handleResetState} renderSectionHeader={renderSectionHeader} />
 							)}
 
 							{/* About Tab */}
