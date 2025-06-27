@@ -3,26 +3,27 @@ import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
-import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/common"
 import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import { TabButton } from "../mcp/configuration/McpConfigurationView"
-import ApiOptions from "./ApiOptions"
-import BrowserSettingsSection from "./BrowserSettingsSection"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import FeatureSettingsSection from "./FeatureSettingsSection"
-import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./TerminalSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import ApiConfigurationSection from "./sections/ApiConfigurationSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import BrowserSettingsSection from "./sections/BrowserSettingsSection"
+import DebugSection from "./sections/DebugSection"
+import AboutSection from "./sections/AboutSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+
 const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
@@ -761,192 +762,52 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						<TabContent className="flex-1 overflow-auto">
 							{/* API Configuration Tab */}
 							{activeTab === "api-config" && (
-								<div>
-									{renderSectionHeader("api-config")}
-									<Section>
-										{/* Tabs container */}
-										{planActSeparateModelsSetting ? (
-											<div className="rounded-md mb-5 bg-[var(--vscode-panel-background)]">
-												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
-													<TabButton
-														isActive={chatSettings.mode === "plan"}
-														onClick={() => handlePlanActModeChange("plan")}
-														disabled={isSwitchingMode}
-														style={{
-															opacity: isSwitchingMode ? 0.6 : 1,
-															cursor: isSwitchingMode ? "not-allowed" : "pointer",
-														}}>
-														{isSwitchingMode && chatSettings.mode === "act"
-															? "Switching..."
-															: "Plan Mode"}
-													</TabButton>
-													<TabButton
-														isActive={chatSettings.mode === "act"}
-														onClick={() => handlePlanActModeChange("act")}
-														disabled={isSwitchingMode}
-														style={{
-															opacity: isSwitchingMode ? 0.6 : 1,
-															cursor: isSwitchingMode ? "not-allowed" : "pointer",
-														}}>
-														{isSwitchingMode && chatSettings.mode === "plan"
-															? "Switching..."
-															: "Act Mode"}
-													</TabButton>
-												</div>
-
-												{/* Content container */}
-												<div className="-mb-3">
-													<ApiOptions
-														key={chatSettings.mode}
-														showModelOptions={true}
-														apiErrorMessage={apiErrorMessage}
-														modelIdErrorMessage={modelIdErrorMessage}
-													/>
-												</div>
-											</div>
-										) : (
-											<ApiOptions
-												key={"single"}
-												showModelOptions={true}
-												apiErrorMessage={apiErrorMessage}
-												modelIdErrorMessage={modelIdErrorMessage}
-											/>
-										)}
-
-										<div className="mb-[5px]">
-											<VSCodeCheckbox
-												className="mb-[5px]"
-												checked={planActSeparateModelsSetting}
-												onChange={(e: any) => {
-													const checked = e.target.checked === true
-													setPlanActSeparateModelsSetting(checked)
-												}}>
-												Use different models for Plan and Act modes
-											</VSCodeCheckbox>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												Switching between Plan and Act mode will persist the API and model used in the
-												previous mode. This may be helpful e.g. when using a strong reasoning model to
-												architect a plan for a cheaper coding model to act on.
-											</p>
-										</div>
-									</Section>
-								</div>
+								<ApiConfigurationSection
+									planActSeparateModelsSetting={planActSeparateModelsSetting}
+									chatSettings={chatSettings}
+									isSwitchingMode={isSwitchingMode}
+									apiErrorMessage={apiErrorMessage}
+									modelIdErrorMessage={modelIdErrorMessage}
+									handlePlanActModeChange={handlePlanActModeChange}
+									setPlanActSeparateModelsSetting={setPlanActSeparateModelsSetting}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* General Settings Tab */}
 							{activeTab === "general" && (
-								<div>
-									{renderSectionHeader("general")}
-									<Section>
-										{chatSettings && (
-											<PreferredLanguageSetting
-												chatSettings={chatSettings}
-												setChatSettings={setChatSettings}
-											/>
-										)}
-
-										<div className="mb-[5px]">
-											<VSCodeCheckbox
-												className="mb-[5px]"
-												checked={telemetrySetting !== "disabled"}
-												onChange={(e: any) => {
-													const checked = e.target.checked === true
-													setTelemetrySetting(checked ? "enabled" : "disabled")
-												}}>
-												Allow anonymous error and usage reporting
-											</VSCodeCheckbox>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												Help improve Cline by sending anonymous usage data and error reports. No code,
-												prompts, or personal information are ever sent. See our{" "}
-												<VSCodeLink
-													href="https://docs.cline.bot/more-info/telemetry"
-													className="text-inherit">
-													telemetry overview
-												</VSCodeLink>{" "}
-												and{" "}
-												<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
-													privacy policy
-												</VSCodeLink>{" "}
-												for more details.
-											</p>
-										</div>
-									</Section>
-								</div>
+								<GeneralSettingsSection
+									chatSettings={chatSettings}
+									setChatSettings={setChatSettings}
+									telemetrySetting={telemetrySetting}
+									setTelemetrySetting={setTelemetrySetting}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* Feature Settings Tab */}
-							{activeTab === "features" && (
-								<div>
-									{renderSectionHeader("features")}
-									<Section>
-										<FeatureSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "features" && <FeatureSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Browser Settings Tab */}
 							{activeTab === "browser" && (
-								<div>
-									{renderSectionHeader("browser")}
-									<Section>
-										<BrowserSettingsSection
-											localBrowserSettings={localBrowserSettings}
-											onBrowserSettingsChange={setLocalBrowserSettings}
-										/>
-									</Section>
-								</div>
+								<BrowserSettingsSection
+									localBrowserSettings={localBrowserSettings}
+									onBrowserSettingsChange={setLocalBrowserSettings}
+									renderSectionHeader={renderSectionHeader}
+								/>
 							)}
 
 							{/* Terminal Settings Tab */}
-							{activeTab === "terminal" && (
-								<div>
-									{renderSectionHeader("terminal")}
-									<Section>
-										<TerminalSettingsSection />
-									</Section>
-								</div>
-							)}
+							{activeTab === "terminal" && <TerminalSettingsSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* Debug Tab (only in dev mode) */}
 							{IS_DEV && activeTab === "debug" && (
-								<div>
-									{renderSectionHeader("debug")}
-									<Section>
-										<VSCodeButton
-											onClick={() => handleResetState()}
-											className="mt-[5px] w-auto"
-											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
-											Reset Workspace State
-										</VSCodeButton>
-										<VSCodeButton
-											onClick={() => handleResetState(true)}
-											className="mt-[5px] w-auto"
-											style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
-											Reset Global State
-										</VSCodeButton>
-										<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-											This will reset all global state and secret storage in the extension.
-										</p>
-									</Section>
-								</div>
+								<DebugSection onResetState={handleResetState} renderSectionHeader={renderSectionHeader} />
 							)}
 
 							{/* About Tab */}
 							{activeTab === "about" && (
-								<div>
-									{renderSectionHeader("about")}
-									<Section>
-										<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
-											<p className="break-words m-0 p-0">
-												If you have any questions or feedback, feel free to open an issue at{" "}
-												<VSCodeLink href="https://github.com/cline/cline" className="inline">
-													https://github.com/cline/cline
-												</VSCodeLink>
-											</p>
-											<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
-										</div>
-									</Section>
-								</div>
+								<AboutSection version={version} renderSectionHeader={renderSectionHeader} />
 							)}
 						</TabContent>
 					)

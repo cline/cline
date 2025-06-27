@@ -1,6 +1,8 @@
 import * as vscode from "vscode"
 import { getWorkingState } from "@utils/git"
 import { writeTextToClipboard } from "@utils/env"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
 
 /**
  * Formats the git diff into a prompt for the AI
@@ -130,6 +132,10 @@ async function editCommitMessage(message: string): Promise<void> {
 		language: "markdown",
 	})
 
-	await vscode.window.showTextDocument(document)
+	await getHostBridgeProvider().windowClient.showTextDocument(
+		ShowTextDocumentRequest.create({
+			path: document.uri.fsPath,
+		}),
+	)
 	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
 }

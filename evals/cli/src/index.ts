@@ -95,6 +95,7 @@ program
 	.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 	.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
 	.option("--diff-apply-file <filename>", "The name of the diff apply file to use for the replay")
+	.option("--save-locally", "Save results to local JSON files in addition to database", false)
 	.option("-v, --verbose", "Enable verbose logging", false)
 	.action(async (options) => {
 		try {

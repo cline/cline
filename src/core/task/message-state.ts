@@ -12,6 +12,7 @@ import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
 import Anthropic from "@anthropic-ai/sdk"
 import { TaskState } from "./TaskState"
+import { getCwd } from "@/utils/path"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
@@ -20,8 +21,6 @@ interface MessageStateHandlerParams {
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
 }
-
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 export class MessageStateHandler {
 	private apiConversationHistory: Anthropic.MessageParam[] = []
@@ -84,6 +83,7 @@ export class MessageStateHandler {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
+			const cwd = await getCwd(path.join(os.homedir(), "Desktop"))
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,

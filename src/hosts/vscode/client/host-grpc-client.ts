@@ -7,4 +7,5 @@ export const vscodeHostBridgeClient: HostBridgeClientProvider = {
 	watchServiceClient: createGrpcClient(host.WatchServiceDefinition),
 	workspaceClient: createGrpcClient(host.WorkspaceServiceDefinition),
 	envClient: createGrpcClient(host.EnvServiceDefinition),
+	windowClient: createGrpcClient(host.WindowServiceDefinition),
 }
