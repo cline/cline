@@ -33,6 +33,7 @@ export const BedrockProvider = ({
 }: BedrockProviderProps) => {
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
+	const [modelOverrideSelected, setModelOverrideSelected] = useState(!!apiConfiguration?.awsBedrockModelOverride)
 
 	return (
 		<div
@@ -155,6 +156,30 @@ export const BedrockProvider = ({
 						type="url"
 						onInput={handleInputChange("awsBedrockEndpoint")}
 						placeholder="Enter VPC Endpoint URL (optional)"
+					/>
+				)}
+
+				<VSCodeCheckbox
+					checked={modelOverrideSelected}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked === true
+						setModelOverrideSelected(isChecked)
+						if (!isChecked) {
+							setApiConfiguration({
+								...apiConfiguration,
+								awsBedrockModelOverride: "",
+							})
+						}
+					}}>
+					Override model ID
+				</VSCodeCheckbox>
+
+				{modelOverrideSelected && (
+					<VSCodeTextField
+						value={apiConfiguration?.awsBedrockModelOverride || ""}
+						style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+						onInput={handleInputChange("awsBedrockModelOverride")}
+						placeholder="Enter override model ID"
 					/>
 				)}
 

@@ -65,6 +65,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		awsUseCrossRegionInference,
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
+		awsBedrockModelOverride,
 		awsProfile,
 		awsUseProfile,
 		vertexProjectId,
@@ -138,6 +139,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "awsUseCrossRegionInference") as Promise<boolean | undefined>,
 		getGlobalState(context, "awsBedrockUsePromptCache") as Promise<boolean | undefined>,
 		getGlobalState(context, "awsBedrockEndpoint") as Promise<string | undefined>,
+		getGlobalState(context, "awsBedrockModelOverride") as Promise<string | undefined>,
 		getGlobalState(context, "awsProfile") as Promise<string | undefined>,
 		getGlobalState(context, "awsUseProfile") as Promise<boolean | undefined>,
 		getGlobalState(context, "vertexProjectId") as Promise<string | undefined>,
@@ -326,6 +328,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
+			awsBedrockModelOverride,
 			awsProfile,
 			awsUseProfile,
 			awsBedrockCustomSelected,
@@ -440,6 +443,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		awsUseCrossRegionInference,
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
+		awsBedrockModelOverride,
 		awsProfile,
 		awsUseProfile,
 		awsBedrockCustomSelected,
@@ -528,6 +532,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "awsUseCrossRegionInference", awsUseCrossRegionInference)
 	await updateGlobalState(context, "awsBedrockUsePromptCache", awsBedrockUsePromptCache)
 	await updateGlobalState(context, "awsBedrockEndpoint", awsBedrockEndpoint)
+	await updateGlobalState(context, "awsBedrockModelOverride", awsBedrockModelOverride)
 	await updateGlobalState(context, "awsProfile", awsProfile)
 	await updateGlobalState(context, "awsUseProfile", awsUseProfile)
 	await updateGlobalState(context, "vertexProjectId", vertexProjectId)

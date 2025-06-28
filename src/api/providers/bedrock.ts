@@ -226,6 +226,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * For custom models, returns the raw model ID without any encoding.
 	 */
 	async getModelId(): Promise<string> {
+		if (this.options.awsBedrockModelOverride) {
+			return this.options.awsBedrockModelOverride
+		}
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {

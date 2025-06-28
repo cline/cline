@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.18.1]
+
+-   Add model override option for AWS Bedrock profiles
+
 ## [3.18.0]
 
 -   Optimized Cline to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities

@@ -62,6 +62,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		awsUseProfile: config.awsUseProfile,
 		awsProfile: config.awsProfile,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
+		awsBedrockModelOverride: config.awsBedrockModelOverride,
 
 		// Vertex AI fields
 		vertexProjectId: config.vertexProjectId,
@@ -178,6 +179,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		awsUseProfile: protoConfig.awsUseProfile,
 		awsProfile: protoConfig.awsProfile,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
+		awsBedrockModelOverride: protoConfig.awsBedrockModelOverride,
 
 		// Vertex AI fields
 		vertexProjectId: protoConfig.vertexProjectId,

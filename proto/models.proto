@@ -188,6 +188,7 @@ message ModelsApiConfiguration {
   optional bool aws_use_profile = 22;
   optional string aws_profile = 23;
   optional string aws_bedrock_endpoint = 24;
+  optional string aws_bedrock_model_override = 76;
   optional bool aws_bedrock_custom_selected = 25;
   optional string aws_bedrock_custom_model_base_id = 26;
   optional string vertex_project_id = 27;

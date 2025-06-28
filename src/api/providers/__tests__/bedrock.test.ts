@@ -195,6 +195,7 @@ describe("AwsBedrockHandler", () => {
 		awsBedrockUsePromptCache: false,
 		awsUseCrossRegionInference: false,
 		awsBedrockEndpoint: "",
+		awsBedrockModelOverride: "",
 		awsBedrockCustomSelected: false,
 		awsBedrockCustomModelBaseId: undefined,
 		thinkingBudgetTokens: 1600,
@@ -594,6 +595,15 @@ describe("AwsBedrockHandler", () => {
 	})
 
 	describe("getModelId", () => {
+		it("should use model override when provided", async () => {
+			const overrideOptions: ApiHandlerOptions = {
+				...mockOptions,
+				awsBedrockModelOverride: "override-model",
+			}
+			const handler = new AwsBedrockHandler(overrideOptions)
+			const modelId = await handler.getModelId()
+			modelId.should.equal("override-model")
+		})
 		it("should return raw model ID for custom models", async () => {
 			const customOptions: ApiHandlerOptions = {
 				...mockOptions,
