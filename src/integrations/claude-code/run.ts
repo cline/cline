@@ -112,7 +112,6 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 
 	const args = [
 		"-p",
-		JSON.stringify(messages),
 		"--system-prompt",
 		systemPrompt,
 		"--verbose",
@@ -129,8 +128,8 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		args.push("--model", modelId)
 	}
 
-	return execa(claudePath, args, {
-		stdin: "ignore",
+	const child = execa(claudePath, args, {
+		stdin: "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
 		env: {
@@ -142,6 +141,30 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		maxBuffer: 1024 * 1024 * 1000,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
+
+	// Write messages to stdin after process is spawned
+	// This avoids the E2BIG error on Linux when passing large messages as command line arguments
+	// Linux has a per-argument limit of ~128KiB for execve() system calls
+	const messagesJson = JSON.stringify(messages)
+
+	// Use setImmediate to ensure the process has been spawned before writing to stdin
+	// This prevents potential race conditions where stdin might not be ready
+	setImmediate(() => {
+		try {
+			child.stdin.write(messagesJson, "utf8", (error) => {
+				if (error) {
+					console.error("Error writing to Claude Code stdin:", error)
+					child.kill()
+				}
+			})
+			child.stdin.end()
+		} catch (error) {
+			console.error("Error accessing Claude Code stdin:", error)
+			child.kill()
+		}
+	})
+
+	return child
 }
 
 function parseChunk(data: string, processState: ProcessState) {
