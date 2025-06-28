@@ -1048,13 +1048,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
 						// Pass handlers for each message in the group
-						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
-						onToggleExpand={(messageTs: number) => {
-							setExpandedRows((prev) => ({
-								...prev,
-								[messageTs]: !prev[messageTs],
-							}))
-						}}
+						expandedRows={expandedRows}
+						onToggleExpand={toggleRowExpansion}
 						onSetQuote={setActiveQuote}
 					/>
 				)
