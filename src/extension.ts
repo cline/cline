@@ -34,6 +34,7 @@ import * as hostProviders from "@hosts/host-providers"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
+import { AuthService } from "./services/auth/AuthService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -49,6 +50,7 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+	const authService = AuthService.getInstance()
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -287,24 +289,25 @@ export async function activate(context: vscode.ExtensionContext) {
 				break
 			}
 			case "/auth": {
-				const token = query.get("token")
+				console.log("Auth callback received:", uri.toString())
+
+				const token = query.get("idToken")
 				const state = query.get("state")
-				const apiKey = query.get("apiKey")
 
 				console.log("Auth callback received:", {
 					token: token,
 					state: state,
-					apiKey: apiKey,
 				})
 
 				// Validate state parameter
-				if (!(await visibleWebview?.controller.validateAuthState(state))) {
+				if (!(authService.authNonce === state)) {
 					vscode.window.showErrorMessage("Invalid auth state")
 					return
 				}
 
-				if (token && apiKey) {
-					await visibleWebview?.controller.handleAuthCallback(token, apiKey)
+				if (token) {
+					await visibleWebview?.controller.handleAuthCallback(token)
+					// await authService.handleAuthCallback(token)
 				}
 				break
 			}

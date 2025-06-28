@@ -166,7 +166,7 @@ message ModelsApiConfiguration {
   // From ApiHandlerOptions (excluding onRetryAttempt function)
   optional string api_model_id = 1;
   optional string api_key = 2;
-  optional string cline_api_key = 3;
+  optional string cline_account_id = 3;
   optional string task_id = 4;
   optional string lite_llm_base_url = 5;
   optional string lite_llm_model_id = 6;

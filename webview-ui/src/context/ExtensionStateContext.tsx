@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { useEvent } from "react-use"
+import "../../../src/shared/webview/types"
 import {
 	StateServiceClient,
 	ModelsServiceClient,
@@ -251,11 +251,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	const didBecomeVisibleUnsubscribeRef = useRef<(() => void) | null>(null)
 
+	useEffect(() => {
+		console.log("Extension: ExtensionStateContext: state updated", state)
+	}, [state])
+
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
-		// Determine the webview provider type
-		const webviewType =
-			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+		// Use the already defined webview provider type
+		const webviewType = currentProviderType
 
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
@@ -279,6 +282,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 							// Update welcome screen state based on API configuration
 							const config = stateData.apiConfiguration
+							console.log("Extension: ExtensionStateContext: config", config)
 							const hasKey = config
 								? [
 										config.apiKey,
@@ -298,7 +302,7 @@ export const ExtensionStateContextProvider: React.FC<{
 										config.doubaoApiKey,
 										config.mistralApiKey,
 										config.vsCodeLmModelSelector,
-										config.clineApiKey,
+										config.clineAccountId,
 										config.asksageApiKey,
 										config.xaiApiKey,
 										config.sambanovaApiKey,
@@ -306,6 +310,7 @@ export const ExtensionStateContextProvider: React.FC<{
 									].some((key) => key !== undefined)
 								: false
 
+							// TODO: fix this hacky way of checking if the user has a key/logged in/has a provider set.
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
 
@@ -845,6 +850,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				browserSettings: value,
 			})),
 	}
+
+	console.log("Extension: ExtensionStateContextProvider: contextValue", contextValue)
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
 }

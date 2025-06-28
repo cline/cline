@@ -57,7 +57,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		isNewUser,
 		apiKey,
 		openRouterApiKey,
-		clineApiKey,
+		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
@@ -130,7 +130,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
 		getSecret(context, "openRouterApiKey") as Promise<string | undefined>,
-		getSecret(context, "clineApiKey") as Promise<string | undefined>,
+		getSecret(context, "clineAccountId") as Promise<string | undefined>,
 		getSecret(context, "awsAccessKey") as Promise<string | undefined>,
 		getSecret(context, "awsSecretKey") as Promise<string | undefined>,
 		getSecret(context, "awsSessionToken") as Promise<string | undefined>,
@@ -317,7 +317,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
-			clineApiKey,
+			clineAccountId,
 			claudeCodePath,
 			awsAccessKey,
 			awsSecretKey,
@@ -485,7 +485,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		xaiApiKey,
 		thinkingBudgetTokens,
 		reasoningEffort,
-		clineApiKey,
+		clineAccountId,
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
@@ -560,7 +560,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	// Secret updates
 	await storeSecret(context, "apiKey", apiKey)
 	await storeSecret(context, "openRouterApiKey", openRouterApiKey)
-	await storeSecret(context, "clineApiKey", clineApiKey)
+	await storeSecret(context, "clineAccountId", clineAccountId)
 	await storeSecret(context, "awsAccessKey", awsAccessKey)
 	await storeSecret(context, "awsSecretKey", awsSecretKey)
 	await storeSecret(context, "awsSessionToken", awsSessionToken)
@@ -610,7 +610,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"qwenApiKey",
 		"doubaoApiKey",
 		"mistralApiKey",
-		"clineApiKey",
+		"clineAccountId",
 		"liteLlmApiKey",
 		"fireworksApiKey",
 		"asksageApiKey",

@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import { v4 as uuidv4 } from "uuid"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
@@ -30,10 +29,8 @@ import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalF
 import {
 	getAllExtensionState,
 	getGlobalState,
-	getSecret,
 	getWorkspaceState,
 	storeSecret,
-	updateApiConfiguration,
 	updateGlobalState,
 	updateWorkspaceState,
 } from "../storage/state"
@@ -41,11 +38,8 @@ import { Task } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
-import { handleTaskServiceRequest } from "./task"
-import { BooleanRequest } from "@shared/proto/common"
+import { AuthService } from "@/services/auth/AuthService"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -63,6 +57,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
+	authService: AuthService
 	latestAnnouncementId = "june-25-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
@@ -82,13 +77,8 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = new ClineAccountService(
-			(msg) => this.postMessageToWebview(msg),
-			async () => {
-				const { apiConfiguration } = await this.getStateToPostToWebview()
-				return apiConfiguration?.clineApiKey
-			},
-		)
+		this.accountService = ClineAccountService.getInstance()
+		this.authService = AuthService.getInstance({}, undefined, this)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -118,7 +108,8 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			await storeSecret(this.context, "clineApiKey", undefined)
+			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
+			await storeSecret(this.context, "clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateWorkspaceState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
@@ -474,23 +465,22 @@ export class Controller {
 	}
 
 	// Auth
-
 	public async validateAuthState(state: string | null): Promise<boolean> {
-		const storedNonce = await getSecret(this.context, "authNonce")
+		const storedNonce = this.authService.authNonce
 		if (!state || state !== storedNonce) {
 			return false
 		}
-		await storeSecret(this.context, "authNonce", undefined) // Clear after use
+		this.authService.resetAuthNonce() // Clear the nonce after validation
 		return true
 	}
 
-	async handleAuthCallback(customToken: string, apiKey: string) {
+	async handleAuthCallback(customToken: string) {
 		try {
-			// Store API key for API calls
-			await storeSecret(this.context, "clineApiKey", apiKey)
+			const clineAccount = await this.authService.handleAuthCallback(customToken)
 
-			// Send custom token to webview for Firebase auth
-			await sendAuthCallbackEvent(customToken)
+			// Store API key for API calls
+			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
+			await storeSecret(this.context, "clineAccountId", "true")
 
 			const clineProvider: ApiProvider = "cline"
 			await updateWorkspaceState(this.context, "apiProvider", clineProvider)
@@ -500,7 +490,6 @@ export class Controller {
 			const updatedConfig = {
 				...apiConfiguration,
 				apiProvider: clineProvider,
-				clineApiKey: apiKey,
 			}
 
 			if (this.task) {
@@ -508,7 +497,6 @@ export class Controller {
 			}
 
 			await this.postStateToWebview()
-			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
@@ -518,7 +506,6 @@ export class Controller {
 	}
 
 	// MCP Marketplace
-
 	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
 		try {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
@@ -1085,6 +1072,4 @@ Commit message:`
 			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
-
-	// dev
 }

@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -10,14 +11,17 @@ import { withRetry } from "../retry"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
+	private clineAccountService = ClineAccountService.getInstance()
 	private client: OpenAI
 	lastGenerationId?: string
 
+	// TODO: Replace OpenAI here with XHR call to Cline API
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		// TODO: use global API Host
 		this.client = new OpenAI({
-			baseURL: "https://api.cline.bot/v1",
-			apiKey: this.options.clineApiKey || "",
+			baseURL: this.clineAccountService.baseUrl,
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on cline.bot rankings.
 				"X-Title": "Cline", // Optional. Shows in rankings on cline.bot.
@@ -135,9 +139,12 @@ export class ClineHandler implements ApiHandler {
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
-				const response = await axios.get(`https://api.cline.bot/v1/generation?id=${this.lastGenerationId}`, {
+				// TODO: replace this with firebase auth
+				// TODO: use global API Host
+
+				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${this.options.clineApiKey}`,
+						Authorization: `Bearer ${this.options.clineAccountId}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})

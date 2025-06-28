@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { vscode } from "@/utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
@@ -32,10 +32,13 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 }
 
 export const ClineAccountView = () => {
-	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
+	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
 	const { userInfo, apiConfiguration } = useExtensionState()
 
-	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
+	let user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
+
+	console.log("Extension: AccountView: apiConfiguration:", apiConfiguration)
+	console.log("Extension: AccountView: clineUser:", clineUser, " userInfo:", userInfo)
 
 	const [balance, setBalance] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
@@ -61,30 +64,25 @@ export const ClineAccountView = () => {
 	}, [user])
 
 	const handleLogin = () => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
+		handleSignIn()
 	}
 
 	const handleLogout = () => {
-		// Use gRPC client to notify extension to clear API keys and state
-		AccountServiceClient.accountLogoutClicked(EmptyRequest.create()).catch((err) => console.error("Failed to logout:", err))
-		// Then sign out of Firebase
 		handleSignOut()
 	}
+
 	return (
 		<div className="h-full flex flex-col">
 			{user ? (
 				<div className="flex flex-col pr-3 h-full">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
-							{user.photoURL ? (
+							{/* {user.photoURL ? (
 								<img src={user.photoURL} alt="Profile" className="size-16 rounded-full mr-4" />
-							) : (
-								<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
-									{user.displayName?.[0] || user.email?.[0] || "?"}
-								</div>
-							)}
+							) : ( */}
+							<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+								{user.displayName?.[0] || user.email?.[0] || "?"}
+							</div>
 
 							<div className="flex flex-col">
 								{user.displayName && (

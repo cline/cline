@@ -1,18 +1,35 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
-	private readonly baseUrl = "https://api.cline.bot/v1"
-	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
-	private getClineApiKey: () => Promise<string | undefined>
+	private static instance: ClineAccountService
+	private _authService: AuthService
+	// private readonly _authServiceUrl = "https://staging-app.cline.bot/auth"
+	private readonly _baseUrl = "https://app.cline.bot/v1"
+	// private readonly _baseUrl = "https://staging-app.cline.bot/v1"
 
-	constructor(
-		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
-		getClineApiKey: () => Promise<string | undefined>,
-	) {
-		this.postMessageToWebview = postMessageToWebview
-		this.getClineApiKey = getClineApiKey
+	constructor() {
+		this._authService = AuthService.getInstance()
+	}
+
+	/**
+	 * Returns the singleton instance of ClineAccountService
+	 * @returns Singleton instance of ClineAccountService
+	 */
+	public static getInstance(): ClineAccountService {
+		if (!ClineAccountService.instance) {
+			ClineAccountService.instance = new ClineAccountService()
+		}
+		return ClineAccountService.instance
+	}
+
+	/**
+	 * Returns the base URL for the Cline API
+	 * @returns The base URL as a string
+	 */
+	get baseUrl(): string {
+		return this._baseUrl
 	}
 
 	/**
@@ -23,29 +40,45 @@ export class ClineAccountService {
 	 * @throws Error if the API key is not found or the request fails
 	 */
 	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
-		const clineApiKey = await this.getClineApiKey()
+		const url = `${this._baseUrl}${endpoint}`
 
-		if (!clineApiKey) {
-			throw new Error("Cline API key not found")
-		}
+		const clineAccountAuthToken = await this._authService.getAuthToken()
 
-		const url = `${this.baseUrl}${endpoint}`
+		// TODO: replace this with firebase auth
+		// TODO: use global API Host
 		const requestConfig: AxiosRequestConfig = {
 			...config,
 			headers: {
-				Authorization: `Bearer ${clineApiKey}`,
+				Authorization: `Bearer ${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
 				...config.headers,
 			},
 		}
 
-		const response: AxiosResponse<T> = await axios.get(url, requestConfig)
+		try {
+			const response: AxiosResponse<T> = await axios.get(url, requestConfig)
+			console.log(`Extension: ClineAccountService: Fetched data from ${endpoint}`, response.data)
 
-		if (!response.data) {
-			throw new Error(`Invalid response from ${endpoint} API`)
+			if (!response.data) {
+				throw new Error(`Invalid response from ${endpoint} API`)
+			}
+
+			return response.data
+		} catch (error) {
+			console.error(`Error fetching data from ${endpoint}:`, error)
+			if (axios.isAxiosError(error)) {
+				if (error.response) {
+					console.error(`Response error from ${endpoint}:`, error.response.data)
+				} else if (error.request) {
+					console.error(`No response received from ${endpoint}:`, error.request)
+				} else {
+					console.error(`Error setting up request to ${endpoint}:`, error.message)
+				}
+			} else {
+				console.error(`Unexpected error fetching from ${endpoint}:`, error)
+			}
+			throw new Error(`Failed to fetch data from ${endpoint}: ${error instanceof Error ? error.message : String(error)}`)
 		}
-
-		return response.data
 	}
 
 	/**
