@@ -9,13 +9,13 @@ import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction
 import { StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
-	isExpanded: (messageTs: number) => boolean
+	expandedRows: Record<number, boolean>
 	onToggleExpand: (messageTs: number) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
@@ -294,10 +294,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			{currentPage?.nextAction?.messages.map((message) => (
 				<BrowserSessionRowContent
 					key={message.ts}
-					{...props}
 					message={message}
+					expandedRows={props.expandedRows}
+					onToggleExpand={props.onToggleExpand}
+					lastModifiedMessage={props.lastModifiedMessage}
+					isLast={props.isLast}
+					onSetQuote={props.onSetQuote}
 					setMaxActionHeight={setMaxActionHeight}
-					onSetQuote={onSetQuote}
 				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
@@ -498,73 +501,78 @@ interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "me
 	onSetQuote: (text: string) => void
 }
 
-const BrowserSessionRowContent = ({
-	message,
-	isExpanded,
-	onToggleExpand,
-	lastModifiedMessage,
-	isLast,
-	setMaxActionHeight,
-	onSetQuote,
-}: BrowserSessionRowContentProps) => {
-	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
-		return (
-			<>
-				<div style={headerStyle}>
-					<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
-				</div>
-				<div style={codeBlockContainerStyle}>
-					<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
-				</div>
-			</>
-		)
-	}
+const BrowserSessionRowContent = memo(
+	({
+		message,
+		expandedRows,
+		onToggleExpand,
+		lastModifiedMessage,
+		isLast,
+		setMaxActionHeight,
+		onSetQuote,
+	}: BrowserSessionRowContentProps) => {
+		const handleToggle = useCallback(() => {
+			if (message.say === "api_req_started") {
+				setMaxActionHeight(0)
+			}
+			onToggleExpand(message.ts)
+		}, [onToggleExpand, message.ts, setMaxActionHeight])
 
-	switch (message.type) {
-		case "say":
-			switch (message.say) {
-				case "api_req_started":
-				case "text":
-				case "reasoning":
-					return (
-						<div style={chatRowContentContainerStyle}>
-							<ChatRowContent
-								message={message}
-								isExpanded={isExpanded(message.ts)}
-								onToggleExpand={() => {
-									if (message.say === "api_req_started") {
-										setMaxActionHeight(0)
-									}
-									onToggleExpand(message.ts)
-								}}
-								lastModifiedMessage={lastModifiedMessage}
-								isLast={isLast}
-								onSetQuote={onSetQuote}
+		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+			return (
+				<>
+					<div style={headerStyle}>
+						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
+					</div>
+					<div style={codeBlockContainerStyle}>
+						<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
+					</div>
+				</>
+			)
+		}
+
+		switch (message.type) {
+			case "say":
+				switch (message.say) {
+					case "api_req_started":
+					case "text":
+					case "reasoning":
+						return (
+							<div style={chatRowContentContainerStyle}>
+								<ChatRowContent
+									message={message}
+									isExpanded={expandedRows[message.ts] ?? false}
+									onToggleExpand={handleToggle}
+									lastModifiedMessage={lastModifiedMessage}
+									isLast={isLast}
+									onSetQuote={onSetQuote}
+								/>
+							</div>
+						)
+
+					case "browser_action":
+						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						return (
+							<BrowserActionBox
+								action={browserAction.action}
+								coordinate={browserAction.coordinate}
+								text={browserAction.text}
 							/>
-						</div>
-					)
+						)
 
-				case "browser_action":
-					const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
-					return (
-						<BrowserActionBox
-							action={browserAction.action}
-							coordinate={browserAction.coordinate}
-							text={browserAction.text}
-						/>
-					)
+					default:
+						return null
+				}
 
-				default:
-					return null
-			}
-
-		case "ask":
-			switch (message.ask) {
-				default:
-					return null
-			}
-	}
-}
+			case "ask":
+				switch (message.ask) {
+					default:
+						return null
+				}
+		}
+	},
+	deepEqual,
+)
 
 const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction; coordinate?: string; text?: string }) => {
 	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
