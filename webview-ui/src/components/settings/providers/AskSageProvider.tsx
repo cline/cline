@@ -4,13 +4,13 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the AskSageProvider component
  */
 interface AskSageProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -18,7 +18,10 @@ interface AskSageProviderProps {
 /**
  * The AskSage provider configuration component
  */
-export const AskSageProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: AskSageProviderProps) => {
+export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -26,7 +29,7 @@ export const AskSageProvider = ({ apiConfiguration, handleInputChange, showModel
 		<div>
 			<ApiKeyField
 				value={apiConfiguration?.asksageApiKey || ""}
-				onChange={handleInputChange("asksageApiKey")}
+				onChange={(e) => handleFieldChange("asksageApiKey", e.target.value)}
 				providerName="AskSage"
 				helpText="This key is stored locally and only used to make API requests from this extension."
 			/>
@@ -35,7 +38,7 @@ export const AskSageProvider = ({ apiConfiguration, handleInputChange, showModel
 				value={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
 				style={{ width: "100%" }}
 				type="url"
-				onInput={handleInputChange("asksageApiUrl")}
+				onInput={(e: any) => handleFieldChange("asksageApiUrl", e.target.value)}
 				placeholder="Enter AskSage API URL...">
 				<span style={{ fontWeight: 500 }}>AskSage API URL</span>
 			</VSCodeTextField>
@@ -45,7 +48,7 @@ export const AskSageProvider = ({ apiConfiguration, handleInputChange, showModel
 					<ModelSelector
 						models={askSageModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

@@ -4,6 +4,8 @@ import ApiOptions from "../ApiOptions"
 import Section from "../Section"
 
 import { ChatSettings } from "@shared/ChatSettings"
+import { StateServiceClient } from "@/services/grpc-client"
+import { UpdateSettingsRequest } from "@shared/proto/state"
 
 interface ApiConfigurationSectionProps {
 	planActSeparateModelsSetting: boolean
@@ -12,7 +14,6 @@ interface ApiConfigurationSectionProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	handlePlanActModeChange: (mode: "plan" | "act") => Promise<void>
-	setPlanActSeparateModelsSetting: (value: boolean) => void
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
@@ -23,7 +24,6 @@ const ApiConfigurationSection = ({
 	apiErrorMessage,
 	modelIdErrorMessage,
 	handlePlanActModeChange,
-	setPlanActSeparateModelsSetting,
 	renderSectionHeader,
 }: ApiConfigurationSectionProps) => {
 	return (
@@ -79,9 +79,17 @@ const ApiConfigurationSection = ({
 					<VSCodeCheckbox
 						className="mb-[5px]"
 						checked={planActSeparateModelsSetting}
-						onChange={(e: any) => {
+						onChange={async (e: any) => {
 							const checked = e.target.checked === true
-							setPlanActSeparateModelsSetting(checked)
+							try {
+								await StateServiceClient.updateSettings(
+									UpdateSettingsRequest.create({
+										planActSeparateModelsSetting: checked,
+									}),
+								)
+							} catch (error) {
+								console.error("Failed to update separate models setting:", error)
+							}
 						}}>
 						Use different models for Plan and Act modes
 					</VSCodeCheckbox>

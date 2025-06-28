@@ -11,21 +11,23 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { ApiConfiguration, geminiCliModels } from "@shared/api"
+import { geminiCliModels } from "@shared/api"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { memo } from "react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 interface GeminiCliProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
 
-const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: GeminiCliProviderProps) => {
+const GeminiCliProvider = ({ showModelOptions, isPopup }: GeminiCliProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 	return (
@@ -34,7 +36,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 				value={apiConfiguration?.geminiCliOAuthPath || ""}
 				style={{ width: "100%", marginTop: 3 }}
 				type="text"
-				onInput={handleInputChange("geminiCliOAuthPath")}
+				onInput={(e: any) => handleFieldChange("geminiCliOAuthPath", e.target.value)}
 				placeholder="Default: ~/.gemini/oauth_creds.json">
 				<span style={{ fontWeight: 500 }}>OAuth Credentials Path (optional)</span>
 			</VSCodeTextField>
@@ -97,7 +99,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					<ModelSelector
 						models={geminiCliModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 
@@ -166,4 +168,4 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 	)
 }
 
-export default memo(GeminiCliProvider)
+export default GeminiCliProvider

@@ -1,15 +1,15 @@
-import { ApiConfiguration, claudeCodeModels } from "@shared/api"
+import { claudeCodeModels } from "@shared/api"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the ClaudeCodeProvider component
  */
 interface ClaudeCodeProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,12 +17,10 @@ interface ClaudeCodeProviderProps {
 /**
  * The Claude Code provider configuration component
  */
-export const ClaudeCodeProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-}: ClaudeCodeProviderProps) => {
+export const ClaudeCodeProvider = ({ showModelOptions, isPopup }: ClaudeCodeProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -32,7 +30,7 @@ export const ClaudeCodeProvider = ({
 				value={apiConfiguration?.claudeCodePath || ""}
 				style={{ width: "100%", marginTop: 3 }}
 				type="text"
-				onInput={handleInputChange("claudeCodePath")}
+				onInput={(e: any) => handleFieldChange("claudeCodePath", e.target.value)}
 				placeholder="Default: claude">
 				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
 			</VSCodeTextField>
@@ -51,7 +49,7 @@ export const ClaudeCodeProvider = ({
 					<ModelSelector
 						models={claudeCodeModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

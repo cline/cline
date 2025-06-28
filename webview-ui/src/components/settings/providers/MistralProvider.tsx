@@ -3,13 +3,13 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the MistralProvider component
  */
 interface MistralProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,7 +17,10 @@ interface MistralProviderProps {
 /**
  * The Mistral provider configuration component
  */
-export const MistralProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: MistralProviderProps) => {
+export const MistralProvider = ({ showModelOptions, isPopup }: MistralProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -25,7 +28,7 @@ export const MistralProvider = ({ apiConfiguration, handleInputChange, showModel
 		<div>
 			<ApiKeyField
 				value={apiConfiguration?.mistralApiKey || ""}
-				onChange={handleInputChange("mistralApiKey")}
+				onChange={(e: any) => handleFieldChange("mistralApiKey", e.target.value)}
 				providerName="Mistral"
 				signupUrl="https://console.mistral.ai/codestral"
 			/>
@@ -35,7 +38,7 @@ export const MistralProvider = ({ apiConfiguration, handleInputChange, showModel
 					<ModelSelector
 						models={mistralModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

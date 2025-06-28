@@ -2,6 +2,8 @@ import { memo, useCallback, useState } from "react"
 import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -80,12 +82,13 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 `
 
 interface ThinkingBudgetSliderProps {
-	apiConfiguration: ApiConfiguration | undefined
-	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
 	maxBudget?: number
 }
 
-const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const maxTokens =
 		apiConfiguration?.apiProvider === "gemini"
 			? geminiModels[geminiDefaultModelId].maxTokens
@@ -110,20 +113,15 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 	}, [])
 
 	const handleSliderComplete = () => {
-		setApiConfiguration({
-			...apiConfiguration,
-			thinkingBudgetTokens: localValue,
-		})
+		handleFieldChange("thinkingBudgetTokens", localValue)
 	}
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
 		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
 		setLocalValue(newValue)
-		setApiConfiguration({
-			...apiConfiguration,
-			thinkingBudgetTokens: newValue,
-		})
+
+		handleFieldChange("thinkingBudgetTokens", newValue)
 	}
 
 	return (

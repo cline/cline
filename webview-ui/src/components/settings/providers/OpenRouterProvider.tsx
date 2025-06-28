@@ -7,6 +7,8 @@ import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import VSCodeButtonLink from "../../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Component to display OpenRouter balance information
@@ -48,8 +50,6 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
  * Props for the OpenRouterProvider component
  */
 interface OpenRouterProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 	uriScheme?: string
@@ -58,19 +58,11 @@ interface OpenRouterProviderProps {
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	uriScheme,
-}: OpenRouterProviderProps) => {
-	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: OpenRouterProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
 
-	// Create a wrapper for handling field changes more directly
-	const handleFieldChange = (field: keyof ApiConfiguration) => (value: any) => {
-		handleInputChange(field)({ target: { value } })
-	}
+	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
 	return (
 		<div>
@@ -79,7 +71,7 @@ export const OpenRouterProvider = ({
 					value={apiConfiguration?.openRouterApiKey || ""}
 					style={{ width: "100%" }}
 					type="password"
-					onInput={handleInputChange("openRouterApiKey")}
+					onInput={(e: any) => handleFieldChange("openRouterApiKey", e.target.value)}
 					placeholder="Enter API Key...">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
@@ -115,7 +107,7 @@ export const OpenRouterProvider = ({
 							const isChecked = e.target.checked === true
 							setProviderSortingSelected(isChecked)
 							if (!isChecked) {
-								handleFieldChange("openRouterProviderSorting")("")
+								handleFieldChange("openRouterProviderSorting", "")
 							}
 						}}>
 						Sort underlying provider routing
@@ -128,7 +120,7 @@ export const OpenRouterProvider = ({
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}
 									onChange={(e: any) => {
-										handleFieldChange("openRouterProviderSorting")(e.target.value)
+										handleFieldChange("openRouterProviderSorting", e.target.value)
 									}}>
 									<VSCodeOption value="">Default</VSCodeOption>
 									<VSCodeOption value="price">Price</VSCodeOption>

@@ -1,15 +1,15 @@
-import { ApiConfiguration, sapAiCoreModels } from "@shared/api"
+import { sapAiCoreModels } from "@shared/api"
 import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the SapAiCoreProvider component
  */
 interface SapAiCoreProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,7 +17,10 @@ interface SapAiCoreProviderProps {
 /**
  * The SAP AI Core provider configuration component
  */
-export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
 	return (
@@ -26,7 +29,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 				value={apiConfiguration?.sapAiCoreClientId || ""}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={handleInputChange("sapAiCoreClientId")}
+				onInput={(e: any) => handleFieldChange("sapAiCoreClientId", e.target.value)}
 				placeholder="Enter AI Core Client Id...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
 			</VSCodeTextField>
@@ -40,7 +43,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 				value={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={handleInputChange("sapAiCoreClientSecret")}
+				onInput={(e: any) => handleFieldChange("sapAiCoreClientSecret", e.target.value)}
 				placeholder="Enter AI Core Client Secret...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
 			</VSCodeTextField>
@@ -53,7 +56,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 			<VSCodeTextField
 				value={apiConfiguration?.sapAiCoreBaseUrl || ""}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiCoreBaseUrl")}
+				onInput={(e: any) => handleFieldChange("sapAiCoreBaseUrl", e.target.value)}
 				placeholder="Enter AI Core Base URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
 			</VSCodeTextField>
@@ -61,7 +64,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 			<VSCodeTextField
 				value={apiConfiguration?.sapAiCoreTokenUrl || ""}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiCoreTokenUrl")}
+				onInput={(e: any) => handleFieldChange("sapAiCoreTokenUrl", e.target.value)}
 				placeholder="Enter AI Core Auth URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
 			</VSCodeTextField>
@@ -69,7 +72,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 			<VSCodeTextField
 				value={apiConfiguration?.sapAiResourceGroup || ""}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiResourceGroup")}
+				onInput={(e: any) => handleFieldChange("sapAiResourceGroup", e.target.value)}
 				placeholder="Enter AI Core Resource Group...">
 				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
 			</VSCodeTextField>
@@ -93,7 +96,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 					<ModelSelector
 						models={sapAiCoreModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

@@ -7,7 +7,17 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/common"
 import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	Info,
+	LucideIcon,
+	Settings,
+	SquareMousePointer,
+	SquareTerminal,
+	Webhook,
+	X,
+} from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -107,6 +117,8 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
+	// Track active tab
+	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 	// Track if there are unsaved changes
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 	// State for the unsaved changes dialog
@@ -291,8 +303,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			return
 		}
 
+		// For api-config tab, exclude API configuration from unsaved changes check
+		// since those changes are saved immediately
+		const includeApiConfig = activeTab !== "api-config"
+
 		const hasChanges =
-			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
+			(includeApiConfig && JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration)) ||
 			telemetrySetting !== originalState.current.telemetrySetting ||
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
@@ -321,6 +337,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
 		isSwitchingMode,
+		activeTab,
 	])
 
 	// Handle cancel button click
@@ -596,16 +613,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			return
 		}
 
-		// Check if there are unsaved changes
-		if (hasUnsavedChanges) {
-			// Store the pending mode switch
-			setPendingModeSwitch(tab)
-			// Show the unsaved changes dialog
-			setIsUnsavedChangesDialogOpen(true)
-			return
-		}
-
-		// No unsaved changes, proceed with the switch
+		// Proceed directly with the switch since API config changes are saved immediately
 		setIsSwitchingMode(true)
 
 		try {
@@ -626,9 +634,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			setIsSwitchingMode(false)
 		}
 	}
-
-	// Track active tab
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
 	// Update active tab when targetSection changes
 	useEffect(() => {
@@ -680,12 +685,20 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
-					<VSCodeButton appearance="secondary" onClick={handleCancel}>
-						Cancel
-					</VSCodeButton>
-					<VSCodeButton onClick={() => handleSubmit(false)} disabled={!hasUnsavedChanges}>
-						Save
-					</VSCodeButton>
+					{activeTab === "api-config" ? (
+						// Show Done button for API configuration - changes are saved immediately
+						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					) : (
+						// Show Save/Cancel buttons for other sections
+						<>
+							<VSCodeButton appearance="secondary" onClick={handleCancel}>
+								Cancel
+							</VSCodeButton>
+							<VSCodeButton onClick={() => handleSubmit(false)} disabled={!hasUnsavedChanges}>
+								Save
+							</VSCodeButton>
+						</>
+					)}
 				</div>
 			</TabHeader>
 
@@ -769,7 +782,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									apiErrorMessage={apiErrorMessage}
 									modelIdErrorMessage={modelIdErrorMessage}
 									handlePlanActModeChange={handlePlanActModeChange}
-									setPlanActSeparateModelsSetting={setPlanActSeparateModelsSetting}
 									renderSectionHeader={renderSectionHeader}
 								/>
 							)}
