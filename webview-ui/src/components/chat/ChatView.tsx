@@ -1074,7 +1074,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					key={messageOrGroup.ts}
 					message={messageOrGroup}
 					isExpanded={expandedRows[messageOrGroup.ts] || false}
-					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
+					onToggleExpand={toggleRowExpansion}
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={isLast}
 					onHeightChange={handleRowHeightChange}
