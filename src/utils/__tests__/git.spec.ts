@@ -12,6 +12,7 @@ import {
 	extractRepositoryName,
 	getWorkspaceGitInfo,
 	GitRepositoryInfo,
+	convertGitUrlToHttps,
 } from "../git"
 import { truncateOutput } from "../../integrations/misc/extract-text"
 
@@ -559,6 +560,89 @@ describe("getGitRepositoryInfo", () => {
 			repositoryUrl: "https://github.com/RooCodeInc/Roo-Code.git",
 			repositoryName: "RooCodeInc/Roo-Code",
 		})
+	})
+
+	it("should convert SSH URLs to HTTPS format", async () => {
+		// Clear previous mocks
+		vitest.clearAllMocks()
+
+		// Create a spy to track the implementation
+		const gitSpy = vitest.spyOn(fs.promises, "readFile")
+
+		// Mock successful access to .git directory
+		vitest.mocked(fs.promises.access).mockResolvedValue(undefined)
+
+		// Mock git config file with SSH URL
+		const mockConfig = `
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+[remote "origin"]
+	url = git@github.com:RooCodeInc/Roo-Code.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+`
+		// Mock HEAD file content
+		const mockHead = "ref: refs/heads/main"
+
+		// Setup the readFile mock to return different values based on the path
+		gitSpy.mockImplementation((path: any, encoding: any) => {
+			if (path === configPath) {
+				return Promise.resolve(mockConfig)
+			} else if (path === headPath) {
+				return Promise.resolve(mockHead)
+			}
+			return Promise.reject(new Error(`Unexpected path: ${path}`))
+		})
+
+		const result = await getGitRepositoryInfo(workspaceRoot)
+
+		// Verify that the SSH URL was converted to HTTPS
+		expect(result).toEqual({
+			repositoryUrl: "https://github.com/RooCodeInc/Roo-Code.git",
+			repositoryName: "RooCodeInc/Roo-Code",
+			defaultBranch: "main",
+		})
+	})
+})
+
+describe("convertGitUrlToHttps", () => {
+	it("should leave HTTPS URLs unchanged", () => {
+		const url = "https://github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should convert SSH URLs to HTTPS format", () => {
+		const url = "git@github.com:RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should convert SSH URLs with ssh:// prefix to HTTPS format", () => {
+		const url = "ssh://git@github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should handle URLs without git@ prefix", () => {
+		const url = "ssh://github.com/RooCodeInc/Roo-Code.git"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("https://github.com/RooCodeInc/Roo-Code.git")
+	})
+
+	it("should handle invalid URLs gracefully", () => {
+		const url = "not-a-valid-url"
+		const converted = convertGitUrlToHttps(url)
+
+		expect(converted).toBe("not-a-valid-url")
 	})
 })
 

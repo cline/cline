@@ -51,7 +51,8 @@ export async function getGitRepositoryInfo(workspaceRoot: string): Promise<GitRe
 
 			if (urlMatch && urlMatch[1]) {
 				const url = urlMatch[1].trim()
-				gitInfo.repositoryUrl = sanitizeGitUrl(url)
+				// Sanitize the URL and convert to HTTPS format for telemetry
+				gitInfo.repositoryUrl = convertGitUrlToHttps(sanitizeGitUrl(url))
 				const repositoryName = extractRepositoryName(url)
 				if (repositoryName) {
 					gitInfo.repositoryName = repositoryName
@@ -85,6 +86,44 @@ export async function getGitRepositoryInfo(workspaceRoot: string): Promise<GitRe
 	} catch (error) {
 		// Return empty object on any error
 		return {}
+	}
+}
+
+/**
+ * Converts a git URL to HTTPS format
+ * @param url The git URL to convert
+ * @returns The URL in HTTPS format, or the original URL if conversion is not possible
+ */
+export function convertGitUrlToHttps(url: string): string {
+	try {
+		// Already HTTPS, just return it
+		if (url.startsWith("https://")) {
+			return url
+		}
+
+		// Handle SSH format: git@github.com:user/repo.git -> https://github.com/user/repo.git
+		if (url.startsWith("git@")) {
+			const match = url.match(/git@([^:]+):(.+)/)
+			if (match && match.length === 3) {
+				const [, host, path] = match
+				return `https://${host}/${path}`
+			}
+		}
+
+		// Handle SSH with protocol: ssh://git@github.com/user/repo.git -> https://github.com/user/repo.git
+		if (url.startsWith("ssh://")) {
+			const match = url.match(/ssh:\/\/(?:git@)?([^\/]+)\/(.+)/)
+			if (match && match.length === 3) {
+				const [, host, path] = match
+				return `https://${host}/${path}`
+			}
+		}
+
+		// Return original URL if we can't convert it
+		return url
+	} catch {
+		// If parsing fails, return original
+		return url
 	}
 }
 
