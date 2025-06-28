@@ -9,13 +9,13 @@ import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction
 import { StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
-	isExpanded: (messageTs: number) => boolean
+	expandedRows: Record<number, boolean>
 	onToggleExpand: (messageTs: number) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
@@ -500,13 +500,20 @@ interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "me
 
 const BrowserSessionRowContent = ({
 	message,
-	isExpanded,
+	expandedRows,
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
 	onSetQuote,
 }: BrowserSessionRowContentProps) => {
+	const handleToggle = useCallback(() => {
+		if (message.say === "api_req_started") {
+			setMaxActionHeight(0)
+		}
+		onToggleExpand(message.ts)
+	}, [onToggleExpand, message.ts, setMaxActionHeight])
+
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
 			<>
@@ -530,13 +537,8 @@ const BrowserSessionRowContent = ({
 						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent
 								message={message}
-								isExpanded={isExpanded(message.ts)}
-								onToggleExpand={() => {
-									if (message.say === "api_req_started") {
-										setMaxActionHeight(0)
-									}
-									onToggleExpand(message.ts)
-								}}
+								isExpanded={expandedRows[message.ts] ?? false}
+								onToggleExpand={handleToggle}
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
 								onSetQuote={onSetQuote}
