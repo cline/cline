@@ -375,13 +375,18 @@ export class Task extends EventEmitter<ClineEvents> {
 		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
 		this.emit("message", { action: "updated", message })
 
-		const shouldCaptureMessage = message.partial !== true && CloudService.isEnabled()
+		// Only check for telemetry if the message is complete and CloudService is enabled
+		if (message.partial !== true && CloudService.isEnabled()) {
+			// Now check if this message was already captured
+			const previousMessage = this.clineMessages.find((m) => m.ts === message.ts)
+			const wasAlreadyCaptured = previousMessage && previousMessage.partial !== true
 
-		if (shouldCaptureMessage) {
-			CloudService.instance.captureEvent({
-				event: TelemetryEventName.TASK_MESSAGE,
-				properties: { taskId: this.taskId, message },
-			})
+			if (!wasAlreadyCaptured) {
+				CloudService.instance.captureEvent({
+					event: TelemetryEventName.TASK_MESSAGE,
+					properties: { taskId: this.taskId, message },
+				})
+			}
 		}
 	}
 
