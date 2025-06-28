@@ -144,8 +144,8 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 		<>
 			{shareButtonState.showPopover ? (
 				<Popover open={shareDropdownOpen} onOpenChange={setShareDropdownOpen}>
-					<PopoverTrigger asChild>
-						<StandardTooltip content={shareButtonState.title}>
+					<StandardTooltip content={shareButtonState.title}>
+						<PopoverTrigger asChild>
 							<Button
 								variant="ghost"
 								size="icon"
@@ -154,8 +154,8 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 								onClick={handleShareButtonClick}>
 								<span className="codicon codicon-link"></span>
 							</Button>
-						</StandardTooltip>
-					</PopoverTrigger>
+						</PopoverTrigger>
+					</StandardTooltip>
 					<PopoverContent className="w-56 p-0" align="start">
 						{shareSuccess ? (
 							<div className="p-3">
