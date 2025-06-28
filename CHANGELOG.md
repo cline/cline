@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.22.4] - 2025-06-27
+
+- Fix: resolve E2BIG error by passing large prompts via stdin to Claude CLI (thanks @Fovty!)
+- Add optional mode suggestions to follow-up questions
+- Fix: move StandardTooltip inside PopoverTrigger in ShareButton (thanks @daniel-lxs!)
+
 ## [3.22.3] - 2025-06-27
 
 - Restore JSON backwards compatibility for .roomodes files (thanks @daniel-lxs!)
