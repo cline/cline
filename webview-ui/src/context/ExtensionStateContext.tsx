@@ -704,11 +704,36 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		setApiConfiguration: (value) =>
+		setApiConfiguration: async (value) => {
 			setState((prevState) => ({
 				...prevState,
 				apiConfiguration: value,
-			})),
+			}))
+			try {
+				// Import the conversion functions
+				const { convertApiConfigurationToProtoApiConfiguration } = await import(
+					"@shared/proto-conversions/state/settings-conversion"
+				)
+				const { convertChatSettingsToProtoChatSettings } = await import(
+					"@shared/proto-conversions/state/chat-settings-conversion"
+				)
+
+				await StateServiceClient.updateSettings(
+					UpdateSettingsRequest.create({
+						apiConfiguration: convertApiConfigurationToProtoApiConfiguration(value),
+						chatSettings: state.chatSettings ? convertChatSettingsToProtoChatSettings(state.chatSettings) : undefined,
+						telemetrySetting: state.telemetrySetting,
+						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+						enableCheckpointsSetting: state.enableCheckpointsSetting,
+						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+						mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
+						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
+					}),
+				)
+			} catch (error) {
+				console.error("Failed to update API configuration:", error)
+			}
+		},
 		setTelemetrySetting: (value) =>
 			setState((prevState) => ({
 				...prevState,
