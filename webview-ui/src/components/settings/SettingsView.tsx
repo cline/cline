@@ -7,7 +7,17 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/common"
 import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	Info,
+	LucideIcon,
+	Settings,
+	SquareMousePointer,
+	SquareTerminal,
+	Webhook,
+	X,
+} from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -20,6 +30,7 @@ import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
+import AboutSection from "./sections/AboutSection"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 
@@ -106,6 +117,8 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
+	// Track active tab
+	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 	// Track if there are unsaved changes
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 	// State for the unsaved changes dialog
@@ -290,8 +303,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			return
 		}
 
+		// For api-config tab, exclude API configuration from unsaved changes check
+		// since those changes are saved immediately
+		const includeApiConfig = activeTab !== "api-config"
+
 		const hasChanges =
-			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
+			(includeApiConfig && JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration)) ||
 			telemetrySetting !== originalState.current.telemetrySetting ||
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
@@ -320,6 +337,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		terminalOutputLineLimit,
 		defaultTerminalProfile,
 		isSwitchingMode,
+		activeTab,
 	])
 
 	// Handle cancel button click
@@ -595,16 +613,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			return
 		}
 
-		// Check if there are unsaved changes
-		if (hasUnsavedChanges) {
-			// Store the pending mode switch
-			setPendingModeSwitch(tab)
-			// Show the unsaved changes dialog
-			setIsUnsavedChangesDialogOpen(true)
-			return
-		}
-
-		// No unsaved changes, proceed with the switch
+		// Proceed directly with the switch since API config changes are saved immediately
 		setIsSwitchingMode(true)
 
 		try {
@@ -625,9 +634,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			setIsSwitchingMode(false)
 		}
 	}
-
-	// Track active tab
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
 	// Update active tab when targetSection changes
 	useEffect(() => {
@@ -679,12 +685,20 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
-					<VSCodeButton appearance="secondary" onClick={handleCancel}>
-						Cancel
-					</VSCodeButton>
-					<VSCodeButton onClick={() => handleSubmit(false)} disabled={!hasUnsavedChanges}>
-						Save
-					</VSCodeButton>
+					{activeTab === "api-config" ? (
+						// Show Done button for API configuration - changes are saved immediately
+						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					) : (
+						// Show Save/Cancel buttons for other sections
+						<>
+							<VSCodeButton appearance="secondary" onClick={handleCancel}>
+								Cancel
+							</VSCodeButton>
+							<VSCodeButton onClick={() => handleSubmit(false)} disabled={!hasUnsavedChanges}>
+								Save
+							</VSCodeButton>
+						</>
+					)}
 				</div>
 			</TabHeader>
 
@@ -768,7 +782,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									apiErrorMessage={apiErrorMessage}
 									modelIdErrorMessage={modelIdErrorMessage}
 									handlePlanActModeChange={handlePlanActModeChange}
-									setPlanActSeparateModelsSetting={setPlanActSeparateModelsSetting}
 									renderSectionHeader={renderSectionHeader}
 								/>
 							)}
@@ -806,20 +819,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 							{/* About Tab */}
 							{activeTab === "about" && (
-								<div>
-									{renderSectionHeader("about")}
-									<Section>
-										<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
-											<p className="break-words m-0 p-0">
-												If you have any questions or feedback, feel free to open an issue at{" "}
-												<VSCodeLink href="https://github.com/cline/cline" className="inline">
-													https://github.com/cline/cline
-												</VSCodeLink>
-											</p>
-											<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
-										</div>
-									</Section>
-								</div>
+								<AboutSection version={version} renderSectionHeader={renderSectionHeader} />
 							)}
 						</TabContent>
 					)

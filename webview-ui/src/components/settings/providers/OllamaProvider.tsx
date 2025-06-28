@@ -1,4 +1,3 @@
-import { ApiConfiguration } from "@shared/api"
 import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
@@ -6,28 +5,24 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/common"
 import OllamaModelPicker from "../OllamaModelPicker"
 import { BaseUrlField } from "../common/BaseUrlField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the OllamaProvider component
  */
 interface OllamaProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration: (config: ApiConfiguration) => void
 }
 
 /**
  * The Ollama provider configuration component
  */
-export const OllamaProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	setApiConfiguration,
-}: OllamaProviderProps) => {
+export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	// Poll ollama models
@@ -57,7 +52,7 @@ export const OllamaProvider = ({
 		<div>
 			<BaseUrlField
 				value={apiConfiguration?.ollamaBaseUrl}
-				onChange={(value) => handleInputChange("ollamaBaseUrl")({ target: { value } })}
+				onChange={(e: any) => handleFieldChange("ollamaBaseUrl", e.target.value)}
 				placeholder="Default: http://localhost:11434"
 				label="Use custom base URL"
 			/>
@@ -70,10 +65,7 @@ export const OllamaProvider = ({
 				ollamaModels={ollamaModels}
 				selectedModelId={apiConfiguration?.ollamaModelId || ""}
 				onModelChange={(modelId) => {
-					setApiConfiguration({
-						...apiConfiguration,
-						ollamaModelId: modelId,
-					})
+					handleFieldChange("ollamaModelId", modelId)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
 			/>
@@ -95,7 +87,7 @@ export const OllamaProvider = ({
 			<VSCodeTextField
 				value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("ollamaApiOptionsCtxNum")}
+				onInput={(e: any) => handleFieldChange("ollamaApiOptionsCtxNum", e.target.value)}
 				placeholder={"e.g. 32768"}>
 				<span style={{ fontWeight: 500 }}>Model Context Window</span>
 			</VSCodeTextField>
@@ -110,10 +102,7 @@ export const OllamaProvider = ({
 							// Convert to number, with validation
 							const numValue = parseInt(value, 10)
 							if (!isNaN(numValue) && numValue > 0) {
-								setApiConfiguration({
-									...apiConfiguration,
-									requestTimeoutMs: numValue,
-								})
+								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}
 						placeholder="Default: 30000 (30 seconds)">

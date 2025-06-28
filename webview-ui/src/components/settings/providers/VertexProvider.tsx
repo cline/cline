@@ -1,20 +1,19 @@
-import { ApiConfiguration, vertexGlobalModels, vertexModels } from "@shared/api"
+import { vertexGlobalModels, vertexModels } from "@shared/api"
 import { VSCodeTextField, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the VertexProvider component
  */
 interface VertexProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration: (config: ApiConfiguration) => void
 }
 
 // Vertex models that support thinking
@@ -29,13 +28,10 @@ const SUPPORTED_THINKING_MODELS = [
 /**
  * The GCP Vertex AI provider configuration component
  */
-export const VertexProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	setApiConfiguration,
-}: VertexProviderProps) => {
+export const VertexProvider = ({ showModelOptions, isPopup }: VertexProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -52,7 +48,7 @@ export const VertexProvider = ({
 			<VSCodeTextField
 				value={apiConfiguration?.vertexProjectId || ""}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("vertexProjectId")}
+				onInput={(e: any) => handleFieldChange("vertexProjectId", e.target.value)}
 				placeholder="Enter Project ID...">
 				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 			</VSCodeTextField>
@@ -65,7 +61,7 @@ export const VertexProvider = ({
 					id="vertex-region-dropdown"
 					value={apiConfiguration?.vertexRegion || ""}
 					style={{ width: "100%" }}
-					onChange={handleInputChange("vertexRegion")}>
+					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
 					<VSCodeOption value="us-east5">us-east5</VSCodeOption>
 					<VSCodeOption value="us-central1">us-central1</VSCodeOption>
@@ -100,17 +96,13 @@ export const VertexProvider = ({
 					<ModelSelector
 						models={modelsToUse}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider
-							apiConfiguration={apiConfiguration}
-							setApiConfiguration={setApiConfiguration}
-							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-						/>
+						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />

@@ -1,13 +1,13 @@
-import { ApiConfiguration } from "@shared/api"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { ApiConfiguration } from "@shared/api"
 
 /**
  * Props for the FireworksProvider component
  */
 interface FireworksProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -15,7 +15,10 @@ interface FireworksProviderProps {
 /**
  * The Fireworks provider configuration component
  */
-export const FireworksProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: FireworksProviderProps) => {
+export const FireworksProvider = ({ showModelOptions, isPopup }: FireworksProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Handler for number input fields with validation
 	const handleNumberInputChange = (field: keyof ApiConfiguration) => (e: any) => {
 		const value = (e.target as HTMLInputElement).value
@@ -26,18 +29,14 @@ export const FireworksProvider = ({ apiConfiguration, handleInputChange, showMod
 		if (isNaN(num)) {
 			return
 		}
-		handleInputChange(field)({
-			target: {
-				value: num,
-			},
-		})
+		handleFieldChange(field, num)
 	}
 
 	return (
 		<div>
 			<ApiKeyField
 				value={apiConfiguration?.fireworksApiKey || ""}
-				onChange={handleInputChange("fireworksApiKey")}
+				onChange={(e: any) => handleFieldChange("fireworksApiKey", e.target.value)}
 				providerName="Fireworks"
 				signupUrl="https://fireworks.ai/settings/users/api-keys"
 			/>
@@ -47,7 +46,7 @@ export const FireworksProvider = ({ apiConfiguration, handleInputChange, showMod
 					<VSCodeTextField
 						value={apiConfiguration?.fireworksModelId || ""}
 						style={{ width: "100%" }}
-						onInput={handleInputChange("fireworksModelId")}
+						onInput={(e: any) => handleFieldChange("fireworksModelId", e.target.value)}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>

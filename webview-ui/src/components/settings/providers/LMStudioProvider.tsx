@@ -1,17 +1,16 @@
-import { ApiConfiguration } from "@shared/api"
 import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/common"
 import { BaseUrlField } from "../common/BaseUrlField"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the LMStudioProvider component
  */
 interface LMStudioProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -19,7 +18,10 @@ interface LMStudioProviderProps {
 /**
  * The LM Studio provider configuration component
  */
-export const LMStudioProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: LMStudioProviderProps) => {
+export const LMStudioProvider = ({ showModelOptions, isPopup }: LMStudioProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 
 	// Poll LM Studio models
@@ -49,7 +51,7 @@ export const LMStudioProvider = ({ apiConfiguration, handleInputChange, showMode
 		<div>
 			<BaseUrlField
 				value={apiConfiguration?.lmStudioBaseUrl}
-				onChange={(value) => handleInputChange("lmStudioBaseUrl")({ target: { value } })}
+				onChange={(e: any) => handleFieldChange("lmStudioBaseUrl", e.target.value)}
 				placeholder="Default: http://localhost:1234"
 				label="Use custom base URL"
 			/>
@@ -57,7 +59,7 @@ export const LMStudioProvider = ({ apiConfiguration, handleInputChange, showMode
 			<VSCodeTextField
 				value={apiConfiguration?.lmStudioModelId || ""}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("lmStudioModelId")}
+				onInput={(e: any) => handleFieldChange("lmStudioModelId", e.target.value)}
 				placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</VSCodeTextField>
@@ -71,9 +73,7 @@ export const LMStudioProvider = ({ apiConfiguration, handleInputChange, showMode
 						const value = (e.target as HTMLInputElement)?.value
 						// need to check value first since radio group returns empty string sometimes
 						if (value) {
-							handleInputChange("lmStudioModelId")({
-								target: { value },
-							})
+							handleFieldChange("lmStudioModelId", value)
 						}
 					}}>
 					{lmStudioModels.map((model) => (

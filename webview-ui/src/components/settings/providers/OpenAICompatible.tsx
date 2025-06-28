@@ -8,13 +8,13 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the OpenAICompatibleProvider component
  */
 interface OpenAICompatibleProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -22,12 +22,10 @@ interface OpenAICompatibleProviderProps {
 /**
  * The OpenAI Compatible provider configuration component
  */
-export const OpenAICompatibleProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-}: OpenAICompatibleProviderProps) => {
+export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICompatibleProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 
 	// Get the normalized configuration
@@ -71,7 +69,7 @@ export const OpenAICompatibleProvider = ({
 				type="url"
 				onInput={(e: any) => {
 					const baseUrl = e.target.value
-					handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
+					handleFieldChange("openAiBaseUrl", baseUrl)
 
 					debouncedRefreshOpenAiModels(baseUrl, apiConfiguration?.openAiApiKey)
 				}}
@@ -83,7 +81,7 @@ export const OpenAICompatibleProvider = ({
 				value={apiConfiguration?.openAiApiKey || ""}
 				onChange={(e: any) => {
 					const apiKey = e.target.value
-					handleInputChange("openAiApiKey")({ target: { value: apiKey } })
+					handleFieldChange("openAiApiKey", apiKey)
 
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
 				}}
@@ -93,7 +91,7 @@ export const OpenAICompatibleProvider = ({
 			<VSCodeTextField
 				value={apiConfiguration?.openAiModelId || ""}
 				style={{ width: "100%", marginBottom: 10 }}
-				onInput={handleInputChange("openAiModelId")}
+				onInput={(e: any) => handleFieldChange("openAiModelId", e.target.value)}
 				placeholder={"Enter Model ID..."}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</VSCodeTextField>
@@ -111,11 +109,7 @@ export const OpenAICompatibleProvider = ({
 									const headerCount = Object.keys(currentHeaders).length
 									const newKey = `header${headerCount + 1}`
 									currentHeaders[newKey] = ""
-									handleInputChange("openAiHeaders")({
-										target: {
-											value: currentHeaders,
-										},
-									})
+									handleFieldChange("openAiHeaders", currentHeaders)
 								}}>
 								Add Header
 							</VSCodeButton>
@@ -132,13 +126,9 @@ export const OpenAICompatibleProvider = ({
 											const newValue = e.target.value
 											if (newValue && newValue !== key) {
 												const { [key]: _, ...rest } = currentHeaders
-												handleInputChange("openAiHeaders")({
-													target: {
-														value: {
-															...rest,
-															[newValue]: value,
-														},
-													},
+												handleFieldChange("openAiHeaders", {
+													...rest,
+													[newValue]: value,
 												})
 											}
 										}}
@@ -148,13 +138,9 @@ export const OpenAICompatibleProvider = ({
 										style={{ width: "40%" }}
 										placeholder="Header value"
 										onInput={(e: any) => {
-											handleInputChange("openAiHeaders")({
-												target: {
-													value: {
-														...(apiConfiguration?.openAiHeaders ?? {}),
-														[key]: e.target.value,
-													},
-												},
+											handleFieldChange("openAiHeaders", {
+												...(apiConfiguration?.openAiHeaders ?? {}),
+												[key]: e.target.value,
 											})
 										}}
 									/>
@@ -162,11 +148,7 @@ export const OpenAICompatibleProvider = ({
 										appearance="secondary"
 										onClick={() => {
 											const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
-											handleInputChange("openAiHeaders")({
-												target: {
-													value: rest,
-												},
-											})
+											handleFieldChange("openAiHeaders", rest)
 										}}>
 										Remove
 									</VSCodeButton>
@@ -179,7 +161,7 @@ export const OpenAICompatibleProvider = ({
 
 			<BaseUrlField
 				value={apiConfiguration?.azureApiVersion}
-				onChange={(value) => handleInputChange("azureApiVersion")({ target: { value } })}
+				onChange={(e: any) => handleFieldChange("azureApiVersion", e.target.value)}
 				label="Set Azure API version"
 				placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 			/>
@@ -217,9 +199,7 @@ export const OpenAICompatibleProvider = ({
 								? apiConfiguration.openAiModelInfo
 								: { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
-							handleInputChange("openAiModelInfo")({
-								target: { value: modelInfo },
-							})
+							handleFieldChange("openAiModelInfo", modelInfo)
 						}}>
 						Supports Images
 					</VSCodeCheckbox>
@@ -232,9 +212,7 @@ export const OpenAICompatibleProvider = ({
 								? apiConfiguration.openAiModelInfo
 								: { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
-							handleInputChange("openAiModelInfo")({
-								target: { value: modelInfo },
-							})
+							handleFieldChange("openAiModelInfo", modelInfo)
 						}}>
 						Supports browser use
 					</VSCodeCheckbox>
@@ -248,9 +226,7 @@ export const OpenAICompatibleProvider = ({
 								: { ...openAiModelInfoSaneDefaults }
 							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
 
-							handleInputChange("openAiModelInfo")({
-								target: { value: modelInfo },
-							})
+							handleFieldChange("openAiModelInfo", modelInfo)
 						}}>
 						Enable R1 messages format
 					</VSCodeCheckbox>
@@ -268,9 +244,7 @@ export const OpenAICompatibleProvider = ({
 									? apiConfiguration.openAiModelInfo
 									: { ...openAiModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(input.target.value)
-								handleInputChange("openAiModelInfo")({
-									target: { value: modelInfo },
-								})
+								handleFieldChange("openAiModelInfo", modelInfo)
 							}}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
 						</VSCodeTextField>
@@ -287,9 +261,7 @@ export const OpenAICompatibleProvider = ({
 									? apiConfiguration.openAiModelInfo
 									: { ...openAiModelInfoSaneDefaults }
 								modelInfo.maxTokens = input.target.value
-								handleInputChange("openAiModelInfo")({
-									target: { value: modelInfo },
-								})
+								handleFieldChange("openAiModelInfo", modelInfo)
 							}}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</VSCodeTextField>
@@ -308,9 +280,7 @@ export const OpenAICompatibleProvider = ({
 									? apiConfiguration.openAiModelInfo
 									: { ...openAiModelInfoSaneDefaults }
 								modelInfo.inputPrice = input.target.value
-								handleInputChange("openAiModelInfo")({
-									target: { value: modelInfo },
-								})
+								handleFieldChange("openAiModelInfo", modelInfo)
 							}}>
 							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
 						</VSCodeTextField>
@@ -327,9 +297,7 @@ export const OpenAICompatibleProvider = ({
 									? apiConfiguration.openAiModelInfo
 									: { ...openAiModelInfoSaneDefaults }
 								modelInfo.outputPrice = input.target.value
-								handleInputChange("openAiModelInfo")({
-									target: { value: modelInfo },
-								})
+								handleFieldChange("openAiModelInfo", modelInfo)
 							}}>
 							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 						</VSCodeTextField>
@@ -358,9 +326,7 @@ export const OpenAICompatibleProvider = ({
 											? value // Keep as string to preserve decimal format
 											: parseFloat(value)
 
-								handleInputChange("openAiModelInfo")({
-									target: { value: modelInfo },
-								})
+								handleFieldChange("openAiModelInfo", modelInfo)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</VSCodeTextField>

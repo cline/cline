@@ -3,13 +3,13 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the SambanovaProvider component
  */
 interface SambanovaProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,7 +17,10 @@ interface SambanovaProviderProps {
 /**
  * The SambaNova provider configuration component
  */
-export const SambanovaProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: SambanovaProviderProps) => {
+export const SambanovaProvider = ({ showModelOptions, isPopup }: SambanovaProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -25,7 +28,7 @@ export const SambanovaProvider = ({ apiConfiguration, handleInputChange, showMod
 		<div>
 			<ApiKeyField
 				value={apiConfiguration?.sambanovaApiKey || ""}
-				onChange={handleInputChange("sambanovaApiKey")}
+				onChange={(e: any) => handleFieldChange("sambanovaApiKey", e.target.value)}
 				providerName="SambaNova"
 				signupUrl="https://docs.sambanova.ai/cloud/docs/get-started/overview"
 			/>
@@ -35,7 +38,7 @@ export const SambanovaProvider = ({ apiConfiguration, handleInputChange, showMod
 					<ModelSelector
 						models={sambanovaModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

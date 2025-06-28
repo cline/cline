@@ -6,7 +6,7 @@ import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/reac
  */
 interface BaseUrlFieldProps {
 	value: string | undefined
-	onChange: (value: string) => void
+	onChange: (e: any) => void
 	defaultValue?: string
 	label?: string
 	placeholder?: string
@@ -48,7 +48,7 @@ export const BaseUrlField = ({
 					value={value || ""}
 					style={{ width: "100%", marginTop: 3 }}
 					type="url"
-					onInput={(e: any) => onChange(e.target.value)}
+					onInput={onChange}
 					placeholder={placeholder}
 				/>
 			)}
