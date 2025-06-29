@@ -45,6 +45,13 @@ export class VertexHandler implements ApiHandler {
 			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) && budget_tokens !== 0
 				? true
 				: false
+
+		// maxTokens
+		let maxTokens = model.info.maxTokens || 8192
+		if (reasoningOn && model.info.thinkingConfig?.maxBudget) {
+			maxTokens = model.info.thinkingConfig.maxBudget
+		}
+
 		let stream
 
 		switch (modelId) {
@@ -66,7 +73,7 @@ export class VertexHandler implements ApiHandler {
 				stream = await this.clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
+						max_tokens: maxTokens,
 						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 						temperature: reasoningOn ? undefined : 0,
 						system: [
@@ -127,7 +134,7 @@ export class VertexHandler implements ApiHandler {
 			default: {
 				stream = await this.clientAnthropic.beta.messages.create({
 					model: modelId,
-					max_tokens: model.info.maxTokens || 8192,
+					max_tokens: maxTokens,
 					temperature: 0,
 					system: [
 						{
