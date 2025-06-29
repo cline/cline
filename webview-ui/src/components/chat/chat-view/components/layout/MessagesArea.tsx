@@ -66,7 +66,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
 				<Virtuoso
 					ref={virtuosoRef}
-					key={task.ts} // trick to make sure virtuoso re-renders when task changes
+					key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable"
 					style={{
 						flexGrow: 1,
@@ -75,11 +75,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					components={{
 						Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
 					}}
+					// increasing top by 3_000 to prevent jumping around when user collapses a row
 					increaseViewportBy={{
 						top: 3_000,
 						bottom: Number.MAX_SAFE_INTEGER,
-					}}
-					data={groupedMessages}
+					}} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+					data={groupedMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 					itemContent={itemContent}
 					atBottomStateChange={(isAtBottom) => {
 						setIsAtBottom(isAtBottom)
@@ -88,7 +89,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 						}
 						setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 					}}
-					atBottomThreshold={10}
+					atBottomThreshold={10} // anything lower causes issues with followOutput
 					initialTopMostItemIndex={groupedMessages.length - 1}
 				/>
 			</div>
