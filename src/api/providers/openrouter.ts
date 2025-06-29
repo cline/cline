@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
+import axios from "../../utils/http"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
