@@ -11,7 +11,7 @@ import {
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
-import { constructNewFileContent as constructNewFileContent_06_25_26 } from "./diff-apply/diff-06-25-26"
+import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
@@ -26,7 +26,7 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	"diff-06-06-25": constructNewFileContent_06_06_25,
 	"diff-06-23-25": constructNewFileContent_06_23_25,
 	"diff-06-25-25": constructNewFileContent_06_25_25,
-	"diff-06-25-26": constructNewFileContent_06_25_26,
+	"diff-06-25-26": constructNewFileContent_06_26_25,
 }
 
 import { TestInput, TestResult, ExtractedToolCall } from "./types"
