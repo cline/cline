@@ -4,7 +4,7 @@
 
 -   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
 -   Fix ENAMETOOLONG error when using Claude Code provider with long conversation histories (Thanks @BarreiroT!)
--   Remove Gemini CLI provider due to Google's Terms of Service requirements
+-   Remove Gemini CLI provider because Google asked us to
 -   Fix bug with "Delete All Tasks" functionality
 
 ## [3.18.0]
