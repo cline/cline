@@ -115,9 +115,32 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "tool":
 				case "browser_action_launch":
 				case "use_mcp_server":
-				case "resume_task":
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
+					} else {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+					}
+					// Clear input state after sending
+					setInputValue("")
+					setActiveQuote(null)
+					setSelectedImages([])
+					setSelectedFiles([])
+					break
+				case "resume_task":
+					// For resume_task, we want to include any message the user typed in the input box
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
