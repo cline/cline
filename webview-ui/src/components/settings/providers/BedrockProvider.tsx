@@ -1,13 +1,7 @@
 import { bedrockDefaultModelId, bedrockModels } from "@shared/api"
-import {
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeOption,
-	VSCodeRadio,
-	VSCodeRadioGroup,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
@@ -50,39 +44,39 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 			</VSCodeRadioGroup>
 
 			{apiConfiguration?.awsUseProfile ? (
-				<VSCodeTextField
-					value={apiConfiguration?.awsProfile || ""}
+				<DebouncedTextField
+					initialValue={apiConfiguration?.awsProfile || ""}
+					onChange={(value) => handleFieldChange("awsProfile", value)}
 					style={{ width: "100%" }}
-					onInput={(e: any) => handleFieldChange("awsProfile", e.target.value)}
 					placeholder="Enter profile name (default if empty)">
 					<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
-				</VSCodeTextField>
+				</DebouncedTextField>
 			) : (
 				<>
-					<VSCodeTextField
-						value={apiConfiguration?.awsAccessKey || ""}
+					<DebouncedTextField
+						initialValue={apiConfiguration?.awsAccessKey || ""}
+						onChange={(value) => handleFieldChange("awsAccessKey", value)}
 						style={{ width: "100%" }}
 						type="password"
-						onInput={(e: any) => handleFieldChange("awsAccessKey", e.target.value)}
 						placeholder="Enter Access Key...">
 						<span style={{ fontWeight: 500 }}>AWS Access Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSecretKey || ""}
+					</DebouncedTextField>
+					<DebouncedTextField
+						initialValue={apiConfiguration?.awsSecretKey || ""}
+						onChange={(value) => handleFieldChange("awsSecretKey", value)}
 						style={{ width: "100%" }}
 						type="password"
-						onInput={(e: any) => handleFieldChange("awsSecretKey", e.target.value)}
 						placeholder="Enter Secret Key...">
 						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSessionToken || ""}
+					</DebouncedTextField>
+					<DebouncedTextField
+						initialValue={apiConfiguration?.awsSessionToken || ""}
+						onChange={(value) => handleFieldChange("awsSessionToken", value)}
 						style={{ width: "100%" }}
 						type="password"
-						onInput={(e: any) => handleFieldChange("awsSessionToken", e.target.value)}
 						placeholder="Enter Session Token...">
 						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
-					</VSCodeTextField>
+					</DebouncedTextField>
 				</>
 			)}
 
@@ -140,11 +134,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 				</VSCodeCheckbox>
 
 				{awsEndpointSelected && (
-					<VSCodeTextField
-						value={apiConfiguration?.awsBedrockEndpoint || ""}
+					<DebouncedTextField
+						initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
+						onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
 						style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
 						type="url"
-						onInput={(e: any) => handleFieldChange("awsBedrockEndpoint", e.target.value)}
 						placeholder="Enter VPC Endpoint URL (optional)"
 					/>
 				)}
@@ -240,16 +234,14 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
 								Inference Profile ARN in the Model ID field.
 							</p>
-							<label htmlFor="bedrock-model-input">
-								<span style={{ fontWeight: 500 }}>Model ID</span>
-							</label>
-							<VSCodeTextField
+							<DebouncedTextField
 								id="bedrock-model-input"
-								value={apiConfiguration?.apiModelId || ""}
+								initialValue={apiConfiguration?.apiModelId || ""}
+								onChange={(value) => handleFieldChange("apiModelId", value)}
 								style={{ width: "100%", marginTop: 3 }}
-								onInput={(e: any) => handleFieldChange("apiModelId", e.target.value)}
-								placeholder="Enter custom model ID..."
-							/>
+								placeholder="Enter custom model ID...">
+								<span style={{ fontWeight: 500 }}>Model ID</span>
+							</DebouncedTextField>
 							<label htmlFor="bedrock-base-model-dropdown">
 								<span style={{ fontWeight: 500 }}>Base Inference Model</span>
 							</label>

@@ -1,5 +1,5 @@
 import { claudeCodeModels } from "@shared/api"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -26,14 +26,14 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup }: ClaudeCodeProv
 
 	return (
 		<div>
-			<VSCodeTextField
-				value={apiConfiguration?.claudeCodePath || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.claudeCodePath || ""}
+				onChange={(value) => handleFieldChange("claudeCodePath", value)}
 				style={{ width: "100%", marginTop: 3 }}
 				type="text"
-				onInput={(e: any) => handleFieldChange("claudeCodePath", e.target.value)}
 				placeholder="Default: claude">
 				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			<p
 				style={{

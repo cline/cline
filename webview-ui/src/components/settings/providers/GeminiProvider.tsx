@@ -32,15 +32,15 @@ export const GeminiProvider = ({ showModelOptions, isPopup }: GeminiProviderProp
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.geminiApiKey || ""}
-				onChange={(e: any) => handleFieldChange("geminiApiKey", e.target.value)}
+				initialValue={apiConfiguration?.geminiApiKey || ""}
+				onChange={(value) => handleFieldChange("geminiApiKey", value)}
 				providerName="Gemini"
 				signupUrl="https://aistudio.google.com/apikey"
 			/>
 
 			<BaseUrlField
-				value={apiConfiguration?.geminiBaseUrl}
-				onChange={(e: any) => handleFieldChange("geminiBaseUrl", e.target.value)}
+				initialValue={apiConfiguration?.geminiBaseUrl}
+				onChange={(value) => handleFieldChange("geminiBaseUrl", value)}
 				placeholder="Default: https://generativelanguage.googleapis.com"
 				label="Use custom base URL"
 			/>

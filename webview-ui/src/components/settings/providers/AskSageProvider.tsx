@@ -1,6 +1,6 @@
 import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -28,20 +28,20 @@ export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderPr
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.asksageApiKey || ""}
-				onChange={(e) => handleFieldChange("asksageApiKey", e.target.value)}
+				initialValue={apiConfiguration?.asksageApiKey || ""}
+				onChange={(value) => handleFieldChange("asksageApiKey", value)}
 				providerName="AskSage"
 				helpText="This key is stored locally and only used to make API requests from this extension."
 			/>
 
-			<VSCodeTextField
-				value={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
+				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
 				style={{ width: "100%" }}
 				type="url"
-				onInput={(e: any) => handleFieldChange("asksageApiUrl", e.target.value)}
 				placeholder="Enter AskSage API URL...">
 				<span style={{ fontWeight: 500 }}>AskSage API URL</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			{showModelOptions && (
 				<>

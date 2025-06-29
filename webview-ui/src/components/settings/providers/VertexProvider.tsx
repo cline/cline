@@ -1,5 +1,6 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
-import { VSCodeTextField, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -45,13 +46,13 @@ export const VertexProvider = ({ showModelOptions, isPopup }: VertexProviderProp
 				flexDirection: "column",
 				gap: 5,
 			}}>
-			<VSCodeTextField
-				value={apiConfiguration?.vertexProjectId || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.vertexProjectId || ""}
+				onChange={(value) => handleFieldChange("vertexProjectId", value)}
 				style={{ width: "100%" }}
-				onInput={(e: any) => handleFieldChange("vertexProjectId", e.target.value)}
 				placeholder="Enter Project ID...">
 				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 				<label htmlFor="vertex-region-dropdown">

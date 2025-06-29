@@ -1,6 +1,7 @@
-import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeRadioGroup, VSCodeRadio, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/common"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -50,19 +51,19 @@ export const LMStudioProvider = ({ showModelOptions, isPopup }: LMStudioProvider
 	return (
 		<div>
 			<BaseUrlField
-				value={apiConfiguration?.lmStudioBaseUrl}
-				onChange={(e: any) => handleFieldChange("lmStudioBaseUrl", e.target.value)}
+				initialValue={apiConfiguration?.lmStudioBaseUrl}
+				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
 				label="Use custom base URL"
 			/>
 
-			<VSCodeTextField
-				value={apiConfiguration?.lmStudioModelId || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.lmStudioModelId || ""}
+				onChange={(value) => handleFieldChange("lmStudioModelId", value)}
 				style={{ width: "100%" }}
-				onInput={(e: any) => handleFieldChange("lmStudioModelId", e.target.value)}
 				placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			{lmStudioModels.length > 0 && (
 				<VSCodeRadioGroup

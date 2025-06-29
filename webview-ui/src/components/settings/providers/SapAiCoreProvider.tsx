@@ -1,5 +1,6 @@
 import { sapAiCoreModels } from "@shared/api"
-import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -25,57 +26,57 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProvid
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreClientId || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={(e: any) => handleFieldChange("sapAiCoreClientId", e.target.value)}
 				placeholder="Enter AI Core Client Id...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
 					Client Id is set. To change it, please re-enter the value.
 				</p>
 			)}
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={(e: any) => handleFieldChange("sapAiCoreClientSecret", e.target.value)}
 				placeholder="Enter AI Core Client Secret...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
 					Client Secret is set. To change it, please re-enter the value.
 				</p>
 			)}
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreBaseUrl || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreBaseUrl || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
 				style={{ width: "100%" }}
-				onInput={(e: any) => handleFieldChange("sapAiCoreBaseUrl", e.target.value)}
 				placeholder="Enter AI Core Base URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreTokenUrl || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreTokenUrl || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
 				style={{ width: "100%" }}
-				onInput={(e: any) => handleFieldChange("sapAiCoreTokenUrl", e.target.value)}
 				placeholder="Enter AI Core Auth URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiResourceGroup || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiResourceGroup || ""}
+				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
 				style={{ width: "100%" }}
-				onInput={(e: any) => handleFieldChange("sapAiResourceGroup", e.target.value)}
 				placeholder="Enter AI Core Resource Group...">
 				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			<p
 				style={{

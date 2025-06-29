@@ -21,8 +21,8 @@ export const RequestyProvider = ({ showModelOptions, isPopup }: RequestyProvider
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.requestyApiKey || ""}
-				onChange={(e: any) => handleFieldChange("requestyApiKey", e.target.value)}
+				initialValue={apiConfiguration?.requestyApiKey || ""}
+				onChange={(value) => handleFieldChange("requestyApiKey", value)}
 				providerName="Requesty"
 				signupUrl="https://app.requesty.ai/manage-api"
 			/>

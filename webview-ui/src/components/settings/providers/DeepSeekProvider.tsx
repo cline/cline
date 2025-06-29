@@ -27,8 +27,8 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup }: DeepSeekProvider
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.deepSeekApiKey || ""}
-				onChange={(e: any) => handleFieldChange("deepSeekApiKey", e.target.value)}
+				initialValue={apiConfiguration?.deepSeekApiKey || ""}
+				onChange={(value) => handleFieldChange("deepSeekApiKey", value)}
 				providerName="DeepSeek"
 				signupUrl="https://www.deepseek.com/"
 			/>

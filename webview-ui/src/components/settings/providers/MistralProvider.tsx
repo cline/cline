@@ -27,8 +27,8 @@ export const MistralProvider = ({ showModelOptions, isPopup }: MistralProviderPr
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.mistralApiKey || ""}
-				onChange={(e: any) => handleFieldChange("mistralApiKey", e.target.value)}
+				initialValue={apiConfiguration?.mistralApiKey || ""}
+				onChange={(value) => handleFieldChange("mistralApiKey", value)}
 				providerName="Mistral"
 				signupUrl="https://console.mistral.ai/codestral"
 			/>

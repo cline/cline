@@ -1,5 +1,6 @@
 import { ApiConfiguration } from "@shared/api"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useState } from "react"
 import { getOpenRouterAuthUrl } from "../utils/providerUtils"
@@ -67,11 +68,11 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 	return (
 		<div>
 			<div>
-				<VSCodeTextField
-					value={apiConfiguration?.openRouterApiKey || ""}
+				<DebouncedTextField
+					initialValue={apiConfiguration?.openRouterApiKey || ""}
+					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
 					style={{ width: "100%" }}
 					type="password"
-					onInput={(e: any) => handleFieldChange("openRouterApiKey", e.target.value)}
 					placeholder="Enter API Key...">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
@@ -79,7 +80,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 							<OpenRouterBalanceDisplay apiKey={apiConfiguration.openRouterApiKey} />
 						)}
 					</div>
-				</VSCodeTextField>
+				</DebouncedTextField>
 				{!apiConfiguration?.openRouterApiKey && (
 					<VSCodeButtonLink
 						href={getOpenRouterAuthUrl(uriScheme)}

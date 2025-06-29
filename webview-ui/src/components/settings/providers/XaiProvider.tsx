@@ -1,6 +1,6 @@
 import { xaiModels } from "@shared/api"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -17,9 +17,6 @@ interface XaiProviderProps {
 	isPopup?: boolean
 }
 
-/**
- * The xAI provider configuration component
- */
 export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
@@ -34,8 +31,8 @@ export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => 
 		<div>
 			<div>
 				<ApiKeyField
-					value={apiConfiguration?.xaiApiKey || ""}
-					onChange={(e: any) => handleFieldChange("xaiApiKey", e.target.value)}
+					initialValue={apiConfiguration?.xaiApiKey || ""}
+					onChange={(value) => handleFieldChange("xaiApiKey", value)}
 					providerName="X AI"
 					signupUrl="https://x.ai"
 				/>

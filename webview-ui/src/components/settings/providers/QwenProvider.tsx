@@ -72,8 +72,8 @@ export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) =
 			</p>
 
 			<ApiKeyField
-				value={apiConfiguration?.qwenApiKey || ""}
-				onChange={(e: any) => handleFieldChange("qwenApiKey", e.target.value)}
+				initialValue={apiConfiguration?.qwenApiKey || ""}
+				onChange={(value) => handleFieldChange("qwenApiKey", value)}
 				providerName="Qwen"
 				signupUrl="https://bailian.console.aliyun.com/"
 			/>

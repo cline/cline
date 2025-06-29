@@ -27,8 +27,8 @@ export const SambanovaProvider = ({ showModelOptions, isPopup }: SambanovaProvid
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.sambanovaApiKey || ""}
-				onChange={(e: any) => handleFieldChange("sambanovaApiKey", e.target.value)}
+				initialValue={apiConfiguration?.sambanovaApiKey || ""}
+				onChange={(value) => handleFieldChange("sambanovaApiKey", value)}
 				providerName="SambaNova"
 				signupUrl="https://docs.sambanova.ai/cloud/docs/get-started/overview"
 			/>

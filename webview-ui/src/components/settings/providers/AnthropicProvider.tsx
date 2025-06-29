@@ -1,4 +1,4 @@
-import { ApiConfiguration, anthropicModels } from "@shared/api"
+import { anthropicModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelSelector } from "../common/ModelSelector"
@@ -17,13 +17,12 @@ const SUPPORTED_THINKING_MODELS = ["claude-3-7-sonnet-20250219", "claude-sonnet-
 interface AnthropicProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration?: (config: ApiConfiguration) => void
 }
 
 /**
  * The Anthropic provider configuration component
  */
-export const AnthropicProvider = ({ showModelOptions, isPopup, setApiConfiguration }: AnthropicProviderProps) => {
+export const AnthropicProvider = ({ showModelOptions, isPopup }: AnthropicProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -33,15 +32,15 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, setApiConfigurati
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.apiKey || ""}
-				onChange={(e) => handleFieldChange("apiKey", e.target.value)}
+				initialValue={apiConfiguration?.apiKey || ""}
+				onChange={(value) => handleFieldChange("apiKey", value)}
 				providerName="Anthropic"
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
 
 			<BaseUrlField
-				value={apiConfiguration?.anthropicBaseUrl}
-				onChange={(e) => handleFieldChange("anthropicBaseUrl", e.target.value)}
+				initialValue={apiConfiguration?.anthropicBaseUrl}
+				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
 				placeholder="Default: https://api.anthropic.com"
 				label="Use custom base URL"
 			/>
@@ -55,7 +54,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, setApiConfigurati
 						label="Model"
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && setApiConfiguration && (
+					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
