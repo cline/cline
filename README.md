@@ -137,6 +137,33 @@ For example, when working with a local web server, you can use 'Restore Workspac
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
+## Deep Linking
+
+Cline supports a custom URI scheme (`vscode://saoudrizwan.claude-dev/task`) to open the extension and optionally start a new task with a pre-filled message and mode.
+
+**Scheme:** `vscode://saoudrizwan.claude-dev/task?parameters`
+
+**Parameters:**
+
+*   `message` (string, URL-encoded): The initial message for the new task.
+*   `message64` (string, base64-encoded): Alternative to `message` for longer or special character-heavy content. If both `message` and `message64` are provided, `message64` takes precedence.
+*   `mode` (string, optional): Set the initial mode for the task.
+    *   `act` (default): Start in Act Mode.
+    *   `plan`: Start in Plan Mode.
+
+**Examples:**
+
+*   Open Cline with a simple message:
+    ```
+    vscode://saoudrizwan.claude-dev/task?message=Hello%20Cline
+    ```
+*   Open in Plan Mode with a base64 encoded message:
+    ```
+    vscode://saoudrizwan.claude-dev/task?mode=plan&message64=SGVsbG8gV29ybGQ=
+    ```
+
+This feature allows for integration with other tools or scripts that can generate these URIs to automate or streamline workflows involving Cline.
+
 ## Contributing
 
 To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
