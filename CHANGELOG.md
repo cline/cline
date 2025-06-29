@@ -2,12 +2,7 @@
 
 ## 3.19.0
 
-### Minor Changes
-
 -   12fbc48: Support Sonnet-4 in SAP AI Core provider
-
-### Patch Changes
-
 -   2709cce: Fix ENAMETOOLONG when calling Claude Code
 -   968b46a: Reverting Gemini Cli provider
 -   68b84f3: Removed deleteNonFavoritedTasks, moved popup to extension, cleaned up deletion logic
