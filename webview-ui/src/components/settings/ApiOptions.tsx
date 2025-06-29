@@ -346,15 +346,6 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "gemini-cli" && (
-				<GeminiCliProvider
-					apiConfiguration={apiConfiguration}
-					handleInputChange={handleInputChange}
-					showModelOptions={showModelOptions}
-					isPopup={isPopup}
-				/>
-			)}
-
 			{apiConfiguration && selectedProvider === "requesty" && (
 				<RequestyProvider
 					apiConfiguration={apiConfiguration}
