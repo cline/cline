@@ -27,7 +27,7 @@ export const GlobalFileNames = {
 export async function getDocumentsPath(context?: vscode.ExtensionContext): Promise<string> {
 	// Check if user has configured a custom documents path
 	if (context) {
-		const chatSettings = context.workspaceState.get("chatSettings") as StoredChatSettings
+		const chatSettings = context.workspaceState.get<StoredChatSettings>("chatSettings")
 		if (chatSettings?.userDocumentsPath) {
 			let customPath = chatSettings.userDocumentsPath
 			// Handle ~ expansion
