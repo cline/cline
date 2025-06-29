@@ -26,7 +26,6 @@ import { GeminiProvider } from "./providers/GeminiProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { VertexProvider } from "./providers/VertexProvider"
-import GeminiCliProvider from "./providers/GeminiCliProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { XaiProvider } from "./providers/XaiProvider"
@@ -175,7 +174,6 @@ const ApiOptions = ({
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="gemini-cli">Gemini CLI Provider</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -344,15 +342,6 @@ const ApiOptions = ({
 					showModelOptions={showModelOptions}
 					isPopup={isPopup}
 					setApiConfiguration={setApiConfiguration}
-				/>
-			)}
-
-			{apiConfiguration && selectedProvider === "gemini-cli" && (
-				<GeminiCliProvider
-					apiConfiguration={apiConfiguration}
-					handleInputChange={handleInputChange}
-					showModelOptions={showModelOptions}
-					isPopup={isPopup}
 				/>
 			)}
 
