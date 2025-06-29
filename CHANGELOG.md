@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.18.1]
+
+-   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
+-   Fix ENAMETOOLONG error when using Claude Code provider with long conversation histories (Thanks @BarreiroT!)
+-   Remove Gemini CLI provider because Google asked us to
+-   Fix bug with "Delete All Tasks" functionality
+
 ## [3.18.0]
 
 -   Optimized Cline to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities
