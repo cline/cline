@@ -1609,7 +1609,7 @@ export class Task {
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
 		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), cwd)
 
-		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+		const globalClineRulesFilePath = await ensureRulesDirectoryExists(this.getContext())
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)

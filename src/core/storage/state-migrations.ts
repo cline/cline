@@ -87,7 +87,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 			console.log("Migrating custom instructions to global Cline rules...")
 
 			// Create global .clinerules directory if it doesn't exist
-			const globalRulesDir = await ensureRulesDirectoryExists()
+			const globalRulesDir = await ensureRulesDirectoryExists(context)
 
 			// Use a fixed filename for custom instructions
 			const migrationFileName = "custom_instructions.md"

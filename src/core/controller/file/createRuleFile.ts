@@ -32,7 +32,13 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		throw new Error("Missing or invalid parameters")
 	}
 
-	const { filePath, fileExists } = await createRuleFileImpl(request.isGlobal, request.filename, cwd, request.type)
+	const { filePath, fileExists } = await createRuleFileImpl(
+		request.isGlobal,
+		request.filename,
+		cwd,
+		request.type,
+		controller.context,
+	)
 
 	if (!filePath) {
 		throw new Error("Failed to create file.")
