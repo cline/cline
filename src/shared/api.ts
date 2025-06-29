@@ -102,6 +102,16 @@ export interface ApiHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	sapAiCoreModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	openAiConfigs?: {
+		profileName: string
+		openAiBaseUrl: string
+		openAiApiKey: string
+		openAiModelId: string
+		openAiModelInfo: OpenAiCompatibleModelInfo
+		azureApiVersion: string
+		openAiHeaders?: Record<string, string>
+	}[]
+	openAiSelectedConfigIndex?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -144,6 +154,7 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+	supportsBrowser?: boolean
 }
 
 // Anthropic
@@ -716,6 +727,16 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+}
+
+// OpenAI
+export const openAiCompatibleDefaultConfig = {
+	profileName: "Default",
+	openAiBaseUrl: "",
+	openAiApiKey: "",
+	openAiModelId: "",
+	openAiModelInfo: openAiModelInfoSaneDefaults,
+	azureApiVersion: "",
 }
 
 // Gemini

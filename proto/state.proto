@@ -232,4 +232,8 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+
+  // OpenAI configs (stored as JSON string)
+  optional string open_ai_configs = 78;
+  optional int32 open_ai_selected_config_index = 79;
 }
