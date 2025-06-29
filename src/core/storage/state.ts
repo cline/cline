@@ -7,7 +7,7 @@ import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@share
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { StoredChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -315,6 +315,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	let openAiSelectedConfigIndex: number | undefined
 	if (planActSeparateModelsSetting) {
+		const chatSettings = (await getWorkspaceState(context, "chatSettings")) as ChatSettings
 		const mode = chatSettings?.mode
 		const key = mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
 		openAiSelectedConfigIndex = (await getGlobalState(context, key)) as number | undefined
