@@ -308,21 +308,6 @@
 			"pathLabel": "Claude Code Yolu",
 			"description": "Claude Code CLI'nize isteğe bağlı yol. Ayarlanmazsa varsayılan olarak 'claude' kullanılır.",
 			"placeholder": "Varsayılan: claude"
-		},
-		"geminiCli": {
-			"description": "Bu sağlayıcı Gemini CLI aracından OAuth kimlik doğrulaması kullanır ve API anahtarları gerektirmez.",
-			"oauthPath": "OAuth Kimlik Bilgileri Yolu (isteğe bağlı)",
-			"oauthPathDescription": "OAuth kimlik bilgileri dosyasının yolu. Varsayılan konumu kullanmak için boş bırakın (~/.gemini/oauth_creds.json).",
-			"instructions": "Henüz kimlik doğrulaması yapmadıysanız, önce",
-			"instructionsContinued": "komutunu terminalinizde çalıştırın.",
-			"setupLink": "Gemini CLI Kurulum Talimatları",
-			"requirementsTitle": "Önemli Gereksinimler",
-			"requirement1": "Önce Gemini CLI aracını yüklemeniz gerekir",
-			"requirement2": "Sonra terminalinizde gemini çalıştırın ve Google ile giriş yaptığınızdan emin olun",
-			"requirement3": "Sadece kişisel Google hesaplarıyla çalışır (Google Workspace hesapları değil)",
-			"requirement4": "API anahtarları kullanmaz - kimlik doğrulama OAuth ile yapılır",
-			"requirement5": "Gemini CLI aracının önce yüklenmesi ve kimlik doğrulaması yapılması gerekir",
-			"freeAccess": "OAuth kimlik doğrulaması ile ücretsiz erişim"
 		}
 	},
 	"browser": {

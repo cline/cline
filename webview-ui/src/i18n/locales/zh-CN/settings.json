@@ -308,21 +308,6 @@
 			"pathLabel": "Claude Code 路径",
 			"description": "您的 Claude Code CLI 的可选路径。如果未设置，则默认为 “claude”。",
 			"placeholder": "默认：claude"
-		},
-		"geminiCli": {
-			"description": "此提供商使用 Gemini CLI 工具的 OAuth 身份验证，不需要 API 密钥。",
-			"oauthPath": "OAuth 凭据路径（可选）",
-			"oauthPathDescription": "OAuth 凭据文件的路径。留空以使用默认位置（~/.gemini/oauth_creds.json）。",
-			"instructions": "如果您尚未进行身份验证，请先运行",
-			"instructionsContinued": "在您的终端中。",
-			"setupLink": "Gemini CLI 设置说明",
-			"requirementsTitle": "重要要求",
-			"requirement1": "首先，您需要安装 Gemini CLI 工具",
-			"requirement2": "然后，在终端中运行 gemini 并确保使用 Google 登录",
-			"requirement3": "仅适用于个人 Google 账户（不支持 Google Workspace 账户）",
-			"requirement4": "不使用 API 密钥 - 身份验证通过 OAuth 处理",
-			"requirement5": "需要先安装并验证 Gemini CLI 工具",
-			"freeAccess": "通过 OAuth 身份验证免费访问"
 		}
 	},
 	"browser": {

@@ -308,21 +308,6 @@
 			"pathLabel": "Chemin du code Claude",
 			"description": "Chemin facultatif vers votre CLI Claude Code. La valeur par défaut est 'claude' si non défini.",
 			"placeholder": "Défaut : claude"
-		},
-		"geminiCli": {
-			"description": "Ce fournisseur utilise l'authentification OAuth de l'outil Gemini CLI et ne nécessite pas de clés API.",
-			"oauthPath": "Chemin des Identifiants OAuth (optionnel)",
-			"oauthPathDescription": "Chemin vers le fichier d'identifiants OAuth. Laissez vide pour utiliser l'emplacement par défaut (~/.gemini/oauth_creds.json).",
-			"instructions": "Si vous ne vous êtes pas encore authentifié, veuillez exécuter",
-			"instructionsContinued": "dans votre terminal d'abord.",
-			"setupLink": "Instructions de Configuration Gemini CLI",
-			"requirementsTitle": "Exigences Importantes",
-			"requirement1": "D'abord, vous devez installer l'outil Gemini CLI",
-			"requirement2": "Ensuite, exécutez gemini dans votre terminal et assurez-vous de vous connecter avec Google",
-			"requirement3": "Fonctionne uniquement avec les comptes Google personnels (pas les comptes Google Workspace)",
-			"requirement4": "N'utilise pas de clés API - l'authentification est gérée via OAuth",
-			"requirement5": "Nécessite que l'outil Gemini CLI soit installé et authentifié d'abord",
-			"freeAccess": "Accès gratuit via l'authentification OAuth"
 		}
 	},
 	"browser": {

@@ -69,16 +69,6 @@
 			"processExitedWithError": "Claude Code 程序退出，退出碼：{{exitCode}}。錯誤輸出：{{output}}",
 			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
 			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。"
-		},
-		"geminiCli": {
-			"oauthLoadFailed": "無法載入 OAuth 憑證。請先進行驗證：{{error}}",
-			"tokenRefreshFailed": "無法重新整理 OAuth 權杖：{{error}}",
-			"onboardingTimeout": "新手導引操作在 60 秒後逾時。請稍後再試。",
-			"projectDiscoveryFailed": "無法發現專案 ID。請確保您已使用 'gemini auth' 進行驗證。",
-			"rateLimitExceeded": "超過速率限制。已達到免費層級限制。",
-			"badRequest": "錯誤的請求：{{details}}",
-			"apiError": "Gemini CLI API 錯誤：{{error}}",
-			"completionError": "Gemini CLI 完成錯誤：{{error}}"
 		}
 	},
 	"warnings": {

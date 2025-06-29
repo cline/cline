@@ -308,21 +308,6 @@
 			"pathLabel": "クロードコードパス",
 			"description": "Claude Code CLIへのオプションパス。設定されていない場合、デフォルトは「claude」です。",
 			"placeholder": "デフォルト：claude"
-		},
-		"geminiCli": {
-			"description": "このプロバイダーはGemini CLIツールからのOAuth認証を使用し、APIキーは必要ありません。",
-			"oauthPath": "OAuth認証情報パス（オプション）",
-			"oauthPathDescription": "OAuth認証情報ファイルへのパス。デフォルトの場所（~/.gemini/oauth_creds.json）を使用する場合は空のままにしてください。",
-			"instructions": "まだ認証していない場合は、まず",
-			"instructionsContinued": "をターミナルで実行してください。",
-			"setupLink": "Gemini CLI セットアップ手順",
-			"requirementsTitle": "重要な要件",
-			"requirement1": "まず、Gemini CLIツールをインストールする必要があります",
-			"requirement2": "次に、ターミナルでgeminiを実行し、Googleでログインすることを確認してください",
-			"requirement3": "個人のGoogleアカウントでのみ動作します（Google Workspaceアカウントは不可）",
-			"requirement4": "APIキーは使用しません - 認証はOAuthで処理されます",
-			"requirement5": "Gemini CLIツールが最初にインストールされ、認証されている必要があります",
-			"freeAccess": "OAuth認証による無料アクセス"
 		}
 	},
 	"browser": {

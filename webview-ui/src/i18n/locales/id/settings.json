@@ -312,21 +312,6 @@
 			"pathLabel": "Jalur Kode Claude",
 			"description": "Jalur opsional ke Claude Code CLI Anda. Defaultnya adalah 'claude' jika tidak diatur.",
 			"placeholder": "Default: claude"
-		},
-		"geminiCli": {
-			"description": "Penyedia ini menggunakan autentikasi OAuth dari alat Gemini CLI dan tidak memerlukan kunci API.",
-			"oauthPath": "Jalur Kredensial OAuth (opsional)",
-			"oauthPathDescription": "Jalur ke file kredensial OAuth. Biarkan kosong untuk menggunakan lokasi default (~/.gemini/oauth_creds.json).",
-			"instructions": "Jika Anda belum melakukan autentikasi, jalankan",
-			"instructionsContinued": "di terminal Anda terlebih dahulu.",
-			"setupLink": "Petunjuk Pengaturan Gemini CLI",
-			"requirementsTitle": "Persyaratan Penting",
-			"requirement1": "Pertama, Anda perlu menginstal alat Gemini CLI",
-			"requirement2": "Kemudian, jalankan gemini di terminal Anda dan pastikan Anda masuk dengan Google",
-			"requirement3": "Hanya berfungsi dengan akun Google pribadi (bukan akun Google Workspace)",
-			"requirement4": "Tidak menggunakan kunci API - autentikasi ditangani melalui OAuth",
-			"requirement5": "Memerlukan alat Gemini CLI diinstal dan diautentikasi terlebih dahulu",
-			"freeAccess": "Akses gratis melalui autentikasi OAuth"
 		}
 	},
 	"browser": {
