@@ -232,4 +232,5 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+  optional string aws_bedrock_model_override = 78;
 }

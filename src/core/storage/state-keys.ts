@@ -30,6 +30,7 @@ export type GlobalStateKey =
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"
+	| "awsBedrockModelOverride"
 	| "awsProfile"
 	| "awsUseProfile"
 	| "vertexProjectId"
