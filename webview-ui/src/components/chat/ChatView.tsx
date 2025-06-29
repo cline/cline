@@ -260,10 +260,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "auto_approval_max_req_reached":
-							setSendingDisabled(true)
+							setSendingDisabled(false)
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed")
-							setSecondaryButtonText("Start New Task")
+							setSecondaryButtonText("Stop")
 							break
 						case "followup":
 							setSendingDisabled(isPartial)
@@ -371,6 +371,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setEnableButtons(false)
 							}
 							break
+						case "tool":
+							// Reset primary button text when tool completes to prevent "Proceed While Running" from sticking
+							setPrimaryButtonText("Approve")
+							break
 						case "task":
 						case "error":
 						case "api_req_finished":
@@ -384,7 +388,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mcp_server_request_started":
 						case "mcp_server_response":
 						case "completion_result":
-						case "tool":
 						case "load_mcp_documentation":
 							break
 					}
@@ -414,28 +417,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [task?.ts])
 
 	const isStreaming = useMemo(() => {
-		const isLastAsk = !!modifiedMessages.at(-1)?.ask // checking clineAsk isn't enough since messages effect may be called again for a tool for example, set clineAsk to its value, and if the next message is not an ask then it doesn't reset. This is likely due to how much more often we're updating messages as compared to before, and should be resolved with optimizations as it's likely a rendering bug. but as a final guard for now, the cancel button will show if the last message is not an ask
-		const isToolCurrentlyAsking = isLastAsk && clineAsk !== undefined && enableButtons && primaryButtonText !== undefined
-		if (isToolCurrentlyAsking) {
-			return false
-		}
-
-		const isLastMessagePartial = modifiedMessages.at(-1)?.partial === true
-		if (isLastMessagePartial) {
-			return true
-		} else {
-			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
-				const cost = JSON.parse(lastApiReqStarted.text).cost
-				if (cost === undefined) {
-					// api request has not finished yet
-					return true
-				}
-			}
-		}
-
-		return false
-	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
+		return modifiedMessages.at(-1)?.partial === true
+	}, [modifiedMessages])
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
@@ -470,6 +453,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "new_task": // user can provide feedback or reject the new task suggestion
 						case "condense":
 						case "report_bug":
+						case "auto_approval_max_req_reached":
 							await TaskServiceClient.askResponse(
 								AskResponseRequest.create({
 									responseType: "messageResponse",
@@ -586,9 +570,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "mistake_limit_reached":
-				case "auto_approval_max_req_reached":
 					startNewTask()
 					break
+				case "auto_approval_max_req_reached":
 				case "command":
 				case "tool":
 				case "browser_action_launch":
