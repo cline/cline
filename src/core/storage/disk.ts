@@ -7,6 +7,7 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import os from "os"
 import { execa } from "@packages/execa"
+import { StoredChatSettings } from "@/shared/ChatSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -26,7 +27,7 @@ export const GlobalFileNames = {
 export async function getDocumentsPath(context?: vscode.ExtensionContext): Promise<string> {
 	// Check if user has configured a custom documents path
 	if (context) {
-		const chatSettings = context.workspaceState.get("chatSettings") as any
+		const chatSettings = context.workspaceState.get("chatSettings") as StoredChatSettings
 		if (chatSettings?.userDocumentsPath) {
 			let customPath = chatSettings.userDocumentsPath
 			// Handle ~ expansion
