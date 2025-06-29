@@ -322,7 +322,7 @@ export async function constructNewFileContent(
 	originalContent: string,
 	isFinal: boolean,
 	version: "v1" | "v2" = "v1",
-): Promise<string> {
+): Promise<any> {
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
 		throw new Error(`Invalid version '${version}' for file content constructor`)
@@ -332,13 +332,21 @@ export async function constructNewFileContent(
 
 const constructNewFileContentVersionMapping: Record<
 	string,
-	(diffContent: string, originalContent: string, isFinal: boolean) => Promise<string>
+	(diffContent: string, originalContent: string, isFinal: boolean) => Promise<any>
 > = {
 	v1: constructNewFileContentV1,
 	v2: constructNewFileContentV2,
 } as const
 
-async function constructNewFileContentV1(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+async function constructNewFileContentV1(diffContent: string, originalContent: string, isFinal: boolean): Promise<{
+	content: string;
+	replacements: Array<{ 
+		start: number; 
+		end: number; 
+		content: string;
+		method: string;
+	}>;
+}> {
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -349,9 +357,15 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
+	let matchMethod = ""
 
 	// Track all replacements to handle out-of-order edits
-	let replacements: Array<{ start: number; end: number; content: string }> = []
+	let replacements: Array<{ 
+		start: number; 
+		end: number; 
+		content: string;
+		method: string;
+	}> = []
 	let pendingOutOfOrderReplacement = false
 
 	let lines = diffContent.split("\n")
@@ -398,6 +412,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 					// New file scenario: nothing to match, just start inserting
 					searchMatchIndex = 0
 					searchEndIndex = 0
+					matchMethod = "empty_new_file"
 				} else {
 					// ERROR: Empty search block with non-empty file indicates malformed SEARCH marker
 					throw new Error(
@@ -421,16 +436,19 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				if (exactIndex !== -1) {
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
+					matchMethod = "exact_match"
 				} else {
 					// Attempt fallback line-trimmed matching
 					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 					if (lineMatch) {
 						;[searchMatchIndex, searchEndIndex] = lineMatch
+						matchMethod = "line_trimmed_fallback"
 					} else {
 						// Try block anchor fallback for larger blocks
 						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
+							matchMethod = "block_anchor_fallback"
 						} else {
 							// Last resort: search the entire file from the beginning
 							const fullFileIndex = originalContent.indexOf(currentSearchContent, 0)
@@ -438,6 +456,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 								// Found in the file - could be out of order
 								searchMatchIndex = fullFileIndex
 								searchEndIndex = fullFileIndex + currentSearchContent.length
+								matchMethod = "full_file_search"
 								if (searchMatchIndex < lastProcessedIndex) {
 									pendingOutOfOrderReplacement = true
 								}
@@ -471,6 +490,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				start: searchMatchIndex,
 				end: searchEndIndex,
 				content: currentReplaceContent,
+				method: matchMethod,
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -514,6 +534,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				start: searchMatchIndex,
 				end: searchEndIndex,
 				content: currentReplaceContent,
+				method: matchMethod,
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -552,7 +573,11 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		result += originalContent.slice(currentPos)
 	}
 
-	return result
+	// For testing - return debug info
+	return {
+		content: result,
+		replacements: replacements
+	}
 }
 
 enum ProcessingState {
