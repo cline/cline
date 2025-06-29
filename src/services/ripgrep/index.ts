@@ -1,8 +1,8 @@
-import * as vscode from "vscode"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
 import { fileExistsAtPath } from "@utils/fs"
+import { getAppRoot } from "@utils/env"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 
 /*
@@ -122,7 +122,7 @@ export async function regexSearchFiles(
 	filePattern?: string,
 	clineIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
-	const vscodeAppRoot = vscode.env.appRoot
+	const vscodeAppRoot = await getAppRoot()
 	const rgPath = await getBinPath(vscodeAppRoot)
 
 	if (!rgPath) {
