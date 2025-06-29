@@ -17,7 +17,7 @@ export async function refreshWorkflowToggles(
 }> {
 	// Global workflows
 	const globalWorkflowToggles = ((await getGlobalState(context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
-	const globalClineWorkflowsFilePath = await ensureWorkflowsDirectoryExists()
+	const globalClineWorkflowsFilePath = await ensureWorkflowsDirectoryExists(context)
 	const updatedGlobalWorkflowToggles = await synchronizeRuleToggles(globalClineWorkflowsFilePath, globalWorkflowToggles)
 	await updateGlobalState(context, "globalWorkflowToggles", updatedGlobalWorkflowToggles)
 

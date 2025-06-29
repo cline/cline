@@ -1,6 +1,6 @@
-import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "../utils/settingsHandlers"
+import { VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
 
@@ -9,13 +9,33 @@ interface GeneralSettingsSectionProps {
 }
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting } = useExtensionState()
+	const { telemetrySetting, chatSettings, setChatSettings } = useExtensionState()
 
 	return (
 		<div>
 			{renderSectionHeader("general")}
 			<Section>
 				<PreferredLanguageSetting />
+
+				<div className="mb-[15px]">
+					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>User Documents Path</label>
+					<VSCodeTextField
+						style={{ width: "100%" }}
+						value={chatSettings?.userDocumentsPath || ""}
+						placeholder="~/Documents (default)"
+						onChange={(e: any) => {
+							const value = e.target.value.trim()
+							setChatSettings({
+								...chatSettings,
+								userDocumentsPath: value || undefined,
+							})
+						}}
+					/>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						Specify a custom path for Cline's user files (rules, workflows, MCP settings). Leave empty to use the
+						default Documents folder.
+					</p>
+				</div>
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox

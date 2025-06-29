@@ -168,15 +168,21 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 /**
  * Create a rule file or workflow file
  */
-export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: string, type: string) => {
+export const createRuleFile = async (
+	isGlobal: boolean,
+	filename: string,
+	cwd: string,
+	type: string,
+	context?: vscode.ExtensionContext,
+) => {
 	try {
 		let filePath: string
 		if (isGlobal) {
 			if (type === "workflow") {
-				const globalClineWorkflowFilePath = await ensureWorkflowsDirectoryExists()
+				const globalClineWorkflowFilePath = await ensureWorkflowsDirectoryExists(context)
 				filePath = path.join(globalClineWorkflowFilePath, filename)
 			} else {
-				const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+				const globalClineRulesFilePath = await ensureRulesDirectoryExists(context)
 				filePath = path.join(globalClineRulesFilePath, filename)
 			}
 		} else {
