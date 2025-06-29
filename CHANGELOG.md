@@ -1,13 +1,11 @@
 # Changelog
 
-## 3.19.0
+## [3.18.1]
 
--   12fbc48: Support Sonnet-4 in SAP AI Core provider
--   2709cce: Fix ENAMETOOLONG when calling Claude Code
--   968b46a: Reverting Gemini Cli provider
--   68b84f3: Removed deleteNonFavoritedTasks, moved popup to extension, cleaned up deletion logic
--   b7b0e96: host bridge migration - clipboard
--   d4d5a49: Refactor task class, moving auto approve
+-   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
+-   Fix ENAMETOOLONG error when using Claude Code provider with long conversation histories (Thanks @BarreiroT!)
+-   Remove Gemini CLI provider due to Google's Terms of Service requirements
+-   Fix bug with "Delete All Tasks" functionality
 
 ## [3.18.0]
 
