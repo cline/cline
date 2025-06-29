@@ -10,7 +10,9 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class ExternalWebviewProvider extends WebviewProvider {
-	private RESOURCE_AUTHORITY: string = "file.resources"
+	// This hostname cannot be changed without updating the external webview handler.
+	private RESOURCE_HOSTNAME: string = "internal.resources"
+
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
 		super(context, outputChannel, providerType)
 	}
@@ -19,10 +21,10 @@ export class ExternalWebviewProvider extends WebviewProvider {
 		if (uri.scheme !== "file") {
 			return uri
 		}
-		return URI.from({ scheme: "https", authority: this.RESOURCE_AUTHORITY, path: uri.fsPath })
+		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path: uri.fsPath })
 	}
 	override getCspSource() {
-		return "csp-source"
+		return `'self' https://${this.RESOURCE_HOSTNAME}`
 	}
 	override postMessageToWebview(message: ExtensionMessage) {
 		console.log(`postMessageToWebview: ${message}`)

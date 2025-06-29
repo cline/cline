@@ -11,6 +11,7 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ChatSettings } from "@shared/ChatSettings"
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
+import { AutoApprove } from "./tools/autoApprove"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -30,7 +31,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { fileExistsAtPath } from "@utils/fs"
 import { formatResponse } from "../prompts/responses"
-import { isClaude4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
 import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
 import { serializeError } from "serialize-error"
 import * as path from "path"
@@ -57,6 +58,17 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
 
 export class ToolExecutor {
+	private autoApprover: AutoApprove
+
+	// Auto-approval methods using the AutoApprove class
+	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+		return this.autoApprover.shouldAutoApproveTool(toolName)
+	}
+
+	private shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
+	}
+
 	constructor(
 		// Core Services & Managers
 		private context: vscode.ExtensionContext,
@@ -96,21 +108,28 @@ export class ToolExecutor {
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
 		private reinitExistingTaskFromId: (taskId: string) => Promise<void>,
 		private cancelTask: () => Promise<void>,
-		private shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean],
-		private shouldAutoApproveToolWithPath: (blockname: ToolUseName, autoApproveActionpath: string | undefined) => boolean,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
-	) {}
+	) {
+		this.autoApprover = new AutoApprove(autoApprovalSettings)
+	}
+
+	/**
+	 * Updates the auto approval settings
+	 */
+	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		this.autoApprover.updateSettings(settings)
+	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isClaude4Model = isClaude4ModelFamily(this.api)
+		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+			if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 				// Claude 4 family: Use function_results format
 				this.taskState.userMessageContent.push({
 					type: "text",
@@ -472,9 +491,9 @@ export class ToolExecutor {
 
 						const currentFullJson = block.params.diff
 						// Check if we should use streaming (e.g., for specific models)
-						const isClaude4Model = isClaude4ModelFamily(this.api)
+						const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 						// Going through claude family of models
-						if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
+						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
 
 							if (streamingResult.error) {
@@ -555,7 +574,7 @@ export class ToolExecutor {
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: getReadablePath(this.cwd, this.removeClosingTag(block, "path", relPath)),
 						content: diff || content,
-						operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+						operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 					}
 
 					if (block.partial) {
@@ -626,7 +645,7 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: diff || content,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 							// ? formatResponse.createPrettyPatch(
 							// 		relPath,
 							// 		this.diffViewProvider.originalContent,
@@ -769,7 +788,7 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: undefined,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -800,7 +819,7 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: absolutePath,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -839,7 +858,6 @@ export class ToolExecutor {
 				}
 			}
 			case "list_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const recursiveRaw: string | undefined = block.params.recursive
 				const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -852,7 +870,7 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -884,7 +902,7 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: result,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -927,7 +945,7 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -956,7 +974,7 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: result,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -989,7 +1007,6 @@ export class ToolExecutor {
 				}
 			}
 			case "search_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const regex: string | undefined = block.params.regex
 				const filePattern: string | undefined = block.params.file_pattern
@@ -1004,7 +1021,7 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -1041,7 +1058,7 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: results,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
 						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")

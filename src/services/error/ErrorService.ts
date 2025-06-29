@@ -3,10 +3,10 @@ import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import * as pkg from "../../../package.json"
 
-let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+let telemetryLevel = vscode.workspace?.getConfiguration("telemetry").get<string>("telemetryLevel", "all") ?? "all"
 let isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 
-vscode.workspace.onDidChangeConfiguration(() => {
+vscode.workspace?.onDidChangeConfiguration(() => {
 	telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 	isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 	ErrorService.toggleEnabled(isTelemetryEnabled)

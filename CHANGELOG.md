@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.18.1]
+
+-   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
+-   Fix ENAMETOOLONG error when using Claude Code provider with long conversation histories (Thanks @BarreiroT!)
+-   Remove Gemini CLI provider because Google asked us to
+-   Fix bug with "Delete All Tasks" functionality
+
+## [3.18.0]
+
+-   Optimized Cline to work with the Claude 4 family of models, resulting in improved performance, reliability, and new capabilities
+-   Added a new Gemini CLI provider that allows you to use your local Gemini CLI authentication to access Gemini models for free (Thanks @google-gemini!)
+-   Optimized Cline to work with the Gemini 2.5 family of models
+-   Updated the default and recommended model to Claude 4 Sonnet for the best performance
+-   Fix race condition in Plan/Act mode switching
+-   Improve robustness of search and replace parsing
+
+## [3.17.16]
+
+-   Fix Claude Code provider error handling for incomplete messages during long-running tasks (Thanks @BarreiroT!)
+-   Add taskId as metadata to LiteLLM API requests for better request tracing (Thanks @jorgegarciarey!)
+
 ## [3.17.15]
 
 -   Fix LiteLLM provider to properly respect selected model IDs when switching between Plan and Act modes (Thanks @sammcj!)

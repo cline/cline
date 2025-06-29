@@ -90,7 +90,7 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { isClaude4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
 import { MessageStateHandler } from "./message-state"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { TaskState } from "./TaskState"
@@ -314,8 +314,6 @@ export class Task {
 			this.saveCheckpoint.bind(this),
 			this.reinitExistingTaskFromId.bind(this),
 			this.cancelTask.bind(this),
-			this.shouldAutoApproveTool.bind(this),
-			this.shouldAutoApproveToolWithPath.bind(this),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
@@ -331,6 +329,13 @@ export class Task {
 			throw new Error("Unable to access extension context")
 		}
 		return context
+	}
+
+	/**
+	 * Updates the auto approval settings for this task
+	 */
+	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		this.toolExecutor.updateAutoApprovalSettings(settings)
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
@@ -1554,69 +1559,6 @@ export class Task {
 		}
 	}
 
-	// Check if the tool should be auto-approved based on the settings
-	// Returns bool for most tools, and tuple for tools with nested settings
-	shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
-		if (this.autoApprovalSettings.enabled) {
-			switch (toolName) {
-				case "read_file":
-				case "list_files":
-				case "list_code_definition_names":
-				case "search_files":
-					return [
-						this.autoApprovalSettings.actions.readFiles,
-						this.autoApprovalSettings.actions.readFilesExternally ?? false,
-					]
-				case "new_rule":
-				case "write_to_file":
-				case "replace_in_file":
-					return [
-						this.autoApprovalSettings.actions.editFiles,
-						this.autoApprovalSettings.actions.editFilesExternally ?? false,
-					]
-				case "execute_command":
-					return [
-						this.autoApprovalSettings.actions.executeSafeCommands ?? false,
-						this.autoApprovalSettings.actions.executeAllCommands ?? false,
-					]
-				case "browser_action":
-					return this.autoApprovalSettings.actions.useBrowser
-				case "web_fetch":
-					return this.autoApprovalSettings.actions.useBrowser
-				case "access_mcp_resource":
-				case "use_mcp_tool":
-					return this.autoApprovalSettings.actions.useMcp
-			}
-		}
-		return false
-	}
-
-	// Check if the tool should be auto-approved based on the settings
-	// and the path of the action. Returns true if the tool should be auto-approved
-	// based on the user's settings and the path of the action.
-	shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
-		let isLocalRead: boolean = false
-		if (autoApproveActionpath) {
-			const absolutePath = path.resolve(cwd, autoApproveActionpath)
-			isLocalRead = absolutePath.startsWith(cwd)
-		} else {
-			// If we do not get a path for some reason, default to a (safer) false return
-			isLocalRead = false
-		}
-
-		// Get auto-approve settings for local and external edits
-		const autoApproveResult = this.shouldAutoApproveTool(blockname)
-		const [autoApproveLocal, autoApproveExternal] = Array.isArray(autoApproveResult)
-			? autoApproveResult
-			: [autoApproveResult, false]
-
-		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
-			return true
-		} else {
-			return false
-		}
-	}
-
 	/**
 	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
 	 */
@@ -1654,8 +1596,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isClaude4Model = isClaude4ModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4Model)
+		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
@@ -1965,7 +1907,7 @@ export class Task {
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.7 Sonnet for its advanced agentic coding capabilities.",
+					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				// This userContent is for the *next* API call.
@@ -2223,8 +2165,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isClaude4Model = isClaude4ModelFamily(this.api)
-							if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+							const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
 							} else {
 								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)

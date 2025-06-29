@@ -17,6 +17,7 @@ import * as vscode from "vscode"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
+import { writeTextToClipboard } from "@/utils/env"
 
 /**
  * Creates a properly encoded GitHub issue URL.
@@ -81,7 +82,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 
 	// Always copy to clipboard as a fallback
 	try {
-		await vscode.env.clipboard.writeText(url)
+		await writeTextToClipboard(url)
 		console.log("URL copied to clipboard as backup")
 	} catch (error) {
 		console.error(`Failed to copy URL to clipboard: ${error}`)
@@ -159,7 +160,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 				)
 				.then((selection) => {
 					if (selection === "Copy URL Again") {
-						vscode.env.clipboard.writeText(url)
+						writeTextToClipboard(url)
 					}
 				})
 		}

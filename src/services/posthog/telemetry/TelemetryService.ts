@@ -102,7 +102,7 @@ class TelemetryService {
 	/** PostHog client instance for sending analytics events */
 	private client: PostHog
 	/** Unique identifier for the current VSCode instance */
-	public distinctId: string = vscode.env.machineId
+	public distinctId: string = vscode.env?.machineId || "test-machine-id"
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private telemetryEnabled: boolean = false
 	/** Current version of the extension */

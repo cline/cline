@@ -56,7 +56,21 @@ export class ClineHandler implements ApiHandler {
 				this.lastGenerationId = chunk.id
 			}
 
-			const delta = chunk.choices[0]?.delta
+			// Check for mid-stream error via finish_reason
+			const choice = chunk.choices?.[0]
+			// OpenRouter may return finish_reason = "error" with error details
+			if ((choice?.finish_reason as string) === "error") {
+				const choiceWithError = choice as any
+				if (choiceWithError.error) {
+					const error = choiceWithError.error
+					console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+					throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+				} else {
+					throw new Error("Cline Mid-Stream Error: Stream terminated with error status but no error details provided")
+				}
+			}
+
+			const delta = choice?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -75,7 +89,7 @@ export class ClineHandler implements ApiHandler {
 
 			if (!didOutputUsage && chunk.usage) {
 				// @ts-ignore-next-line
-				let totalCost = chunk.usage.cost || 0
+				let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 				const modelId = this.getModel().id
 				const provider = modelId.split("/")[0]
 
@@ -84,14 +98,26 @@ export class ClineHandler implements ApiHandler {
 					totalCost = 0
 				}
 
-				yield {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					totalCost,
+				if (modelId.includes("gemini")) {
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost,
+					}
+				} else {
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: chunk.usage.prompt_tokens || 0,
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost,
+					}
 				}
 				didOutputUsage = true
 			}
@@ -117,13 +143,27 @@ export class ClineHandler implements ApiHandler {
 				})
 
 				const generation = response.data
-				return {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
-					inputTokens: generation?.native_tokens_prompt || 0,
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+				let modelId = this.options.openRouterModelId
+				if (modelId && modelId.includes("gemini")) {
+					return {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: generation?.native_tokens_cached || 0,
+						// openrouter generation endpoint fails often
+						inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+						outputTokens: generation?.native_tokens_completion || 0,
+						totalCost: generation?.total_cost || 0,
+					}
+				} else {
+					return {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: generation?.native_tokens_cached || 0,
+						// openrouter generation endpoint fails often
+						inputTokens: generation?.native_tokens_prompt || 0,
+						outputTokens: generation?.native_tokens_completion || 0,
+						totalCost: generation?.total_cost || 0,
+					}
 				}
 			} catch (error) {
 				// ignore if fails

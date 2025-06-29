@@ -12,8 +12,6 @@ export interface WebviewMessage {
 		| "fetchMcpMarketplace"
 		| "searchCommits"
 		| "telemetrySetting"
-		| "clearAllTaskHistory"
-		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
 
