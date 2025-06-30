@@ -71,7 +71,8 @@ jobs:
                   TAG="${{ github.event.inputs.tag }}"
                   COMMIT_SHA=$(git rev-parse "$TAG")
 
-                  while ; do
+                  STOP=0
+                  while [ "$STOP" -eq 0 ]; do
                     RUN_ID=$(gh run list \
                     --workflow="Build Extension" \
                     --commit="${COMMIT_SHA}" \
