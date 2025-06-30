@@ -51,6 +51,7 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 	areSettingsCommitted,
 }) => {
 	const { t } = useAppTranslation()
+	const DEFAULT_QDRANT_URL = "http://localhost:6333"
 	const [indexingStatus, setIndexingStatus] = useState({
 		systemStatus: "Standby",
 		message: "",
@@ -425,13 +426,23 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 						</div>
 						<div>
 							<VSCodeTextField
-								value={codebaseIndexConfig.codebaseIndexQdrantUrl || "http://localhost:6333"}
+								value={codebaseIndexConfig.codebaseIndexQdrantUrl ?? DEFAULT_QDRANT_URL}
+								placeholder={DEFAULT_QDRANT_URL}
 								onInput={(e: any) =>
 									setCachedStateField("codebaseIndexConfig", {
 										...codebaseIndexConfig,
 										codebaseIndexQdrantUrl: e.target.value,
 									})
 								}
+								onBlur={(e: any) => {
+									// Set default value if field is empty on blur
+									if (!e.target.value) {
+										setCachedStateField("codebaseIndexConfig", {
+											...codebaseIndexConfig,
+											codebaseIndexQdrantUrl: DEFAULT_QDRANT_URL,
+										})
+									}
+								}}
 								style={{ width: "100%" }}></VSCodeTextField>
 						</div>
 					</div>
