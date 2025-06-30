@@ -10,6 +10,9 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "./browserDiscovery"
 
+// Timeout constants
+const BROWSER_NAVIGATION_TIMEOUT = 15_000 // 15 seconds
+
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
 	executablePath: string
@@ -320,7 +323,7 @@ export class BrowserSession {
 	 * Navigate to a URL with standard loading options
 	 */
 	private async navigatePageToUrl(page: Page, url: string): Promise<void> {
-		await page.goto(url, { timeout: 7_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+		await page.goto(url, { timeout: BROWSER_NAVIGATION_TIMEOUT, waitUntil: ["domcontentloaded", "networkidle2"] })
 		await this.waitTillHTMLStable(page)
 	}
 
@@ -403,7 +406,10 @@ export class BrowserSession {
 				console.log(`Root domain: ${this.getRootDomain(currentUrl)}`)
 				console.log(`New URL: ${normalizedNewUrl}`)
 				return this.doAction(async (page) => {
-					await page.reload({ timeout: 7_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+					await page.reload({
+						timeout: BROWSER_NAVIGATION_TIMEOUT,
+						waitUntil: ["domcontentloaded", "networkidle2"],
+					})
 					await this.waitTillHTMLStable(page)
 				})
 			}
@@ -476,7 +482,7 @@ export class BrowserSession {
 			await page
 				.waitForNavigation({
 					waitUntil: ["domcontentloaded", "networkidle2"],
-					timeout: 7000,
+					timeout: BROWSER_NAVIGATION_TIMEOUT,
 				})
 				.catch(() => {})
 			await this.waitTillHTMLStable(page)

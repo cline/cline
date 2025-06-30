@@ -7,6 +7,11 @@ import TurndownService from "turndown"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import { fileExistsAtPath } from "../../utils/fs"
+import { serializeError } from "serialize-error"
+
+// Timeout constants
+const URL_FETCH_TIMEOUT = 30_000 // 30 seconds
+const URL_FETCH_FALLBACK_TIMEOUT = 20_000 // 20 seconds for fallback
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -48,11 +53,24 @@ export class UrlContentFetcher {
 		this.browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				"--disable-dev-shm-usage",
+				"--disable-accelerated-2d-canvas",
+				"--no-first-run",
+				"--disable-gpu",
+				"--disable-features=VizDisplayCompositor",
 			],
 			executablePath: stats.executablePath,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
+
+		// Set additional page configurations to improve loading success
+		if (this.page) {
+			await this.page.setViewport({ width: 1280, height: 720 })
+			await this.page.setExtraHTTPHeaders({
+				"Accept-Language": "en-US,en;q=0.9",
+			})
+		}
 	}
 
 	async closeBrowser(): Promise<void> {
@@ -71,7 +89,40 @@ export class UrlContentFetcher {
 		- domcontentloaded is when the basic DOM is loaded
 		this should be sufficient for most doc sites
 		*/
-		await this.page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+		try {
+			await this.page.goto(url, {
+				timeout: URL_FETCH_TIMEOUT,
+				waitUntil: ["domcontentloaded", "networkidle2"],
+			})
+		} catch (error) {
+			// Use serialize-error to safely extract error information
+			const serializedError = serializeError(error)
+			const errorMessage = serializedError.message || String(error)
+			const errorName = serializedError.name
+
+			// Only retry for timeout or network-related errors
+			const shouldRetry =
+				errorMessage.includes("timeout") ||
+				errorMessage.includes("net::") ||
+				errorMessage.includes("NetworkError") ||
+				errorMessage.includes("ERR_") ||
+				errorName === "TimeoutError"
+
+			if (shouldRetry) {
+				// If networkidle2 fails due to timeout/network issues, try with just domcontentloaded as fallback
+				console.warn(
+					`Failed to load ${url} with networkidle2, retrying with domcontentloaded only: ${errorMessage}`,
+				)
+				await this.page.goto(url, {
+					timeout: URL_FETCH_FALLBACK_TIMEOUT,
+					waitUntil: ["domcontentloaded"],
+				})
+			} else {
+				// For other errors, throw them as-is
+				throw error
+			}
+		}
+
 		const content = await this.page.content()
 
 		// use cheerio to parse and clean up the HTML

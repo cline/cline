@@ -19,6 +19,32 @@ import { FileContextTracker } from "../context-tracking/FileContextTracker"
 
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 
+import { t } from "../../i18n"
+
+function getUrlErrorMessage(error: unknown): string {
+	const errorMessage = error instanceof Error ? error.message : String(error)
+
+	// Check for common error patterns and return appropriate message
+	if (errorMessage.includes("timeout")) {
+		return t("common:errors.url_timeout")
+	}
+	if (errorMessage.includes("net::ERR_NAME_NOT_RESOLVED")) {
+		return t("common:errors.url_not_found")
+	}
+	if (errorMessage.includes("net::ERR_INTERNET_DISCONNECTED")) {
+		return t("common:errors.no_internet")
+	}
+	if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
+		return t("common:errors.url_forbidden")
+	}
+	if (errorMessage.includes("404") || errorMessage.includes("Not Found")) {
+		return t("common:errors.url_page_not_found")
+	}
+
+	// Default error message
+	return t("common:errors.url_fetch_failed", { error: errorMessage })
+}
+
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
 		return
@@ -84,7 +110,8 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${errorMessage}`)
 		}
 	}
 
@@ -92,14 +119,28 @@ export async function parseMentions(
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {
-				result = `Error fetching content: ${launchBrowserError.message}`
+				const errorMessage =
+					launchBrowserError instanceof Error ? launchBrowserError.message : String(launchBrowserError)
+				result = `Error fetching content: ${errorMessage}`
 			} else {
 				try {
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
-					result = `Error fetching content: ${error.message}`
+					console.error(`Error fetching URL ${mention}:`, error)
+
+					// Get raw error message for AI
+					const rawErrorMessage = error instanceof Error ? error.message : String(error)
+
+					// Get localized error message for UI notification
+					const localizedErrorMessage = getUrlErrorMessage(error)
+
+					vscode.window.showErrorMessage(
+						t("common:errors.url_fetch_error_with_url", { url: mention, error: localizedErrorMessage }),
+					)
+
+					// Send raw error message to AI model
+					result = `Error fetching content: ${rawErrorMessage}`
 				}
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
