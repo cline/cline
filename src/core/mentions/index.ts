@@ -11,13 +11,14 @@ import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-outpu
 import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
+import { getCwd } from "@/utils/path"
 
-export function openMention(mention?: string): void {
+export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
 		return
 	}
 
-	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	const cwd = await getCwd()
 	if (!cwd) {
 		return
 	}
