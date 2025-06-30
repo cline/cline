@@ -1708,6 +1708,8 @@ export class Task extends EventEmitter<ClineEvents> {
 
 			const contextWindow = modelInfo.contextWindow
 
+			const currentProfileId = state?.listApiConfigMeta.find((profile) => profile.name === state?.currentApiConfigName)?.id ?? "default";
+
 			const truncateResult = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
 				totalTokens: contextTokens,
@@ -1721,7 +1723,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				customCondensingPrompt,
 				condensingApiHandler,
 				profileThresholds,
-				currentProfileId: state?.currentApiConfigName || "default",
+				currentProfileId,
 			})
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)
