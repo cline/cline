@@ -86,6 +86,9 @@ import { ApiMessage } from "../task-persistence/apiMessages"
 import { getMessagesSinceLastSummary, summarizeConversation } from "../condense"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 
+// Constants
+const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
+
 export type ClineEvents = {
 	message: [{ action: "created" | "updated"; message: ClineMessage }]
 	taskStarted: []
@@ -1799,7 +1802,10 @@ export class Task extends EventEmitter<ClineEvents> {
 				}
 
 				const baseDelay = requestDelaySeconds || 5
-				let exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt))
+				let exponentialDelay = Math.min(
+					Math.ceil(baseDelay * Math.pow(2, retryAttempt)),
+					MAX_EXPONENTIAL_BACKOFF_SECONDS,
+				)
 
 				// If the error is a 429, and the error details contain a retry delay, use that delay instead of exponential backoff
 				if (error.status === 429) {
