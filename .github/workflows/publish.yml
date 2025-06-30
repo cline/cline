@@ -68,6 +68,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
+                  TAG="${{ github.event.inputs.tag }}"
                   COMMIT_SHA=$(git rev-parse "$TAG")
 
                   while ; do
