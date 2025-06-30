@@ -60,7 +60,7 @@ jobs:
             - name: Package Extension
               run: |
                   echo "Packaging extension with version ${{ steps.set_variables.outputs.version }}"
-                  vsce package --out "${{ steps.set_variables.outputs.file_path }}"
+                  vsce package  --allow-package-secrets sendgrid --out "${{ steps.set_variables.outputs.file_path }}"
 
             - name: Upload Artifact
               uses: actions/upload-artifact@v4
