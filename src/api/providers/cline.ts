@@ -30,14 +30,17 @@ export class ClineHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined
 
+		const model = this.getModel()
+
 		const stream = await createOpenRouterStream(
 			this.client,
 			systemPrompt,
 			messages,
-			this.getModel(),
+			model,
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
+			model.id.includes("grok") ? "cline" : undefined,
 		)
 
 		let didOutputUsage: boolean = false

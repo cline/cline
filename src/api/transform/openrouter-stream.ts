@@ -12,12 +12,26 @@ export async function createOpenRouterStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
+	userName?: string,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
 		...convertToOpenAiMessages(messages),
 	]
+
+	// Add name to user messages if provided
+	if (userName) {
+		openAiMessages = openAiMessages.map((message) => {
+			if (message.role === "user") {
+				return {
+					...message,
+					name: userName,
+				}
+			}
+			return message
+		})
+	}
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
