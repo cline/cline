@@ -1,13 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import cloneDeep from "clone-deep"
-import { execa } from "execa"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
-import pTimeout from "p-timeout"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-import { Logger } from "@services/logging/Logger"
 import { ApiHandler, buildApiHandler } from "@api/index"
 import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
@@ -21,6 +12,7 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
@@ -29,42 +21,47 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings } from "@shared/ChatSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import {
-	ClineApiReqCancelReason,
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineMessage,
-	ClineSay,
-	ExtensionMessage,
-} from "@shared/ExtensionMessage"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { arePathsEqual } from "@utils/path"
+import cloneDeep from "clone-deep"
+import { execa } from "execa"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import os from "os"
+import pTimeout from "p-timeout"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import * as vscode from "vscode"
 
-import {
-	AssistantMessageContent,
-	parseAssistantMessageV2,
-	parseAssistantMessageV3,
-	ToolParamName,
-	ToolUseName,
-} from "@core/assistant-message"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
-import { parseMentions } from "@core/mentions"
-import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
-import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
-import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
-import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
+import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
+import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
+import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
+import {
+	getGlobalClineRules,
+	getLocalClineRules,
+	refreshClineRulesToggles,
+} from "@core/context/instructions/user-instructions/cline-rules"
+import {
+	getLocalCursorRules,
+	getLocalWindsurfRules,
+	refreshExternalRulesToggles,
+} from "@core/context/instructions/user-instructions/external-rules"
+import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { parseMentions } from "@core/mentions"
+import { formatResponse } from "@core/prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
@@ -72,29 +69,19 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import {
-	getGlobalClineRules,
-	getLocalClineRules,
-	refreshClineRulesToggles,
-} from "@core/context/instructions/user-instructions/cline-rules"
-import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
-import {
-	refreshExternalRulesToggles,
-	getLocalWindsurfRules,
-	getLocalCursorRules,
-} from "@core/context/instructions/user-instructions/external-rules"
-import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { getWorkspaceState } from "@core/storage/state"
-import { parseSlashCommands } from "@core/slash-commands"
+import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
-import { isInTestMode } from "../../services/test/TestMode"
-import { processFilesIntoText } from "@integrations/misc/extract-text"
+import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { isInTestMode } from "../../services/test/TestMode"
+import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { MessageStateHandler } from "./message-state"
-import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
+import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -137,7 +124,6 @@ export class Task {
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
-	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
@@ -154,7 +140,6 @@ export class Task {
 		workspaceTracker: WorkspaceTracker,
 		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
 		postStateToWebview: () => Promise<void>,
-		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
 		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
 		cancelTask: () => Promise<void>,
 		apiConfiguration: ApiConfiguration,
@@ -177,7 +162,6 @@ export class Task {
 		this.workspaceTracker = workspaceTracker
 		this.updateTaskHistory = updateTaskHistory
 		this.postStateToWebview = postStateToWebview
-		this.postMessageToWebview = postMessageToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
