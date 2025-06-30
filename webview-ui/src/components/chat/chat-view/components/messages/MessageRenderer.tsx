@@ -37,6 +37,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	if (Array.isArray(messageOrGroup)) {
 		return (
 			<BrowserSessionRow
+				key={messageOrGroup[0]?.ts}
 				messages={messageOrGroup}
 				isLast={index === groupedMessages.length - 1}
 				lastModifiedMessage={modifiedMessages.at(-1)}
