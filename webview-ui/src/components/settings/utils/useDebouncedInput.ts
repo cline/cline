@@ -13,7 +13,7 @@ import { useDebounceEffect } from "@/utils/useDebounceEffect"
 export function useDebouncedInput<T>(
 	initialValue: T,
 	onChange: (value: T) => void,
-	debounceMs: number = 500,
+	debounceMs: number = 100,
 ): [T, (value: T) => void] {
 	// Local state to prevent jumpy input - initialize once
 	const [localValue, setLocalValue] = useState(initialValue)

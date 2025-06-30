@@ -59,7 +59,6 @@ const ApiConfigurationSection = ({
 						{/* Content container */}
 						<div className="-mb-3">
 							<ApiOptions
-								key={chatSettings.mode}
 								showModelOptions={true}
 								apiErrorMessage={apiErrorMessage}
 								modelIdErrorMessage={modelIdErrorMessage}
@@ -68,7 +67,6 @@ const ApiConfigurationSection = ({
 					</div>
 				) : (
 					<ApiOptions
-						key={"single"}
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
