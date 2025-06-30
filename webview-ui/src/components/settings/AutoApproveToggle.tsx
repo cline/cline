@@ -14,6 +14,7 @@ type AutoApproveToggles = Pick<
 	| "alwaysAllowModeSwitch"
 	| "alwaysAllowSubtasks"
 	| "alwaysAllowExecute"
+	| "alwaysAllowFollowupQuestions"
 >
 
 export type AutoApproveSetting = keyof AutoApproveToggles
@@ -83,6 +84,13 @@ export const autoApproveSettingsConfig: Record<AutoApproveSetting, AutoApproveCo
 		icon: "terminal",
 		testId: "always-allow-execute-toggle",
 	},
+	alwaysAllowFollowupQuestions: {
+		key: "alwaysAllowFollowupQuestions",
+		labelKey: "settings:autoApprove.followupQuestions.label",
+		descriptionKey: "settings:autoApprove.followupQuestions.description",
+		icon: "question",
+		testId: "always-allow-followup-questions-toggle",
+	},
 }
 
 type AutoApproveToggleProps = AutoApproveToggles & {
@@ -95,7 +103,7 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 	return (
 		<div
 			className={cn(
-				"flex flex-row flex-wrap justify-center gap-2 max-w-[400px] mx-auto my-2 ",
+				"grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-w-[400px] mx-auto my-2 ",
 				"[@media(min-width:600px)]:gap-4",
 				"[@media(min-width:800px)]:max-w-[800px]",
 			)}>

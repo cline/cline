@@ -257,7 +257,8 @@
 		"seconds": "{{count}}s"
 	},
 	"followUpSuggest": {
-		"copyToInput": "Copy to input (same as shift + click)"
+		"copyToInput": "Copy to input (same as shift + click)",
+		"autoSelectCountdown": "Auto-selecting in {{count}}s"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo wants to use the browser:",

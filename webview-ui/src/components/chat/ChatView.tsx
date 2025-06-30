@@ -88,11 +88,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		alwaysAllowMcp,
 		allowedCommands,
 		writeDelayMs,
+		followupAutoApproveTimeoutMs,
 		mode,
 		setMode,
 		autoApprovalEnabled,
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
+		alwaysAllowFollowupQuestions,
 		customModes,
 		telemetrySetting,
 		hasSystemPromptOverride,
@@ -879,6 +881,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				return false
 			}
 
+			if (message.ask === "followup") {
+				return alwaysAllowFollowupQuestions
+			}
+
 			if (message.ask === "browser_action_launch") {
 				return alwaysAllowBrowser
 			}
@@ -957,6 +963,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			alwaysAllowMcp,
 			isMcpToolAlwaysAllowed,
 			alwaysAllowModeSwitch,
+			alwaysAllowFollowupQuestions,
 			alwaysAllowSubtasks,
 		],
 	)
@@ -1270,19 +1277,35 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 		const autoApprove = async () => {
 			if (lastMessage?.ask && isAutoApproved(lastMessage)) {
-				if (lastMessage.ask === "tool" && isWriteToolAction(lastMessage)) {
+				// Special handling for follow-up questions
+				if (lastMessage.ask === "followup") {
+					const followUpData = JSON.parse(lastMessage.text || "{}")
+					if (followUpData && followUpData.suggest && followUpData.suggest.length > 0) {
+						// Wait for the configured timeout before auto-selecting the first suggestion
+						await new Promise<void>((resolve) => {
+							autoApproveTimeoutRef.current = setTimeout(resolve, followupAutoApproveTimeoutMs)
+						})
+
+						// Get the first suggestion
+						const firstSuggestion = followUpData.suggest[0]
+						const suggestionText =
+							typeof firstSuggestion === "string" ? firstSuggestion : firstSuggestion.answer
+
+						// Handle the suggestion click
+						handleSuggestionClickInRow(suggestionText)
+						return
+					}
+				} else if (lastMessage.ask === "tool" && isWriteToolAction(lastMessage)) {
 					await new Promise<void>((resolve) => {
 						autoApproveTimeoutRef.current = setTimeout(resolve, writeDelayMs)
 					})
 				}
 
-				if (autoApproveTimeoutRef.current === null || autoApproveTimeoutRef.current) {
-					vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
+				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
 
-					setSendingDisabled(true)
-					setClineAsk(undefined)
-					setEnableButtons(false)
-				}
+				setSendingDisabled(true)
+				setClineAsk(undefined)
+				setEnableButtons(false)
 			}
 		}
 		autoApprove()
@@ -1303,6 +1326,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		alwaysAllowWrite,
 		alwaysAllowWriteOutsideWorkspace,
 		alwaysAllowExecute,
+		followupAutoApproveTimeoutMs,
 		alwaysAllowMcp,
 		messages,
 		allowedCommands,
@@ -1311,6 +1335,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		lastMessage,
 		writeDelayMs,
 		isWriteToolAction,
+		alwaysAllowFollowupQuestions,
+		handleSuggestionClickInRow,
 	])
 
 	// Function to handle mode switching

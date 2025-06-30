@@ -25,6 +25,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
 		alwaysApproveResubmit,
+		alwaysAllowFollowupQuestions,
 		allowedMaxRequests,
 		setAlwaysAllowReadOnly,
 		setAlwaysAllowWrite,
@@ -34,6 +35,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		setAlwaysAllowModeSwitch,
 		setAlwaysAllowSubtasks,
 		setAlwaysApproveResubmit,
+		setAlwaysAllowFollowupQuestions,
 		setAllowedMaxRequests,
 	} = useExtensionState()
 
@@ -68,6 +70,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				case "alwaysApproveResubmit":
 					setAlwaysApproveResubmit(value)
 					break
+				case "alwaysAllowFollowupQuestions":
+					setAlwaysAllowFollowupQuestions(value)
+					break
 			}
 		},
 		[
@@ -79,6 +84,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			setAlwaysAllowModeSwitch,
 			setAlwaysAllowSubtasks,
 			setAlwaysApproveResubmit,
+			setAlwaysAllowFollowupQuestions,
 		],
 	)
 
@@ -94,6 +100,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch,
 			alwaysAllowSubtasks: alwaysAllowSubtasks,
 			alwaysApproveResubmit: alwaysApproveResubmit,
+			alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions,
 		}),
 		[
 			alwaysAllowReadOnly,
@@ -104,6 +111,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			alwaysAllowModeSwitch,
 			alwaysAllowSubtasks,
 			alwaysApproveResubmit,
+			alwaysAllowFollowupQuestions,
 		],
 	)
 

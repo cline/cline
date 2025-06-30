@@ -1,10 +1,11 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Edit } from "lucide-react"
 
 import { Button, StandardTooltip } from "@/components/ui"
 import { vscode } from "@/utils/vscode"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 interface SuggestionItem {
 	answer: string
@@ -18,7 +19,47 @@ interface FollowUpSuggestProps {
 }
 
 export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }: FollowUpSuggestProps) => {
+	const { autoApprovalEnabled, alwaysAllowFollowupQuestions, followupAutoApproveTimeoutMs } = useExtensionState()
+	const [countdown, setCountdown] = useState<number | null>(null)
+	const [suggestionSelected, setSuggestionSelected] = useState(false)
 	const { t } = useAppTranslation()
+
+	// Start countdown timer when auto-approval is enabled for follow-up questions
+	useEffect(() => {
+		// Only start countdown if auto-approval is enabled for follow-up questions and no suggestion has been selected
+		if (autoApprovalEnabled && alwaysAllowFollowupQuestions && suggestions.length > 0 && !suggestionSelected) {
+			// Start with the configured timeout in seconds
+			const timeoutMs =
+				typeof followupAutoApproveTimeoutMs === "number" && !isNaN(followupAutoApproveTimeoutMs)
+					? followupAutoApproveTimeoutMs
+					: 10000
+
+			// Convert milliseconds to seconds for the countdown
+			setCountdown(Math.floor(timeoutMs / 1000))
+
+			// Update countdown every second
+			const intervalId = setInterval(() => {
+				setCountdown((prevCountdown) => {
+					if (prevCountdown === null || prevCountdown <= 1) {
+						clearInterval(intervalId)
+						return null
+					}
+					return prevCountdown - 1
+				})
+			}, 1000)
+
+			// Clean up interval on unmount
+			return () => clearInterval(intervalId)
+		} else {
+			setCountdown(null)
+		}
+	}, [
+		autoApprovalEnabled,
+		alwaysAllowFollowupQuestions,
+		suggestions,
+		followupAutoApproveTimeoutMs,
+		suggestionSelected,
+	])
 	const handleSuggestionClick = useCallback(
 		(suggestion: string | SuggestionItem, event: React.MouseEvent) => {
 			const suggestionText = typeof suggestion === "string" ? suggestion : suggestion.answer
@@ -30,6 +71,11 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }:
 					type: "mode",
 					text: mode,
 				})
+			}
+
+			// Mark a suggestion as selected if it's not a shift-click (which just copies to input)
+			if (!event.shiftKey) {
+				setSuggestionSelected(true)
 			}
 
 			onSuggestionClick?.(suggestionText, event)
@@ -44,9 +90,10 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }:
 
 	return (
 		<div className="flex mb-2 flex-col h-full gap-2">
-			{suggestions.map((suggestion) => {
+			{suggestions.map((suggestion, index) => {
 				const suggestionText = typeof suggestion === "string" ? suggestion : suggestion.answer
 				const mode = typeof suggestion === "object" ? suggestion.mode : undefined
+				const isFirstSuggestion = index === 0
 
 				return (
 					<div key={`${suggestionText}-${ts}`} className="w-full relative group">
@@ -56,6 +103,13 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }:
 							onClick={(event) => handleSuggestionClick(suggestion, event)}
 							aria-label={suggestionText}>
 							{suggestionText}
+							{isFirstSuggestion && countdown !== null && !suggestionSelected && (
+								<span
+									className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-vscode-badge-background text-vscode-badge-foreground"
+									title={t("chat:followUpSuggest.autoSelectCountdown", { count: countdown })}>
+									{countdown}s
+								</span>
+							)}
 						</Button>
 						{mode && (
 							<div className="absolute bottom-0 right-0 text-[10px] bg-vscode-badge-background text-vscode-badge-foreground px-1 py-0.5 border border-vscode-badge-background flex items-center gap-0.5">
