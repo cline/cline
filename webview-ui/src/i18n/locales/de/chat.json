@@ -310,5 +310,8 @@
 		"indexed": "Indiziert",
 		"error": "Index-Fehler",
 		"status": "Index-Status"
+	},
+	"versionIndicator": {
+		"ariaLabel": "Version {{version}} - Klicken Sie, um die Versionshinweise anzuzeigen"
 	}
 }

@@ -316,5 +316,8 @@
 		"indexed": "Terindeks",
 		"error": "Error indeks",
 		"status": "Status indeks"
+	},
+	"versionIndicator": {
+		"ariaLabel": "Versi {{version}} - Klik untuk melihat catatan rilis"
 	}
 }

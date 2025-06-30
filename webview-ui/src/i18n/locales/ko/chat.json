@@ -310,5 +310,8 @@
 		"indexed": "인덱싱 완료",
 		"error": "인덱스 오류",
 		"status": "인덱스 상태"
+	},
+	"versionIndicator": {
+		"ariaLabel": "버전 {{version}} - 릴리스 노트를 보려면 클릭하세요"
 	}
 }

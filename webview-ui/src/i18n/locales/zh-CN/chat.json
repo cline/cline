@@ -310,5 +310,8 @@
 		"indexed": "已索引",
 		"error": "索引错误",
 		"status": "索引状态"
+	},
+	"versionIndicator": {
+		"ariaLabel": "版本 {{version}} - 点击查看发布说明"
 	}
 }

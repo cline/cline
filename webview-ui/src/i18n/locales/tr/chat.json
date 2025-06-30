@@ -310,5 +310,8 @@
 		"indexed": "İndekslendi",
 		"error": "İndeks hatası",
 		"status": "İndeks durumu"
+	},
+	"versionIndicator": {
+		"ariaLabel": "Sürüm {{version}} - Sürüm notlarını görüntülemek için tıklayın"
 	}
 }

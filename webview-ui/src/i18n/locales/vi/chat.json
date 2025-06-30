@@ -310,5 +310,8 @@
 		"indexed": "Đã lập chỉ mục",
 		"error": "Lỗi chỉ mục",
 		"status": "Trạng thái chỉ mục"
+	},
+	"versionIndicator": {
+		"ariaLabel": "Phiên bản {{version}} - Nhấp để xem ghi chú phát hành"
 	}
 }

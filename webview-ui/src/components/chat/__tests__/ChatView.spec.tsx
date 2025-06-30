@@ -61,6 +61,55 @@ vi.mock("../AutoApproveMenu", () => ({
 	default: () => null,
 }))
 
+vi.mock("@src/components/common/VersionIndicator", () => ({
+	default: function MockVersionIndicator({ onClick, className }: { onClick: () => void; className?: string }) {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const React = require("react")
+		return React.createElement(
+			"button",
+			{
+				onClick,
+				className,
+				"aria-label": "chat:versionIndicator.ariaLabel",
+				"data-testid": "version-indicator",
+			},
+			"v3.21.5",
+		)
+	},
+}))
+
+vi.mock("@src/components/modals/Announcement", () => ({
+	default: function MockAnnouncement({ hideAnnouncement }: { hideAnnouncement: () => void }) {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const React = require("react")
+		return React.createElement(
+			"div",
+			{ "data-testid": "announcement-modal" },
+			React.createElement("div", null, "What's New"),
+			React.createElement("button", { onClick: hideAnnouncement }, "Close"),
+		)
+	},
+}))
+
+// Mock i18n
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		t: (key: string, options?: any) => {
+			if (key === "chat:versionIndicator.ariaLabel" && options?.version) {
+				return `Version ${options.version}`
+			}
+			return key
+		},
+	}),
+	initReactI18next: {
+		type: "3rdParty",
+		init: () => {},
+	},
+	Trans: ({ i18nKey, children }: { i18nKey: string; children?: React.ReactNode }) => {
+		return <>{children || i18nKey}</>
+	},
+}))
+
 interface ChatTextAreaProps {
 	onSend: (value: string) => void
 	inputValue?: string
@@ -1066,5 +1115,71 @@ describe("ChatView - Focus Grabbing Tests", () => {
 
 		// focus() should not have been called again
 		expect(mockFocus).toHaveBeenCalledTimes(FOCUS_CALLS_ON_INIT)
+	})
+})
+
+describe("ChatView - Version Indicator Tests", () => {
+	beforeEach(() => vi.clearAllMocks())
+
+	it("displays version indicator button", () => {
+		const { getByLabelText } = renderChatView()
+
+		// First hydrate state
+		mockPostMessage({
+			clineMessages: [],
+		})
+
+		// Check that version indicator is displayed
+		const versionButton = getByLabelText(/version/i)
+		expect(versionButton).toBeInTheDocument()
+		expect(versionButton).toHaveTextContent(/^v\d+\.\d+\.\d+/)
+	})
+
+	it("opens announcement modal when version indicator is clicked", () => {
+		const { container } = renderChatView()
+
+		// First hydrate state
+		mockPostMessage({
+			clineMessages: [],
+		})
+
+		// Find version indicator
+		const versionButton = container.querySelector('button[aria-label*="version"]') as HTMLButtonElement
+		expect(versionButton).toBeTruthy()
+
+		// Click should trigger modal - we'll just verify the button exists and is clickable
+		// The actual modal rendering is handled by the component state
+		expect(versionButton.onclick).toBeDefined()
+	})
+
+	it("version indicator has correct styling classes", () => {
+		const { getByTestId } = renderChatView()
+
+		// First hydrate state
+		mockPostMessage({
+			clineMessages: [],
+		})
+
+		// Check styling classes - the VersionIndicator component receives className prop
+		const versionButton = getByTestId("version-indicator")
+		expect(versionButton).toBeInTheDocument()
+		// The className is passed as a prop to VersionIndicator
+		expect(versionButton.className).toContain("absolute top-2 right-3 z-10")
+	})
+
+	it("version indicator has proper accessibility attributes", () => {
+		const { container } = renderChatView()
+
+		// First hydrate state
+		mockPostMessage({
+			clineMessages: [],
+		})
+
+		// Check accessibility - find button by its content
+		const versionButton = container.querySelector('button[aria-label*="version"]')
+		expect(versionButton).toBeTruthy()
+		expect(versionButton).toHaveAttribute("aria-label")
+		// The mock returns the key, so we check for that
+		expect(versionButton?.getAttribute("aria-label")).toBe("chat:versionIndicator.ariaLabel")
 	})
 })

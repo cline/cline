@@ -33,6 +33,7 @@ import RooTips from "@src/components/welcome/RooTips"
 import { StandardTooltip } from "@src/components/ui"
 
 import TelemetryBanner from "../common/TelemetryBanner"
+import VersionIndicator from "../common/VersionIndicator"
 import { useTaskSearch } from "../history/useTaskSearch"
 import HistoryPreview from "../history/HistoryPreview"
 import Announcement from "./Announcement"
@@ -151,6 +152,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
 	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
 	const [isCondensing, setIsCondensing] = useState<boolean>(false)
+	const [showAnnouncementModal, setShowAnnouncementModal] = useState(false)
 	const everVisibleMessagesTsRef = useRef<LRUCache<number, boolean>>(
 		new LRUCache({
 			max: 250,
@@ -1365,7 +1367,21 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	return (
 		<div className={isHidden ? "hidden" : "fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden"}>
-			{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} />}
+			{/* Version indicator in top-right corner */}
+			<VersionIndicator onClick={() => setShowAnnouncementModal(true)} className="absolute top-2 right-3 z-10" />
+
+			{(showAnnouncement || showAnnouncementModal) && (
+				<Announcement
+					hideAnnouncement={() => {
+						if (showAnnouncementModal) {
+							setShowAnnouncementModal(false)
+						}
+						if (showAnnouncement) {
+							hideAnnouncement()
+						}
+					}}
+				/>
+			)}
 			{task ? (
 				<>
 					<TaskHeader
