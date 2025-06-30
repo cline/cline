@@ -1,33 +1,6 @@
 import * as path from "path"
-import * as vscode from "vscode"
 import { execa } from "execa"
 import { Logger } from "@services/logging/Logger"
-import { WebviewProvider } from "@core/webview"
-
-/**
- * Gets a valid workspace path for Git operations
- * @param visibleWebview The visible webview instance
- * @returns A valid workspace path
- */
-export function getWorkspacePath(visibleWebview: WebviewProvider): string {
-	// First try to get the path from the controller's state
-	let workspacePath = visibleWebview.controller.context.workspaceState.get<string>("cwd") || ""
-
-	// If workspace path is empty, try to get it from the active workspace folder
-	if (!workspacePath) {
-		const workspaceFolders = vscode.workspace.workspaceFolders
-		if (workspaceFolders && workspaceFolders.length > 0) {
-			workspacePath = workspaceFolders[0].uri.fsPath
-			Logger.log(`Using workspace folder path: ${workspacePath}`)
-		} else {
-			// If no workspace folder is open, use the extension directory as a fallback
-			workspacePath = path.join(__dirname, "..", "..", "..")
-			Logger.log(`No workspace folder found, using extension directory: ${workspacePath}`)
-		}
-	}
-
-	return workspacePath
-}
 
 /**
  * Validates that the workspace path is valid and writable for Git operations
@@ -42,7 +15,7 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
 
 	// Check if the directory exists
 	try {
-		const { stdout } = await execa("test", ["-d", workspacePath])
+		await execa("test", ["-d", workspacePath])
 	} catch (error) {
 		throw new Error(`Workspace path does not exist or is not a directory: ${workspacePath}`)
 	}

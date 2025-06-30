@@ -8,7 +8,7 @@ import { openMention as coreOpenMention } from "../../mentions"
  * @param request The string request containing the mention text
  * @returns Empty response
  */
-export async function openMention(controller: Controller, request: StringRequest): Promise<Empty> {
+export async function openMention(_controller: Controller, request: StringRequest): Promise<Empty> {
 	coreOpenMention(request.value)
 	return Empty.create()
 }
