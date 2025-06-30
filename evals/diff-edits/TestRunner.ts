@@ -3,6 +3,7 @@ import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/pars
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
+import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
@@ -484,6 +485,7 @@ class NodeTestRunner {
 			"diff-06-06-25": constructNewFileContent_06_06_25,
 			"diff-06-23-25": constructNewFileContent_06_23_25,
 			"diff-06-25-25": constructNewFileContent_06_25_25,
+			"diff-06-26-25": constructNewFileContent_06_26_25,
 			constructNewFileContentV3: constructNewFileContentV3,
 		}
 		const constructNewFileContent = diffEditingFunctions[diffApplyFile]
@@ -927,12 +929,13 @@ async function main() {
 		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
 		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+		.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-25-25")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
 		.option("--diff-apply-file <filename>", "The name of the diff apply file to use for the replay")
+		.option("--save-locally", "Save results to local JSON files in addition to database", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
 		.option("--max-concurrency <number>", "Maximum number of parallel requests", "80")
 
@@ -943,6 +946,7 @@ async function main() {
 	const isVerbose = options.verbose
 	const testPath = options.testPath
 	const outputPath = options.outputPath
+	const saveLocally = options.saveLocally
 	const maxConcurrency = parseInt(options.maxConcurrency, 10);
 
 	// Parse model IDs from comma-separated string
@@ -1149,6 +1153,12 @@ async function main() {
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
+
+		// Save results locally if requested
+		if (saveLocally) {
+			runner.saveTestResults(results, outputPath);
+			log(isVerbose, `✓ Results also saved to JSON files in ${outputPath}`);
+		}
 
 		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {
