@@ -485,7 +485,7 @@ class NodeTestRunner {
 			"diff-06-06-25": constructNewFileContent_06_06_25,
 			"diff-06-23-25": constructNewFileContent_06_23_25,
 			"diff-06-25-25": constructNewFileContent_06_25_25,
-			"diff-06-25-26": constructNewFileContent_06_26_25,
+			"diff-06-26-25": constructNewFileContent_06_26_25,
 			constructNewFileContentV3: constructNewFileContentV3,
 		}
 		const constructNewFileContent = diffEditingFunctions[diffApplyFile]

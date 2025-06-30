@@ -799,7 +799,7 @@ class NewFileContentConstructor {
 						this.lastProcessedIndex,
 					)
 					if (blockMatch) {
-						;[this.searchMatchIndex, this.searchEndIndex] = blockMatch
+						;[this.searchMatchIndex, this.searchEndIndex, /* ignore similarity */] = blockMatch
 					} else {
 						throw new Error(
 							`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
