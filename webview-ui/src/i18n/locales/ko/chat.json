@@ -234,7 +234,8 @@
 		"tokens": "토큰"
 	},
 	"followUpSuggest": {
-		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
+		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)",
+		"autoSelectCountdown": "{{count}}초 후 자동 선택"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 출시",

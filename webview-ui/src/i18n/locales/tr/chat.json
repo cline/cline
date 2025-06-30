@@ -234,7 +234,8 @@
 		"tokens": "token"
 	},
 	"followUpSuggest": {
-		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
+		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)",
+		"autoSelectCountdown": "{{count}}s içinde otomatik seçilecek"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
