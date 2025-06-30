@@ -1425,10 +1425,15 @@ export class Task extends EventEmitter<ClineEvents> {
 					// cancel task.
 					this.abortTask()
 
-					await abortStream(
-						"streaming_failed",
-						error.message ?? JSON.stringify(serializeError(error), null, 2),
-					)
+					// Check if this was a user-initiated cancellation
+					// If this.abort is true, it means the user clicked cancel, so we should
+					// treat this as "user_cancelled" rather than "streaming_failed"
+					const cancelReason = this.abort ? "user_cancelled" : "streaming_failed"
+					const streamingFailedMessage = this.abort
+						? undefined
+						: (error.message ?? JSON.stringify(serializeError(error), null, 2))
+
+					await abortStream(cancelReason, streamingFailedMessage)
 
 					const history = await provider?.getTaskWithId(this.taskId)
 
