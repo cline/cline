@@ -95,6 +95,8 @@ export class MultiFileSearchReplaceDiffStrategy implements DiffStrategy {
 
 Description: Request to apply targeted modifications to one or more files by searching for specific sections of content and replacing them. This tool supports both single-file and multi-file operations, allowing you to make changes across multiple files in a single request.
 
+**IMPORTANT: You MUST use multiple files in a single operation whenever possible to maximize efficiency and minimize back-and-forth.**
+
 You can perform multiple distinct search and replace operations within a single \`apply_diff\` call by providing multiple SEARCH/REPLACE blocks in the \`diff\` parameter. This is the preferred way to make several targeted changes efficiently.
 
 The SEARCH section must exactly match existing content including whitespace and indentation.
@@ -157,7 +159,7 @@ def calculate_total(items):
 </args>
 </apply_diff>
 
-Search/Replace content with multi edits in one file:
+Search/Replace content with multi edits across multiple files:
 <apply_diff>
 <args>
 <file>
