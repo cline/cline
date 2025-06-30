@@ -346,6 +346,8 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		content: string;
 		method: string;
 		similarity: number;
+		searchContent: string;
+		matchedText: string;
 	}>;
 }> {
 	let result = ""
@@ -368,6 +370,8 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		content: string;
 		method: string;
 		similarity: number;
+		searchContent: string;
+		matchedText: string;
 	}> = []
 	let pendingOutOfOrderReplacement = false
 
@@ -495,6 +499,8 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				content: currentReplaceContent,
 				method: matchMethod,
 				similarity: similarityScore,
+				searchContent: currentSearchContent,
+				matchedText: originalContent.slice(searchMatchIndex, searchEndIndex),
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -541,6 +547,8 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				content: currentReplaceContent,
 				method: matchMethod,
 				similarity: similarityScore,
+				searchContent: currentSearchContent,
+				matchedText: originalContent.slice(searchMatchIndex, searchEndIndex),
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
