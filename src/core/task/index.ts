@@ -1456,7 +1456,10 @@ export class Task {
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
-					// proceed while running
+					// proceed while running - but still capture user feedback if provided
+					if (text || (images && images.length > 0) || (files && files.length > 0)) {
+						userFeedback = { text, images, files }
+					}
 				} else {
 					userFeedback = { text, images, files }
 				}
