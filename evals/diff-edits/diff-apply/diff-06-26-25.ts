@@ -17,8 +17,8 @@ const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>?$/
 const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
 
 // Similarity thresholds for block anchor fallback matching
-const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.5
-const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.7
+const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.0
+const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.0
 
 /**
  * Levenshtein distance algorithm implementation

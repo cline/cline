@@ -14,7 +14,7 @@ import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./d
 import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
-type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string>
+type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string | any>
 
 const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
 	parseAssistantMessageV1: parseAssistantMessageV1,
@@ -310,8 +310,15 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 
 		// checking if the diff edit succeeds, if it failed it will throw an error
 		let diffSuccess = true
+		let replacementData: any = undefined
 		try {
-			await constructNewFileContent(diffToolContent, originalFile, true)
+			const result = await constructNewFileContent(diffToolContent, originalFile, true)
+			
+			// Check if result is an object with replacements (new format)
+			if (typeof result === 'object' && result !== null && 'replacements' in result) {
+				replacementData = result.replacements
+			}
+			// If it's just a string, diffSuccess stays true and replacementData stays undefined
 		} catch (error: any) {
 			diffSuccess = false
 		}
@@ -322,6 +329,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			toolCalls: detectedToolCalls,
 			diffEdit: diffToolContent,
 			diffEditSuccess: diffSuccess,
+			replacementData: replacementData,
 		}
 	} catch (error: any) {
 		return {
