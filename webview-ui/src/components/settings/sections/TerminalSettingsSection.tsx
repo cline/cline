@@ -147,6 +147,34 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 						</p>
 					</div>
 					<TerminalOutputLineLimitSlider />
+					<div
+						style={{
+							marginTop: 20,
+							padding: "12px",
+							backgroundColor: "var(--vscode-textBlockQuote-background)",
+							borderRadius: "4px",
+							border: "1px solid var(--vscode-textBlockQuote-border)",
+						}}>
+						<p style={{ fontSize: "13px", margin: 0 }}>
+							<strong>Having terminal issues?</strong> Check our{" "}
+							<a
+								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
+								style={{ color: "var(--vscode-textLink-foreground)", textDecoration: "underline" }}
+								target="_blank"
+								rel="noopener noreferrer">
+								Terminal Quick Fixes
+							</a>{" "}
+							or the{" "}
+							<a
+								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
+								style={{ color: "var(--vscode-textLink-foreground)", textDecoration: "underline" }}
+								target="_blank"
+								rel="noopener noreferrer">
+								Complete Troubleshooting Guide
+							</a>
+							.
+						</p>
+					</div>
 				</div>
 			</Section>
 		</div>

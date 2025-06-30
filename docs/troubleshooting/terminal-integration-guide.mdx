@@ -1,0 +1,335 @@
+---
+title: "Terminal Integration Troubleshooting Guide"
+sidebarTitle: "Terminal Troubleshooting"
+description: "Complete guide to resolving terminal integration issues in Cline"
+---
+
+This guide helps you resolve terminal integration issues in Cline. Terminal integration is crucial for Cline to execute commands and read their output, enabling it to understand errors, test results, and command responses.
+
+<Info>
+	**Quick Fix**: If you're experiencing terminal issues, try switching to a simpler shell like `bash` in the Cline settings.
+	This resolves 90% of terminal integration problems.
+</Info>
+
+## Quick Diagnosis Flowchart
+
+Follow this flowchart to quickly identify your issue:
+
+```mermaid
+graph TD
+    A[Terminal Issue] --> B{Can Cline execute commands?}
+    B -->|No| C[Shell Integration Unavailable]
+    B -->|Yes| D{Can Cline see output?}
+    D -->|No| E[Output Capture Failed]
+    D -->|Yes| F{Is output corrupted?}
+    F -->|Yes| G[Character Filtering Issue]
+    F -->|No| H{Does command hang?}
+    H -->|Yes| I[Long-Running Command Issue]
+    H -->|No| J[Check Terminal Settings]
+
+    C --> K[Try Solution 1]
+    E --> L[Try Solution 2]
+    G --> M[Try Solution 3]
+    I --> N[Try Solution 4]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style K fill:#9f9,stroke:#333,stroke-width:2px
+    style L fill:#9f9,stroke:#333,stroke-width:2px
+    style M fill:#9f9,stroke:#333,stroke-width:2px
+    style N fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+## Common Issues & Quick Solutions
+
+### 1. Shell Integration Unavailable
+
+**Symptoms:**
+
+-   Message: "Shell Integration Unavailable"
+-   Commands execute but Cline can't read output
+-   Terminal works fine manually but not with Cline
+
+**Quick Solutions:**
+
+#### macOS
+
+1. **Switch to bash**: Go to Cline Settings → Terminal → Default Terminal Profile → Select "bash"
+2. **Disable Oh-My-Zsh temporarily**: If using zsh, try `mv ~/.zshrc ~/.zshrc.backup` and restart VSCode
+3. **Set environment**: Add to your shell config: `export TERM=xterm-256color`
+
+#### Windows
+
+1. **Use PowerShell 7**: Install from Microsoft Store, then select it in Cline settings
+2. **Disable Windows ConPTY**: VSCode Settings → Terminal › Integrated: Windows Enable Conpty → Uncheck
+3. **Try Command Prompt**: Sometimes simpler is better - switch to cmd.exe
+
+#### Linux
+
+1. **Use bash**: Most reliable option - select in Cline settings
+2. **Check permissions**: Ensure VSCode has terminal access permissions
+3. **Disable custom prompts**: Comment out prompt customizations in `.bashrc`
+
+### 2. Command Output Not Visible
+
+**Symptoms:**
+
+-   "[Command is running but producing no output]"
+-   Commands complete but Cline doesn't see results
+-   Works sometimes but not consistently
+
+**Solutions:**
+
+1. **Increase Shell Integration Timeout**: Settings → Terminal → Shell integration timeout → Try 10 seconds
+2. **Disable Terminal Reuse**: Settings → Terminal → Uncheck "Enable aggressive terminal reuse"
+3. **Check for interfering extensions**: Disable other terminal-related VSCode extensions
+
+### 3. Character Filtering Issues
+
+**Symptoms:**
+
+-   Commas missing from output (JSON appears corrupted)
+-   Special characters stripped from terminal output
+-   Syntax errors that don't appear when running manually
+
+**Solution:**
+This is a known bug in output processing. Workarounds:
+
+-   Recommend AI to use file output instead: `command > output.txt` then read the file
+-   This family of issues is only partially solved in latest cline versions so if you still face this then raise a github issue for this if this a persistent problem.
+
+### 4. Long-Running Commands & Progress Bars
+
+**Symptoms:**
+
+-   Docker builds never complete in Cline
+-   Progress bars consume thousands of tokens
+-   "Proceed while running" doesn't work properly
+
+**Solutions:**
+This family of issues has been totally solved in latest cline versions but if you still face this then raise a github issue for this.
+
+## Terminal Settings Explained
+
+Access these in Cline by clicking the settings icon → Terminal section:
+
+### Default Terminal Profile
+
+-   **What it does**: Selects which shell Cline uses for commands
+-   **When to change**: If experiencing shell integration issues with your default shell
+-   **Recommended**:
+    -   macOS: bash (if zsh has issues)
+    -   Windows: PowerShell 7
+    -   Linux: bash
+
+### Shell Integration Timeout
+
+-   **What it does**: How long Cline waits for the terminal to be ready
+-   **Default**: 4 seconds
+-   **When to increase**:
+    -   Slow shell startup (heavy .zshrc/.bashrc)
+    -   WSL environments
+    -   SSH connections
+-   **Recommended**: Start with 10 seconds if having issues
+
+### Enable Aggressive Terminal Reuse
+
+-   **What it does**: Reuses existing terminals even if not in the correct directory
+-   **When to disable**:
+    -   Commands execute in wrong directory
+    -   Virtual environment issues
+    -   Terminal state corruption
+-   **Trade-off**: Disabling creates more terminals but ensures clean state
+
+### Terminal Output Line Limit
+
+-   **What it does**: Limits how many lines Cline reads from terminal output
+-   **Default**: 500 lines
+-   **When to adjust**:
+    -   Increase for verbose build outputs
+    -   Decrease if hitting token limits
+    -   Set to 100 for commands with progress bars
+
+## Platform-Specific Solutions
+
+### macOS Issues
+
+#### Oh-My-Zsh Conflicts
+
+Oh-My-Zsh often interferes with shell integration. Solutions:
+
+1. Create a minimal `.zshrc` for VSCode:
+    ```bash
+    # ~/.zshrc-vscode
+    export TERM=xterm-256color
+    export PAGER=cat
+    # Minimal PATH and environment setup
+    ```
+2. Configure VSCode to use it:
+    ```json
+    {
+    	"terminal.integrated.env.osx": {
+    		"ZDOTDIR": "~/.zshrc-vscode"
+    	}
+    }
+    ```
+
+#### macOS 15+ Issues
+
+Recent macOS versions have stricter terminal permissions:
+
+1. System Preferences → Privacy & Security → Developer Tools
+2. Add Visual Studio Code
+3. Restart VSCode completely
+
+### Windows Issues
+
+#### PowerShell Execution Policy
+
+If commands fail silently:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+#### WSL Integration
+
+For WSL issues:
+
+1. Use WSL extension for VSCode
+2. Open folder in WSL: `code .` from WSL terminal
+3. Select "WSL Bash" as terminal profile in Cline
+
+#### Path Issues
+
+Windows path problems:
+
+1. Use forward slashes in Cline: `C:/Users/...`
+2. Quote paths with spaces: `"C:/Program Files/..."`
+3. Avoid `~` - use full paths
+
+### Linux/SSH/Container Issues
+
+#### SSH Connections
+
+For remote development:
+
+1. Install Cline on the remote machine, not locally
+2. Use SSH extension's integrated terminal
+3. Increase timeout to 15+ seconds
+
+#### Docker Containers
+
+When developing in containers:
+
+1. Install Cline in the container
+2. Use Dev Containers extension
+3. Ensure shell integration scripts are available
+
+## Shell-Specific Fixes
+
+### Zsh
+
+```bash
+# Add to ~/.zshrc
+export TERM=xterm-256color
+export PAGER=cat
+# Disable fancy prompts for VSCode
+if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+    PS1="%n@%m %1~ %# "
+fi
+```
+
+### Bash
+
+```bash
+# Add to ~/.bashrc
+export TERM=xterm-256color
+export PAGER=cat
+# Simple prompt for VSCode
+if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+    PS1='\u@\h:\w\$ '
+fi
+```
+
+### Fish
+
+```fish
+# Add to ~/.config/fish/config.fish
+set -x TERM xterm-256color
+set -x PAGER cat
+# Disable fancy features in VSCode
+if test "$TERM_PROGRAM" = "vscode"
+    function fish_prompt
+        echo (whoami)'@'(hostname)':'(pwd)'> '
+    end
+end
+```
+
+### PowerShell
+
+```powershell
+# Add to $PROFILE
+$env:PAGER = "cat"
+# Disable progress bars
+$ProgressPreference = 'SilentlyContinue'
+```
+
+## Advanced Troubleshooting
+
+### Debug Mode
+
+Enable terminal debugging to see what's happening:
+
+1. Open VSCode Command Palette (Cmd/Ctrl+Shift+P)
+2. Run: "Developer: Set Log Level..."
+3. Choose "Trace"
+4. Check Output panel → "Cline" for terminal logs
+
+### Manual Shell Integration Test
+
+Test if shell integration works at all:
+
+```bash
+# In VSCode terminal
+echo $TERM_PROGRAM  # Should show "vscode"
+echo $VSCODE_SHELL_INTEGRATION  # Should be "1"
+```
+
+## FAQ
+
+### Why does Cline create so many terminals?
+
+When shell integration fails, Cline can't reuse terminals safely (they might be running long processes). Enable shell integration or adjust the terminal reuse setting.
+
+### Can I use my custom shell (nushell, xonsh, etc.)?
+
+Cline officially supports bash, zsh, fish, and PowerShell. Custom shells may work but aren't guaranteed. Use bash as a fallback.
+
+### Why do some commands work but others don't?
+
+Commands that use interactive features (pagers, progress bars, curses) often fail. Set `PAGER=cat` and use non-interactive flags.
+
+### How do I know if shell integration is working?
+
+Working integration shows command output in Cline's chat. Failed integration shows "Shell Integration Unavailable" or "[Command is running but producing no output]".
+
+## Still Having Issues?
+
+If you've tried everything:
+
+1. **Collect Debug Info**:
+
+    ```bash
+    echo "Shell: $SHELL"
+    echo "Term: $TERM"
+    echo "VSCode: $TERM_PROGRAM"
+    which bash
+    bash --version
+    ```
+
+2. **Report the Issue**:
+    - Use `/reportbug` in Cline github issues
+    - Include your debug info
+    - Mention which solutions you tried
+
+Remember: Most terminal issues are resolved by switching to bash and increasing the timeout. Start there before trying complex solutions.

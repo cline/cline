@@ -1,0 +1,50 @@
+---
+title: "Terminal Quick Fixes"
+sidebarTitle: "Terminal Quick Fixes"
+description: "Quick solutions for common terminal issues"
+---
+
+### 🚨 Shell Integration Unavailable or Command Output Not Visible
+
+**Try these in order:**
+
+1. **Switch to bash** (90% success rate)
+
+    - Settings → Terminal → Default Terminal Profile → bash
+    - Restart VSCode
+
+2. **Increase timeout**
+
+    - Settings → Terminal → Shell integration timeout → 10 seconds
+
+3. **Disable terminal reuse**
+    - Settings → Terminal → Uncheck "Enable aggressive terminal reuse"
+
+**Quick fixes:**
+
+## 🖥️ Platform-Specific Fixes
+
+### macOS + Oh-My-Zsh
+
+```bash
+# Create minimal config for VSCode
+echo 'export TERM=xterm-256color' > ~/.zshrc-vscode
+echo 'export PAGER=cat' >> ~/.zshrc-vscode
+```
+
+### Windows PowerShell
+
+```powershell
+# Run as Administrator
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### WSL
+
+-   Open folder from WSL: `code .`
+-   Select "WSL Bash" in Cline settings
+-   Increase timeout to 15 seconds
+
+## 📚 Full Guide
+
+For detailed troubleshooting, see the [Complete Terminal Troubleshooting Guide](/troubleshooting/terminal-integration-guide).
