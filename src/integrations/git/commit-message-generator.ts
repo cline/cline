@@ -135,7 +135,6 @@ async function editCommitMessage(message: string): Promise<void> {
 
 	await getHostBridgeProvider().windowClient.showTextDocument(
 		ShowTextDocumentRequest.create({
-			metadata: Metadata.create({}),
 			uri: document.uri.toString(),
 		}),
 	)

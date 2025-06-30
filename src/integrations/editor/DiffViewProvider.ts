@@ -241,7 +241,6 @@ export class DiffViewProvider {
 
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				metadata: Metadata.create({}),
 				uri: vscode.Uri.file(absolutePath).toString(),
 				options: ShowTextDocumentOptions.create({
 					preview: false,
@@ -348,7 +347,6 @@ export class DiffViewProvider {
 			if (this.documentWasOpen) {
 				await getHostBridgeProvider().windowClient.showTextDocument(
 					ShowTextDocumentRequest.create({
-						metadata: Metadata.create({}),
 						uri: vscode.Uri.file(absolutePath).toString(),
 						options: ShowTextDocumentOptions.create({
 							preview: false,
@@ -393,7 +391,6 @@ export class DiffViewProvider {
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
 			const editorInfo = await getHostBridgeProvider().windowClient.showTextDocument(
 				ShowTextDocumentRequest.create({
-					metadata: Metadata.create({}),
 					uri: diffTab.input.modified.toString(),
 					options: ShowTextDocumentOptions.create({
 						preserveFocus: true,
