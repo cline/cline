@@ -143,7 +143,7 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
  * @param startIndex - The character index in originalContent where to start searching
  * @returns A tuple of [startIndex, endIndex] if a match is found, false otherwise
  */
-function blockAnchorFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number] | false {
+function blockAnchorFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number, number] | false {
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
 
@@ -213,7 +213,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 			for (let k = 0; k < searchBlockSize; k++) {
 				matchEndIndex += originalLines[i + k].length + 1
 			}
-			return [matchStartIndex, matchEndIndex]
+			return [matchStartIndex, matchEndIndex, similarity]
 		}
 		return false
 	}
@@ -253,7 +253,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 		for (let k = 0; k < searchBlockSize; k++) {
 			matchEndIndex += originalLines[i + k].length + 1
 		}
-		return [matchStartIndex, matchEndIndex]
+		return [matchStartIndex, matchEndIndex, maxSimilarity]
 	}
 
 	return false
@@ -345,6 +345,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		end: number; 
 		content: string;
 		method: string;
+		similarity: number;
 	}>;
 }> {
 	let result = ""
@@ -358,6 +359,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
 	let matchMethod = ""
+	let similarityScore = -1.0
 
 	// Track all replacements to handle out-of-order edits
 	let replacements: Array<{ 
@@ -365,6 +367,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		end: number; 
 		content: string;
 		method: string;
+		similarity: number;
 	}> = []
 	let pendingOutOfOrderReplacement = false
 
@@ -447,7 +450,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 						// Try block anchor fallback for larger blocks
 						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
-							;[searchMatchIndex, searchEndIndex] = blockMatch
+							;[searchMatchIndex, searchEndIndex, similarityScore] = blockMatch
 							matchMethod = "block_anchor_fallback"
 						} else {
 							// Last resort: search the entire file from the beginning
@@ -491,6 +494,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				end: searchEndIndex,
 				content: currentReplaceContent,
 				method: matchMethod,
+				similarity: similarityScore,
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -505,6 +509,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			currentReplaceContent = ""
 			searchMatchIndex = -1
 			searchEndIndex = -1
+			similarityScore = -1.0
 			pendingOutOfOrderReplacement = false
 			continue
 		}
@@ -535,6 +540,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				end: searchEndIndex,
 				content: currentReplaceContent,
 				method: matchMethod,
+				similarity: similarityScore,
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
