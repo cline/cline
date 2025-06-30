@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "語言模型供應商（例如：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "語言模型系列（例如：gpt-4）",
 	"settings.customStoragePath.description": "自訂儲存路徑。留空以使用預設位置。支援絕對路徑（例如：'D:\\RooCodeStorage'）",
-	"settings.enableCodeActions.description": "啟用 Roo Code 快速修復。"
+	"settings.enableCodeActions.description": "啟用 Roo Code 快速修復。",
+	"settings.autoImportSettingsPath.description": "RooCode 設定檔案的路徑，用於在擴充功能啟動時自動匯入。支援絕對路徑和相對於主目錄的路徑（例如 '~/Documents/roo-code-settings.json'）。留空以停用自動匯入。"
 }

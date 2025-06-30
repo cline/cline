@@ -14,7 +14,7 @@ import { ContextProxy } from "./ContextProxy"
 import { CustomModesManager } from "./CustomModesManager"
 import { t } from "../../i18n"
 
-type ImportOptions = {
+export type ImportOptions = {
 	providerSettingsManager: ProviderSettingsManager
 	contextProxy: ContextProxy
 	customModesManager: CustomModesManager
@@ -24,7 +24,6 @@ type ExportOptions = {
 	providerSettingsManager: ProviderSettingsManager
 	contextProxy: ContextProxy
 }
-
 type ImportWithProviderOptions = ImportOptions & {
 	provider: {
 		settingsImportedAt?: number
@@ -33,33 +32,14 @@ type ImportWithProviderOptions = ImportOptions & {
 }
 
 /**
- * Import settings from a file using a file dialog
- * @param options - Import options containing managers and proxy
- * @returns Promise resolving to import result
+ * Imports configuration from a specific file path
+ * Shares base functionality for import settings for both the manual
+ * and automatic settings importing
  */
-export const importSettings = async ({ providerSettingsManager, contextProxy, customModesManager }: ImportOptions) => {
-	const uris = await vscode.window.showOpenDialog({
-		filters: { JSON: ["json"] },
-		canSelectMany: false,
-	})
-
-	if (!uris) {
-		return { success: false, error: "User cancelled file selection" }
-	}
-
-	return await importSettingsFromFile({ providerSettingsManager, contextProxy, customModesManager }, uris[0])
-}
-
-/**
- * Import settings from a specific file
- * @param options - Import options containing managers and proxy
- * @param fileUri - URI of the file to import from
- * @returns Promise resolving to import result
- */
-export const importSettingsFromFile = async (
+export async function importSettingsFromPath(
+	filePath: string,
 	{ providerSettingsManager, contextProxy, customModesManager }: ImportOptions,
-	fileUri: vscode.Uri,
-) => {
+) {
 	const schema = z.object({
 		providerProfiles: providerProfilesSchema,
 		globalSettings: globalSettingsSchema.optional(),
@@ -68,8 +48,9 @@ export const importSettingsFromFile = async (
 	try {
 		const previousProviderProfiles = await providerSettingsManager.export()
 
-		const data = JSON.parse(await fs.readFile(fileUri.fsPath, "utf-8"))
-		const { providerProfiles: newProviderProfiles, globalSettings = {} } = schema.parse(data)
+		const { providerProfiles: newProviderProfiles, globalSettings = {} } = schema.parse(
+			JSON.parse(await fs.readFile(filePath, "utf-8")),
+		)
 
 		const providerProfiles = {
 			currentApiConfigName: newProviderProfiles.currentApiConfigName,
@@ -119,6 +100,45 @@ export const importSettingsFromFile = async (
 	}
 }
 
+/**
+ * Import settings from a file using a file dialog
+ * @param options - Import options containing managers and proxy
+ * @returns Promise resolving to import result
+ */
+export const importSettings = async ({ providerSettingsManager, contextProxy, customModesManager }: ImportOptions) => {
+	const uris = await vscode.window.showOpenDialog({
+		filters: { JSON: ["json"] },
+		canSelectMany: false,
+	})
+
+	if (!uris) {
+		return { success: false, error: "User cancelled file selection" }
+	}
+
+	return importSettingsFromPath(uris[0].fsPath, {
+		providerSettingsManager,
+		contextProxy,
+		customModesManager,
+	})
+}
+
+/**
+ * Import settings from a specific file
+ * @param options - Import options containing managers and proxy
+ * @param fileUri - URI of the file to import from
+ * @returns Promise resolving to import result
+ */
+export const importSettingsFromFile = async (
+	{ providerSettingsManager, contextProxy, customModesManager }: ImportOptions,
+	fileUri: vscode.Uri,
+) => {
+	return importSettingsFromPath(fileUri.fsPath, {
+		providerSettingsManager,
+		contextProxy,
+		customModesManager,
+	})
+}
+
 export const exportSettings = async ({ providerSettingsManager, contextProxy }: ExportOptions) => {
 	const uri = await vscode.window.showSaveDialog({
 		filters: { JSON: ["json"] },
@@ -162,13 +182,13 @@ export const importSettingsWithFeedback = async (
 	if (filePath) {
 		// Validate file path and check if file exists
 		try {
-			const fileUri = vscode.Uri.file(filePath)
 			// Check if file exists and is readable
-			await fs.access(fileUri.fsPath, fs.constants.F_OK | fs.constants.R_OK)
-			result = await importSettingsFromFile(
-				{ providerSettingsManager, contextProxy, customModesManager },
-				fileUri,
-			)
+			await fs.access(filePath, fs.constants.F_OK | fs.constants.R_OK)
+			result = await importSettingsFromPath(filePath, {
+				providerSettingsManager,
+				contextProxy,
+				customModesManager,
+			})
 		} catch (error) {
 			result = {
 				success: false,

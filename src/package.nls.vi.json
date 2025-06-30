@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "Nhà cung cấp mô hình ngôn ngữ (ví dụ: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Họ mô hình ngôn ngữ (ví dụ: gpt-4)",
 	"settings.customStoragePath.description": "Đường dẫn lưu trữ tùy chỉnh. Để trống để sử dụng vị trí mặc định. Hỗ trợ đường dẫn tuyệt đối (ví dụ: 'D:\\RooCodeStorage')",
-	"settings.enableCodeActions.description": "Bật sửa lỗi nhanh Roo Code."
+	"settings.enableCodeActions.description": "Bật sửa lỗi nhanh Roo Code.",
+	"settings.autoImportSettingsPath.description": "Đường dẫn đến tệp cấu hình RooCode để tự động nhập khi khởi động tiện ích mở rộng. Hỗ trợ đường dẫn tuyệt đối và đường dẫn tương đối đến thư mục chính (ví dụ: '~/Documents/roo-code-settings.json'). Để trống để tắt tính năng tự động nhập."
 }

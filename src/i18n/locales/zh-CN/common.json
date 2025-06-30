@@ -85,7 +85,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
-		"missing_task_files": "此任务的文件丢失。您想从任务列表中删除它吗？"
+		"missing_task_files": "此任务的文件丢失。您想从任务列表中删除它吗？",
+		"auto_import_failed": "自动导入 RooCode 设置失败：{{error}}"
 	},
 	"info": {
 		"no_changes": "未找到更改。",
@@ -94,6 +95,7 @@
 		"custom_storage_path_set": "自定义存储路径已设置：{{path}}",
 		"default_storage_path": "已恢复使用默认存储路径",
 		"settings_imported": "设置已成功导入。",
+		"auto_import_success": "已自动导入 RooCode 设置：{{filename}}",
 		"share_link_copied": "分享链接已复制到剪贴板",
 		"image_copied_to_clipboard": "图片数据 URI 已复制到剪贴板",
 		"image_saved": "图片已保存到 {{path}}",

@@ -80,7 +80,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端機內容",
-		"missing_task_files": "此工作的檔案遺失。您想從工作列表中刪除它嗎？"
+		"missing_task_files": "此工作的檔案遺失。您想從工作列表中刪除它嗎？",
+		"auto_import_failed": "自動匯入 RooCode 設定失敗：{{error}}"
 	},
 	"info": {
 		"no_changes": "沒有找到更改。",
@@ -89,6 +90,7 @@
 		"custom_storage_path_set": "自訂儲存路徑已設定：{{path}}",
 		"default_storage_path": "已恢復使用預設儲存路徑",
 		"settings_imported": "設定已成功匯入。",
+		"auto_import_success": "已自動匯入 RooCode 設定：{{filename}}",
 		"share_link_copied": "分享連結已複製到剪貼簿",
 		"image_copied_to_clipboard": "圖片資料 URI 已複製到剪貼簿",
 		"image_saved": "圖片已儲存至 {{path}}",

@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "O fornecedor do modelo de linguagem (ex: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "A família do modelo de linguagem (ex: gpt-4)",
 	"settings.customStoragePath.description": "Caminho de armazenamento personalizado. Deixe vazio para usar o local padrão. Suporta caminhos absolutos (ex: 'D:\\RooCodeStorage')",
-	"settings.enableCodeActions.description": "Habilitar correções rápidas do Roo Code."
+	"settings.enableCodeActions.description": "Habilitar correções rápidas do Roo Code.",
+	"settings.autoImportSettingsPath.description": "Caminho para um arquivo de configuração do RooCode para importar automaticamente na inicialização da extensão. Suporta caminhos absolutos e caminhos relativos ao diretório inicial (por exemplo, '~/Documents/roo-code-settings.json'). Deixe em branco para desativar a importação automática."
 }

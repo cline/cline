@@ -80,7 +80,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "Nie wybrano zawartości terminala",
-		"missing_task_files": "Pliki tego zadania są brakujące. Czy chcesz usunąć je z listy zadań?"
+		"missing_task_files": "Pliki tego zadania są brakujące. Czy chcesz usunąć je z listy zadań?",
+		"auto_import_failed": "Nie udało się automatycznie zaimportować ustawień RooCode: {{error}}"
 	},
 	"info": {
 		"no_changes": "Nie znaleziono zmian.",
@@ -89,6 +90,7 @@
 		"custom_storage_path_set": "Ustawiono niestandardową ścieżkę przechowywania: {{path}}",
 		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania",
 		"settings_imported": "Ustawienia zaimportowane pomyślnie.",
+		"auto_import_success": "Ustawienia RooCode zostały automatycznie zaimportowane z {{filename}}",
 		"share_link_copied": "Link udostępniania skopiowany do schowka",
 		"image_copied_to_clipboard": "URI danych obrazu skopiowane do schowka",
 		"image_saved": "Obraz zapisany w {{path}}",

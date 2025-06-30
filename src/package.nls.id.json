@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "Vendor dari model bahasa (misalnya copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Keluarga dari model bahasa (misalnya gpt-4)",
 	"settings.customStoragePath.description": "Path penyimpanan kustom. Biarkan kosong untuk menggunakan lokasi default. Mendukung path absolut (misalnya 'D:\\RooCodeStorage')",
-	"settings.enableCodeActions.description": "Aktifkan perbaikan cepat Roo Code."
+	"settings.enableCodeActions.description": "Aktifkan perbaikan cepat Roo Code.",
+	"settings.autoImportSettingsPath.description": "Path ke file konfigurasi RooCode untuk diimpor secara otomatis saat ekstensi dimulai. Mendukung path absolut dan path relatif terhadap direktori home (misalnya '~/Documents/roo-code-settings.json'). Biarkan kosong untuk menonaktifkan impor otomatis."
 }

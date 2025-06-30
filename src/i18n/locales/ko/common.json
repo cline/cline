@@ -80,7 +80,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "선택된 터미널 내용이 없습니다",
-		"missing_task_files": "이 작업의 파일이 누락되었습니다. 작업 목록에서 제거하시겠습니까?"
+		"missing_task_files": "이 작업의 파일이 누락되었습니다. 작업 목록에서 제거하시겠습니까?",
+		"auto_import_failed": "RooCode 설정 자동 가져오기 실패: {{error}}"
 	},
 	"info": {
 		"no_changes": "변경 사항이 없습니다.",
@@ -89,6 +90,7 @@
 		"custom_storage_path_set": "사용자 지정 저장 경로 설정됨: {{path}}",
 		"default_storage_path": "기본 저장 경로로 되돌아갔습니다",
 		"settings_imported": "설정이 성공적으로 가져와졌습니다.",
+		"auto_import_success": "{{filename}}에서 RooCode 설정을 자동으로 가져왔습니다",
 		"share_link_copied": "공유 링크가 클립보드에 복사되었습니다",
 		"image_copied_to_clipboard": "이미지 데이터 URI가 클립보드에 복사되었습니다",
 		"image_saved": "이미지가 {{path}}에 저장되었습니다",

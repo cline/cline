@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "भाषा मॉडल का विक्रेता (उदा. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "भाषा मॉडल का परिवार (उदा. gpt-4)",
 	"settings.customStoragePath.description": "कस्टम स्टोरेज पाथ। डिफ़ॉल्ट स्थान का उपयोग करने के लिए खाली छोड़ें। पूर्ण पथ का समर्थन करता है (उदा. 'D:\\RooCodeStorage')",
-	"settings.enableCodeActions.description": "Roo Code त्वरित सुधार सक्षम करें"
+	"settings.enableCodeActions.description": "Roo Code त्वरित सुधार सक्षम करें",
+	"settings.autoImportSettingsPath.description": "RooCode कॉन्फ़िगरेशन फ़ाइल का पथ जिसे एक्सटेंशन स्टार्टअप पर स्वचालित रूप से आयात किया जाएगा। होम डायरेक्टरी के सापेक्ष पूर्ण पथ और पथों का समर्थन करता है (उदाहरण के लिए '~/Documents/roo-code-settings.json')। ऑटो-इंपोर्ट को अक्षम करने के लिए खाली छोड़ दें।"
 }

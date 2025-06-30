@@ -80,7 +80,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",
-		"missing_task_files": "This task's files are missing. Would you like to remove it from the task list?"
+		"missing_task_files": "This task's files are missing. Would you like to remove it from the task list?",
+		"auto_import_failed": "Failed to auto-import RooCode settings: {{error}}"
 	},
 	"info": {
 		"no_changes": "No changes found.",
@@ -89,6 +90,7 @@
 		"custom_storage_path_set": "Custom storage path set: {{path}}",
 		"default_storage_path": "Reverted to using default storage path",
 		"settings_imported": "Settings imported successfully.",
+		"auto_import_success": "RooCode settings automatically imported from {{filename}}",
 		"share_link_copied": "Share link copied to clipboard",
 		"organization_share_link_copied": "Organization share link copied to clipboard!",
 		"public_share_link_copied": "Public share link copied to clipboard!",

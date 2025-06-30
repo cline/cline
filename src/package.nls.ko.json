@@ -31,5 +31,6 @@
 	"settings.vsCodeLmModelSelector.vendor.description": "언어 모델 공급자 (예: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "언어 모델 계열 (예: gpt-4)",
 	"settings.customStoragePath.description": "사용자 지정 저장소 경로. 기본 위치를 사용하려면 비워두세요. 절대 경로를 지원합니다 (예: 'D:\\RooCodeStorage')",
-	"settings.enableCodeActions.description": "Roo Code 빠른 수정 사용 설정"
+	"settings.enableCodeActions.description": "Roo Code 빠른 수정 사용 설정",
+	"settings.autoImportSettingsPath.description": "확장 프로그램 시작 시 자동으로 가져올 RooCode 구성 파일의 경로입니다. 절대 경로 및 홈 디렉토리에 대한 상대 경로를 지원합니다(예: '~/Documents/roo-code-settings.json'). 자동 가져오기를 비활성화하려면 비워 둡니다."
 }

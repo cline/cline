@@ -80,7 +80,8 @@
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
-		"missing_task_files": "このタスクのファイルが見つかりません。タスクリストから削除しますか？"
+		"missing_task_files": "このタスクのファイルが見つかりません。タスクリストから削除しますか？",
+		"auto_import_failed": "RooCode設定の自動インポートに失敗しました：{{error}}"
 	},
 	"info": {
 		"no_changes": "変更は見つかりませんでした。",
@@ -89,6 +90,7 @@
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
 		"default_storage_path": "デフォルトのストレージパスに戻りました",
 		"settings_imported": "設定が正常にインポートされました。",
+		"auto_import_success": "RooCode設定が{{filename}}から自動インポートされました",
 		"share_link_copied": "共有リンクがクリップボードにコピーされました",
 		"image_copied_to_clipboard": "画像データURIがクリップボードにコピーされました",
 		"image_saved": "画像を{{path}}に保存しました",
