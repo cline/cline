@@ -137,7 +137,7 @@ async function editCommitMessage(message: string): Promise<void> {
 		ShowTextDocumentRequest.create({
 			metadata: Metadata.create({}),
 			uri: document.uri.toString(),
-		})
+		}),
 	)
 	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
 }

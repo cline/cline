@@ -50,7 +50,7 @@ export async function openFile(absolutePath: string) {
 				metadata: Metadata.create({}),
 				uri: document.uri.toString(),
 				options: ShowTextDocumentOptions.create({ preview: false }),
-			})
+			}),
 		)
 	} catch (error) {
 		vscode.window.showErrorMessage(`Could not open file!`)

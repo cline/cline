@@ -46,7 +46,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 					metadata: Metadata.create({}),
 					uri: saveUri.toString(),
 					options: ShowTextDocumentOptions.create({ preview: true }),
-				})
+				}),
 			)
 		} catch (error) {
 			vscode.window.showErrorMessage(

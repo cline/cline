@@ -247,7 +247,7 @@ export class DiffViewProvider {
 					preview: false,
 					preserveFocus: true,
 				}),
-			})
+			}),
 		)
 		await this.closeAllDiffViews()
 
@@ -354,7 +354,7 @@ export class DiffViewProvider {
 							preview: false,
 							preserveFocus: true,
 						}),
-					})
+					}),
 				)
 			}
 			await this.closeAllDiffViews()
@@ -398,12 +398,10 @@ export class DiffViewProvider {
 					options: ShowTextDocumentOptions.create({
 						preserveFocus: true,
 					}),
-				})
+				}),
 			)
 			// Find the editor that matches the returned URI
-			const editor = vscode.window.visibleTextEditors.find(
-				(e) => e.document.uri.toString() === editorInfo.documentUri
-			)
+			const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === editorInfo.documentUri)
 			if (!editor) {
 				throw new Error("Failed to find opened text editor")
 			}
