@@ -76,8 +76,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const previousVersion = context.globalState.get<string>("clineVersion")
 	const sidebarWebview = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
 
+	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
-	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
+	context.subscriptions.push(...testModeWatchers)
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
