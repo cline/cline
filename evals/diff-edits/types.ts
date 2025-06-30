@@ -81,6 +81,7 @@ export interface TestResult {
 	diffEdit?: string
 	toolCalls?: ExtractedToolCall[]
 	diffEditSuccess?: boolean
+	replacementData?: any
 	error?: string
 	errorString?: string
 }

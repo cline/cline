@@ -16,6 +16,7 @@ interface RunDiffEvalOptions {
 	replay: boolean
 	replayRunId?: string
 	diffApplyFile?: string
+	saveLocally: boolean
 	maxCases?: number
 }
 
@@ -72,6 +73,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	if (options.maxCases) {
 		args.push("--max-cases", String(options.maxCases))
+	}
+
+	if (options.saveLocally) {
+		args.push("--save-locally")
 	}
 
 	try {
