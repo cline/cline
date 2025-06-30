@@ -1367,9 +1367,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	return (
 		<div className={isHidden ? "hidden" : "fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden"}>
-			{/* Version indicator in top-right corner */}
-			<VersionIndicator onClick={() => setShowAnnouncementModal(true)} className="absolute top-2 right-3 z-10" />
-
 			{(showAnnouncement || showAnnouncementModal) && (
 				<Announcement
 					hideAnnouncement={() => {
@@ -1410,7 +1407,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					)}
 				</>
 			) : (
-				<div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+				<div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 relative">
 					{/* Moved Task Bar Header Here */}
 					{tasks.length !== 0 && (
 						<div className="flex text-vscode-descriptionForeground w-full mx-auto px-5 pt-3">
@@ -1426,6 +1423,12 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					)}
 					<div
 						className={` w-full flex flex-col gap-4 m-auto ${isExpanded && tasks.length > 0 ? "mt-0" : ""} px-3.5 min-[370px]:px-10 pt-5 transition-all duration-300`}>
+						{/* Version indicator in top-right corner - only on welcome screen */}
+						<VersionIndicator
+							onClick={() => setShowAnnouncementModal(true)}
+							className="absolute top-2 right-3 z-10"
+						/>
+
 						<RooHero />
 						{telemetrySetting === "unset" && <TelemetryBanner />}
 						{/* Show the task history preview if expanded and tasks exist */}
