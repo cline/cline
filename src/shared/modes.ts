@@ -60,17 +60,8 @@ export function getToolsForMode(groups: readonly GroupEntry[]): string[] {
 }
 
 // Main modes configuration as an ordered array
+// Note: The first mode in this array is the default mode for new installations
 export const modes: readonly ModeConfig[] = [
-	{
-		slug: "code",
-		name: "💻 Code",
-		roleDefinition:
-			"You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.",
-		whenToUse:
-			"Use this mode when you need to write, modify, or refactor code. Ideal for implementing features, fixing bugs, creating new files, or making code improvements across any programming language or framework.",
-		description: "Write, modify, and refactor code",
-		groups: ["read", "edit", "browser", "command", "mcp"],
-	},
 	{
 		slug: "architect",
 		name: "🏗️ Architect",
@@ -82,6 +73,16 @@ export const modes: readonly ModeConfig[] = [
 		groups: ["read", ["edit", { fileRegex: "\\.md$", description: "Markdown files only" }], "browser", "mcp"],
 		customInstructions:
 			"1. Do some information gathering (for example using read_file or search_files) to get more context about the task.\n\n2. You should also ask the user clarifying questions to get a better understanding of the task.\n\n3. Once you've gained more context about the user's request, you should create a detailed plan for how to accomplish the task. Include Mermaid diagrams if they help make your plan clearer.\n\n4. Ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.\n\n5. Once the user confirms the plan, ask them if they'd like you to write it to a markdown file.\n\n6. Use the switch_mode tool to request that the user switch to another mode to implement the solution.",
+	},
+	{
+		slug: "code",
+		name: "💻 Code",
+		roleDefinition:
+			"You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.",
+		whenToUse:
+			"Use this mode when you need to write, modify, or refactor code. Ideal for implementing features, fixing bugs, creating new files, or making code improvements across any programming language or framework.",
+		description: "Write, modify, and refactor code",
+		groups: ["read", "edit", "browser", "command", "mcp"],
 	},
 	{
 		slug: "ask",

@@ -12,7 +12,7 @@ Mode-specific Instructions:
 Mode-specific instructions
 
 Rules:
-# Rules from .clinerules-code:
+# Rules from .clinerules-architect:
 Mock mode-specific rules
 # Rules from .clinerules:
 Mock generic rules
