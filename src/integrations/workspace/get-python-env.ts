@@ -1,3 +1,4 @@
+import { getCwd } from "@/utils/path"
 import * as vscode from "vscode"
 
 /*
@@ -28,12 +29,12 @@ export async function getPythonEnvPath(): Promise<string | undefined> {
 	// Access the Python extension API
 	const pythonApi = pythonExtension.exports
 	// Get the active environment path for the current workspace
-	const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+	const workspaceFolder = await getCwd()
 	if (!workspaceFolder) {
 		return undefined
 	}
 	// Get the active python environment path for the current workspace
-	const pythonEnv = await pythonApi?.environments?.getActiveEnvironmentPath(workspaceFolder.uri)
+	const pythonEnv = await pythonApi?.environments?.getActiveEnvironmentPath(workspaceFolder)
 	if (pythonEnv && pythonEnv.path) {
 		return pythonEnv.path
 	} else {
