@@ -281,6 +281,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
+			dictationSettings,
 		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -1565,7 +1566,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: `9px ${chatSettings?.voiceRecordingEnabled ? "48" : "28"}px 9px 9px`,
+							padding: `9px ${dictationSettings?.voiceRecordingEnabled ? "48" : "28"}px 9px 9px`,
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1617,7 +1618,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								flexDirection: "row",
 								alignItems: "center",
 							}}>
-							{chatSettings?.voiceRecordingEnabled === true && (
+							{dictationSettings?.voiceRecordingEnabled === true && (
 								<VoiceRecorder
 									onTranscription={(text) => {
 										// Remove any processing text first
@@ -1643,6 +1644,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										// When processing is done, the onTranscription callback will handle the final text
 									}}
 									disabled={sendingDisabled}
+									language={dictationSettings?.dictationLanguage || "en"}
 								/>
 							)}
 							{/* <div
