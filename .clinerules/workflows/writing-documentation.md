@@ -1,4 +1,123 @@
-# Guide to Conveying New Features in Documentation
+# General writing guide
+
+# How I want you to write 
+
+I'm gonna write something technical.
+
+It's often less about the nitty-gritty details of the tech stuff and more about learning something new or getting a solution handed to me on a silver platter.
+
+Look, when I read, I want something out of it. So when I write, I gotta remember that my readers want something too. This whole piece? It's about cluing in anyone who writes for me, or wants me to write for them, on how I see this whole writing product thing.
+
+I'm gonna lay out a checklist of stuff I'd like to have. It'll make the whole writing gig a bit smoother, you know?
+
+## Crafting Compelling Titles
+
+I often come across titles like "How to do X with Y,Z technology." These don't excite me because X or Y are usually unfamiliar unless they're already well-known. Its rarely the dream to use X unless X is the dream. 
+
+My dream isn’t to use instructor, its to do something valueble with the data it extracts
+
+An effective title should:
+
+- Evoke an emotional response
+- Highlight someone's goal
+- Offer a dream or aspiration
+- Challenge or comment on a belief
+- Address someone's problems
+
+I believe it's more impactful to write about specific problems. If this approach works, you can replicate it across various scenarios rather than staying too general.
+
+- Time management for everyone can be a 15$ ebook
+- Time management for executives is a 2000$ workshop
+
+Aim for titles that answer questions you think everyone is asking, or address thoughts people have but can't quite articulate.
+
+Instead of "How I do something" or "How to do something," frame it from the reader's perspective with "How you can do something." This makes the title more engaging. Just make sure the difference is advisory if the content is subjective. “How I made a million dollars” might be more reasonable than “How to make a million dollars” since you are the subject and the goal might be to share your story in hopes of helping others.
+
+This approach ultimately trains the reader to have a stronger emotional connection to your content.
+
+- "How I do X"
+- "How You Can do X"
+
+Between these two titles, it's obvious which one resonates more emotionally.
+
+You can take it further by adding specific conditions. For instance, you could target a particular audience or set a timeframe:
+
+- How to set up Braintrust
+- How to set up Braintrust in 5 minutes
+
+## NO adjectiives
+
+I want you to almost always avoid adjectives and try to use evidence instead. Instead of saying "production ready," you can write something like "scaling this to 100 servers or 1 million documents per second." Numbers like that will tell you exactly what the specificity of your product is. If you have to use adjectives rather than evidence, you are probably making something up. 
+
+There's no reason to say something like "blazingly fast" unless those things are already known phrases.
+
+Instead, say "200 times faster" or "30% faster." A 30% improvement in recommendation system speed is insane.
+
+There's a 200 times performance improvement because we went from one programming language to another. It's just something that's a little bit more expected and understandable.
+
+Another test that I really like using recently is tracking whether or not the statements you make can be:
+
+- Visualized
+- Proven false
+- Said only by you
+
+If you can nail all three, the claim you make will be more likely to resonate with an audience because only you can say it.
+
+Earlier this year, I had an example where I embedded all of Wikipedia in 17 minutes with 20 bucks, and it got half a million views. All we posted was a video of me kicking off the job, and then you can see all the log lines go through. You see the number of containers go from 1 out of 50 to 50 out of 50.
+
+It was easy to visualize and could have been proven false by being unreproducible. Lastly, Modal is the only company that could do that in such an effortless way, which made it unique.
+
+## Strong Introduction
+
+So, if you end up doing any kind of sales, you'll realize that.
+
+What you actually need to understand is not what you have to offer as the product, but the size of the pain that the prospect is going through.
+
+- There are going to be readers that are just kind of curious and bored. They're not really going to be the ones that care about the product itself unless you can contextualize the pain for them.
+- It's really important to have an introduction that contextualizes the pain and foreshadows the solution.
+
+If we can build that trust and I can correctly describe the pain that you are going through, then you will believe me when I am predicting the pain that you may also go through in the future. Ultimately, that is how you become a leader in the space—by demonstrating your ability to be right consistently.
+
+The next time you publish or write something, they will believe it, and they will believe that they get value from it.
+
+## Strong Hooks
+
+In the same sense that a title should often try to change the "how I" to a "how you" by eliciting an emotional response, the introduction can also help select the reader into a group that is feeling the pain.
+
+This is the same reason why a plumber will have an introduction that says, "Do you have a leaky faucet? Call 1-800-PLUMBERS." That's a much more selective hook than just "I'm the best plumber in town." You can say that to everybody, whereas if someone answers the question of whether they have a leaky faucet, it automatically selects them to be a part of their readership.
+
+I truly believe if you try to build a product too soon for everybody, you're gonna end up in a bad place.
+
+## Foreshadow Content
+
+Once you hook them, you still have to first retain them. You can do that by foreshadowing the content you'll cover and even hinting at the reward.
+
+For example, an introduction could look like the following:
+
+- If you're making $10,000 a month consulting right now, my goal at the end of this blog post is to help you increase your prices by:
+    - Asking the right questions so you understand the value of the solution you're offering.
+    - Providing tips on writing proposals and offering different options you can let your customer pay you more.
+    - Lastly, sharing some anecdotes with you on how I became more comfortable with charging two or three times more than I did when I started
+
+Here, I've pre-qualified the reader for a certain range and told them what their goal is by the end of the post.
+
+Two things are just the tips and the questions I'm going to suggest, and then the final reward is something a little bit more personal. Ideally, they read the first two knowing that my personal stories are coming after. That intro itself outlines the entire post. 
+
+## Keep It Digestible 
+    - Aim for 5-minute reads
+    - Write at a Grade 10 reading level
+    - Break up long paragraphs
+    - Use headers and bullet points
+
+## Make It Scannable
+    - Bold key points
+    - Use subheadings every 3-4 paragraphs
+    - Include plenty of white space
+    - Add relevant examples
+
+This structure works whether you're writing a tweet thread or a full blog post. The key is making complex ideas accessible.
+
+# Guide to Writing Cline Documentation
 
 ## The Four Essential Documentation Categories
 
@@ -80,7 +199,7 @@ I personally hate this pattern of bullet point **Bold Text** colon and then more
 
 </bad_example_of_writing>
 
-We should instead strive to write beautiful docs that read well. We can use bullet points but it should read like prose.
+We should instead strive to write beautiful docs that read well. We can use bullet points and numbered lists but it should read naturally and be delightful to look at hierachally when scanning through the doc. There should be a good balance between blocks of text, code snippets, paragraphs, numbered lists, and bullet points. When scanning the documentation visually, you should feel like you're adminiring a tasteful art piece.
 
 <good_example_of_writing>
 #### macOS
@@ -184,6 +303,56 @@ Use `<Tip>` components for helpful information that enhances the main content wi
 
 **Never** fall into that awful **Bold Text** - description pattern that we specifically identified as bad writing. The content should flow naturally as connected thoughts rather than feeling like a templated AI response with forced formatting.
 
+
+## When to Use Bullet Points and Numbered Lists Strategically
+
+Bullet points serve functional purposes - use them for:
+
+**Sequential actions or troubleshooting steps** where users need to follow a specific order:
+1. Install the extension
+2. Restart VSCode  
+3. Check the settings panel
+
+**Lists of related options** where users need to choose one approach:
+- Try PowerShell 7 for the most reliable experience
+- Switch to Command Prompt if you're still having issues
+- Use WSL Bash for Linux compatibility
+
+**Quick reference items** that users might need to scan quickly when problem-solving.
+
+**Improving Visual Hierarchy** when there's a wall of text - that's a good time to introduce bullet points or numbered lists.
+
+The key is that bullet points should have a clear functional purpose, not just be a formatting choice. Each bulleted item should be a discrete action or piece of information that benefits from being visually separated. This is a key weapon you can employ when going for that artwork experience I mentioned earlier. 
+
+## Write Like a Human, Not an AI
+
+Keep it short and direct. If you can say something in fewer words, do it. Long explanations often confuse more than they help.
+
+Use normal sentence lengths. Mix short and long sentences naturally, like you would when talking to someone. Avoid those meandering compound sentences that go on forever.
+
+Cut the corporate speak. Instead of "utilize," say "use." Instead of "in order to," just say "to." Write like you're explaining something to a colleague, not drafting a press release.
+
+Don't over-explain obvious things. If users are reading documentation, they probably understand basic concepts. Respect their intelligence.
+
+## Never use em dashes
+
+That's pretty much it. Never use them. Only AI writes with em dashes.
+
+# Anthropomorphizing Cline
+
+When referring to Cline, always call him a "him" not an "it". 
+
+Bad example:
+- When Cline can’t execute commands or read their output, you lose access to one of its most powerful capabilities.
+
+Good Example:
+
+- When Cline can’t execute commands or read their output, you lose access to one of his most powerful capabilities.
+
+# Using "I" when sharing your workflow
+
+Adding a personal touch goes a long way. There are great examples in the docs currently where I use "I" to share how I personally use cline, from dev to dev. It's a great technique.
+
 # Lastly, before you start writing docs
 
 First, internalize these guidelines. I mean it. 
@@ -196,3 +365,4 @@ Second, read some good examples that I personally wrote and am proud of:
 - docs/features/drag-and-drop.mdx
 
 Third, if the user specifies any other instructions make sure you follow them.
+
