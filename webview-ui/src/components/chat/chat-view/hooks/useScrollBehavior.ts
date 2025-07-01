@@ -32,8 +32,6 @@ export function useScrollBehavior(
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
-
-	// Smooth scroll to bottom with debounce
 	const scrollToBottomSmooth = useMemo(
 		() =>
 			debounce(
@@ -49,7 +47,7 @@ export function useScrollBehavior(
 		[],
 	)
 
-	// Instant scroll to bottom
+	// Smooth scroll to bottom with debounce
 	const scrollToBottomAuto = useCallback(() => {
 		virtuosoRef.current?.scrollTo({
 			top: Number.MAX_SAFE_INTEGER,
@@ -57,7 +55,6 @@ export function useScrollBehavior(
 		})
 	}, [])
 
-	// Scroll to specific message
 	const scrollToMessage = useCallback(
 		(messageIndex: number) => {
 			setPendingScrollToMessage(messageIndex)
@@ -113,7 +110,7 @@ export function useScrollBehavior(
 		[messages, visibleMessages, groupedMessages],
 	)
 
-	// Toggle row expansion with scroll handling
+	// scroll when user toggles certain rows
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
@@ -165,10 +162,9 @@ export function useScrollBehavior(
 				}
 			}
 		},
-		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom, setExpandedRows],
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
-	// Handle row height changes
 	const handleRowHeightChange = useCallback(
 		(isTaller: boolean) => {
 			if (!disableAutoScrollRef.current) {
@@ -184,23 +180,21 @@ export function useScrollBehavior(
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
-	// Auto-scroll when new messages arrive
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
 			setTimeout(() => {
 				scrollToBottomSmooth()
 			}, 50)
+			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
 	}, [groupedMessages.length, scrollToBottomSmooth])
 
-	// Handle pending scroll to message
 	useEffect(() => {
 		if (pendingScrollToMessage !== null) {
 			scrollToMessage(pendingScrollToMessage)
 		}
 	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
-	// Handle wheel events to detect manual scrolling
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
@@ -210,8 +204,7 @@ export function useScrollBehavior(
 			}
 		}
 	}, [])
-
-	useEvent("wheel", handleWheel, window, { passive: true })
+	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	return {
 		virtuosoRef,
