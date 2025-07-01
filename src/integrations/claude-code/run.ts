@@ -121,9 +121,12 @@ const claudeCodeTools = [
 ].join(",")
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
+// https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
+// 10 times the default buffer size
+const MAX_BUFFER_SIZE = 1_000_000_000
 
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
-	const claudePath = path || "claude"
+	const claudePath = path?.trim() || "claude"
 
 	const args = [
 		"-p",
@@ -143,10 +146,17 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		args.push("--model", modelId)
 	}
 
+	/**
+	 * @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables}
+	 */
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
-		// The default is 32000. However, I've gotten larger responses, so we increase it unless the user specified it.
+		// Respect the user's environment variables but set defaults.
+		// The default is 32000. However, I've gotten larger responses.
 		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
+		// Disable telemetry, auto-updater and error reporting.
+		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
+		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
 	}
 
 	// We don't want to consume the user's ANTHROPIC_API_KEY,
@@ -159,7 +169,7 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		stderr: "pipe",
 		env,
 		cwd,
-		maxBuffer: 1024 * 1024 * 1000,
+		maxBuffer: MAX_BUFFER_SIZE,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 
