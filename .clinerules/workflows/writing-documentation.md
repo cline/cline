@@ -359,6 +359,10 @@ Good Example:
 
 Adding a personal touch goes a long way. There are great examples in the docs currently where I use "I" to share how I personally use cline, from dev to dev. It's a great technique.
 
+# Crosslinking relevant documentation pages
+
+Make sure you crosslink when you're done writing the docs. If there are relevant docs, just link to them.
+
 # Lastly, before you start writing docs
 
 First, internalize these guidelines. I mean it. 
