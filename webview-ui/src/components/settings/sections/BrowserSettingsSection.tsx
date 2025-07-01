@@ -1,17 +1,15 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import debounce from "debounce"
 import React, { useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { BrowserServiceClient } from "../../../services/grpc-client"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { BrowserSettings } from "@shared/BrowserSettings"
+import { updateBrowserSetting } from "../utils/settingsHandlers"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import Section from "../Section"
 
 interface BrowserSettingsSectionProps {
-	localBrowserSettings: BrowserSettings
-	onBrowserSettingsChange: (settings: BrowserSettings) => void
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
@@ -58,13 +56,8 @@ const CollapsibleContent = styled.div<{ isOpen: boolean }>`
 	visibility: ${({ isOpen }) => (isOpen ? "visible" : "hidden")};
 `
 
-export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
-	localBrowserSettings,
-	onBrowserSettingsChange,
-	renderSectionHeader,
-}) => {
+export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ renderSectionHeader }) => {
 	const { browserSettings } = useExtensionState()
-	const [localChromePath, setLocalChromePath] = useState(localBrowserSettings.chromeExecutablePath || "")
 	const [isCheckingConnection, setIsCheckingConnection] = useState(false)
 	const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)
 	const [relaunchResult, setRelaunchResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -78,15 +71,12 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 			const timer = setTimeout(() => {
 				setRelaunchResult(null)
 			}, 15000)
-
-			// Clear timeout if component unmounts or relaunchResult changes
 			return () => clearTimeout(timer)
 		}
 	}, [relaunchResult])
 
 	// Request detected Chrome path on mount
 	useEffect(() => {
-		// Use gRPC for getDetectedChromePath
 		BrowserServiceClient.getDetectedChromePath(EmptyRequest.create({}))
 			.then((result) => {
 				setDetectedChromePath(result.path)
@@ -97,111 +87,10 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 			})
 	}, [])
 
-	// Sync localChromePath with prop changes
-	useEffect(() => {
-		if (localBrowserSettings.chromeExecutablePath !== localChromePath) {
-			setLocalChromePath(localBrowserSettings.chromeExecutablePath || "")
-		}
-	}, [localBrowserSettings.chromeExecutablePath])
-
-	// Debounced connection check function
-	const debouncedCheckConnection = useCallback(
-		debounce(() => {
-			if (localBrowserSettings.remoteBrowserEnabled) {
-				setIsCheckingConnection(true)
-				setConnectionStatus(null)
-				if (localBrowserSettings.remoteBrowserHost) {
-					// Use gRPC for testBrowserConnection
-					BrowserServiceClient.testBrowserConnection(
-						StringRequest.create({ value: localBrowserSettings.remoteBrowserHost }),
-					)
-						.then((result) => {
-							setConnectionStatus(result.success)
-							setIsCheckingConnection(false)
-						})
-						.catch((error) => {
-							console.error("Error testing browser connection:", error)
-							setConnectionStatus(false)
-							setIsCheckingConnection(false)
-						})
-				} else {
-					BrowserServiceClient.discoverBrowser(EmptyRequest.create({}))
-						.then((result) => {
-							setConnectionStatus(result.success)
-							setIsCheckingConnection(false)
-						})
-						.catch((error) => {
-							console.error("Error discovering browser:", error)
-							setConnectionStatus(false)
-							setIsCheckingConnection(false)
-						})
-				}
-			}
-		}, 1000),
-		[localBrowserSettings.remoteBrowserEnabled, localBrowserSettings.remoteBrowserHost],
-	)
-
-	// Check connection when component mounts or when remote settings change
-	useEffect(() => {
-		if (localBrowserSettings.remoteBrowserEnabled) {
-			debouncedCheckConnection()
-		} else {
-			setConnectionStatus(null)
-		}
-	}, [localBrowserSettings.remoteBrowserEnabled, localBrowserSettings.remoteBrowserHost, debouncedCheckConnection])
-
-	const handleViewportChange = (event: Event) => {
-		const target = event.target as HTMLSelectElement
-		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
-		if (selectedSize) {
-			onBrowserSettingsChange({
-				...localBrowserSettings,
-				viewport: {
-					width: selectedSize.width,
-					height: selectedSize.height,
-				},
-			})
-		}
-	}
-
-	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		onBrowserSettingsChange({
-			...localBrowserSettings,
-			remoteBrowserEnabled: enabled,
-			// If disabling, also clear the host
-			remoteBrowserHost: enabled ? localBrowserSettings.remoteBrowserHost : undefined,
-		})
-	}
-
-	const updateRemoteBrowserHost = (host: string | undefined) => {
-		onBrowserSettingsChange({
-			...localBrowserSettings,
-			remoteBrowserHost: host,
-		})
-	}
-
-	const debouncedUpdateChromePath = useCallback(
-		debounce((newPath: string | undefined) => {
-			onBrowserSettingsChange({
-				...localBrowserSettings,
-				chromeExecutablePath: newPath,
-			})
-		}, 500),
-		[localBrowserSettings, onBrowserSettingsChange],
-	)
-
-	const updateChromeExecutablePath = (path: string | undefined) => {
-		setLocalChromePath(path || "")
-		debouncedUpdateChromePath(path)
-	}
-
 	// Function to check connection once without changing UI state immediately
 	const checkConnectionOnce = useCallback(() => {
-		// Don't show the spinner for every check to avoid UI flicker
-		// We'll rely on the response to update the connectionStatus
-		if (localBrowserSettings.remoteBrowserHost) {
-			// Use gRPC for testBrowserConnection
-			BrowserServiceClient.testBrowserConnection(StringRequest.create({ value: localBrowserSettings.remoteBrowserHost }))
+		if (browserSettings.remoteBrowserHost) {
+			BrowserServiceClient.testBrowserConnection(StringRequest.create({ value: browserSettings.remoteBrowserHost }))
 				.then((result) => {
 					setConnectionStatus(result.success)
 				})
@@ -219,40 +108,37 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 					setConnectionStatus(false)
 				})
 		}
-	}, [localBrowserSettings.remoteBrowserHost])
+	}, [browserSettings.remoteBrowserHost])
 
 	// Setup continuous polling for connection status when remote browser is enabled
 	useEffect(() => {
-		// Only poll if remote browser mode is enabled
-		if (!localBrowserSettings.remoteBrowserEnabled) {
-			// Make sure we're not showing checking state when disabled
+		if (!browserSettings.remoteBrowserEnabled) {
 			setIsCheckingConnection(false)
 			return
 		}
 
-		// Check immediately when enabled
 		checkConnectionOnce()
-
-		// Then check every second
 		const pollInterval = setInterval(() => {
 			checkConnectionOnce()
 		}, 1000)
 
-		// Cleanup the interval if the component unmounts or remote browser is disabled
 		return () => clearInterval(pollInterval)
-	}, [localBrowserSettings.remoteBrowserEnabled, checkConnectionOnce])
+	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce])
 
-	const updateDisableToolUse = (disabled: boolean) => {
-		onBrowserSettingsChange({
-			...localBrowserSettings,
-			disableToolUse: disabled,
-		})
+	const handleViewportChange = (event: Event) => {
+		const target = event.target as HTMLSelectElement
+		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
+		if (selectedSize) {
+			updateBrowserSetting("viewport", {
+				width: selectedSize.width,
+				height: selectedSize.height,
+			})
+		}
 	}
 
 	const relaunchChromeDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
-		// The connection status will be automatically updated by our polling
 
 		BrowserServiceClient.relaunchChromeDebugMode(EmptyRequest.create({}))
 			.then((result) => {
@@ -273,9 +159,9 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 	}
 
 	// Determine if we should show the relaunch button
-	const isRemoteEnabled = Boolean(localBrowserSettings.remoteBrowserEnabled)
+	const isRemoteEnabled = Boolean(browserSettings.remoteBrowserEnabled)
 	const shouldShowRelaunchButton = isRemoteEnabled && connectionStatus === false
-	const isSubSettingsOpen = !(localBrowserSettings.disableToolUse || false)
+	const isSubSettingsOpen = !(browserSettings.disableToolUse || false)
 
 	return (
 		<div>
@@ -285,8 +171,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 					{/* Master Toggle */}
 					<div style={{ marginBottom: isSubSettingsOpen ? 0 : 10 }}>
 						<VSCodeCheckbox
-							checked={localBrowserSettings.disableToolUse || false}
-							onChange={(e) => updateDisableToolUse((e.target as HTMLInputElement).checked)}>
+							checked={browserSettings.disableToolUse || false}
+							onChange={(e) => updateBrowserSetting("disableToolUse", (e.target as HTMLInputElement).checked)}>
 							Disable browser tool usage
 						</VSCodeCheckbox>
 						<p
@@ -309,8 +195,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 										Object.entries(BROWSER_VIEWPORT_PRESETS).find(([_, size]) => {
 											const typedSize = size as { width: number; height: number }
 											return (
-												typedSize.width === localBrowserSettings.viewport.width &&
-												typedSize.height === localBrowserSettings.viewport.height
+												typedSize.width === browserSettings.viewport.width &&
+												typedSize.height === browserSettings.viewport.height
 											)
 										})?.[0]
 									}
@@ -343,14 +229,21 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 									justifyContent: "space-between",
 								}}>
 								<VSCodeCheckbox
-									checked={localBrowserSettings.remoteBrowserEnabled}
-									onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
+									checked={browserSettings.remoteBrowserEnabled}
+									onChange={(e) => {
+										const enabled = (e.target as HTMLInputElement).checked
+										updateBrowserSetting("remoteBrowserEnabled", enabled)
+										// If disabling, also clear the host
+										if (!enabled) {
+											updateBrowserSetting("remoteBrowserHost", undefined)
+										}
+									}}>
 									Use remote browser connection
 								</VSCodeCheckbox>
 								<ConnectionStatusIndicator
 									isChecking={isCheckingConnection}
 									isConnected={connectionStatus}
-									remoteBrowserEnabled={localBrowserSettings.remoteBrowserEnabled}
+									remoteBrowserEnabled={browserSettings.remoteBrowserEnabled}
 								/>
 							</div>
 							<p
@@ -367,7 +260,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 										: ""}
 								. You can specify a custom path below. Using a remote browser connection requires starting Chrome
 								in debug mode
-								{localBrowserSettings.remoteBrowserEnabled ? (
+								{browserSettings.remoteBrowserEnabled ? (
 									<>
 										{" "}
 										manually (<code>--remote-debugging-port=9222</code>) or using the button below. Enter the
@@ -378,13 +271,13 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 								)}
 							</p>
 							{/* Moved remote-specific settings to appear directly after enabling remote connection */}
-							{localBrowserSettings.remoteBrowserEnabled && (
+							{browserSettings.remoteBrowserEnabled && (
 								<div style={{ marginLeft: 0, marginTop: 8 }}>
-									<VSCodeTextField
-										value={localBrowserSettings.remoteBrowserHost || ""}
+									<DebouncedTextField
+										initialValue={browserSettings.remoteBrowserHost || ""}
 										placeholder="http://localhost:9222"
 										style={{ width: "100%", marginBottom: 8 }}
-										onChange={(e: any) => updateRemoteBrowserHost(e.target.value || undefined)}
+										onChange={(value) => updateBrowserSetting("remoteBrowserHost", value || undefined)}
 									/>
 
 									{shouldShowRelaunchButton && (
@@ -433,15 +326,12 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({
 									style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
 									Chrome Executable Path (Optional)
 								</label>
-								<VSCodeTextField
+								<DebouncedTextField
 									id="chrome-executable-path"
-									value={localChromePath}
+									initialValue={browserSettings.chromeExecutablePath || ""}
 									placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 									style={{ width: "100%" }}
-									onChange={(e: any) => {
-										const newValue = e.target.value || ""
-										updateChromeExecutablePath(newValue)
-									}}
+									onChange={(value) => updateBrowserSetting("chromeExecutablePath", value || undefined)}
 								/>
 								<p
 									style={{
