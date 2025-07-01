@@ -78,13 +78,10 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = new ClineAccountService(
-			(msg) => this.postMessageToWebview(msg),
-			async () => {
-				const { apiConfiguration } = await this.getStateToPostToWebview()
-				return apiConfiguration?.clineApiKey
-			},
-		)
+		this.accountService = new ClineAccountService(async () => {
+			const { apiConfiguration } = await this.getStateToPostToWebview()
+			return apiConfiguration?.clineApiKey
+		})
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {

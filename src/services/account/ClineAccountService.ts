@@ -4,14 +4,9 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"
-	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
 	private getClineApiKey: () => Promise<string | undefined>
 
-	constructor(
-		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
-		getClineApiKey: () => Promise<string | undefined>,
-	) {
-		this.postMessageToWebview = postMessageToWebview
+	constructor(getClineApiKey: () => Promise<string | undefined>) {
 		this.getClineApiKey = getClineApiKey
 	}
 

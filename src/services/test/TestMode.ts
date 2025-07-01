@@ -9,7 +9,6 @@ import * as path from "path"
 import { Logger } from "../logging/Logger"
 import { createTestServer, shutdownTestServer } from "./TestServer"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { GetWorkspacePathsRequest } from "@/shared/proto/index.host"
 
 // State variable
 let isTestMode = false
