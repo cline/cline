@@ -26,6 +26,7 @@ import {
 	migratePlanActGlobalToWorkspaceStorage,
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
+	migrateWelcomeViewCompleted,
 } from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
@@ -67,6 +68,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate mode from workspace storage to controller state (one-time cleanup)
 	await migrateModeFromWorkspaceStorageToControllerState(context)
+
+	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
+	await migrateWelcomeViewCompleted(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)

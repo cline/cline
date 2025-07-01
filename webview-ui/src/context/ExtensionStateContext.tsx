@@ -202,6 +202,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalOutputLineLimit: 500,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
+		welcomeViewCompleted: true, // Default to true to avoid showing welcome view on first load - will be overwritten by extension state
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -306,7 +307,7 @@ export const ExtensionStateContextProvider: React.FC<{
 									].some((key) => key !== undefined)
 								: false
 
-							setShowWelcome(!hasKey)
+							setShowWelcome(!newState.welcomeViewCompleted)
 							setDidHydrateState(true)
 
 							console.log("[DEBUG] returning new state in ESC")
