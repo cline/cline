@@ -98,8 +98,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					didEmitEmptyLine = true
 
 					// Also emit a message indicating the command might be running without output
-					// this.emit("line", "[Command is running but producing no output]")
-					emitCurrentTerminalContents()
+					this.emit("line", "[Command is running but producing no output]")
 				}
 			}, 3000) // 3 second timeout
 
