@@ -4,7 +4,6 @@ import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
-import { Metadata } from "@/shared/proto/common"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)

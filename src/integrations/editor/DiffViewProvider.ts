@@ -11,7 +11,6 @@ import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, TextEditorInfo } from "@/shared/proto/host/window"
-import { Metadata } from "@/shared/proto/common"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -397,8 +396,8 @@ export class DiffViewProvider {
 					}),
 				}),
 			)
-			// Find the editor that matches the returned URI
-			const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === editorInfo.documentUri)
+			// Find the editor that matches the returned path
+			const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === editorInfo.documentPath)
 			if (!editor) {
 				throw new Error("Failed to find opened text editor")
 			}

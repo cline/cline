@@ -3,7 +3,6 @@ import { getWorkingState } from "@utils/git"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { Metadata } from "@/shared/proto/common"
 
 /**
  * Formats the git diff into a prompt for the AI

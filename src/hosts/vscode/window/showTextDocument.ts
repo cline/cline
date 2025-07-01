@@ -19,7 +19,7 @@ export async function showTextDocument(request: ShowTextDocumentRequest): Promis
 	const editor = await vscode.window.showTextDocument(uri, options)
 
 	return TextEditorInfo.create({
-		documentUri: editor.document.uri.toString(),
+		documentPath: editor.document.uri.fsPath,
 		viewColumn: editor.viewColumn,
 		isActive: vscode.window.activeTextEditor === editor,
 	})
