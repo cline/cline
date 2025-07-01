@@ -389,6 +389,7 @@ export async function parsePlanFromFixedFile(extensionContext: vscode.ExtensionC
 export class PhaseTracker {
 	public phaseStates: PhaseState[] = []
 	public currentPhaseIndex = 0
+	public isRestored: boolean = false
 
 	constructor(
 		public projOverview: string,
@@ -414,23 +415,23 @@ export class PhaseTracker {
 	}
 
 	// Called after the Plan phase is completed to populate the actual execution Phase list.
-	public addPhasesFromPlan(parsedPhases: Phase[]): void {
+	public async addPhasesFromPlan(parsedPhases: Phase[]): Promise<void> {
 		parsedPhases.forEach((p) => {
 			this.phaseStates.push({
 				index: p.phaseIdx,
 				taskId: "",
 				phase: p,
 				status: PhaseStatus.Pending,
-				startTime: Date.now(),
+				startTime: undefined,
 				endTime: undefined,
 			})
 		})
-		this.saveCheckpoint().catch(() => {})
+		await this.saveCheckpoint()
 	}
 
-	public markCurrentPhaseComplete(): void {
+	public async markCurrentPhaseComplete(): Promise<void> {
 		const ps = this.phaseStates[this.currentPhaseIndex]
-		this.completePhase(ps.index)
+		await this.completePhase(ps.index)
 	}
 
 	public updateTaskIdPhase(phaseId: number, taskId: string): void {
@@ -442,7 +443,7 @@ export class PhaseTracker {
 		this.saveCheckpoint()
 	}
 
-	public completePhase(phaseId: number): void {
+	public async completePhase(phaseId: number): Promise<void> {
 		const phaseState = this.phaseStates.find((p) => p.index === phaseId)
 		if (!phaseState) {
 			return
@@ -467,27 +468,23 @@ export class PhaseTracker {
 		phaseState.status = PhaseStatus.Completed
 		phaseState.endTime = Date.now()
 
-		this.saveCheckpoint()
+		await this.saveCheckpoint()
 	}
 
 	public hasNextPhase(): boolean {
 		return this.currentPhaseIndex < this.phaseStates.length - 1
 	}
 
-	public async moveToNextPhase(openNewTask: boolean = false): Promise<void> {
+	public updatePhase(): void {
+		// Add bounds checking
+		if (this.currentPhaseIndex >= this.phaseStates.length - 1) {
+			throw new Error("Cannot advance beyond last phase")
+		}
+
 		this.currentPhaseIndex++
 		const next = this.phaseStates[this.currentPhaseIndex]
 		next.status = PhaseStatus.InProgress
 		next.startTime = Date.now()
-
-		if (openNewTask) {
-			const nextPhase = this.phaseStates[this.currentPhaseIndex].phase
-			let nextPhasePrompt = ""
-			if (nextPhase) {
-				nextPhasePrompt = buildPhasePrompt(nextPhase, this.totalPhases, this.getProjectOverview())
-			}
-			await this.controller.spawnPhaseTask(nextPhasePrompt, next.index)
-		}
 	}
 
 	public get currentPhase(): Phase {
@@ -535,7 +532,7 @@ export class PhaseTracker {
 		return this.projOverview
 	}
 
-	private async saveCheckpoint(): Promise<void> {
+	public async saveCheckpoint(): Promise<void> {
 		try {
 			// 1) Determine the base URI for saving
 			let baseUri: vscode.Uri
@@ -603,7 +600,7 @@ export class PhaseTracker {
 			)
 			tracker.phaseStates = checkpoint.phaseStates
 			tracker.currentPhaseIndex = checkpoint.currentPhaseIndex
-
+			tracker.isRestored = true // Mark as restored
 			// Restored phase checkpoint
 			return tracker
 		} catch (err) {

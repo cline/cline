@@ -169,21 +169,17 @@ export class Controller {
 		}
 
 		// Initialize PhaseTracker based on priority
-		let newTracker: PhaseTracker | undefined
-
-		if (historyItem) {
+		let newTracker: PhaseTracker
+		try {
 			// Restore from checkpoint
-			newTracker = await PhaseTracker.fromCheckpoint(this)
-			if (!newTracker) {
-				const errorMsg = "Failed to load task checkpoint. Unable to restore previous state."
-				this.outputChannel.appendLine(errorMsg)
-				vscode.window.showErrorMessage(errorMsg)
-				throw new Error(errorMsg)
-			}
-		} else if (this.phaseTracker?.isAllComplete() === false) {
-			// Reuse existing tracker if not complete
-			newTracker = this.phaseTracker
-		} else {
+			const restoredTracker = await PhaseTracker.fromCheckpoint(this)
+			newTracker = restoredTracker || new PhaseTracker("", "", {}, this)
+		} catch (error) {
+			// Create new PhaseTracker
+			newTracker = new PhaseTracker("", "", {}, this)
+		}
+
+		if (newTracker?.isAllComplete()) {
 			// Create new PhaseTracker
 			newTracker = new PhaseTracker("", "", {}, this)
 		}
@@ -192,7 +188,7 @@ export class Controller {
 
 		// isPhaseRoot is only true when it's a "truly new task"
 		// It's false when restoring from checkpoint (historyItem) or reusing an existing tracker
-		const isPhaseRoot = !historyItem && !this.phaseTracker.projOverview
+		const isPhaseRoot = !historyItem && !this.phaseTracker?.isRestored
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -222,7 +218,6 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			this,
-			newTracker,
 			isPhaseRoot,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
@@ -1135,8 +1130,8 @@ Commit message:`
 		}
 	}
 
-	public async onPhaseCompleted(openNewTask: boolean = false): Promise<void> {
-		const tracker = this.task?.getPhaseTracker?.() || this.task?.taskState.phaseTracker
+	public async onPhaseCompleted(): Promise<void> {
+		const tracker = this.task?.getPhaseTracker?.() || this.phaseTracker
 		if (!tracker) {
 			return
 		}
@@ -1144,19 +1139,17 @@ Commit message:`
 		const currentIndex = tracker.currentPhaseIndex
 		const current = tracker.phaseStates[currentIndex]
 		if (!current.status || current.status === "in-progress") {
-			tracker.completePhase(currentIndex)
+			await tracker.completePhase(currentIndex)
 		}
 
 		if (tracker.hasNextPhase()) {
-			await tracker
-				.moveToNextPhase(openNewTask)
-				.catch((err: Error) => this.outputChannel.appendLine(`Error moving to next phase: ${err}`))
+			tracker.updatePhase()
+			await tracker.saveCheckpoint()
 		}
 	}
 
 	public async onTaskCompleted(): Promise<void> {
 		vscode.window.showInformationMessage("🎉 All phases finished!")
-		// this.say("🎉 All phases finished!")
 		this.phaseTracker = undefined // reset phase tracker
 	}
 

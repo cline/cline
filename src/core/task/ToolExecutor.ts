@@ -2330,9 +2330,9 @@ export class ToolExecutor {
 						let text: string | undefined
 						let images: string[] | undefined
 						let completionFiles: string[] | undefined
-						this.sidebarController.onPhaseCompleted(/* openNewTask */ true)
+						await this.sidebarController.onPhaseCompleted()
 						if (this.taskState.phaseFinished) {
-							if (this.taskState.phaseTracker?.isAllComplete()) {
+							if (this.sidebarController.phaseTracker?.isAllComplete()) {
 								const {
 									response,
 									text,
@@ -2351,37 +2351,8 @@ export class ToolExecutor {
 									"ask_question",
 									PROMPTS.MOVE_NEXT_PHASE_ASK,
 								)
-								if (result) {
-									try {
-										const nextPhase =
-											this.taskState.phaseTracker?.phaseStates[
-												this.taskState.phaseTracker?.currentPhaseIndex
-											].phase
-										if (!nextPhase || !this.taskState.phaseTracker) {
-											throw new Error("Invalid phase state")
-										}
-
-										const nextPhasePrompt = buildPhasePrompt(
-											nextPhase,
-											this.taskState.phaseTracker.totalPhases,
-											this.taskState.phaseTracker.getProjectOverview(),
-										)
-
-										await this.sidebarController.spawnPhaseTask(
-											nextPhasePrompt,
-											this.taskState.phaseTracker?.currentPhaseIndex,
-										)
-										break
-									} catch (error) {
-										await this.say(
-											"text",
-											`Error moving to next phase: ${error}`,
-											undefined,
-											undefined,
-											false,
-										)
-										// Consider adding retry logic or status update
-									}
+								if (!result) {
+									//TODO: (sa) handle user rejecting the move to next phase
 								}
 								await this.saveCheckpoint()
 							}

@@ -60,7 +60,6 @@ export class TaskState {
 	abandoned = false
 
 	// Phase Planning
-	phaseTracker?: PhaseTracker
 	isPhaseRoot: boolean = false
 	newPhaseOpened: boolean = true
 	phaseFinished: boolean = false
