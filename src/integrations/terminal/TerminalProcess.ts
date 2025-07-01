@@ -2,6 +2,7 @@ import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
 import { Logger } from "@services/logging/Logger"
+import { getLatestTerminalOutput } from "./get-latest-output"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -31,6 +32,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
+		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
+		const emitCurrentTerminalContents = async () => {
+			try {
+				const terminalSnapshot = await getLatestTerminalOutput()
+				if (terminalSnapshot && terminalSnapshot.trim()) {
+					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+					this.emit("line", fallbackMessage)
+				}
+			} catch (error) {
+				console.error("Error capturing terminal output:", error)
+			}
+		}
+
 		// Clear any existing grace period timer from previous commands
 		if (this.gracePeriodTimer) {
 			clearTimeout(this.gracePeriodTimer)
@@ -249,7 +263,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				if (!didEmitEmptyLine) {
 					console.log(`[TerminalProcess] Emitting fallback empty line for no-output command`)
 					this.emit("line", "") // empty line to show proceed button
-					this.emit("line", "[Command completed with no output]")
+					// this.emit("line", "[Command completed with no output]")
+					await emitCurrentTerminalContents()
 					didEmitEmptyLine = true
 				}
 			}
@@ -295,7 +310,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				console.log(`[TerminalProcess] WARNING: Process completed but no output was captured`)
 				// Ensure we emit at least one line for UI feedback
 				if (!didEmitEmptyLine) {
-					this.emit("line", "[Command completed silently]")
+					// this.emit("line", "[Command completed silently]")
+					await emitCurrentTerminalContents()
 				}
 			}
 
@@ -314,7 +330,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.startGracePeriod()
 			}
 		} else {
+			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			terminal.sendText(command, true)
+
+			// wait 3 seconds for the command to run
+			await new Promise((resolve) => setTimeout(resolve, 3000))
+
+			// For terminals without shell integration, also try to capture terminal content
+			await emitCurrentTerminalContents()
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
 			this.emit("completed")
