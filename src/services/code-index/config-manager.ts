@@ -3,7 +3,7 @@ import { ContextProxy } from "../../core/config/ContextProxy"
 import { EmbedderProvider } from "./interfaces/manager"
 import { CodeIndexConfig, PreviousConfigSnapshot } from "./interfaces/config"
 import { SEARCH_MIN_SCORE } from "./constants"
-import { getDefaultModelId, getModelDimension } from "../../shared/embeddingModels"
+import { getDefaultModelId, getModelDimension, getModelScoreThreshold } from "../../shared/embeddingModels"
 
 /**
  * Manages configuration state and validation for the code indexing feature.
@@ -34,10 +34,10 @@ export class CodeIndexConfigManager {
 		const codebaseIndexConfig = this.contextProxy?.getGlobalState("codebaseIndexConfig") ?? {
 			codebaseIndexEnabled: false,
 			codebaseIndexQdrantUrl: "http://localhost:6333",
-			codebaseIndexSearchMinScore: 0.4,
 			codebaseIndexEmbedderProvider: "openai",
 			codebaseIndexEmbedderBaseUrl: "",
 			codebaseIndexEmbedderModelId: "",
+			codebaseIndexSearchMinScore: undefined,
 		}
 
 		const {
@@ -46,6 +46,7 @@ export class CodeIndexConfigManager {
 			codebaseIndexEmbedderProvider,
 			codebaseIndexEmbedderBaseUrl,
 			codebaseIndexEmbedderModelId,
+			codebaseIndexSearchMinScore,
 		} = codebaseIndexConfig
 
 		const openAiKey = this.contextProxy?.getSecret("codeIndexOpenAiKey") ?? ""
@@ -60,8 +61,8 @@ export class CodeIndexConfigManager {
 		this.isEnabled = codebaseIndexEnabled || false
 		this.qdrantUrl = codebaseIndexQdrantUrl
 		this.qdrantApiKey = qdrantApiKey ?? ""
+		this.searchMinScore = codebaseIndexSearchMinScore
 		this.openAiOptions = { openAiNativeApiKey: openAiKey }
-		this.searchMinScore = SEARCH_MIN_SCORE
 
 		// Set embedder provider with support for openai-compatible
 		if (codebaseIndexEmbedderProvider === "ollama") {
@@ -139,7 +140,7 @@ export class CodeIndexConfigManager {
 				openAiCompatibleOptions: this.openAiCompatibleOptions,
 				qdrantUrl: this.qdrantUrl,
 				qdrantApiKey: this.qdrantApiKey,
-				searchMinScore: this.searchMinScore,
+				searchMinScore: this.currentSearchMinScore,
 			},
 			requiresRestart,
 		}
@@ -294,7 +295,7 @@ export class CodeIndexConfigManager {
 			openAiCompatibleOptions: this.openAiCompatibleOptions,
 			qdrantUrl: this.qdrantUrl,
 			qdrantApiKey: this.qdrantApiKey,
-			searchMinScore: this.searchMinScore,
+			searchMinScore: this.currentSearchMinScore,
 		}
 	}
 
@@ -337,9 +338,18 @@ export class CodeIndexConfigManager {
 	}
 
 	/**
-	 * Gets the configured minimum search score.
+	 * Gets the configured minimum search score based on user setting, model-specific threshold, or fallback.
+	 * Priority: 1) User setting, 2) Model-specific threshold, 3) Default SEARCH_MIN_SCORE constant.
 	 */
-	public get currentSearchMinScore(): number | undefined {
-		return this.searchMinScore
+	public get currentSearchMinScore(): number {
+		// First check if user has configured a custom score threshold
+		if (this.searchMinScore !== undefined) {
+			return this.searchMinScore
+		}
+
+		// Fall back to model-specific threshold
+		const currentModelId = this.modelId ?? getDefaultModelId(this.embedderProvider)
+		const modelSpecificThreshold = getModelScoreThreshold(this.embedderProvider, currentModelId)
+		return modelSpecificThreshold ?? SEARCH_MIN_SCORE
 	}
 }

@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo 想要搜尋程式碼庫：<code>{{query}}</code>",
 		"wantsToSearchWithPath": "Roo 想要在 <code>{{path}}</code> 中搜尋：<code>{{query}}</code>",
-		"didSearch": "找到 {{count}} 個結果：<code>{{query}}</code>"
+		"didSearch": "找到 {{count}} 個結果：<code>{{query}}</code>",
+		"resultTooltip": "相似度評分：{{score}} (點擊開啟檔案)"
 	},
 	"read-batch": {
 		"approve": {

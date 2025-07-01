@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo хочет выполнить поиск в кодовой базе по <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo хочет выполнить поиск в кодовой базе по <code>{{query}}</code> в <code>{{path}}</code>:",
-		"didSearch": "Найдено {{count}} результат(ов) для <code>{{query}}</code>:"
+		"didSearch": "Найдено {{count}} результат(ов) для <code>{{query}}</code>:",
+		"resultTooltip": "Оценка схожести: {{score}} (нажмите, чтобы открыть файл)"
 	},
 	"read-batch": {
 		"approve": {

@@ -1,5 +1,7 @@
 import { ApiHandlerOptions } from "../../../shared/api"
 import { EmbedderInfo, EmbeddingResponse, IEmbedder } from "../interfaces"
+import { getModelQueryPrefix } from "../../../shared/embeddingModels"
+import { MAX_ITEM_TOKENS } from "../constants"
 import { t } from "../../../i18n"
 
 /**
@@ -25,6 +27,31 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 		const modelToUse = model || this.defaultModelId
 		const url = `${this.baseUrl}/api/embed` // Endpoint as specified
 
+		// Apply model-specific query prefix if required
+		const queryPrefix = getModelQueryPrefix("ollama", modelToUse)
+		const processedTexts = queryPrefix
+			? texts.map((text, index) => {
+					// Prevent double-prefixing
+					if (text.startsWith(queryPrefix)) {
+						return text
+					}
+					const prefixedText = `${queryPrefix}${text}`
+					const estimatedTokens = Math.ceil(prefixedText.length / 4)
+					if (estimatedTokens > MAX_ITEM_TOKENS) {
+						console.warn(
+							t("embeddings:textWithPrefixExceedsTokenLimit", {
+								index,
+								estimatedTokens,
+								maxTokens: MAX_ITEM_TOKENS,
+							}),
+						)
+						// Return original text if adding prefix would exceed limit
+						return text
+					}
+					return prefixedText
+				})
+			: texts
+
 		try {
 			// Note: Standard Ollama API uses 'prompt' for single text, not 'input' for array.
 			// Implementing based on user's specific request structure.
@@ -35,7 +62,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 				},
 				body: JSON.stringify({
 					model: modelToUse,
-					input: texts, // Using 'input' as requested
+					input: processedTexts, // Using 'input' as requested
 				}),
 			})
 

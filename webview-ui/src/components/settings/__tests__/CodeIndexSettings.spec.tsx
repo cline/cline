@@ -43,6 +43,11 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				"settings:codeIndex.clearDataDialog.description": "This will remove all indexed data",
 				"settings:codeIndex.clearDataDialog.cancelButton": "Cancel",
 				"settings:codeIndex.clearDataDialog.confirmButton": "Confirm",
+				"settings:codeIndex.searchMinScoreLabel": "Search Score Threshold",
+				"settings:codeIndex.searchMinScoreDescription":
+					"Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+				"settings:codeIndex.searchMinScoreResetTooltip": "Reset to default value (0.4)",
+				"settings:codeIndex.advancedConfigLabel": "Advanced Configuration",
 			}
 			return translations[key] || key
 		},
@@ -85,6 +90,24 @@ vi.mock("@src/components/ui", () => ({
 	AlertDialogHeader: ({ children }: any) => <div data-testid="alert-dialog-header">{children}</div>,
 	AlertDialogTitle: ({ children }: any) => <div data-testid="alert-dialog-title">{children}</div>,
 	AlertDialogTrigger: ({ children }: any) => <div data-testid="alert-dialog-trigger">{children}</div>,
+	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
+		<input
+			type="range"
+			value={value[0]}
+			onChange={(e) => onValueChange && onValueChange([parseFloat(e.target.value)])}
+			data-testid={dataTestId}
+			role="slider"
+		/>
+	),
+	Button: ({ children, onClick, "data-testid": dataTestId, ...props }: any) => (
+		<button onClick={onClick} data-testid={dataTestId} {...props}>
+			{children}
+		</button>
+	),
+	Tooltip: ({ children }: any) => <div data-testid="tooltip">{children}</div>,
+	TooltipContent: ({ children }: any) => <div data-testid="tooltip-content">{children}</div>,
+	TooltipProvider: ({ children }: any) => <div data-testid="tooltip-provider">{children}</div>,
+	TooltipTrigger: ({ children }: any) => <div data-testid="tooltip-trigger">{children}</div>,
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -158,6 +181,7 @@ describe("CodeIndexSettings", () => {
 			codebaseIndexEmbedderProvider: "openai" as const,
 			codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			codebaseIndexQdrantUrl: "http://localhost:6333",
+			codebaseIndexSearchMinScore: 0.4,
 		},
 		apiConfiguration: {
 			codeIndexOpenAiKey: "",
@@ -204,7 +228,7 @@ describe("CodeIndexSettings", () => {
 
 			expect(screen.getByText("Base URL")).toBeInTheDocument()
 			expect(screen.getByText("API Key")).toBeInTheDocument()
-			expect(screen.getAllByTestId("vscode-textfield")).toHaveLength(6) // Base URL, API Key, Embedding Dimension, Model ID, Qdrant URL, Qdrant Key
+			expect(screen.getAllByTestId("vscode-textfield")).toHaveLength(6) // Base URL, API Key, Embedding Dimension, Model ID, Qdrant URL, Qdrant Key (Search Min Score is now a slider)
 		})
 
 		it("should hide OpenAI Compatible fields when different provider is selected", () => {
@@ -814,6 +838,113 @@ describe("CodeIndexSettings", () => {
 
 			// Check that the status indicator shows "Indexing"
 			expect(screen.getByText(/Indexing/)).toBeInTheDocument()
+		})
+	})
+
+	describe("Search Minimum Score Slider", () => {
+		const expandAdvancedConfig = () => {
+			const advancedButton = screen.getByRole("button", { name: /Advanced Configuration/i })
+			fireEvent.click(advancedButton)
+		}
+
+		it("should render advanced configuration toggle button", () => {
+			render(<CodeIndexSettings {...defaultProps} />)
+
+			expect(screen.getByRole("button", { name: /Advanced Configuration/i })).toBeInTheDocument()
+			expect(screen.getByText("Advanced Configuration")).toBeInTheDocument()
+		})
+
+		it("should render search minimum score slider with reset button when expanded", () => {
+			render(<CodeIndexSettings {...defaultProps} />)
+
+			expandAdvancedConfig()
+
+			expect(screen.getByTestId("search-min-score-slider")).toBeInTheDocument()
+			expect(screen.getByTestId("search-min-score-reset-button")).toBeInTheDocument()
+			expect(screen.getByText("Search Score Threshold")).toBeInTheDocument()
+		})
+
+		it("should display current search minimum score value when expanded", () => {
+			const propsWithScore = {
+				...defaultProps,
+				codebaseIndexConfig: {
+					...defaultProps.codebaseIndexConfig,
+					codebaseIndexSearchMinScore: 0.65,
+				},
+			}
+
+			render(<CodeIndexSettings {...propsWithScore} />)
+
+			expandAdvancedConfig()
+
+			expect(screen.getByText("0.65")).toBeInTheDocument()
+		})
+
+		it("should call setCachedStateField when slider value changes", () => {
+			render(<CodeIndexSettings {...defaultProps} />)
+
+			expandAdvancedConfig()
+
+			const slider = screen.getByTestId("search-min-score-slider")
+			fireEvent.change(slider, { target: { value: "0.8" } })
+
+			expect(mockSetCachedStateField).toHaveBeenCalledWith("codebaseIndexConfig", {
+				...defaultProps.codebaseIndexConfig,
+				codebaseIndexSearchMinScore: 0.8,
+			})
+		})
+
+		it("should reset to default value when reset button is clicked", () => {
+			const propsWithScore = {
+				...defaultProps,
+				codebaseIndexConfig: {
+					...defaultProps.codebaseIndexConfig,
+					codebaseIndexSearchMinScore: 0.8,
+				},
+			}
+
+			render(<CodeIndexSettings {...propsWithScore} />)
+
+			expandAdvancedConfig()
+
+			const resetButton = screen.getByTestId("search-min-score-reset-button")
+			fireEvent.click(resetButton)
+
+			expect(mockSetCachedStateField).toHaveBeenCalledWith("codebaseIndexConfig", {
+				...defaultProps.codebaseIndexConfig,
+				codebaseIndexSearchMinScore: 0.4,
+			})
+		})
+
+		it("should use default value when no score is set", () => {
+			const propsWithoutScore = {
+				...defaultProps,
+				codebaseIndexConfig: {
+					...defaultProps.codebaseIndexConfig,
+					codebaseIndexSearchMinScore: undefined,
+				},
+			}
+
+			render(<CodeIndexSettings {...propsWithoutScore} />)
+
+			expandAdvancedConfig()
+
+			expect(screen.getByText("0.40")).toBeInTheDocument()
+		})
+
+		it("should toggle advanced section visibility", () => {
+			render(<CodeIndexSettings {...defaultProps} />)
+
+			// Initially collapsed - should not see slider
+			expect(screen.queryByTestId("search-min-score-slider")).not.toBeInTheDocument()
+
+			// Expand advanced section
+			expandAdvancedConfig()
+			expect(screen.getByTestId("search-min-score-slider")).toBeInTheDocument()
+
+			// Collapse again
+			expandAdvancedConfig()
+			expect(screen.queryByTestId("search-min-score-slider")).not.toBeInTheDocument()
 		})
 	})
 

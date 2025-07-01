@@ -201,7 +201,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo wants to search the codebase for <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo wants to search the codebase for <code>{{query}}</code> in <code>{{path}}</code>:",
-		"didSearch": "Found {{count}} result(s) for <code>{{query}}</code>:"
+		"didSearch": "Found {{count}} result(s) for <code>{{query}}</code>:",
+		"resultTooltip": "Similarity score: {{score}} (click to open file)"
 	},
 	"commandOutput": "Command Output",
 	"response": "Response",

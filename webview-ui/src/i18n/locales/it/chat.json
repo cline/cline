@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo vuole cercare nella base di codice <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo vuole cercare nella base di codice <code>{{query}}</code> in <code>{{path}}</code>:",
-		"didSearch": "Trovato {{count}} risultato/i per <code>{{query}}</code>:"
+		"didSearch": "Trovato {{count}} risultato/i per <code>{{query}}</code>:",
+		"resultTooltip": "Punteggio di somiglianza: {{score}} (clicca per aprire il file)"
 	},
 	"read-batch": {
 		"approve": {

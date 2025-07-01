@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo muốn tìm kiếm trong cơ sở mã cho <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo muốn tìm kiếm trong cơ sở mã cho <code>{{query}}</code> trong <code>{{path}}</code>:",
-		"didSearch": "Đã tìm thấy {{count}} kết quả cho <code>{{query}}</code>:"
+		"didSearch": "Đã tìm thấy {{count}} kết quả cho <code>{{query}}</code>:",
+		"resultTooltip": "Điểm tương tự: {{score}} (nhấp để mở tệp)"
 	},
 	"read-batch": {
 		"approve": {

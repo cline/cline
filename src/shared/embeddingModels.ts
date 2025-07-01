@@ -6,6 +6,8 @@ export type EmbedderProvider = "openai" | "ollama" | "openai-compatible" // Add 
 
 export interface EmbeddingModelProfile {
 	dimension: number
+	scoreThreshold?: number // Model-specific minimum score threshold for semantic search
+	queryPrefix?: string // Optional prefix required by the model for queries
 	// Add other model-specific properties if needed, e.g., context window size
 }
 
@@ -18,21 +20,31 @@ export type EmbeddingModelProfiles = {
 // Example profiles - expand this list as needed
 export const EMBEDDING_MODEL_PROFILES: EmbeddingModelProfiles = {
 	openai: {
-		"text-embedding-3-small": { dimension: 1536 },
-		"text-embedding-3-large": { dimension: 3072 },
-		"text-embedding-ada-002": { dimension: 1536 },
+		"text-embedding-3-small": { dimension: 1536, scoreThreshold: 0.4 },
+		"text-embedding-3-large": { dimension: 3072, scoreThreshold: 0.4 },
+		"text-embedding-ada-002": { dimension: 1536, scoreThreshold: 0.4 },
 	},
 	ollama: {
-		"nomic-embed-text": { dimension: 768 },
-		"mxbai-embed-large": { dimension: 1024 },
-		"all-minilm": { dimension: 384 },
+		"nomic-embed-text": { dimension: 768, scoreThreshold: 0.4 },
+		"nomic-embed-code": {
+			dimension: 3584,
+			scoreThreshold: 0.15,
+			queryPrefix: "Represent this query for searching relevant code: ",
+		},
+		"mxbai-embed-large": { dimension: 1024, scoreThreshold: 0.4 },
+		"all-minilm": { dimension: 384, scoreThreshold: 0.4 },
 		// Add default Ollama model if applicable, e.g.:
 		// 'default': { dimension: 768 } // Assuming a default dimension
 	},
 	"openai-compatible": {
-		"text-embedding-3-small": { dimension: 1536 },
-		"text-embedding-3-large": { dimension: 3072 },
-		"text-embedding-ada-002": { dimension: 1536 },
+		"text-embedding-3-small": { dimension: 1536, scoreThreshold: 0.4 },
+		"text-embedding-3-large": { dimension: 3072, scoreThreshold: 0.4 },
+		"text-embedding-ada-002": { dimension: 1536, scoreThreshold: 0.4 },
+		"nomic-embed-code": {
+			dimension: 3584,
+			scoreThreshold: 0.15,
+			queryPrefix: "Represent this query for searching relevant code: ",
+		},
 	},
 }
 
@@ -57,6 +69,38 @@ export function getModelDimension(provider: EmbedderProvider, modelId: string): 
 	}
 
 	return modelProfile.dimension
+}
+
+/**
+ * Retrieves the score threshold for a given provider and model ID.
+ * @param provider The embedder provider (e.g., "openai").
+ * @param modelId The specific model ID (e.g., "text-embedding-3-small").
+ * @returns The score threshold or undefined if the model is not found.
+ */
+export function getModelScoreThreshold(provider: EmbedderProvider, modelId: string): number | undefined {
+	const providerProfiles = EMBEDDING_MODEL_PROFILES[provider]
+	if (!providerProfiles) {
+		return undefined
+	}
+
+	const modelProfile = providerProfiles[modelId]
+	return modelProfile?.scoreThreshold
+}
+
+/**
+ * Retrieves the query prefix for a given provider and model ID.
+ * @param provider The embedder provider (e.g., "openai").
+ * @param modelId The specific model ID (e.g., "nomic-embed-code").
+ * @returns The query prefix or undefined if the model doesn't require one.
+ */
+export function getModelQueryPrefix(provider: EmbedderProvider, modelId: string): string | undefined {
+	const providerProfiles = EMBEDDING_MODEL_PROFILES[provider]
+	if (!providerProfiles) {
+		return undefined
+	}
+
+	const modelProfile = providerProfiles[modelId]
+	return modelProfile?.queryPrefix
 }
 
 /**

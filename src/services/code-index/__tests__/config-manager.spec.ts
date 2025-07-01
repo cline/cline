@@ -709,6 +709,153 @@ describe("CodeIndexConfigManager", () => {
 				const result = await configManager.loadConfiguration()
 				expect(result.requiresRestart).toBe(false)
 			})
+
+			describe("currentSearchMinScore priority system", () => {
+				it("should return user-configured score when set", async () => {
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						codebaseIndexSearchMinScore: 0.8, // User setting
+					})
+					mockContextProxy.getSecret.mockImplementation((key: string) => {
+						if (key === "codeIndexOpenAiKey") return "test-key"
+						return undefined
+					})
+
+					await configManager.loadConfiguration()
+					expect(configManager.currentSearchMinScore).toBe(0.8)
+				})
+
+				it("should fall back to model-specific threshold when user setting is undefined", async () => {
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderModelId: "nomic-embed-code",
+						// No codebaseIndexSearchMinScore - user hasn't configured it
+					})
+
+					await configManager.loadConfiguration()
+					// nomic-embed-code has a specific threshold of 0.15
+					expect(configManager.currentSearchMinScore).toBe(0.15)
+				})
+
+				it("should fall back to default SEARCH_MIN_SCORE when neither user setting nor model threshold exists", async () => {
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "unknown-model", // Model not in profiles
+						// No codebaseIndexSearchMinScore
+					})
+					mockContextProxy.getSecret.mockImplementation((key: string) => {
+						if (key === "codeIndexOpenAiKey") return "test-key"
+						return undefined
+					})
+
+					await configManager.loadConfiguration()
+					// Should fall back to default SEARCH_MIN_SCORE (0.4)
+					expect(configManager.currentSearchMinScore).toBe(0.4)
+				})
+
+				it("should respect user setting of 0 (edge case)", async () => {
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderModelId: "nomic-embed-code",
+						codebaseIndexSearchMinScore: 0, // User explicitly sets 0
+					})
+
+					await configManager.loadConfiguration()
+					// Should return 0, not fall back to model threshold (0.15)
+					expect(configManager.currentSearchMinScore).toBe(0)
+				})
+
+				it("should use model-specific threshold with openai-compatible provider", async () => {
+					mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+						if (key === "codebaseIndexConfig") {
+							return {
+								codebaseIndexEnabled: true,
+								codebaseIndexQdrantUrl: "http://qdrant.local",
+								codebaseIndexEmbedderProvider: "openai-compatible",
+								codebaseIndexEmbedderModelId: "nomic-embed-code",
+								// No codebaseIndexSearchMinScore
+							}
+						}
+						if (key === "codebaseIndexOpenAiCompatibleBaseUrl") return "https://api.example.com/v1"
+						return undefined
+					})
+					mockContextProxy.getSecret.mockImplementation((key: string) => {
+						if (key === "codebaseIndexOpenAiCompatibleApiKey") return "test-api-key"
+						return undefined
+					})
+
+					await configManager.loadConfiguration()
+					// openai-compatible provider also has nomic-embed-code with 0.15 threshold
+					expect(configManager.currentSearchMinScore).toBe(0.15)
+				})
+
+				it("should use default model ID when modelId is not specified", async () => {
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						// No modelId specified
+						// No codebaseIndexSearchMinScore
+					})
+					mockContextProxy.getSecret.mockImplementation((key: string) => {
+						if (key === "codeIndexOpenAiKey") return "test-key"
+						return undefined
+					})
+
+					await configManager.loadConfiguration()
+					// Should use default model (text-embedding-3-small) threshold (0.4)
+					expect(configManager.currentSearchMinScore).toBe(0.4)
+				})
+
+				it("should handle priority correctly: user > model > default", async () => {
+					// Test 1: User setting takes precedence
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderModelId: "nomic-embed-code", // Has 0.15 threshold
+						codebaseIndexSearchMinScore: 0.9, // User overrides
+					})
+
+					await configManager.loadConfiguration()
+					expect(configManager.currentSearchMinScore).toBe(0.9) // User setting wins
+
+					// Test 2: Model threshold when no user setting
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderModelId: "nomic-embed-code",
+						// No user setting
+					})
+
+					const newManager = new CodeIndexConfigManager(mockContextProxy)
+					await newManager.loadConfiguration()
+					expect(newManager.currentSearchMinScore).toBe(0.15) // Model threshold
+
+					// Test 3: Default when neither exists
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "custom-unknown-model",
+						// No user setting, unknown model
+					})
+
+					const anotherManager = new CodeIndexConfigManager(mockContextProxy)
+					await anotherManager.loadConfiguration()
+					expect(anotherManager.currentSearchMinScore).toBe(0.4) // Default
+				})
+			})
 		})
 
 		describe("empty/missing API key handling", () => {

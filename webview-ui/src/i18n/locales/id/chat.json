@@ -207,7 +207,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo ingin mencari codebase untuk <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo ingin mencari codebase untuk <code>{{query}}</code> di <code>{{path}}</code>:",
-		"didSearch": "Ditemukan {{count}} hasil untuk <code>{{query}}</code>:"
+		"didSearch": "Ditemukan {{count}} hasil untuk <code>{{query}}</code>:",
+		"resultTooltip": "Skor kemiripan: {{score}} (klik untuk membuka file)"
 	},
 	"commandOutput": "Output Perintah",
 	"response": "Respons",

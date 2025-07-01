@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo가 코드베이스에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다:",
 		"wantsToSearchWithPath": "Roo가 <code>{{path}}</code>에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다:",
-		"didSearch": "<code>{{query}}</code>에 대한 검색 결과 {{count}}개 찾음:"
+		"didSearch": "<code>{{query}}</code>에 대한 검색 결과 {{count}}개 찾음:",
+		"resultTooltip": "유사도 점수: {{score}} (클릭하여 파일 열기)"
 	},
 	"read-batch": {
 		"approve": {

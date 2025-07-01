@@ -294,7 +294,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo कोडबेस में <code>{{query}}</code> खोजना चाहता है:",
 		"wantsToSearchWithPath": "Roo <code>{{path}}</code> में कोडबेस में <code>{{query}}</code> खोजना चाहता है:",
-		"didSearch": "<code>{{query}}</code> के लिए {{count}} परिणाम मिले:"
+		"didSearch": "<code>{{query}}</code> के लिए {{count}} परिणाम मिले:",
+		"resultTooltip": "समानता स्कोर: {{score}} (फ़ाइल खोलने के लिए क्लिक करें)"
 	},
 	"read-batch": {
 		"approve": {
