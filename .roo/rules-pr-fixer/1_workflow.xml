@@ -41,17 +41,24 @@
     <phase name="implementation">
       <description>Execute the user's chosen course of action.</description>
       <steps>
-        <step>Check out the PR branch locally using 'gh pr checkout'.</step>
-        <step>Apply code changes based on review feedback.</step>
-        <step>Fix failing tests.</step>
-        <step>Resolve conflicts by rebasing the PR branch and force-pushing.</step>
+        <step>Check out the PR branch locally using 'gh pr checkout --force'.</step>
+        <step>Determine if the PR is from a fork by checking 'gh pr view --json isCrossRepository'.</step>
+        <step>Apply code changes based on review feedback using file editing tools.</step>
+        <step>Fix failing tests by modifying test files or source code as needed.</step>
+        <step>For conflict resolution: Use GIT_EDITOR=true for non-interactive rebases, then resolve conflicts via file editing.</step>
+        <step>If changes affect user-facing content (i18n files, UI components, announcements), delegate translation updates using the new_task tool with translate mode.</step>
+        <step>Commit changes using git commands.</step>
+        <step>Push changes to the correct remote (origin for same-repo PRs, fork remote for cross-repo PRs) using 'git push --force-with-lease'.</step>
       </steps>
     </phase>
 
     <phase name="validation">
       <description>Verify that the pushed changes resolve the issues.</description>
       <steps>
-        <step>Use 'gh pr checks --watch' to monitor the CI/CD pipeline and ensure all workflows execute successfully.</step>
+        <step>Use 'gh pr checks --watch' to monitor check status in real-time until all checks complete.</step>
+        <step>If needed, check specific workflow runs with 'gh run list --pr' for detailed CI/CD pipeline status.</step>
+        <step>Verify that all translation updates (if any) have been completed and committed.</step>
+        <step>Confirm PR is ready for review by checking mergeable state with 'gh pr view --json'.</step>
       </steps>
     </phase>
   </main_workflow>
@@ -60,5 +67,6 @@
     <criterion>All actionable review comments have been addressed.</criterion>
     <criterion>All tests are passing.</criterion>
     <criterion>The PR is free of merge conflicts.</criterion>
+    <criterion>All required translations have been completed and committed (if changes affect user-facing content).</criterion>
   </completion_criteria>
 </workflow_instructions>

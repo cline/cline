@@ -10,6 +10,16 @@
       <description>Address issues one at a time (e.g., fix tests first, then address comments). This makes the process more manageable and easier to validate.</description>
       <rationale>Tackling all issues at once can be complex and error-prone.</rationale>
     </principle>
+    <principle priority="high">
+      <name>Handle Fork Remotes Correctly</name>
+      <description>Always check if a PR comes from a fork (cross-repository) before pushing changes. Use 'gh pr view --json isCrossRepository' to determine the correct remote.</description>
+      <rationale>Pushing to the wrong remote (e.g., origin instead of fork) will fail for cross-repository PRs.</rationale>
+      <example>
+        <scenario>PR from a fork</scenario>
+        <good>Check isCrossRepository, add fork remote if needed, push to fork</good>
+        <bad>Always push to origin without checking PR source</bad>
+      </example>
+    </principle>
   </general_principles>
 
   <code_conventions>

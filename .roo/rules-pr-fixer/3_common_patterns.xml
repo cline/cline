@@ -24,31 +24,87 @@
       </command>
     </template>
   </pattern>
-  <pattern name="resolving_conflicts_rebase">
-    <usage>A sequence of commands to resolve merge conflicts locally using rebase.</usage>
+  <pattern name="detecting_conflicts">
+    <usage>Commands to detect merge conflicts.</usage>
     <template>
-      <command tool="git">git checkout main</command>
-      <command tool="git">git pull origin main</command>
+      <comment>Fetch latest main branch</comment>
+      <command tool="git">git fetch origin main</command>
+      <comment>Check if rebase would create conflicts</comment>
+      <command tool="git">git rebase --dry-run origin/main</command>
+    </template>
+  </pattern>
+  
+  <pattern name="non_interactive_rebase">
+    <usage>Rebase operations using GIT_EDITOR to prevent interactive prompts.</usage>
+    <template>
       <command tool="git">git checkout <pr_branch></command>
-      <command tool="git">git rebase main</command>
-      <comment>After resolving conflicts manually, continue the rebase.</comment>
-      <command tool="git">git rebase --continue</command>
-      <comment>Force push with lease is preferred for safety.</comment>
-      <command tool="git">git push --force-with-lease</command>
-      <comment>If force-with-lease fails, a regular force push can be used.</comment>
-      <command tool="git">git push --force</command>
+      <command tool="git">GIT_EDITOR=true git rebase main</command>
+      <comment>If conflicts occur, resolve them manually then use 'git rebase --continue'</comment>
+      <command tool="git">git push --force-with-lease <remote> <pr_branch></command>
+    </template>
+  </pattern>
+  
+  <pattern name="conflict_status_check">
+    <usage>Check current conflict status without interactive input.</usage>
+    <template>
+      <command tool="git">git status --porcelain</command>
+      <command tool="git">git diff --name-only --diff-filter=U</command>
+      <comment>List files with unresolved conflicts</comment>
+      <command tool="git">git ls-files --unmerged</command>
     </template>
   </pattern>
   <pattern name="checking_out_pr">
-    <usage>Command to check out a pull request branch locally.</usage>
+    <usage>Check out a pull request branch locally.</usage>
     <template>
-      <command tool="gh">gh pr checkout <pr_number_or_url></command>
+      <command tool="gh">gh pr checkout <pr_number_or_url> --force</command>
+      <comment>Alternative if gh checkout fails:</comment>
+      <command tool="git">git fetch origin pull/<pr_number>/head:<branch_name> && git checkout <branch_name></command>
     </template>
   </pattern>
-  <pattern name="watching_pr_checks">
-    <usage>After pushing changes, use this command to monitor the CI/CD pipeline in real-time.</usage>
+  
+  <pattern name="determine_push_remote">
+    <usage>Determine the correct remote to push to (handles forks).</usage>
     <template>
-      <command tool="gh">gh pr checks --watch</command>
+      <comment>Get PR metadata to check if it's from a fork</comment>
+      <command tool="gh">gh pr view <pr_number> --json headRepositoryOwner,headRefName,isCrossRepository</command>
+      <comment>If isCrossRepository is true, it's from a fork</comment>
+      <command tool="git">git remote -v</command>
+      <comment>Check if fork remote exists, otherwise add it</comment>
+      <command tool="git">git remote add fork https://github.com/<fork_owner>/<repo_name>.git</command>
+      <comment>Use appropriate remote based on PR source</comment>
+    </template>
+  </pattern>
+  
+  <pattern name="real_time_monitoring">
+    <usage>Monitor PR checks in real-time as they run.</usage>
+    <template>
+      <command tool="gh">gh pr checks <pr_number> --watch</command>
+      <comment>Continuously monitor check status with automatic updates</comment>
+      <alternative>For one-time status check: gh pr checks <pr_number> --json state,conclusion,name,detailsUrl</alternative>
+      <command tool="gh">gh run list --pr <pr_number> --json databaseId,status,conclusion</command>
+    </template>
+  </pattern>
+  
+  <pattern name="safe_push_operations">
+    <usage>Push operations that handle both origin and fork remotes correctly.</usage>
+    <template>
+      <comment>First determine the correct remote (origin or fork)</comment>
+      <command tool="gh">gh pr view <pr_number> --json headRepositoryOwner,headRefName,isCrossRepository</command>
+      <comment>If isCrossRepository is false, push to origin</comment>
+      <command tool="git">git push --force-with-lease origin <branch_name></command>
+      <comment>If isCrossRepository is true, push to fork remote</comment>
+      <command tool="git">git push --force-with-lease fork <branch_name></command>
+      <comment>If force-with-lease fails, fetch and retry</comment>
+      <command tool="git">git fetch <remote> <branch_name></command>
+      <command tool="git">git push --force <remote> <branch_name></command>
+    </template>
+  </pattern>
+
+  <pattern name="automated_commit_operations">
+    <usage>Commit operations that work in automated environments.</usage>
+    <template>
+      <command tool="git">git add .</command>
+      <command tool="git">git commit -m "<commit_message>"</command>
     </template>
   </pattern>
 </common_patterns>

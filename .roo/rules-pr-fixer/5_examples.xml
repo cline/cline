@@ -62,7 +62,7 @@
         <description>Check out the pull request branch.</description>
         <tool_use>
           <execute_command>
-            <command>gh pr checkout 4365</command>
+            <command>gh pr checkout 4365 --force</command>
           </execute_command>
         </tool_use>
         <analysis>The PR branch is now ready for local edits.</analysis>
@@ -82,19 +82,127 @@
         </tool_use>
       </step>
      <step number="6">
-       <description>After pushing the changes, watch the PR checks to confirm the fix.</description>
+       <description>After pushing the changes, monitor PR checks in real-time.</description>
        <tool_use>
          <execute_command>
-           <command>gh pr checks --watch</command>
+           <command>gh pr checks 4365 --watch</command>
          </execute_command>
        </tool_use>
-       <analysis>Confirm that all checks are passing after the fix.</analysis>
+       <analysis>Monitor checks continuously until all complete. The --watch flag provides real-time updates as check statuses change.</analysis>
      </step>
     </workflow>
 
     <key_takeaways>
       <takeaway>Always gather all information before proposing a solution.</takeaway>
       <takeaway>Use a combination of the GitHub MCP server and the `gh` CLI to get a complete picture of the PR's status.</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="fix_pr_with_translation_requirements">
+    <scenario>
+      A pull request has review comments requesting UI text changes that require translation updates across all supported languages.
+    </scenario>
+    
+    <user_request>
+      Fix PR #1234 in RooCodeInc/Roo-Code - the reviewer asked to change button text and there are some failing tests.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Get PR details and analyze changes.</description>
+        <tool_use>
+<use_mcp_tool>
+  <server_name>github</server_name>
+  <tool_name>get_pull_request</tool_name>
+  <arguments>
+    {
+      "owner": "RooCodeInc",
+      "repo": "Roo-Code",
+      "pullNumber": 1234
+    }
+  </arguments>
+</use_mcp_tool>
+        </tool_use>
+        <expected_outcome>Identify the files changed and review feedback requiring UI text modifications.</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Check out PR and apply the requested changes.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checkout 1234 --force</command>
+</execute_command>
+        </tool_use>
+        <analysis>Make the requested button text changes in the UI components.</analysis>
+      </step>
+
+      <step number="3">
+        <description>Identify translation requirements and delegate to translate mode.</description>
+        <tool_use>
+<new_task>
+<mode>translate</mode>
+<message>Translation updates needed for PR #1234 fixes. The following changes were made based on review feedback:
+
+Files modified:
+- webview-ui/src/components/settings/ApiSettings.tsx: Changed button text from "Save" to "Save Configuration"
+- webview-ui/src/i18n/locales/en/common.json: Updated key "save_button" to "save_config_button"
+
+Please update all supported languages (ca, de, es, fr, hi, id, it, ja, ko, nl, pl, pt-BR, ru, tr, vi, zh-CN, zh-TW) with appropriate translations for:
+- New key "save_config_button" with translation equivalent to "Save Configuration"
+- Any other text changes that affect user-facing content
+
+Ensure consistency across all language files and maintain the same context and tone as existing translations.</message>
+</new_task>
+        </tool_use>
+        <expected_outcome>Translation subtask created and all language files updated.</expected_outcome>
+      </step>
+
+      <step number="4">
+        <description>Commit all changes including translations with automated git configuration.</description>
+        <tool_use>
+<execute_command>
+<command>git add . && git commit -m "fix: update button text and translations as requested in review"</command>
+</execute_command>
+        </tool_use>
+        <analysis>All code changes and translation updates are now committed.</analysis>
+      </step>
+
+      <step number="5">
+        <description>Check if PR is from a fork and push to correct remote.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr view 1234 --json isCrossRepository,headRepositoryOwner,headRefName</command>
+</execute_command>
+        </tool_use>
+        <analysis>Determine if this is a cross-repository PR to know which remote to push to.</analysis>
+      </step>
+      
+      <step number="6">
+        <description>Push changes to the appropriate remote.</description>
+        <tool_use>
+<execute_command>
+<command>git push --force-with-lease origin <branch_name></command>
+</execute_command>
+        </tool_use>
+        <analysis>Push changes safely to update the pull request. Use 'fork' remote instead if PR is from a fork.</analysis>
+      </step>
+
+      <step number="7">
+        <description>Monitor CI status in real-time.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checks 1234 --watch</command>
+</execute_command>
+        </tool_use>
+        <analysis>Watch CI checks continuously until all tests pass. The --watch flag provides automatic updates as check statuses change.</analysis>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Always check if PR fixes involve user-facing content that requires translation.</takeaway>
+      <takeaway>Use new_task with translate mode to ensure consistent translation updates.</takeaway>
+      <takeaway>Include detailed context about what changed and why in translation requests.</takeaway>
+      <takeaway>Verify translation completeness before considering the PR fix complete.</takeaway>
     </key_takeaways>
   </example>
 </complete_examples>
