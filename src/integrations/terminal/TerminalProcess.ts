@@ -1,6 +1,7 @@
 import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
+import { getLatestTerminalOutput } from "./get-latest-output"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -27,6 +28,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
+		// When command does not product any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
+		const returnCurrentTerminalContents = async () => {
+			try {
+				const terminalSnapshot = await getLatestTerminalOutput()
+				if (terminalSnapshot && terminalSnapshot.trim()) {
+					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+					this.emit("line", fallbackMessage)
+					this.fullOutput += fallbackMessage
+				}
+			} catch {}
+		}
+
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -174,6 +187,12 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.emitRemainingBufferIfListening()
 
+			// console.log("fullOutput", this.fullOutput.trim())
+			// Check if command produced no meaningful output and capture terminal snapshot
+			if (!this.fullOutput.trim()) {
+				await returnCurrentTerminalContents()
+			}
+
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
 			if (this.hotTimer) {
 				clearTimeout(this.hotTimer)
@@ -184,6 +203,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("continue")
 		} else {
 			terminal.sendText(command, true)
+
+			// For terminals without shell integration, also try to capture terminal content
+			await returnCurrentTerminalContents()
+
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
 			this.emit("completed")
