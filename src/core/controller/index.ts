@@ -49,6 +49,7 @@ import { BooleanRequest } from "@shared/proto/common"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { GetWorkspacePathsRequest } from "@/shared/proto/index.host"
 import { getCwd } from "@/utils/path"
+import { b } from "ollama/dist/shared/ollama.e009de91.mjs"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -910,7 +911,7 @@ export class Controller {
 			terminalReuseEnabled,
 			defaultTerminalProfile,
 			isNewUser,
-			welcomeViewCompleted,
+			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		}
