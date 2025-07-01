@@ -1,5 +1,6 @@
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { updateSetting } from "../utils/settingsHandlers"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
@@ -111,4 +112,4 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	)
 }
 
-export default FeatureSettingsSection
+export default memo(FeatureSettingsSection)
