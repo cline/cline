@@ -229,7 +229,7 @@ Check these common issues:
 - Temporarily comment out custom prompt configurations in your `.bashrc`
 </good_example_of_writing>
 
-The good example transforms the rigid bullet point structure into flowing prose that's much more natural to read. Writing this way creates a conversational flow rather than a mechanical checklist, where information progresses logically from one solution to the next. Instead of just listing steps, the prose explains why each solution works, like noting that "Oh-My-Zsh can interfere with Cline's terminal integration."
+This is much more natural to read. Writing this way creates a conversational flow, and bullet points are used idiomatically.
 
 # Using Mintlify Components Idiomatically
 
