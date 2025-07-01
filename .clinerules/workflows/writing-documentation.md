@@ -329,7 +329,7 @@ Bullet points serve functional purposes - use them for:
 
 **Improving Visual Hierarchy** when there's a wall of text - that's a good time to introduce bullet points or numbered lists.
 
-The key is that bullet points should have a clear functional purpose, not just be a formatting choice. Each bulleted item should be a discrete action or piece of information that benefits from being visually separated. This is a key weapon you can employ when going for that artwork experience I mentioned earlier. 
+Each bulleted item or numbered list should be a discrete action or piece of information that benefits from being visually separated. This is a key weapon you can employ when going for that artwork experience I mentioned earlier. 
 
 ## Write Like a Human, Not an AI
 
