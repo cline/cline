@@ -302,6 +302,7 @@ Use `<Tip>` components for helpful information that enhances the main content wi
 ```
 
 `<Info>` is also cool:
+
 <Info>
 	**Quick Fix**: If you're experiencing terminal issues, try switching to a simpler shell like `bash` in the Cline settings.
 	This resolves 90% of terminal integration problems.
