@@ -19,6 +19,7 @@
 		"vsix": "turbo vsix --log-order grouped --output-logs new-only",
 		"vsix:nightly": "turbo vsix:nightly --log-order grouped --output-logs new-only",
 		"clean": "turbo clean --log-order grouped --output-logs new-only && rimraf dist out bin .vite-port .turbo",
+		"install:vsix": "pnpm install --frozen-lockfile && pnpm clean && pnpm vsix && node scripts/install-vsix.js",
 		"changeset:version": "cp CHANGELOG.md src/CHANGELOG.md && changeset version && cp -vf src/CHANGELOG.md .",
 		"knip": "knip --include files",
 		"update-contributors": "node scripts/update-contributors.js",
