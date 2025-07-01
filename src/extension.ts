@@ -640,6 +640,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the openWalkthrough command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
+			await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
+			telemetryService.captureButtonClick("command_openWalkthrough", undefined, true)
+		}),
+	)
+
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.generateGitCommitMessage", async () => {
