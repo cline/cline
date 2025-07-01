@@ -111,7 +111,6 @@ Check these common issues:
 </good_example_of_writing>
 
 The good example transforms the rigid bullet point structure into flowing prose that's much more natural to read. Writing this way creates a conversational flow rather than a mechanical checklist, where information progresses logically from one solution to the next. Instead of just listing steps, the prose explains why each solution works, like noting that "Oh-My-Zsh can interfere with Cline's terminal integration."
-Phrases like "When all else fails" and "Many users find that" make the documentation feel more human and relatable. The actual steps get woven into the narrative rather than broken out as separate numbered items, making the text flow better while still being actionable. Each suggestion includes context about why it helps, which builds user confidence and understanding rather than just giving rote instructions.
 
 # Using Mintlify Components Idiomatically
 
