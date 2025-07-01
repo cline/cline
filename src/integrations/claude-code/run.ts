@@ -76,6 +76,21 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
 			)
 		}
+	} catch (err) {
+		// When the command fails, execa throws an error with the arguments, which include the whole system prompt.
+		// We want to log that, but not show it to the user.
+		console.error(`Error during Claude Code execution:`, err)
+		if (err instanceof Error) {
+			const startOfCommand = err.message.indexOf(": ")
+			if (startOfCommand !== -1) {
+				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
+				err.message = messageWithoutCommand
+			}
+
+			throw err
+		}
+
+		throw err
 	} finally {
 		rl.close()
 		if (!process.killed) {
