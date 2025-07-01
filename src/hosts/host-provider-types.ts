@@ -3,6 +3,7 @@ import {
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
+	WindowServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 
 /**
@@ -13,6 +14,7 @@ export interface HostBridgeClientProvider {
 	watchServiceClient: WatchServiceClientInterface
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
+	windowClient: WindowServiceClientInterface
 }
 
 /**

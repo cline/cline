@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Provides methods for working with IDE windows and editors.
+service WindowService {
+  // Opens a text document in the editor and returns editor information.
+  rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
+}
+
+message ShowTextDocumentRequest {
+  cline.Metadata metadata = 1;
+  string path = 2;
+  optional ShowTextDocumentOptions options = 3;
+}
+
+// See https://code.visualstudio.com/api/references/vscode-api#TextDocumentShowOptions
+message ShowTextDocumentOptions {
+  optional bool preview = 1;
+  optional bool preserve_focus = 2;
+  optional int32 view_column = 3;
+}
+
+message TextEditorInfo {
+  string document_path = 1;
+  optional int32 view_column = 2;
+  bool is_active = 3;
+}
