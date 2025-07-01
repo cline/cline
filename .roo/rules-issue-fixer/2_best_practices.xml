@@ -12,4 +12,7 @@
   - Update documentation when needed
   - Add tests for any new functionality
   - Check for accessibility issues (for UI changes)
+  - Delegate translation tasks to translate mode when implementing user-facing changes
+  - Always check for hard-coded strings and internationalization needs
+  - Wait for translation completion before proceeding to final testing
 </best_practices>

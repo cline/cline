@@ -252,11 +252,63 @@
       - [ ] No linting errors
       
       If any criteria fail, return to implementation step.
-    </instructions>
-  </step>
-
-  <step number="7">
-    <name>Run Tests and Checks</name>
+     </instructions>
+   </step>
+ 
+   <step number="7">
+     <name>Check for Translation Requirements</name>
+     <instructions>
+       After implementing changes, analyze if any translations are required:
+       
+       Translation is needed if the implementation includes:
+       1. New user-facing text strings in UI components
+       2. New error messages or user notifications
+       3. Updated documentation files that need localization
+       4. New command descriptions or tooltips
+       5. Changes to announcement files or release notes
+       6. New configuration options with user-visible descriptions
+       
+       Check for these patterns:
+       - Hard-coded strings in React components (.tsx/.jsx files)
+       - New entries needed in i18n JSON files
+       - Updated markdown documentation files
+       - New VSCode command contributions
+       - Changes to user-facing configuration schemas
+       
+       If translations are required:
+       
+       <new_task>
+       <mode>translate</mode>
+       <message>Translation needed for issue #[issue-number] implementation.
+ 
+       The following changes require translation into all supported languages:
+ 
+       **Files with new/updated user-facing content:**
+       - [List specific files and what content needs translation]
+       - [Include context about where the strings appear]
+       - [Note any special formatting or constraints]
+ 
+       **Translation scope:**
+       - [Specify if it's new strings, updated strings, or both]
+       - [List specific JSON keys that need attention]
+       - [Note any markdown files that need localization]
+ 
+       **Context for translators:**
+       - [Explain the feature/fix being implemented]
+       - [Provide context about how the text is used]
+       - [Note any technical terms or constraints]
+ 
+       Please ensure all translations maintain consistency with existing terminology and follow the project's localization guidelines.</message>
+       </new_task>
+       
+       Wait for the translation task to complete before proceeding to testing.
+       
+       If no translations are required, continue to the next step.
+     </instructions>
+   </step>
+ 
+   <step number="8">
+     <name>Run Tests and Checks</name>
     <instructions>
       Run comprehensive tests to ensure quality:
       
@@ -289,7 +341,7 @@
     </instructions>
   </step>
 
-  <step number="8">
+  <step number="9">
     <name>Prepare Summary</name>
     <instructions>
       Create a comprehensive summary of the implementation:
@@ -341,7 +393,7 @@
     </instructions>
   </step>
 
-  <step number="9">
+  <step number="10">
     <name>Prepare for Pull Request</name>
     <instructions>
       If user wants to create a pull request, prepare everything needed:
@@ -429,7 +481,7 @@
     </instructions>
   </step>
 
-  <step number="10">
+  <step number="11">
     <name>Create Pull Request</name>
     <instructions>
       Once user approves, create the pull request using GitHub MCP:
@@ -492,7 +544,7 @@
     </instructions>
   </step>
 
-  <step number="11">
+  <step number="12">
     <name>Monitor PR Checks</name>
     <instructions>
       After the PR is created, monitor the CI/CD checks to ensure they pass:
