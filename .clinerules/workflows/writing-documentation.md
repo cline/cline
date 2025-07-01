@@ -170,7 +170,7 @@ Use `<Tip>` components for helpful information that enhances the main content wi
 </Note>
 ```
 
-**Never** fall into that awful **Bold Text** - description pattern that we specifically identified as bad writing. The content should flows naturally as connected thoughts rather than feeling like a templated AI response with forced formatting.
+**Never** fall into that awful **Bold Text** - description pattern that we specifically identified as bad writing. The content should flow naturally as connected thoughts rather than feeling like a templated AI response with forced formatting.
 
 # Lastly, before you start writing docs
 
