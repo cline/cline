@@ -21,4 +21,23 @@ service AccountService {
     rpc subscribeToAuthCallback(EmptyRequest) returns (stream String);
 
     rpc accountEmailIdentified(StringRequest) returns (Empty);
+    
+    // Handles authentication state changes from the Firebase context.
+    // Updates the user info in global state and returns the updated value.
+    rpc authStateChanged(AuthStateChangedRequest) returns (AuthStateChanged);
+}
+
+message AuthStateChangedRequest {
+    Metadata metadata = 1;
+    UserInfo user = 2;
+}
+
+message AuthStateChanged {
+    optional UserInfo user = 1;
+}
+
+message UserInfo {
+    optional string display_name = 1;
+    optional string email = 2;
+    optional string photo_url = 3;
 }
