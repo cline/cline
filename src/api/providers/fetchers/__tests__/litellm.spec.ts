@@ -4,6 +4,7 @@ vi.mock("axios")
 import type { Mock } from "vitest"
 import axios from "axios"
 import { getLiteLLMModels } from "../litellm"
+import { DEFAULT_HEADERS } from "../../constants"
 
 const mockedAxios = axios as typeof axios & {
 	get: Mock
@@ -32,6 +33,7 @@ describe("getLiteLLMModels", () => {
 			headers: {
 				Authorization: "Bearer test-api-key",
 				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
 			},
 			timeout: 5000,
 		})
@@ -83,6 +85,7 @@ describe("getLiteLLMModels", () => {
 			headers: {
 				Authorization: "Bearer test-api-key",
 				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
 			},
 			timeout: 5000,
 		})
@@ -125,6 +128,7 @@ describe("getLiteLLMModels", () => {
 		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
 			headers: {
 				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
 			},
 			timeout: 5000,
 		})

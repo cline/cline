@@ -7,6 +7,8 @@ import { ApiHandlerOptions, RouterName, ModelRecord } from "../../shared/api"
 import { BaseProvider } from "./base-provider"
 import { getModels } from "./fetchers/modelCache"
 
+import { DEFAULT_HEADERS } from "./constants"
+
 type RouterProviderOptions = {
 	name: RouterName
 	baseURL: string
@@ -43,7 +45,14 @@ export abstract class RouterProvider extends BaseProvider {
 		this.defaultModelId = defaultModelId
 		this.defaultModelInfo = defaultModelInfo
 
-		this.client = new OpenAI({ baseURL, apiKey })
+		this.client = new OpenAI({
+			baseURL,
+			apiKey,
+			defaultHeaders: {
+				...DEFAULT_HEADERS,
+				...(options.openAiHeaders || {}),
+			},
+		})
 	}
 
 	public async fetchModel() {
