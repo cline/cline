@@ -1,13 +1,9 @@
-import { Controller } from ".."
-import { RuleFileRequest, RuleFile } from "@shared/proto/file"
-import { FileMethodHandler } from "./index"
-import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
-import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
-import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
-import * as vscode from "vscode"
+import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
-import { cwd } from "@core/task"
+import * as vscode from "vscode"
+import { Controller } from ".."
+import { FileMethodHandler } from "./index"
 
 /**
  * Deletes a rule file from either global or workspace rules directory
