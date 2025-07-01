@@ -202,7 +202,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("completed")
 			this.emit("continue")
 		} else {
+			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			terminal.sendText(command, true)
+
+			// wait 3 seconds for the command to run
+			await new Promise((resolve) => setTimeout(resolve, 3000))
 
 			// For terminals without shell integration, also try to capture terminal content
 			await returnCurrentTerminalContents()
