@@ -311,7 +311,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				console.log(`[TerminalProcess] WARNING: Process completed but no output was captured`)
 				// Ensure we emit at least one line for UI feedback
 				if (!didEmitEmptyLine) {
-					this.emit("line", "[Command completed silently]")
+					// this.emit("line", "[Command completed silently]")
+					await emitCurrentTerminalContents()
 				}
 			}
 
