@@ -376,6 +376,42 @@ Make sure you crosslink when you're done writing the docs. If there are relevant
 
 Don't ramble if you don't need to. Use bullet points and numbered lists. Keep things easy to read.
 
+<bad_example>
+
+When Cline can't execute commands or read their output, you lose access to one of his most powerful capabilities. Terminal integration problems are frustrating, but they're usually fixable with a few simple changes.
+
+## The Most Common Problem: Shell Integration Issues
+
+If you're seeing "Shell integration unavailable" or Cline isn't getting command output, the issue is almost always your shell configuration. Complex shell setups with custom prompts, plugins, and fancy configurations can interfere with VSCode's terminal integration.
+
+**Switch to bash first.** This fixes the problem 90% of the time. Navigate to Cline Settings → Terminal → Default Terminal Profile and select "bash" from the dropdown. Restart VSCode after making this change.
+
+Still having issues? Try increasing the shell integration timeout. Go to Cline Settings → Terminal → Shell Integration Timeout and change it from 4 seconds to 10 seconds. Heavy shell configurations need more time to initialize properly.
+
+If commands are running in the wrong directories or you're seeing weird behavior, disable aggressive terminal reuse. In Cline Settings → Terminal, uncheck "Enable aggressive terminal reuse." This creates more terminal instances but ensures each command runs in a clean environment.
+
+
+</bad_exaxmple>
+
+The first part is total filler, useless to any serious developer. You can tell it's written by a non technical person that doesn't value clean, straightforward information. 
+
+<good_example>
+## Shell Integration Issues
+
+If you're seeing "Shell integration unavailable" or Cline can't read command output, your shell configuration is interfering with VSCode's terminal integration.
+
+**Switch to bash first.** Go to Cline Settings → Terminal → Default Terminal Profile and select "bash." This fixes 90% of problems.
+
+Still broken? Try these:
+- Increase shell integration timeout to 10 seconds in Cline Settings → Terminal
+- Disable "aggressive terminal reuse" if commands run in wrong directories
+- Restart VSCode after making changes
+</good_example>
+
+The good version cuts straight to the problem and solution. No hand-holding, no emotional language about frustration, just the facts: what's wrong, how to fix it, what to try next. Respects that developers want information, not sympathy.RetryClaude can make mistakes. Please double-check responses.
+
+ALWAYS consider your audience. And your audience is devs who don't want their time wasted. Give them the info. I cannot stress this enough. Use bullet points and numbered lists. Prose is good, but every word should actually mean something to the dev reading it.
+
 # Lastly, before you start writing docs
 
 1. Internalize these guidelines. I mean it. 
