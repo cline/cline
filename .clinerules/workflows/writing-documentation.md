@@ -119,17 +119,15 @@ This structure works whether you're writing a tweet thread or a full blog post. 
 
 # Guide to Writing Cline Documentation
 
-## The Four Essential Documentation Categories
+## Some general principles for explaining features
 
-Every feature page should include these four sections to create a complete user journey.
+If you're talking about a feature, it's helpful to start with a human-readable explanations that cover what the feature is in simple terms. Skip jargon and explain it like you're talking to someone who's never seen it before. This sets the foundation for everything that follows.
 
-Start with a human-readable explanation that covers what the feature is in simple terms. Skip jargon and explain it like you're talking to someone who's never seen it before. This sets the foundation for everything that follows.
-
-Next, combine location and usage into one flowing section. Tell users exactly where to find the feature and how to use it, but weave the instructions into natural prose with a good balance of bullet points, numbered lists, code examples (if applicable), mintlify components, and headers/subheaders. Users shouldn't have to jump between separate "where is it" and "how do I use it" sections.
+Combine location and usage into one flowing section. Tell users exactly where to find the feature and how to use it, but weave the instructions into natural prose with a good balance of bullet points, numbered lists, code examples (if applicable), mintlify components, and headers/subheaders. Users shouldn't have to jump between separate "where is it" and "how do I use it" sections.
 
 Show the feature in action with real examples like actual files, workflows, or code. Users need to see concrete implementations, not just abstract descriptions. This is where understanding turns into practical knowledge.
 
-End with inspiration that sparks imagination. This section pushes people from understanding to action by showing them what becomes possible when they use this feature creatively. It's what separates good documentation from great documentation.
+When talking about a feature, include an inspiration section that sparks imagination. This section pushes people from understanding to action by showing them what becomes possible when they use this feature creatively. It's what separates good documentation from great documentation.
 
 ## Writing Principles That Actually Work
 
@@ -139,7 +137,7 @@ Documentation should motivate users to try things. Instead of just explaining ho
 
 ### Create a Natural Story Flow
 
-Your four sections should feel like a conversation that naturally progresses from "what is this?" to "how do I use it?" to "here's a real example" to "imagine what you could do with this." Each section builds on the previous one without feeling mechanical or checklist-like.
+It should feel like a conversation that naturally progresses from "what is this?" to "how do I use it?" to "here's a real example" to "imagine what you could do with this." 
 
 ### Show Real Examples, Not Toy Demos
 
@@ -166,10 +164,6 @@ Structure each feature page consistently with the four-section approach, but let
 Link generously to related resources, examples, and deeper documentation. Users should never feel stuck or wonder where to go next. Maintain a repository of real examples that users can reference and adapt to their own needs.
 
 The goal is documentation that feels more like helpful guidance from an experienced colleague than a technical manual. Users should finish reading feeling excited about what they can accomplish, not just informed about what the feature does.
-
-## Focus on User Outcomes
-
-The discussion about inspiring users to use their imagination suggests writing should focus on what users can achieve rather than just describing features. Frame content around user benefits and possibilities.
 
 ## Balance Structure with Flexibility
 
