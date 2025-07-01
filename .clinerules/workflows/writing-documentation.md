@@ -125,7 +125,7 @@ Every feature page should include these four sections to create a complete user 
 
 Start with a human-readable explanation that covers what the feature is in simple terms. Skip jargon and explain it like you're talking to someone who's never seen it before. This sets the foundation for everything that follows.
 
-Next, combine location and usage into one flowing section. Tell users exactly where to find the feature and how to use it, but weave the instructions into natural prose rather than rigid step lists. Users shouldn't have to jump between separate "where is it" and "how do I use it" sections.
+Next, combine location and usage into one flowing section. Tell users exactly where to find the feature and how to use it, but weave the instructions into natural prose with a good balance of bullet points, numbered lists, code examples (if applicable), mintlify components, and headers/subheaders. Users shouldn't have to jump between separate "where is it" and "how do I use it" sections.
 
 Show the feature in action with real examples like actual files, workflows, or code. Users need to see concrete implementations, not just abstract descriptions. This is where understanding turns into practical knowledge.
 
@@ -147,7 +147,7 @@ Provide actual workflow files, real code snippets, and concrete implementations 
 
 ### Keep It Scannable But Not Fragmented
 
-Write in prose that flows naturally when read completely, but structure it so users can quickly find specific information when they're troubleshooting. Avoid dense walls of text, but also avoid over-formatting with excessive bullet points and bold headers.
+Write in prose that flows naturally when read completely, but structure it so users can quickly find specific information when they're troubleshooting. Avoid dense walls of text, but also avoid over-formatting with excessive bullet points and bold headers. There should be a nice visual heirarchy of balance between all elements, so you can quickly scan the page and find what you're looking for.
 
 ## Language and Tone Guidelines
 
@@ -380,17 +380,15 @@ Make sure you crosslink when you're done writing the docs. If there are relevant
 
 # Lastly, before you start writing docs
 
-First, internalize these guidelines. I mean it. 
+1. Internalize these guidelines. I mean it. 
 
-Second, read `docs/docs.json` and get an understanding of the structure of the docs. This will come in handly at the end when you're doing a final pass so you can cross link to docs where relevant.
+2. Read `docs/docs.json` and get an understanding of the structure of the docs. This will come in handly at the end when you're doing a final pass so you can cross link to docs where relevant.
 
-Third, read some good examples that I personally wrote and am proud of:
+3. Read some good examples that I personally wrote and am proud of:
 
 - docs/features/slash-commands/workflows.mdx
 - docs/features/slash-commands/new-task.mdx
 - docs/features/at-mentions/overview.mdx
 - docs/features/drag-and-drop.mdx
 
-Fourth, if the user specifies any other instructions make sure you follow them.
-
-
+4. If the user specifies any other instructions make sure you follow them.
