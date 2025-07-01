@@ -28,7 +28,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
-		// When command does not product any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
+		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
 			try {
 				const terminalSnapshot = await getLatestTerminalOutput()
@@ -37,7 +37,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					this.emit("line", fallbackMessage)
 					this.fullOutput += fallbackMessage
 				}
-			} catch {}
+			} catch (error) {
+				console.error("Error capturing terminal output:", error);
+			}
 		}
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
