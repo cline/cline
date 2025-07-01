@@ -114,6 +114,11 @@
 			"label": "Alt Görevler",
 			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
 		},
+		"followupQuestions": {
+			"label": "Soru",
+			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",
+			"timeoutLabel": "İlk yanıtı otomatik olarak seçmeden önce beklenecek süre"
+		},
 		"execute": {
 			"label": "Yürüt",
 			"description": "Onay gerektirmeden otomatik olarak izin verilen terminal komutlarını yürüt",

@@ -244,7 +244,9 @@
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {
-		"copyToInput": "Kopiëren naar invoer (zelfde als shift + klik)"
+		"copyToInput": "Kopiëren naar invoer (zelfde als shift + klik)",
+		"autoSelectCountdown": "Automatische selectie in {{count}}s",
+		"countdownDisplay": "{{count}}s"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo wil de browser gebruiken:",

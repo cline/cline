@@ -234,7 +234,9 @@
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {
-		"copyToInput": "複製到輸入框（或按住 Shift 並點選）"
+		"copyToInput": "複製到輸入框（或按住 Shift 並點選）",
+		"autoSelectCountdown": "{{count}}秒後自動選擇",
+		"countdownDisplay": "{{count}}秒"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",

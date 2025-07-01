@@ -114,6 +114,11 @@
 			"label": "Subtarefas",
 			"description": "Permitir a criação e conclusão de subtarefas sem exigir aprovação"
 		},
+		"followupQuestions": {
+			"label": "Pergunta",
+			"description": "Selecionar automaticamente a primeira resposta sugerida para perguntas de acompanhamento após o tempo limite configurado",
+			"timeoutLabel": "Tempo de espera antes de selecionar automaticamente a primeira resposta"
+		},
 		"execute": {
 			"label": "Executar",
 			"description": "Executar automaticamente comandos de terminal permitidos sem exigir aprovação",

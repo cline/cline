@@ -114,6 +114,11 @@
 			"label": "サブタスク",
 			"description": "承認なしでサブタスクの作成と完了を許可"
 		},
+		"followupQuestions": {
+			"label": "質問",
+			"description": "設定された時間が経過すると、フォローアップ質問の最初の提案回答を自動的に選択します",
+			"timeoutLabel": "最初の回答を自動選択するまでの待機時間"
+		},
 		"execute": {
 			"label": "実行",
 			"description": "承認なしで自動的に許可されたターミナルコマンドを実行",

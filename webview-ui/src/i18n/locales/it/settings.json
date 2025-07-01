@@ -114,6 +114,11 @@
 			"label": "Sottoattività",
 			"description": "Consenti la creazione e il completamento di attività secondarie senza richiedere approvazione"
 		},
+		"followupQuestions": {
+			"label": "Domanda",
+			"description": "Seleziona automaticamente la prima risposta suggerita per le domande di follow-up dopo il timeout configurato",
+			"timeoutLabel": "Tempo di attesa prima di selezionare automaticamente la prima risposta"
+		},
 		"execute": {
 			"label": "Esegui",
 			"description": "Esegui automaticamente i comandi del terminale consentiti senza richiedere approvazione",

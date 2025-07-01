@@ -114,6 +114,11 @@
 			"label": "Công việc phụ",
 			"description": "Cho phép tạo và hoàn thành các công việc phụ mà không cần phê duyệt"
 		},
+		"followupQuestions": {
+			"label": "Câu hỏi",
+			"description": "Tự động chọn câu trả lời đầu tiên được đề xuất cho các câu hỏi tiếp theo sau thời gian chờ đã cấu hình",
+			"timeoutLabel": "Thời gian chờ trước khi tự động chọn câu trả lời đầu tiên"
+		},
 		"execute": {
 			"label": "Thực thi",
 			"description": "Tự động thực thi các lệnh terminal được phép mà không cần phê duyệt",

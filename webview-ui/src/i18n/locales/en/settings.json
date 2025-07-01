@@ -114,6 +114,11 @@
 			"label": "Subtasks",
 			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
+		"followupQuestions": {
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
+		},
 		"execute": {
 			"label": "Execute",
 			"description": "Automatically execute allowed terminal commands without requiring approval",

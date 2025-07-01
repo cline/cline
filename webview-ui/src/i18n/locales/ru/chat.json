@@ -244,7 +244,9 @@
 		"tokens": "токены"
 	},
 	"followUpSuggest": {
-		"copyToInput": "Скопировать во ввод (то же, что shift + клик)"
+		"copyToInput": "Скопировать во ввод (то же, что shift + клик)",
+		"autoSelectCountdown": "Автовыбор через {{count}}с",
+		"countdownDisplay": "{{count}}с"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo хочет использовать браузер:",

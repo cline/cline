@@ -234,7 +234,9 @@
 		"tokens": "Tokens"
 	},
 	"followUpSuggest": {
-		"copyToInput": "In Eingabefeld kopieren (oder Shift + Klick)"
+		"copyToInput": "In Eingabefeld kopieren (oder Shift + Klick)",
+		"autoSelectCountdown": "Automatische Auswahl in {{count}}s",
+		"countdownDisplay": "{{count}}s"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} veröffentlicht",

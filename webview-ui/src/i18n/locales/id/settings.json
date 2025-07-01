@@ -114,6 +114,11 @@
 			"label": "Subtugas",
 			"description": "Izinkan pembuatan dan penyelesaian subtugas tanpa memerlukan persetujuan"
 		},
+		"followupQuestions": {
+			"label": "Pertanyaan",
+			"description": "Secara otomatis memilih jawaban pertama yang disarankan untuk pertanyaan lanjutan setelah batas waktu yang dikonfigurasi",
+			"timeoutLabel": "Waktu tunggu sebelum otomatis memilih jawaban pertama"
+		},
 		"execute": {
 			"label": "Eksekusi",
 			"description": "Secara otomatis mengeksekusi perintah terminal yang diizinkan tanpa memerlukan persetujuan",

@@ -114,6 +114,11 @@
 			"label": "Teilaufgaben",
 			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
 		},
+		"followupQuestions": {
+			"label": "Frage",
+			"description": "Automatisch die erste vorgeschlagene Antwort für Folgefragen nach der konfigurierten Zeitüberschreitung auswählen",
+			"timeoutLabel": "Wartezeit vor der automatischen Auswahl der ersten Antwort"
+		},
 		"execute": {
 			"label": "Ausführen",
 			"description": "Erlaubte Terminal-Befehle automatisch ohne Genehmigung ausführen",

@@ -234,7 +234,9 @@
 		"tokens": "トークン"
 	},
 	"followUpSuggest": {
-		"copyToInput": "入力欄にコピー（またはShift + クリック）"
+		"copyToInput": "入力欄にコピー（またはShift + クリック）",
+		"autoSelectCountdown": "{{count}}秒後に自動選択します",
+		"countdownDisplay": "{{count}}秒"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",

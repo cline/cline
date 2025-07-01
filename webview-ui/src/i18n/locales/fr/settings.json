@@ -114,6 +114,11 @@
 			"label": "Sous-tâches",
 			"description": "Permettre la création et l'achèvement des sous-tâches sans nécessiter d'approbation"
 		},
+		"followupQuestions": {
+			"label": "Question",
+			"description": "Sélectionner automatiquement la première réponse suggérée pour les questions de suivi après le délai configuré",
+			"timeoutLabel": "Temps d'attente avant la sélection automatique de la première réponse"
+		},
 		"execute": {
 			"label": "Exécuter",
 			"description": "Exécuter automatiquement les commandes de terminal autorisées sans nécessiter d'approbation",

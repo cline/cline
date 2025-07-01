@@ -234,7 +234,9 @@
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {
-		"copyToInput": "Copiar a l'entrada (o Shift + clic)"
+		"copyToInput": "Copiar a l'entrada (o Shift + clic)",
+		"autoSelectCountdown": "Selecció automàtica en {{count}}s",
+		"countdownDisplay": "{{count}}s"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} publicat",

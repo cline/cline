@@ -114,6 +114,11 @@
 			"label": "Subtaken",
 			"description": "Subtaken aanmaken en afronden zonder goedkeuring"
 		},
+		"followupQuestions": {
+			"label": "Vraag",
+			"description": "Selecteer automatisch het eerste voorgestelde antwoord voor vervolgvragen na de geconfigureerde time-out",
+			"timeoutLabel": "Wachttijd voordat het eerste antwoord automatisch wordt geselecteerd"
+		},
 		"execute": {
 			"label": "Uitvoeren",
 			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",

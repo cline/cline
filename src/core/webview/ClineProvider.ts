@@ -1411,6 +1411,8 @@ export class ClineProvider
 			codebaseIndexConfig,
 			codebaseIndexModels,
 			profileThresholds,
+			alwaysAllowFollowupQuestions,
+			followupAutoApproveTimeoutMs,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1521,6 +1523,8 @@ export class ClineProvider
 			profileThresholds: profileThresholds ?? {},
 			cloudApiUrl: getRooCodeApiUrl(),
 			hasOpenedModeSelector: this.getGlobalState("hasOpenedModeSelector") ?? false,
+			alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions ?? false,
+			followupAutoApproveTimeoutMs: followupAutoApproveTimeoutMs ?? 60000,
 		}
 	}
 
@@ -1601,6 +1605,8 @@ export class ClineProvider
 			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
 			alwaysAllowSubtasks: stateValues.alwaysAllowSubtasks ?? false,
+			alwaysAllowFollowupQuestions: stateValues.alwaysAllowFollowupQuestions ?? false,
+			followupAutoApproveTimeoutMs: stateValues.followupAutoApproveTimeoutMs ?? 60000,
 			allowedMaxRequests: stateValues.allowedMaxRequests,
 			autoCondenseContext: stateValues.autoCondenseContext ?? true,
 			autoCondenseContextPercent: stateValues.autoCondenseContextPercent ?? 100,

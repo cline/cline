@@ -114,6 +114,11 @@
 			"label": "子任务",
 			"description": "允许创建和完成子任务而无需批准"
 		},
+		"followupQuestions": {
+			"label": "问题",
+			"description": "在配置的超时时间后自动选择后续问题的第一个建议答案",
+			"timeoutLabel": "自动选择第一个答案前的等待时间"
+		},
 		"execute": {
 			"label": "执行",
 			"description": "自动执行白名单中的命令而无需批准",

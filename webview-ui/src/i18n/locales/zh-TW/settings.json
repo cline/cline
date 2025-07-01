@@ -114,6 +114,11 @@
 			"label": "子工作",
 			"description": "允許建立和完成子工作而無需核准"
 		},
+		"followupQuestions": {
+			"label": "問題",
+			"description": "在設定的逾時時間後自動選擇後續問題的第一個建議答案",
+			"timeoutLabel": "自動選擇第一個答案前的等待時間"
+		},
 		"execute": {
 			"label": "執行",
 			"description": "自動執行允許的終端機命令而無需核准",
