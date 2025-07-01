@@ -1,14 +1,4 @@
 <github_communication_guidelines>
-  <pr_comments>
-    - Keep comments concise and focused on technical substance
-    - Avoid overly verbose explanations unless specifically requested
-    - Sound human and conversational, not robotic
-    - Address specific feedback points directly
-    - Use bullet points for multiple changes
-    - Reference line numbers or specific code when relevant
-    - Example: "Updated the error handling in `validateInput()` to catch edge cases as requested. Also added the missing null check on line 45."
-  </pr_comments>
-  
   <issue_comments>
     - Provide brief status updates when working on complex issues
     - Ask specific questions if requirements are unclear

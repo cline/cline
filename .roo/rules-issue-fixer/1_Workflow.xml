@@ -1,62 +1,41 @@
 <workflow>
   <step number="1">
-    <name>Determine Workflow Type and Retrieve Context</name>
+    <name>Retrieve Issue Context</name>
     <instructions>
-      First, determine what type of work is needed. The user will provide either:
-      - An issue number/URL (e.g., "#123" or GitHub issue URL) - for new implementation
-      - A PR number/URL (e.g., "#456" or GitHub PR URL) - for addressing review feedback
-      - A description of changes needed for an existing PR
+      The user should provide a full GitHub issue URL (e.g., "https://github.com/owner/repo/issues/123") for implementation.
       
-      For Issue-based workflow:
-      Extract the issue number and retrieve it:
+      Parse the URL to extract:
+      - Owner (organization or username)
+      - Repository name
+      - Issue number
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>get_issue</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "issue_number": [extracted number]
-      }
-      </arguments>
-      </use_mcp_tool>
+      For example, from https://github.com/RooCodeInc/Roo-Code/issues/123:
+      - Owner: RooCodeInc
+      - Repo: Roo-Code
+      - Issue: 123
       
-      For PR Review workflow:
-      Extract the PR number and retrieve it:
+      Then retrieve the issue:
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>get_pull_request</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "pull_number": [extracted number]
-      }
-      </arguments>
-      </use_mcp_tool>
+      <execute_command>
+      <command>gh issue view [issue-number] --repo [owner]/[repo] --json number,title,body,state,labels,assignees,milestone,createdAt,updatedAt,closedAt,author</command>
+      </execute_command>
       
-      Then get PR review comments:
+      If the command fails with an authentication error (e.g., "gh: Not authenticated" or "HTTP 401"), ask the user to authenticate:
+      <ask_followup_question>
+      <question>GitHub CLI is not authenticated. Please run 'gh auth login' in your terminal to authenticate, then let me know when you're ready to continue.</question>
+      <follow_up>
+      <suggest>I've authenticated, please continue</suggest>
+      <suggest>I need help with authentication</suggest>
+      <suggest>Let's use a different approach</suggest>
+      </follow_up>
+      </ask_followup_question>
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>get_pull_request_reviews</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "pull_number": [extracted number]
-      }
-      </arguments>
-      </use_mcp_tool>
+      Analyze the issue to determine:
+      1. All requirements and acceptance criteria
+      2. Technical details mentioned
+      3. Any linked issues or discussions
       
-      Analyze the context to determine:
-      1. Type of work (new issue implementation vs PR feedback)
-      2. All requirements and acceptance criteria
-      3. Specific changes requested (for PR reviews)
-      4. Technical details mentioned
-      5. Any linked issues or discussions
+      Note: For PR review feedback, users should use the dedicated pr-fixer mode instead.
     </instructions>
   </step>
 
@@ -69,22 +48,19 @@
       - Community suggestions
       - Any decisions or changes to requirements
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>get_issue_comments</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "issue_number": [issue number]
-      }
-      </arguments>
-      </use_mcp_tool>
+      <execute_command>
+      <command>gh issue view [issue number] --repo [owner]/[repo] --comments</command>
+      </execute_command>
       
       Also check for:
       1. Related issues mentioned in the body or comments
       2. Linked pull requests
       3. Referenced discussions
+      
+      If related PRs are mentioned, view them:
+      <execute_command>
+      <command>gh pr view [pr-number] --repo [owner]/[repo]</command>
+      </execute_command>
       
       Document all requirements and constraints found.
     </instructions>
@@ -109,16 +85,9 @@
       - Identify patterns to follow
       - Find related components and utilities
       
-      For PR Reviews:
-      - Search for files mentioned in review comments
-      - Find related files that use similar patterns
-      - Locate test files for modified functionality
-      - Identify files that import/depend on changed code
-      
       Example searches based on issue type:
       - Bug: Search for error messages, function names, component names
       - Feature: Search for similar functionality, API endpoints, UI components
-      - PR Review: Search for patterns mentioned in feedback
       
       CRITICAL: Always read multiple related files together to understand:
       - Current code patterns and conventions
@@ -133,10 +102,15 @@
       - read_file to examine specific implementations (read multiple files at once)
       - search_files for specific patterns or error messages
       
-      Also use GitHub tools:
-      - list_commits to see recent changes to affected files
-      - get_commit to understand specific changes
-      - list_pull_requests to find related PRs
+      Also use GitHub CLI to check recent changes:
+      <execute_command>
+      <command>gh api repos/[owner]/[repo]/commits?path=[file-path]&per_page=10 --jq '.[].sha + " " + .[].commit.message'</command>
+      </execute_command>
+      
+      Search for related PRs:
+      <execute_command>
+      <command>gh pr list --repo [owner]/[repo] --search "[relevant search terms]" --limit 10</command>
+      </execute_command>
       
       Document:
       - All files that need modification
@@ -464,13 +438,13 @@
 
       **Branch:** [branch-name]
       **Title:** [PR title]
-      **Target:** RooCodeInc/Roo-Code (main branch)
+      **Target:** [owner]/[repo] (main branch)
 
       Here's the PR description:
 
       [Show prepared PR description]
 
-      Would you like me to create this pull request to RooCodeInc/Roo-Code?</question>
+      Would you like me to create this pull request to [owner]/[repo]?</question>
       <follow_up>
       <suggest>Yes, create the pull request</suggest>
       <suggest>Let me review the PR description first</suggest>
@@ -484,46 +458,28 @@
   <step number="11">
     <name>Create Pull Request</name>
     <instructions>
-      Once user approves, create the pull request using GitHub MCP:
+      Once user approves, create the pull request using GitHub CLI:
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>create_pull_request</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "title": "[Type]: [Brief description] (#[issue-number])",
-        "head": "[user-fork-owner]:[branch-name]",
-        "base": "main",
-        "body": "[Complete PR description from step 9]",
-        "draft": false,
-        "maintainer_can_modify": true
-      }
-      </arguments>
-      </use_mcp_tool>
+      If the user doesn't have push access to [owner]/[repo], fork the repository:
+      <execute_command>
+      <command>gh repo fork [owner]/[repo] --clone</command>
+      </execute_command>
       
-      Note: The "head" parameter format depends on where the branch exists:
-      - If user has push access: "branch-name"
-      - If working from a fork: "username:branch-name"
+      Create the pull request:
+      <execute_command>
+      <command>gh pr create --repo [owner]/[repo] --base main --title "[Type]: [Brief description] (#[issue-number])" --body "[Complete PR description from step 10]" --maintainer-can-modify</command>
+      </execute_command>
+      
+      The gh CLI will automatically handle the fork workflow if needed.
       
       After PR creation:
-      1. Capture the PR number and URL from the response
+      1. Capture the PR number and URL from the command output
       2. Link the PR to the issue by commenting on the issue
       3. Inform the user of the successful creation
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>add_issue_comment</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "issue_number": [original issue number],
-        "body": "PR #[new PR number] has been created to address this issue: [PR URL]"
-      }
-      </arguments>
-      </use_mcp_tool>
+      <execute_command>
+      <command>gh issue comment [original issue number] --repo [owner]/[repo] --body "PR #[new PR number] has been created to address this issue: [PR URL]"</command>
+      </execute_command>
       
       Final message to user:
       ```
@@ -550,7 +506,7 @@
       After the PR is created, monitor the CI/CD checks to ensure they pass:
       
       <execute_command>
-      <command>gh pr checks --watch</command>
+      <command>gh pr checks [PR number] --repo [owner]/[repo] --watch</command>
       </execute_command>
       
       This command will:

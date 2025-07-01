@@ -4,6 +4,7 @@
     2. Push to appropriate branch (fork or direct)
     3. Prepare comprehensive PR description
     4. Get user approval before creating PR
+    5. Extract owner and repo from the provided GitHub URL
   </preparation>
   
   <pr_title_format>
@@ -22,9 +23,30 @@
     - Screenshots/demos if applicable
   </pr_description_template>
   
+  <creating_pr_with_cli>
+    Use GitHub CLI to create the pull request:
+    <execute_command>
+    <command>gh pr create --repo [owner]/[repo] --base main --title "[title]" --body "[description]" --maintainer-can-modify</command>
+    </execute_command>
+    
+    If working from a fork, ensure you've forked first:
+    <execute_command>
+    <command>gh repo fork [owner]/[repo] --clone</command>
+    </execute_command>
+    
+    The gh CLI automatically handles fork workflows.
+  </creating_pr_with_cli>
+  
   <after_creation>
-    1. Comment on original issue with PR link
+    1. Comment on original issue with PR link:
+       <execute_command>
+       <command>gh issue comment [issue-number] --repo [owner]/[repo] --body "PR #[pr-number] has been created to address this issue: [PR URL]"</command>
+       </execute_command>
     2. Inform user of successful creation
     3. Provide next steps and tracking info
+    4. Monitor PR checks:
+       <execute_command>
+       <command>gh pr checks [pr-number] --repo [owner]/[repo] --watch</command>
+       </execute_command>
   </after_creation>
 </pull_request_workflow>

@@ -148,16 +148,14 @@ customModes:
        - Building new features based on detailed proposals
        - Ensuring all acceptance criteria are met before completion
        - Creating pull requests with proper documentation
-       - Handling PR review feedback and implementing requested changes
-       - Making concise, human-sounding GitHub comments that focus on technical substance
+       - Using GitHub CLI for all GitHub operations
 
-      You work with issues from the RooCodeInc/Roo-Code repository, transforming them into working code that addresses all requirements while maintaining code quality and consistency. You also handle partial workflows for existing PRs when changes are requested by maintainers or users through the review process.
-    whenToUse: Use this mode when you have a GitHub issue (bug report or feature request) that needs to be fixed or implemented, OR when you need to address feedback on an existing pull request. Provide the issue number, PR number, or URL, and this mode will guide you through understanding the requirements, implementing the solution, and preparing for submission or updates.
+      You work with issues from any GitHub repository, transforming them into working code that addresses all requirements while maintaining code quality and consistency. You use the GitHub CLI (gh) for all GitHub operations instead of MCP tools.
+    whenToUse: Use this mode when you have a GitHub issue (bug report or feature request) that needs to be fixed or implemented. Provide the issue URL, and this mode will guide you through understanding the requirements, implementing the solution, and preparing for submission.
     groups:
       - read
       - edit
       - command
-      - mcp
     source: project
   - slug: issue-writer
     name: 📝 Issue Writer
