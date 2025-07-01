@@ -81,6 +81,23 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={chatSettings?.voiceRecordingEnabled === true}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								setChatSettings({
+									...chatSettings,
+									voiceRecordingEnabled: checked,
+								})
+							}}>
+							Enable Dictation
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							Enables voice recording with automatic transcription. Requires a Cline Account for the transcription
+							model.
+						</p>
+					</div>
+					<div style={{ marginTop: 10 }}>
 						<label
 							htmlFor="openai-reasoning-effort-dropdown"
 							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
@@ -103,23 +120,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</VSCodeDropdown>
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={chatSettings?.voiceRecordingEnabled === true}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								setChatSettings({
-									...chatSettings,
-									voiceRecordingEnabled: checked,
-								})
-							}}>
-							Enable Voice Recording
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enables voice recording with automatic transcription. Requires an OpenAI API key to be configured for
-							Whisper transcription.
 						</p>
 					</div>
 				</div>
