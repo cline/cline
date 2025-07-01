@@ -1551,7 +1551,10 @@ export const ChatRowContent = memo(
 									<OptionsButtons
 										options={options}
 										selected={selected}
-										isActive={isLast && lastModifiedMessage?.ask === "followup"}
+										isActive={
+											(isLast && lastModifiedMessage?.ask === "followup") ||
+											(!selected && options && options.length > 0)
+										}
 										inputValue={inputValue}
 									/>
 									{quoteButtonState.visible && (
@@ -1640,7 +1643,10 @@ export const ChatRowContent = memo(
 								<OptionsButtons
 									options={options}
 									selected={selected}
-									isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
+									isActive={
+										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
+										(!selected && options && options.length > 0)
+									}
 									inputValue={inputValue}
 								/>
 								{quoteButtonState.visible && (

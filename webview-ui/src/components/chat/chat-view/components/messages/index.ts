@@ -3,4 +3,4 @@
  */
 
 export { MessageRenderer, createMessageRenderer } from "./MessageRenderer"
-export { useIsStreaming, StreamingVisualIndicator } from "./StreamingIndicator"
+export { useIsStreaming } from "./StreamingIndicator"
