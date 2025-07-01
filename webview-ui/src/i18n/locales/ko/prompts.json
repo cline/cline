@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "모드",
 		"createNewMode": "새 모드 만들기",
+		"importMode": "모드 가져오기",
+		"noMatchFound": "모드를 찾을 수 없습니다",
 		"editModesConfig": "모드 구성 편집",
 		"editGlobalModes": "전역 모드 편집",
 		"editProjectModes": "프로젝트 모드 편집 (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "기본값으로 재설정",
 		"description": "{{modeName}} 모드에 대한 특정 행동 지침을 추가하세요.",
 		"loadFromFile": "{{mode}} 모드에 대한 사용자 지정 지침은 작업 공간의 <span>.roo/rules-{{slug}}/</span> 폴더에서도 로드할 수 있습니다(.roorules-{{slug}}와 .clinerules-{{slug}}는 더 이상 사용되지 않으며 곧 작동을 중단합니다)."
+	},
+	"exportMode": {
+		"title": "모드 내보내기",
+		"description": "이 모드를 모든 규칙이 포함된 YAML 파일로 내보내어 다른 사람들과 쉽게 공유할 수 있습니다.",
+		"export": "모드 내보내기",
+		"exporting": "내보내는 중..."
+	},
+	"importMode": {
+		"selectLevel": "이 모드를 가져올 위치를 선택하세요:",
+		"import": "가져오기",
+		"importing": "가져오는 중...",
+		"global": {
+			"label": "전역 수준",
+			"description": "모든 프로젝트에서 사용 가능합니다. 규칙은 사용자 지정 지침에 병합됩니다."
+		},
+		"project": {
+			"label": "프로젝트 수준",
+			"description": "이 작업 공간에서만 사용할 수 있습니다. 내보낸 모드에 규칙 파일이 포함된 경우 .roo/rules-{slug}/ 폴더에 다시 생성됩니다."
+		}
+	},
+	"advanced": {
+		"title": "고급"
 	},
 	"globalCustomInstructions": {
 		"title": "모든 모드에 대한 사용자 지정 지침",

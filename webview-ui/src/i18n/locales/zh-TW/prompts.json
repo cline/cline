@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "模式",
 		"createNewMode": "建立新模式",
+		"importMode": "匯入模式",
+		"noMatchFound": "找不到任何模式",
 		"editModesConfig": "編輯模式設定",
 		"editGlobalModes": "編輯全域模式",
 		"editProjectModes": "編輯專案模式 (.roomodes)",
@@ -49,6 +51,25 @@
 		"resetToDefault": "重設為預設值",
 		"description": "為 {{modeName}} 模式新增專屬的行為指南。",
 		"loadFromFile": "{{mode}} 模式的自訂指令也可以從工作區的 <span>.roo/rules-{{slug}}/</span> 資料夾載入（.roorules-{{slug}} 和 .clinerules-{{slug}} 已棄用並將很快停止運作）。"
+	},
+	"exportMode": {
+		"title": "匯出模式",
+		"description": "將此模式匯出為包含所有規則的 YAML 檔案，以便與他人輕鬆分享。",
+		"export": "匯出模式",
+		"exporting": "正在匯出..."
+	},
+	"importMode": {
+		"selectLevel": "選擇匯入模式的位置：",
+		"import": "匯入",
+		"importing": "匯入中...",
+		"global": {
+			"label": "全域",
+			"description": "適用於所有專案。規則將合併到自訂指令中。"
+		},
+		"project": {
+			"label": "專案級",
+			"description": "僅在此工作區可用。如果匯出的模式包含規則檔案，則將在 .roo/rules-{slug}/ 資料夾中重新建立這些檔案。"
+		}
 	},
 	"globalCustomInstructions": {
 		"title": "所有模式的自訂指令",
@@ -164,5 +185,8 @@
 		},
 		"deleteMode": "刪除模式"
 	},
-	"allFiles": "所有檔案"
+	"allFiles": "所有檔案",
+	"advanced": {
+		"title": "進階"
+	}
 }

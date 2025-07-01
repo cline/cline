@@ -80,7 +80,8 @@
 			"processExitedWithError": "El procés Claude Code ha sortit amb codi {{exitCode}}. Sortida d'error: {{output}}",
 			"stoppedWithReason": "Claude Code s'ha aturat per la raó: {{reason}}",
 			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla."
-		}
+		},
+		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "No s'ha seleccionat contingut de terminal",
@@ -99,7 +100,9 @@
 		"image_copied_to_clipboard": "URI de dades de la imatge copiada al portapapers",
 		"image_saved": "Imatge desada a {{path}}",
 		"organization_share_link_copied": "Enllaç de compartició d'organització copiat al porta-retalls!",
-		"public_share_link_copied": "Enllaç de compartició pública copiat al porta-retalls!"
+		"public_share_link_copied": "Enllaç de compartició pública copiat al porta-retalls!",
+		"mode_exported": "Mode '{{mode}}' exportat correctament",
+		"mode_imported": "Mode importat correctament"
 	},
 	"answers": {
 		"yes": "Sí",

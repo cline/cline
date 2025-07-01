@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Modalità",
 		"createNewMode": "Crea nuova modalità",
+		"importMode": "Importa modalità",
+		"noMatchFound": "Nessuna modalità trovata",
 		"editModesConfig": "Modifica configurazione modalità",
 		"editGlobalModes": "Modifica modalità globali",
 		"editProjectModes": "Modifica modalità di progetto (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "Ripristina predefiniti",
 		"description": "Aggiungi linee guida comportamentali specifiche per la modalità {{modeName}}.",
 		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono essere caricate anche dalla cartella <span>.roo/rules-{{slug}}/</span> nel tuo spazio di lavoro (.roorules-{{slug}} e .clinerules-{{slug}} sono obsoleti e smetteranno di funzionare presto)."
+	},
+	"exportMode": {
+		"title": "Esporta modalità",
+		"description": "Esporta questa modalità in un file YAML con tutte le regole incluse per una facile condivisione con altri.",
+		"export": "Esporta modalità",
+		"exporting": "Esportazione..."
+	},
+	"importMode": {
+		"selectLevel": "Scegli dove importare questa modalità:",
+		"import": "Importa",
+		"importing": "Importazione...",
+		"global": {
+			"label": "Livello globale",
+			"description": "Disponibile in tutti i progetti. Le regole verranno unite nelle istruzioni personalizzate."
+		},
+		"project": {
+			"label": "Livello di progetto",
+			"description": "Disponibile solo in questo spazio di lavoro. Se la modalità esportata conteneva file di regole, verranno ricreati nella cartella .roo/rules-{slug}/."
+		}
+	},
+	"advanced": {
+		"title": "Avanzato"
 	},
 	"globalCustomInstructions": {
 		"title": "Istruzioni personalizzate per tutte le modalità",

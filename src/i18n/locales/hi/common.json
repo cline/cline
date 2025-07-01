@@ -70,6 +70,7 @@
 		"share_auth_required": "प्रमाणीकरण आवश्यक है। कार्य साझा करने के लिए कृपया साइन इन करें।",
 		"share_not_enabled": "इस संगठन के लिए कार्य साझाकरण सक्षम नहीं है।",
 		"share_task_not_found": "कार्य नहीं मिला या पहुंच अस्वीकृत।",
+		"mode_import_failed": "मोड आयात करने में विफल: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई।",
 			"errorOutput": "त्रुटि आउटपुट: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "छवि डेटा URI क्लिपबोर्ड में कॉपी की गई",
 		"image_saved": "छवि {{path}} में सहेजी गई",
 		"organization_share_link_copied": "संगठन साझाकरण लिंक क्लिपबोर्ड में कॉपी किया गया!",
-		"public_share_link_copied": "सार्वजनिक साझाकरण लिंक क्लिपबोर्ड में कॉपी किया गया!"
+		"public_share_link_copied": "सार्वजनिक साझाकरण लिंक क्लिपबोर्ड में कॉपी किया गया!",
+		"mode_exported": "मोड '{{mode}}' सफलतापूर्वक निर्यात किया गया",
+		"mode_imported": "मोड सफलतापूर्वक आयात किया गया"
 	},
 	"answers": {
 		"yes": "हां",
@@ -126,7 +129,7 @@
 			"getGroqApiKey": "ग्रोक एपीआई कुंजी प्राप्त करें",
 			"claudeCode": {
 				"pathLabel": "क्लाउड कोड पाथ",
-				"description": "आपके क्लाउड कोड CLI का वैकल्पिक पाथ। सेट न होने पर डिफ़ॉल्ट रूप से 'claude'。",
+				"description": "आपके क्लाउड कोड CLI का वैकल्पिक पाथ। सेट न होने पर डिफ़ॉल्ट रूप से 'claude'।",
 				"placeholder": "डिफ़ॉल्ट: claude"
 			}
 		}

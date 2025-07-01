@@ -70,6 +70,7 @@
 		"share_auth_required": "Cần xác thực. Vui lòng đăng nhập để chia sẻ nhiệm vụ.",
 		"share_not_enabled": "Chia sẻ nhiệm vụ không được bật cho tổ chức này.",
 		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối.",
+		"mode_import_failed": "Nhập chế độ thất bại: {{error}}",
 		"claudeCode": {
 			"processExited": "Tiến trình Claude Code thoát với mã {{exitCode}}.",
 			"errorOutput": "Đầu ra lỗi: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "URI dữ liệu hình ảnh đã được sao chép vào clipboard",
 		"image_saved": "Hình ảnh đã được lưu vào {{path}}",
 		"organization_share_link_copied": "Liên kết chia sẻ tổ chức đã được sao chép vào clipboard!",
-		"public_share_link_copied": "Liên kết chia sẻ công khai đã được sao chép vào clipboard!"
+		"public_share_link_copied": "Liên kết chia sẻ công khai đã được sao chép vào clipboard!",
+		"mode_exported": "Chế độ '{{mode}}' đã được xuất thành công",
+		"mode_imported": "Chế độ đã được nhập thành công"
 	},
 	"answers": {
 		"yes": "Có",

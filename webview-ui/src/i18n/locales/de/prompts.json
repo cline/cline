@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Modi",
 		"createNewMode": "Neuen Modus erstellen",
+		"importMode": "Modus importieren",
+		"noMatchFound": "Keine Modi gefunden",
 		"editModesConfig": "Moduskonfiguration bearbeiten",
 		"editGlobalModes": "Globale Modi bearbeiten",
 		"editProjectModes": "Projektmodi bearbeiten (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
 		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus dem Ordner <span>.roo/rules-{{slug}}/</span> in deinem Arbeitsbereich geladen werden (.roorules-{{slug}} und .clinerules-{{slug}} sind veraltet und werden bald nicht mehr funktionieren)."
+	},
+	"exportMode": {
+		"title": "Modus exportieren",
+		"description": "Exportiert diesen Modus in eine YAML-Datei mit allen enthaltenen Regeln zum einfachen Teilen mit anderen.",
+		"export": "Modus exportieren",
+		"exporting": "Exportieren..."
+	},
+	"importMode": {
+		"selectLevel": "Wähle, wo dieser Modus importiert werden soll:",
+		"import": "Importieren",
+		"importing": "Importiere...",
+		"global": {
+			"label": "Globale Ebene",
+			"description": "Verfügbar in allen Projekten. Wenn der exportierte Modus Regeldateien enthielt, werden diese im globalen Ordner .roo/rules-{slug}/ neu erstellt."
+		},
+		"project": {
+			"label": "Projektebene",
+			"description": "Nur in diesem Arbeitsbereich verfügbar. Wenn der exportierte Modus Regeldateien enthielt, werden diese im Ordner .roo/rules-{slug}/ neu erstellt."
+		}
+	},
+	"advanced": {
+		"title": "Erweitert"
 	},
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",

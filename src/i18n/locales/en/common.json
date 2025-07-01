@@ -70,6 +70,7 @@
 		"share_auth_required": "Authentication required. Please sign in to share tasks.",
 		"share_not_enabled": "Task sharing is not enabled for this organization.",
 		"share_task_not_found": "Task not found or access denied.",
+		"mode_import_failed": "Failed to import mode: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code process exited with code {{exitCode}}.",
 			"errorOutput": "Error output: {{output}}",
@@ -95,7 +96,9 @@
 		"organization_share_link_copied": "Organization share link copied to clipboard!",
 		"public_share_link_copied": "Public share link copied to clipboard!",
 		"image_copied_to_clipboard": "Image data URI copied to clipboard",
-		"image_saved": "Image saved to {{path}}"
+		"image_saved": "Image saved to {{path}}",
+		"mode_exported": "Mode '{{mode}}' exported successfully",
+		"mode_imported": "Mode imported successfully"
 	},
 	"answers": {
 		"yes": "Yes",

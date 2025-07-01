@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Tryby",
 		"createNewMode": "Utwórz nowy tryb",
+		"importMode": "Importuj tryb",
+		"noMatchFound": "Nie znaleziono trybów",
 		"editModesConfig": "Edytuj konfigurację trybów",
 		"editGlobalModes": "Edytuj tryby globalne",
 		"editProjectModes": "Edytuj tryby projektu (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "Przywróć domyślne",
 		"description": "Dodaj wytyczne dotyczące zachowania specyficzne dla trybu {{modeName}}.",
 		"loadFromFile": "Niestandardowe instrukcje dla trybu {{mode}} mogą być również ładowane z folderu <span>.roo/rules-{{slug}}/</span> w Twoim obszarze roboczym (.roorules-{{slug}} i .clinerules-{{slug}} są przestarzałe i wkrótce przestaną działać)."
+	},
+	"exportMode": {
+		"title": "Eksportuj tryb",
+		"description": "Eksportuj ten tryb do pliku YAML ze wszystkimi regułami w celu łatwego udostępniania innym.",
+		"export": "Eksportuj tryb",
+		"exporting": "Eksportowanie..."
+	},
+	"importMode": {
+		"selectLevel": "Wybierz, gdzie zaimportować ten tryb:",
+		"import": "Importuj",
+		"importing": "Importowanie...",
+		"global": {
+			"label": "Poziom globalny",
+			"description": "Dostępne we wszystkich projektach. Reguły zostaną scalone z niestandardowymi instrukcjami."
+		},
+		"project": {
+			"label": "Poziom projektu",
+			"description": "Dostępne tylko w tym obszarze roboczym. Jeśli wyeksportowany tryb zawierał pliki reguł, zostaną one odtworzone w folderze .roo/rules-{slug}/."
+		}
+	},
+	"advanced": {
+		"title": "Zaawansowane"
 	},
 	"globalCustomInstructions": {
 		"title": "Niestandardowe instrukcje dla wszystkich trybów",

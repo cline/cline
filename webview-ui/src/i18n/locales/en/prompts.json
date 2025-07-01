@@ -4,11 +4,13 @@
 	"modes": {
 		"title": "Modes",
 		"createNewMode": "Create new mode",
+		"importMode": "Import Mode",
 		"editModesConfig": "Edit modes configuration",
 		"editGlobalModes": "Edit Global Modes",
 		"editProjectModes": "Edit Project Modes (.roomodes)",
 		"createModeHelpText": "Modes are specialized personas that tailor Roo's behavior. <0>Learn about Using Modes</0> or <1>Customizing Modes.</1>",
-		"selectMode": "Search modes"
+		"selectMode": "Search modes",
+		"noMatchFound": "No modes found"
 	},
 	"apiConfiguration": {
 		"title": "API Configuration",
@@ -49,6 +51,27 @@
 		"resetToDefault": "Reset to default",
 		"description": "Add behavioral guidelines specific to {{modeName}} mode.",
 		"loadFromFile": "Custom instructions specific to {{mode}} mode can also be loaded from the <span>.roo/rules-{{slug}}/</span> folder in your workspace (.roorules-{{slug}} and .clinerules-{{slug}} are deprecated and will stop working soon)."
+	},
+	"exportMode": {
+		"title": "Export Mode",
+		"description": "Export this mode with rules from the .roo/rules-{{slug}}/ folder combined into a shareable YAML file. The original files remain unchanged.",
+		"exporting": "Exporting..."
+	},
+	"importMode": {
+		"selectLevel": "Choose where to import this mode:",
+		"import": "Import",
+		"importing": "Importing...",
+		"global": {
+			"label": "Global Level",
+			"description": "Available across all projects. If the exported mode contained rules files, they will be recreated in the global .roo/rules-{slug}/ folder."
+		},
+		"project": {
+			"label": "Project Level",
+			"description": "Only available in this workspace. If the exported mode contained rules files, they will be recreated in .roo/rules-{slug}/ folder."
+		}
+	},
+	"advanced": {
+		"title": "Advanced: Override System Prompt"
 	},
 	"globalCustomInstructions": {
 		"title": "Custom Instructions for All Modes",

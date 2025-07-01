@@ -73,6 +73,9 @@ export interface ExtensionMessage {
 		| "autoApprovalEnabled"
 		| "updateCustomMode"
 		| "deleteCustomMode"
+		| "exportModeResult"
+		| "importModeResult"
+		| "checkRulesDirectoryResult"
 		| "currentCheckpointUpdated"
 		| "showHumanRelayDialog"
 		| "humanRelayResponse"
@@ -141,6 +144,7 @@ export interface ExtensionMessage {
 	error?: string
 	setting?: string
 	value?: any
+	hasContent?: boolean // For checkRulesDirectoryResult
 	items?: MarketplaceItem[]
 	userInfo?: CloudUserInfo
 	organizationAllowList?: OrganizationAllowList

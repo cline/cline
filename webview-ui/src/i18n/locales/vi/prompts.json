@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Chế độ",
 		"createNewMode": "Tạo chế độ mới",
+		"importMode": "Nhập chế độ",
+		"noMatchFound": "Không tìm thấy chế độ nào",
 		"editModesConfig": "Chỉnh sửa cấu hình chế độ",
 		"editGlobalModes": "Chỉnh sửa chế độ toàn cục",
 		"editProjectModes": "Chỉnh sửa chế độ dự án (.roomodes)",
@@ -50,10 +52,29 @@
 		"description": "Thêm hướng dẫn hành vi dành riêng cho chế độ {{modeName}}.",
 		"loadFromFile": "Hướng dẫn tùy chỉnh dành riêng cho chế độ {{mode}} cũng có thể được tải từ thư mục <span>.roo/rules-{{slug}}/</span> trong không gian làm việc của bạn (.roorules-{{slug}} và .clinerules-{{slug}} đã lỗi thời và sẽ sớm ngừng hoạt động)."
 	},
+	"exportMode": {
+		"title": "Xuất chế độ",
+		"description": "Xuất chế độ này sang tệp YAML với tất cả các quy tắc được bao gồm để dễ dàng chia sẻ với người khác.",
+		"export": "Xuất chế độ",
+		"exporting": "Đang xuất..."
+	},
 	"globalCustomInstructions": {
 		"title": "Hướng dẫn tùy chỉnh cho tất cả các chế độ",
 		"description": "Những hướng dẫn này áp dụng cho tất cả các chế độ. Chúng cung cấp một bộ hành vi cơ bản có thể được nâng cao bởi hướng dẫn dành riêng cho chế độ bên dưới. <0>Tìm hiểu thêm</0>",
 		"loadFromFile": "Hướng dẫn cũng có thể được tải từ thư mục <span>.roo/rules/</span> trong không gian làm việc của bạn (.roorules và .clinerules đã lỗi thời và sẽ sớm ngừng hoạt động)."
+	},
+	"importMode": {
+		"selectLevel": "Chọn nơi để nhập chế độ này:",
+		"import": "Nhập",
+		"importing": "Đang nhập...",
+		"global": {
+			"label": "Cấp độ toàn cục",
+			"description": "Có sẵn trong tất cả các dự án. Các quy tắc sẽ được hợp nhất vào hướng dẫn tùy chỉnh."
+		},
+		"project": {
+			"label": "Cấp độ dự án",
+			"description": "Chỉ có sẵn trong không gian làm việc này. Nếu chế độ đã xuất có chứa tệp quy tắc, chúng sẽ được tạo lại trong thư mục .roo/rules-{slug}/."
+		}
 	},
 	"systemPrompt": {
 		"preview": "Xem trước lời nhắc hệ thống",
@@ -164,5 +185,8 @@
 		},
 		"deleteMode": "Xóa chế độ"
 	},
-	"allFiles": "tất cả các tệp"
+	"allFiles": "tất cả các tệp",
+	"advanced": {
+		"title": "Nâng cao"
+	}
 }

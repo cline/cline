@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Modlar",
 		"createNewMode": "Yeni mod oluştur",
+		"importMode": "Modu içe aktar",
+		"noMatchFound": "Mod bulunamadı",
 		"editModesConfig": "Mod yapılandırmasını düzenle",
 		"editGlobalModes": "Global modları düzenle",
 		"editProjectModes": "Proje modlarını düzenle (.roomodes)",
@@ -50,10 +52,29 @@
 		"description": "{{modeName}} modu için özel davranış yönergeleri ekleyin.",
 		"loadFromFile": "{{mode}} moduna özgü özel talimatlar ayrıca çalışma alanınızdaki <span>.roo/rules-{{slug}}/</span> klasöründen yüklenebilir (.roorules-{{slug}} ve .clinerules-{{slug}} kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaklardır)."
 	},
+	"exportMode": {
+		"title": "Modu Dışa Aktar",
+		"description": "Bu modu tüm kurallar dahil olarak bir YAML dosyasına dışa aktararak başkalarıyla kolayca paylaşın.",
+		"export": "Modu Dışa Aktar",
+		"exporting": "Dışa aktarılıyor..."
+	},
 	"globalCustomInstructions": {
 		"title": "Tüm Modlar için Özel Talimatlar",
 		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar. <0>Daha fazla bilgi edinin</0>",
 		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.roo/rules/</span> klasöründen de yüklenebilir (.roorules ve .clinerules kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaklardır)."
+	},
+	"importMode": {
+		"selectLevel": "Bu modu nereye içe aktaracağınızı seçin:",
+		"import": "İçe Aktar",
+		"importing": "İçe aktarılıyor...",
+		"global": {
+			"label": "Genel Seviye",
+			"description": "Tüm projelerde kullanılabilir. Kurallar özel talimatlarla birleştirilecektir."
+		},
+		"project": {
+			"label": "Proje Seviyesi",
+			"description": "Yalnızca bu çalışma alanında kullanılabilir. Dışa aktarılan mod kural dosyaları içeriyorsa, bunlar .roo/rules-{slug}/ klasöründe yeniden oluşturulur."
+		}
 	},
 	"systemPrompt": {
 		"preview": "Sistem promptunu önizle",
@@ -164,5 +185,8 @@
 		},
 		"deleteMode": "Modu sil"
 	},
-	"allFiles": "tüm dosyalar"
+	"allFiles": "tüm dosyalar",
+	"advanced": {
+		"title": "Gelişmiş"
+	}
 }

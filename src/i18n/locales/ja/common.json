@@ -70,6 +70,7 @@
 		"share_auth_required": "認証が必要です。タスクを共有するにはサインインしてください。",
 		"share_not_enabled": "この組織ではタスク共有が有効になっていません。",
 		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。",
+		"mode_import_failed": "モードのインポートに失敗しました: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code プロセスがコード {{exitCode}} で終了しました。",
 			"errorOutput": "エラー出力：{{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "画像データURIがクリップボードにコピーされました",
 		"image_saved": "画像を{{path}}に保存しました",
 		"organization_share_link_copied": "組織共有リンクがクリップボードにコピーされました！",
-		"public_share_link_copied": "公開共有リンクがクリップボードにコピーされました！"
+		"public_share_link_copied": "公開共有リンクがクリップボードにコピーされました！",
+		"mode_exported": "モード「{{mode}}」が正常にエクスポートされました",
+		"mode_imported": "モードが正常にインポートされました"
 	},
 	"answers": {
 		"yes": "はい",

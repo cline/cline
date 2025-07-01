@@ -8,7 +8,7 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
-import { ChevronDown, X } from "lucide-react"
+import { ChevronDown, X, Upload, Download } from "lucide-react"
 
 import { ModeConfig, GroupEntry, PromptComponent, ToolGroup, modeConfigSchema } from "@roo-code/types"
 
@@ -92,6 +92,10 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 	const [showConfigMenu, setShowConfigMenu] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
 	const [isSystemPromptDisclosureOpen, setIsSystemPromptDisclosureOpen] = useState(false)
+	const [isExporting, setIsExporting] = useState(false)
+	const [isImporting, setIsImporting] = useState(false)
+	const [showImportDialog, setShowImportDialog] = useState(false)
+	const [hasRulesToExport, setHasRulesToExport] = useState<Record<string, boolean>>({})
 
 	// State for mode selection popover and search
 	const [open, setOpen] = useState(false)
@@ -189,6 +193,22 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 		const findMode = (m: ModeConfig): boolean => m.slug === visualMode
 		return customModes?.find(findMode) || modes.find(findMode)
 	}, [visualMode, customModes, modes])
+
+	// Check if the current mode has rules to export
+	const checkRulesDirectory = useCallback((slug: string) => {
+		vscode.postMessage({
+			type: "checkRulesDirectory",
+			slug: slug,
+		})
+	}, [])
+
+	// Check rules directory when mode changes
+	useEffect(() => {
+		const currentMode = getCurrentMode()
+		if (currentMode?.slug && hasRulesToExport[currentMode.slug] === undefined) {
+			checkRulesDirectory(currentMode.slug)
+		}
+	}, [getCurrentMode, checkRulesDirectory, hasRulesToExport])
 
 	// Helper function to safely access mode properties
 	const getModeProperty = <T extends keyof ModeConfig>(
@@ -397,6 +417,28 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 					setSelectedPromptTitle(`System Prompt (${message.mode} mode)`)
 					setIsDialogOpen(true)
 				}
+			} else if (message.type === "exportModeResult") {
+				setIsExporting(false)
+
+				if (!message.success) {
+					// Show error message
+					console.error("Failed to export mode:", message.error)
+				}
+			} else if (message.type === "importModeResult") {
+				setIsImporting(false)
+				setShowImportDialog(false)
+
+				if (!message.success) {
+					// Only log error if it's not a cancellation
+					if (message.error !== "cancelled") {
+						console.error("Failed to import mode:", message.error)
+					}
+				}
+			} else if (message.type === "checkRulesDirectoryResult") {
+				setHasRulesToExport((prev) => ({
+					...prev,
+					[message.slug]: message.hasContent,
+				}))
 			}
 		}
 
@@ -1033,7 +1075,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 				</div>
 
 				<div className="pb-4 border-b border-vscode-input-border">
-					<div className="flex gap-2">
+					<div className="flex gap-2 mb-4">
 						<Button
 							variant="default"
 							onClick={() => {
@@ -1067,7 +1109,42 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						</StandardTooltip>
 					</div>
 
-					{/* Custom System Prompt Disclosure */}
+					{/* Export/Import Mode Buttons */}
+					<div className="flex items-center gap-2">
+						{/* Export button - visible when any mode is selected */}
+						{getCurrentMode() && (
+							<Button
+								variant="default"
+								onClick={() => {
+									const currentMode = getCurrentMode()
+									if (currentMode?.slug && !isExporting) {
+										setIsExporting(true)
+										vscode.postMessage({
+											type: "exportMode",
+											slug: currentMode.slug,
+										})
+									}
+								}}
+								disabled={isExporting}
+								title={t("prompts:exportMode.title")}
+								data-testid="export-mode-button">
+								<Upload className="h-4 w-4" />
+								{isExporting ? t("prompts:exportMode.exporting") : t("prompts:exportMode.title")}
+							</Button>
+						)}
+						{/* Import button - always visible */}
+						<Button
+							variant="default"
+							onClick={() => setShowImportDialog(true)}
+							disabled={isImporting}
+							title={t("prompts:modes.importMode")}
+							data-testid="import-mode-button">
+							<Download className="h-4 w-4" />
+							{isImporting ? t("prompts:importMode.importing") : t("prompts:modes.importMode")}
+						</Button>
+					</div>
+
+					{/* Advanced Features Disclosure */}
 					<div className="mt-4">
 						<button
 							onClick={() => setIsSystemPromptDisclosureOpen(!isSystemPromptDisclosureOpen)}
@@ -1075,46 +1152,54 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 							aria-expanded={isSystemPromptDisclosureOpen}>
 							<span
 								className={`codicon codicon-${isSystemPromptDisclosureOpen ? "chevron-down" : "chevron-right"} mr-1`}></span>
-							<span>{t("prompts:advancedSystemPrompt.title")}</span>
+							<span>{t("prompts:advanced.title")}</span>
 						</button>
 
 						{isSystemPromptDisclosureOpen && (
-							<div className="text-xs text-vscode-descriptionForeground mt-2 ml-5">
-								<Trans
-									i18nKey="prompts:advancedSystemPrompt.description"
-									values={{
-										slug: getCurrentMode()?.slug || "code",
-									}}
-									components={{
-										span: (
-											<span
-												className="text-vscode-textLink-foreground cursor-pointer underline"
-												onClick={() => {
-													const currentMode = getCurrentMode()
-													if (!currentMode) return
+							<div className="mt-2 ml-5 space-y-4">
+								{/* Override System Prompt Section */}
+								<div>
+									<h4 className="text-xs font-semibold text-vscode-foreground mb-2">
+										Override System Prompt
+									</h4>
+									<div className="text-xs text-vscode-descriptionForeground">
+										<Trans
+											i18nKey="prompts:advancedSystemPrompt.description"
+											values={{
+												slug: getCurrentMode()?.slug || "code",
+											}}
+											components={{
+												span: (
+													<span
+														className="text-vscode-textLink-foreground cursor-pointer underline"
+														onClick={() => {
+															const currentMode = getCurrentMode()
+															if (!currentMode) return
 
-													vscode.postMessage({
-														type: "openFile",
-														text: `./.roo/system-prompt-${currentMode.slug}`,
-														values: {
-															create: true,
-															content: "",
-														},
-													})
-												}}
-											/>
-										),
-										"1": (
-											<VSCodeLink
-												href={buildDocLink(
-													"features/footgun-prompting",
-													"prompts_advanced_system_prompt",
-												)}
-												style={{ display: "inline" }}></VSCodeLink>
-										),
-										"2": <strong />,
-									}}
-								/>
+															vscode.postMessage({
+																type: "openFile",
+																text: `./.roo/system-prompt-${currentMode.slug}`,
+																values: {
+																	create: true,
+																	content: "",
+																},
+															})
+														}}
+													/>
+												),
+												"1": (
+													<VSCodeLink
+														href={buildDocLink(
+															"features/footgun-prompting",
+															"prompts_advanced_system_prompt",
+														)}
+														style={{ display: "inline" }}></VSCodeLink>
+												),
+												"2": <strong />,
+											}}
+										/>
+									</div>
+								</div>
 							</div>
 						)}
 					</div>
@@ -1389,6 +1474,68 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						<div className="flex justify-end p-3 px-5 border-t border-vscode-editor-lineHighlightBorder bg-vscode-editor-background">
 							<Button variant="secondary" onClick={() => setIsDialogOpen(false)}>
 								{t("prompts:createModeDialog.close")}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Import Mode Dialog */}
+			{showImportDialog && (
+				<div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[1000]">
+					<div className="bg-vscode-editor-background border border-vscode-editor-lineHighlightBorder rounded-lg shadow-lg p-6 max-w-md w-full">
+						<h3 className="text-lg font-semibold mb-4">{t("prompts:modes.importMode")}</h3>
+						<p className="text-sm text-vscode-descriptionForeground mb-4">
+							{t("prompts:importMode.selectLevel")}
+						</p>
+						<div className="space-y-3 mb-6">
+							<label className="flex items-start gap-2 cursor-pointer">
+								<input
+									type="radio"
+									name="importLevel"
+									value="project"
+									className="mt-1"
+									defaultChecked
+								/>
+								<div>
+									<div className="font-medium">{t("prompts:importMode.project.label")}</div>
+									<div className="text-xs text-vscode-descriptionForeground">
+										{t("prompts:importMode.project.description")}
+									</div>
+								</div>
+							</label>
+							<label className="flex items-start gap-2 cursor-pointer">
+								<input type="radio" name="importLevel" value="global" className="mt-1" />
+								<div>
+									<div className="font-medium">{t("prompts:importMode.global.label")}</div>
+									<div className="text-xs text-vscode-descriptionForeground">
+										{t("prompts:importMode.global.description")}
+									</div>
+								</div>
+							</label>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="secondary" onClick={() => setShowImportDialog(false)}>
+								{t("prompts:createModeDialog.buttons.cancel")}
+							</Button>
+							<Button
+								variant="default"
+								onClick={() => {
+									if (!isImporting) {
+										const selectedLevel = (
+											document.querySelector(
+												'input[name="importLevel"]:checked',
+											) as HTMLInputElement
+										)?.value as "global" | "project"
+										setIsImporting(true)
+										vscode.postMessage({
+											type: "importMode",
+											source: selectedLevel || "project",
+										})
+									}
+								}}
+								disabled={isImporting}>
+								{isImporting ? t("prompts:importMode.importing") : t("prompts:importMode.import")}
 							</Button>
 						</div>
 					</div>

@@ -70,6 +70,7 @@
 		"share_auth_required": "Authenticatie vereist. Log in om taken te delen.",
 		"share_not_enabled": "Taken delen is niet ingeschakeld voor deze organisatie.",
 		"share_task_not_found": "Taak niet gevonden of toegang geweigerd.",
+		"mode_import_failed": "Importeren van modus mislukt: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code proces beëindigd met code {{exitCode}}.",
 			"errorOutput": "Foutuitvoer: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "Afbeelding data-URI gekopieerd naar klembord",
 		"image_saved": "Afbeelding opgeslagen naar {{path}}",
 		"organization_share_link_copied": "Organisatie deel-link gekopieerd naar klembord!",
-		"public_share_link_copied": "Openbare deel-link gekopieerd naar klembord!"
+		"public_share_link_copied": "Openbare deel-link gekopieerd naar klembord!",
+		"mode_exported": "Modus '{{mode}}' succesvol geëxporteerd",
+		"mode_imported": "Modus succesvol geïmporteerd"
 	},
 	"answers": {
 		"yes": "Ja",

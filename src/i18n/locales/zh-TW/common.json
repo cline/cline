@@ -76,7 +76,8 @@
 			"processExitedWithError": "Claude Code 程序退出，退出碼：{{exitCode}}。錯誤輸出：{{output}}",
 			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
 			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。"
-		}
+		},
+		"mode_import_failed": "匯入模式失敗：{{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端機內容",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "圖片資料 URI 已複製到剪貼簿",
 		"image_saved": "圖片已儲存至 {{path}}",
 		"organization_share_link_copied": "組織分享連結已複製到剪貼簿！",
-		"public_share_link_copied": "公開分享連結已複製到剪貼簿！"
+		"public_share_link_copied": "公開分享連結已複製到剪貼簿！",
+		"mode_exported": "模式 '{{mode}}' 已成功匯出",
+		"mode_imported": "模式已成功匯入"
 	},
 	"answers": {
 		"yes": "是",

@@ -70,6 +70,7 @@
 		"share_auth_required": "Autentikasi diperlukan. Silakan masuk untuk berbagi tugas.",
 		"share_not_enabled": "Berbagi tugas tidak diaktifkan untuk organisasi ini.",
 		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak.",
+		"mode_import_failed": "Gagal mengimpor mode: {{error}}",
 		"claudeCode": {
 			"processExited": "Proses Claude Code keluar dengan kode {{exitCode}}.",
 			"errorOutput": "Output error: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "Data URI gambar disalin ke clipboard",
 		"image_saved": "Gambar disimpan ke {{path}}",
 		"organization_share_link_copied": "Tautan berbagi organisasi disalin ke clipboard!",
-		"public_share_link_copied": "Tautan berbagi publik disalin ke clipboard!"
+		"public_share_link_copied": "Tautan berbagi publik disalin ke clipboard!",
+		"mode_exported": "Mode '{{mode}}' berhasil diekspor",
+		"mode_imported": "Mode berhasil diimpor"
 	},
 	"answers": {
 		"yes": "Ya",

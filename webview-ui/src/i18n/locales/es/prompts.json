@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Modos",
 		"createNewMode": "Crear nuevo modo",
+		"importMode": "Importar modo",
+		"noMatchFound": "No se encontraron modos",
 		"editModesConfig": "Editar configuración de modos",
 		"editGlobalModes": "Editar modos globales",
 		"editProjectModes": "Editar modos del proyecto (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "Restablecer a valores predeterminados",
 		"description": "Agrega directrices de comportamiento específicas para el modo {{modeName}}.",
 		"loadFromFile": "Las instrucciones personalizadas para el modo {{mode}} también se pueden cargar desde la carpeta <span>.roo/rules-{{slug}}/</span> en tu espacio de trabajo (.roorules-{{slug}} y .clinerules-{{slug}} están obsoletos y dejarán de funcionar pronto)."
+	},
+	"exportMode": {
+		"title": "Exportar modo",
+		"description": "Exporta este modo a un archivo YAML con todas las reglas incluidas para compartir fácilmente con otros.",
+		"export": "Exportar modo",
+		"exporting": "Exportando..."
+	},
+	"importMode": {
+		"selectLevel": "Elige dónde importar este modo:",
+		"import": "Importar",
+		"importing": "Importando...",
+		"global": {
+			"label": "Nivel global",
+			"description": "Disponible en todos los proyectos. Si el modo exportado contenía archivos de reglas, se volverán a crear en la carpeta global .roo/rules-{slug}/."
+		},
+		"project": {
+			"label": "Nivel de proyecto",
+			"description": "Solo disponible en este espacio de trabajo. Si el modo exportado contenía archivos de reglas, se volverán a crear en la carpeta .roo/rules-{slug}/."
+		}
+	},
+	"advanced": {
+		"title": "Avanzado"
 	},
 	"globalCustomInstructions": {
 		"title": "Instrucciones personalizadas para todos los modos",

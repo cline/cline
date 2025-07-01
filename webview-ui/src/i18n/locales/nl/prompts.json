@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "Modi",
 		"createNewMode": "Nieuwe modus aanmaken",
+		"importMode": "Modus importeren",
+		"noMatchFound": "Geen modi gevonden",
 		"editModesConfig": "Modusconfiguratie bewerken",
 		"editGlobalModes": "Globale modi bewerken",
 		"editProjectModes": "Projectmodi bewerken (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "Terugzetten naar standaard",
 		"description": "Voeg gedragsrichtlijnen toe die specifiek zijn voor de modus {{modeName}}.",
 		"loadFromFile": "Modusspecifieke instructies voor {{mode}} kunnen ook worden geladen uit de map <span>.roo/rules-{{slug}}/</span> in je werkruimte (.roorules-{{slug}} en .clinerules-{{slug}} zijn verouderd en werken binnenkort niet meer)."
+	},
+	"exportMode": {
+		"title": "Modus exporteren",
+		"description": "Exporteer deze modus naar een YAML-bestand met alle regels inbegrepen voor eenvoudig delen met anderen.",
+		"export": "Modus exporteren",
+		"exporting": "Exporteren..."
+	},
+	"importMode": {
+		"selectLevel": "Kies waar je deze modus wilt importeren:",
+		"import": "Importeren",
+		"importing": "Importeren...",
+		"global": {
+			"label": "Globaal niveau",
+			"description": "Beschikbaar in alle projecten. Regels worden samengevoegd in aangepaste instructies."
+		},
+		"project": {
+			"label": "Projectniveau",
+			"description": "Alleen beschikbaar in deze werkruimte. Als de geëxporteerde modus regelbestanden bevatte, worden deze opnieuw gemaakt in de map .roo/rules-{slug}/."
+		}
+	},
+	"advanced": {
+		"title": "Geavanceerd"
 	},
 	"globalCustomInstructions": {
 		"title": "Aangepaste instructies voor alle modi",

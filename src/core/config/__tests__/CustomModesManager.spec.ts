@@ -27,7 +27,14 @@ vi.mock("vscode", () => ({
 	},
 }))
 
-vi.mock("fs/promises")
+vi.mock("fs/promises", () => ({
+	mkdir: vi.fn(),
+	readFile: vi.fn(),
+	writeFile: vi.fn(),
+	stat: vi.fn(),
+	readdir: vi.fn(),
+	rm: vi.fn(),
+}))
 
 vi.mock("../../../utils/fs")
 vi.mock("../../../utils/path")
@@ -41,7 +48,8 @@ describe("CustomModesManager", () => {
 	// Use path.sep to ensure correct path separators for the current platform
 	const mockStoragePath = `${path.sep}mock${path.sep}settings`
 	const mockSettingsPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
-	const mockRoomodes = `${path.sep}mock${path.sep}workspace${path.sep}.roomodes`
+	const mockWorkspacePath = path.resolve("/mock/workspace")
+	const mockRoomodes = path.join(mockWorkspacePath, ".roomodes")
 
 	beforeEach(() => {
 		mockOnUpdate = vi.fn()
@@ -57,14 +65,19 @@ describe("CustomModesManager", () => {
 			},
 		} as unknown as vscode.ExtensionContext
 
-		mockWorkspaceFolders = [{ uri: { fsPath: "/mock/workspace" } }]
+		// mockWorkspacePath is now defined at the top level
+		mockWorkspaceFolders = [{ uri: { fsPath: mockWorkspacePath } }]
 		;(vscode.workspace as any).workspaceFolders = mockWorkspaceFolders
 		;(vscode.workspace.onDidSaveTextDocument as Mock).mockReturnValue({ dispose: vi.fn() })
-		;(getWorkspacePath as Mock).mockReturnValue("/mock/workspace")
+		;(getWorkspacePath as Mock).mockReturnValue(mockWorkspacePath)
 		;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
 			return path === mockSettingsPath || path === mockRoomodes
 		})
 		;(fs.mkdir as Mock).mockResolvedValue(undefined)
+		;(fs.writeFile as Mock).mockResolvedValue(undefined)
+		;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+		;(fs.readdir as Mock).mockResolvedValue([])
+		;(fs.rm as Mock).mockResolvedValue(undefined)
 		;(fs.readFile as Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsPath) {
 				return yaml.stringify({ customModes: [] })
@@ -785,6 +798,778 @@ describe("CustomModesManager", () => {
 					}),
 				],
 			})
+		})
+
+		describe("importModeWithRules", () => {
+			it("should return error when YAML content is invalid", async () => {
+				const invalidYaml = "invalid yaml content"
+
+				const result = await manager.importModeWithRules(invalidYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toContain("Invalid import format")
+			})
+
+			it("should return error when no custom modes found in YAML", async () => {
+				const emptyYaml = yaml.stringify({ customModes: [] })
+
+				const result = await manager.importModeWithRules(emptyYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toBe("Invalid import format: Expected 'customModes' array in YAML")
+			})
+
+			it("should return error when no workspace is available", async () => {
+				;(getWorkspacePath as Mock).mockReturnValue(null)
+				const validYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Test Role",
+							groups: ["read"],
+						},
+					],
+				})
+
+				const result = await manager.importModeWithRules(validYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toBe("No workspace found")
+			})
+
+			it("should successfully import mode without rules files", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "imported-mode",
+							name: "Imported Mode",
+							roleDefinition: "Imported Role",
+							groups: ["read", "edit"],
+						},
+					],
+				})
+
+				let roomodesContent: any = null
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes && roomodesContent) {
+						return yaml.stringify(roomodesContent)
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string, content: string) => {
+					if (path === mockRoomodes) {
+						roomodesContent = yaml.parse(content)
+					}
+					return Promise.resolve()
+				})
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(true)
+				expect(fs.writeFile).toHaveBeenCalledWith(
+					expect.stringContaining(".roomodes"),
+					expect.stringContaining("imported-mode"),
+					"utf-8",
+				)
+			})
+
+			it("should successfully import mode with rules files", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "imported-mode",
+							name: "Imported Mode",
+							roleDefinition: "Imported Role",
+							groups: ["read"],
+							rulesFiles: [
+								{
+									relativePath: "rules-imported-mode/rule1.md",
+									content: "Rule 1 content",
+								},
+								{
+									relativePath: "rules-imported-mode/subfolder/rule2.md",
+									content: "Rule 2 content",
+								},
+							],
+						},
+					],
+				})
+
+				let roomodesContent: any = null
+				let writtenFiles: Record<string, string> = {}
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes && roomodesContent) {
+						return yaml.stringify(roomodesContent)
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string, content: string) => {
+					if (path === mockRoomodes) {
+						roomodesContent = yaml.parse(content)
+					} else {
+						writtenFiles[path] = content
+					}
+					return Promise.resolve()
+				})
+				;(fs.mkdir as Mock).mockResolvedValue(undefined)
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(true)
+
+				// Verify mode was imported
+				expect(fs.writeFile).toHaveBeenCalledWith(
+					expect.stringContaining(".roomodes"),
+					expect.stringContaining("imported-mode"),
+					"utf-8",
+				)
+
+				// Verify rules files were created
+				expect(fs.mkdir).toHaveBeenCalledWith(expect.stringContaining("rules-imported-mode"), {
+					recursive: true,
+				})
+				expect(fs.mkdir).toHaveBeenCalledWith(
+					expect.stringContaining(path.join("rules-imported-mode", "subfolder")),
+					{ recursive: true },
+				)
+
+				// Verify file contents
+				const rule1Path = Object.keys(writtenFiles).find((p) => p.includes("rule1.md"))
+				const rule2Path = Object.keys(writtenFiles).find((p) => p.includes("rule2.md"))
+				expect(writtenFiles[rule1Path!]).toBe("Rule 1 content")
+				expect(writtenFiles[rule2Path!]).toBe("Rule 2 content")
+			})
+
+			it("should import multiple modes at once", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "mode1",
+							name: "Mode 1",
+							roleDefinition: "Role 1",
+							groups: ["read"],
+						},
+						{
+							slug: "mode2",
+							name: "Mode 2",
+							roleDefinition: "Role 2",
+							groups: ["edit"],
+							rulesFiles: [
+								{
+									relativePath: "rules-mode2/rule.md",
+									content: "Mode 2 rules",
+								},
+							],
+						},
+					],
+				})
+
+				let roomodesContent: any = null
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes && roomodesContent) {
+						return yaml.stringify(roomodesContent)
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string, content: string) => {
+					if (path === mockRoomodes) {
+						roomodesContent = yaml.parse(content)
+					}
+					return Promise.resolve()
+				})
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(true)
+				expect(roomodesContent.customModes).toHaveLength(2)
+				expect(roomodesContent.customModes[0].slug).toBe("mode1")
+				expect(roomodesContent.customModes[1].slug).toBe("mode2")
+			})
+
+			it("should handle import errors gracefully", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Test Role",
+							groups: ["read"],
+							rulesFiles: [
+								{
+									relativePath: "rules-test-mode/rule.md",
+									content: "Rule content",
+								},
+							],
+						},
+					],
+				})
+
+				// Mock fs.readFile to work normally
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes) {
+						throw new Error("File not found")
+					}
+					throw new Error("File not found")
+				})
+
+				// Mock fs.mkdir to fail when creating rules directory
+				;(fs.mkdir as Mock).mockRejectedValue(new Error("Permission denied"))
+
+				// Mock fs.writeFile to work normally for .roomodes but we won't get there
+				;(fs.writeFile as Mock).mockResolvedValue(undefined)
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toContain("Permission denied")
+			})
+
+			it("should prevent path traversal attacks in import", async () => {
+				const maliciousYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Test Role",
+							groups: ["read"],
+							rulesFiles: [
+								{
+									relativePath: "../../../etc/passwd",
+									content: "malicious content",
+								},
+								{
+									relativePath: "rules-test-mode/../../../sensitive.txt",
+									content: "malicious content",
+								},
+								{
+									relativePath: "/absolute/path/file.txt",
+									content: "malicious content",
+								},
+							],
+						},
+					],
+				})
+
+				let writtenFiles: string[] = []
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string) => {
+					writtenFiles.push(path)
+					return Promise.resolve()
+				})
+				;(fs.mkdir as Mock).mockResolvedValue(undefined)
+
+				const result = await manager.importModeWithRules(maliciousYaml)
+
+				expect(result.success).toBe(true)
+
+				// Verify that no files were written outside the .roo directory
+				const mockWorkspacePath = path.resolve("/mock/workspace")
+				const writtenRuleFiles = writtenFiles.filter((p) => !p.includes(".roomodes"))
+				writtenRuleFiles.forEach((filePath) => {
+					const normalizedPath = path.normalize(filePath)
+					const expectedBasePath = path.normalize(path.join(mockWorkspacePath, ".roo"))
+					expect(normalizedPath.startsWith(expectedBasePath)).toBe(true)
+				})
+
+				// Verify that malicious paths were not written
+				expect(writtenFiles.some((p) => p.includes("etc/passwd"))).toBe(false)
+				expect(writtenFiles.some((p) => p.includes("sensitive.txt"))).toBe(false)
+				expect(writtenFiles.some((p) => path.isAbsolute(p) && !p.startsWith(mockWorkspacePath))).toBe(false)
+			})
+
+			it("should handle malformed YAML gracefully", async () => {
+				const malformedYaml = `
+	customModes:
+			- slug: test-mode
+			  name: Test Mode
+			  roleDefinition: Test Role
+			  groups: [read
+			    invalid yaml here
+				`
+
+				const result = await manager.importModeWithRules(malformedYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toContain("Invalid YAML format")
+			})
+
+			it("should validate mode configuration during import", async () => {
+				const invalidModeYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "", // Invalid: empty name
+							roleDefinition: "", // Invalid: empty role definition
+							groups: ["invalid-group"], // Invalid group
+						},
+					],
+				})
+
+				const result = await manager.importModeWithRules(invalidModeYaml)
+
+				expect(result.success).toBe(false)
+				expect(result.error).toContain("Invalid mode configuration")
+			})
+
+			it("should remove existing rules folder when importing mode without rules", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Test Role",
+							groups: ["read"],
+							// No rulesFiles property - this mode has no rules
+						},
+					],
+				})
+
+				let roomodesContent: any = null
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes && roomodesContent) {
+						return yaml.stringify(roomodesContent)
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string, content: string) => {
+					if (path === mockRoomodes) {
+						roomodesContent = yaml.parse(content)
+					}
+					return Promise.resolve()
+				})
+				;(fs.rm as Mock).mockResolvedValue(undefined)
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(true)
+
+				// Verify that fs.rm was called to remove the existing rules folder
+				expect(fs.rm).toHaveBeenCalledWith(expect.stringContaining(path.join(".roo", "rules-test-mode")), {
+					recursive: true,
+					force: true,
+				})
+
+				// Verify mode was imported
+				expect(fs.writeFile).toHaveBeenCalledWith(
+					expect.stringContaining(".roomodes"),
+					expect.stringContaining("test-mode"),
+					"utf-8",
+				)
+			})
+
+			it("should remove existing rules folder and create new ones when importing mode with rules", async () => {
+				const importYaml = yaml.stringify({
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Test Role",
+							groups: ["read"],
+							rulesFiles: [
+								{
+									relativePath: "rules-test-mode/new-rule.md",
+									content: "New rule content",
+								},
+							],
+						},
+					],
+				})
+
+				let roomodesContent: any = null
+				let writtenFiles: Record<string, string> = {}
+				;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return yaml.stringify({ customModes: [] })
+					}
+					if (path === mockRoomodes && roomodesContent) {
+						return yaml.stringify(roomodesContent)
+					}
+					throw new Error("File not found")
+				})
+				;(fs.writeFile as Mock).mockImplementation(async (path: string, content: string) => {
+					if (path === mockRoomodes) {
+						roomodesContent = yaml.parse(content)
+					} else {
+						writtenFiles[path] = content
+					}
+					return Promise.resolve()
+				})
+				;(fs.rm as Mock).mockResolvedValue(undefined)
+				;(fs.mkdir as Mock).mockResolvedValue(undefined)
+
+				const result = await manager.importModeWithRules(importYaml)
+
+				expect(result.success).toBe(true)
+
+				// Verify that fs.rm was called to remove the existing rules folder
+				expect(fs.rm).toHaveBeenCalledWith(expect.stringContaining(path.join(".roo", "rules-test-mode")), {
+					recursive: true,
+					force: true,
+				})
+
+				// Verify new rules files were created
+				expect(fs.mkdir).toHaveBeenCalledWith(expect.stringContaining("rules-test-mode"), { recursive: true })
+
+				// Verify file contents
+				const newRulePath = Object.keys(writtenFiles).find((p) => p.includes("new-rule.md"))
+				expect(writtenFiles[newRulePath!]).toBe("New rule content")
+			})
+		})
+	})
+
+	describe("checkRulesDirectoryHasContent", () => {
+		it("should return false when no workspace is available", async () => {
+			;(getWorkspacePath as Mock).mockReturnValue(null)
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(false)
+		})
+
+		it("should return false when mode is not in .roomodes file", async () => {
+			const roomodesContent = { customModes: [{ slug: "other-mode", name: "Other Mode" }] }
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(false)
+		})
+
+		it("should return false when .roomodes doesn't exist and mode is not a custom mode", async () => {
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [] })
+				}
+				throw new Error("File not found")
+			})
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(false)
+		})
+
+		it("should return false when rules directory doesn't exist", async () => {
+			const roomodesContent = { customModes: [{ slug: "test-mode", name: "Test Mode" }] }
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockRejectedValue(new Error("Directory not found"))
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(false)
+		})
+
+		it("should return false when rules directory is empty", async () => {
+			const roomodesContent = { customModes: [{ slug: "test-mode", name: "Test Mode" }] }
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([])
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(false)
+		})
+
+		it("should return true when rules directory has content files", async () => {
+			const roomodesContent = { customModes: [{ slug: "test-mode", name: "Test Mode" }] }
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				if (path.includes("rules-test-mode")) {
+					return "Some rule content"
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([
+				{ name: "rule1.md", isFile: () => true, parentPath: "/mock/workspace/.roo/rules-test-mode" },
+			])
+
+			const result = await manager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(true)
+		})
+
+		it("should work with global custom modes when .roomodes doesn't exist", async () => {
+			const settingsContent = {
+				customModes: [{ slug: "test-mode", name: "Test Mode", groups: ["read"], roleDefinition: "Test Role" }],
+			}
+
+			// Create a fresh manager instance to avoid cache issues
+			const freshManager = new CustomModesManager(mockContext, mockOnUpdate)
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath // .roomodes doesn't exist
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify(settingsContent)
+				}
+				if (path.includes("rules-test-mode")) {
+					return "Some rule content"
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([
+				{ name: "rule1.md", isFile: () => true, parentPath: "/mock/workspace/.roo/rules-test-mode" },
+			])
+
+			const result = await freshManager.checkRulesDirectoryHasContent("test-mode")
+
+			expect(result).toBe(true)
+		})
+	})
+
+	describe("exportModeWithRules", () => {
+		it("should return error when no workspace is available", async () => {
+			// Create a fresh manager instance to avoid cache issues
+			const freshManager = new CustomModesManager(mockContext, mockOnUpdate)
+
+			// Mock no workspace folders
+			;(vscode.workspace as any).workspaceFolders = []
+			;(getWorkspacePath as Mock).mockReturnValue(null)
+			;(fileExistsAtPath as Mock).mockResolvedValue(false)
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [] })
+				}
+				throw new Error("File not found")
+			})
+
+			const result = await freshManager.exportModeWithRules("test-mode")
+
+			expect(result.success).toBe(false)
+			expect(result.error).toBe("No workspace found")
+		})
+
+		it("should return error when mode is not found", async () => {
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [] })
+				}
+				throw new Error("File not found")
+			})
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+
+			const result = await manager.exportModeWithRules("test-mode")
+
+			expect(result.success).toBe(false)
+			expect(result.error).toBe("Mode not found")
+		})
+
+		it("should successfully export mode without rules when rules directory doesn't exist", async () => {
+			const roomodesContent = {
+				customModes: [{ slug: "test-mode", name: "Test Mode", roleDefinition: "Test Role", groups: ["read"] }],
+			}
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockRejectedValue(new Error("Directory not found"))
+
+			const result = await manager.exportModeWithRules("test-mode")
+
+			expect(result.success).toBe(true)
+			expect(result.yaml).toContain("test-mode")
+			expect(result.yaml).toContain("Test Mode")
+		})
+
+		it("should successfully export mode without rules when no rule files are found", async () => {
+			const roomodesContent = {
+				customModes: [{ slug: "test-mode", name: "Test Mode", roleDefinition: "Test Role", groups: ["read"] }],
+			}
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([])
+
+			const result = await manager.exportModeWithRules("test-mode")
+
+			expect(result.success).toBe(true)
+			expect(result.yaml).toContain("test-mode")
+		})
+
+		it("should successfully export mode with rules for a custom mode in .roomodes", async () => {
+			const roomodesContent = {
+				customModes: [
+					{
+						slug: "test-mode",
+						name: "Test Mode",
+						roleDefinition: "Test Role",
+						groups: ["read"],
+						customInstructions: "Existing instructions",
+					},
+				],
+			}
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				if (path.includes("rules-test-mode")) {
+					return "New rule content from files"
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([
+				{ name: "rule1.md", isFile: () => true, parentPath: "/mock/workspace/.roo/rules-test-mode" },
+			])
+
+			const result = await manager.exportModeWithRules("test-mode")
+
+			expect(result.success).toBe(true)
+			expect(result.yaml).toContain("test-mode")
+			expect(result.yaml).toContain("Existing instructions")
+			expect(result.yaml).toContain("New rule content from files")
+			// Should NOT delete the rules directory
+			expect(fs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should successfully export mode with rules for a built-in mode customized in .roomodes", async () => {
+			const roomodesContent = {
+				customModes: [
+					{
+						slug: "code",
+						name: "Custom Code Mode",
+						roleDefinition: "Custom Role",
+						groups: ["read"],
+					},
+				],
+			}
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				if (path.includes("rules-code")) {
+					return "Custom rules for code mode"
+				}
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [] })
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([
+				{ name: "rule1.md", isFile: () => true, parentPath: "/mock/workspace/.roo/rules-code" },
+			])
+
+			const result = await manager.exportModeWithRules("code")
+
+			expect(result.success).toBe(true)
+			expect(result.yaml).toContain("Custom Code Mode")
+			expect(result.yaml).toContain("Custom rules for code mode")
+			// Should NOT delete the rules directory
+			expect(fs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should handle file read errors gracefully", async () => {
+			const roomodesContent = {
+				customModes: [
+					{
+						slug: "test-mode",
+						name: "Test Mode",
+						roleDefinition: "Test Role",
+						groups: ["read"],
+					},
+				],
+			}
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockRoomodes
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return yaml.stringify(roomodesContent)
+				}
+				if (path.includes("rules-test-mode")) {
+					throw new Error("Permission denied")
+				}
+				throw new Error("File not found")
+			})
+			;(fs.stat as Mock).mockResolvedValue({ isDirectory: () => true })
+			;(fs.readdir as Mock).mockResolvedValue([
+				{ name: "rule1.md", isFile: () => true, parentPath: "/mock/workspace/.roo/rules-test-mode" },
+			])
+
+			const result = await manager.exportModeWithRules("test-mode")
+
+			// Should still succeed even if file read fails
+			expect(result.success).toBe(true)
+			expect(result.yaml).toContain("test-mode")
 		})
 	})
 })

@@ -70,6 +70,7 @@
 		"share_auth_required": "인증이 필요합니다. 작업을 공유하려면 로그인하세요.",
 		"share_not_enabled": "이 조직에서는 작업 공유가 활성화되지 않았습니다.",
 		"share_task_not_found": "작업을 찾을 수 없거나 액세스가 거부되었습니다.",
+		"mode_import_failed": "모드 가져오기 실패: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code 프로세스가 코드 {{exitCode}}로 종료되었습니다.",
 			"errorOutput": "오류 출력: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "이미지 데이터 URI가 클립보드에 복사되었습니다",
 		"image_saved": "이미지가 {{path}}에 저장되었습니다",
 		"organization_share_link_copied": "조직 공유 링크가 클립보드에 복사되었습니다!",
-		"public_share_link_copied": "공개 공유 링크가 클립보드에 복사되었습니다!"
+		"public_share_link_copied": "공개 공유 링크가 클립보드에 복사되었습니다!",
+		"mode_exported": "'{{mode}}' 모드가 성공적으로 내보내졌습니다",
+		"mode_imported": "모드를 성공적으로 가져왔습니다"
 	},
 	"answers": {
 		"yes": "예",

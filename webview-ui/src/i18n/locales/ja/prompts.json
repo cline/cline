@@ -4,6 +4,8 @@
 	"modes": {
 		"title": "モード",
 		"createNewMode": "新しいモードを作成",
+		"importMode": "モードをインポート",
+		"noMatchFound": "モードが見つかりません",
 		"editModesConfig": "モード設定を編集",
 		"editGlobalModes": "グローバルモードを編集",
 		"editProjectModes": "プロジェクトモードを編集 (.roomodes)",
@@ -49,6 +51,28 @@
 		"resetToDefault": "デフォルトにリセット",
 		"description": "{{modeName}}モードに特化した行動ガイドラインを追加します。",
 		"loadFromFile": "{{mode}}モード固有のカスタム指示は、ワークスペースの<span>.roo/rules-{{slug}}/</span>フォルダからも読み込めます（.roorules-{{slug}}と.clinerules-{{slug}}は非推奨であり、まもなく機能しなくなります）。"
+	},
+	"exportMode": {
+		"title": "モードをエクスポート",
+		"description": "このモードをすべてのルールを含むYAMLファイルにエクスポートして、他のユーザーと簡単に共有できます。",
+		"export": "モードをエクスポート",
+		"exporting": "エクスポート中..."
+	},
+	"importMode": {
+		"selectLevel": "このモードをインポートする場所を選択してください：",
+		"import": "インポート",
+		"importing": "インポート中...",
+		"global": {
+			"label": "グローバルレベル",
+			"description": "すべてのプロジェクトで利用可能です。ルールはカスタム指示にマージされます。"
+		},
+		"project": {
+			"label": "プロジェクトレベル",
+			"description": "このワークスペースでのみ利用可能です。エクスポートされたモードにルールファイルが含まれていた場合、それらは.roo/rules-{slug}/フォルダに再作成されます。"
+		}
+	},
+	"advanced": {
+		"title": "詳細設定"
 	},
 	"globalCustomInstructions": {
 		"title": "すべてのモードのカスタム指示",

@@ -70,6 +70,7 @@
 		"share_auth_required": "Kimlik doğrulama gerekli. Görevleri paylaşmak için lütfen giriş yapın.",
 		"share_not_enabled": "Bu kuruluş için görev paylaşımı etkinleştirilmemiş.",
 		"share_task_not_found": "Görev bulunamadı veya erişim reddedildi.",
+		"mode_import_failed": "Mod içe aktarılamadı: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code işlemi {{exitCode}} koduyla çıktı.",
 			"errorOutput": "Hata çıktısı: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "Resim veri URI'si panoya kopyalandı",
 		"image_saved": "Resim {{path}} konumuna kaydedildi",
 		"organization_share_link_copied": "Kuruluş paylaşım bağlantısı panoya kopyalandı!",
-		"public_share_link_copied": "Herkese açık paylaşım bağlantısı panoya kopyalandı!"
+		"public_share_link_copied": "Herkese açık paylaşım bağlantısı panoya kopyalandı!",
+		"mode_exported": "'{{mode}}' modu başarıyla dışa aktarıldı",
+		"mode_imported": "Mod başarıyla içe aktarıldı"
 	},
 	"answers": {
 		"yes": "Evet",

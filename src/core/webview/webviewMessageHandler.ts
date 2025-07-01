@@ -1,8 +1,9 @@
 import { safeWriteJson } from "../../utils/safeWriteJson"
 import * as path from "path"
-import fs from "fs/promises"
+import * as fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
+import * as yaml from "yaml"
 
 import { type Language, type ProviderSettings, type GlobalState, TelemetryEventName } from "@roo-code/types"
 import { CloudService } from "@roo-code/cloud"
@@ -1507,6 +1508,196 @@ export const webviewMessageHandler = async (
 				// Switch back to default mode after deletion
 				await updateGlobalState("mode", defaultModeSlug)
 				await provider.postStateToWebview()
+			}
+			break
+		case "exportMode":
+			if (message.slug) {
+				try {
+					// Get custom mode prompts to check if built-in mode has been customized
+					const customModePrompts = getGlobalState("customModePrompts") || {}
+					const customPrompt = customModePrompts[message.slug]
+
+					// Export the mode with any customizations merged directly
+					const result = await provider.customModesManager.exportModeWithRules(message.slug, customPrompt)
+
+					if (result.success && result.yaml) {
+						// Get last used directory for export
+						const lastExportPath = getGlobalState("lastModeExportPath")
+						let defaultUri: vscode.Uri
+
+						if (lastExportPath) {
+							// Use the directory from the last export
+							const lastDir = path.dirname(lastExportPath)
+							defaultUri = vscode.Uri.file(path.join(lastDir, `${message.slug}-export.yaml`))
+						} else {
+							// Default to workspace or home directory
+							const workspaceFolders = vscode.workspace.workspaceFolders
+							if (workspaceFolders && workspaceFolders.length > 0) {
+								defaultUri = vscode.Uri.file(
+									path.join(workspaceFolders[0].uri.fsPath, `${message.slug}-export.yaml`),
+								)
+							} else {
+								defaultUri = vscode.Uri.file(`${message.slug}-export.yaml`)
+							}
+						}
+
+						// Show save dialog
+						const saveUri = await vscode.window.showSaveDialog({
+							defaultUri,
+							filters: {
+								"YAML files": ["yaml", "yml"],
+							},
+							title: "Save mode export",
+						})
+
+						if (saveUri && result.yaml) {
+							// Save the directory for next time
+							await updateGlobalState("lastModeExportPath", saveUri.fsPath)
+
+							// Write the file to the selected location
+							await fs.writeFile(saveUri.fsPath, result.yaml, "utf-8")
+
+							// Send success message to webview
+							provider.postMessageToWebview({
+								type: "exportModeResult",
+								success: true,
+								slug: message.slug,
+							})
+
+							// Show info message
+							vscode.window.showInformationMessage(t("common:info.mode_exported", { mode: message.slug }))
+						} else {
+							// User cancelled the save dialog
+							provider.postMessageToWebview({
+								type: "exportModeResult",
+								success: false,
+								error: "Export cancelled",
+								slug: message.slug,
+							})
+						}
+					} else {
+						// Send error message to webview
+						provider.postMessageToWebview({
+							type: "exportModeResult",
+							success: false,
+							error: result.error,
+							slug: message.slug,
+						})
+					}
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+					provider.log(`Failed to export mode ${message.slug}: ${errorMessage}`)
+
+					// Send error message to webview
+					provider.postMessageToWebview({
+						type: "exportModeResult",
+						success: false,
+						error: errorMessage,
+						slug: message.slug,
+					})
+				}
+			}
+			break
+		case "importMode":
+			try {
+				// Get last used directory for import
+				const lastImportPath = getGlobalState("lastModeImportPath")
+				let defaultUri: vscode.Uri | undefined
+
+				if (lastImportPath) {
+					// Use the directory from the last import
+					const lastDir = path.dirname(lastImportPath)
+					defaultUri = vscode.Uri.file(lastDir)
+				} else {
+					// Default to workspace or home directory
+					const workspaceFolders = vscode.workspace.workspaceFolders
+					if (workspaceFolders && workspaceFolders.length > 0) {
+						defaultUri = vscode.Uri.file(workspaceFolders[0].uri.fsPath)
+					}
+				}
+
+				// Show file picker to select YAML file
+				const fileUri = await vscode.window.showOpenDialog({
+					canSelectFiles: true,
+					canSelectFolders: false,
+					canSelectMany: false,
+					defaultUri,
+					filters: {
+						"YAML files": ["yaml", "yml"],
+					},
+					title: "Select mode export file to import",
+				})
+
+				if (fileUri && fileUri[0]) {
+					// Save the directory for next time
+					await updateGlobalState("lastModeImportPath", fileUri[0].fsPath)
+
+					// Read the file content
+					const yamlContent = await fs.readFile(fileUri[0].fsPath, "utf-8")
+
+					// Import the mode with the specified source level
+					const result = await provider.customModesManager.importModeWithRules(
+						yamlContent,
+						message.source || "project", // Default to project if not specified
+					)
+
+					if (result.success) {
+						// Update state after importing
+						const customModes = await provider.customModesManager.getCustomModes()
+						await updateGlobalState("customModes", customModes)
+						await provider.postStateToWebview()
+
+						// Send success message to webview
+						provider.postMessageToWebview({
+							type: "importModeResult",
+							success: true,
+						})
+
+						// Show success message
+						vscode.window.showInformationMessage(t("common:info.mode_imported"))
+					} else {
+						// Send error message to webview
+						provider.postMessageToWebview({
+							type: "importModeResult",
+							success: false,
+							error: result.error,
+						})
+
+						// Show error message
+						vscode.window.showErrorMessage(t("common:errors.mode_import_failed", { error: result.error }))
+					}
+				} else {
+					// User cancelled the file dialog - reset the importing state
+					provider.postMessageToWebview({
+						type: "importModeResult",
+						success: false,
+						error: "cancelled",
+					})
+				}
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				provider.log(`Failed to import mode: ${errorMessage}`)
+
+				// Send error message to webview
+				provider.postMessageToWebview({
+					type: "importModeResult",
+					success: false,
+					error: errorMessage,
+				})
+
+				// Show error message
+				vscode.window.showErrorMessage(t("common:errors.mode_import_failed", { error: errorMessage }))
+			}
+			break
+		case "checkRulesDirectory":
+			if (message.slug) {
+				const hasContent = await provider.customModesManager.checkRulesDirectoryHasContent(message.slug)
+
+				provider.postMessageToWebview({
+					type: "checkRulesDirectoryResult",
+					slug: message.slug,
+					hasContent: hasContent,
+				})
 			}
 			break
 		case "humanRelayResponse":

@@ -74,6 +74,7 @@
 		"share_auth_required": "Autenticação necessária. Faça login para compartilhar tarefas.",
 		"share_not_enabled": "O compartilhamento de tarefas não está habilitado para esta organização.",
 		"share_task_not_found": "Tarefa não encontrada ou acesso negado.",
+		"mode_import_failed": "Falha ao importar o modo: {{error}}",
 		"claudeCode": {
 			"processExited": "O processo Claude Code saiu com código {{exitCode}}.",
 			"errorOutput": "Saída de erro: {{output}}",
@@ -99,7 +100,9 @@
 		"image_copied_to_clipboard": "URI de dados da imagem copiada para a área de transferência",
 		"image_saved": "Imagem salva em {{path}}",
 		"organization_share_link_copied": "Link de compartilhamento da organização copiado para a área de transferência!",
-		"public_share_link_copied": "Link de compartilhamento público copiado para a área de transferência!"
+		"public_share_link_copied": "Link de compartilhamento público copiado para a área de transferência!",
+		"mode_exported": "Modo '{{mode}}' exportado com sucesso",
+		"mode_imported": "Modo importado com sucesso"
 	},
 	"answers": {
 		"yes": "Sim",

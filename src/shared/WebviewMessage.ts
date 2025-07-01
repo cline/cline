@@ -177,6 +177,12 @@ export interface WebviewMessage {
 		| "switchTab"
 		| "profileThresholds"
 		| "shareTaskSuccess"
+		| "exportMode"
+		| "exportModeResult"
+		| "importMode"
+		| "importModeResult"
+		| "checkRulesDirectory"
+		| "checkRulesDirectoryResult"
 	text?: string
 	tab?: "settings" | "history" | "mcp" | "modes" | "chat" | "marketplace" | "account"
 	disabled?: boolean
@@ -215,6 +221,7 @@ export interface WebviewMessage {
 	mpInstallOptions?: InstallMarketplaceItemOptions
 	config?: Record<string, any> // Add config to the payload
 	visibility?: ShareVisibility // For share visibility
+	hasContent?: boolean // For checkRulesDirectoryResult
 }
 
 export const checkoutDiffPayloadSchema = z.object({

@@ -70,6 +70,7 @@
 		"share_auth_required": "Wymagana autoryzacja. Zaloguj się, aby udostępniać zadania.",
 		"share_not_enabled": "Udostępnianie zadań nie jest włączone dla tej organizacji.",
 		"share_task_not_found": "Zadanie nie znalezione lub dostęp odmówiony.",
+		"mode_import_failed": "Import trybu nie powiódł się: {{error}}",
 		"claudeCode": {
 			"processExited": "Proces Claude Code zakończył się kodem {{exitCode}}.",
 			"errorOutput": "Wyjście błędu: {{output}}",
@@ -95,7 +96,9 @@
 		"image_copied_to_clipboard": "URI danych obrazu skopiowane do schowka",
 		"image_saved": "Obraz zapisany w {{path}}",
 		"organization_share_link_copied": "Link udostępniania organizacji skopiowany do schowka!",
-		"public_share_link_copied": "Publiczny link udostępniania skopiowany do schowka!"
+		"public_share_link_copied": "Publiczny link udostępniania skopiowany do schowka!",
+		"mode_exported": "Tryb '{{mode}}' pomyślnie wyeksportowany",
+		"mode_imported": "Tryb pomyślnie zaimportowany"
 	},
 	"answers": {
 		"yes": "Tak",

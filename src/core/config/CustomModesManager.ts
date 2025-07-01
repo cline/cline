@@ -5,16 +5,42 @@ import * as fs from "fs/promises"
 import * as yaml from "yaml"
 import stripBom from "strip-bom"
 
-import { type ModeConfig, customModesSettingsSchema } from "@roo-code/types"
+import { type ModeConfig, type PromptComponent, customModesSettingsSchema, modeConfigSchema } from "@roo-code/types"
 
 import { fileExistsAtPath } from "../../utils/fs"
 import { getWorkspacePath } from "../../utils/path"
+import { getGlobalRooDirectory } from "../../services/roo-config"
 import { logger } from "../../utils/logging"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
 import { t } from "../../i18n"
 
 const ROOMODES_FILENAME = ".roomodes"
+
+// Type definitions for import/export functionality
+interface RuleFile {
+	relativePath: string
+	content: string
+}
+
+interface ExportedModeConfig extends ModeConfig {
+	rulesFiles?: RuleFile[]
+}
+
+interface ImportData {
+	customModes: ExportedModeConfig[]
+}
+
+interface ExportResult {
+	success: boolean
+	yaml?: string
+	error?: string
+}
+
+interface ImportResult {
+	success: boolean
+	error?: string
+}
 
 export class CustomModesManager {
 	private static readonly cacheTTL = 10_000
@@ -498,6 +524,383 @@ export class CustomModesManager {
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			vscode.window.showErrorMessage(t("common:customModes.errors.resetFailed", { error: errorMessage }))
+		}
+	}
+
+	/**
+	 * Checks if a mode has associated rules files in the .roo/rules-{slug}/ directory
+	 * @param slug - The mode identifier to check
+	 * @returns True if the mode has rules files with content, false otherwise
+	 */
+	public async checkRulesDirectoryHasContent(slug: string): Promise<boolean> {
+		try {
+			// Get workspace path
+			const workspacePath = getWorkspacePath()
+			if (!workspacePath) {
+				return false
+			}
+
+			// Check if .roomodes file exists and contains this mode
+			// This ensures we can only consolidate rules for modes that have been customized
+			const roomodesPath = path.join(workspacePath, ROOMODES_FILENAME)
+			try {
+				const roomodesExists = await fileExistsAtPath(roomodesPath)
+				if (roomodesExists) {
+					const roomodesContent = await fs.readFile(roomodesPath, "utf-8")
+					const roomodesData = yaml.parse(roomodesContent)
+					const roomodesModes = roomodesData?.customModes || []
+
+					// Check if this specific mode exists in .roomodes
+					const modeInRoomodes = roomodesModes.find((m: any) => m.slug === slug)
+					if (!modeInRoomodes) {
+						return false // Mode not customized in .roomodes, cannot consolidate
+					}
+				} else {
+					// If no .roomodes file exists, check if it's in global custom modes
+					const allModes = await this.getCustomModes()
+					const mode = allModes.find((m) => m.slug === slug)
+
+					if (!mode) {
+						return false // Not a custom mode, cannot consolidate
+					}
+				}
+			} catch (error) {
+				// If we can't read .roomodes, fall back to checking custom modes
+				const allModes = await this.getCustomModes()
+				const mode = allModes.find((m) => m.slug === slug)
+
+				if (!mode) {
+					return false // Not a custom mode, cannot consolidate
+				}
+			}
+
+			// Check for .roo/rules-{slug}/ directory
+			const modeRulesDir = path.join(workspacePath, ".roo", `rules-${slug}`)
+
+			try {
+				const stats = await fs.stat(modeRulesDir)
+				if (!stats.isDirectory()) {
+					return false
+				}
+			} catch (error) {
+				return false
+			}
+
+			// Check if directory has any content files
+			try {
+				const entries = await fs.readdir(modeRulesDir, { withFileTypes: true })
+
+				for (const entry of entries) {
+					if (entry.isFile()) {
+						// Use path.join with modeRulesDir and entry.name for compatibility
+						const filePath = path.join(modeRulesDir, entry.name)
+						const content = await fs.readFile(filePath, "utf-8")
+						if (content.trim()) {
+							return true // Found at least one file with content
+						}
+					}
+				}
+
+				return false // No files with content found
+			} catch (error) {
+				return false
+			}
+		} catch (error) {
+			logger.error("Failed to check rules directory for mode", {
+				slug,
+				error: error instanceof Error ? error.message : String(error),
+			})
+			return false
+		}
+	}
+
+	/**
+	 * Exports a mode configuration with its associated rules files into a shareable YAML format
+	 * @param slug - The mode identifier to export
+	 * @param customPrompts - Optional custom prompts to merge into the export
+	 * @returns Success status with YAML content or error message
+	 */
+	public async exportModeWithRules(slug: string, customPrompts?: PromptComponent): Promise<ExportResult> {
+		try {
+			// Import modes from shared to check built-in modes
+			const { modes: builtInModes } = await import("../../shared/modes")
+
+			// Get all current modes
+			const allModes = await this.getCustomModes()
+			let mode = allModes.find((m) => m.slug === slug)
+
+			// If mode not found in custom modes, check if it's a built-in mode that has been customized
+			if (!mode) {
+				const workspacePath = getWorkspacePath()
+				if (!workspacePath) {
+					return { success: false, error: "No workspace found" }
+				}
+
+				const roomodesPath = path.join(workspacePath, ROOMODES_FILENAME)
+				try {
+					const roomodesExists = await fileExistsAtPath(roomodesPath)
+					if (roomodesExists) {
+						const roomodesContent = await fs.readFile(roomodesPath, "utf-8")
+						const roomodesData = yaml.parse(roomodesContent)
+						const roomodesModes = roomodesData?.customModes || []
+
+						// Find the mode in .roomodes
+						mode = roomodesModes.find((m: any) => m.slug === slug)
+					}
+				} catch (error) {
+					// Continue to check built-in modes
+				}
+
+				// If still not found, check if it's a built-in mode
+				if (!mode) {
+					const builtInMode = builtInModes.find((m) => m.slug === slug)
+					if (builtInMode) {
+						// Use the built-in mode as the base
+						mode = { ...builtInMode }
+					} else {
+						return { success: false, error: "Mode not found" }
+					}
+				}
+			}
+
+			// Get workspace path
+			const workspacePath = getWorkspacePath()
+			if (!workspacePath) {
+				return { success: false, error: "No workspace found" }
+			}
+
+			// Check for .roo/rules-{slug}/ directory
+			const modeRulesDir = path.join(workspacePath, ".roo", `rules-${slug}`)
+
+			let rulesFiles: RuleFile[] = []
+			try {
+				const stats = await fs.stat(modeRulesDir)
+				if (stats.isDirectory()) {
+					// Extract content specific to this mode by looking for the mode-specific rules
+					const entries = await fs.readdir(modeRulesDir, { withFileTypes: true })
+
+					for (const entry of entries) {
+						if (entry.isFile()) {
+							// Use path.join with modeRulesDir and entry.name for compatibility
+							const filePath = path.join(modeRulesDir, entry.name)
+							const content = await fs.readFile(filePath, "utf-8")
+							if (content.trim()) {
+								// Calculate relative path from .roo directory
+								const relativePath = path.relative(path.join(workspacePath, ".roo"), filePath)
+								rulesFiles.push({ relativePath, content: content.trim() })
+							}
+						}
+					}
+				}
+			} catch (error) {
+				// Directory doesn't exist, which is fine - mode might not have rules
+			}
+
+			// Create an export mode with rules files preserved
+			const exportMode: ExportedModeConfig = {
+				...mode,
+				// Remove source property for export
+				source: "project" as const,
+			}
+
+			// Merge custom prompts if provided
+			if (customPrompts) {
+				if (customPrompts.roleDefinition) exportMode.roleDefinition = customPrompts.roleDefinition
+				if (customPrompts.description) exportMode.description = customPrompts.description
+				if (customPrompts.whenToUse) exportMode.whenToUse = customPrompts.whenToUse
+				if (customPrompts.customInstructions) exportMode.customInstructions = customPrompts.customInstructions
+			}
+
+			// Add rules files if any exist
+			if (rulesFiles.length > 0) {
+				exportMode.rulesFiles = rulesFiles
+			}
+
+			// Generate YAML
+			const exportData = {
+				customModes: [exportMode],
+			}
+
+			const yamlContent = yaml.stringify(exportData)
+
+			return { success: true, yaml: yamlContent }
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			logger.error("Failed to export mode with rules", { slug, error: errorMessage })
+			return { success: false, error: errorMessage }
+		}
+	}
+
+	/**
+	 * Imports modes from YAML content, including their associated rules files
+	 * @param yamlContent - The YAML content containing mode configurations
+	 * @param source - Target level for import: "global" (all projects) or "project" (current workspace only)
+	 * @returns Success status with optional error message
+	 */
+	public async importModeWithRules(
+		yamlContent: string,
+		source: "global" | "project" = "project",
+	): Promise<ImportResult> {
+		try {
+			// Parse the YAML content with proper type validation
+			let importData: ImportData
+			try {
+				const parsed = yaml.parse(yamlContent)
+
+				// Validate the structure
+				if (!parsed?.customModes || !Array.isArray(parsed.customModes) || parsed.customModes.length === 0) {
+					return { success: false, error: "Invalid import format: Expected 'customModes' array in YAML" }
+				}
+
+				importData = parsed as ImportData
+			} catch (parseError) {
+				return {
+					success: false,
+					error: `Invalid YAML format: ${parseError instanceof Error ? parseError.message : "Failed to parse YAML"}`,
+				}
+			}
+
+			// Check workspace availability early if importing at project level
+			if (source === "project") {
+				const workspacePath = getWorkspacePath()
+				if (!workspacePath) {
+					return { success: false, error: "No workspace found" }
+				}
+			}
+
+			// Process each mode in the import
+			for (const importMode of importData.customModes) {
+				const { rulesFiles, ...modeConfig } = importMode
+
+				// Validate the mode configuration
+				const validationResult = modeConfigSchema.safeParse(modeConfig)
+				if (!validationResult.success) {
+					logger.error(`Invalid mode configuration for ${modeConfig.slug}`, {
+						errors: validationResult.error.errors,
+					})
+					return {
+						success: false,
+						error: `Invalid mode configuration for ${modeConfig.slug}: ${validationResult.error.errors.map((e) => e.message).join(", ")}`,
+					}
+				}
+
+				// Check for existing mode conflicts
+				const existingModes = await this.getCustomModes()
+				const existingMode = existingModes.find((m) => m.slug === importMode.slug)
+				if (existingMode) {
+					logger.info(`Overwriting existing mode: ${importMode.slug}`)
+				}
+
+				// Import the mode configuration with the specified source
+				await this.updateCustomMode(importMode.slug, {
+					...modeConfig,
+					source: source, // Use the provided source parameter
+				})
+
+				// Handle project-level imports
+				if (source === "project") {
+					const workspacePath = getWorkspacePath()
+
+					// Always remove the existing rules folder for this mode if it exists
+					// This ensures that if the imported mode has no rules, the folder is cleaned up
+					const rulesFolderPath = path.join(workspacePath, ".roo", `rules-${importMode.slug}`)
+					try {
+						await fs.rm(rulesFolderPath, { recursive: true, force: true })
+						logger.info(`Removed existing rules folder for mode ${importMode.slug}`)
+					} catch (error) {
+						// It's okay if the folder doesn't exist
+						logger.debug(`No existing rules folder to remove for mode ${importMode.slug}`)
+					}
+
+					// Only create new rules files if they exist in the import
+					if (rulesFiles && Array.isArray(rulesFiles) && rulesFiles.length > 0) {
+						// Import the new rules files with path validation
+						for (const ruleFile of rulesFiles) {
+							if (ruleFile.relativePath && ruleFile.content) {
+								// Validate the relative path to prevent path traversal attacks
+								const normalizedRelativePath = path.normalize(ruleFile.relativePath)
+
+								// Ensure the path doesn't contain traversal sequences
+								if (normalizedRelativePath.includes("..") || path.isAbsolute(normalizedRelativePath)) {
+									logger.error(`Invalid file path detected: ${ruleFile.relativePath}`)
+									continue // Skip this file but continue with others
+								}
+
+								const targetPath = path.join(workspacePath, ".roo", normalizedRelativePath)
+								const normalizedTargetPath = path.normalize(targetPath)
+								const expectedBasePath = path.normalize(path.join(workspacePath, ".roo"))
+
+								// Ensure the resolved path stays within the .roo directory
+								if (!normalizedTargetPath.startsWith(expectedBasePath)) {
+									logger.error(`Path traversal attempt detected: ${ruleFile.relativePath}`)
+									continue // Skip this file but continue with others
+								}
+
+								// Ensure directory exists
+								const targetDir = path.dirname(targetPath)
+								await fs.mkdir(targetDir, { recursive: true })
+
+								// Write the file
+								await fs.writeFile(targetPath, ruleFile.content, "utf-8")
+							}
+						}
+					}
+				} else if (source === "global" && rulesFiles && Array.isArray(rulesFiles)) {
+					// For global imports, preserve the rules files structure in the global .roo directory
+					const globalRooDir = getGlobalRooDirectory()
+
+					// Always remove the existing rules folder for this mode if it exists
+					// This ensures that if the imported mode has no rules, the folder is cleaned up
+					const rulesFolderPath = path.join(globalRooDir, `rules-${importMode.slug}`)
+					try {
+						await fs.rm(rulesFolderPath, { recursive: true, force: true })
+						logger.info(`Removed existing global rules folder for mode ${importMode.slug}`)
+					} catch (error) {
+						// It's okay if the folder doesn't exist
+						logger.debug(`No existing global rules folder to remove for mode ${importMode.slug}`)
+					}
+
+					// Import the new rules files with path validation
+					for (const ruleFile of rulesFiles) {
+						if (ruleFile.relativePath && ruleFile.content) {
+							// Validate the relative path to prevent path traversal attacks
+							const normalizedRelativePath = path.normalize(ruleFile.relativePath)
+
+							// Ensure the path doesn't contain traversal sequences
+							if (normalizedRelativePath.includes("..") || path.isAbsolute(normalizedRelativePath)) {
+								logger.error(`Invalid file path detected: ${ruleFile.relativePath}`)
+								continue // Skip this file but continue with others
+							}
+
+							const targetPath = path.join(globalRooDir, normalizedRelativePath)
+							const normalizedTargetPath = path.normalize(targetPath)
+							const expectedBasePath = path.normalize(globalRooDir)
+
+							// Ensure the resolved path stays within the global .roo directory
+							if (!normalizedTargetPath.startsWith(expectedBasePath)) {
+								logger.error(`Path traversal attempt detected: ${ruleFile.relativePath}`)
+								continue // Skip this file but continue with others
+							}
+
+							// Ensure directory exists
+							const targetDir = path.dirname(targetPath)
+							await fs.mkdir(targetDir, { recursive: true })
+
+							// Write the file
+							await fs.writeFile(targetPath, ruleFile.content, "utf-8")
+						}
+					}
+				}
+			}
+
+			// Refresh the modes after import
+			await this.refreshMergedState()
+
+			return { success: true }
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			logger.error("Failed to import mode with rules", { error: errorMessage })
+			return { success: false, error: errorMessage }
 		}
 	}
 
