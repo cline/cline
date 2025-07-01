@@ -128,15 +128,21 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		args.push("--model", modelId)
 	}
 
+	const env: NodeJS.ProcessEnv = {
+		...process.env,
+		// The default is 32000. However, I've gotten larger responses, so we increase it unless the user specified it.
+		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
+	}
+
+	// We don't want to consume the user's ANTHROPIC_API_KEY,
+	// and will allow Claude Code to resolve auth by itself
+	delete env["ANTHROPIC_API_KEY"]
+
 	const claudeCodeProcess = execa(claudePath, args, {
 		stdin: "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
-		env: {
-			...process.env,
-			// The default is 32000. However, I've gotten larger responses, so we increase it unless the user specified it.
-			CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
-		},
+		env,
 		cwd,
 		maxBuffer: 1024 * 1024 * 1000,
 		timeout: CLAUDE_CODE_TIMEOUT,
