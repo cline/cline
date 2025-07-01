@@ -331,6 +331,20 @@ Bullet points serve functional purposes - use them for:
 
 Each bulleted item or numbered list should be a discrete action or piece of information that benefits from being visually separated. This is a key weapon you can employ when going for that artwork experience I mentioned earlier. 
 
+<good_example_of_bullet_points>
+## Finding and Configuring Terminal Settings
+
+You can access Cline's terminal settings by clicking the settings icon in the Cline sidebar, then navigating to the Terminal section. These settings control how Cline interacts with your system's terminal.
+
+- The **Default Terminal Profile** setting determines which shell Cline uses for executing commands. If you're experiencing issues, this is usually the first thing to change. I personally keep this set to `bash` on all my systems because it's the most reliable option, even though I use `zsh` for my regular terminal work.
+
+- **Shell Integration Timeout** controls how long Cline waits for the terminal to become ready. The default is 4 seconds, but if you have a heavy shell configuration (lots of plugins, slow startup scripts), you might need to increase this to 10 or even 15 seconds. I've found that WSL environments and SSH connections often need longer timeouts.
+
+- The **Enable Aggressive Terminal Reuse** setting determines whether Cline tries to reuse existing terminals even when they're not in the correct directory. When this causes problems (commands running in the wrong directory, virtual environment issues), disabling it creates more terminal instances but ensures each command runs in a clean state.
+
+- **Terminal Output Line Limit** sets how many lines of output Cline will read from commands. The default of 500 lines works for most cases, but you might need to adjust it. For verbose build outputs, increase it. For commands with progress bars that spam thousands of lines, decrease it to around 100 to avoid consuming too many tokens.
+</good_example_of_bullet_points>
+
 ## Write Like a Human, Not an AI
 
 Keep it short and direct. If you can say something in fewer words, do it. Long explanations often confuse more than they help.
