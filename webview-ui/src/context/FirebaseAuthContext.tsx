@@ -61,6 +61,8 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 			)
 				.then((response: AuthStateChanged) => {
 					setUserInfo(response.user)
+					if (response?.user?.email)
+						AccountServiceClient.accountEmailIdentified(StringRequest.create({ value: response?.user?.email }))
 				})
 				.catch((error) => {
 					console.error("Error updating auth state via gRPC:", error)
