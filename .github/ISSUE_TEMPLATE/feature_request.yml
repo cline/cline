@@ -57,6 +57,16 @@ body:
       label: Additional context (optional)
       description: Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.
 
+  - type: textarea
+    id: roo-code-tasks
+    attributes:
+      label: Roo Code Task Links (Optional)
+      description: |
+        If you used Roo Code to explore this feature request or develop solutions, share the public task links here.
+        This helps maintainers understand the context and any exploration you've done.
+        Example: https://app.roocode.com/share/task-id
+      placeholder: Paste your Roo Code share links here, one per line
+
   - type: checkboxes
     id: checklist
     attributes:

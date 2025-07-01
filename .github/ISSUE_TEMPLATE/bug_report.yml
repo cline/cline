@@ -54,6 +54,16 @@ body:
       required: true
 
   - type: textarea
+    id: roo-code-tasks
+    attributes:
+      label: Roo Code Task Links (Optional)
+      description: |
+        If you have any publicly shared task links that demonstrate the issue, please paste them here.
+        This helps maintainers understand the context.
+        Example: https://app.roocode.com/share/task-id
+      placeholder: Paste your Roo Code share links here, one per line
+
+  - type: textarea
     id: steps
     attributes:
       label: 🔁 Steps to Reproduce
