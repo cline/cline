@@ -20,7 +20,6 @@ service AccountService {
     // Subscribe to auth callback events (when authentication tokens are received)
     rpc subscribeToAuthCallback(EmptyRequest) returns (stream String);
 
-    rpc accountEmailIdentified(StringRequest) returns (Empty);
     
     // Handles authentication state changes from the Firebase context.
     // Updates the user info in global state and returns the updated value.
@@ -28,6 +27,9 @@ service AccountService {
     
     // Fetches all user credits data (balance, usage transactions, payment transactions)
     rpc fetchUserCreditsData(EmptyRequest) returns (UserCreditsData);
+
+    rpc accountEmailIdentified(StringRequest) returns (Empty);
+
 }
 
 message AuthStateChangedRequest {
@@ -75,4 +77,5 @@ message PaymentTransaction {
     string creator_id = 2;
     int32 amount_cents = 3;
     double credits = 4;
+
 }
