@@ -363,12 +363,15 @@ Adding a personal touch goes a long way. There are great examples in the docs cu
 
 First, internalize these guidelines. I mean it. 
 
-Second, read some good examples that I personally wrote and am proud of:
+Second, read `docs/docs.json` and get an understanding of the structure of the docs. This will come in handly at the end when you're doing a final pass so you can cross link to docs where relevant.
+
+Third, read some good examples that I personally wrote and am proud of:
 
 - docs/features/slash-commands/workflows.mdx
 - docs/features/slash-commands/new-task.mdx
 - docs/features/at-mentions/overview.mdx
 - docs/features/drag-and-drop.mdx
 
-Third, if the user specifies any other instructions make sure you follow them.
+Fourth, if the user specifies any other instructions make sure you follow them.
+
 
