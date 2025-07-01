@@ -85,16 +85,29 @@ We should instead strive to write beautiful docs that read well. We can use bull
 <good_example_of_writing>
 #### macOS
 
-If you're experiencing terminal issues on macOS, switching to bash often resolves compatibility problems. Navigate to Cline Settings → Terminal → Default Terminal Profile and select "bash" from the dropdown. Many users find that Oh-My-Zsh can interfere with Cline's terminal integration, so try temporarily disabling it by running `mv ~/.zshrc ~/.zshrc.backup` and restarting VSCode. You can also improve terminal compatibility by adding `export TERM=xterm-256color` to your shell configuration file.
+The most common fix is switching to bash. Navigate to Cline Settings → Terminal → Default Terminal Profile and select "bash" from the dropdown.
+
+If you're still having issues, Oh-My-Zsh might be interfering with terminal integration. Try temporarily disabling it:
+- Run `mv ~/.zshrc ~/.zshrc.backup` 
+- Restart VSCode
+
+You can also add `export TERM=xterm-256color` to your shell configuration file to improve compatibility.
 
 #### Windows
 
-PowerShell 7 provides the most reliable Windows experience with Cline. Install it from the Microsoft Store, then select it in your Cline settings. If you're still seeing issues, Windows ConPTY can sometimes cause problems - disable it by going to VSCode Settings → Terminal › Integrated: Windows Enable Conpty and unchecking the box. When all else fails, the simple Command Prompt (cmd.exe) often works better than more complex shells.
+PowerShell 7 provides the most reliable experience. Install it from the Microsoft Store, then select it in your Cline settings.
+
+Still seeing problems? Try these solutions:
+- Disable Windows ConPTY: VSCode Settings → Terminal › Integrated: Windows Enable Conpty → uncheck
+- Switch to Command Prompt (cmd.exe) - sometimes simpler shells work better
 
 #### Linux
 
-Bash remains the most dependable option for Linux users. Select it in your Cline settings if you haven't already. Make sure VSCode has the necessary terminal access permissions, as restricted permissions can cause unexpected behavior. If you use custom prompt configurations in your `.bashrc`, try commenting them out temporarily to see if they're causing conflicts.
+Bash is your most dependable option. Select it in Cline settings if you haven't already.
 
+Check these common issues:
+- Ensure VSCode has terminal access permissions
+- Temporarily comment out custom prompt configurations in your `.bashrc`
 </good_example_of_writing>
 
 The good example transforms the rigid bullet point structure into flowing prose that's much more natural to read. Writing this way creates a conversational flow rather than a mechanical checklist, where information progresses logically from one solution to the next. Instead of just listing steps, the prose explains why each solution works, like noting that "Oh-My-Zsh can interfere with Cline's terminal integration."
