@@ -301,6 +301,12 @@ Use `<Tip>` components for helpful information that enhances the main content wi
 </Note>
 ```
 
+`<Info>` is also cool:
+<Info>
+	**Quick Fix**: If you're experiencing terminal issues, try switching to a simpler shell like `bash` in the Cline settings.
+	This resolves 90% of terminal integration problems.
+</Info>
+
 **Never** fall into that awful **Bold Text** - description pattern that we specifically identified as bad writing. The content should flow naturally as connected thoughts rather than feeling like a templated AI response with forced formatting.
 
 
