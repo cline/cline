@@ -43,7 +43,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 			await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(markdownContent))
 			await getHostBridgeProvider().windowClient.showTextDocument(
 				ShowTextDocumentRequest.create({
-					uri: saveUri.toString(),
+					path: saveUri.fsPath,
 					options: ShowTextDocumentOptions.create({ preview: true }),
 				}),
 			)

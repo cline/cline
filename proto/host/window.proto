@@ -14,7 +14,7 @@ service WindowService {
 
 message ShowTextDocumentRequest {
   cline.Metadata metadata = 1;
-  string uri = 2;
+  string path = 2;
   optional ShowTextDocumentOptions options = 3;
 }
 

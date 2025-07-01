@@ -47,7 +47,7 @@ export async function openFile(absolutePath: string) {
 		const document = await vscode.workspace.openTextDocument(uri)
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				uri: document.uri.toString(),
+				path: document.uri.fsPath,
 				options: ShowTextDocumentOptions.create({ preview: false }),
 			}),
 		)

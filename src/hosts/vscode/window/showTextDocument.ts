@@ -2,7 +2,8 @@ import * as vscode from "vscode"
 import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
 
 export async function showTextDocument(request: ShowTextDocumentRequest): Promise<TextEditorInfo> {
-	const uri = vscode.Uri.parse(request.uri)
+	// Convert file path to URI
+	const uri = vscode.Uri.file(request.path)
 	const options: vscode.TextDocumentShowOptions = {}
 
 	if (request.options?.preview !== undefined) {

@@ -135,7 +135,7 @@ async function editCommitMessage(message: string): Promise<void> {
 
 	await getHostBridgeProvider().windowClient.showTextDocument(
 		ShowTextDocumentRequest.create({
-			uri: document.uri.toString(),
+			path: document.uri.fsPath,
 		}),
 	)
 	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
