@@ -108,6 +108,7 @@ export class LiteLlmHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
+			...(this.options.taskId && { litellm_session_id: `cline-${this.options.taskId}` }), // Add session ID for LiteLLM tracking
 		})
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0

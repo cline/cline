@@ -44,12 +44,36 @@ export class OpenRouterHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
+			// Check for error field directly on chunk
 			if ("error" in chunk) {
 				const error = chunk.error as OpenRouterErrorResponse["error"]
 				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
 				// Include metadata in the error message if available
 				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
+			}
+
+			// Check for error in choices[0].finish_reason
+			// OpenRouter may return errors in a non-standard way within choices
+			const choice = chunk.choices?.[0]
+			// Use type assertion since OpenRouter uses non-standard "error" finish_reason
+			if ((choice?.finish_reason as string) === "error") {
+				// Use type assertion since OpenRouter adds non-standard error property
+				const choiceWithError = choice as any
+				if (choiceWithError.error) {
+					const error = choiceWithError.error
+					console.error(
+						`OpenRouter Mid-Stream Error: ${error?.code || "Unknown"} - ${error?.message || "Unknown error"}`,
+					)
+					// Format error details
+					const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
+					throw new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`)
+				} else {
+					// Fallback if error details are not available
+					throw new Error(
+						`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`,
+					)
+				}
 			}
 
 			if (!this.lastGenerationId && chunk.id) {
@@ -74,14 +98,27 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage && chunk.usage) {
-				yield {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					totalCost: chunk.usage.cost || 0,
+				let modelId = this.options.openRouterModelId
+				if (modelId && modelId.includes("gemini")) {
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
+					}
+				} else {
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: chunk.usage.prompt_tokens || 0,
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
+					}
 				}
 				didOutputUsage = true
 			}
@@ -103,14 +140,27 @@ export class OpenRouterHandler implements ApiHandler {
 				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value
 				// console.log("OpenRouter generation details:", generation)
-				return {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
-					// openrouter generation endpoint fails often
-					inputTokens: generation?.native_tokens_prompt || 0,
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+				let modelId = this.options.openRouterModelId
+				if (modelId && modelId.includes("gemini")) {
+					return {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: generation?.native_tokens_cached || 0,
+						// openrouter generation endpoint fails often
+						inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+						outputTokens: generation?.native_tokens_completion || 0,
+						totalCost: generation?.total_cost || 0,
+					}
+				} else {
+					return {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: generation?.native_tokens_cached || 0,
+						// openrouter generation endpoint fails often
+						inputTokens: generation?.native_tokens_prompt || 0,
+						outputTokens: generation?.native_tokens_completion || 0,
+						totalCost: generation?.total_cost || 0,
+					}
 				}
 			} catch (error) {
 				// ignore if fails

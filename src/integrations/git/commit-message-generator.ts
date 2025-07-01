@@ -1,5 +1,8 @@
 import * as vscode from "vscode"
 import { getWorkingState } from "@utils/git"
+import { writeTextToClipboard } from "@utils/env"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
 
 /**
  * Formats the git diff into a prompt for the AI
@@ -57,7 +60,7 @@ export function extractCommitMessage(aiResponse: string): string {
  * @param message The commit message to copy
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
-	await vscode.env.clipboard.writeText(message)
+	await writeTextToClipboard(message)
 	vscode.window.showInformationMessage("Commit message copied to clipboard")
 }
 
@@ -129,6 +132,10 @@ async function editCommitMessage(message: string): Promise<void> {
 		language: "markdown",
 	})
 
-	await vscode.window.showTextDocument(document)
+	await getHostBridgeProvider().windowClient.showTextDocument(
+		ShowTextDocumentRequest.create({
+			path: document.uri.fsPath,
+		}),
+	)
 	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
 }

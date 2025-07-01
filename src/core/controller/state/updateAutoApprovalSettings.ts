@@ -22,7 +22,7 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 		await updateGlobalState(controller.context, "autoApprovalSettings", settings)
 
 		if (controller.task) {
-			controller.task.autoApprovalSettings = settings
+			controller.task.updateAutoApprovalSettings(settings)
 		}
 
 		await controller.postStateToWebview()

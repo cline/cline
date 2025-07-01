@@ -1,51 +1,44 @@
-import { Channel, createChannel, createClient } from "nice-grpc"
-import * as host from "@generated/nice-grpc/index.host"
+import { Channel, createChannel } from "nice-grpc"
+import {
+	UriServiceClientImpl,
+	WatchServiceClientImpl,
+	WorkspaceServiceClientImpl,
+	EnvServiceClientImpl,
+	WindowServiceClientImpl,
+} from "@generated/standalone/host-bridge-clients"
+import {
+	UriServiceClientInterface,
+	WatchServiceClientInterface,
+	WorkspaceServiceClientInterface,
+	EnvServiceClientInterface,
+	WindowServiceClientInterface,
+} from "@generated/hosts/host-bridge-client-types"
+import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 
 /**
- * Singleton class to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
+ * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
  * creating a new TCP connection every time a rpc is made.
  */
-class HostBridgeClientManager {
-	private static instance: HostBridgeClientManager | null
+export class ExternalHostBridgeClientManager implements HostBridgeClientProvider {
 	private channel: Channel
-	uriClient: host.UriServiceClient
-	//watchClient: host.WatchServiceClient
+	uriServiceClient: UriServiceClientInterface
+	watchServiceClient: WatchServiceClientInterface
+	workspaceClient: WorkspaceServiceClientInterface
+	envClient: EnvServiceClientInterface
+	windowClient: WindowServiceClientInterface
 
-	private constructor() {
+	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
 		this.channel = createChannel(address)
-		this.uriClient = createClient(host.UriServiceDefinition, this.channel)
-		//this.watchClient =
-	}
 
-	public static getInstance(): HostBridgeClientManager {
-		if (!HostBridgeClientManager.instance) {
-			HostBridgeClientManager.instance = new HostBridgeClientManager()
-		}
-		return HostBridgeClientManager.instance
+		this.uriServiceClient = new UriServiceClientImpl(this.channel)
+		this.watchServiceClient = new WatchServiceClientImpl(this.channel)
+		this.workspaceClient = new WorkspaceServiceClientImpl(this.channel)
+		this.envClient = new EnvServiceClientImpl(this.channel)
+		this.windowClient = new WindowServiceClientImpl(this.channel)
 	}
 
 	public close(): void {
 		this.channel.close()
-		HostBridgeClientManager.instance = null
 	}
 }
-
-// TODO(sjf) Replace this with nice-grpc client.
-const StubWatchServiceClient = {
-	subscribeToFile: function (
-		_r: host.SubscribeToFileRequest,
-		_h: {
-			onResponse?: (response: { type: host.FileChangeEvent_ChangeType }) => void | Promise<void>
-			onError?: (error: any) => void
-			onComplete?: () => void
-		},
-	) {
-		throw Error("Unimplemented")
-	},
-}
-
-const clientManager = HostBridgeClientManager.getInstance()
-
-export const UriServiceClient = clientManager.uriClient
-export const WatchServiceClient = StubWatchServiceClient
