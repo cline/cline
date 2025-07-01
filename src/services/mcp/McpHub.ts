@@ -139,7 +139,6 @@ export class McpHub {
 		console.log("[DEBUG] subscribing to mcp file changes")
 		const cancelSubscription = getHostBridgeProvider().watchServiceClient.subscribeToFile(
 			SubscribeToFileRequest.create({
-				metadata: Metadata.create({}),
 				path: settingsPath,
 			}),
 			{

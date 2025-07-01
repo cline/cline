@@ -4,12 +4,14 @@ import {
 	WatchServiceClientImpl,
 	WorkspaceServiceClientImpl,
 	EnvServiceClientImpl,
+	WindowServiceClientImpl,
 } from "@generated/standalone/host-bridge-clients"
 import {
 	UriServiceClientInterface,
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
+	WindowServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 
@@ -23,6 +25,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	watchServiceClient: WatchServiceClientInterface
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
+	windowClient: WindowServiceClientInterface
 
 	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
@@ -32,6 +35,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 		this.watchServiceClient = new WatchServiceClientImpl(this.channel)
 		this.workspaceClient = new WorkspaceServiceClientImpl(this.channel)
 		this.envClient = new EnvServiceClientImpl(this.channel)
+		this.windowClient = new WindowServiceClientImpl(this.channel)
 	}
 
 	public close(): void {
