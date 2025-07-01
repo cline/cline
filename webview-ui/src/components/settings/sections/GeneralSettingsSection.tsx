@@ -3,6 +3,7 @@ import { ChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
+import { useFirebaseAuth } from "../../../context/FirebaseAuthContext"
 
 interface GeneralSettingsSectionProps {
 	chatSettings: ChatSettings
@@ -19,6 +20,7 @@ const GeneralSettingsSection = ({
 	setTelemetrySetting,
 	renderSectionHeader,
 }: GeneralSettingsSectionProps) => {
+	const { user } = useFirebaseAuth()
 	return (
 		<div>
 			{renderSectionHeader("general")}
@@ -33,11 +35,21 @@ const GeneralSettingsSection = ({
 							const checked = e.target.checked === true
 							setTelemetrySetting(checked ? "enabled" : "disabled")
 						}}>
-						Allow anonymous error and usage reporting
+						Allow error and usage reporting
 					</VSCodeCheckbox>
 					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
-						information are ever sent. See our{" "}
+						{user ? (
+							<>
+								To help us improve Cline, we collect usage data and associate it with your account. This helps us
+								fix bugs and improve the extension.
+							</>
+						) : (
+							<>
+								Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or
+								personal information are ever sent.
+							</>
+						)}
+						See our{" "}
 						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" className="text-inherit">
 							telemetry overview
 						</VSCodeLink>{" "}

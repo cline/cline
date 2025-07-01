@@ -1,9 +1,10 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
+import { memo } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -47,6 +48,7 @@ const ButtonContainer = styled.div`
 
 const TelemetryBanner = () => {
 	const { navigateToSettings } = useExtensionState()
+	const { user } = useFirebaseAuth()
 
 	const handleOpenSettings = () => {
 		handleClose()
@@ -77,9 +79,18 @@ const TelemetryBanner = () => {
 					(and access experimental features)
 				</i>
 				<div style={{ marginTop: 4 }}>
-					Cline collects anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts,
-					or personal information is ever sent. Refer to our{" "}
-					<VSCodeLink href="https://cline.bot/tos">terms of service</VSCodeLink>.
+					{user ? (
+						<>
+							To help us improve Cline, we collect usage data and associate it with your account. This helps us fix
+							bugs and improve the extension.
+						</>
+					) : (
+						<>
+							Cline collects anonymous error and usage data to help us fix bugs and improve the extension. No code,
+							prompts, or personal information is ever sent.
+						</>
+					)}
+					Refer to our <VSCodeLink href="https://cline.bot/tos">terms of service</VSCodeLink>.
 					<div style={{ marginTop: 4 }}>
 						{" "}
 						You can turn this setting off in{" "}

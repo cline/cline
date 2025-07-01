@@ -30,6 +30,7 @@ interface Collection {
 type TelemetryCategory = "checkpoints" | "browser"
 
 class TelemetryService {
+	private isUserIdentified: boolean = false
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
@@ -142,7 +143,7 @@ class TelemetryService {
 			if (didUserOptIn) {
 				void vscode.window
 					.showWarningMessage(
-						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						"Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
 						"Open Settings",
 					)
 					.then((selection) => {
@@ -238,6 +239,7 @@ class TelemetryService {
 		if (!this.telemetryEnabled) {
 			return
 		}
+		this.isUserIdentified = true
 		this.client.identify({
 			distinctId: this.distinctId,
 			properties: {
