@@ -1376,7 +1376,7 @@ export const ChatRowContent = memo(
 												fontWeight: 500,
 												color: "var(--vscode-foreground)",
 											}}>
-											Shell Integration Error
+											Shell Integration Unavailable
 										</span>
 									</div>
 									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
