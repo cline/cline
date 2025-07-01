@@ -221,6 +221,106 @@ describe("loadRuleFiles", () => {
 		expect(readFileMock).toHaveBeenCalledWith(expectedFile2Path, "utf-8")
 	})
 
+	it("should filter out cache files from .roo/rules/ directory", async () => {
+		// Simulate .roo/rules directory exists
+		statMock.mockResolvedValueOnce({
+			isDirectory: vi.fn().mockReturnValue(true),
+		} as any)
+
+		// Simulate listing files including cache files
+		readdirMock.mockResolvedValueOnce([
+			{ name: "rule1.txt", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{ name: ".DS_Store", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{ name: "Thumbs.db", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{ name: "rule2.md", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{ name: "cache.log", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{
+				name: "backup.bak",
+				isFile: () => true,
+				isSymbolicLink: () => false,
+				parentPath: "/fake/path/.roo/rules",
+			},
+			{ name: "temp.tmp", isFile: () => true, isSymbolicLink: () => false, parentPath: "/fake/path/.roo/rules" },
+			{
+				name: "script.pyc",
+				isFile: () => true,
+				isSymbolicLink: () => false,
+				parentPath: "/fake/path/.roo/rules",
+			},
+		] as any)
+
+		statMock.mockImplementation((path) => {
+			return Promise.resolve({
+				isFile: vi.fn().mockReturnValue(true),
+			}) as any
+		})
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			const normalizedPath = pathStr.replace(/\\/g, "/")
+
+			// Only rule files should be read - cache files should be skipped
+			if (normalizedPath === "/fake/path/.roo/rules/rule1.txt") {
+				return Promise.resolve("rule 1 content")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/rule2.md") {
+				return Promise.resolve("rule 2 content")
+			}
+
+			// Cache files should not be read due to filtering
+			// If they somehow are read, return recognizable content
+			if (normalizedPath === "/fake/path/.roo/rules/.DS_Store") {
+				return Promise.resolve("DS_STORE_BINARY_CONTENT")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/Thumbs.db") {
+				return Promise.resolve("THUMBS_DB_CONTENT")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/backup.bak") {
+				return Promise.resolve("BACKUP_CONTENT")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/cache.log") {
+				return Promise.resolve("LOG_CONTENT")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/temp.tmp") {
+				return Promise.resolve("TEMP_CONTENT")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/script.pyc") {
+				return Promise.resolve("PYTHON_BYTECODE")
+			}
+
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await loadRuleFiles("/fake/path")
+
+		// Should contain rule files
+		expect(result).toContain("rule 1 content")
+		expect(result).toContain("rule 2 content")
+
+		// Should NOT contain cache file content - they should be filtered out
+		expect(result).not.toContain("DS_STORE_BINARY_CONTENT")
+		expect(result).not.toContain("THUMBS_DB_CONTENT")
+		expect(result).not.toContain("BACKUP_CONTENT")
+		expect(result).not.toContain("LOG_CONTENT")
+		expect(result).not.toContain("TEMP_CONTENT")
+		expect(result).not.toContain("PYTHON_BYTECODE")
+
+		// Verify cache files are not read at all
+		const expectedCacheFiles = [
+			"/fake/path/.roo/rules/.DS_Store",
+			"/fake/path/.roo/rules/Thumbs.db",
+			"/fake/path/.roo/rules/backup.bak",
+			"/fake/path/.roo/rules/cache.log",
+			"/fake/path/.roo/rules/temp.tmp",
+			"/fake/path/.roo/rules/script.pyc",
+		]
+
+		for (const cacheFile of expectedCacheFiles) {
+			const expectedPath = process.platform === "win32" ? cacheFile.replace(/\//g, "\\") : cacheFile
+			expect(readFileMock).not.toHaveBeenCalledWith(expectedPath, "utf-8")
+		}
+	})
+
 	it("should fall back to .roorules when .roo/rules/ is empty", async () => {
 		// Simulate .roo/rules directory exists
 		statMock.mockResolvedValueOnce({

@@ -123,6 +123,10 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 					// Check if it's a file (not a directory)
 					const stats = await fs.stat(file)
 					if (stats.isFile()) {
+						// Filter out cache files and system files that shouldn't be in rules
+						if (!shouldIncludeRuleFile(file)) {
+							return null
+						}
 						const content = await safeReadFile(file)
 						return { filename: file, content }
 					}
@@ -133,7 +137,7 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 			}),
 		)
 
-		// Filter out null values (directories or failed reads)
+		// Filter out null values (directories, failed reads, or excluded files)
 		return fileContents.filter((item): item is { filename: string; content: string } => item !== null)
 	} catch (err) {
 		return []
@@ -296,4 +300,45 @@ The following additional instructions are provided by the user, and should be fo
 
 ${joinedSections}`
 		: ""
+}
+
+/**
+ * Check if a file should be included in rule compilation.
+ * Excludes cache files and system files that shouldn't be processed as rules.
+ */
+function shouldIncludeRuleFile(filename: string): boolean {
+	const basename = path.basename(filename)
+
+	const cachePatterns = [
+		"*.DS_Store",
+		"*.bak",
+		"*.cache",
+		"*.crdownload",
+		"*.db",
+		"*.dmp",
+		"*.dump",
+		"*.eslintcache",
+		"*.lock",
+		"*.log",
+		"*.old",
+		"*.part",
+		"*.partial",
+		"*.pyc",
+		"*.pyo",
+		"*.stackdump",
+		"*.swo",
+		"*.swp",
+		"*.temp",
+		"*.tmp",
+		"Thumbs.db",
+	]
+
+	return !cachePatterns.some((pattern) => {
+		if (pattern.startsWith("*.")) {
+			const extension = pattern.slice(1)
+			return basename.endsWith(extension)
+		} else {
+			return basename === pattern
+		}
+	})
 }
