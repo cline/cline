@@ -3,7 +3,7 @@ import { RelativePathsRequest, RelativePaths } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
-import { Metadata, StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/common"
 import { getHostBridgeProvider } from "@hosts/host-providers"
 
 /**
@@ -22,7 +22,6 @@ export const getRelativePaths: FileMethodHandler = async (
 				// Use the host URI service client instead of directly using vscode.Uri.parse
 				const parseResponse = await getHostBridgeProvider().uriServiceClient.parse(
 					StringRequest.create({
-						metadata: Metadata.create({}),
 						value: uriString,
 					}),
 				)

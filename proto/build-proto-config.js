@@ -26,5 +26,6 @@ export const hostServiceNameMap = {
 	watch: "host.WatchService",
 	workspace: "host.WorkspaceService",
 	env: "host.EnvService",
+	window: "host.WindowService",
 	// Add new host services here
 }
