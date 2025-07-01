@@ -67,42 +67,6 @@ Earlier this year, I had an example where I embedded all of Wikipedia in 17 minu
 
 It was easy to visualize and could have been proven false by being unreproducible. Lastly, Modal is the only company that could do that in such an effortless way, which made it unique.
 
-## Strong Introduction
-
-So, if you end up doing any kind of sales, you'll realize that.
-
-What you actually need to understand is not what you have to offer as the product, but the size of the pain that the prospect is going through.
-
-- There are going to be readers that are just kind of curious and bored. They're not really going to be the ones that care about the product itself unless you can contextualize the pain for them.
-- It's really important to have an introduction that contextualizes the pain and foreshadows the solution.
-
-If we can build that trust and I can correctly describe the pain that you are going through, then you will believe me when I am predicting the pain that you may also go through in the future. Ultimately, that is how you become a leader in the space—by demonstrating your ability to be right consistently.
-
-The next time you publish or write something, they will believe it, and they will believe that they get value from it.
-
-## Strong Hooks
-
-In the same sense that a title should often try to change the "how I" to a "how you" by eliciting an emotional response, the introduction can also help select the reader into a group that is feeling the pain.
-
-This is the same reason why a plumber will have an introduction that says, "Do you have a leaky faucet? Call 1-800-PLUMBERS." That's a much more selective hook than just "I'm the best plumber in town." You can say that to everybody, whereas if someone answers the question of whether they have a leaky faucet, it automatically selects them to be a part of their readership.
-
-I truly believe if you try to build a product too soon for everybody, you're gonna end up in a bad place.
-
-## Foreshadow Content
-
-Once you hook them, you still have to first retain them. You can do that by foreshadowing the content you'll cover and even hinting at the reward.
-
-For example, an introduction could look like the following:
-
-- If you're making $10,000 a month consulting right now, my goal at the end of this blog post is to help you increase your prices by:
-    - Asking the right questions so you understand the value of the solution you're offering.
-    - Providing tips on writing proposals and offering different options you can let your customer pay you more.
-    - Lastly, sharing some anecdotes with you on how I became more comfortable with charging two or three times more than I did when I started
-
-Here, I've pre-qualified the reader for a certain range and told them what their goal is by the end of the post.
-
-Two things are just the tips and the questions I'm going to suggest, and then the final reward is something a little bit more personal. Ideally, they read the first two knowing that my personal stories are coming after. That intro itself outlines the entire post. 
-
 ## Keep It Digestible 
     - Aim for 5-minute reads
     - Write at a Grade 10 reading level
