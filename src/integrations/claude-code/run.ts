@@ -84,10 +84,9 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			const startOfCommand = err.message.indexOf(": ")
 			if (startOfCommand !== -1) {
 				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
-				err.message = messageWithoutCommand
-			}
 
-			throw err
+				throw new Error(messageWithoutCommand, { cause: err })
+			}
 		}
 
 		throw err
@@ -122,8 +121,8 @@ const claudeCodeTools = [
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 // https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
-// 10 times the default buffer size
-const MAX_BUFFER_SIZE = 1_000_000_000
+const DEFAULT_BUFFER_SIZE = 100_000_000 // 100 MB
+const MAX_BUFFER_SIZE = 10 * DEFAULT_BUFFER_SIZE
 
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
 	const claudePath = path?.trim() || "claude"
