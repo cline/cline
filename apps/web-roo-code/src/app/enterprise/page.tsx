@@ -1,9 +1,10 @@
-import { Code, CheckCircle, Shield, Users, Zap, Workflow } from "lucide-react"
+import { Code, CheckCircle, Shield, Users, Zap, Workflow, Lock } from "lucide-react"
 
 import { Button } from "@/components/ui"
 import { AnimatedText } from "@/components/animated-text"
 import { AnimatedBackground } from "@/components/homepage"
 import { ContactForm } from "@/components/enterprise/contact-form"
+import { EXTERNAL_LINKS } from "@/lib/constants"
 
 export default async function Enterprise() {
 	return (
@@ -380,6 +381,63 @@ export default async function Enterprise() {
 									<span>Enterprise-ready governance platform</span>
 								</li>
 							</ul>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			{/* Security Hook Section */}
+			<section className="py-16">
+				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
+					<div className="rounded-lg border border-border bg-card p-8 shadow-sm">
+						<div className="grid gap-8 md:grid-cols-2 md:items-center">
+							<div>
+								<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
+									<Shield className="h-6 w-6 text-blue-500" />
+								</div>
+								<h3 className="mb-4 text-2xl font-bold">Enterprise-Grade Security</h3>
+								<p className="mb-6 text-muted-foreground">
+									Built with security-first principles to meet stringent enterprise requirements while
+									maintaining developer productivity.
+								</p>
+								<ul className="space-y-3">
+									<li className="flex items-center space-x-3">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span>SOC 2 Type I Certified with Type II in observation</span>
+									</li>
+									<li className="flex items-center space-x-3">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span>End-to-end encryption for all data transmission</span>
+									</li>
+									<li className="flex items-center space-x-3">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span>Security-first architecture with explicit permissions</span>
+									</li>
+									<li className="flex items-center space-x-3">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span>Complete audit trails and compliance reporting</span>
+									</li>
+									<li className="flex items-center space-x-3">
+										<CheckCircle className="h-5 w-5 text-green-500" />
+										<span>Open-source transparency for security verification</span>
+									</li>
+								</ul>
+							</div>
+							<div className="flex flex-col items-center justify-center space-y-4">
+								<div className="rounded-lg border border-border bg-secondary/50 p-6 text-center">
+									<Lock className="mx-auto mb-3 h-12 w-12 text-blue-500" />
+									<h4 className="mb-2 text-lg font-semibold">Security-First Design</h4>
+									<p className="text-sm text-muted-foreground">
+										Every feature built with enterprise security requirements in mind
+									</p>
+								</div>
+								<Button size="lg" asChild className="w-full">
+									<a href={EXTERNAL_LINKS.SECURITY} target="_blank" rel="noopener noreferrer">
+										View Security Details
+										<Shield className="ml-2 h-4 w-4" />
+									</a>
+								</Button>
+							</div>
 						</div>
 					</div>
 				</div>

@@ -119,6 +119,15 @@ export function Footer() {
 										</Link>
 									</li>
 									<li>
+										<a
+											href={EXTERNAL_LINKS.SECURITY}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Security
+										</a>
+									</li>
+									<li>
 										<ScrollButton
 											targetId="testimonials"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">

@@ -16,6 +16,7 @@ export const EXTERNAL_LINKS = {
 	INTEGRATIONS: "https://docs.roocode.com/community",
 	TUTORIALS: "https://docs.roocode.com/tutorial-videos",
 	MARKETPLACE: "https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline",
+	SECURITY: "https://trust.roocode.com",
 }
 
 export const INTERNAL_LINKS = {
