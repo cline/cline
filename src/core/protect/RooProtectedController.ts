@@ -18,6 +18,7 @@ export class RooProtectedController {
 		".roorules*",
 		".clinerules*",
 		".roo/**",
+		".vscode/**",
 		".rooprotected", // For future use
 	]
 
