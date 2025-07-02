@@ -127,7 +127,7 @@ export function MermaidButton({ containerRef, code, isLoading, svgToPng, childre
 			<div className="relative w-full" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
 				{children}
 				{!isLoading && isHovering && (
-					<div className="absolute bottom-2 right-2 flex gap-1 bg-black/70 rounded p-0.5 z-10 opacity-100 transition-opacity duration-200 ease-in-out">
+					<div className="absolute bottom-2 right-2 flex gap-1 bg-vscode-editor-background/90 rounded p-0.5 z-10 opacity-100 transition-opacity duration-200 ease-in-out">
 						<MermaidActionButtons
 							onZoom={handleZoom}
 							onCopy={handleCopy}
