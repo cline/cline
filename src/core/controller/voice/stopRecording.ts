@@ -1,6 +1,6 @@
 import { Controller } from ".."
 import { StopRecordingRequest, RecordedAudio } from "@shared/proto/voice"
-import { audioRecordingService } from "@services/audio/AudioRecordingService"
+import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { VoiceMethodHandler } from "./index"
 
@@ -12,7 +12,7 @@ import { VoiceMethodHandler } from "./index"
  */
 export const stopRecording: VoiceMethodHandler = async (
 	controller: Controller,
-	request: StopRecordingRequest,
+	_request: StopRecordingRequest,
 ): Promise<RecordedAudio> => {
 	const taskId = controller.task?.taskId
 	const recordingStatus = audioRecordingService.getRecordingStatus()
