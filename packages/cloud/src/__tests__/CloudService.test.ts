@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 import type { ClineMessage } from "@roo-code/types"
 
 import { CloudService } from "../CloudService"
-import { AuthService } from "../AuthService"
+import { WebAuthService } from "../auth/WebAuthService"
 import { SettingsService } from "../SettingsService"
 import { ShareService, TaskNotFoundError } from "../ShareService"
 import { TelemetryClient } from "../TelemetryClient"
@@ -27,7 +27,7 @@ vi.mock("vscode", () => ({
 
 vi.mock("@roo-code/telemetry")
 
-vi.mock("../AuthService")
+vi.mock("../auth/WebAuthService")
 
 vi.mock("../SettingsService")
 
@@ -149,7 +149,7 @@ describe("CloudService", () => {
 			},
 		}
 
-		vi.mocked(AuthService).mockImplementation(() => mockAuthService as unknown as AuthService)
+		vi.mocked(WebAuthService).mockImplementation(() => mockAuthService as unknown as WebAuthService)
 		vi.mocked(SettingsService).mockImplementation(() => mockSettingsService as unknown as SettingsService)
 		vi.mocked(ShareService).mockImplementation(() => mockShareService as unknown as ShareService)
 		vi.mocked(TelemetryClient).mockImplementation(() => mockTelemetryClient as unknown as TelemetryClient)
@@ -175,7 +175,7 @@ describe("CloudService", () => {
 			const cloudService = await CloudService.createInstance(mockContext, callbacks)
 
 			expect(cloudService).toBeInstanceOf(CloudService)
-			expect(AuthService).toHaveBeenCalledWith(mockContext, expect.any(Function))
+			expect(WebAuthService).toHaveBeenCalledWith(mockContext, expect.any(Function))
 			expect(SettingsService).toHaveBeenCalledWith(
 				mockContext,
 				mockAuthService,

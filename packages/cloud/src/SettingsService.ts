@@ -8,7 +8,7 @@ import {
 } from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./Config"
-import { AuthService } from "./AuthService"
+import type { AuthService } from "./auth"
 import { RefreshTimer } from "./RefreshTimer"
 
 const ORGANIZATION_SETTINGS_CACHE_KEY = "organization-settings"

@@ -4,7 +4,7 @@ import type { MockedFunction } from "vitest"
 import * as vscode from "vscode"
 
 import { ShareService, TaskNotFoundError } from "../ShareService"
-import type { AuthService } from "../AuthService"
+import type { AuthService } from "../auth"
 import type { SettingsService } from "../SettingsService"
 
 // Mock fetch

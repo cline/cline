@@ -10,7 +10,8 @@ import type {
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { CloudServiceCallbacks } from "./types"
-import { AuthService } from "./AuthService"
+import type { AuthService } from "./auth"
+import { WebAuthService, StaticTokenAuthService } from "./auth"
 import { SettingsService } from "./SettingsService"
 import { TelemetryClient } from "./TelemetryClient"
 import { ShareService, TaskNotFoundError } from "./ShareService"
@@ -43,7 +44,13 @@ export class CloudService {
 		}
 
 		try {
-			this.authService = new AuthService(this.context, this.log)
+			const cloudToken = process.env.ROO_CODE_CLOUD_TOKEN
+			if (cloudToken && cloudToken.length > 0) {
+				this.authService = new StaticTokenAuthService(this.context, cloudToken, this.log)
+			} else {
+				this.authService = new WebAuthService(this.context, this.log)
+			}
+
 			await this.authService.initialize()
 
 			this.authService.on("attempting-session", this.authListener)

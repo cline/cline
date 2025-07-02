@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 
 import { shareResponseSchema } from "@roo-code/types"
 import { getRooCodeApiUrl } from "./Config"
-import type { AuthService } from "./AuthService"
+import type { AuthService } from "./auth"
 import type { SettingsService } from "./SettingsService"
 import { getUserAgent } from "./utils"
 

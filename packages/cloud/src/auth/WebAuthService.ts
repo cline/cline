@@ -6,17 +6,10 @@ import { z } from "zod"
 
 import type { CloudUserInfo, CloudOrganizationMembership } from "@roo-code/types"
 
-import { getClerkBaseUrl, getRooCodeApiUrl, PRODUCTION_CLERK_BASE_URL } from "./Config"
-import { RefreshTimer } from "./RefreshTimer"
-import { getUserAgent } from "./utils"
-
-export interface AuthServiceEvents {
-	"attempting-session": [data: { previousState: AuthState }]
-	"inactive-session": [data: { previousState: AuthState }]
-	"active-session": [data: { previousState: AuthState }]
-	"logged-out": [data: { previousState: AuthState }]
-	"user-info": [data: { userInfo: CloudUserInfo }]
-}
+import { getClerkBaseUrl, getRooCodeApiUrl, PRODUCTION_CLERK_BASE_URL } from "../Config"
+import { RefreshTimer } from "../RefreshTimer"
+import { getUserAgent } from "../utils"
+import type { AuthService, AuthServiceEvents, AuthState } from "./AuthService"
 
 const authCredentialsSchema = z.object({
 	clientToken: z.string().min(1, "Client token cannot be empty"),
@@ -27,8 +20,6 @@ const authCredentialsSchema = z.object({
 type AuthCredentials = z.infer<typeof authCredentialsSchema>
 
 const AUTH_STATE_KEY = "clerk-auth-state"
-
-type AuthState = "initializing" | "logged-out" | "active-session" | "attempting-session" | "inactive-session"
 
 const clerkSignInResponseSchema = z.object({
 	response: z.object({
@@ -85,7 +76,7 @@ class InvalidClientTokenError extends Error {
 	}
 }
 
-export class AuthService extends EventEmitter<AuthServiceEvents> {
+export class WebAuthService extends EventEmitter<AuthServiceEvents> implements AuthService {
 	private context: vscode.ExtensionContext
 	private timer: RefreshTimer
 	private state: AuthState = "initializing"

@@ -4,15 +4,15 @@ import { vi, Mock, beforeEach, afterEach, describe, it, expect } from "vitest"
 import crypto from "crypto"
 import * as vscode from "vscode"
 
-import { AuthService } from "../AuthService"
-import { RefreshTimer } from "../RefreshTimer"
-import * as Config from "../Config"
-import * as utils from "../utils"
+import { WebAuthService } from "../../auth/WebAuthService"
+import { RefreshTimer } from "../../RefreshTimer"
+import * as Config from "../../Config"
+import * as utils from "../../utils"
 
 // Mock external dependencies
-vi.mock("../RefreshTimer")
-vi.mock("../Config")
-vi.mock("../utils")
+vi.mock("../../RefreshTimer")
+vi.mock("../../Config")
+vi.mock("../../utils")
 vi.mock("crypto")
 
 // Mock fetch globally
@@ -34,8 +34,8 @@ vi.mock("vscode", () => ({
 	},
 }))
 
-describe("AuthService", () => {
-	let authService: AuthService
+describe("WebAuthService", () => {
+	let authService: WebAuthService
 	let mockTimer: {
 		start: Mock
 		stop: Mock
@@ -97,7 +97,8 @@ describe("AuthService", () => {
 			stop: vi.fn(),
 			reset: vi.fn(),
 		}
-		vi.mocked(RefreshTimer).mockImplementation(() => mockTimer as unknown as RefreshTimer)
+		const MockedRefreshTimer = vi.mocked(RefreshTimer)
+		MockedRefreshTimer.mockImplementation(() => mockTimer as unknown as RefreshTimer)
 
 		// Setup config mocks - use production URL by default to maintain existing test behavior
 		vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
@@ -112,7 +113,7 @@ describe("AuthService", () => {
 		// Setup log mock
 		mockLog = vi.fn()
 
-		authService = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+		authService = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 	})
 
 	afterEach(() => {
@@ -138,9 +139,9 @@ describe("AuthService", () => {
 		})
 
 		it("should use console.log as default logger", () => {
-			const serviceWithoutLog = new AuthService(mockContext as unknown as vscode.ExtensionContext)
+			const serviceWithoutLog = new WebAuthService(mockContext as unknown as vscode.ExtensionContext)
 			// Can't directly test console.log usage, but constructor should not throw
-			expect(serviceWithoutLog).toBeInstanceOf(AuthService)
+			expect(serviceWithoutLog).toBeInstanceOf(WebAuthService)
 		})
 	})
 
@@ -434,7 +435,7 @@ describe("AuthService", () => {
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
 
-			const authenticatedService = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const authenticatedService = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await authenticatedService.initialize()
 
 			expect(authenticatedService.isAuthenticated()).toBe(true)
@@ -460,7 +461,7 @@ describe("AuthService", () => {
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
 
-			const attemptingService = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const attemptingService = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await attemptingService.initialize()
 
 			expect(attemptingService.hasOrIsAcquiringActiveSession()).toBe(true)
@@ -960,7 +961,7 @@ describe("AuthService", () => {
 			// Mock getClerkBaseUrl to return production URL
 			vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 
 			await service.initialize()
@@ -977,7 +978,7 @@ describe("AuthService", () => {
 			// Mock getClerkBaseUrl to return custom URL
 			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 
 			await service.initialize()
@@ -993,7 +994,7 @@ describe("AuthService", () => {
 			const customUrl = "https://custom.clerk.com"
 			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
 
@@ -1008,7 +1009,7 @@ describe("AuthService", () => {
 			const customUrl = "https://custom.clerk.com"
 			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 
 			await service.initialize()
 			await service["clearCredentials"]()
@@ -1027,7 +1028,7 @@ describe("AuthService", () => {
 				return { dispose: vi.fn() }
 			})
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await service.initialize()
 
 			// Simulate credentials change event with scoped key
@@ -1054,7 +1055,7 @@ describe("AuthService", () => {
 				return { dispose: vi.fn() }
 			})
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await service.initialize()
 
 			const inactiveSessionSpy = vi.fn()
@@ -1078,7 +1079,7 @@ describe("AuthService", () => {
 				return { dispose: vi.fn() }
 			})
 
-			const service = new AuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
+			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await service.initialize()
 
 			const inactiveSessionSpy = vi.fn()
