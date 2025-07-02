@@ -225,13 +225,13 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} uitgebracht",
-		"description": "Roo Code {{version}} brengt krachtige nieuwe functies en verbeteringen op basis van jouw feedback.",
+		"description": "Roo Code {{version}} brengt krachtige nieuwe functies en significante verbeteringen om je ontwikkelingsworkflow te verbeteren.",
 		"whatsNew": "Wat is er nieuw",
-		"feature1": "<bold>Roo Marketplace Launch</bold> - De marketplace is nu live! Ontdek en installeer modi en MCP's makkelijker dan ooit tevoren.",
-		"feature2": "<bold>Gemini 2.5 Modellen</bold> - Ondersteuning toegevoegd voor nieuwe Gemini 2.5 Pro, Flash en Flash Lite modellen.",
-		"feature3": "<bold>Excel Bestandsondersteuning & Meer</bold> - Excel (.xlsx) bestandsondersteuning toegevoegd en talloze bugfixes en verbeteringen!",
+		"feature1": "<bold>1-Klik Taak Delen</bold>: Deel je taken direct met collega's en de community met slechts één klik.",
+		"feature2": "<bold>Globale .roo Directory Ondersteuning</bold>: Laad regels en configuraties vanuit een globale .roo directory voor consistente instellingen tussen projecten.",
+		"feature3": "<bold>Verbeterde Architect naar Code Overgangen</bold>: Soepele overdrachten van planning in Architect modus naar implementatie in Code modus.",
 		"hideButton": "Aankondiging verbergen",
-		"detailsDiscussLinks": "Meer details en discussie in <discordLink>Discord</discordLink> en <redditLink>Reddit</redditLink> 🚀"
+		"detailsDiscussLinks": "Krijg meer details en doe mee aan discussies op <discordLink>Discord</discordLink> en <redditLink>Reddit</redditLink> 🚀"
 	},
 	"reasoning": {
 		"thinking": "Denkt na",

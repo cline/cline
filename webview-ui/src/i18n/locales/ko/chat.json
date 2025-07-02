@@ -240,13 +240,13 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 출시",
-		"description": "Roo Code {{version}}은 사용자 피드백을 기반으로 중요한 새로운 기능과 개선사항을 제공합니다.",
+		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>Roo 마켓플레이스 출시</bold>: 마켓플레이스가 이제 라이브입니다! 그 어느 때보다 쉽게 모드와 MCP를 발견하고 설치하세요.",
-		"feature2": "<bold>Gemini 2.5 모델</bold>: 새로운 Gemini 2.5 Pro, Flash, Flash Lite 모델 지원을 추가했습니다.",
-		"feature3": "<bold>Excel 파일 지원 및 기타</bold>: Excel (.xlsx) 파일 지원과 수많은 버그 수정 및 개선사항 추가!",
+		"feature1": "<bold>원클릭 작업 공유</bold>: 한 번의 클릭으로 동료 및 커뮤니티와 작업을 즉시 공유하세요.",
+		"feature2": "<bold>글로벌 .roo 디렉토리 지원</bold>: 글로벌 .roo 디렉토리에서 규칙과 구성을 로드하여 프로젝트 간 일관된 설정을 유지하세요.",
+		"feature3": "<bold>개선된 아키텍트에서 코드로의 전환</bold>: 아키텍트 모드에서의 계획부터 코드 모드에서의 구현까지 원활한 인수인계.",
 		"hideButton": "공지 숨기기",
-		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
+		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 자세한 내용을 확인하고 토론에 참여하세요 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo가 브라우저를 사용하고 싶어합니다:",

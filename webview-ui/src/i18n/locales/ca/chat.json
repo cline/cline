@@ -239,14 +239,14 @@
 		"countdownDisplay": "{{count}}s"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code {{version}} publicat",
-		"description": "Roo Code {{version}} porta noves funcionalitats potents i millores basades en els teus comentaris.",
+		"title": "🎉 Roo Code {{version}} Llançat",
+		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Llançament del Marketplace Roo</bold> - El marketplace ja està en funcionament! Descobreix i instal·la modes i MCP més fàcilment que mai.",
-		"feature2": "<bold>Models Gemini 2.5</bold> - S'ha afegit suport per als nous models Gemini 2.5 Pro, Flash i Flash Lite.",
-		"feature3": "<bold>Suport per a fitxers Excel i més</bold> - S'ha afegit suport per a fitxers Excel (.xlsx) i nombroses correccions d'errors i millores!",
-		"hideButton": "Amagar anunci",
-		"detailsDiscussLinks": "Obtingues més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
+		"feature1": "<bold>Compartició de Tasques amb 1 Clic</bold>: Comparteix instantàniament les vostres tasques amb companys i la comunitat amb un sol clic.",
+		"feature2": "<bold>Suport per a Directori Global .roo</bold>: Carrega regles i configuracions des d'un directori global .roo per a configuracions consistents entre projectes.",
+		"feature3": "<bold>Transicions Millorades d'Arquitecte a Codi</bold>: Transferències fluides de la planificació en mode Arquitecte a la implementació en mode Codi.",
+		"hideButton": "Amaga l'anunci",
+		"detailsDiscussLinks": "Obtén més detalls i uneix-te a les discussions a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo vol utilitzar el navegador:",

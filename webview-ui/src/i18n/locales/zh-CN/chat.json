@@ -240,11 +240,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已发布",
-		"description": "Roo Code {{version}} 带来基于您反馈的重要新功能和改进。",
+		"description": "Roo Code {{version}} 带来强大的新功能和重大改进，提升您的开发工作流程。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>Roo 市场正式上线</bold>: 市场现已上线！比以往更轻松地发现和安装模式及 MCP。",
-		"feature2": "<bold>Gemini 2.5 模型</bold>: 新增对新版 Gemini 2.5 Pro、Flash 和 Flash Lite 模型的支持。",
-		"feature3": "<bold>Excel 文件支持及更多</bold>: 新增 Excel (.xlsx) 文件支持以及大量错误修复和改进！",
+		"feature1": "<bold>一键任务分享</bold>: 一键即可与同事和社区分享您的任务。",
+		"feature2": "<bold>全局 .roo 目录支持</bold>: 从全局 .roo 目录加载规则和配置，确保项目间设置一致。",
+		"feature3": "<bold>改进的架构师到代码转换</bold>: 从架构师模式的规划到代码模式的实现，实现无缝交接。",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},

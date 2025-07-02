@@ -49,13 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.21 Released
+## 🎉 Roo Code 3.22 Released
 
-Roo Code 3.21 brings major new features and improvements based on your feedback!
+Roo Code 3.22 brings powerful new features and significant improvements to enhance your development workflow!
 
-- **Roo Marketplace Launch** - The marketplace is now live! The marketplace is now live! Discover and install modes and MCPs easier than ever before.
-- **Gemini 2.5 Models** - Added support for new Gemini 2.5 Pro, Flash, and Flash Lite models.
-- **Excel File Support & More** - Added Excel (.xlsx) file support and numerous bug fixes and improvements!
+- **1-Click Task Sharing** - Share your tasks instantly with colleagues and the community with a single click.
+- **Global .roo Directory Support** - Load rules and configurations from a global .roo directory for consistent settings across projects.
+- **Improved Architect to Code Transitions** - Seamless handoffs from planning in Architect mode to implementation in Code mode.
 
 ---
 

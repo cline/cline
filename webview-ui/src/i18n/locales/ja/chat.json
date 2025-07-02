@@ -240,11 +240,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",
-		"description": "Roo Code {{version}}は、あなたのフィードバックに基づく重要な新機能と改善をもたらします。",
+		"description": "Roo Code {{version}}は、開発ワークフローを向上させる強力な新機能と重要な改善をもたらします。",
 		"whatsNew": "新機能",
-		"feature1": "<bold>Roo マーケットプレイス開始</bold>: マーケットプレイスが開始されました！これまで以上に簡単にモードとMCPを発見・インストール。",
-		"feature2": "<bold>Gemini 2.5 モデル</bold>: 新しいGemini 2.5 Pro、Flash、Flash Liteモデルのサポートを追加。",
-		"feature3": "<bold>Excelファイルサポートなど</bold>: Excel (.xlsx) ファイルサポートと多数のバグ修正・改善を追加！",
+		"feature1": "<bold>1クリックタスク共有</bold>: ワンクリックで同僚やコミュニティとタスクを瞬時に共有できます。",
+		"feature2": "<bold>グローバル.rooディレクトリサポート</bold>: グローバル.rooディレクトリからルールと設定を読み込み、プロジェクト間で一貫した設定を実現。",
+		"feature3": "<bold>改善されたアーキテクトからコードへの移行</bold>: アーキテクトモードでの計画からコードモードでの実装へのシームレスな引き継ぎ。",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},

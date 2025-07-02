@@ -240,11 +240,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Lançado",
-		"description": "Roo Code {{version}} traz importantes novos recursos e melhorias baseados no seu feedback.",
+		"description": "Roo Code {{version}} traz novos recursos poderosos e melhorias significativas para aprimorar seu fluxo de trabalho de desenvolvimento.",
 		"whatsNew": "O que há de novo",
-		"feature1": "<bold>Lançamento do Marketplace Roo</bold>: O marketplace está agora no ar! Descubra e instale modos e MCPs mais facilmente do que nunca.",
-		"feature2": "<bold>Modelos Gemini 2.5</bold>: Adicionado suporte para novos modelos Gemini 2.5 Pro, Flash e Flash Lite.",
-		"feature3": "<bold>Suporte a Arquivos Excel e Mais</bold>: Adicionado suporte a arquivos Excel (.xlsx) e numerosas correções de bugs e melhorias!",
+		"feature1": "<bold>Compartilhamento de Tarefas com 1 Clique</bold>: Compartilhe instantaneamente suas tarefas com colegas e a comunidade com apenas um clique.",
+		"feature2": "<bold>Suporte a Diretório Global .roo</bold>: Carregue regras e configurações de um diretório global .roo para configurações consistentes entre projetos.",
+		"feature3": "<bold>Transições Aprimoradas de Arquiteto para Código</bold>: Transferências suaves do planejamento no modo Arquiteto para implementação no modo Código.",
 		"hideButton": "Ocultar anúncio",
 		"detailsDiscussLinks": "Obtenha mais detalhes e participe da discussão no <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

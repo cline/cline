@@ -245,11 +245,11 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",
-		"description": "Roo Code {{version}} brings major new features and improvements based on your feedback.",
+		"description": "Roo Code {{version}} brings powerful new features and significant improvements to enhance your development workflow.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Roo Marketplace Launch</bold>: The marketplace is now live! Discover and install modes and MCPs easier than ever before.",
-		"feature2": "<bold>Gemini 2.5 Models</bold>: Added support for new Gemini 2.5 Pro, Flash, and Flash Lite models.",
-		"feature3": "<bold>Excel File Support & More</bold>: Added Excel (.xlsx) file support and numerous bug fixes and improvements!",
+		"feature1": "<bold>1-Click Task Sharing</bold>: Share your tasks instantly with colleagues and the community with a single click.",
+		"feature2": "<bold>Global .roo Directory Support</bold>: Load rules and configurations from a global .roo directory for consistent settings across projects.",
+		"feature3": "<bold>Improved Architect to Code Transitions</bold>: Seamless handoffs from planning in Architect mode to implementation in Code mode.",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},

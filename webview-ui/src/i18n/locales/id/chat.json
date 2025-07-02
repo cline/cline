@@ -251,13 +251,13 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",
-		"description": "Roo Code {{version}} menghadirkan fitur baru yang powerful dan perbaikan berdasarkan feedback kamu.",
-		"whatsNew": "Apa yang Baru",
-		"feature1": "<bold>Peluncuran Roo Marketplace</bold> - Marketplace sekarang sudah live! Temukan dan install mode serta MCP lebih mudah dari sebelumnya.",
-		"feature2": "<bold>Model Gemini 2.5</bold> - Menambahkan dukungan untuk model Gemini 2.5 Pro, Flash, dan Flash Lite yang baru.",
-		"feature3": "<bold>Dukungan File Excel & Lainnya</bold> - Menambahkan dukungan file Excel (.xlsx) dan banyak perbaikan bug serta peningkatan!",
+		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
+		"whatsNew": "Yang Baru",
+		"feature1": "<bold>Berbagi Tugas 1-Klik</bold>: Bagikan tugas Anda secara instan dengan rekan kerja dan komunitas hanya dengan satu klik.",
+		"feature2": "<bold>Dukungan Direktori Global .roo</bold>: Muat aturan dan konfigurasi dari direktori global .roo untuk pengaturan yang konsisten di seluruh proyek.",
+		"feature3": "<bold>Transisi Arsitektur ke Kode yang Ditingkatkan</bold>: Transfer yang mulus dari perencanaan di mode Arsitektur ke implementasi di mode Kode.",
 		"hideButton": "Sembunyikan pengumuman",
-		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
+		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan bergabung dalam diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
 	},
 	"reasoning": {
 		"thinking": "Berpikir",
