@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Adding Voice mode in Cline
+Add voice dictation feature for Cline account users
