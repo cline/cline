@@ -202,7 +202,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalOutputLineLimit: 500,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
-		welcomeViewCompleted: true, // Default to true to avoid showing welcome view on first load - will be overwritten by extension state
+		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
