@@ -6,10 +6,12 @@ description: "Complete guide to resolving terminal integration issues in Cline"
 
 This guide helps you resolve terminal integration issues in Cline. Terminal integration is crucial for Cline to execute commands and read their output, enabling it to understand errors, test results, and command responses.
 
-<Info>
-	**Quick Fix**: If you're experiencing terminal issues, try switching to a simpler shell like `bash` in the Cline settings.
-	This resolves 90% of terminal integration problems.
-</Info>
+<Tip>
+	If you're experiencing terminal issues, try switching to a simpler shell like `bash` in the Cline settings, under "Terminal Settings"
+
+    This resolves most terminal integration problems.
+
+</Tip>
 
 ## Quick Diagnosis Flowchart
 
@@ -19,11 +21,11 @@ Follow this flowchart to quickly identify your issue:
 graph TD
     A[Terminal Issue] --> B{Can Cline execute commands?}
     B -->|No| C[Shell Integration Unavailable]
-    B -->|Yes| D{Can Cline see output?}
+    B -->|Yes| D{Can Cline see the output?}
     D -->|No| E[Output Capture Failed]
-    D -->|Yes| F{Is output corrupted?}
+    D -->|Yes| F{Is the output corrupted?}
     F -->|Yes| G[Character Filtering Issue]
-    F -->|No| H{Does command hang?}
+    F -->|No| H{Does the command hang?}
     H -->|Yes| I[Long-Running Command Issue]
     H -->|No| J[Check Terminal Settings]
 
@@ -53,35 +55,90 @@ graph TD
 
 #### macOS
 
-1. **Switch to bash**: Go to Cline Settings → Terminal → Default Terminal Profile → Select "bash"
-2. **Disable Oh-My-Zsh temporarily**: If using zsh, try `mv ~/.zshrc ~/.zshrc.backup` and restart VSCode
-3. **Set environment**: Add to your shell config: `export TERM=xterm-256color`
+-   **Switch to bash**
+
+    1. Go to Cline Settings
+    2. Left-Click the **"Terminal Settings"** tab
+    3. Navigate to **"Default Terminal Profile"** and select **"bash"** from the drop-down menu
+
+-   **Disable Oh-My-Zsh temporarily**:
+
+    1. If using zsh, enter `mv ~/.zshrc ~/.zshrc.backup` into the terminal
+    2. Restart VSCode
+
+-   **Set environment**:
+    1.a For Zsh users, use one of the following Zsh commands to edit your shell profile:
+
+          - `nano ~/.zshrc`
+          - `vim ~/.zshrc`
+          - `code ~/.zshrc`
+
+    1.b For Bash users
+
+          - nano ~/.bash_profile
+
+    2. Add the following to your shell config: `export TERM=xterm-256color`
+    3. Save your configuration
 
 #### Windows
 
-1. **Use PowerShell 7**: Install from Microsoft Store, then select it in Cline settings
-2. **Disable Windows ConPTY**: VSCode Settings → Terminal › Integrated: Windows Enable Conpty → Uncheck
-3. **Try Command Prompt**: Sometimes simpler is better - switch to cmd.exe
+-   **Use PowerShell 7**
+
+    1. Install from Microsoft Store
+    2. Go to Cline Settings
+    3. Left-Click the **"Terminal Settings"** tab
+    4. Navigate to **"Default Terminal Profile"** and select **"PowerShell 7"** from the drop-down menu
+
+-   **Disable Windows ConPTY**
+
+    1. Navigate to your VSCode Settings
+    2. Enter "Integrated: Windows Enable Conpty" into the Settings searchbar
+    3. Uncheck the option
+
+-   **Try Command Prompt**
+    1. Go to Cline Settings
+    2. Left-Click the **"Terminal Settings"** tab
+    3. Navigate to **"Default Terminal Profile"** and select **"Command Prompt"** from the drop-down menu
 
 #### Linux
 
-1. **Use bash**: Most reliable option - select in Cline settings
-2. **Check permissions**: Ensure VSCode has terminal access permissions
-3. **Disable custom prompts**: Comment out prompt customizations in `.bashrc`
+-   **Use bash**
+
+    1. Go to Cline Settings
+    2. Left-Click the **"Terminal Settings"** tab
+    3. Navigate to **"Default Terminal Profile"** and select **"bash"** from the drop-down menu
+
+-   **Check permissions**
+
+    1. Ensure VSCode has terminal access permissions
+
+-   **Disable custom prompts**
+    1. Comment out prompt customizations in `.bashrc`
 
 ### 2. Command Output Not Visible
 
 **Symptoms:**
 
--   "[Command is running but producing no output]"
+-   Cline states in chat: "[Command is running but producing no output]"
 -   Commands complete but Cline doesn't see results
--   Works sometimes but not consistently
+-   Commands work sometimes but not consistently
 
 **Solutions:**
 
-1. **Increase Shell Integration Timeout**: Settings → Terminal → Shell integration timeout → Try 10 seconds
-2. **Disable Terminal Reuse**: Settings → Terminal → Uncheck "Enable aggressive terminal reuse"
-3. **Check for interfering extensions**: Disable other terminal-related VSCode extensions
+-   **Increase Shell Integration Timeout**
+
+    1. Within Cline, left-click the **Settings** button in the top right-hand corner of the chat window
+    2. Once in the **Settings** window, left-click the **"Terminal Settings"** tab from the left-hand column
+    3. Navigate to "Shell integration timeout (seconds)" and enter **"10"** into the text field
+
+-   **Disable Terminal Reuse**
+
+    1. Within Cline, left-click the **Settings** button in the top right-hand corner of the chat window
+    2. Once in the **Settings** window, left-click the **"Terminal Settings"** tab from the left-hand column
+    3. Look for **"Enable aggressive terminal reuse"**, and **uncheck** this option
+
+-   **Check for interfering extensions**
+    1. Disable other terminal-related VSCode extensions
 
 ### 3. Character Filtering Issues
 
@@ -94,8 +151,13 @@ graph TD
 **Solution:**
 This is a known bug in output processing. Workarounds:
 
--   Recommend AI to use file output instead: `command > output.txt` then read the file
--   This family of issues is only partially solved in the latest Cline versions, so if you still face this, raise a GitHub issue if it is a persistent problem.
+-   Recommend AI to use file output instead
+    1. Tell Cline in chat or Cline rules, to use `command > output.txt` before reading the file/s
+
+<Tip>
+	This family of issues is only partially solved in the latest Cline versions, so if you still face this, create a GitHub issue
+	if it is a persistent problem.
+</Tip>
 
 ### 4. Long-Running Commands & Progress Bars
 
@@ -103,23 +165,24 @@ This is a known bug in output processing. Workarounds:
 
 -   Docker builds never complete in Cline
 -   Progress bars consume thousands of tokens
--   "Proceed while running" doesn't work properly
+-   The Cline button "Proceed while running" doesn't work properly in chat
+
+<Tip>
+	This family of issues has been solved in latest Cline versions but if you still face any issues, then create a Github issue
+	for this.
+</Tip>
 
 **Solutions:**
-This family of issues has been totally solved in latest cline versions but if you still face this then raise a github issue for this.
 
 ## Terminal Settings Explained
 
-Access these in Cline by clicking the settings icon → Terminal section:
+Access these in Cline by clicking the settings icon, and navigating to the "Terminal Settings" section:
 
 ### Default Terminal Profile
 
 -   **What it does**: Selects which shell Cline uses for commands
 -   **When to change**: If experiencing shell integration issues with your default shell
--   **Recommended**:
-    -   macOS: bash (if zsh has issues)
-    -   Windows: PowerShell 7
-    -   Linux: bash
+-   **Recommended**: - macOS: bash (if zsh has issues) - Windows: PowerShell 7 - Linux: bash
 
 ### Shell Integration Timeout
 
@@ -129,7 +192,7 @@ Access these in Cline by clicking the settings icon → Terminal section:
     -   Slow shell startup (heavy .zshrc/.bashrc)
     -   WSL environments
     -   SSH connections
--   **Recommended**: Start with 10 seconds if having issues
+-   **Recommended**: - Start with 10 seconds if having issues
 
 ### Enable Aggressive Terminal Reuse
 
@@ -138,7 +201,7 @@ Access these in Cline by clicking the settings icon → Terminal section:
     -   Commands execute in wrong directory
     -   Virtual environment issues
     -   Terminal state corruption
--   **Trade-off**: Disabling creates more terminals but ensures clean state
+-   **Trade-off**: - Disabling creates more terminals but ensures clean state
 
 ### Terminal Output Line Limit
 
@@ -332,4 +395,7 @@ If you've tried everything:
     - Include your debug info
     - Mention which solutions you tried
 
-Remember: Most terminal issues are resolved by switching to bash and increasing the timeout. Start there before trying complex solutions.
+<Tip>
+	Remember: Most terminal issues are resolved by switching to bash and increasing the timeout. Start there before trying complex
+	solutions.
+</Tip>

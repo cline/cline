@@ -4,25 +4,30 @@ sidebarTitle: "Terminal Quick Fixes"
 description: "Quick solutions for common terminal issues"
 ---
 
-### 🚨 Shell Integration Unavailable or Command Output Not Visible
+### Shell Integration Unavailable or Command Output Not Visible
 
-**Try these in order:**
+**Here is a list of common fixes, starting with the most applicable:**
 
-1. **Switch to bash** (90% success rate)
+-   **Switch to bash** (solves most instances)
 
-    - Settings → Terminal → Default Terminal Profile → bash
-    - Restart VSCode
+    1. Within Cline, left-click the **Settings** button in the top right-hand corner of the chat window
+    2. Once in the **Settings** window, left-click the **"Terminal Settings"** tab from the left-hand column
+    3. Navigate to **"Default Terminal Profile"** and select **"bash"** from the drop-down
 
-2. **Increase timeout**
+-   **Increase timeout**
 
-    - Settings → Terminal → Shell integration timeout → 10 seconds
+    1. Within Cline, left-click the **Settings** button in the top right-hand corner of the chat window
+    2. Once in the **Settings** window, left-click the **"Terminal Settings"** tab from the left-hand column
+    3. Navigate to "Shell integration timeout (seconds)" and enter **"10"** into the text field
 
-3. **Disable terminal reuse**
-    - Settings → Terminal → Uncheck "Enable aggressive terminal reuse"
+-   **Disable terminal reuse**
+    1. Within Cline, left-click the **Settings** button in the top right-hand corner of the chat window
+    2. Once in the **Settings** window, left-click the **"Terminal Settings"** tab from the left-hand column
+    3. Look for **"Enable aggressive terminal reuse"**, and **uncheck** this option
 
 **Quick fixes:**
 
-## 🖥️ Platform-Specific Fixes
+## Platform-Specific Fixes
 
 ### macOS + Oh-My-Zsh
 
@@ -42,9 +47,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### WSL
 
 -   Open folder from WSL: `code .`
--   Select "WSL Bash" in Cline settings
--   Increase timeout to 15 seconds
+-   Select **"WSL Bash"** in Cline settings, under **"Terminal Settings"**
+-   Increase **"Shell integration timeout (seconds)"** to **15**
 
-## 📚 Full Guide
+## Full Guide
 
 For detailed troubleshooting, see the [Complete Terminal Troubleshooting Guide](/troubleshooting/terminal-integration-guide).
