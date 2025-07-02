@@ -6,6 +6,7 @@ import {
 	TranscribeAudioRequest,
 	GetRecordingStatusRequest,
 } from "@shared/proto/voice"
+
 import HeroTooltip from "../common/HeroTooltip"
 import { formatSeconds } from "@/utils/format"
 
@@ -13,11 +14,17 @@ interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
 	onProcessingStateChange?: (isProcessing: boolean, message?: string) => void
 	disabled?: boolean
+	language?: string
 }
 
 const MAX_DURATION = 5 * 60 // 5 minutes in seconds
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProcessingStateChange, disabled = false }) => {
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
+	onTranscription,
+	onProcessingStateChange,
+	disabled = false,
+	language = "en",
+}) => {
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [recordingDuration, setRecordingDuration] = useState(0)
@@ -86,7 +93,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 			const transcriptionResponse = await VoiceServiceClient.transcribeAudio(
 				TranscribeAudioRequest.create({
 					audioBase64: response.audioBase64,
-					language: "en",
+					language: language,
 				}),
 			)
 
@@ -176,7 +183,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscription, onProces
 	const getIconColor = () => {
 		if (isRecording) return "var(--vscode-errorForeground)"
 		if (error) return "var(--vscode-errorForeground)"
-		return undefined
+		return ""
 	}
 
 	const getIconAnimation = () => {

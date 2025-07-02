@@ -16,6 +16,7 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DictationSettings, DEFAULT_DICTATION_SETTINGS } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
@@ -68,6 +69,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTerminalOutputLineLimit: (value: number) => void
 	setDefaultTerminalProfile: (value: string) => void
 	setChatSettings: (value: ChatSettings) => void
+	setDictationSettings: (value: DictationSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -184,6 +186,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
+		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
@@ -846,6 +849,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				browserSettings: value,
+			})),
+		setDictationSettings: (value: DictationSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				dictationSettings: value,
 			})),
 	}
 
