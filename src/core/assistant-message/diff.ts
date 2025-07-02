@@ -380,6 +380,10 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		if (isReplaceBlockEnd(line)) {
 			// Finished one replace block
 
+			if (searchMatchIndex === -1) {
+				throw new Error(`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...is malformatted.`)
+			}
+
 			// Store this replacement
 			replacements.push({
 				start: searchMatchIndex,
