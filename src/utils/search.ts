@@ -19,10 +19,7 @@ export async function regexSearchFiles(
 	filePattern?: string,
 	clineIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
-	// Convert ClineIgnoreController to ignore patterns array
-	const ignorePatterns: string[] = []
-	// TODO: Implement conversion from ClineIgnoreController to string patterns
-	// This will need to be done when copying the actual logic
+	const ignorePatterns = clineIgnoreController?.getIgnorePatterns() || []
 
 	const response = await getHostBridgeProvider().searchClient.regexSearchFiles(
 		RegexSearchRequest.create({

@@ -23,7 +23,7 @@ message RegexSearchRequest {
   string directory_path = 2;
   string regex = 3;
   optional string file_pattern = 4;
-  repeated string ignore_patterns = 5; // For ClineIgnore support
+  repeated string ignore_patterns = 5;
 }
 
 message WorkspaceSearchRequest {
@@ -38,6 +38,6 @@ message WorkspaceSearchResponse {
 
 message WorkspaceSearchResult {
   string path = 1;
-  string type = 2; // "file" or "folder"
+  string type = 2;
   optional string label = 3;
 }

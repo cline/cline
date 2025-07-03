@@ -75,8 +75,7 @@ export async function regexSearchFiles(request: RegexSearchRequest): Promise<Str
 	const rgPath = rgPathResponse.value
 
 	if (ignorePatterns && ignorePatterns.length > 0) {
-		// TODO: Create ClineIgnoreController from ignorePatterns array
-		// For now, leave as undefined
+		clineIgnoreController = ClineIgnoreController.fromPatterns(cwd, ignorePatterns)
 	}
 
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
