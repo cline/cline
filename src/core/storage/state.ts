@@ -55,6 +55,7 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
 		isNewUser,
+		welcomeViewCompleted,
 		apiKey,
 		openRouterApiKey,
 		clineApiKey,
@@ -127,6 +128,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		claudeCodePath,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
+		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
 		getSecret(context, "openRouterApiKey") as Promise<string | undefined>,
 		getSecret(context, "clineApiKey") as Promise<string | undefined>,
@@ -378,6 +380,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
+		welcomeViewCompleted,
 		lastShownAnnouncementId,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string

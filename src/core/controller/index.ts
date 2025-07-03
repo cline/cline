@@ -828,6 +828,7 @@ export class Controller {
 			terminalReuseEnabled,
 			defaultTerminalProfile,
 			isNewUser,
+			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
@@ -882,6 +883,7 @@ export class Controller {
 			terminalReuseEnabled,
 			defaultTerminalProfile,
 			isNewUser,
+			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		}

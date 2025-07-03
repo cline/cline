@@ -6,6 +6,8 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const SUPPORTED_THINKING_MODELS = [
 	"qwen3-235b-a22b",
@@ -24,23 +26,17 @@ const SUPPORTED_THINKING_MODELS = [
  * Props for the QwenProvider component
  */
 interface QwenProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration: (config: ApiConfiguration) => void
 }
 
 /**
  * The Alibaba Qwen provider configuration component
  */
-export const QwenProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	setApiConfiguration,
-}: QwenProviderProps) => {
+export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
@@ -56,7 +52,7 @@ export const QwenProvider = ({
 				<VSCodeDropdown
 					id="qwen-line-provider"
 					value={apiConfiguration?.qwenApiLine || "china"}
-					onChange={handleInputChange("qwenApiLine")}
+					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value)}
 					style={{
 						minWidth: 130,
 						position: "relative",
@@ -76,8 +72,8 @@ export const QwenProvider = ({
 			</p>
 
 			<ApiKeyField
-				value={apiConfiguration?.qwenApiKey || ""}
-				onChange={handleInputChange("qwenApiKey")}
+				initialValue={apiConfiguration?.qwenApiKey || ""}
+				onChange={(value) => handleFieldChange("qwenApiKey", value)}
 				providerName="Qwen"
 				signupUrl="https://bailian.console.aliyun.com/"
 			/>
@@ -87,17 +83,13 @@ export const QwenProvider = ({
 					<ModelSelector
 						models={qwenModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider
-							apiConfiguration={apiConfiguration}
-							setApiConfiguration={setApiConfiguration}
-							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
-						/>
+						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
