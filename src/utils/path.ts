@@ -2,6 +2,7 @@ import * as path from "path"
 import os from "os"
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { A } from "ollama/dist/shared/ollama.e009de91.mjs"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -103,9 +104,9 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 }
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
-export const getCwd = async (defaultCwdPath = ""): Promise<string> => {
-	const workspaceFolders = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
-	return workspaceFolders.paths.shift() || defaultCwdPath
+export const getCwd = async (defaultCwd = ""): Promise<string> => {
+	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	return workspacePaths.paths.shift() || defaultCwd
 }
 
 export function getDesktopDir() {
@@ -113,15 +114,22 @@ export function getDesktopDir() {
 }
 
 // Returns the workspace path of the file in the current editor.
-// If there is no path, it returns the top level workspace directory.
-export const getWorkspacePath = async (defaultCwdPath = "") => {
-	const currentFileUri = vscode.window.activeTextEditor?.document.uri
-	const cwdPath = await getCwd(defaultCwdPath)
-	if (currentFileUri) {
-		const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri)
-		return workspaceFolder?.uri.fsPath || cwdPath
+// If there is no open file, it returns the top level workspace directory.
+export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
+	const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath
+	if (!currentFilePath) {
+		return await getCwd(defaultCwd)
 	}
-	return cwdPath
+	const absoluteFilePath = path.resolve(currentFilePath)
+
+	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	for (const workspacePath of workspacePaths) {
+		const relativePath = path.relative(path.resolve(workspacePath), absoluteFilePath)
+		if (relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)) {
+			return workspacePath
+		}
+	}
+	return await getCwd(defaultCwd)
 }
 
 export const isLocatedInWorkspace = async (pathToCheck: string = ""): Promise<boolean> => {
