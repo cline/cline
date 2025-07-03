@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.18.2]
+
+-   Fix issue where terminal output would not be captured if shell integration fails by falling back to capturing the terminal content.
+-   Add confirmation popup when deleting tasks
+-   Add support for Claude Sonnet 4 and Opus 4 model in SAP AI Core provider (Thanks @lizzzcai!)
+-   Add support for `litellm_session_id` to group requests in a single session (Thanks @jorgegarciarey!)
+-   Add "Thinking Budget" customization for Claude Code (Thanks @BarreiroT!)
+-   Fix issue where the extension would use the user's environment variables for authentication when using Claude Code (Thanks @BarreiroT!)
+
 ## [3.18.1]
 
 -   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
