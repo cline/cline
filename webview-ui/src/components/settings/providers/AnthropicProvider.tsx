@@ -9,7 +9,11 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode
-const SUPPORTED_THINKING_MODELS = ["claude-3-7-sonnet-20250219", "claude-sonnet-4-20250514", "claude-opus-4-20250514"]
+export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
+	"claude-3-7-sonnet-20250219",
+	"claude-sonnet-4-20250514",
+	"claude-opus-4-20250514",
+]
 
 /**
  * Props for the AnthropicProvider component
@@ -54,7 +58,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup }: AnthropicProvid
 						label="Model"
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
+					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
