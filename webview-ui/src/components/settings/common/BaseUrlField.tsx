@@ -44,7 +44,7 @@ export const BaseUrlField = ({
 					value={localValue}
 					style={{ width: "100%", marginTop: 3 }}
 					type="url"
-					onInput={(e: any) => setLocalValue(e.target.value)}
+					onInput={(e: any) => setLocalValue(e.target.value.trim())}
 					placeholder={placeholder}
 				/>
 			)}
