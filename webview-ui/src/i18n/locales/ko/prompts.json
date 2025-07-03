@@ -188,5 +188,13 @@
 		},
 		"deleteMode": "모드 삭제"
 	},
-	"allFiles": "모든 파일"
+	"allFiles": "모든 파일",
+	"deleteMode": {
+		"title": "모드 삭제",
+		"message": "\"{{modeName}}\" 모드를 삭제하시겠습니까?",
+		"rulesFolder": "이 모드에는 {{folderPath}}에 규칙 폴더가 있으며 함께 삭제됩니다.",
+		"descriptionNoRules": "이 사용자 정의 모드를 삭제하시겠습니까?",
+		"confirm": "삭제",
+		"cancel": "취소"
+	}
 }

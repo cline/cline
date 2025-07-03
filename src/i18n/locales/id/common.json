@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Apakah kamu yakin ingin mereset semua state dan secret storage di ekstensi? Ini tidak dapat dibatalkan.",
 		"delete_config_profile": "Apakah kamu yakin ingin menghapus profil konfigurasi ini?",
-		"delete_custom_mode": "Apakah kamu yakin ingin menghapus mode kustom ini?",
+		"delete_custom_mode_with_rules": "Anda yakin ingin menghapus mode {scope} ini?\n\nIni juga akan menghapus folder aturan terkait di:\n{rulesFolderPath}",
 		"delete_message": "Apa yang ingin kamu hapus?",
 		"just_this_message": "Hanya pesan ini",
 		"this_and_subsequent": "Ini dan semua pesan selanjutnya"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Berbagi tugas tidak diaktifkan untuk organisasi ini.",
 		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak.",
 		"mode_import_failed": "Gagal mengimpor mode: {{error}}",
+		"delete_rules_folder_failed": "Gagal menghapus folder aturan: {{rulesFolderPath}}. Error: {{error}}",
 		"claudeCode": {
 			"processExited": "Proses Claude Code keluar dengan kode {{exitCode}}.",
 			"errorOutput": "Output error: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Gagal mereset mode kustom: {{error}}",
 			"modeNotFound": "Kesalahan tulis: Mode tidak ditemukan",
 			"noWorkspaceForProject": "Tidak ditemukan folder workspace untuk mode khusus proyek"
+		},
+		"scope": {
+			"project": "proyek",
+			"global": "global"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Organisasi kamu memerlukan autentikasi Roo Code Cloud. Silakan masuk untuk melanjutkan.",
 			"organization_mismatch": "Kamu harus diautentikasi dengan akun Roo Code Cloud organisasi kamu.",
 			"verification_failed": "Tidak dapat memverifikasi autentikasi organisasi."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Hapus Mode Kustom",
+			"description": "Anda yakin ingin menghapus mode {{scope}} ini? Ini juga akan menghapus folder aturan terkait di: {{rulesFolderPath}}",
+			"descriptionNoRules": "Anda yakin ingin menghapus mode kustom ini?",
+			"cancel": "Batal",
+			"confirm": "Hapus"
 		}
 	}
 }

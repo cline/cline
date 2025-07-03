@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Möchtest du wirklich alle Zustände und geheimen Speicher in der Erweiterung zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
 		"delete_config_profile": "Möchtest du dieses Konfigurationsprofil wirklich löschen?",
-		"delete_custom_mode": "Möchtest du diesen benutzerdefinierten Modus wirklich löschen?",
+		"delete_custom_mode_with_rules": "Bist du sicher, dass du diesen {scope}-Modus löschen möchtest?\n\nDadurch wird auch der zugehörige Regelordner unter folgender Adresse gelöscht:\n{rulesFolderPath}",
 		"delete_message": "Was möchtest du löschen?",
 		"just_this_message": "Nur diese Nachricht",
 		"this_and_subsequent": "Diese und alle nachfolgenden Nachrichten"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Aufgabenfreigabe ist für diese Organisation nicht aktiviert.",
 		"share_task_not_found": "Aufgabe nicht gefunden oder Zugriff verweigert.",
 		"mode_import_failed": "Fehler beim Importieren des Modus: {{error}}",
+		"delete_rules_folder_failed": "Fehler beim Löschen des Regelordners: {{rulesFolderPath}}. Fehler: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code Prozess wurde mit Code {{exitCode}} beendet.",
 			"errorOutput": "Fehlerausgabe: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Fehler beim Zurücksetzen der benutzerdefinierten Modi: {{error}}",
 			"modeNotFound": "Schreibfehler: Modus nicht gefunden",
 			"noWorkspaceForProject": "Kein Arbeitsbereich-Ordner für projektspezifischen Modus gefunden"
+		},
+		"scope": {
+			"project": "projekt",
+			"global": "global"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Deine Organisation erfordert eine Roo Code Cloud-Authentifizierung. Bitte melde dich an, um fortzufahren.",
 			"organization_mismatch": "Du musst mit dem Roo Code Cloud-Konto deiner Organisation authentifiziert sein.",
 			"verification_failed": "Die Organisationsauthentifizierung konnte nicht verifiziert werden."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Benutzerdefinierten Modus löschen",
+			"description": "Bist du sicher, dass du diesen {{scope}}-Modus löschen möchtest? Dadurch wird auch der zugehörige Regelordner unter {{rulesFolderPath}} gelöscht",
+			"descriptionNoRules": "Bist du sicher, dass du diesen benutzerdefinierten Modus löschen möchtest?",
+			"cancel": "Abbrechen",
+			"confirm": "Löschen"
 		}
 	}
 }

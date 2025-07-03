@@ -188,5 +188,13 @@
 	"allFiles": "所有檔案",
 	"advanced": {
 		"title": "進階"
+	},
+	"deleteMode": {
+		"title": "刪除模式",
+		"message": "您確定要刪除「{{modeName}}」模式嗎？",
+		"rulesFolder": "此模式在 {{folderPath}} 有一個規則資料夾，該資料夾也將被刪除。",
+		"descriptionNoRules": "您確定要刪除此自訂模式嗎？",
+		"confirm": "刪除",
+		"cancel": "取消"
 	}
 }

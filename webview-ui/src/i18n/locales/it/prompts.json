@@ -188,5 +188,13 @@
 		},
 		"deleteMode": "Elimina modalità"
 	},
-	"allFiles": "tutti i file"
+	"allFiles": "tutti i file",
+	"deleteMode": {
+		"title": "Elimina modalità",
+		"message": "Sei sicuro di voler eliminare la modalità \"{{modeName}}\"?",
+		"rulesFolder": "Questa modalità ha una cartella di regole in {{folderPath}} che verrà eliminata.",
+		"descriptionNoRules": "Sei sicuro di voler eliminare questa modalità personalizzata?",
+		"confirm": "Elimina",
+		"cancel": "Annulla"
+	}
 }

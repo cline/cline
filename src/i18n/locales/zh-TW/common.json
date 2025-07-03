@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "您確定要重設擴充套件中的所有狀態和金鑰儲存嗎？此操作無法復原。",
 		"delete_config_profile": "您確定要刪除此設定檔案嗎？",
-		"delete_custom_mode": "您確定要刪除此自訂模式嗎？",
+		"delete_custom_mode_with_rules": "您確定要刪除此 {scope} 模式嗎？\n\n這也將刪除位於以下位置的關聯規則資料夾：\n{rulesFolderPath}",
 		"delete_message": "您想刪除哪些內容？",
 		"just_this_message": "僅這則訊息",
 		"this_and_subsequent": "這則訊息及所有後續訊息"
@@ -70,6 +70,7 @@
 		"share_auth_required": "需要身份驗證。請登入以分享工作。",
 		"share_not_enabled": "此組織未啟用工作分享功能。",
 		"share_task_not_found": "未找到工作或存取被拒絕。",
+		"delete_rules_folder_failed": "刪除規則資料夾失敗: {{rulesFolderPath}}。錯誤: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code 程序退出，退出碼：{{exitCode}}。",
 			"errorOutput": "錯誤輸出：{{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "重設自訂模式失敗：{{error}}",
 			"modeNotFound": "寫入錯誤：未找到模式",
 			"noWorkspaceForProject": "未找到專案特定模式的工作區資料夾"
+		},
+		"scope": {
+			"project": "專案",
+			"global": "全域"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "您的組織需要 Roo Code Cloud 身份驗證。請登入以繼續。",
 			"organization_mismatch": "您必須使用組織的 Roo Code Cloud 帳戶進行身份驗證。",
 			"verification_failed": "無法驗證組織身份驗證。"
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "刪除自訂模式",
+			"description": "您確定要刪除此 {{scope}} 模式嗎？這也將刪除位於 {{rulesFolderPath}} 的關聯規則資料夾",
+			"descriptionNoRules": "您確定要刪除此自訂模式嗎？",
+			"cancel": "取消",
+			"confirm": "刪除"
 		}
 	}
 }

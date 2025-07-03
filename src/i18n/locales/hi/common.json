@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "क्या आप वाकई एक्सटेंशन में सभी स्टेट और गुप्त स्टोरेज रीसेट करना चाहते हैं? इसे पूर्ववत नहीं किया जा सकता है।",
 		"delete_config_profile": "क्या आप वाकई इस कॉन्फ़िगरेशन प्रोफ़ाइल को हटाना चाहते हैं?",
-		"delete_custom_mode": "क्या आप वाकई इस कस्टम मोड को हटाना चाहते हैं?",
+		"delete_custom_mode_with_rules": "क्या आप वाकई इस {scope} मोड को हटाना चाहते हैं?\n\nयह संबंधित नियम फ़ोल्डर को भी यहाँ हटा देगा:\n{rulesFolderPath}",
 		"delete_message": "आप क्या हटाना चाहते हैं?",
 		"just_this_message": "सिर्फ यह संदेश",
 		"this_and_subsequent": "यह और सभी बाद के संदेश"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "इस संगठन के लिए कार्य साझाकरण सक्षम नहीं है।",
 		"share_task_not_found": "कार्य नहीं मिला या पहुंच अस्वीकृत।",
 		"mode_import_failed": "मोड आयात करने में विफल: {{error}}",
+		"delete_rules_folder_failed": "नियम फ़ोल्डर हटाने में विफल: {{rulesFolderPath}}। त्रुटि: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई।",
 			"errorOutput": "त्रुटि आउटपुट: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "कस्टम मोड रीसेट विफल: {{error}}",
 			"modeNotFound": "लेखन त्रुटि: मोड नहीं मिला",
 			"noWorkspaceForProject": "प्रोजेक्ट-विशिष्ट मोड के लिए वर्कस्पेस फ़ोल्डर नहीं मिला"
+		},
+		"scope": {
+			"project": "परियोजना",
+			"global": "वैश्विक"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "आपके संगठन को Roo Code Cloud प्रमाणीकरण की आवश्यकता है। कृपया जारी रखने के लिए साइन इन करें।",
 			"organization_mismatch": "आपको अपने संगठन के Roo Code Cloud खाते से प्रमाणित होना होगा।",
 			"verification_failed": "संगठन प्रमाणीकरण सत्यापित करने में असमर्थ।"
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "कस्टम मोड हटाएं",
+			"description": "क्या आप वाकई इस {{scope}} मोड को हटाना चाहते हैं? यह संबंधित नियम फ़ोल्डर को भी {{rulesFolderPath}} पर हटा देगा",
+			"descriptionNoRules": "क्या आप वाकई इस कस्टम मोड को हटाना चाहते हैं?",
+			"cancel": "रद्द करें",
+			"confirm": "हटाएं"
 		}
 	}
 }

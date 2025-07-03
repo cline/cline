@@ -188,5 +188,13 @@
 		},
 		"deleteMode": "Modus löschen"
 	},
-	"allFiles": "alle Dateien"
+	"allFiles": "alle Dateien",
+	"deleteMode": {
+		"title": "Modus löschen",
+		"message": "Möchten Sie den Modus \"{{modeName}}\" wirklich löschen?",
+		"rulesFolder": "Dieser Modus hat einen Regelordner unter {{folderPath}}, der ebenfalls gelöscht wird.",
+		"descriptionNoRules": "Möchten Sie diesen benutzerdefinierten Modus wirklich löschen?",
+		"confirm": "Löschen",
+		"cancel": "Abbrechen"
+	}
 }

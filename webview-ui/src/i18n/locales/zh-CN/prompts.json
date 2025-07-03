@@ -188,5 +188,13 @@
 	"allFiles": "所有文件",
 	"advanced": {
 		"title": "高级"
+	},
+	"deleteMode": {
+		"title": "删除模式",
+		"message": "您确定要删除\"{{modeName}}\"模式吗？",
+		"rulesFolder": "此模式在 {{folderPath}} 有一个规则文件夹，该文件夹也将被删除。",
+		"descriptionNoRules": "您确定要删除此自定义模式吗？",
+		"confirm": "删除",
+		"cancel": "取消"
 	}
 }

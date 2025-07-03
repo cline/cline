@@ -188,5 +188,13 @@
 	"allFiles": "tüm dosyalar",
 	"advanced": {
 		"title": "Gelişmiş"
+	},
+	"deleteMode": {
+		"title": "Modu Sil",
+		"message": "\"{{modeName}}\" modunu silmek istediğinizden emin misiniz?",
+		"rulesFolder": "Bu modun {{folderPath}} konumunda bir kurallar klasörü var ve bu da silinecek.",
+		"descriptionNoRules": "Bu özel modu silmek istediğinizden emin misiniz?",
+		"confirm": "Sil",
+		"cancel": "İptal"
 	}
 }

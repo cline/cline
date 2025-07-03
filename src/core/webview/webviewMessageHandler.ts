@@ -1,5 +1,6 @@
 import { safeWriteJson } from "../../utils/safeWriteJson"
 import * as path from "path"
+import * as os from "os"
 import * as fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
@@ -35,6 +36,7 @@ import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
 import { openMention } from "../mentions"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { getWorkspacePath } from "../../utils/path"
+import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
 import { Mode, defaultModeSlug } from "../../shared/modes"
 import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
@@ -1494,17 +1496,66 @@ export const webviewMessageHandler = async (
 			break
 		case "deleteCustomMode":
 			if (message.slug) {
-				const answer = await vscode.window.showInformationMessage(
-					t("common:confirmation.delete_custom_mode"),
-					{ modal: true },
-					t("common:answers.yes"),
-				)
+				// Get the mode details to determine source and rules folder path
+				const customModes = await provider.customModesManager.getCustomModes()
+				const modeToDelete = customModes.find((mode) => mode.slug === message.slug)
 
-				if (answer !== t("common:answers.yes")) {
+				if (!modeToDelete) {
 					break
 				}
 
+				// Determine the scope based on source (project or global)
+				const scope = modeToDelete.source || "global"
+
+				// Determine the rules folder path
+				let rulesFolderPath: string
+				if (scope === "project") {
+					const workspacePath = getWorkspacePath()
+					if (workspacePath) {
+						rulesFolderPath = path.join(workspacePath, ".roo", `rules-${message.slug}`)
+					} else {
+						rulesFolderPath = path.join(".roo", `rules-${message.slug}`)
+					}
+				} else {
+					// Global scope - use OS home directory
+					const homeDir = os.homedir()
+					rulesFolderPath = path.join(homeDir, ".roo", `rules-${message.slug}`)
+				}
+
+				// Check if the rules folder exists
+				const rulesFolderExists = await fileExistsAtPath(rulesFolderPath)
+
+				// If this is a check request, send back the folder info
+				if (message.checkOnly) {
+					await provider.postMessageToWebview({
+						type: "deleteCustomModeCheck",
+						slug: message.slug,
+						rulesFolderPath: rulesFolderExists ? rulesFolderPath : undefined,
+					})
+					break
+				}
+
+				// Delete the mode
 				await provider.customModesManager.deleteCustomMode(message.slug)
+
+				// Delete the rules folder if it exists
+				if (rulesFolderExists) {
+					try {
+						await fs.rm(rulesFolderPath, { recursive: true, force: true })
+						provider.log(`Deleted rules folder for mode ${message.slug}: ${rulesFolderPath}`)
+					} catch (error) {
+						provider.log(`Failed to delete rules folder for mode ${message.slug}: ${error}`)
+						// Notify the user about the failure
+						vscode.window.showErrorMessage(
+							t("common:errors.delete_rules_folder_failed", {
+								rulesFolderPath,
+								error: error instanceof Error ? error.message : String(error),
+							}),
+						)
+						// Continue with mode deletion even if folder deletion fails
+					}
+				}
+
 				// Switch back to default mode after deletion
 				await updateGlobalState("mode", defaultModeSlug)
 				await provider.postStateToWebview()

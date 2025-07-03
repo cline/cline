@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "您确定要重置扩展中的所有状态和密钥存储吗？此操作无法撤消。",
 		"delete_config_profile": "您确定要删除此配置文件吗？",
-		"delete_custom_mode": "您确定要删除此自定义模式吗？",
+		"delete_custom_mode_with_rules": "您确定要删除此 {scope} 模式吗？\n\n这也将删除位于以下位置的关联规则文件夹：\n{rulesFolderPath}",
 		"delete_message": "您想删除什么？",
 		"just_this_message": "仅此消息",
 		"this_and_subsequent": "此消息及所有后续消息"
@@ -76,6 +76,7 @@
 		"share_not_enabled": "此组织未启用任务分享功能。",
 		"share_task_not_found": "未找到任务或访问被拒绝。",
 		"mode_import_failed": "导入模式失败：{{error}}",
+		"delete_rules_folder_failed": "删除规则文件夹失败：{{rulesFolderPath}}。错误：{{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code 进程退出，退出码：{{exitCode}}。",
 			"errorOutput": "错误输出：{{output}}",
@@ -149,6 +150,10 @@
 			"resetFailed": "重置自定义模式失败：{{error}}",
 			"modeNotFound": "写入错误：未找到模式",
 			"noWorkspaceForProject": "未找到项目特定模式的工作区文件夹"
+		},
+		"scope": {
+			"project": "项目",
+			"global": "全局"
 		}
 	},
 	"mdm": {
@@ -156,6 +161,15 @@
 			"cloud_auth_required": "您的组织需要 Roo Code Cloud 身份验证。请登录以继续。",
 			"organization_mismatch": "您必须使用组织的 Roo Code Cloud 账户进行身份验证。",
 			"verification_failed": "无法验证组织身份验证。"
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "删除自定义模式",
+			"description": "您确定要删除此 {{scope}} 模式吗？这也将删除位于 {{rulesFolderPath}} 的关联规则文件夹",
+			"descriptionNoRules": "您确定要删除此自定义模式吗？",
+			"cancel": "取消",
+			"confirm": "删除"
 		}
 	}
 }

@@ -222,6 +222,7 @@ export interface WebviewMessage {
 	config?: Record<string, any> // Add config to the payload
 	visibility?: ShareVisibility // For share visibility
 	hasContent?: boolean // For checkRulesDirectoryResult
+	checkOnly?: boolean // For deleteCustomMode check
 }
 
 export const checkoutDiffPayloadSchema = z.object({

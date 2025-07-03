@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Weet je zeker dat je alle status en geheime opslag in de extensie wilt resetten? Dit kan niet ongedaan worden gemaakt.",
 		"delete_config_profile": "Weet je zeker dat je dit configuratieprofiel wilt verwijderen?",
-		"delete_custom_mode": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
+		"delete_custom_mode_with_rules": "Weet je zeker dat je deze {scope}-modus wilt verwijderen?\n\nDit verwijdert ook de bijbehorende regelsmap op:\n{rulesFolderPath}",
 		"delete_message": "Wat wil je verwijderen?",
 		"just_this_message": "Alleen dit bericht",
 		"this_and_subsequent": "Dit en alle volgende berichten"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Taken delen is niet ingeschakeld voor deze organisatie.",
 		"share_task_not_found": "Taak niet gevonden of toegang geweigerd.",
 		"mode_import_failed": "Importeren van modus mislukt: {{error}}",
+		"delete_rules_folder_failed": "Kan regelmap niet verwijderen: {{rulesFolderPath}}. Fout: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code proces beëindigd met code {{exitCode}}.",
 			"errorOutput": "Foutuitvoer: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Aangepaste modi resetten mislukt: {{error}}",
 			"modeNotFound": "Schrijffout: Modus niet gevonden",
 			"noWorkspaceForProject": "Geen workspace map gevonden voor projectspecifieke modus"
+		},
+		"scope": {
+			"project": "project",
+			"global": "globaal"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",
 			"organization_mismatch": "Je moet geauthenticeerd zijn met het Roo Code Cloud-account van je organisatie.",
 			"verification_failed": "Kan organisatie-authenticatie niet verifiëren."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Aangepaste modus verwijderen",
+			"description": "Weet je zeker dat je deze {{scope}}-modus wilt verwijderen? Dit zal ook de bijbehorende regelsmap op {{rulesFolderPath}} verwijderen",
+			"descriptionNoRules": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
+			"cancel": "Annuleren",
+			"confirm": "Verwijderen"
 		}
 	}
 }

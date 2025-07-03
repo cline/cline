@@ -187,5 +187,13 @@
 		},
 		"deleteMode": "Delete mode"
 	},
-	"allFiles": "all files"
+	"allFiles": "all files",
+	"deleteMode": {
+		"title": "Delete Mode",
+		"message": "Are you sure you want to delete the mode \"{{modeName}}\"?",
+		"rulesFolder": "This mode has a rules folder at {{folderPath}} that will also be deleted.",
+		"descriptionNoRules": "Are you sure you want to delete this custom mode?",
+		"confirm": "Delete",
+		"cancel": "Cancel"
+	}
 }

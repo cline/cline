@@ -21,7 +21,7 @@
 	"confirmation": {
 		"reset_state": "Tem certeza de que deseja redefinir todo o estado e armazenamento secreto na extensão? Isso não pode ser desfeito.",
 		"delete_config_profile": "Tem certeza de que deseja excluir este perfil de configuração?",
-		"delete_custom_mode": "Tem certeza de que deseja excluir este modo personalizado?",
+		"delete_custom_mode_with_rules": "Tem certeza de que deseja excluir este modo {scope}?\n\nIsso também excluirá a pasta de regras associada em:\n{rulesFolderPath}",
 		"delete_message": "O que você gostaria de excluir?",
 		"just_this_message": "Apenas esta mensagem",
 		"this_and_subsequent": "Esta e todas as mensagens subsequentes"
@@ -75,6 +75,7 @@
 		"share_not_enabled": "O compartilhamento de tarefas não está habilitado para esta organização.",
 		"share_task_not_found": "Tarefa não encontrada ou acesso negado.",
 		"mode_import_failed": "Falha ao importar o modo: {{error}}",
+		"delete_rules_folder_failed": "Falha ao excluir pasta de regras: {{rulesFolderPath}}. Erro: {{error}}",
 		"claudeCode": {
 			"processExited": "O processo Claude Code saiu com código {{exitCode}}.",
 			"errorOutput": "Saída de erro: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Falha ao redefinir modos personalizados: {{error}}",
 			"modeNotFound": "Erro de escrita: Modo não encontrado",
 			"noWorkspaceForProject": "Nenhuma pasta de workspace encontrada para modo específico do projeto"
+		},
+		"scope": {
+			"project": "projeto",
+			"global": "global"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Sua organização requer autenticação do Roo Code Cloud. Faça login para continuar.",
 			"organization_mismatch": "Você deve estar autenticado com a conta Roo Code Cloud da sua organização.",
 			"verification_failed": "Não foi possível verificar a autenticação da organização."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Excluir Modo Personalizado",
+			"description": "Tem certeza de que deseja excluir este modo {{scope}}? Isso também excluirá a pasta de regras associada em: {{rulesFolderPath}}",
+			"descriptionNoRules": "Tem certeza de que deseja excluir este modo personalizado?",
+			"cancel": "Cancelar",
+			"confirm": "Excluir"
 		}
 	}
 }

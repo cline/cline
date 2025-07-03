@@ -188,5 +188,13 @@
 		},
 		"deleteMode": "Excluir modo"
 	},
-	"allFiles": "todos os arquivos"
+	"allFiles": "todos os arquivos",
+	"deleteMode": {
+		"title": "Excluir Modo",
+		"message": "Tem certeza de que deseja excluir o modo \"{{modeName}}\"?",
+		"rulesFolder": "Este modo tem uma pasta de regras em {{folderPath}} que também será excluída.",
+		"descriptionNoRules": "Tem certeza de que deseja excluir este modo personalizado?",
+		"confirm": "Excluir",
+		"cancel": "Cancelar"
+	}
 }

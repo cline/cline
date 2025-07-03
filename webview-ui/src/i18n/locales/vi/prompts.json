@@ -188,5 +188,13 @@
 	"allFiles": "tất cả các tệp",
 	"advanced": {
 		"title": "Nâng cao"
+	},
+	"deleteMode": {
+		"title": "Xóa chế độ",
+		"message": "Bạn có chắc chắn muốn xóa chế độ \"{{modeName}}\" không?",
+		"rulesFolder": "Chế độ này có một thư mục quy tắc tại {{folderPath}} cũng sẽ bị xóa.",
+		"descriptionNoRules": "Bạn có chắc chắn muốn xóa chế độ tùy chỉnh này không?",
+		"confirm": "Xóa",
+		"cancel": "Hủy"
 	}
 }

@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Sei sicuro di voler reimpostare tutti gli stati e l'archiviazione segreta nell'estensione? Questa azione non può essere annullata.",
 		"delete_config_profile": "Sei sicuro di voler eliminare questo profilo di configurazione?",
-		"delete_custom_mode": "Sei sicuro di voler eliminare questa modalità personalizzata?",
+		"delete_custom_mode_with_rules": "Sei sicuro di voler eliminare questa modalità {scope}?\n\nQuesto eliminerà anche la cartella delle regole associata in:\n{rulesFolderPath}",
 		"delete_message": "Cosa desideri eliminare?",
 		"just_this_message": "Solo questo messaggio",
 		"this_and_subsequent": "Questo e tutti i messaggi successivi"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "La condivisione delle attività non è abilitata per questa organizzazione.",
 		"share_task_not_found": "Attività non trovata o accesso negato.",
 		"mode_import_failed": "Importazione della modalità non riuscita: {{error}}",
+		"delete_rules_folder_failed": "Impossibile eliminare la cartella delle regole: {{rulesFolderPath}}. Errore: {{error}}",
 		"claudeCode": {
 			"processExited": "Il processo Claude Code è terminato con codice {{exitCode}}.",
 			"errorOutput": "Output di errore: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Reset modalità personalizzate fallito: {{error}}",
 			"modeNotFound": "Errore di scrittura: Modalità non trovata",
 			"noWorkspaceForProject": "Nessuna cartella workspace trovata per la modalità specifica del progetto"
+		},
+		"scope": {
+			"project": "progetto",
+			"global": "globale"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "La tua organizzazione richiede l'autenticazione Roo Code Cloud. Accedi per continuare.",
 			"organization_mismatch": "Devi essere autenticato con l'account Roo Code Cloud della tua organizzazione.",
 			"verification_failed": "Impossibile verificare l'autenticazione dell'organizzazione."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Elimina Modalità Personalizzata",
+			"description": "Sei sicuro di voler eliminare questa modalità {{scope}}? Questo eliminerà anche la cartella delle regole associata a: {{rulesFolderPath}}",
+			"descriptionNoRules": "Sei sicuro di voler eliminare questa modalità personalizzata?",
+			"cancel": "Annulla",
+			"confirm": "Elimina"
 		}
 	}
 }

@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Bạn có chắc chắn muốn đặt lại tất cả trạng thái và lưu trữ bí mật trong tiện ích mở rộng không? Hành động này không thể hoàn tác.",
 		"delete_config_profile": "Bạn có chắc chắn muốn xóa hồ sơ cấu hình này không?",
-		"delete_custom_mode": "Bạn có chắc chắn muốn xóa chế độ tùy chỉnh này không?",
+		"delete_custom_mode_with_rules": "Bạn có chắc chắn muốn xóa chế độ {scope} này không?\n\nThao tác này cũng sẽ xóa thư mục quy tắc liên quan tại:\n{rulesFolderPath}",
 		"delete_message": "Bạn muốn xóa gì?",
 		"just_this_message": "Chỉ tin nhắn này",
 		"this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Chia sẻ nhiệm vụ không được bật cho tổ chức này.",
 		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối.",
 		"mode_import_failed": "Nhập chế độ thất bại: {{error}}",
+		"delete_rules_folder_failed": "Không thể xóa thư mục quy tắc: {{rulesFolderPath}}. Lỗi: {{error}}",
 		"claudeCode": {
 			"processExited": "Tiến trình Claude Code thoát với mã {{exitCode}}.",
 			"errorOutput": "Đầu ra lỗi: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Đặt lại chế độ tùy chỉnh thất bại: {{error}}",
 			"modeNotFound": "Lỗi ghi: Không tìm thấy chế độ",
 			"noWorkspaceForProject": "Không tìm thấy thư mục workspace cho chế độ dành riêng cho dự án"
+		},
+		"scope": {
+			"project": "dự án",
+			"global": "toàn cầu"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,22 @@
 			"cloud_auth_required": "Tổ chức của bạn yêu cầu xác thực Roo Code Cloud. Vui lòng đăng nhập để tiếp tục.",
 			"organization_mismatch": "Bạn phải được xác thực bằng tài khoản Roo Code Cloud của tổ chức.",
 			"verification_failed": "Không thể xác minh xác thực tổ chức."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Xóa chế độ tùy chỉnh",
+			"description": "Bạn có chắc chắn muốn xóa chế độ {{scope}} này không? Thao tác này cũng θα xóa thư mục quy tắc liên quan tại {{rulesFolderPath}}",
+			"translations": {
+				"title": "Xóa chế độ",
+				"description": "Bạn có chắc chắn muốn xóa chế độ này không?",
+				"deleteMessage": "Chỉ chế độ này",
+				"rulesFolderMessage": "Thư mục quy tắc cũng sẽ bị xóa nếu tồn tại.",
+				"deleteConfirmation": "Chắc chắn xóa chế độ này?"
+			},
+			"descriptionNoRules": "Bạn có chắc chắn muốn xóa chế độ tùy chỉnh này không?",
+			"cancel": "Hủy",
+			"confirm": "Xóa"
 		}
 	}
 }

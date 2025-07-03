@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Êtes-vous sûr de vouloir réinitialiser le global state et le stockage de secrets de l'extension ? Cette action est irréversible.",
 		"delete_config_profile": "Êtes-vous sûr de vouloir supprimer ce profil de configuration ?",
-		"delete_custom_mode": "Êtes-vous sûr de vouloir supprimer ce mode personnalisé ?",
+		"delete_custom_mode_with_rules": "Êtes-vous sûr de vouloir supprimer ce mode {scope} ?\n\nCela supprimera également le dossier de règles associé à l'adresse :\n{rulesFolderPath}",
 		"delete_message": "Que souhaitez-vous supprimer ?",
 		"just_this_message": "Uniquement ce message",
 		"this_and_subsequent": "Ce message et tous les messages suivants"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Le partage de tâches n'est pas activé pour cette organisation.",
 		"share_task_not_found": "Tâche non trouvée ou accès refusé.",
 		"mode_import_failed": "Échec de l'importation du mode : {{error}}",
+		"delete_rules_folder_failed": "Échec de la suppression du dossier de règles : {{rulesFolderPath}}. Erreur : {{error}}",
 		"claudeCode": {
 			"processExited": "Le processus Claude Code s'est terminé avec le code {{exitCode}}.",
 			"errorOutput": "Sortie d'erreur : {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Échec de la réinitialisation des modes personnalisés : {{error}}",
 			"modeNotFound": "Erreur d'écriture : Mode non trouvé",
 			"noWorkspaceForProject": "Aucun dossier d'espace de travail trouvé pour le mode spécifique au projet"
+		},
+		"scope": {
+			"project": "projet",
+			"global": "global"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Votre organisation nécessite une authentification Roo Code Cloud. Veuillez vous connecter pour continuer.",
 			"organization_mismatch": "Vous devez être authentifié avec le compte Roo Code Cloud de votre organisation.",
 			"verification_failed": "Impossible de vérifier l'authentification de l'organisation."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Supprimer le mode personnalisé",
+			"description": "Êtes-vous sûr de vouloir supprimer ce mode {{scope}} ? Cela supprimera également le dossier de règles associé à l'adresse : {{rulesFolderPath}}",
+			"descriptionNoRules": "Êtes-vous sûr de vouloir supprimer ce mode personnalisé ?",
+			"cancel": "Annuler",
+			"confirm": "Supprimer"
 		}
 	}
 }

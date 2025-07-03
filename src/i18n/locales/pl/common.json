@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "Czy na pewno chcesz zresetować wszystkie stany i tajne magazyny w rozszerzeniu? Tej operacji nie można cofnąć.",
 		"delete_config_profile": "Czy na pewno chcesz usunąć ten profil konfiguracyjny?",
-		"delete_custom_mode": "Czy na pewno chcesz usunąć ten niestandardowy tryb?",
+		"delete_custom_mode_with_rules": "Czy na pewno chcesz usunąć ten tryb {scope}?\n\nSpowoduje to również usunięcie powiązanego folderu reguł pod adresem:\n{rulesFolderPath}",
 		"delete_message": "Co chcesz usunąć?",
 		"just_this_message": "Tylko tę wiadomość",
 		"this_and_subsequent": "Tę i wszystkie kolejne wiadomości"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "Udostępnianie zadań nie jest włączone dla tej organizacji.",
 		"share_task_not_found": "Zadanie nie znalezione lub dostęp odmówiony.",
 		"mode_import_failed": "Import trybu nie powiódł się: {{error}}",
+		"delete_rules_folder_failed": "Nie udało się usunąć folderu reguł: {{rulesFolderPath}}. Błąd: {{error}}",
 		"claudeCode": {
 			"processExited": "Proces Claude Code zakończył się kodem {{exitCode}}.",
 			"errorOutput": "Wyjście błędu: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Resetowanie trybów niestandardowych nie powiodło się: {{error}}",
 			"modeNotFound": "Błąd zapisu: Tryb nie został znaleziony",
 			"noWorkspaceForProject": "Nie znaleziono folderu obszaru roboczego dla trybu specyficznego dla projektu"
+		},
+		"scope": {
+			"project": "projekt",
+			"global": "globalny"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Twoja organizacja wymaga uwierzytelnienia Roo Code Cloud. Zaloguj się, aby kontynuować.",
 			"organization_mismatch": "Musisz być uwierzytelniony kontem Roo Code Cloud swojej organizacji.",
 			"verification_failed": "Nie można zweryfikować uwierzytelnienia organizacji."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Usuń tryb niestandardowy",
+			"description": "Czy na pewno chcesz usunąć ten tryb {{scope}}? Spowoduje to również usunięcie powiązanego folderu z regułami w {{rulesFolderPath}}",
+			"descriptionNoRules": "Czy na pewno chcesz usunąć ten tryb niestandardowy?",
+			"cancel": "Anuluj",
+			"confirm": "Usuń"
 		}
 	}
 }

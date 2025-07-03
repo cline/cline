@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "拡張機能のすべての状態とシークレットストレージをリセットしてもよろしいですか？この操作は元に戻せません。",
 		"delete_config_profile": "この設定プロファイルを削除してもよろしいですか？",
-		"delete_custom_mode": "このカスタムモードを削除してもよろしいですか？",
+		"delete_custom_mode_with_rules": "この{scope}モードを削除してもよろしいですか？\n\nこれにより、関連するルールフォルダも次の場所で削除されます:\n{rulesFolderPath}",
 		"delete_message": "何を削除しますか？",
 		"just_this_message": "このメッセージのみ",
 		"this_and_subsequent": "これ以降のすべてのメッセージ"
@@ -70,7 +70,8 @@
 		"share_auth_required": "認証が必要です。タスクを共有するにはサインインしてください。",
 		"share_not_enabled": "この組織ではタスク共有が有効になっていません。",
 		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。",
-		"mode_import_failed": "モードのインポートに失敗しました: {{error}}",
+		"mode_import_failed": "モードのインポートに失敗しました：{{error}}",
+		"delete_rules_folder_failed": "ルールフォルダの削除に失敗しました：{{rulesFolderPath}}。エラー：{{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code プロセスがコード {{exitCode}} で終了しました。",
 			"errorOutput": "エラー出力：{{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "カスタムモードのリセットに失敗しました：{{error}}",
 			"modeNotFound": "書き込みエラー：モードが見つかりません",
 			"noWorkspaceForProject": "プロジェクト固有モード用のワークスペースフォルダーが見つかりません"
+		},
+		"scope": {
+			"project": "プロジェクト",
+			"global": "グローバル"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "あなたの組織では Roo Code Cloud 認証が必要です。続行するにはサインインしてください。",
 			"organization_mismatch": "組織の Roo Code Cloud アカウントで認証する必要があります。",
 			"verification_failed": "組織認証の確認ができませんでした。"
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "カスタムモードの削除",
+			"description": "この{{scope}}モードを削除してもよろしいですか？これにより、関連するルールフォルダーも{{rulesFolderPath}}で削除されます",
+			"descriptionNoRules": "このカスタムモードを削除してもよろしいですか？",
+			"cancel": "キャンセル",
+			"confirm": "削除"
 		}
 	}
 }

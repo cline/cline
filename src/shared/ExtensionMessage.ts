@@ -76,6 +76,7 @@ export interface ExtensionMessage {
 		| "exportModeResult"
 		| "importModeResult"
 		| "checkRulesDirectoryResult"
+		| "deleteCustomModeCheck"
 		| "currentCheckpointUpdated"
 		| "showHumanRelayDialog"
 		| "humanRelayResponse"
@@ -152,6 +153,7 @@ export interface ExtensionMessage {
 	marketplaceItems?: MarketplaceItem[]
 	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
 	visibility?: ShareVisibility
+	rulesFolderPath?: string
 }
 
 export type ExtensionState = Pick<

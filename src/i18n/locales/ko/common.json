@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "확장 프로그램의 모든 상태와 보안 저장소를 재설정하시겠습니까? 이 작업은 취소할 수 없습니다.",
 		"delete_config_profile": "이 구성 프로필을 삭제하시겠습니까?",
-		"delete_custom_mode": "이 사용자 지정 모드를 삭제하시겠습니까?",
+		"delete_custom_mode_with_rules": "이 {scope} 모드를 삭제하시겠습니까?\n\n이렇게 하면 연결된 규칙 폴더도 다음 위치에서 삭제됩니다:\n{rulesFolderPath}",
 		"delete_message": "무엇을 삭제하시겠습니까?",
 		"just_this_message": "이 메시지만",
 		"this_and_subsequent": "이 메시지와 모든 후속 메시지"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "이 조직에서는 작업 공유가 활성화되지 않았습니다.",
 		"share_task_not_found": "작업을 찾을 수 없거나 액세스가 거부되었습니다.",
 		"mode_import_failed": "모드 가져오기 실패: {{error}}",
+		"delete_rules_folder_failed": "규칙 폴더 삭제 실패: {{rulesFolderPath}}. 오류: {{error}}",
 		"claudeCode": {
 			"processExited": "Claude Code 프로세스가 코드 {{exitCode}}로 종료되었습니다.",
 			"errorOutput": "오류 출력: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "사용자 정의 모드 재설정 실패: {{error}}",
 			"modeNotFound": "쓰기 오류: 모드를 찾을 수 없습니다",
 			"noWorkspaceForProject": "프로젝트별 모드용 작업 공간 폴더를 찾을 수 없습니다"
+		},
+		"scope": {
+			"project": "프로젝트",
+			"global": "글로벌"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "조직에서 Roo Code Cloud 인증이 필요합니다. 계속하려면 로그인하세요.",
 			"organization_mismatch": "조직의 Roo Code Cloud 계정으로 인증해야 합니다.",
 			"verification_failed": "조직 인증을 확인할 수 없습니다."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "사용자 정의 모드 삭제",
+			"description": "이 {{scope}} 모드를 삭제하시겠습니까? 이렇게 하면 {{rulesFolderPath}}의 관련 규칙 폴더도 삭제됩니다.",
+			"descriptionNoRules": "이 사용자 정의 모드를 삭제하시겠습니까?",
+			"cancel": "취소",
+			"confirm": "삭제"
 		}
 	}
 }

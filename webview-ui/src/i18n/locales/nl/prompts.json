@@ -188,5 +188,13 @@
 		},
 		"deleteMode": "Modus verwijderen"
 	},
-	"allFiles": "alle bestanden"
+	"allFiles": "alle bestanden",
+	"deleteMode": {
+		"title": "Modus verwijderen",
+		"message": "Weet je zeker dat je de modus \"{{modeName}}\" wilt verwijderen?",
+		"rulesFolder": "Deze modus heeft een regelmap op {{folderPath}} die ook wordt verwijderd.",
+		"descriptionNoRules": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
+		"confirm": "Verwijderen",
+		"cancel": "Annuleren"
+	}
 }

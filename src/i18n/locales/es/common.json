@@ -17,7 +17,7 @@
 	"confirmation": {
 		"reset_state": "¿Estás seguro de que deseas restablecer todo el estado y el almacenamiento secreto en la extensión? Esta acción no se puede deshacer.",
 		"delete_config_profile": "¿Estás seguro de que deseas eliminar este perfil de configuración?",
-		"delete_custom_mode": "¿Estás seguro de que deseas eliminar este modo personalizado?",
+		"delete_custom_mode_with_rules": "¿Estás seguro de que quieres eliminar este modo {scope}?\n\nEsto también eliminará la carpeta de reglas asociada en:\n{rulesFolderPath}",
 		"delete_message": "¿Qué deseas eliminar?",
 		"just_this_message": "Solo este mensaje",
 		"this_and_subsequent": "Este y todos los mensajes posteriores"
@@ -71,6 +71,7 @@
 		"share_not_enabled": "La compartición de tareas no está habilitada para esta organización.",
 		"share_task_not_found": "Tarea no encontrada o acceso denegado.",
 		"mode_import_failed": "Error al importar el modo: {{error}}",
+		"delete_rules_folder_failed": "Error al eliminar la carpeta de reglas: {{rulesFolderPath}}. Error: {{error}}",
 		"claudeCode": {
 			"processExited": "El proceso de Claude Code terminó con código {{exitCode}}.",
 			"errorOutput": "Salida de error: {{output}}",
@@ -144,6 +145,10 @@
 			"resetFailed": "Error al restablecer modos personalizados: {{error}}",
 			"modeNotFound": "Error de escritura: Modo no encontrado",
 			"noWorkspaceForProject": "No se encontró carpeta de espacio de trabajo para modo específico del proyecto"
+		},
+		"scope": {
+			"project": "proyecto",
+			"global": "global"
 		}
 	},
 	"mdm": {
@@ -151,6 +156,15 @@
 			"cloud_auth_required": "Tu organización requiere autenticación de Roo Code Cloud. Por favor, inicia sesión para continuar.",
 			"organization_mismatch": "Debes estar autenticado con la cuenta de Roo Code Cloud de tu organización.",
 			"verification_failed": "No se pudo verificar la autenticación de la organización."
+		}
+	},
+	"prompts": {
+		"deleteMode": {
+			"title": "Eliminar modo personalizado",
+			"description": "¿Estás seguro de que quieres eliminar este modo {{scope}}? Esto también eliminará la carpeta de reglas asociada en: {{rulesFolderPath}}",
+			"descriptionNoRules": "¿Estás seguro de que quieres eliminar este modo personalizado?",
+			"cancel": "Cancelar",
+			"confirm": "Eliminar"
 		}
 	}
 }
