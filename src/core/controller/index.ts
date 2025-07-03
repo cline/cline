@@ -54,7 +54,6 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
@@ -141,10 +140,13 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode from global state
+		const currentMode = ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -239,8 +241,8 @@ export class Controller {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
-		// Store mode in-memory only
-		this.mode = chatSettings.mode
+		// Store mode to global state
+		await updateGlobalState(this.context, "mode", chatSettings.mode)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -834,10 +836,13 @@ export class Controller {
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode from global state
+		const currentMode = ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const localClineRulesToggles =
