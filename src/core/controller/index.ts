@@ -1,5 +1,5 @@
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { getCwd } from "@/utils/path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
@@ -179,6 +179,7 @@ export class Controller {
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
+			await getCwd(getDesktopDir()),
 			task,
 			images,
 			files,
