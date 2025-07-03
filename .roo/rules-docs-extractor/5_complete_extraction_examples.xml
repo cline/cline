@@ -1,48 +1,42 @@
 <complete_extraction_examples>
   <overview>
-    Complete examples demonstrating the full documentation extraction workflow
-    for different types of features and components.
+    Examples of the documentation extraction workflow.
   </overview>
 
   <example name="authentication_system_extraction">
     <scenario>
-      Extract comprehensive documentation for a JWT-based authentication system
-      including login, logout, token refresh, and role-based access control.
+      Extract documentation for a JWT-based authentication system, including login, token refresh, and RBAC.
     </scenario>
 
     <workflow>
       <step number="1">
-        <description>Initial feature discovery</description>
+        <description>Discover feature</description>
         <tool_use><![CDATA[
 <codebase_search>
 <query>authentication JWT login logout token refresh auth middleware</query>
 </codebase_search>
         ]]></tool_use>
         <expected_findings>
-          - Auth controller files
-          - JWT service implementations
-          - Middleware functions
-          - User model with auth fields
-          - Auth route definitions
+          - Auth controllers, services, middleware, models, and routes.
         </expected_findings>
       </step>
 
       <step number="2">
-        <description>Analyze authentication structure</description>
+        <description>Analyze structure</description>
         <tool_use><![CDATA[
 <list_code_definition_names>
 <path>src/auth</path>
 </list_code_definition_names>
         ]]></tool_use>
         <analysis>
-          - Identify main classes and functions
-          - Map authentication flow
-          - Find token generation/validation logic
+          - Identify main classes/functions.
+          - Map auth flow.
+          - Find token generation/validation logic.
         </analysis>
       </step>
 
       <step number="3">
-        <description>Read core implementation files</description>
+        <description>Read core files</description>
         <tool_use><![CDATA[
 <read_file>
 <args>
@@ -75,16 +69,12 @@
 </search_files>
         ]]></tool_use>
         <findings>
-          - POST /auth/login
-          - POST /auth/logout
-          - POST /auth/refresh
-          - GET /auth/profile
-          - POST /auth/register
+          - POST /auth/login, POST /auth/logout, POST /auth/refresh, GET /auth/profile, POST /auth/register
         </findings>
       </step>
 
       <step number="5">
-        <description>Document configuration</description>
+        <description>Extract configuration</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
@@ -94,7 +84,7 @@
       </step>
 
       <step number="6">
-        <description>Analyze security measures</description>
+        <description>Analyze security</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/auth</path>
@@ -104,7 +94,7 @@
       </step>
 
       <step number="7">
-        <description>Generate documentation</description>
+        <description>Generate docs</description>
         <tool_use><![CDATA[
 <write_to_file>
 <path>DOCS-TEMP-authentication-system.md</path>
@@ -552,24 +542,23 @@ DEBUG=auth:* npm start
     </workflow>
 
     <key_takeaways>
-      <takeaway>Start with semantic search to find all related files</takeaway>
-      <takeaway>Read multiple files together for context</takeaway>
-      <takeaway>Extract API documentation from route definitions</takeaway>
-      <takeaway>Use tests to understand expected behavior</takeaway>
-      <takeaway>Document security measures comprehensively</takeaway>
-      <takeaway>Include troubleshooting based on common errors</takeaway>
+      <takeaway>Use semantic search to find related files.</takeaway>
+      <takeaway>Read multiple files for context.</takeaway>
+      <takeaway>Extract API docs from route definitions.</takeaway>
+      <takeaway>Use tests to understand behavior.</takeaway>
+      <takeaway>Document security measures.</takeaway>
+      <takeaway>Include troubleshooting for common errors.</takeaway>
     </key_takeaways>
   </example>
 
   <example name="database_schema_extraction">
     <scenario>
-      Extract documentation for database models, relationships, migrations,
-      and data access patterns.
+      Extract documentation for database models, relationships, and migrations.
     </scenario>
 
     <workflow>
       <step number="1">
-        <description>Find database-related files</description>
+        <description>Find DB files</description>
         <tool_use><![CDATA[
 <codebase_search>
 <query>database schema model entity migration table column relationship</query>
@@ -578,7 +567,7 @@ DEBUG=auth:* npm start
       </step>
 
       <step number="2">
-        <description>Analyze model definitions</description>
+        <description>Analyze models</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/models</path>

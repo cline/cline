@@ -1,16 +1,15 @@
 <tool_usage_guide>
   <overview>
-    Specific guidance on using tools effectively for comprehensive documentation extraction,
-    with emphasis on gathering complete information across all aspects of a feature.
+    Guidance on using tools for documentation extraction.
   </overview>
 
   <tool_sequence>
     <priority level="1">
       <tool>codebase_search</tool>
-      <purpose>Initial discovery of feature-related code</purpose>
+      <purpose>Initial code discovery.</purpose>
       <usage_patterns>
         <pattern>
-          <scenario>Finding feature entry points</scenario>
+          <scenario>Find feature entry points</scenario>
           <example><![CDATA[
 <codebase_search>
 <query>authentication login user session JWT token</query>
@@ -18,7 +17,7 @@
           ]]></example>
         </pattern>
         <pattern>
-          <scenario>Locating business logic</scenario>
+          <scenario>Find business logic</scenario>
           <example><![CDATA[
 <codebase_search>
 <query>calculate pricing discount tax invoice billing</query>
@@ -26,7 +25,7 @@
           ]]></example>
         </pattern>
         <pattern>
-          <scenario>Finding configuration</scenario>
+          <scenario>Find configuration</scenario>
           <example><![CDATA[
 <codebase_search>
 <query>config settings environment variables .env process.env</query>
@@ -38,11 +37,11 @@
 
     <priority level="2">
       <tool>list_code_definition_names</tool>
-      <purpose>Understanding code structure and organization</purpose>
+      <purpose>Understand code structure.</purpose>
       <best_practices>
-        <practice>Use on directories containing core feature logic</practice>
-        <practice>Analyze both implementation and test directories</practice>
-        <practice>Look for patterns in naming conventions</practice>
+        <practice>Use on core feature directories.</practice>
+        <practice>Analyze implementation and test directories.</practice>
+        <practice>Look for naming patterns.</practice>
       </best_practices>
       <example><![CDATA[
 <list_code_definition_names>
@@ -53,12 +52,12 @@
 
     <priority level="3">
       <tool>read_file</tool>
-      <purpose>Deep analysis of specific implementations</purpose>
+      <purpose>Analyze specific implementations.</purpose>
       <strategy>
-        <step>Read main feature files first</step>
-        <step>Follow imports to understand dependencies</step>
-        <step>Read test files to understand expected behavior</step>
-        <step>Examine configuration and type definition files</step>
+        <step>Read main feature files.</step>
+        <step>Follow imports to find dependencies.</step>
+        <step>Read test files for expected behavior.</step>
+        <step>Examine config and type definition files.</step>
       </strategy>
       <batch_reading><![CDATA[
 <read_file>
@@ -85,10 +84,10 @@
 
     <priority level="4">
       <tool>search_files</tool>
-      <purpose>Finding specific patterns and implementations</purpose>
+      <purpose>Find specific patterns.</purpose>
       <use_cases>
         <use_case>
-          <description>Find all API endpoints</description>
+          <description>Find API endpoints</description>
           <example><![CDATA[
 <search_files>
 <path>src</path>
@@ -97,7 +96,7 @@
           ]]></example>
         </use_case>
         <use_case>
-          <description>Find error handling patterns</description>
+          <description>Find error handling</description>
           <example><![CDATA[
 <search_files>
 <path>src</path>
@@ -106,7 +105,7 @@
           ]]></example>
         </use_case>
         <use_case>
-          <description>Find configuration usage</description>
+          <description>Find config usage</description>
           <example><![CDATA[
 <search_files>
 <path>src</path>
@@ -120,14 +119,14 @@
 
   <documentation_generation_tools>
     <tool name="write_to_file">
-      <purpose>Create the final documentation file when generating new documentation from scratch.</purpose>
-      <note>This tool is NOT used when reviewing a user-provided document section. In that scenario, feedback is provided directly in the chat.</note>
+      <purpose>Create documentation file for new docs.</purpose>
+      <note>Not used for reviews. Feedback for reviews is provided in chat.</note>
       <file_naming>DOCS-TEMP-[feature-name].md</file_naming>
       <best_practices>
-        <practice>Use descriptive feature names in filename</practice>
-        <practice>Include table of contents with anchors</practice>
-        <practice>Use consistent markdown formatting</practice>
-        <practice>Include code examples with syntax highlighting</practice>
+        <practice>Use descriptive feature name in filename.</practice>
+        <practice>Include table of contents.</practice>
+        <practice>Use consistent Markdown formatting.</practice>
+        <practice>Include syntax-highlighted code examples.</practice>
       </best_practices>
       <example><![CDATA[
 <write_to_file>
@@ -149,32 +148,32 @@ The authentication system provides secure user authentication using JWT tokens..
     </tool>
     
     <tool name="ask_followup_question">
-      <purpose>Clarify requirements when multiple interpretations exist</purpose>
+      <purpose>Clarify ambiguous requirements.</purpose>
       <when_to_use>
-        <scenario>Multiple features with similar names exist</scenario>
-        <scenario>Documentation depth needs clarification</scenario>
-        <scenario>Target audience priorities need definition</scenario>
+        <scenario>Multiple features have similar names.</scenario>
+        <scenario>Documentation depth is unclear.</scenario>
+        <scenario>Audience priorities are undefined.</scenario>
       </when_to_use>
       <examples>
         <example><![CDATA[
 <ask_followup_question>
-<question>Which aspects of the authentication system should I focus on?</question>
+<question>Which authentication aspects should be the focus?</question>
 <follow_up>
-<suggest>Complete authentication flow including JWT tokens, session management, and OAuth integration</suggest>
-<suggest>Only the JWT token implementation and validation</suggest>
-<suggest>OAuth2 integration with external providers</suggest>
-<suggest>Password reset and account recovery workflows</suggest>
+<suggest>The complete flow (JWT, sessions, OAuth).</suggest>
+<suggest>Only JWT implementation and validation.</suggest>
+<suggest>Only OAuth2 integration.</suggest>
+<suggest>Password reset and recovery workflows.</suggest>
 </follow_up>
 </ask_followup_question>
         ]]></example>
         <example><![CDATA[
 <ask_followup_question>
-<question>What level of technical detail should the documentation include?</question>
+<question>What level of technical detail is needed?</question>
 <follow_up>
-<suggest>High-level overview suitable for all audiences</suggest>
-<suggest>Detailed technical implementation for developers</suggest>
-<suggest>API reference with code examples</suggest>
-<suggest>Complete coverage for all audience types</suggest>
+<suggest>High-level overview for all audiences.</suggest>
+<suggest>Detailed developer implementation.</suggest>
+<suggest>API reference with code examples.</suggest>
+<suggest>Full coverage for all audiences.</suggest>
 </follow_up>
 </ask_followup_question>
         ]]></example>
@@ -183,21 +182,21 @@ The authentication system provides secure user authentication using JWT tokens..
   </documentation_generation_tools>
 
   <analysis_strategies>
-    <strategy name="comprehensive_file_discovery">
+    <strategy name="file_discovery">
       <description>
-        Systematic approach to finding all files related to a feature
+        Find all files related to a feature.
       </description>
       <steps>
         <step>
-          <action>Start with semantic search</action>
+          <action>Start with semantic search.</action>
           <tool_use><![CDATA[
 <codebase_search>
-<query>feature implementation main logic core functionality</query>
+<query>feature implementation main logic</query>
 </codebase_search>
           ]]></tool_use>
         </step>
         <step>
-          <action>List directory structure</action>
+          <action>List directory structure.</action>
           <tool_use><![CDATA[
 <list_files>
 <path>src/features</path>
@@ -206,7 +205,7 @@ The authentication system provides secure user authentication using JWT tokens..
           ]]></tool_use>
         </step>
         <step>
-          <action>Find related tests</action>
+          <action>Find related tests.</action>
           <tool_use><![CDATA[
 <search_files>
 <path>src</path>
@@ -216,7 +215,7 @@ The authentication system provides secure user authentication using JWT tokens..
           ]]></tool_use>
         </step>
         <step>
-          <action>Locate configuration files</action>
+          <action>Find config files.</action>
           <tool_use><![CDATA[
 <search_files>
 <path>.</path>
@@ -230,14 +229,14 @@ The authentication system provides secure user authentication using JWT tokens..
 
     <strategy name="dependency_chain_analysis">
       <description>
-        Follow import chains to understand all dependencies
+        Follow import chains to map dependencies.
       </description>
       <process>
-        <step>Read main feature file</step>
-        <step>Extract all imports</step>
-        <step>Read each imported file</step>
-        <step>Recursively analyze their imports</step>
-        <step>Build dependency graph</step>
+        <step>Read main file.</step>
+        <step>Extract all imports.</step>
+        <step>Read each imported file.</step>
+        <step>Recursively analyze imports.</step>
+        <step>Build dependency graph.</step>
       </process>
       <import_patterns><![CDATA[
 <!-- TypeScript/JavaScript imports -->
@@ -256,35 +255,31 @@ The authentication system provides secure user authentication using JWT tokens..
 
     <strategy name="api_documentation_extraction">
       <description>
-        Extract complete API documentation from code
+        Extract API documentation from code.
       </description>
       <extraction_points>
-        <point>Route definitions</point>
-        <point>Request/response schemas</point>
-        <point>Authentication requirements</point>
-        <point>Rate limiting rules</point>
-        <point>Error responses</point>
+        <point>Route definitions, request/response schemas, auth requirements, rate limiting, error responses.</point>
       </extraction_points>
       <tools_sequence>
         <sequence>
-          <step>Find all route files</step>
-          <step>Extract route definitions</step>
-          <step>Find associated controllers</step>
-          <step>Analyze request validation</step>
-          <step>Document response formats</step>
+          <step>Find route files.</step>
+          <step>Extract route definitions.</step>
+          <step>Find controllers.</step>
+          <step>Analyze request validation.</step>
+          <step>Document response formats.</step>
         </sequence>
       </tools_sequence>
     </strategy>
 
     <strategy name="test_driven_documentation">
       <description>
-        Use tests to understand expected behavior
+        Use tests to document expected behavior.
       </description>
       <benefits>
-        <benefit>Tests show real usage examples</benefit>
-        <benefit>Test descriptions explain functionality</benefit>
-        <benefit>Edge cases are often tested</benefit>
-        <benefit>Expected outputs are documented</benefit>
+        <benefit>Tests provide usage examples.</benefit>
+        <benefit>Test descriptions explain functionality.</benefit>
+        <benefit>Tests cover edge cases.</benefit>
+        <benefit>Tests document expected outputs.</benefit>
       </benefits>
       <extraction_approach><![CDATA[
 <!-- Find test descriptions -->
@@ -354,44 +349,31 @@ config\.(\w+)\.(\w+)
   </common_patterns>
 
   <output_optimization>
-    <guideline name="structured_sections">
-      <description>Organize output for easy navigation</description>
+    <guideline name="structure">
+      <description>Organize output for navigation.</description>
       <structure>
-        - Clear hierarchy with numbered sections
-        - Consistent heading levels
-        - Table of contents with links
-        - Cross-references between sections
+        - Clear hierarchy, consistent headings, ToC with links, cross-references.
       </structure>
     </guideline>
 
     <guideline name="code_examples">
-      <description>Include relevant code examples</description>
+      <description>Include relevant code examples.</description>
       <best_practices>
-        - Use syntax highlighting
-        - Show both request and response
-        - Include error cases
-        - Provide language-specific examples
+        - Use syntax highlighting, show request/response, include error cases.
       </best_practices>
     </guideline>
 
-    <guideline name="visual_aids">
-      <description>Suggest where diagrams would help</description>
+    <guideline name="visuals">
+      <description>Suggest diagrams where helpful.</description>
       <diagram_types>
-        - Architecture diagrams
-        - Sequence diagrams
-        - Data flow diagrams
-        - State machines
+        - Architecture, sequence, data flow, state machine diagrams.
       </diagram_types>
     </guideline>
 
-    <guideline name="metadata_inclusion">
-      <description>Always include important metadata</description>
+    <guideline name="metadata">
+      <description>Include important metadata.</description>
       <required_metadata>
-        - Version compatibility
-        - Last updated date
-        - Feature status (stable/beta/deprecated)
-        - Performance characteristics
-        - Security considerations
+        - Version compatibility, last updated, status, performance, security.
       </required_metadata>
     </guideline>
   </output_optimization>

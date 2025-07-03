@@ -1,287 +1,255 @@
 <documentation_patterns>
   <overview>
-    Standard patterns and templates for structuring extracted documentation
-    to serve end-users with clear, practical information.
+    Standard templates for structuring extracted documentation.
   </overview>
 
   <output_structure>
     <user_focused_template><![CDATA[
 # [Feature Name]
 
-[Brief, clear description of what the feature does and why it matters to users]
+[Description of what the feature does and why a user should care.]
 
 ### Key Features
-- [Feature 1 - written in user-friendly terms]
-- [Feature 2 - focus on benefits]
-- [Feature 3 - avoid technical jargon]
+- [Benefit-oriented feature 1]
+- [Benefit-oriented feature 2]
+- [Benefit-oriented feature 3]
 
 ---
 
-## Why This Matters
+## Use Case
 
-[Explain the problem this solves with a real-world example, like:]
-
-**[Before scenario]**: [Description of the old/manual way]
+**Before**: [Description of the old way]
 - [Pain point 1]
 - [Pain point 2]
 
-**[With this feature]**: [Description of the improved experience]
+**With this feature]**: [Description of the new experience.]
 
 ## How it Works
 
-[Simple explanation of the feature's operation, avoiding implementation details]
+[Simple explanation of the feature's operation.]
 
-[Include visual representation if helpful - suggest where diagrams would help]
+[Suggest visual representations where helpful.]
 
 ---
 
 ## Configuration
 
-[User-friendly explanation of settings]
+[Explanation of relevant settings.]
 
 1. **[Setting Name]**:
-   - **Setting**: `[Technical name if needed]`
-   - **Description**: [What this does in plain language]
-   - **Default**: [Default value and what it means]
+   - **Setting**: `[technical_name]`
+   - **Description**: [What this does.]
+   - **Default**: [Default value and its meaning.]
 
 2. **[Setting Name]**:
-   - **Setting**: `[Technical name if needed]`
-   - **Description**: [What this does in plain language]
-   - **Default**: [Default value and what it means]
+   - **Setting**: `[technical_name]`
+   - **Description**: [What this does.]
+   - **Default**: [Default value and its meaning.]
 
 ---
 
-## Benefits
+## FAQ
 
-- **[Benefit 1]**: [Explanation of how this helps]
-- **[Benefit 2]**: [Explanation of how this helps]
-- **[Benefit 3]**: [Explanation of how this helps]
+**"[User question]"**
+- [Answer.]
+- [Optional tip.]
 
-## Common Questions
+**"[User question]"**
+- [Answer.]
+- [Optional tip.]
 
-**"[Common user question]"**
-- [Clear, helpful answer]
-- [Additional tips if relevant]
-
-**"[Common user question]"**
-- [Clear, helpful answer]
-- [Additional tips if relevant]
-
-**"[Common user question]"**
-- [Clear, helpful answer]
-- [Additional tips if relevant]
-
-## Need Help?
-
-If you run into issues:
-1. [First troubleshooting step]
-2. [Second troubleshooting step]
-3. [Where to get help - e.g., GitHub Issues link]
     ]]></user_focused_template>
 
     <comprehensive_template><![CDATA[
-# [Feature Name] Documentation
+# [Feature Name] Technical Documentation
 
 ## Table of Contents
-1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-3. [Architecture](#architecture)
-4. [API Reference](#api-reference)
-5. [Configuration](#configuration)
-6. [User Guide](#user-guide)
-7. [Developer Guide](#developer-guide)
-8. [Administrator Guide](#administrator-guide)
-9. [Security](#security)
-10. [Performance](#performance)
-11. [Troubleshooting](#troubleshooting)
-12. [FAQ](#faq)
-13. [Changelog](#changelog)
-14. [References](#references)
+1. Overview
+2. Quick Start
+3. Architecture
+4. API Reference
+5. Configuration
+6. User Guide
+7. Developer Guide
+8. Administrator Guide
+9. Security
+10. Performance
+11. Troubleshooting
+12. FAQ
+13. Changelog
+14. References
 
-[Rest of comprehensive template remains available for technical documentation needs]
+[This template remains available for generating detailed technical documentation.]
     ]]></comprehensive_template>
   </output_structure>
 
-  <user_friendly_patterns>
-    <before_after_examples>
+  <documentation_patterns>
+    <before_after>
       <template><![CDATA[
-**Previously**: When Roo needed to understand your project, you'd see multiple requests like:
-- "Can I read `src/app.js`?" → You approve
-- "Now can I read `src/utils.js`?" → You approve
-- "And can I read `src/config.json`?" → You approve
+**Before**: Multiple, sequential file read requests:
+- "Read `src/app.js`?" → Approve
+- "Read `src/utils.js`?" → Approve
+- "Read `src/config.json`?" → Approve
 
-**Now**: Roo asks once to read all related files together, getting the full picture immediately.
+**Now**: One request to read all related files.
       ]]></template>
-    </before_after_examples>
+    </before_after>
 
-    <visual_separators>
-      <use_case>Between major sections</use_case>
+    <visual_separator>
       <format>---</format>
-      <purpose>Improve readability and scanning</purpose>
-    </visual_separators>
+      <purpose>Separate sections.</purpose>
+    </visual_separator>
 
-    <conversational_questions>
+    <faq>
       <template><![CDATA[
-## Common Questions
+## FAQ
 
-**"Why would I want to disable this feature?"**
-- You're using a less capable AI model that works better with single files
-- You want more control over which files are accessed
-- You're working with very large files that might exceed memory limits
+**"Why disable this?"**
+- Your AI model handles single files better.
+- You need more control over file access.
+- You are working with very large files.
 
-**"What happens if some files are blocked?"**
-- Roo will read the files you approve and work with those
-- Files blocked by `.rooignore` will be automatically excluded
-- You can still approve/deny individual files in the batch
+**"What if some files are blocked?"**
+- Roo reads approved files and works with what it has.
+- `.rooignore` files are excluded automatically.
+- Individual files can still be denied in the batch dialog.
       ]]></template>
-    </conversational_questions>
+    </faq>
 
-    <practical_examples>
-      <guideline>Show real tool output or interface elements</guideline>
-      <guideline>Use actual file paths and settings names</guideline>
-      <guideline>Include common error messages and solutions</guideline>
-    </practical_examples>
+    <examples>
+      <guideline>Show tool output or UI elements.</guideline>
+      <guideline>Use actual file paths and setting names.</guideline>
+      <guideline>Include common errors and solutions.</guideline>
+    </examples>
 
-    <benefit_focused_lists>
-      <template><![CDATA[
-## Benefits
-
-- **Faster Results**: Get answers in one step instead of multiple back-and-forth approvals
-- **Better Context**: Roo understands relationships between files immediately
-- **Less Interruption**: Approve once and let Roo work uninterrupted
-      ]]></template>
-    </benefit_focused_lists>
-
-    <troubleshooting_section>
+    <troubleshooting>
       <template><![CDATA[
 ## Troubleshooting
 
-**"Roo is asking for too many files at once"**
-- Lower the concurrent file limit in settings
-- You can still approve or deny individual files in the batch dialog
+**"Too many files requested"**
+- Lower the concurrent file limit in settings.
+- Deny individual files in the batch dialog.
 
-**"The feature isn't working as expected"**
-- Check that "Enable concurrent file reads" is turned on in settings
-- Verify your concurrent file limit is set appropriately (default: 100)
-- Some AI models may not support this feature effectively
+**"Feature isn't working"**
+- Ensure "Enable concurrent file reads" is on in settings.
+- Verify the file limit is set correctly (default: 100).
+- Some AI models may not support this feature.
       ]]></template>
-    </troubleshooting_section>
+    </troubleshooting>
 
-    <help_section>
+    <help>
       <template><![CDATA[
-## Need Help?
+## Help
 
-If you run into issues:
-1. Check the [FAQ section](/faq) for common solutions
-2. Report problems on [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues)
-3. Include what you were trying to do and any error messages
+- See the [FAQ](#faq) for common issues.
+- Report problems on [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
+- Include reproduction steps and error messages.
       ]]></template>
-    </help_section>
-  </user_friendly_patterns>
+    </help>
+  </documentation_patterns>
 
-  <audience_specific_sections>
-    <audience type="end_users">
-      <focus_areas>
-        <area>Step-by-step tutorials with screenshots</area>
-        <area>Common use case examples</area>
-        <area>Troubleshooting guides for user errors</area>
-        <area>Feature benefits and value propositions</area>
-      </focus_areas>
-      <writing_style>
-        <guideline>Use simple, non-technical language</guideline>
-        <guideline>Include visual aids and examples</guideline>
-        <guideline>Focus on outcomes rather than implementation</guideline>
-        <guideline>Provide clear action steps</guideline>
-      </writing_style>
+  <audience_sections>
+    <audience type="end_user">
+      <focus>
+        <area>Tutorials</area>
+        <area>Use cases</area>
+        <area>Troubleshooting</area>
+        <area>Benefits</area>
+      </focus>
+      <style>
+        <guideline>Simple language</guideline>
+        <guideline>Visual aids</guideline>
+        <guideline>Focus on outcomes</guideline>
+        <guideline>Clear action steps</guideline>
+      </style>
     </audience>
 
-    <audience type="developers">
-      <focus_areas>
-        <area>Code examples and snippets</area>
-        <area>API specifications and contracts</area>
-        <area>Integration patterns and best practices</area>
-        <area>Performance optimization techniques</area>
-      </focus_areas>
-      <writing_style>
-        <guideline>Use precise technical terminology</guideline>
-        <guideline>Include code samples in multiple languages</guideline>
-        <guideline>Document edge cases and limitations</guideline>
-        <guideline>Provide debugging and testing guidance</guideline>
-      </writing_style>
+    <audience type="developer">
+      <focus>
+        <area>Code examples</area>
+        <area>API specs</area>
+        <area>Integration patterns</area>
+        <area>Performance</area>
+      </focus>
+      <style>
+        <guideline>Precise terminology</guideline>
+        <guideline>Code samples</guideline>
+        <guideline>Document edge cases</guideline>
+        <guideline>Debugging guidance</guideline>
+      </style>
     </audience>
 
-    <audience type="administrators">
-      <focus_areas>
-        <area>Deployment and configuration procedures</area>
-        <area>Monitoring and maintenance tasks</area>
-        <area>Security hardening guidelines</area>
-        <area>Backup and disaster recovery</area>
-      </focus_areas>
-      <writing_style>
-        <guideline>Focus on operational aspects</guideline>
-        <guideline>Include command-line examples</guideline>
-        <guideline>Document automation opportunities</guideline>
-        <guideline>Emphasize security and compliance</guideline>
-      </writing_style>
+    <audience type="administrator">
+      <focus>
+        <area>Deployment</area>
+        <area>Monitoring</area>
+        <area>Security hardening</area>
+        <area>Backup and recovery</area>
+      </focus>
+      <style>
+        <guideline>Operational focus</guideline>
+        <guideline>CLI examples</guideline>
+        <guideline>Automation opportunities</guideline>
+        <guideline>Security and compliance</guideline>
+      </style>
     </audience>
 
-    <audience type="stakeholders">
-      <focus_areas>
-        <area>Business value and ROI</area>
-        <area>Feature capabilities and limitations</area>
+    <audience type="stakeholder">
+      <focus>
+        <area>Business value</area>
+        <area>Capabilities and limits</area>
         <area>Competitive advantages</area>
-        <area>Risk assessment and mitigation</area>
-      </focus_areas>
-      <writing_style>
-        <guideline>Use business-oriented language</guideline>
-        <guideline>Include metrics and KPIs</guideline>
-        <guideline>Focus on strategic benefits</guideline>
-        <guideline>Provide executive summaries</guideline>
-      </writing_style>
+        <area>Risk assessment</area>
+      </focus>
+      <style>
+        <guideline>Business language</guideline>
+        <guideline>Metrics and KPIs</guideline>
+        <guideline>Strategic benefits</guideline>
+        <guideline>Executive summaries</guideline>
+      </style>
     </audience>
-  </audience_specific_sections>
+  </audience_sections>
 
   <metadata_patterns>
     <version_info>
       <template><![CDATA[
-### Version Compatibility Matrix
-| Component | Min Version | Recommended | Max Version | Notes |
-|-----------|-------------|-------------|-------------|-------|
+### Version Compatibility
+| Component | Min | Recommended | Max | Notes |
+|-----------|-----|-------------|-----|-------|
 | [Component] | [version] | [version] | [version] | [notes] |
       ]]></template>
     </version_info>
 
     <deprecation_notice>
       <template><![CDATA[
-> ⚠️ **Deprecation Notice**
-> 
-> This feature/method is deprecated as of version [X.Y.Z].
-> - **Deprecated**: [date]
-> - **Removal Target**: [version/date]
-> - **Migration Path**: [See migration guide](#migration)
-> - **Replacement**: [new feature/method]
+> ⚠️ **Deprecated**
+>
+> Deprecated since: [vX.Y.Z] on [date]
+> Removal target: [vA.B.C]
+> Migration: See [migration guide](#migration).
+> Replacement: [new feature/method].
       ]]></template>
     </deprecation_notice>
 
     <security_warning>
       <template><![CDATA[
-> 🔒 **Security Consideration**
-> 
-> [Description of security concern]
-> - **Risk Level**: [High/Medium/Low]
-> - **Affected Versions**: [versions]
-> - **Mitigation**: [steps to address]
-> - **References**: [CVE/advisory links]
+> 🔒 **Security Warning**
+>
+> [Description of concern]
+> - **Risk**: [High/Medium/Low]
+> - **Affected**: [versions]
+> - **Mitigation**: [steps]
+> - **References**: [links]
       ]]></template>
     </security_warning>
 
     <performance_note>
       <template><![CDATA[
-> ⚡ **Performance Impact**
-> 
+> ⚡ **Performance Note**
+>
 > [Description of performance consideration]
-> - **Impact**: [metrics/benchmarks]
-> - **Optimization**: [recommended approach]
+> - **Impact**: [metrics]
+> - **Optimization**: [approach]
 > - **Trade-offs**: [considerations]
       ]]></template>
     </performance_note>
