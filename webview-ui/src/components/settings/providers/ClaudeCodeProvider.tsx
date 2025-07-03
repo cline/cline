@@ -5,6 +5,8 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 
 /**
  * Props for the ClaudeCodeProvider component
@@ -52,6 +54,10 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup }: ClaudeCodeProv
 						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
+
+					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
+						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>

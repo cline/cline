@@ -27,6 +27,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			messages: filteredMessages,
 			path: this.options.claudeCodePath,
 			modelId: this.getModel().id,
+			thinkingBudgetTokens: this.options.thinkingBudgetTokens,
 		})
 
 		// Usage is included with assistant messages,
