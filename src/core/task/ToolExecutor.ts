@@ -1,7 +1,7 @@
 import { showSystemNotification } from "@/integrations/notifications"
 import { listFiles } from "@/services/glob/list-files"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { regexSearchFiles } from "@/services/ripgrep"
+import { regexSearchFiles } from "@utils/search"
 import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
 import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
