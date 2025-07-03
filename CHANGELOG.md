@@ -2,8 +2,6 @@
 
 ## 3.18.3
 
-### Patch Changes
-
 -   36e3f4c: Improved eval framework with more logging and run options
 -   50dc89b: Improve cerebras Qwen model performance by removing thinking tokens from the model input
 -   bc5225c: Improve Claude Code handling
