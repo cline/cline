@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.18.3
+## [3.18.3]
 
--   36e3f4c: Improved eval framework with more logging and run options
--   50dc89b: Improve cerebras Qwen model performance by removing thinking tokens from the model input
--   bc5225c: Improve Claude Code handling
+-   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)
+-   Improve Claude Code provider with better error handling and performance optimizations (Thanks @BarreiroT!)
 
 ## [3.18.2]
 
