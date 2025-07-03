@@ -121,8 +121,7 @@ const claudeCodeTools = [
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 // https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
-const DEFAULT_BUFFER_SIZE = 100_000_000 // 100 MB
-const MAX_BUFFER_SIZE = 10 * DEFAULT_BUFFER_SIZE
+const BUFFER_SIZE = 20_000_000 // 20 MB
 
 function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
 	const claudePath = path?.trim() || "claude"
@@ -168,7 +167,7 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		stderr: "pipe",
 		env,
 		cwd,
-		maxBuffer: MAX_BUFFER_SIZE,
+		maxBuffer: BUFFER_SIZE,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 
