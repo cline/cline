@@ -26,9 +26,19 @@ interface OpenAIEmbeddingResponse {
  * OpenAI Compatible implementation of the embedder interface with batching and rate limiting.
  * This embedder allows using any OpenAI-compatible API endpoint by specifying a custom baseURL.
  */
+interface HttpError extends Error {
+	status?: number
+	response?: {
+		status?: number
+	}
+}
+
 export class OpenAICompatibleEmbedder implements IEmbedder {
 	private embeddingsClient: OpenAI
 	private readonly defaultModelId: string
+	private readonly baseUrl: string
+	private readonly apiKey: string
+	private readonly isFullUrl: boolean
 	private readonly maxItemTokens: number
 
 	/**
@@ -46,11 +56,15 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 			throw new Error("API key is required for OpenAI Compatible embedder")
 		}
 
+		this.baseUrl = baseUrl
+		this.apiKey = apiKey
 		this.embeddingsClient = new OpenAI({
 			baseURL: baseUrl,
 			apiKey: apiKey,
 		})
 		this.defaultModelId = modelId || getDefaultModelId("openai-compatible")
+		// Cache the URL type check for performance
+		this.isFullUrl = this.isFullEndpointUrl(baseUrl)
 		this.maxItemTokens = maxItemTokens || MAX_ITEM_TOKENS
 	}
 
@@ -139,6 +153,65 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	}
 
 	/**
+	 * Determines if the provided URL is a full endpoint URL or a base URL that needs the endpoint appended by the SDK.
+	 * Uses smart pattern matching for known providers while accepting we can't cover all possible patterns.
+	 * @param url The URL to check
+	 * @returns true if it's a full endpoint URL, false if it's a base URL
+	 */
+	private isFullEndpointUrl(url: string): boolean {
+		// Known patterns for major providers
+		const patterns = [
+			// Azure OpenAI: /deployments/{deployment-name}/embeddings
+			/\/deployments\/[^\/]+\/embeddings(\?|$)/,
+			// Direct endpoints: ends with /embeddings (before query params)
+			/\/embeddings(\?|$)/,
+			// Some providers use /embed instead of /embeddings
+			/\/embed(\?|$)/,
+		]
+
+		return patterns.some((pattern) => pattern.test(url))
+	}
+
+	/**
+	 * Makes a direct HTTP request to the embeddings endpoint
+	 * Used when the user provides a full endpoint URL (e.g., Azure OpenAI with query parameters)
+	 * @param url The full endpoint URL
+	 * @param batchTexts Array of texts to embed
+	 * @param model Model identifier to use
+	 * @returns Promise resolving to OpenAI-compatible response
+	 */
+	private async makeDirectEmbeddingRequest(
+		url: string,
+		batchTexts: string[],
+		model: string,
+	): Promise<OpenAIEmbeddingResponse> {
+		const response = await fetch(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				// Azure OpenAI uses 'api-key' header, while OpenAI uses 'Authorization'
+				// We'll try 'api-key' first for Azure compatibility
+				"api-key": this.apiKey,
+				Authorization: `Bearer ${this.apiKey}`,
+			},
+			body: JSON.stringify({
+				input: batchTexts,
+				model: model,
+				encoding_format: "base64",
+			}),
+		})
+
+		if (!response.ok) {
+			const errorText = await response.text()
+			const error = new Error(`HTTP ${response.status}: ${errorText}`) as HttpError
+			error.status = response.status
+			throw error
+		}
+
+		return await response.json()
+	}
+
+	/**
 	 * Helper method to handle batch embedding with retries and exponential backoff
 	 * @param batchTexts Array of texts to embed in this batch
 	 * @param model Model identifier to use
@@ -148,16 +221,27 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 		batchTexts: string[],
 		model: string,
 	): Promise<{ embeddings: number[][]; usage: { promptTokens: number; totalTokens: number } }> {
+		// Use cached value for performance
+		const isFullUrl = this.isFullUrl
+
 		for (let attempts = 0; attempts < MAX_RETRIES; attempts++) {
 			try {
-				const response = (await this.embeddingsClient.embeddings.create({
-					input: batchTexts,
-					model: model,
-					// OpenAI package (as of v4.78.1) has a parsing issue that truncates embedding dimensions to 256
-					// when processing numeric arrays, which breaks compatibility with models using larger dimensions.
-					// By requesting base64 encoding, we bypass the package's parser and handle decoding ourselves.
-					encoding_format: "base64",
-				})) as OpenAIEmbeddingResponse
+				let response: OpenAIEmbeddingResponse
+
+				if (isFullUrl) {
+					// Use direct HTTP request for full endpoint URLs
+					response = await this.makeDirectEmbeddingRequest(this.baseUrl, batchTexts, model)
+				} else {
+					// Use OpenAI SDK for base URLs
+					response = (await this.embeddingsClient.embeddings.create({
+						input: batchTexts,
+						model: model,
+						// OpenAI package (as of v4.78.1) has a parsing issue that truncates embedding dimensions to 256
+						// when processing numeric arrays, which breaks compatibility with models using larger dimensions.
+						// By requesting base64 encoding, we bypass the package's parser and handle decoding ourselves.
+						encoding_format: "base64",
+					})) as OpenAIEmbeddingResponse
+				}
 
 				// Convert base64 embeddings to float32 arrays
 				const processedEmbeddings = response.data.map((item: EmbeddingItem) => {
@@ -187,8 +271,9 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 						totalTokens: response.usage?.total_tokens || 0,
 					},
 				}
-			} catch (error: any) {
-				const isRateLimitError = error?.status === 429
+			} catch (error) {
+				const httpError = error as HttpError
+				const isRateLimitError = httpError?.status === 429
 				const hasMoreAttempts = attempts < MAX_RETRIES - 1
 
 				if (isRateLimitError && hasMoreAttempts) {
@@ -209,19 +294,19 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 
 				// Provide more context in the error message using robust error extraction
 				let errorMessage = t("embeddings:unknownError")
-				if (error?.message) {
-					errorMessage = error.message
+				if (httpError?.message) {
+					errorMessage = httpError.message
 				} else if (typeof error === "string") {
 					errorMessage = error
-				} else if (error && typeof error.toString === "function") {
+				} else if (error && typeof error === "object" && "toString" in error) {
 					try {
-						errorMessage = error.toString()
+						errorMessage = String(error)
 					} catch {
 						errorMessage = t("embeddings:unknownError")
 					}
 				}
 
-				const statusCode = error?.status || error?.response?.status
+				const statusCode = httpError?.status || httpError?.response?.status
 
 				if (statusCode === 401) {
 					throw new Error(t("embeddings:authenticationFailed"))
