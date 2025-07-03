@@ -169,22 +169,17 @@ export class Controller {
 		}
 
 		// Initialize PhaseTracker based on priority
-		let newTracker: PhaseTracker
-		try {
-			// Restore from checkpoint
-			const restoredTracker = await PhaseTracker.fromCheckpoint(this)
-			newTracker = restoredTracker || new PhaseTracker("", "", {}, this)
-		} catch (error) {
-			// Create new PhaseTracker
-			newTracker = new PhaseTracker("", "", {}, this)
-		}
+		const createTracker = () => new PhaseTracker("", "", {}, this)
 
-		if (newTracker?.isAllComplete()) {
-			// Create new PhaseTracker
-			newTracker = new PhaseTracker("", "", {}, this)
-		}
+		// Attempt to restore from checkpoint, return null if failed
+		const restored = await createTracker()
+			.fromCheckpoint()
+			.catch(() => null)
 
-		this.phaseTracker = newTracker
+		// Create a new one if there is no restored tracker or if all phases are already completed
+		const tracker = !restored || restored.isAllComplete() ? createTracker() : restored
+
+		this.phaseTracker = tracker
 
 		// isPhaseRoot is only true when it's a "truly new task"
 		// It's false when restoring from checkpoint (historyItem) or reusing an existing tracker

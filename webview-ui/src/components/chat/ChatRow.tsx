@@ -454,16 +454,6 @@ export const ChatRowContent = memo(
 							}}></span>,
 						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 					]
-				case "ask_question":
-					return [
-						<span
-							className="codicon codicon-question"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
-					]
 				default:
 					return [null, null]
 			}
@@ -1671,12 +1661,12 @@ export const ChatRowContent = memo(
 							</WithCopyButton>
 						)
 					}
-					case "ask_question":
+					case "ask_proceed":
 						return (
 							<>
 								<div style={headerStyle}>
 									<span
-										className="codicon codicon-new-file"
+										className="codicon codicon-debug-start"
 										style={{
 											color: normalColor,
 											marginBottom: "-1.5px",
@@ -1685,7 +1675,22 @@ export const ChatRowContent = memo(
 										Cline wants to start a new task:
 									</span>
 								</div>
-								<NewTaskPreview context={message.text || ""} />
+								<Markdown markdown={message.text || ""} />
+							</>
+						)
+					case "ask_check":
+						return (
+							<>
+								<div style={headerStyle}>
+									<span
+										className="codicon codicon-check"
+										style={{
+											color: normalColor,
+											marginBottom: "-1.5px",
+										}}></span>
+									<span style={{ color: normalColor, fontWeight: "bold" }}>Cline requires to check:</span>
+								</div>
+								<Markdown markdown={message.text || ""} />
 							</>
 						)
 					default:

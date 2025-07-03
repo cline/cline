@@ -75,7 +75,6 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	GlobalFileNames,
-	saveApiConversationHistory,
 } from "@core/storage/disk"
 import { getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -90,10 +89,13 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
-import { PhaseTracker, parsePlanFromOutput, parsePlanFromFixedFile, PhaseStatus } from "../planning/phase-tracker"
+// planning
+import { PhaseTracker, parsePlanFromOutput, parsePlanFromFixedFile } from "../planning/phase-tracker"
 import { buildPhasePrompt } from "../planning/build_prompt"
 import { PROMPTS } from "../planning/planning_prompt"
+import { saveParsedPlanAsMarkdown, getPlanMarkdownDiff } from "../planning/utils"
 import { Controller } from "../controller"
+// refinePrompt
 import { getAllExtensionState } from "../storage/state"
 import { refinePrompt } from "./prompt-refinement"
 
@@ -1002,12 +1004,8 @@ export class Task {
 			}
 		}
 
-		if (
-			this.taskState.isPhaseRoot &&
-			this.autoApprovalSettings.actions.usePromptRefinement &&
-			this.autoApprovalSettings.actions.usePhasePlanning
-		) {
-			const approved = await this.askUserApproval("ask_question", PROMPTS.PROCEED_TO_PLAN_MODE_ASK)
+		if (this.taskState.isPhaseRoot && this.autoApprovalSettings.actions.usePromptRefinement) {
+			const approved = await this.askUserApproval("ask_proceed", PROMPTS.PROCEED_TO_PLAN_MODE_ASK)
 			if (!approved) {
 				await this.say("text", "Proceed to Planning Phase aborted by user.")
 				return
@@ -1052,7 +1050,6 @@ export class Task {
 				await this.executePlanningPhase(userContent)
 				// await this.executePlanningPhase(phaseAwarePrompt)
 			}
-
 			// Execution Phase
 			await this.executeCurrentPhase()
 		} else {
@@ -1069,20 +1066,37 @@ export class Task {
 		}
 
 		// 고정된 plan.txt 파일에서 플랜 로드 (extension context 전달)
-		// const { projOverview, executionPlan, requirements, phases: planSteps } = await parsePlanFromFixedFile(this.context)
+		// const { projOverview, executionPlan, requirements, phases: planSteps } = await parsePlanFromFixedFile(this.context, this.sidebarController.phaseTracker.getBaseUri())
 		try {
+			const saveUri = this.sidebarController.phaseTracker.getBaseUri(this.sidebarController)
 			// TODO: PLANNING
-			const {
-				projOverview,
-				executionPlan,
-				requirements,
-				phases: planSteps,
-			} = await parsePlanFromOutput(firstAssistantMessage)
-			// const { projOverview, executionPlan, requirements, phases: planSteps } = await parsePlanFromOutput(userBlocks)
-			this.sidebarController.phaseTracker!.projOverview = projOverview
-			this.sidebarController.phaseTracker!.executionPlan = executionPlan
-			this.sidebarController.phaseTracker!.requirements = requirements
-			this.sidebarController.phaseTracker.addPhasesFromPlan(planSteps)
+			const { projOverview, executionPlan, requirements, phases: planSteps } = parsePlanFromOutput(firstAssistantMessage)
+			// const { projOverview, executionPlan, requirements, phases: planSteps } = parsePlanFromOutput(userBlocks)
+			const parsedPlan = { projOverview, executionPlan, requirements, phases: planSteps }
+			const { fileUri, snapshotUri } = await saveParsedPlanAsMarkdown(parsedPlan, saveUri, this.taskId).catch((error) => {
+				console.warn("[parsePlanFromOutput] Failed to save plan markdown file:", error)
+				return { fileUri: undefined, snapshotUri: undefined }
+			})
+
+			// Create custom message that includes the file path
+			const planCheckMessage = fileUri
+				? `${PROMPTS.CHECK_PLAN_ASK}\n\n📁 **File location:** \`${fileUri.fsPath}\``
+				: PROMPTS.CHECK_PLAN_ASK
+
+			const approved = await this.askUserApproval("ask_check", planCheckMessage)
+
+			let diffexisted = false
+			if (approved && fileUri && snapshotUri) {
+				diffexisted = await this.confirmPlanAndUpdate(fileUri, snapshotUri)
+			} else {
+				await this.say("text", "⚠️ **Could not confirm plan: Unable to create plan files.**")
+			}
+			if (!diffexisted) {
+				this.sidebarController.phaseTracker!.projOverview = projOverview
+				this.sidebarController.phaseTracker!.executionPlan = executionPlan
+				this.sidebarController.phaseTracker!.requirements = requirements
+				this.sidebarController.phaseTracker.addPhasesFromPlan(planSteps)
+			}
 
 			await this.say("text", `## 📝 Here is the proposed plan (Phase Plan):\n\n${executionPlan}`)
 		} catch (error) {
@@ -1107,7 +1121,7 @@ export class Task {
 			// 	)
 		}
 
-		const approved = await this.askUserApproval("ask_question", PROMPTS.PROCEED_WITH_PLAN_ASK)
+		const approved = await this.askUserApproval("ask_proceed", PROMPTS.PROCEED_WITH_PLAN_ASK)
 		if (!approved) {
 			await this.say("text", "Plan execution aborted by user.")
 			return
@@ -1163,6 +1177,61 @@ export class Task {
 			return false
 		} else {
 			await this.saveCheckpoint()
+			return true
+		}
+	}
+
+	async confirmPlanAndUpdate(planUri: vscode.Uri, snapshotUri: vscode.Uri): Promise<boolean> {
+		const diff = await getPlanMarkdownDiff(planUri, snapshotUri)
+		if (!diff) {
+			await this.say("text", "✅ **No changes detected – plan already confirmed.**")
+			// Even if no changes, we still want to lock the plan and remove snapshot
+		} else {
+			// Show diff to user (use dedicated panel/webview if needed)
+			await this.say("text", `### 🔍 Detected changes in *plan.md*\n\`\`\`diff\n${diff}\n\`\`\``)
+
+			// Re-parse plan.md → update tracker
+			const mdBuf = await vscode.workspace.fs.readFile(planUri)
+			const mdRaw = Buffer.from(mdBuf).toString("utf8")
+
+			const { projOverview, executionPlan, requirements, phases } = parsePlanFromOutput(mdRaw, true)
+
+			this.sidebarController.phaseTracker!.projOverview = projOverview
+			this.sidebarController.phaseTracker!.executionPlan = executionPlan
+			this.sidebarController.phaseTracker!.requirements = requirements
+			this.sidebarController.phaseTracker!.replacePhasesFromPlan(phases)
+
+			// Save checkpoint with updated plan
+			await this.sidebarController.phaseTracker!.saveCheckpoint()
+		}
+
+		// Lock the plan: make it read-only to prevent accidental modifications
+		try {
+			// Make file read-only by removing write permissions
+			// Note: VS Code's fs API doesn't directly support chmod, but we can try through Node.js
+			const fs = await import("fs")
+			const path = planUri.fsPath
+			// Set read-only permission (0o444 = read-only for owner, group, others)
+			await fs.promises.chmod(path, 0o444)
+			await this.say("text", "🔒 **Plan file locked (read-only) to prevent accidental modifications.**")
+		} catch (error) {
+			console.warn("[confirmPlanAndUpdate] Failed to set plan file as read-only:", error)
+			await this.say("text", "⚠️ **Warning: Could not lock plan file as read-only.**")
+		}
+
+		// Remove snapshot file as it's no longer needed
+		try {
+			await vscode.workspace.fs.delete(snapshotUri)
+			console.log("text", "🗑️ **Snapshot file removed - plan is now confirmed and locked.**")
+		} catch (error) {
+			console.warn("[confirmPlanAndUpdate] Failed to delete snapshot file:", error)
+			console.log("⚠️ **Warning: Could not remove snapshot file.**")
+		}
+
+		console.log("[confirmPlanAndUpdate] Successfully Plan confirmed, tracker updated, file locked, and snapshot removed.")
+		if (!diff) {
+			return false
+		} else {
 			return true
 		}
 	}

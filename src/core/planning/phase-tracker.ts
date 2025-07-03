@@ -1,7 +1,6 @@
-// src/core/assistant-message/phase-tracker.ts
-import { Controller } from "../controller"
-import { buildPhasePrompt } from "./build_prompt"
 import * as vscode from "vscode"
+import { Controller } from "../controller"
+import { extractTag, extractTagAsLines } from "./utils"
 
 export enum PhaseStatus {
 	Pending = "pending",
@@ -70,13 +69,6 @@ export interface ParsedPlan {
 	executionPlan: string
 	requirements: RequirementInventory
 	phases: Phase[]
-}
-
-function extractTag(tag: string, source: string): string {
-	//   <tag>   (including all spaces)   </tag>
-	const re = new RegExp(`<${tag}>\\s*([\\s\\S]*?)\\s*</${tag}>`, "i")
-	const match = source.match(re)
-	return match ? match[1].trim() : ""
 }
 
 export function parseProjectOverview(source: string): string {
@@ -153,6 +145,25 @@ function parseChecklist(tag: string, block: string): Subtask[] {
 	return subtasks
 }
 
+/** Filter out non-REQ items from subtasks (used for requirements validation) */
+function filterRequirementSubtasks(subtasks: Subtask[]): Subtask[] {
+	return filterSubtasksByPattern(subtasks, /^REQ-\d+:/i)
+}
+
+/** Generic function to filter subtasks based on a pattern */
+function filterSubtasksByPattern(subtasks: Subtask[], pattern: RegExp): Subtask[] {
+	const filtered = subtasks.filter((subtask) => {
+		const desc = subtask.description.trim()
+		return pattern.test(desc)
+	})
+
+	// Re-index the filtered items
+	return filtered.map((subtask, index) => ({
+		...subtask,
+		index: index + 1,
+	}))
+}
+
 function extractRequirement(source: string): string[] {
 	const re = new RegExp(`<related_input_requirements>\\s*([\\s\\S]*?)\\s*</related_input_requirements>`, "i")
 	const match = source.match(re)
@@ -167,6 +178,140 @@ function extractRequirement(source: string): string[] {
 	return relatedRequirements
 }
 
+export function parsePhaseByMD(raw: string): Phase[] {
+	// First, extract the Execution Phases section (with or without emoji)
+	const executionPhasesMatch = raw.match(/##\s*(?:📊\s*)?Execution\s*Phases([\s\S]*?)(?=##\s*(?:📝\s*)?Plan\s*Summary|$)/i)
+	if (!executionPhasesMatch) {
+		console.error("[parsePhaseByMD] Could not find 'Execution Phases' section")
+		return []
+	}
+
+	const executionPhasesContent = executionPhasesMatch[1]
+
+	// Split phases by ### Phase headers
+	const phaseSections = executionPhasesContent.split(/###\s*Phase\s+/gi).slice(1) // Remove empty first element
+	const phases: Phase[] = []
+
+	console.log("[parsePhaseByMD] Found phase sections:", phaseSections.length)
+
+	for (const section of phaseSections) {
+		// Extract phase number and title from the first line
+		const firstLine = section.split("\n")[0].trim()
+		const phaseMatch = firstLine.match(/^(\d+|FINAL|Complete\s+System\s+Integration):\s*(.+)$/i)
+
+		if (!phaseMatch) {
+			console.warn("[parsePhaseByMD] Could not parse phase header:", firstLine)
+			continue
+		}
+
+		const [, numberStr, title] = phaseMatch
+
+		// Extract sections using markdown pattern matching
+		const extractMDSection = (sectionName: string): string[] => {
+			const regex = new RegExp(`\\*\\*${sectionName}:\\*\\*\\s*([\\s\\S]*?)(?=\\*\\*[^:]+:\\*\\*|---|$)`, "i")
+			const match = section.match(regex)
+			if (!match) {
+				return []
+			}
+
+			return match[1]
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line && !line.startsWith("**"))
+				.map((line) => line.replace(/^-\s*/, "")) // Remove bullet points
+		}
+
+		const extractChecklistSection = (sectionName: string): Subtask[] => {
+			const regex = new RegExp(`\\*\\*${sectionName}:\\*\\*\\s*([\\s\\S]*?)(?=\\*\\*[^:]+:\\*\\*|---|$)`, "i")
+			const match = section.match(regex)
+			if (!match) {
+				return []
+			}
+
+			const items = match[1]
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line && (line.startsWith("☐") || line.startsWith("☑")))
+
+			return items.map((item, index) => ({
+				index: index + 1,
+				description: item.replace(/^[☐☑]\s*/, ""),
+				completed: item.startsWith("☑"),
+			}))
+		}
+
+		// Determine if this is a FINAL/integration phase
+		const isFinalPhase =
+			numberStr.toUpperCase() === "FINAL" ||
+			numberStr.toLowerCase().includes("complete") ||
+			title.toLowerCase().includes("integration")
+
+		// Initialize common fields
+		const phaseData: Partial<Phase> = {
+			title,
+			prerequisites: [],
+			relatedRequirements: [],
+			requirementCoverage: [],
+			coreObjectives: [],
+			functionalRequirements: [],
+			deliverables: [],
+			nonFunctionalRequirements: [],
+			completionCriteria: [],
+			handoffChecklist: [],
+			integrationObjectives: [],
+			integrationSteps: [],
+			originalRequirementsValidations: [],
+			systemWideTesting: [],
+			finalDeliverables: [],
+		}
+
+		// Extract execution order
+		const executionOrderMatch = section.match(/\*\*Execution Order\*\*:\s*(\d+)/i)
+		const exeOrderStr = executionOrderMatch ? executionOrderMatch[1] : undefined
+
+		// Extract prerequisites
+		phaseData.prerequisites = extractMDSection("Prerequisites")
+
+		// Extract data based on whether it's a FINAL phase or a regular phase
+		if (isFinalPhase) {
+			phaseData.integrationObjectives = extractMDSection("Integration Objectives")
+			phaseData.integrationSteps = extractMDSection("Integration Steps")
+			phaseData.originalRequirementsValidations = extractChecklistSection("Original Requirements Validations")
+			phaseData.systemWideTesting = extractMDSection("System-Wide Testing")
+			phaseData.finalDeliverables = extractChecklistSection("Final Deliverables")
+		} else {
+			phaseData.relatedRequirements = extractMDSection("Related Requirements")
+			phaseData.requirementCoverage = extractMDSection("Requirement Coverage")
+			phaseData.coreObjectives = extractMDSection("Core Objectives")
+			phaseData.functionalRequirements = extractMDSection("Functional Requirements")
+			phaseData.deliverables = extractMDSection("Deliverables")
+			phaseData.nonFunctionalRequirements = extractMDSection("Non-Functional Requirements")
+			phaseData.completionCriteria = extractChecklistSection("Completion Criteria")
+			phaseData.handoffChecklist = extractChecklistSection("Handoff Checklist")
+		}
+
+		// Index calculation
+		const phaseIdx =
+			numberStr && !isNaN(parseInt(numberStr, 10))
+				? parseInt(numberStr, 10)
+				: isFinalPhase
+					? phaseSections.length
+					: phases.length + 1
+
+		const exeOrderIdx = exeOrderStr ? parseInt(exeOrderStr, 10) : phaseIdx
+
+		// Create and add completed Phase object
+		phases.push({
+			...phaseData,
+			phaseIdx,
+			exeOrderIdx,
+		} as Phase)
+	}
+
+	// Sort by execution order
+	return phases.sort((a, b) => a.exeOrderIdx - b.exeOrderIdx)
+}
+
 export function parsePhase(raw: string): Phase[] {
 	const phaseBlocks = raw.match(/<subtask>([\s\S]*?)<\/subtask>/gi) ?? []
 	const phases: Phase[] = []
@@ -179,7 +324,7 @@ export function parsePhase(raw: string): Phase[] {
 		const exeOrderStr = extractTag("execution_order", block)
 		const prerequisites = extractTagAsLines("prerequisites", block)
 
-		// 공통 필드 초기화
+		// Initialize common fields
 		const phaseData: Partial<Phase> = {
 			title,
 			prerequisites,
@@ -198,11 +343,13 @@ export function parsePhase(raw: string): Phase[] {
 			finalDeliverables: [],
 		}
 
-		// FINAL 단계와 일반 단계에 따라 데이터 추출
+		// Extract data based on whether it's a FINAL phase or a regular phase
 		if (numberStr === "FINAL") {
 			phaseData.integrationObjectives = extractTagAsLines("integration_objectives", block, true)
 			phaseData.integrationSteps = extractTagAsLines("integration_steps", block, true)
-			phaseData.originalRequirementsValidations = parseChecklist("original_requirements_validation", block)
+			phaseData.originalRequirementsValidations = filterRequirementSubtasks(
+				parseChecklist("original_requirements_validation", block),
+			)
 			phaseData.systemWideTesting = extractTagAsLines("system_wide_testing", block, true)
 			phaseData.finalDeliverables = parseChecklist("final_deliverables", block)
 		} else {
@@ -237,11 +384,17 @@ export function parsePhase(raw: string): Phase[] {
 	return phases.sort((a, b) => a.exeOrderIdx - b.exeOrderIdx)
 }
 
-export function parsePlanFromOutput(raw: string): ParsedPlan {
+export function parsePlanFromOutput(raw: string, isMD: boolean = false): ParsedPlan {
 	const projOverview = parseProjectOverview(raw)
 	const executionPlan = parseExecutionPlan(raw)
 	const requirements = parseRequirement(raw)
-	const phases = parsePhase(raw)
+
+	let phases: Phase[]
+	if (isMD) {
+		phases = parsePhaseByMD(raw)
+	} else {
+		phases = parsePhase(raw)
+	}
 
 	console.log("[parsePlanFromOutput] Parsed phases count:", phases.length)
 
@@ -329,7 +482,10 @@ export function parsePlanFromOutput(raw: string): ParsedPlan {
 
 // 새로운 함수: plan.txt 파일에서 고정된 플랜 로드
 
-export async function parsePlanFromFixedFile(extensionContext: vscode.ExtensionContext): Promise<ParsedPlan> {
+export async function parsePlanFromFixedFile(
+	extensionContext: vscode.ExtensionContext,
+	controller: Controller,
+): Promise<ParsedPlan> {
 	console.log("[parsePlanFromFixedFile] Starting to load plan.txt file...")
 	console.log("[parsePlanFromFixedFile] Extension URI:", extensionContext.extensionUri.toString())
 
@@ -426,6 +582,33 @@ export class PhaseTracker {
 				endTime: undefined,
 			})
 		})
+		await this.saveCheckpoint()
+	}
+
+	// Called when updating/replacing phases from a modified plan
+	public async replacePhasesFromPlan(parsedPhases: Phase[]): Promise<void> {
+		// Keep only the initial Plan phase (index 0), remove all execution phases
+		const planPhase = this.phaseStates.find((ps) => ps.index === 0)
+		if (!planPhase) {
+			throw new Error("Plan phase not found - cannot replace phases")
+		}
+
+		// Reset to only contain the plan phase
+		this.phaseStates = [planPhase]
+		this.currentPhaseIndex = 0
+
+		// Add the new phases
+		parsedPhases.forEach((p) => {
+			this.phaseStates.push({
+				index: p.phaseIdx,
+				taskId: "",
+				phase: p,
+				status: PhaseStatus.Pending,
+				startTime: undefined,
+				endTime: undefined,
+			})
+		})
+
 		await this.saveCheckpoint()
 	}
 
@@ -532,19 +715,67 @@ export class PhaseTracker {
 		return this.projOverview
 	}
 
+	public getBaseUri(controller: Controller): vscode.Uri {
+		// Determine the base URI for storage (prefer workspace, fallback to globalStorage)
+		let baseUri: vscode.Uri
+		const ws = vscode.workspace.workspaceFolders
+		if (ws && ws.length > 0) {
+			// If workspace is open, create .cline directory under the first folder
+			baseUri = vscode.Uri.joinPath(ws[0].uri, ".cline")
+		} else {
+			// If no workspace is available, use the extension's globalStorageUri
+			// ("globalStorage" permission is required in package.json)
+			baseUri = vscode.Uri.joinPath(controller.context.globalStorageUri, ".cline")
+		}
+		return baseUri
+	}
+
+	public checkpointUri: vscode.Uri | undefined = undefined
+	get checkpointFileUri(): vscode.Uri {
+		// Get the base URI for storage
+		if (!this.checkpointUri) {
+			const baseUri = this.getBaseUri(this.controller)
+			// Return the full path to the checkpoint file
+			this.checkpointUri = vscode.Uri.joinPath(baseUri, "phase-checkpoint.json")
+			return this.checkpointUri
+		} else {
+			// If already set, return the existing URI
+			return this.checkpointUri
+		}
+	}
+
+	/** Restore tracker progress from .cline/phase-checkpoint.json if present */
+	public async fromCheckpoint(): Promise<PhaseTracker | undefined> {
+		try {
+			const checkpointUri = this.checkpointFileUri
+
+			// Read file
+			const data = await vscode.workspace.fs.readFile(checkpointUri)
+			const text = new TextDecoder().decode(data)
+			const checkpoint = JSON.parse(text)
+
+			// Restore PhaseTracker
+			const tracker = new PhaseTracker(
+				checkpoint.projOverview,
+				checkpoint.executionPlan,
+				checkpoint.requirement,
+				this.controller,
+			)
+			tracker.phaseStates = checkpoint.phaseStates
+			tracker.currentPhaseIndex = checkpoint.currentPhaseIndex
+			tracker.isRestored = true // Mark as restored
+			// Restored phase checkpoint
+			return tracker
+		} catch (err) {
+			// No phase checkpoint to restore or failed
+			return undefined
+		}
+	}
+
 	public async saveCheckpoint(): Promise<void> {
 		try {
 			// 1) Determine the base URI for saving
-			let baseUri: vscode.Uri
-			const ws = vscode.workspace.workspaceFolders
-			if (ws && ws.length > 0) {
-				// If workspace is open, create .cline directory under the first folder
-				baseUri = vscode.Uri.joinPath(ws[0].uri, ".cline")
-			} else {
-				// If no workspace is available, use the extension's globalStorageUri
-				// ("globalStorage" permission is required in package.json)
-				baseUri = vscode.Uri.joinPath(this.controller.context.globalStorageUri, ".cline")
-			}
+			const baseUri = this.getBaseUri(this.controller)
 
 			// 2) Create the .cline directory if it doesn't exist
 			try {
@@ -563,93 +794,14 @@ export class PhaseTracker {
 			}
 			const content = JSON.stringify(checkpointData, null, 2)
 
-			const checkpointUri = vscode.Uri.joinPath(baseUri, "phase-checkpoint.json")
+			// Simply use the getter which already computes the proper URI
+			const checkpointUri = this.checkpointFileUri
 			const tmpUri = vscode.Uri.joinPath(baseUri, "phase-checkpoint.json.tmp")
 			const encoder = new TextEncoder()
 			await vscode.workspace.fs.writeFile(tmpUri, encoder.encode(content))
 			await vscode.workspace.fs.rename(tmpUri, checkpointUri, { overwrite: true })
+
+			// Note: Plan markdown is saved during initial parsing, not during checkpoint saves
 		} catch (error) {}
 	}
-
-	/** Restore tracker progress from .cline/phase-checkpoint.json if present */
-	public static async fromCheckpoint(controller: Controller): Promise<PhaseTracker | undefined> {
-		try {
-			// 1) Determine the base URI for storage (prefer workspace, fallback to globalStorage)
-			let baseUri: vscode.Uri
-			const ws = vscode.workspace.workspaceFolders
-			if (ws && ws.length > 0) {
-				baseUri = vscode.Uri.joinPath(ws[0].uri, ".cline")
-			} else {
-				baseUri = vscode.Uri.joinPath(controller.context.globalStorageUri, ".cline")
-			}
-
-			// 2) Checkpoint file path
-			const checkpointUri = vscode.Uri.joinPath(baseUri, "phase-checkpoint.json")
-
-			// 3) Read file
-			const data = await vscode.workspace.fs.readFile(checkpointUri)
-			const text = new TextDecoder().decode(data)
-			const checkpoint = JSON.parse(text)
-
-			// 4) Restore PhaseTracker
-			const tracker = new PhaseTracker(
-				checkpoint.projOverview,
-				checkpoint.executionPlan,
-				checkpoint.requirement,
-				controller,
-			)
-			tracker.phaseStates = checkpoint.phaseStates
-			tracker.currentPhaseIndex = checkpoint.currentPhaseIndex
-			tracker.isRestored = true // Mark as restored
-			// Restored phase checkpoint
-			return tracker
-		} catch (err) {
-			// No phase checkpoint to restore or failed
-			return undefined
-		}
-	}
-}
-
-/**
- * Separates multi-line text into lines and returns them as a cleaned array.
- * - Removes empty lines.
- * - Trims whitespace from the beginning and end of each line.
- * - Optionally removes indentation or list markers (-, *, 1., etc.).
- */
-function splitAndCleanLines(text: string, removeListMarkers: boolean = false): string[] {
-	if (!text) {
-		return []
-	}
-
-	// Split into lines
-	const lines = text.split(/\r?\n/)
-	const result: string[] = []
-
-	for (let line of lines) {
-		line = line.trim()
-
-		if (!line) {
-			continue
-		}
-
-		// Remove list markers (optional)
-		if (removeListMarkers) {
-			// Numbered list (1., 2., etc.)
-			line = line.replace(/^\d+\.\s*/, "")
-			// Bullet list (-, *, • etc.)
-			line = line.replace(/^[-*•]\s*/, "")
-		}
-
-		result.push(line)
-	}
-
-	return result
-}
-
-/**
- * Extracts the content of a specific tag and returns it as an array of lines.
- */
-function extractTagAsLines(tag: string, source: string, removeListMarkers: boolean = false): string[] {
-	const content = extractTag(tag, source)
-	return splitAndCleanLines(content, removeListMarkers)
 }

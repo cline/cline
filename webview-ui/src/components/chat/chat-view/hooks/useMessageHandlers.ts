@@ -143,7 +143,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 					break
 				case "mistake_limit_reached":
-				case "ask_question":
+				case "ask_proceed":
+				case "ask_check":
 				case "auto_approval_max_req_reached":
 				case "command_output":
 					// For proceed buttons, if there's input content, send it as a proper user message

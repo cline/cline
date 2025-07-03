@@ -504,7 +504,44 @@ export const PROMPTS = {
     </execution_plan>
   </output_format>
 </ai_coding_agent>`,
-	MOVE_NEXT_PHASE_ASK: `Want to move to the next phase of the task?`,
-	PROCEED_WITH_PLAN_ASK: `Do you want to proceed with the plan?`,
-	PROCEED_TO_PLAN_MODE_ASK: `Do you want to proceed to plan mode?`,
+	MOVE_NEXT_PHASE_ASK: `### ➡️ Ready to Continue?
+
+The current phase has been completed successfully.
+
+**Would you like to move to the next phase of your project?**
+
+This will begin the next planned step in your development process.`,
+	CHECK_PLAN_ASK: `### 📋 Plan Generated Successfully
+
+Your project plan has been created and saved as a markdown file. 
+
+**What to do next:**
+1. 📖 **Review** the generated plan
+2. ✏️ **Edit** if any changes are needed  
+3. ✅ **Confirm** by clicking the button below to proceed
+
+*You can modify the plan file directly before confirming.*`,
+	PROCEED_WITH_PLAN_ASK: `### 🚀 Ready to Start Implementation?
+
+Your plan has been reviewed and confirmed. 
+
+**What happens next:**
+- ✅ **Phase-by-phase execution** will begin
+- 🔄 **Sequential development** following your plan  
+- 📊 **Progress tracking** through each phase
+
+Ready to start building your project?`,
+	PROCEED_TO_PLAN_MODE_ASK: `### 🎯 Would You Like to Use Planning Mode?
+
+Planning mode is available to help structure complex tasks more effectively.
+
+**If planning is currently disabled, enabling it will:**
+- 📋 **Break down** your task into clear, manageable phases
+- 🎯 **Organize** the development process systematically  
+- 📈 **Track progress** through each implementation step
+- ✅ **Give you control** to review and approve the plan before execution
+
+**Would you like me to enable planning mode for this specific task?**
+
+This will help ensure we tackle your request in the most organized and effective way possible.`,
 } as const
