@@ -27,6 +27,17 @@
   <codebase_exploration_guidelines>
     <principle>Always use `codebase_search` FIRST to understand the codebase structure and find all related files before using other tools like `read_file`.</principle>
     
+    <architectural_understanding>
+      <title>Critical: Understand Component Interactions</title>
+      <mandatory_steps>
+        <step>Map the complete data flow from input to output</step>
+        <step>Identify ALL paired operations (import/export, save/load, encode/decode)</step>
+        <step>Find all consumers and dependencies of the affected code</step>
+        <step>Trace how data transformations occur throughout the system</step>
+        <step>Understand error propagation and handling patterns</step>
+      </mandatory_steps>
+    </architectural_understanding>
+    
     <for_bug_fixes>
       <title>Investigation Checklist for Bug Fixes</title>
       <item>Search for the specific error message or broken functionality.</item>
@@ -34,6 +45,8 @@
       <item>Locate related test files to understand expected behavior.</item>
       <item>Identify all dependencies and import/export patterns for the affected code.</item>
       <item>Find similar, working patterns in the codebase to use as a reference.</item>
+      <item>**CRITICAL**: For any operation being fixed, find and analyze its paired operations</item>
+      <item>Trace the complete data flow to understand all affected components</item>
     </for_bug_fixes>
     
     <for_features>
@@ -42,10 +55,26 @@
       <item>Find potential integration points (e.g., API routes, UI component registries).</item>
       <item>Locate relevant configuration files that may need to be updated.</item>
       <item>Identify common patterns, components, and utilities that should be reused.</item>
+      <item>**CRITICAL**: Design paired operations together (e.g., both import AND export)</item>
+      <item>Map all data transformations and state changes</item>
+      <item>Identify all downstream consumers of the new functionality</item>
     </for_features>
 
+    <paired_operations_principle>
+      <title>Always Implement Paired Operations Together</title>
+      <examples>
+        <example>When fixing export, ALWAYS check and update import</example>
+        <example>When modifying save, ALWAYS verify load handles the changes</example>
+        <example>When changing serialization, ALWAYS update deserialization</example>
+        <example>When updating create, consider read/update/delete operations</example>
+      </examples>
+      <rationale>
+        Paired operations must maintain consistency. Changes to one without the other leads to data corruption, import failures, or broken functionality.
+      </rationale>
+    </paired_operations_principle>
+
     <critical_note>
-      Always read multiple related files together to understand the full context, including coding conventions, testing patterns, and error handling approaches.
+      Always read multiple related files together to understand the full context. Never assume a change is isolated - trace its impact through the entire system.
     </critical_note>
   </codebase_exploration_guidelines>
 </best_practices>

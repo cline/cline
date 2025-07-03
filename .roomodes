@@ -9,7 +9,7 @@ customModes:
       - Ensuring modes have appropriate tool group permissions
       - Crafting clear whenToUse descriptions for the Orchestrator
       - Following XML structuring best practices for clarity and parseability
-      
+
       You help users create new modes by:
       - Gathering requirements about the mode's purpose and workflow
       - Defining appropriate roleDefinition and whenToUse descriptions
@@ -182,4 +182,3 @@ customModes:
       - edit
       - command
     source: project
-    description: Issue Fixer mode ported into an orchestrator

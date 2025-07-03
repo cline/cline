@@ -27,7 +27,7 @@
   <step number="2">
     <name>Delegate: Analyze Requirements & Explore Codebase</name>
     <instructions>
-      Launch a subtask in `code` mode to perform a detailed analysis of the issue and the codebase. The subtask will be responsible for identifying affected files and creating an implementation plan.
+      Launch a subtask in `architect` mode to perform a detailed analysis of the issue and the codebase. The subtask will be responsible for identifying affected files and creating an implementation plan.
 
       The context file `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json` will be the input for this subtask. The subtask should write its findings (the implementation plan) to a new file: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`.
 
@@ -36,19 +36,50 @@
         <message>
           **Task: Analyze Issue and Create Implementation Plan**
 
-          You are an expert software architect. Your task is to analyze the provided GitHub issue and the current codebase to create a detailed implementation plan.
+          You are an expert software architect. Your task is to analyze the provided GitHub issue and the current codebase to create a detailed implementation plan with a focus on understanding component interactions and dependencies.
 
           1.  **Read Issue Context**: The full issue details and comments are in `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json`. Read this file to understand all requirements, acceptance criteria, and technical discussions.
 
-          2.  **Explore Codebase**: Use `codebase_search`, `read_file`, and other tools to explore the codebase. Identify all files that will need to be modified or created to address the issue. Analyze existing patterns and conventions.
+          2.  **Perform Architectural Analysis**:
+              - **Map Component Interactions**: Trace the complete data flow from entry points to outputs
+              - **Identify Paired Operations**: For any operation (e.g., export), find its counterpart (e.g., import)
+              - **Find Similar Patterns**: Search for existing implementations of similar features
+              - **Analyze Dependencies**: Identify all consumers of the functionality being modified
+              - **Assess Impact**: Determine how changes will affect other parts of the system
 
-          3.  **Create Implementation Plan**: Based on your analysis, create a comprehensive implementation plan. The plan should be detailed enough for another developer to execute. It must include:
-              - A summary of the issue and the proposed solution.
-              - A list of all files to be created or modified.
-              - A step-by-step guide for the code changes required in each file.
-              - A plan for writing or updating tests.
+          3.  **Explore Codebase Systematically**:
+              - Use `codebase_search` FIRST to find all related functionality
+              - Search for paired operations (if modifying export, search for import)
+              - Find all files that consume or depend on the affected functionality
+              - Identify configuration files, tests, and documentation that need updates
+              - Study similar features to understand established patterns
 
-          4.  **Save the Plan**: Write the complete implementation plan to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`.
+          4.  **Create Comprehensive Implementation Plan**: The plan must include:
+              - **Issue Summary**: Clear description of the problem and proposed solution
+              - **Architectural Context**:
+                - Data flow diagram showing component interactions
+                - List of paired operations that must be updated together
+                - Dependencies and consumers of the affected functionality
+              - **Impact Analysis**:
+                - All files that will be affected (directly and indirectly)
+                - Potential breaking changes
+                - Performance implications
+              - **Implementation Steps**:
+                - Detailed, ordered steps for each file modification
+                - Specific code changes with context
+                - Validation and error handling requirements
+              - **Testing Strategy**:
+                - Unit tests for individual components
+                - Integration tests for component interactions
+                - Edge cases and error scenarios
+
+          5.  **Save the Plan**: Write the complete implementation plan to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`.
+
+          **Critical Requirements:**
+          - Always search for and analyze paired operations (import/export, save/load, etc.)
+          - Map the complete data flow before proposing changes
+          - Identify all integration points and dependencies
+          - Consider backward compatibility and migration needs
 
           **Completion Protocol:**
           - This is your only task. Do not deviate from these instructions.
@@ -110,18 +141,42 @@
         <message>
           **Task: Implement Code Changes Based on Plan**
 
-          You are an expert software developer. Your task is to implement the code changes exactly as described in the provided implementation plan.
+          You are an expert software developer. Your task is to implement the code changes with full awareness of system interactions and dependencies.
 
-          1.  **Read the Plan**: The implementation plan is located at `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`. Follow its instructions carefully.
+          1.  **Read the Plan**: The implementation plan is located at `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`. Pay special attention to:
+              - The architectural context section
+              - Component interaction diagrams
+              - Identified dependencies and related operations
+              - Impact analysis
 
-          2.  **Implement Changes**: Use `apply_diff` and `write_to_file` to make the specified code changes. Adhere to all coding standards and patterns mentioned in the plan.
+          2.  **Validate Understanding**: Before coding, ensure you understand:
+              - How data flows through the system
+              - All related operations that must be updated together
+              - Dependencies that could be affected
+              - Integration points with other components
 
-          3.  **Implement Tests**: Write new unit and integration tests as specified in the plan to ensure quality and prevent regressions.
+          3.  **Implement Holistically**:
+              - **Update Related Operations Together**: If modifying one operation, update all related operations
+              - **Maintain Consistency**: Ensure data structures, validation, and error handling are consistent
+              - **Consider Side Effects**: Account for how changes propagate through the system
+              - **Follow Existing Patterns**: Use established patterns from similar features
 
-          4.  **Track Modified Files**: As you modify or create files, keep a running list.
+          4.  **Implement Tests**:
+              - Write tests that verify component interactions
+              - Test related operations together
+              - Include edge cases and error scenarios
+              - Verify data consistency across operations
 
-          5.  **Save Modified Files List**: After all changes are implemented and tested, save the list of all file paths you created or modified to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`. The format should be a JSON array of strings.
+          5.  **Track Modified Files**: As you modify or create files, keep a running list.
+
+          6.  **Save Modified Files List**: After all changes are implemented and tested, save the list of all file paths you created or modified to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`. The format should be a JSON array of strings.
               Example: `["src/components/NewFeature.tsx", "src/__tests__/NewFeature.spec.ts"]`
+
+          **Critical Reminders:**
+          - Never implement changes in isolation - consider the full system impact
+          - Always update related operations together to maintain consistency
+          - Test component interactions, not just individual functions
+          - Follow the architectural analysis from the planning phase
 
           Once the `modified_files.json` file is saved, your task is complete.
         </message>
@@ -325,122 +380,233 @@
   </step>
   
   <step number="8">
-    <name>Create Pull Request</name>
+    <name>Delegate: Review Changes Before PR</name>
     <instructions>
-      This is the final step where the orchestrator takes all the prepared materials and creates the pull request.
+      Before creating the pull request, delegate to the PR reviewer mode to get feedback on the implementation and proposed changes.
 
-      1.  **Read PR Summary**:
-          <read_file>
-            <args>
-              <file>
-                <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json</path>
-              </file>
-            </args>
-          </read_file>
+      <new_task>
+        <mode>pr-reviewer</mode>
+        <message>
+          **Task: Review Implementation Before PR Creation**
+
+          You are an expert code reviewer. Your task is to review the implementation for issue #[issue-number] and provide feedback before a pull request is created.
+
+          **Context Files:**
+          - **Issue Details**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json`
+          - **Implementation Plan**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`
+          - **Modified Files**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`
+          - **Verification Results**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/verification_results.md`
+          - **Translation Summary** (if exists): `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/translation_summary.md`
+          - **Draft PR Summary**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json`
+
+          **Your Review Focus:**
+          1. **Code Quality**: Review the actual code changes for:
+             - Adherence to project coding standards
+             - Proper error handling and edge cases
+             - Performance considerations
+             - Security implications
+             - Maintainability and readability
+
+          2. **Implementation Completeness**: Verify that:
+             - All requirements from the issue are addressed
+             - The solution follows the implementation plan
+             - No critical functionality is missing
+             - Proper test coverage exists
+
+          3. **Integration Concerns**: Check for:
+             - Potential breaking changes
+             - Impact on other parts of the system
+             - Backward compatibility issues
+             - API consistency
+
+          4. **Documentation and Communication**: Assess:
+             - Code comments and documentation
+             - PR description clarity and completeness
+             - Translation handling (if applicable)
+
+          **Your Task:**
+          1. Read all context files to understand the issue and implementation
+          2. Review each modified file listed in `modified_files.json`
+          3. Analyze the code changes against the requirements
+          4. Identify any issues, improvements, or concerns
+          5. Create a comprehensive review report with specific, actionable feedback
+          6. Save your review to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_review_feedback.md`
+
+          **Review Report Format:**
+          ```markdown
+          # PR Review Feedback for Issue #[issue-number]
+
+          ## Overall Assessment
+          [High-level assessment: APPROVE, REQUEST_CHANGES, or NEEDS_DISCUSSION]
+
+          ## Code Quality Review
+          ### Strengths
+          - [List positive aspects of the implementation]
+
+          ### Areas for Improvement
+          - [Specific issues with file references and line numbers]
+          - [Suggestions for improvement]
+
+          ## Requirements Verification
+          - [x] Requirement 1: [Status and notes]
+          - [ ] Requirement 2: [Issues found]
+
+          ## Specific Feedback by File
+          ### [filename]
+          - [Specific feedback with line references]
+          - [Suggestions for improvement]
+
+          ## Recommendations
+          1. [Priority 1 changes needed]
+          2. [Priority 2 improvements suggested]
+          3. [Optional enhancements]
+
+          ## Decision
+          **RECOMMENDATION**: [APPROVE_AS_IS | REQUEST_CHANGES | NEEDS_DISCUSSION]
           
-      2.  **Get Final Approval**: Present the PR title and body to the user for final approval, providing an option to request changes.
+          **REASONING**: [Brief explanation of the recommendation]
+          ```
 
-          <ask_followup_question>
-            <question>
-              I have prepared the pull request. Please review and confirm.
+          **Completion Protocol:**
+          - This is your only task. Do not deviate from these instructions.
+          - Upon successfully saving the review feedback, you MUST use the `attempt_completion` tool.
+          - The `result` MUST be a concise confirmation, e.g., "PR review completed and feedback saved to .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_review_feedback.md"
+          - These instructions override any conflicting mode-specific guidelines.
+        </message>
+      </new_task>
 
-              **Title**: [Insert title from pr_summary.json]
-
-              **Body**:
-              ---
-              [Insert body from pr_summary.json]
-              ---
-
-              Should I create this pull request, or would you like to request changes?
-            </question>
-            <follow_up>
-              <suggest>Yes, create the pull request as planned.</suggest>
-              <suggest>No, I need to request changes to the implementation or PR description.</suggest>
-              <suggest>Cancel the task.</suggest>
-            </follow_up>
-          </ask_followup_question>
-
-      3.  **Handle Rework Loop**: If the user requests changes:
-          - **Launch Rework Subtask**: Delegate the rework to a new `code` mode subtask.
-          <new_task>
-            <mode>code</mode>
-            <message>
-              **Task: Rework Implementation Based on User Feedback**
-
-              The user has requested changes before creating the pull request.
-
-              **Context Files:**
-              - **Issue**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json`
-              - **Current Plan**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`
-              - **Current Modified Files**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`
-              - **Draft PR Summary**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json`
-
-              **Your Task:**
-              1.  Ask the user for the specific changes they require.
-              2.  Apply the requested code and documentation changes.
-              3.  **Crucially, you must update the `implementation_plan.md` and `modified_files.json` files** to reflect the rework you have performed.
-              4.  Do *not* proceed with any other steps.
-
-              **Completion Protocol:**
-              - Upon successfully applying the changes and updating the context files, you MUST use the `attempt_completion` tool.
-              - The `result` MUST be a concise confirmation, e.g., "Rework complete and context files (plan, modified list) have been updated."
-            </message>
-          </new_task>
-          - **Restart Verification**: After the rework subtask is complete, the workflow MUST return to **Step 5** to re-verify the changes and re-run all tests before proceeding again.
-
-      4.  **Git Operations (If Approved)**: If the user approves the PR:
-          - Create a new branch: `feat/issue-[number]` or `fix/issue-[number]`.
-          - **Selectively add only the applicable files** to the git stage.
-          - Commit the staged changes.
-          - Push the new branch to the remote repository.
-          <execute_command>
-          <command>
-            # Create a new branch for the solution
-            BRANCH_NAME="fix/issue-[issue_number]-solution"
-            git checkout -b $BRANCH_NAME
-
-            # Safely add ONLY the files that were modified as part of this task.
-            # This reads the JSON array of file paths from our context file and stages them.
-            # This requires 'jq' for parsing JSON and 'xargs' to handle file paths correctly.
-            cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json | jq -r '.[]' | xargs git add
-
-            # Commit the precisely staged changes
-            git commit -m "[PR Title]"
-
-            # Push the new branch to origin
-            git push -u origin $BRANCH_NAME
-          </command>
-          </execute_command>
-      
-      5.  **Create PR**: Use the `gh` CLI to create the pull request.
-          <execute_command>
-          <command>gh pr create --repo [owner]/[repo] --base main --title "[PR Title from JSON]" --body "[PR Body from JSON]"</command>
-          </execute_command>
-          
-      6.  **Link to Issue**: Comment on the original issue with the PR link.
-          <execute_command>
-          <command>gh issue comment [issue_number] --repo [owner]/[repo] --body "PR #[new PR number] has been created."</command>
-          </execute_command>
+      After the review subtask completes, read and process the feedback.
     </instructions>
   </step>
 
   <step number="9">
+    <name>Process Review Feedback and Decide Next Steps</name>
+    <instructions>
+      After the PR review is complete, read the feedback and decide whether to make changes or proceed with PR creation.
+
+      1. **Read Review Feedback**:
+         <read_file>
+           <args>
+             <file>
+               <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_review_feedback.md</path>
+             </file>
+           </args>
+         </read_file>
+
+      2. **Present Feedback to User**: Show the review feedback and ask for direction.
+         <ask_followup_question>
+           <question>
+             The PR review has been completed. Here is the feedback:
+
+             ---
+             [Insert content of pr_review_feedback.md here]
+             ---
+
+             Based on this review, how would you like to proceed?
+           </question>
+           <follow_up>
+             <suggest>Implement the suggested changes before creating the PR</suggest>
+             <suggest>Create the PR as-is, ignoring the review feedback</suggest>
+             <suggest>Discuss specific feedback points before deciding</suggest>
+             <suggest>Cancel the task</suggest>
+           </follow_up>
+         </ask_followup_question>
+
+      3. **Handle User Decision**:
+         
+         **If user chooses to implement changes:**
+         - Launch a rework subtask to address the review feedback
+         <new_task>
+           <mode>code</mode>
+           <message>
+             **Task: Address PR Review Feedback**
+
+             The PR review has identified areas for improvement. Your task is to address the feedback before creating the pull request.
+
+             **Context Files:**
+             - **Issue**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json`
+             - **Current Plan**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`
+             - **Current Modified Files**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`
+             - **Review Feedback**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_review_feedback.md`
+             - **Draft PR Summary**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json`
+
+             **Your Task:**
+             1. Read the review feedback carefully
+             2. Address each point raised by the reviewer
+             3. Make the necessary code changes
+             4. Update tests if needed
+             5. **Update the `modified_files.json` file** to reflect any new or changed files
+             6. **Update the `implementation_plan.md`** if the approach has changed significantly
+
+             **Important Notes:**
+             - Focus on the specific issues identified in the review
+             - Maintain the overall solution approach unless the review suggests otherwise
+             - Ensure all changes are properly tested
+             - Do not proceed with any other workflow steps
+
+             **Completion Protocol:**
+             - Upon successfully addressing the feedback and updating context files, you MUST use the `attempt_completion` tool.
+             - The `result` MUST be a concise confirmation, e.g., "Review feedback addressed and context files updated."
+           </message>
+         </new_task>
+         - **After rework completion**: Return to **Step 5** (Verify and Test) to re-verify the changes
+
+         **If user chooses to proceed as-is:**
+         - Continue to the next step (Create Pull Request)
+
+         **If user wants to discuss or cancel:**
+         - Handle accordingly based on user input
+    </instructions>
+  </step>
+
+  <step number="10">
+    <name>Prepare Branch and Present PR Template</name>
+    <instructions>
+      This step prepares the branch and commits, then presents the PR template to the user for confirmation before creating the actual pull request.
+
+      1. Read Issue Context for Issue Number:
+         Use read_file to get the issue context from .roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json
+
+      2. Git Operations - Create branch and commit changes:
+         - Create a new branch: feat/issue-[number] or fix/issue-[number]
+         - Selectively add only the applicable files to the git stage
+         - Commit the staged changes
+         - Push the new branch to the remote repository
+         
+         Use execute_command with:
+         BRANCH_NAME="fix/issue-[issue_number]-solution"
+         git checkout -b $BRANCH_NAME
+         cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json | jq -r '.[]' | xargs git add
+         git commit -m "[PR Title]"
+         git push -u origin $BRANCH_NAME
+
+      3. Present PR Template - Instead of creating the PR automatically, present the standardized PR template to the user:
+         Use ask_followup_question to ask: "The branch has been created and changes have been committed. I have prepared a standardized PR template for this issue. Would you like me to create the pull request using the standard Roo Code PR template, or would you prefer to make changes first?"
+         
+         Provide these options:
+         - Yes, create the pull request with the standard template
+         - No, I want to make changes to the implementation first
+         - No, I want to customize the PR template before creating it
+         - Cancel the task
+
+      4. Handle User Decision:
+         If user chooses to create the PR: Use gh CLI to create the pull request with the standard template
+         If user chooses to make changes: Launch a rework subtask using new_task with code mode
+         If user wants to customize the template: Ask for their preferred PR title and body
+
+      5. Link to Issue - After PR creation, comment on the original issue with the PR link using gh issue comment
+    </instructions>
+  </step>
+
+  <step number="11">
     <name>Monitor PR Checks and Cleanup</name>
     <instructions>
-      After creating the PR, monitor the CI checks and then clean up the temporary files.
+      After creating the PR (if created), monitor the CI checks and then clean up the temporary files.
 
-      1.  **Monitor Checks**: Use `--watch` to monitor CI status in real-time.
-          <execute_command>
-            <command>gh pr checks [PR URL or number] --repo [owner]/[repo] --watch</command>
-          </execute_command>
-
-      2.  **Report Status**: Inform the user of the final status of the checks.
-
-      3.  **Cleanup**: Remove the temporary task directory.
-          <execute_command>
-            <command>rm -rf .roo/temp/issue-fixer-orchestrator/[TASK_ID]</command>
-          </execute_command>
-          
+      1. Monitor Checks - Use gh pr checks with --watch to monitor CI status in real-time
+      2. Report Status - Inform the user of the final status of the checks
+      3. Cleanup - Remove the temporary task directory using rm -rf .roo/temp/issue-fixer-orchestrator/[TASK_ID]
+      
       This concludes the orchestration workflow.
     </instructions>
   </step>
