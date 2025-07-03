@@ -1,15 +1,15 @@
-import { ApiConfiguration, nebiusModels } from "@shared/api"
+import { nebiusModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the NebiusProvider component
  */
 interface NebiusProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,15 +17,18 @@ interface NebiusProviderProps {
 /**
  * The Nebius AI Studio provider configuration component
  */
-export const NebiusProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: NebiusProviderProps) => {
+export const NebiusProvider = ({ showModelOptions, isPopup }: NebiusProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.nebiusApiKey || ""}
-				onChange={handleInputChange("nebiusApiKey")}
+				initialValue={apiConfiguration?.nebiusApiKey || ""}
+				onChange={(value) => handleFieldChange("nebiusApiKey", value)}
 				providerName="Nebius"
 				signupUrl="https://studio.nebius.com/settings/api-keys"
 				helpText="This key is stored locally and only used to make API requests from this extension. (Note: Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected.)"
@@ -36,7 +39,7 @@ export const NebiusProvider = ({ apiConfiguration, handleInputChange, showModelO
 					<ModelSelector
 						models={nebiusModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

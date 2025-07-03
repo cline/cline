@@ -3,24 +3,17 @@ import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
 import { StateServiceClient } from "../../../services/grpc-client"
-import { Int64, Int64Request } from "@shared/proto/common"
+import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
 import Section from "../Section"
+import { updateSetting } from "../utils/settingsHandlers"
 
 interface TerminalSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
 export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ renderSectionHeader }) => {
-	const {
-		shellIntegrationTimeout,
-		setShellIntegrationTimeout,
-		terminalReuseEnabled,
-		setTerminalReuseEnabled,
-		defaultTerminalProfile,
-		setDefaultTerminalProfile,
-		availableTerminalProfiles,
-		platform,
-	} = useExtensionState()
+	const { shellIntegrationTimeout, terminalReuseEnabled, defaultTerminalProfile, availableTerminalProfiles } =
+		useExtensionState()
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
@@ -40,13 +33,12 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 		setInputError(null)
 		const timeout = Math.round(seconds * 1000)
 
-		setShellIntegrationTimeout(timeout)
-
 		StateServiceClient.updateTerminalConnectionTimeout({
 			value: timeout,
 		} as Int64Request)
 			.then((response: Int64) => {
-				setShellIntegrationTimeout(response.value)
+				// Backend calls postStateToWebview(), so state will update via subscription
+				// Just sync the input value with the confirmed backend value
 				setInputValue((response.value / 1000).toString())
 			})
 			.catch((error) => {
@@ -64,18 +56,20 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 	const handleTerminalReuseChange = (event: Event) => {
 		const target = event.target as HTMLInputElement
 		const checked = target.checked
-		setTerminalReuseEnabled(checked)
-		StateServiceClient.updateTerminalReuseEnabled({ value: checked } as any).catch((error) => {
-			console.error("Failed to update terminal reuse enabled:", error)
-		})
+		updateSetting("terminalReuseEnabled", checked)
 	}
 
 	// Use any to avoid type conflicts between Event and FormEvent
 	const handleDefaultTerminalProfileChange = (event: any) => {
 		const target = event.target as HTMLSelectElement
 		const profileId = target.value
-		// Only update the local state, let the Save button handle the backend update
-		setDefaultTerminalProfile(profileId)
+
+		// Save immediately - the backend will call postStateToWebview() to update our state
+		StateServiceClient.updateDefaultTerminalProfile({
+			value: profileId || "default",
+		} as StringRequest).catch((error) => {
+			console.error("Failed to update default terminal profile:", error)
+		})
 	}
 
 	const profilesToShow = availableTerminalProfiles

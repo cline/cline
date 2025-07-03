@@ -1,4 +1,3 @@
-import { ApiConfiguration } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/common"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
@@ -6,14 +5,13 @@ import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import * as vscodemodels from "vscode"
 import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
-interface VSCodeLmProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
-}
-
-export const VSCodeLmProvider = ({ apiConfiguration, handleInputChange }: VSCodeLmProviderProps) => {
+export const VSCodeLmProvider = () => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Poll VS Code LM models
 	const requestVsCodeLmModels = useCallback(async () => {
@@ -54,11 +52,8 @@ export const VSCodeLmProvider = ({ apiConfiguration, handleInputChange }: VSCode
 								return
 							}
 							const [vendor, family] = value.split("/")
-							handleInputChange("vsCodeLmModelSelector")({
-								target: {
-									value: { vendor, family },
-								},
-							})
+
+							handleFieldChange("vsCodeLmModelSelector", { vendor, family })
 						}}
 						style={{ width: "100%" }}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>
