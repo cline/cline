@@ -536,8 +536,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
 	await updateGlobalState(context, "fireworksModelMaxTokens", fireworksModelMaxTokens)
-	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
-	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "sapAiCoreBaseUrl", sapAiCoreBaseUrl)
 	await updateGlobalState(context, "sapAiCoreTokenUrl", sapAiCoreTokenUrl)
 	await updateGlobalState(context, "sapAiResourceGroup", sapAiResourceGroup)
