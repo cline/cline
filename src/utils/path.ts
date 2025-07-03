@@ -1,8 +1,7 @@
-import * as path from "path"
-import os from "os"
-import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { A } from "ollama/dist/shared/ollama.e009de91.mjs"
+import os from "os"
+import * as path from "path"
+import * as vscode from "vscode"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
