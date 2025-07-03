@@ -49,7 +49,7 @@ import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
 import { ensureTaskDirectoryExists } from "../storage/disk"
-import { getWorkspaceState } from "../storage/state"
+import { getGlobalState, getWorkspaceState } from "../storage/state"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
@@ -1917,7 +1917,7 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const providerAndModel = `${(await getWorkspaceState(this.context, "apiProvider")) as string} / ${this.api.getModel().id}`
+						const providerAndModel = `${await getGlobalState(this.context, "apiProvider")} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation
 						const bugReportData = JSON.stringify({

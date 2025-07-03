@@ -23,7 +23,7 @@ import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import {
-	migratePlanActGlobalToWorkspaceStorage,
+	migrateWorkspaceToGlobalStorage,
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
@@ -60,9 +60,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	maybeSetupHostProviders(context)
 
-	// Migrate global storage values to workspace storage (one-time cleanup)
-	await migratePlanActGlobalToWorkspaceStorage(context)
-
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
 
@@ -71,6 +68,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
 	await migrateWelcomeViewCompleted(context)
+
+	// Migrate workspace storage values back to global storage (reverting previous migration)
+	await migrateWorkspaceToGlobalStorage(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)

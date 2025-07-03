@@ -2,11 +2,11 @@ import * as vscode from "vscode"
 import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState, getAllExtensionState } from "./state"
+import { updateGlobalState, getAllExtensionState, getGlobalState } from "./state"
 import { GlobalStateKey } from "./state-keys"
 
-export async function migratePlanActGlobalToWorkspaceStorage(context: vscode.ExtensionContext) {
-	// Keys that were migrated from global storage to workspace storage
+export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
+	// Keys to migrate from workspace storage back to global storage
 	const keysToMigrate = [
 		// Core settings
 		"apiProvider",
@@ -31,6 +31,7 @@ export async function migratePlanActGlobalToWorkspaceStorage(context: vscode.Ext
 		"requestyModelInfo",
 		"togetherModelId",
 		"fireworksModelId",
+		"sapAiCoreModelId",
 
 		// Previous mode settings
 		"previousModeApiProvider",
@@ -41,17 +42,24 @@ export async function migratePlanActGlobalToWorkspaceStorage(context: vscode.Ext
 		"previousModeReasoningEffort",
 		"previousModeAwsBedrockCustomSelected",
 		"previousModeAwsBedrockCustomModelBaseId",
+		"previousModeSapAiCoreModelId",
 	]
 
 	for (const key of keysToMigrate) {
-		const globalValue = await getGlobalState(context, key as GlobalStateKey)
-		if (globalValue !== undefined) {
-			const workspaceValue = await getWorkspaceState(context, key)
-			if (workspaceValue === undefined) {
-				await updateWorkspaceState(context, key, globalValue)
-			}
-			// Delete from global storage regardless of whether we copied it
-			await updateGlobalState(context, key as GlobalStateKey, undefined)
+		// Use raw workspace state since these keys shouldn't be in workspace storage
+		const workspaceValue = await context.workspaceState.get(key)
+		const globalValue = await context.globalState.get(key)
+
+		if (workspaceValue !== undefined && globalValue === undefined) {
+			console.log(`[Storage Migration] migrating key: ${key} to global storage. Current value: ${workspaceValue}`)
+
+			// Move to global storage
+			await updateGlobalState(context, key as GlobalStateKey, workspaceValue)
+			// Remove from workspace storage
+			await context.workspaceState.update(key, undefined)
+			const newWorkspaceValue = await context.workspaceState.get(key)
+
+			console.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
 		}
 	}
 }
@@ -126,22 +134,37 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 
 export async function migrateModeFromWorkspaceStorageToControllerState(context: vscode.ExtensionContext) {
 	try {
-		// Get current chatSettings from workspace storage
-		const chatSettings = (await getWorkspaceState(context, "chatSettings")) as any
+		// Check legacy workspace storage (use raw methods since chatSettings is now global)
+		const workspaceChatSettings = (await context.workspaceState.get("chatSettings")) as any
 
-		if (chatSettings && typeof chatSettings === "object" && "mode" in chatSettings) {
-			console.log("Cleaning up mode from workspace storage...")
+		if (workspaceChatSettings && typeof workspaceChatSettings === "object" && "mode" in workspaceChatSettings) {
+			console.log("Cleaning up mode from legacy workspace storage...")
 
 			// Remove mode property from chatSettings
-			const { mode, ...cleanedChatSettings } = chatSettings
+			const { mode, ...cleanedChatSettings } = workspaceChatSettings
 
-			// Save cleaned chatSettings back to workspace storage
-			await updateWorkspaceState(context, "chatSettings", cleanedChatSettings)
+			// Save cleaned chatSettings back to workspace storage (will be migrated later)
+			await context.workspaceState.update("chatSettings", cleanedChatSettings)
 
-			console.log("Successfully removed mode from workspace storage chatSettings")
+			console.log("Successfully removed mode from legacy workspace storage chatSettings")
+		}
+
+		// Also check global storage for any mode cleanup needed
+		const globalChatSettings = (await context.globalState.get("chatSettings")) as any
+
+		if (globalChatSettings && typeof globalChatSettings === "object" && "mode" in globalChatSettings) {
+			console.log("Cleaning up mode from global storage...")
+
+			// Remove mode property from chatSettings
+			const { mode, ...cleanedChatSettings } = globalChatSettings
+
+			// Save cleaned chatSettings back to global storage
+			await updateGlobalState(context, "chatSettings", cleanedChatSettings)
+
+			console.log("Successfully removed mode from global storage chatSettings")
 		}
 	} catch (error) {
-		console.error("Failed to cleanup mode from workspace storage:", error)
+		console.error("Failed to cleanup mode from storage:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
