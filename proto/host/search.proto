@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Provides methods for file searching functionality
+service SearchService {
+  // Performs regex search on files using the host's search implementation
+  rpc regexSearchFiles(RegexSearchRequest) returns (cline.String);
+  
+  // Searches workspace files with fuzzy matching
+  rpc searchWorkspaceFiles(WorkspaceSearchRequest) returns (WorkspaceSearchResponse);
+  
+  // Gets the path to the search binary (for RipGrep-based implementations)
+  rpc getBinPath(cline.String) returns (cline.String);
+}
+
+message RegexSearchRequest {
+  string cwd = 1;
+  string directory_path = 2;
+  string regex = 3;
+  optional string file_pattern = 4;
+  repeated string ignore_patterns = 5; // For ClineIgnore support
+}
+
+message WorkspaceSearchRequest {
+  string query = 1;
+  string workspace_path = 2;
+  int32 limit = 3;
+}
+
+message WorkspaceSearchResponse {
+  repeated WorkspaceSearchResult results = 1;
+}
+
+message WorkspaceSearchResult {
+  string path = 1;
+  string type = 2; // "file" or "folder"
+  optional string label = 3;
+}
