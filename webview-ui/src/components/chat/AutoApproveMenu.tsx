@@ -142,7 +142,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					display: "flex",
 					alignItems: "center",
 					gap: "8px",
-					padding: isExpanded ? "8px 0" : "8px 0 0 0",
+					padding: isExpanded ? "8px 0" : "2px 0 0 0",
 					cursor: "pointer",
 				}}
 				onClick={toggleExpanded}>

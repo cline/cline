@@ -68,7 +68,7 @@ const TaskItem = ({
 					</div>
 				)}
 
-				<div className="flex-1">
+				<div className="flex-1 min-w-0">
 					{/* Header with metadata */}
 					<TaskItemHeader item={item} isSelectionMode={isSelectionMode} onDelete={onDelete} />
 

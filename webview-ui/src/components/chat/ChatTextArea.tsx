@@ -787,10 +787,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					"relative",
 					"flex",
 					"flex-col",
-					"gap-2",
+					"gap-1",
 					"bg-editor-background",
-					"m-2 mt-1",
-					"p-1.5",
+					"px-1.5",
+					"pb-1",
 					"outline-none",
 					"border",
 					"border-none",
@@ -998,7 +998,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 				)}
 
-				<div className={cn("flex", "justify-between", "items-center", "mt-auto", "pt-0.5")}>
+				<div className={cn("flex", "justify-between", "items-center", "mt-auto")}>
 					<div className={cn("flex", "items-center", "gap-1", "min-w-0")}>
 						<div className="shrink-0">
 							<ModeSelector
