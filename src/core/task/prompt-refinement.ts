@@ -1,6 +1,7 @@
 import { ApiHandler } from "@api/index"
 import { findLastIndex } from "@shared/array"
 import { ClineApiReqInfo, ClineAskQuestion, ClineMessage } from "@shared/ExtensionMessage"
+import * as vscode from "vscode"
 
 export interface FollowUpQuestion {
 	question: string
@@ -133,6 +134,38 @@ function getProjectSpecificationFormat(): string {
 	Use this format to create a clear, actionable specification that a developer can immediately use to build the project.`
 }
 
+/**
+ * Saves the refined prompt as a markdown file
+ */
+async function saveRefinedPromptAsMarkdown(content: string, taskId: string): Promise<vscode.Uri | undefined> {
+	try {
+		let saveUri: vscode.Uri
+
+		// 워크스페이스 폴더 확인
+		const workspaceFolders = vscode.workspace.workspaceFolders
+		if (workspaceFolders && workspaceFolders.length > 0) {
+			// 워크스페이스가 열려있으면 워크스페이스 루트에 저장
+			saveUri = workspaceFolders[0].uri
+		} else {
+			// 워크스페이스가 없으면 사용자의 홈 디렉토리에 저장
+			const homeDir = process.env.HOME || process.env.USERPROFILE || process.cwd()
+			saveUri = vscode.Uri.file(homeDir)
+		}
+
+		const filename = `refined-project-specification-${taskId}.md`
+		const fileUri = vscode.Uri.joinPath(saveUri, filename)
+
+		const encoder = new TextEncoder()
+		await vscode.workspace.fs.writeFile(fileUri, encoder.encode(content))
+		console.log(`[saveRefinedPromptAsMarkdown] Refined prompt saved: ${fileUri.toString()}`)
+
+		return fileUri
+	} catch (error) {
+		console.error("[saveRefinedPromptAsMarkdown] Failed to save refined prompt:", error)
+		return undefined
+	}
+}
+
 function buildAnalysisPrompt(
 	webProjectTemplate: any,
 	requiredFields: string[],
@@ -228,8 +261,12 @@ export async function refinePrompt(prompt: string, apiHandler: ApiHandler, taskI
 
 		// 2단계: 개선된 프롬프트 생성
 		refinedPrompt = await performLLMPromptRefinement(prompt, apiHandler, taskInstance, "refinement")
-		let finalTask = refinedPrompt.refinedPrompt
-		await taskInstance.say("text", `Refined prompt: \n${finalTask}`)
+		await taskInstance.say("text", `Refined prompt: \n${refinedPrompt.refinedPrompt}`)
+		refinedPrompt.refinedPrompt = `## Original User Prompt\n${prompt}\n\n${refinedPrompt.refinedPrompt}`
+
+		// 마크다운 파일로 저장
+		const taskId = taskInstance?.taskId || `task-${Date.now()}`
+		await saveRefinedPromptAsMarkdown(refinedPrompt.refinedPrompt, taskId)
 
 		return {
 			originalPrompt: prompt,
