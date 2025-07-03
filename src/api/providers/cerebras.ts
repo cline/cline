@@ -33,6 +33,15 @@ export class CerebrasHandler implements ApiHandler {
 			content: string
 		}> = [{ role: "system", content: systemPrompt }]
 
+		// Helper function to strip thinking tags from content
+		const stripThinkingTags = (content: string): string => {
+			return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+		}
+
+		// Check if this is a reasoning model that uses thinking tags
+		const modelId = this.getModel().id
+		const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
+
 		// Convert Anthropic messages to Cerebras format
 		for (const message of messages) {
 			if (message.role === "user") {
@@ -50,7 +59,7 @@ export class CerebrasHandler implements ApiHandler {
 					: message.content
 				cerebrasMessages.push({ role: "user", content })
 			} else if (message.role === "assistant") {
-				const content = Array.isArray(message.content)
+				let content = Array.isArray(message.content)
 					? message.content
 							.map((block) => {
 								if (block.type === "text") {
@@ -60,6 +69,13 @@ export class CerebrasHandler implements ApiHandler {
 							})
 							.join("\n")
 					: message.content || ""
+
+				// Strip thinking tags from assistant messages for reasoning models
+				// so the model doesn't see its own thinking in the conversation history
+				if (isReasoningModel) {
+					content = stripThinkingTags(content)
+				}
+
 				cerebrasMessages.push({ role: "assistant", content })
 			}
 		}
@@ -74,8 +90,6 @@ export class CerebrasHandler implements ApiHandler {
 
 			// Handle streaming response
 			let reasoning: string | null = null // Track reasoning content for models that support thinking
-			const modelId = this.getModel().id
-			const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
 
 			for await (const chunk of stream as any) {
 				// Type assertion for the streaming chunk
