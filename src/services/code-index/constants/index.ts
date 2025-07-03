@@ -23,3 +23,6 @@ export const PARSING_CONCURRENCY = 10
 export const MAX_BATCH_TOKENS = 100000
 export const MAX_ITEM_TOKENS = 8191
 export const BATCH_PROCESSING_CONCURRENCY = 10
+
+/**Gemini Embedder */
+export const GEMINI_MAX_ITEM_TOKENS = 2048

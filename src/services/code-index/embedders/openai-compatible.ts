@@ -29,14 +29,16 @@ interface OpenAIEmbeddingResponse {
 export class OpenAICompatibleEmbedder implements IEmbedder {
 	private embeddingsClient: OpenAI
 	private readonly defaultModelId: string
+	private readonly maxItemTokens: number
 
 	/**
 	 * Creates a new OpenAI Compatible embedder
 	 * @param baseUrl The base URL for the OpenAI-compatible API endpoint
 	 * @param apiKey The API key for authentication
 	 * @param modelId Optional model identifier (defaults to "text-embedding-3-small")
+	 * @param maxItemTokens Optional maximum tokens per item (defaults to MAX_ITEM_TOKENS)
 	 */
-	constructor(baseUrl: string, apiKey: string, modelId?: string) {
+	constructor(baseUrl: string, apiKey: string, modelId?: string, maxItemTokens?: number) {
 		if (!baseUrl) {
 			throw new Error("Base URL is required for OpenAI Compatible embedder")
 		}
@@ -49,6 +51,7 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 			apiKey: apiKey,
 		})
 		this.defaultModelId = modelId || getDefaultModelId("openai-compatible")
+		this.maxItemTokens = maxItemTokens || MAX_ITEM_TOKENS
 	}
 
 	/**
@@ -98,12 +101,12 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 				const text = remainingTexts[i]
 				const itemTokens = Math.ceil(text.length / 4)
 
-				if (itemTokens > MAX_ITEM_TOKENS) {
+				if (itemTokens > this.maxItemTokens) {
 					console.warn(
 						t("embeddings:textExceedsTokenLimit", {
 							index: i,
 							itemTokens,
-							maxTokens: MAX_ITEM_TOKENS,
+							maxTokens: this.maxItemTokens,
 						}),
 					)
 					processedIndices.push(i)

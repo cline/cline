@@ -7,7 +7,7 @@ import { z } from "zod"
 export const codebaseIndexConfigSchema = z.object({
 	codebaseIndexEnabled: z.boolean().optional(),
 	codebaseIndexQdrantUrl: z.string().optional(),
-	codebaseIndexEmbedderProvider: z.enum(["openai", "ollama", "openai-compatible"]).optional(),
+	codebaseIndexEmbedderProvider: z.enum(["openai", "ollama", "openai-compatible", "gemini"]).optional(),
 	codebaseIndexEmbedderBaseUrl: z.string().optional(),
 	codebaseIndexEmbedderModelId: z.string().optional(),
 	codebaseIndexSearchMinScore: z.number().min(0).max(1).optional(),
@@ -23,6 +23,7 @@ export const codebaseIndexModelsSchema = z.object({
 	openai: z.record(z.string(), z.object({ dimension: z.number() })).optional(),
 	ollama: z.record(z.string(), z.object({ dimension: z.number() })).optional(),
 	"openai-compatible": z.record(z.string(), z.object({ dimension: z.number() })).optional(),
+	gemini: z.record(z.string(), z.object({ dimension: z.number() })).optional(),
 })
 
 export type CodebaseIndexModels = z.infer<typeof codebaseIndexModelsSchema>
@@ -37,6 +38,7 @@ export const codebaseIndexProviderSchema = z.object({
 	codebaseIndexOpenAiCompatibleBaseUrl: z.string().optional(),
 	codebaseIndexOpenAiCompatibleApiKey: z.string().optional(),
 	codebaseIndexOpenAiCompatibleModelDimension: z.number().optional(),
+	codebaseIndexGeminiApiKey: z.string().optional(),
 })
 
 export type CodebaseIndexProvider = z.infer<typeof codebaseIndexProviderSchema>

@@ -1049,6 +1049,46 @@ describe("CodeIndexConfigManager", () => {
 			expect(configManager.isFeatureConfigured).toBe(false)
 		})
 
+		it("should validate Gemini configuration correctly", async () => {
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") {
+					return {
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "gemini",
+					}
+				}
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexGeminiApiKey") return "test-gemini-key"
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+			expect(configManager.isFeatureConfigured).toBe(true)
+		})
+
+		it("should return false when Gemini API key is missing", async () => {
+			mockContextProxy.getGlobalState.mockImplementation((key: string) => {
+				if (key === "codebaseIndexConfig") {
+					return {
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "gemini",
+					}
+				}
+				return undefined
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexGeminiApiKey") return ""
+				return undefined
+			})
+
+			await configManager.loadConfiguration()
+			expect(configManager.isFeatureConfigured).toBe(false)
+		})
+
 		it("should return false when required values are missing", async () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,

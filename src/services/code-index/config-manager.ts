@@ -16,6 +16,7 @@ export class CodeIndexConfigManager {
 	private openAiOptions?: ApiHandlerOptions
 	private ollamaOptions?: ApiHandlerOptions
 	private openAiCompatibleOptions?: { baseUrl: string; apiKey: string; modelDimension?: number }
+	private geminiOptions?: { apiKey: string }
 	private qdrantUrl?: string = "http://localhost:6333"
 	private qdrantApiKey?: string
 	private searchMinScore?: number
@@ -56,6 +57,7 @@ export class CodeIndexConfigManager {
 		const openAiCompatibleModelDimension = this.contextProxy?.getGlobalState(
 			"codebaseIndexOpenAiCompatibleModelDimension",
 		) as number | undefined
+		const geminiApiKey = this.contextProxy?.getSecret("codebaseIndexGeminiApiKey") ?? ""
 
 		// Update instance variables with configuration
 		this.isEnabled = codebaseIndexEnabled || false
@@ -69,6 +71,8 @@ export class CodeIndexConfigManager {
 			this.embedderProvider = "ollama"
 		} else if (codebaseIndexEmbedderProvider === "openai-compatible") {
 			this.embedderProvider = "openai-compatible"
+		} else if (codebaseIndexEmbedderProvider === "gemini") {
+			this.embedderProvider = "gemini"
 		} else {
 			this.embedderProvider = "openai"
 		}
@@ -87,6 +91,8 @@ export class CodeIndexConfigManager {
 						modelDimension: openAiCompatibleModelDimension,
 					}
 				: undefined
+
+		this.geminiOptions = geminiApiKey ? { apiKey: geminiApiKey } : undefined
 	}
 
 	/**
@@ -102,6 +108,7 @@ export class CodeIndexConfigManager {
 			openAiOptions?: ApiHandlerOptions
 			ollamaOptions?: ApiHandlerOptions
 			openAiCompatibleOptions?: { baseUrl: string; apiKey: string }
+			geminiOptions?: { apiKey: string }
 			qdrantUrl?: string
 			qdrantApiKey?: string
 			searchMinScore?: number
@@ -119,6 +126,7 @@ export class CodeIndexConfigManager {
 			openAiCompatibleBaseUrl: this.openAiCompatibleOptions?.baseUrl ?? "",
 			openAiCompatibleApiKey: this.openAiCompatibleOptions?.apiKey ?? "",
 			openAiCompatibleModelDimension: this.openAiCompatibleOptions?.modelDimension,
+			geminiApiKey: this.geminiOptions?.apiKey ?? "",
 			qdrantUrl: this.qdrantUrl ?? "",
 			qdrantApiKey: this.qdrantApiKey ?? "",
 		}
@@ -138,6 +146,7 @@ export class CodeIndexConfigManager {
 				openAiOptions: this.openAiOptions,
 				ollamaOptions: this.ollamaOptions,
 				openAiCompatibleOptions: this.openAiCompatibleOptions,
+				geminiOptions: this.geminiOptions,
 				qdrantUrl: this.qdrantUrl,
 				qdrantApiKey: this.qdrantApiKey,
 				searchMinScore: this.currentSearchMinScore,
@@ -166,6 +175,10 @@ export class CodeIndexConfigManager {
 			const apiKey = this.openAiCompatibleOptions?.apiKey
 			const qdrantUrl = this.qdrantUrl
 			return !!(baseUrl && apiKey && qdrantUrl)
+		} else if (this.embedderProvider === "gemini") {
+			const apiKey = this.geminiOptions?.apiKey
+			const qdrantUrl = this.qdrantUrl
+			return !!(apiKey && qdrantUrl)
 		}
 		return false // Should not happen if embedderProvider is always set correctly
 	}
@@ -186,6 +199,7 @@ export class CodeIndexConfigManager {
 		const prevOpenAiCompatibleBaseUrl = prev?.openAiCompatibleBaseUrl ?? ""
 		const prevOpenAiCompatibleApiKey = prev?.openAiCompatibleApiKey ?? ""
 		const prevOpenAiCompatibleModelDimension = prev?.openAiCompatibleModelDimension
+		const prevGeminiApiKey = prev?.geminiApiKey ?? ""
 		const prevQdrantUrl = prev?.qdrantUrl ?? ""
 		const prevQdrantApiKey = prev?.qdrantApiKey ?? ""
 
@@ -243,6 +257,13 @@ export class CodeIndexConfigManager {
 				}
 			}
 
+			if (this.embedderProvider === "gemini") {
+				const currentGeminiApiKey = this.geminiOptions?.apiKey ?? ""
+				if (prevGeminiApiKey !== currentGeminiApiKey) {
+					return true
+				}
+			}
+
 			// Qdrant configuration changes
 			const currentQdrantUrl = this.qdrantUrl ?? ""
 			const currentQdrantApiKey = this.qdrantApiKey ?? ""
@@ -293,6 +314,7 @@ export class CodeIndexConfigManager {
 			openAiOptions: this.openAiOptions,
 			ollamaOptions: this.ollamaOptions,
 			openAiCompatibleOptions: this.openAiCompatibleOptions,
+			geminiOptions: this.geminiOptions,
 			qdrantUrl: this.qdrantUrl,
 			qdrantApiKey: this.qdrantApiKey,
 			searchMinScore: this.currentSearchMinScore,

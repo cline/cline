@@ -3,12 +3,14 @@ import { CodeIndexServiceFactory } from "../service-factory"
 import { OpenAiEmbedder } from "../embedders/openai"
 import { CodeIndexOllamaEmbedder } from "../embedders/ollama"
 import { OpenAICompatibleEmbedder } from "../embedders/openai-compatible"
+import { GeminiEmbedder } from "../embedders/gemini"
 import { QdrantVectorStore } from "../vector-store/qdrant-client"
 
 // Mock the embedders and vector store
 vitest.mock("../embedders/openai")
 vitest.mock("../embedders/ollama")
 vitest.mock("../embedders/openai-compatible")
+vitest.mock("../embedders/gemini")
 vitest.mock("../vector-store/qdrant-client")
 
 // Mock the embedding models module
@@ -20,6 +22,7 @@ vitest.mock("../../../shared/embeddingModels", () => ({
 const MockedOpenAiEmbedder = OpenAiEmbedder as MockedClass<typeof OpenAiEmbedder>
 const MockedCodeIndexOllamaEmbedder = CodeIndexOllamaEmbedder as MockedClass<typeof CodeIndexOllamaEmbedder>
 const MockedOpenAICompatibleEmbedder = OpenAICompatibleEmbedder as MockedClass<typeof OpenAICompatibleEmbedder>
+const MockedGeminiEmbedder = GeminiEmbedder as MockedClass<typeof GeminiEmbedder>
 const MockedQdrantVectorStore = QdrantVectorStore as MockedClass<typeof QdrantVectorStore>
 
 // Import the mocked functions
@@ -259,6 +262,49 @@ describe("CodeIndexServiceFactory", () => {
 			)
 		})
 
+		it("should create GeminiEmbedder when using Gemini provider", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "gemini",
+				geminiOptions: {
+					apiKey: "test-gemini-api-key",
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act
+			factory.createEmbedder()
+
+			// Assert
+			expect(MockedGeminiEmbedder).toHaveBeenCalledWith("test-gemini-api-key")
+		})
+
+		it("should throw error when Gemini API key is missing", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "gemini",
+				geminiOptions: {
+					apiKey: undefined,
+				},
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act & Assert
+			expect(() => factory.createEmbedder()).toThrow("Gemini configuration missing for embedder creation")
+		})
+
+		it("should throw error when Gemini options are missing", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "gemini",
+				geminiOptions: undefined,
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act & Assert
+			expect(() => factory.createEmbedder()).toThrow("Gemini configuration missing for embedder creation")
+		})
+
 		it("should throw error for invalid embedder provider", () => {
 			// Arrange
 			const testConfig = {
@@ -451,6 +497,30 @@ describe("CodeIndexServiceFactory", () => {
 			// Act & Assert
 			expect(() => factory.createVectorStore()).toThrow(
 				"Could not determine vector dimension for model 'unknown-model' with provider 'openai-compatible'. Please ensure the 'Embedding Dimension' is correctly set in the OpenAI-Compatible provider settings.",
+			)
+		})
+
+		it("should use fixed dimension 768 for Gemini provider", () => {
+			// Arrange
+			const testConfig = {
+				embedderProvider: "gemini",
+				modelId: "text-embedding-004", // This is ignored by Gemini
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+
+			// Act
+			factory.createVectorStore()
+
+			// Assert
+			// getModelDimension should not be called for Gemini
+			expect(mockGetModelDimension).not.toHaveBeenCalled()
+			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
+				"/test/workspace",
+				"http://localhost:6333",
+				768, // Fixed dimension for Gemini
+				"test-key",
 			)
 		})
 
