@@ -185,6 +185,42 @@ export async function getWorkingState(cwd: string): Promise<string> {
 	}
 }
 
+export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			return []
+		}
+
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			return []
+		}
+
+		const { stdout } = await execAsync("git remote -v", { cwd })
+		if (!stdout.trim()) {
+			return []
+		}
+
+		// Parse output to extract unique URLs
+		// git remote -v output format: "remoteName remoteUrl (fetch|push)"
+		const remotes = stdout
+			.trim()
+			.split("\n")
+			.filter((line) => line.includes("(fetch)")) // Only fetch URLs to avoid duplicates
+			.map((line) => {
+				const match = line.match(/^(\S+)\s+(\S+)\s+\(fetch\)$/)
+				return match ? { name: match[1], url: match[2] } : null
+			})
+			.filter((remote): remote is { name: string; url: string } => remote !== null)
+
+		return remotes.map((remote) => `${remote.name}: ${remote.url}`)
+	} catch (error) {
+		console.error("Error getting git remotes:", error)
+		return []
+	}
+}
+
 function truncateOutput(content: string): string {
 	if (!GIT_OUTPUT_LINE_LIMIT) {
 		return content

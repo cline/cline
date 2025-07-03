@@ -18,6 +18,7 @@ service StateService {
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
+  rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
 }
 
 message State {

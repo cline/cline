@@ -23,8 +23,6 @@ service TaskService {
   rpc exportTaskWithId(StringRequest) returns (Empty);
   // Toggles the favorite status of a task
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
-  // Deletes all non-favorited tasks
-  rpc deleteNonFavoritedTasks(EmptyRequest) returns (DeleteNonFavoritedTasksResults);
   // Gets filtered task history
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
   // Sends a response to a previous ask operation
@@ -36,7 +34,7 @@ service TaskService {
   // Executes a quick win task with command and title
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history
-  rpc deleteAllTaskHistory(BooleanRequest) returns (DeleteAllTaskHistoryCount);
+  rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
 }
 
 // Request message for creating a new task
@@ -66,12 +64,6 @@ message TaskResponse {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
-}
-
-// Results returned when deleting non-favorited tasks
-message DeleteNonFavoritedTasksResults {
-  int32 tasks_preserved = 1;
-  int32 tasks_deleted = 2;
 }
 
 // Request for getting task history with filtering

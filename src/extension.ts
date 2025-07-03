@@ -23,9 +23,10 @@ import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import {
-	migratePlanActGlobalToWorkspaceStorage,
+	migrateWorkspaceToGlobalStorage,
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
+	migrateWelcomeViewCompleted,
 } from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
@@ -59,14 +60,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	maybeSetupHostProviders(context)
 
-	// Migrate global storage values to workspace storage (one-time cleanup)
-	await migratePlanActGlobalToWorkspaceStorage(context)
-
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
 
 	// Migrate mode from workspace storage to controller state (one-time cleanup)
 	await migrateModeFromWorkspaceStorageToControllerState(context)
+
+	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
+	await migrateWelcomeViewCompleted(context)
+
+	// Migrate workspace storage values back to global storage (reverting previous migration)
+	await migrateWorkspaceToGlobalStorage(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
@@ -76,8 +80,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const previousVersion = context.globalState.get<string>("clineVersion")
 	const sidebarWebview = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
 
+	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
-	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
+	context.subscriptions.push(...testModeWatchers)
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
@@ -636,6 +641,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				)
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
+		}),
+	)
+
+	// Register the openWalkthrough command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
+			await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
+			telemetryService.captureButtonClick("command_openWalkthrough", undefined, true)
 		}),
 	)
 

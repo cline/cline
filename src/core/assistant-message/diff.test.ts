@@ -156,6 +156,45 @@ replaced
 			expected: "line2\nreplaced\nline4",
 			isFinal: true,
 		},
+		{
+			name: "malformed diff - missing separator",
+			original: "line1\nline2\nline3",
+			diff: `------- SEARCH
+line2
++++++++ REPLACE
+replaced`,
+			shouldThrow: true,
+		},
+		{
+			name: "malformed diff - trailing space on separator",
+			original: "line1\nline2\nline3",
+			diff: `------- SEARCH
+line2
+======= 
+replaced
++++++++ REPLACE`,
+			shouldThrow: true,
+		},
+		{
+			name: "malformed diff - double replace markers",
+			original: "line1\nline2\nline3",
+			diff: `------- SEARCH
+line2
++++++++ REPLACE
+first replacement
++++++++ REPLACE`,
+			shouldThrow: true,
+		},
+		{
+			name: "malformed diff - malformed separator with dashes",
+			original: "line1\nline2\nline3",
+			diff: `------- SEARCH
+line2
+------- =======
+replaced
++++++++ REPLACE`,
+			shouldThrow: true,
+		},
 	]
 	//.filter(({name}) => name === "multiple ordered replacements")
 	//.filter(({name}) => name === "delete then replace")
