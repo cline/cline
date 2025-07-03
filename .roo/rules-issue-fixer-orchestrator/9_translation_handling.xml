@@ -1,0 +1,125 @@
+<translation_handling_guidelines>
+  <overview>
+    The issue-fixer-orchestrator mode must ensure all user-facing content is properly translated before creating a pull request. This is achieved by delegating translation tasks to the specialized translate mode.
+  </overview>
+
+  <when_translations_required>
+    <scenario name="ui_components">
+      <description>Any changes to React/Vue/Angular components</description>
+      <file_patterns>
+        - webview-ui/src/**/*.tsx
+        - webview-ui/src/**/*.jsx
+        - src/**/*.tsx (if contains UI elements)
+      </file_patterns>
+      <what_to_check>
+        - New text strings in JSX
+        - Updated button labels, tooltips, or placeholders
+        - Error messages displayed to users
+        - Any hardcoded strings that should use i18n
+      </what_to_check>
+    </scenario>
+
+    <scenario name="documentation">
+      <description>User-facing documentation changes</description>
+      <file_patterns>
+        - README.md
+        - docs/**/*.md
+        - webview-ui/src/components/chat/Announcement.tsx
+        - Any markdown files visible to end users
+      </file_patterns>
+    </scenario>
+
+    <scenario name="i18n_resources">
+      <description>Direct changes to translation files</description>
+      <file_patterns>
+        - src/i18n/locales/**/*.json
+        - webview-ui/src/i18n/locales/**/*.json
+      </file_patterns>
+      <note>When English (en) locale is updated, all other locales must be synchronized</note>
+    </scenario>
+
+    <scenario name="error_messages">
+      <description>New or modified error messages</description>
+      <locations>
+        - API error responses
+        - Validation messages
+        - System notifications
+        - Status messages
+      </locations>
+    </scenario>
+  </when_translations_required>
+
+  <translation_workflow>
+    <step number="1">
+      <name>Detect Translation Needs</name>
+      <actions>
+        - Read the modified_files.json from the implementation step
+        - Check each file against the patterns above
+        - Determine if any user-facing content was changed
+      </actions>
+    </step>
+
+    <step number="2">
+      <name>Prepare Translation Context</name>
+      <actions>
+        - Gather all context files (issue details, implementation plan, modified files)
+        - Identify specific strings or content that need translation
+        - Note any special terminology or context from the issue
+      </actions>
+    </step>
+
+    <step number="3">
+      <name>Delegate to Translate Mode</name>
+      <actions>
+        - Use new_task to create a translation subtask
+        - Provide clear instructions about what needs translation
+        - Include paths to all context files
+        - Specify expected output (translation_summary.md)
+      </actions>
+    </step>
+
+    <step number="4">
+      <name>Verify Translation Completion</name>
+      <actions>
+        - Wait for the translate mode subtask to complete
+        - Read the translation_summary.md file
+        - Confirm all necessary translations were handled
+        - Only proceed to PR creation after confirmation
+      </actions>
+    </step>
+  </translation_workflow>
+
+  <translation_subtask_template>
+    <purpose>Template for creating translation subtasks</purpose>
+    <key_elements>
+      - Clear identification of the issue being fixed
+      - List of modified files requiring translation review
+      - Path to context files for understanding the changes
+      - Specific instructions for what to translate
+      - Expected output format and location
+    </key_elements>
+  </translation_subtask_template>
+
+  <best_practices>
+    <practice>Always check for translations AFTER verification passes</practice>
+    <practice>Don't skip translation even for "minor" UI changes</practice>
+    <practice>Ensure the translate mode has access to full context</practice>
+    <practice>Wait for translation completion before creating PR</practice>
+    <practice>Include translation changes in the PR description</practice>
+  </best_practices>
+
+  <common_mistakes_to_avoid>
+    <mistake>
+      <description>Assuming no translations needed without checking</description>
+      <solution>Always analyze modified files for user-facing content</solution>
+    </mistake>
+    <mistake>
+      <description>Proceeding to PR creation before translations complete</description>
+      <solution>Wait for translation_summary.md confirmation</solution>
+    </mistake>
+    <mistake>
+      <description>Not providing enough context to translate mode</description>
+      <solution>Include issue details and implementation plan</solution>
+    </mistake>
+  </common_mistakes_to_avoid>
+</translation_handling_guidelines>

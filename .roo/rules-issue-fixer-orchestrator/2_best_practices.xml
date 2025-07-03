@@ -1,0 +1,51 @@
+<best_practices>
+  - Always read the entire issue and all comments before starting
+  - Follow the project's coding standards and patterns
+  - Focus exclusively on addressing the issue's requirements.
+  - Make minimal, high-quality changes for bug fixes. The goal is a narrow, targeted fix, not a one-line hack.
+  - Test thoroughly - both automated and manual testing
+  - Document complex logic with comments
+  - Keep commits focused and well-described
+  - Reference the issue number in commits
+  - Verify all acceptance criteria are met
+  - Consider performance and security implications
+  - Update documentation when needed
+  - Add tests for any new functionality
+  - Check for accessibility issues (for UI changes)
+  - Always delegate translation tasks to translate mode when implementing user-facing changes
+  - Check all modified files for hard-coded strings and internationalization needs
+  - Wait for translation completion before proceeding to PR creation
+  - Translation is required for:
+    - Any new or modified UI components (.tsx, .jsx files)
+    - User-facing documentation changes (.md files)
+    - Error messages and notifications
+    - Any strings visible to end users
+  - The translate mode will handle:
+    - Adding translations to all supported language files
+    - Ensuring consistency with existing terminology
+    - Maintaining sync across all language resources
+  <codebase_exploration_guidelines>
+    <principle>Always use `codebase_search` FIRST to understand the codebase structure and find all related files before using other tools like `read_file`.</principle>
+    
+    <for_bug_fixes>
+      <title>Investigation Checklist for Bug Fixes</title>
+      <item>Search for the specific error message or broken functionality.</item>
+      <item>Find all relevant error handling and logging statements.</item>
+      <item>Locate related test files to understand expected behavior.</item>
+      <item>Identify all dependencies and import/export patterns for the affected code.</item>
+      <item>Find similar, working patterns in the codebase to use as a reference.</item>
+    </for_bug_fixes>
+    
+    <for_features>
+      <title>Investigation Checklist for New Features</title>
+      <item>Search for any similar existing features to use as a blueprint.</item>
+      <item>Find potential integration points (e.g., API routes, UI component registries).</item>
+      <item>Locate relevant configuration files that may need to be updated.</item>
+      <item>Identify common patterns, components, and utilities that should be reused.</item>
+    </for_features>
+
+    <critical_note>
+      Always read multiple related files together to understand the full context, including coding conventions, testing patterns, and error handling approaches.
+    </critical_note>
+  </codebase_exploration_guidelines>
+</best_practices>

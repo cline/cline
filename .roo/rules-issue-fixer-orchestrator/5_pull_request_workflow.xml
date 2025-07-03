@@ -1,0 +1,106 @@
+<pull_request_workflow>
+  <preparation>
+    1. Ensure all changes are committed with proper message format
+    2. Push to appropriate branch (fork or direct)
+    3. Prepare comprehensive PR description
+    4. Get user approval before creating PR
+    5. Extract owner and repo from the provided GitHub URL
+  </preparation>
+  
+  <pr_title_format>
+    - Bug fixes: "fix: [description] (#[issue-number])"
+    - Features: "feat: [description] (#[issue-number])"
+    - Follow conventional commit format
+  </pr_title_format>
+  <pr_description_template>
+    A comprehensive PR description is critical. The subtask responsible for preparing the PR content should generate a body that includes the following markdown structure:
+
+    ```markdown
+    ## Description
+    
+    Fixes #[issue number]
+    
+    [Detailed description of what was changed and why]
+    
+    ## Changes Made
+    
+    - [Specific change 1 with file references]
+    - [Specific change 2 with technical details]
+    - [Any refactoring or cleanup done]
+    
+    ## Testing
+    
+    - [x] All existing tests pass
+    - [x] Added tests for [specific functionality]
+    - [x] Manual testing completed:
+      - [Specific manual test 1]
+      - [Specific manual test 2]
+    
+    ## Translations
+    
+    [If translations were added/updated]
+    - [x] All user-facing strings have been translated
+    - [x] Updated language files: [list of languages]
+    - [x] Translations reviewed for consistency
+    
+    [If no translations needed]
+    - No user-facing string changes in this PR
+    
+    ## Verification of Acceptance Criteria
+    
+    [For each criterion from the issue, show it's met]
+    - [x] Criterion 1: [How it's verified]
+    - [x] Criterion 2: [How it's verified]
+    
+    ## Checklist
+    
+    - [x] Code follows project style guidelines
+    - [x] Self-review completed
+    - [x] Comments added for complex logic
+    - [x] Documentation updated (if needed)
+    - [x] No breaking changes (or documented if any)
+    - [x] Accessibility checked (for UI changes)
+    - [x] Translations added/updated (for UI changes)
+    
+    ## Screenshots/Demo (if applicable)
+    
+    [Add before/after screenshots for UI changes]
+    [Add terminal output for CLI changes]
+    ```
+  </pr_description_template>
+
+  <branch_naming_conventions>
+    <rule>Use a consistent format for branch names.</rule>
+    <format>
+      - Bug fixes: `fix/issue-[number]-[brief-description]`
+      - Features: `feat/issue-[number]-[brief-description]`
+    </format>
+  </branch_naming_conventions>
+  
+  <creating_pr_with_cli>
+    Use GitHub CLI to create the pull request:
+    <execute_command>
+    <command>gh pr create --repo [owner]/[repo] --base main --title "[title]" --body "[description]" --maintainer-can-modify</command>
+    </execute_command>
+    
+    If working from a fork, ensure you've forked first:
+    <execute_command>
+    <command>gh repo fork [owner]/[repo] --clone</command>
+    </execute_command>
+    
+    The gh CLI automatically handles fork workflows.
+  </creating_pr_with_cli>
+  
+  <after_creation>
+    1. Comment on original issue with PR link:
+       <execute_command>
+       <command>gh issue comment [issue-number] --repo [owner]/[repo] --body "PR #[pr-number] has been created to address this issue: [PR URL]"</command>
+       </execute_command>
+    2. Inform user of successful creation
+    3. Provide next steps and tracking info
+    4. Monitor PR checks:
+       <execute_command>
+       <command>gh pr checks [pr-number] --repo [owner]/[repo] --watch</command>
+       </execute_command>
+  </after_creation>
+</pull_request_workflow>

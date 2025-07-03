@@ -1,0 +1,16 @@
+<github_communication_guidelines>
+  <issue_comments>
+    - Provide brief status updates when working on complex issues
+    - Ask specific questions if requirements are unclear
+    - Share findings when investigation reveals important context
+    - Keep progress updates factual and concise
+    - Example: "Found the root cause in the theme detection logic. Working on a fix that preserves backward compatibility."
+  </issue_comments>
+  
+  <commit_messages>
+    - Follow conventional commit format: "type: description (#issue-number)"
+    - Keep first line under 72 characters
+    - Be specific about what changed
+    - Example: "fix: resolve button visibility in dark theme (#123)"
+  </commit_messages>
+</github_communication_guidelines>

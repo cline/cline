@@ -1,0 +1,221 @@
+<github_cli_usage>
+  <overview>
+    This mode uses the GitHub CLI (gh) for all GitHub operations.
+    The mode assumes the user has gh installed and authenticated. If authentication errors occur,
+    the mode will prompt the user to authenticate.
+    
+    Users must provide full GitHub issue URLs (e.g., https://github.com/owner/repo/issues/123)
+    so the mode can extract the repository information dynamically.
+  </overview>
+  
+  <url_parsing>
+    <pattern>https://github.com/[owner]/[repo]/issues/[number]</pattern>
+    <extraction>
+      - Owner: The organization or username
+      - Repo: The repository name
+      - Number: The issue number
+    </extraction>
+  </url_parsing>
+
+  <authentication_handling>
+    <approach>Assume authenticated, handle errors gracefully</approach>
+    <when>Only check authentication if a gh command fails with auth error</when>
+    <error_patterns>
+      - "gh: Not authenticated"
+      - "HTTP 401"
+      - "HTTP 403: Resource not accessible"
+    </error_patterns>
+  </authentication_handling>
+
+  <primary_commands>
+    <command name="gh_issue_view">
+      <purpose>Retrieve the issue details at the start</purpose>
+      <when>Always use first to get the full issue content</when>
+      <syntax>gh issue view [issue-number] --repo [owner]/[repo] --json number,title,body,state,labels,assignees,milestone,createdAt,updatedAt,closedAt,author</syntax>
+      <example>
+        <execute_command>
+        <command>gh issue view 123 --repo octocat/hello-world --json number,title,body,state,labels,assignees,milestone,createdAt,updatedAt,closedAt,author</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    <command name="gh_issue_comments">
+      <purpose>Get additional context and requirements from issue comments</purpose>
+      <when>Always use after viewing issue to see full discussion</when>
+      <syntax>gh issue view [issue-number] --repo [owner]/[repo] --comments</syntax>
+      <example>
+        <execute_command>
+        <command>gh issue view 123 --repo octocat/hello-world --comments</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    
+    <command name="gh_repo_view_commits">
+      <purpose>Find recent changes to affected files</purpose>
+      <when>Use during codebase exploration</when>
+      <syntax>gh api repos/[owner]/[repo]/commits?path=[file-path]&per_page=10</syntax>
+      <example>
+        <execute_command>
+        <command>gh api repos/octocat/hello-world/commits?path=src/api/index.ts&per_page=10 --jq '.[].sha + " " + .[].commit.message'</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    <command name="gh_search_code">
+      <purpose>Search for code patterns on GitHub</purpose>
+      <when>Use to supplement local codebase_search</when>
+      <syntax>gh search code "[search-query]" --repo [owner]/[repo]</syntax>
+      <example>
+        <execute_command>
+        <command>gh search code "function handleError" --repo octocat/hello-world --limit 10</command>
+        </execute_command>
+      </example>
+    </command>
+  </primary_commands>
+  
+  <optional_commands>
+    <command name="gh_issue_comment">
+      <purpose>Add progress updates or ask questions on issues</purpose>
+      <when>Use if clarification needed or to show progress</when>
+      <syntax>gh issue comment [issue-number] --repo [owner]/[repo] --body "[comment]"</syntax>
+      <example>
+        <execute_command>
+        <command>gh issue comment 123 --repo octocat/hello-world --body "Working on this issue. Found the root cause in the theme detection logic."</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    <command name="gh_pr_list">
+      <purpose>Find related or similar PRs</purpose>
+      <when>Use to understand similar changes</when>
+      <syntax>gh pr list --repo [owner]/[repo] --search "[search-terms]"</syntax>
+      <example>
+        <execute_command>
+        <command>gh pr list --repo octocat/hello-world --search "dark theme" --limit 10</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    <command name="gh_pr_diff">
+      <purpose>View the diff of a pull request</purpose>
+      <when>Use to understand changes in a PR</when>
+      <syntax>gh pr diff [pr-number] --repo [owner]/[repo]</syntax>
+      <example>
+        <execute_command>
+        <command>gh pr diff 456 --repo octocat/hello-world</command>
+        </execute_command>
+      </example>
+    </command>
+  </optional_commands>
+  
+  <pull_request_commands>
+    <command name="gh_pr_create">
+      <purpose>Create a pull request</purpose>
+      <when>Use in step 11 after user approval</when>
+      <important>
+        - Target the repository from the provided URL
+        - Use "main" as the base branch unless specified otherwise
+        - Include issue number in PR title
+        - Use --maintainer-can-modify flag
+      </important>
+      <syntax>gh pr create --repo [owner]/[repo] --base main --title "[title]" --body "[body]" --maintainer-can-modify</syntax>
+      <example>
+        <execute_command>
+        <command>gh pr create --repo octocat/hello-world --base main --title "fix: Resolve dark theme button visibility (#123)" --body "## Description
+
+Fixes #123
+
+[Full PR description]" --maintainer-can-modify</command>
+        </execute_command>
+      </example>
+      <note>
+        If working from a fork, ensure the fork is set as the remote and push the branch there first.
+        The gh CLI will automatically handle the fork workflow.
+      </note>
+    </command>
+    
+    <command name="gh_repo_fork">
+      <purpose>Fork the repository if user doesn't have push access</purpose>
+      <when>Use if user needs to work from a fork</when>
+      <syntax>gh repo fork [owner]/[repo] --clone</syntax>
+      <example>
+        <execute_command>
+        <command>gh repo fork octocat/hello-world --clone</command>
+        </execute_command>
+      </example>
+    </command>
+    
+    <command name="gh_pr_checks">
+      <purpose>Monitor CI/CD checks on a pull request</purpose>
+      <when>Use after creating PR to ensure checks pass</when>
+      <syntax>gh pr checks [pr-number] --repo [owner]/[repo] --watch</syntax>
+      <example>
+        <execute_command>
+        <command>gh pr checks 789 --repo octocat/hello-world --watch</command>
+        </execute_command>
+      </example>
+    </command>
+  </pull_request_commands>
+  
+  <workflow_helpers>
+    <command name="gh_api">
+      <purpose>Access GitHub API directly for advanced operations</purpose>
+      <when>Use when specific gh commands don't provide needed functionality</when>
+      <examples>
+        <!-- Get repository information -->
+        <execute_command>
+        <command>gh api repos/[owner]/[repo] --jq '.default_branch'</command>
+        </execute_command>
+        
+        <!-- Get file contents -->
+        <execute_command>
+        <command>gh api repos/[owner]/[repo]/contents/README.md --jq '.content' | base64 -d</command>
+        </execute_command>
+        
+        <!-- Get workflow runs -->
+        <execute_command>
+        <command>gh api repos/[owner]/[repo]/actions/runs --jq '.workflow_runs[0:5] | .[] | .id, .status, .conclusion'</command>
+        </execute_command>
+      </examples>
+    </command>
+    
+    <command name="gh_run_list">
+      <purpose>Check GitHub Actions workflow status</purpose>
+      <when>Use to monitor CI/CD pipeline</when>
+      <syntax>gh run list --repo [owner]/[repo] --limit 5</syntax>
+      <example>
+        <execute_command>
+        <command>gh run list --repo octocat/hello-world --limit 5</command>
+        </execute_command>
+      </example>
+    </command>
+  </workflow_helpers>
+  
+  <error_handling>
+    <scenario name="not_authenticated">
+      <error>gh: Not authenticated. Run 'gh auth login' to authenticate.</error>
+      <action>
+        Ask user to authenticate:
+        <ask_followup_question>
+        <question>GitHub CLI is not authenticated. Please run 'gh auth login' in your terminal to authenticate, then let me know when you're ready to continue.</question>
+        <follow_up>
+        <suggest>I've authenticated, please continue</suggest>
+        <suggest>I need help with authentication</suggest>
+        <suggest>Let's use a different approach</suggest>
+        </follow_up>
+        </ask_followup_question>
+      </action>
+    </scenario>
+    
+    <scenario name="no_permissions">
+      <error>HTTP 403: Resource not accessible by integration</error>
+      <action>
+        Check if working from a fork is needed:
+        <execute_command>
+        <command>gh repo fork [owner]/[repo] --clone</command>
+        </execute_command>
+      </action>
+    </scenario>
+  </error_handling>
+</github_cli_usage>
