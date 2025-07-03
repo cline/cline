@@ -1,5 +1,5 @@
 // This service now delegates to the host bridge for cross-IDE compatibility
-export { searchWorkspaceFiles } from "@utils/search"
+//export { searchWorkspaceFiles } from "@utils/search"
 
 /*
 This file previously provided functionality to search workspace files using ripgrep and fuzzy matching.

@@ -1,13 +1,14 @@
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
+import * as childProcess from "child_process"
 import { Readable } from "stream"
 import type { FzfResultItem } from "fzf"
-import * as childProcess from "child_process"
-import * as vscode from "vscode"
-import * as fs from "fs"
-import * as fileSearch from "@services/search/file-search"
-import * as ripgrep from "@services/ripgrep"
+import * as searchService from "@utils/search"
+import * as hostProviders from "@/hosts/host-providers"
+import { WorkspaceSearchResponse, WorkspaceSearchResult } from "@shared/proto/host/search"
+import { String } from "@shared/proto/common"
+import { OrderbyMatchScore } from "@hosts/vscode/search/searchWorkspaceFiles"
 
 describe("File Search", function () {
 	let sandbox: sinon.SinonSandbox
@@ -22,11 +23,19 @@ describe("File Search", function () {
 			return spawnStub(command, options)
 		}
 
-		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
-		// Use replaceGetter instead of stub().value() for non-configurable properties
-		sandbox.replaceGetter(vscode.env, "appRoot", () => "mock/app/root")
-		sandbox.stub(fs.promises, "lstat").resolves({ isDirectory: () => false } as fs.Stats)
-		sandbox.stub(ripgrep, "getBinPath").resolves("mock/ripgrep/path")
+		// Mock the host bridge provider instead of individual functions
+		const mockHostBridgeProvider = {
+			searchClient: {
+				searchWorkspaceFiles: sandbox.stub(),
+				regexSearchFiles: sandbox.stub(),
+				getBinPath: sandbox.stub().resolves({ value: "mock/ripgrep/path" }),
+			},
+			uriServiceClient: {},
+			watchServiceClient: {},
+			workspaceClient: {},
+			envClient: {},
+		}
+		sandbox.stub(hostProviders, "getHostBridgeProvider").returns(mockHostBridgeProvider as any)
 	})
 
 	afterEach(function () {
@@ -67,10 +76,13 @@ describe("File Search", function () {
 				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
 			]
 
-			// Create a new stub for executeRipgrepForFiles
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(expectedResult)
+			// Mock the host bridge to return expected result
+			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
+			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
+				results: expectedResult.map((item) => WorkspaceSearchResult.create(item)),
+			})
 
-			const result = await fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)
+			const result = await searchService.searchWorkspaceFiles("", "/workspace", 5000)
 
 			should(result).be.an.Array()
 			// Don't assert on the exact length as it may vary
@@ -122,7 +134,11 @@ describe("File Search", function () {
 				},
 			} as unknown as childProcess.ChildProcess)
 
-			await should(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).be.rejectedWith(
+			// Mock the host bridge to throw an error
+			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
+			mockHostBridge.searchClient.searchWorkspaceFiles.rejects(new Error(`ripgrep process error: ${mockError}`))
+
+			await should(searchService.searchWorkspaceFiles("", "/workspace", 5000)).be.rejectedWith(
 				`ripgrep process error: ${mockError}`,
 			)
 		})
@@ -136,12 +152,13 @@ describe("File Search", function () {
 				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			// Directly stub the searchWorkspaceFiles function for this test
-			// This avoids issues with the executeRipgrepForFiles function
-			const searchStub = sandbox.stub(fileSearch, "searchWorkspaceFiles")
-			searchStub.withArgs("", "/workspace", 2).resolves(mockItems.slice(0, 2))
+			// Mock the host bridge to return expected result
+			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
+			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
+				results: mockItems.slice(0, 2).map((item) => WorkspaceSearchResult.create(item)),
+			})
 
-			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
+			const result = await searchService.searchWorkspaceFiles("", "/workspace", 2)
 
 			should(result).be.an.Array()
 			should(result).have.length(2)
@@ -155,28 +172,13 @@ describe("File Search", function () {
 				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(mockItems)
-			const fzfStub = {
-				find: sinon.stub().returns([{ item: mockItems[1], score: 0 }]),
-			}
-			// Create a mock for the fzf module
-			const fzfModuleStub = {
-				Fzf: sinon.stub().returns(fzfStub),
-				byLengthAsc: sinon.stub(),
-			}
-
-			// Use a more reliable approach to mock dynamic imports
-			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, workspacePath, limit) => {
-				if (!query.trim()) {
-					return mockItems.slice(0, limit)
-				}
-
-				// Simulate the fuzzy search behavior
-				return [mockItems[1]]
+			// Mock the host bridge to return the fuzzy search result
+			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
+			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
+				results: [mockItems[1]].map((item) => WorkspaceSearchResult.create(item)),
 			})
 
-			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
+			const result = await searchService.searchWorkspaceFiles("imp", "/workspace", 2)
 
 			should(result).be.an.Array()
 			should(result).have.length(1)
@@ -193,7 +195,7 @@ describe("File Search", function () {
 			const mockItemA: FzfResultItem<any> = { item: {}, positions: new Set([0, 1, 2, 5]), start: 0, end: 5, score: 0 }
 			const mockItemB: FzfResultItem<any> = { item: {}, positions: new Set([0, 2, 4, 6]), start: 0, end: 6, score: 0 }
 
-			const result = fileSearch.OrderbyMatchScore(mockItemA, mockItemB)
+			const result = OrderbyMatchScore(mockItemA, mockItemB)
 
 			should(result).be.lessThan(0)
 		})
