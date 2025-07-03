@@ -67,26 +67,9 @@
   </step>
 
   <step number="4">
-    <name>Check Out Pull Request Locally</name>
+    <name>Fetch Existing PR Comments and Reviews</name>
     <instructions>
-      Use the GitHub CLI (e.g. `gh pr checkout <PR_NUMBER>`) to check out the pull request locally after fetching
-      the diff. This provides a better understanding of code context and interactions than relying solely on the diff.
-      
-      <execute_command>
-      <command>gh pr checkout [PR_NUMBER]</command>
-      </execute_command>
-      
-      This allows you to:
-      - Navigate the actual code structure
-      - Understand how changes interact with existing code
-      - Get better context for your review
-    </instructions>
-  </step>
-
-  <step number="5">
-    <name>Fetch Existing PR Comments</name>
-    <instructions>
-      Get existing comments to understand the current discussion state:
+      IMPORTANT: Before reviewing any code, first get all existing comments and reviews to understand what feedback has already been provided:
       
       <use_mcp_tool>
       <server_name>github</server_name>
@@ -100,11 +83,69 @@
       </arguments>
       </use_mcp_tool>
       
-      Examine existing PR comments to understand the current state of discussion. When reading the comments and reviews, you must verify which are resolved by reading the files they refer to, since they might already be resolved. This prevents you from making redundant suggestions.
+      Also fetch existing reviews:
+      <use_mcp_tool>
+      <server_name>github</server_name>
+      <tool_name>get_pull_request_reviews</tool_name>
+      <arguments>
+      {
+        "owner": "[owner]",
+        "repo": "[repo]",
+        "pullNumber": [number]
+      }
+      </arguments>
+      </use_mcp_tool>
+      
+      Create a mental or written list of:
+      - All issues/suggestions that have been raised
+      - The specific files and line numbers mentioned
+      - Whether comments appear to be resolved or still pending
+      
+      This information will guide your review to avoid duplicate feedback.
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Check Out Pull Request Locally</name>
+    <instructions>
+      Use the GitHub CLI to check out the pull request locally:
+      
+      <execute_command>
+      <command>gh pr checkout [PR_NUMBER]</command>
+      </execute_command>
+      
+      This allows you to:
+      - Navigate the actual code structure
+      - Understand how changes interact with existing code
+      - Get better context for your review
     </instructions>
   </step>
 
   <step number="6">
+    <name>Verify Existing Comments Against Current Code</name>
+    <instructions>
+      Now that you have the code checked out locally and know what comments exist:
+      
+      1. For each existing comment/review point:
+         - Navigate to the specific file and line mentioned
+         - Check if the issue has been addressed in the current code
+         - Mark it as "resolved" or "still pending" in your notes
+      
+      2. Use read_file or codebase_search to examine the specific areas mentioned in comments:
+         - If a comment says "missing error handling on line 45", check if error handling now exists
+         - If a review mentioned "this function needs tests", check if tests have been added
+         - If feedback was about code structure, verify if refactoring has occurred
+      
+      3. Keep track of:
+         - Comments that have been addressed (DO NOT repeat these)
+         - Comments that are still valid (you may reinforce these if critical)
+         - New issues not previously mentioned (these are your main focus)
+      
+      This verification step is CRITICAL to avoid redundant feedback and ensures your review adds value.
+    </instructions>
+  </step>
+
+  <step number="7">
     <name>Perform Comprehensive Review</name>
     <instructions>
       Review the pull request thoroughly:
@@ -129,10 +170,15 @@
     </instructions>
   </step>
 
-  <step number="7">
+  <step number="8">
     <name>Prepare Review Comments</name>
     <instructions>
       Format your review comments following these guidelines:
+      
+      CRITICAL: Before adding any comment, verify it's not already addressed:
+      - Cross-reference with your notes from Step 6
+      - Only comment on NEW issues or UNRESOLVED existing issues
+      - Never repeat feedback that has been addressed in the current code
       
       Your suggestions should:
       - Use a **friendly, curious tone** — prefer asking: "Is this intentional?" or "Could we approach this differently to improve X?"
@@ -148,10 +194,12 @@
       - Critical issues (must fix)
       - Important suggestions (should consider)
       - Minor improvements (nice to have)
+      
+      Include a note about which existing comments you verified as resolved (for user awareness).
     </instructions>
   </step>
 
-  <step number="8">
+  <step number="9">
     <name>Preview Review with User</name>
     <instructions>
       Always show the user a preview of your review suggestions and comments before taking any action.
@@ -160,7 +208,11 @@
       <ask_followup_question>
       <question>I've completed my review of PR #[number]. Here's what I found:
 
-      [Summary of findings organized by priority]
+      [If applicable: Existing comments that have been resolved:
+      - Comment about X on file Y - now addressed
+      - Suggestion about Z - implemented]
+
+      [Summary of NEW findings organized by priority]
 
       Would you like me to:
       1. Create a comprehensive review with all comments
@@ -175,7 +227,7 @@
     </instructions>
   </step>
 
-  <step number="9">
+  <step number="10">
     <name>Submit Review</name>
     <instructions>
       Based on user preference, submit the review as a comprehensive review:

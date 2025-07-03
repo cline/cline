@@ -1,4 +1,9 @@
 <common_mistakes_to_avoid>
+  - Starting to review code WITHOUT first fetching existing comments and reviews
+  - Failing to create a list of existing feedback before reviewing
+  - Not systematically checking each existing comment against the current code
+  - Repeating feedback that has already been addressed in the current code
+  - Ignoring existing PR comments or failing to verify if they have already been resolved
   - Running tests or executing code during review
   - Making judgmental or harsh comments
   - Providing feedback on code outside the PR's scope
@@ -7,7 +12,6 @@
   - Using markdown headings (###, ##, #) in review comments
   - Using excessive markdown formatting when plain text would suffice
   - Submitting comments without user preview/approval
-  - Ignoring existing PR comments or failing to verify if they have already been resolved by checking the code
   - Forgetting to check for an associated issue for additional context
   - Missing critical security or performance issues
   - Not checking for proper i18n in UI changes
