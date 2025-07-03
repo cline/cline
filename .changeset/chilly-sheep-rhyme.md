@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Strip thinking tokens from Cerebras reasoning model inputs
+Improve cerebras Qwen model performance by removing thinking tokens from the model input
