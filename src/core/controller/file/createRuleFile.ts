@@ -6,8 +6,8 @@ import { createRuleFile as createRuleFileImpl } from "@core/context/instructions
 import * as vscode from "vscode"
 import * as path from "path"
 import { handleFileServiceRequest } from "./index"
-import { cwd } from "@core/task"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -32,6 +32,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		throw new Error("Missing or invalid parameters")
 	}
 
+	const cwd = await getCwd(getDesktopDir())
 	const { filePath, fileExists } = await createRuleFileImpl(request.isGlobal, request.filename, cwd, request.type)
 
 	if (!filePath) {

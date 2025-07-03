@@ -12,7 +12,7 @@ import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
 import Anthropic from "@anthropic-ai/sdk"
 import { TaskState } from "./TaskState"
-import { getCwd } from "@/utils/path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
@@ -83,7 +83,7 @@ export class MessageStateHandler {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			const cwd = await getCwd(path.join(os.homedir(), "Desktop"))
+			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
