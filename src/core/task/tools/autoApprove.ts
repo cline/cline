@@ -2,7 +2,7 @@ import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ToolUseName } from "@core/assistant-message"
 import * as path from "path"
 import os from "os"
-import { getCwd } from "@/utils/path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
@@ -54,7 +54,7 @@ export class AutoApprove {
 	async shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): Promise<boolean> {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = await getCwd(path.join(os.homedir(), "Desktop"))
+			const cwd = await getCwd(getDesktopDir())
 			const absolutePath = path.resolve(cwd, autoApproveActionpath)
 			isLocalRead = absolutePath.startsWith(cwd)
 		} else {
