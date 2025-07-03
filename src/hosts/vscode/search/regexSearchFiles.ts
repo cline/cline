@@ -60,18 +60,23 @@ interface SearchResult {
 
 const MAX_RESULTS = 300
 
-export async function regexSearchFiles(
-	cwd: string,
-	directoryPath: string,
-	regex: string,
-	filePattern?: string,
-	clineIgnoreController?: ClineIgnoreController,
-): Promise<string> {
-	const vscodeAppRoot = await getAppRoot()
-	const rgPath = await getBinPath(vscodeAppRoot)
+export async function regexSearchFiles(request: RegexSearchRequest): Promise<String> {
+	const { cwd, directoryPath, regex, filePattern, ignorePatterns } = request
 
-	if (!rgPath) {
+	let clineIgnoreController: ClineIgnoreController | undefined
+
+	const vscodeAppRoot = await getAppRoot()
+	const rgPathResponse = await getBinPath(String.create({ value: vscodeAppRoot }))
+
+	if (!rgPathResponse.value) {
 		throw new Error("Could not find ripgrep binary")
+	}
+
+	const rgPath = rgPathResponse.value
+
+	if (ignorePatterns && ignorePatterns.length > 0) {
+		// TODO: Create ClineIgnoreController from ignorePatterns array
+		// For now, leave as undefined
 	}
 
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
@@ -80,7 +85,7 @@ export async function regexSearchFiles(
 	try {
 		output = await execRipgrep(rgPath, args)
 	} catch {
-		return "No results found"
+		return String.create({ value: "No results found" })
 	}
 	const results: SearchResult[] = []
 	let currentResult: Partial<SearchResult> | null = null
@@ -123,7 +128,7 @@ export async function regexSearchFiles(
 		? results.filter((result) => clineIgnoreController.validateAccess(result.filePath))
 		: results
 
-	return formatResults(filteredResults, cwd)
+	return String.create({ value: formatResults(filteredResults, cwd) })
 }
 
 const MAX_RIPGREP_MB = 0.25

@@ -5,6 +5,8 @@ import * as readline from "readline"
 import { getBinPath } from "./getBinPath"
 import { getAppRoot } from "@utils/env"
 import type { Fzf, FzfResultItem } from "fzf"
+import { WorkspaceSearchRequest, WorkspaceSearchResponse, WorkspaceSearchResult } from "@shared/proto/host/search"
+import { String } from "@shared/proto/common"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
@@ -90,13 +92,11 @@ export async function executeRipgrepForFiles(
 	})
 }
 
-export async function searchWorkspaceFiles(
-	query: string,
-	workspacePath: string,
-	limit: number = 20,
-): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+export async function searchWorkspaceFiles(request: WorkspaceSearchRequest): Promise<WorkspaceSearchResponse> {
+	const { query, workspacePath, limit } = request
 	try {
-		const rgPath = await getBinPath(await getAppRoot())
+		const rgPathResponse = await getBinPath(String.create({ value: await getAppRoot() }))
+		const rgPath = rgPathResponse.value
 
 		if (!rgPath) {
 			throw new Error("Could not find ripgrep binary")
@@ -107,7 +107,14 @@ export async function searchWorkspaceFiles(
 
 		// If no query, just return the top items
 		if (!query.trim()) {
-			return allItems.slice(0, limit)
+			const results = allItems.slice(0, limit).map((item) =>
+				WorkspaceSearchResult.create({
+					path: item.path,
+					type: item.type,
+					label: item.label,
+				}),
+			)
+			return WorkspaceSearchResponse.create({ results })
 		}
 
 		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
@@ -148,10 +155,18 @@ export async function searchWorkspaceFiles(
 			},
 		)
 
-		return await Promise.all(verifiedResultsPromises)
+		const verifiedResults = await Promise.all(verifiedResultsPromises)
+		const results = verifiedResults.map((item) =>
+			WorkspaceSearchResult.create({
+				path: item.path,
+				type: item.type,
+				label: item.label,
+			}),
+		)
+		return WorkspaceSearchResponse.create({ results })
 	} catch (error) {
 		console.error("Error in searchWorkspaceFiles:", error)
-		return []
+		return WorkspaceSearchResponse.create({ results: [] })
 	}
 }
 
