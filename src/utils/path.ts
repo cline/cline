@@ -84,7 +84,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	relPath = relPath || ""
 	// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
 	const absolutePath = path.resolve(cwd, relPath)
-	if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
+	if (arePathsEqual(cwd, getDesktopDir())) {
 		// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
 		return absolutePath.toPosix()
 	}
@@ -106,6 +106,10 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 export const getCwd = async (defaultCwdPath = ""): Promise<string> => {
 	const workspaceFolders = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
 	return workspaceFolders.paths.shift() || defaultCwdPath
+}
+
+export function getDesktopDir() {
+	return path.join(os.homedir(), "Desktop")
 }
 
 // Returns the workspace path of the file in the current editor.

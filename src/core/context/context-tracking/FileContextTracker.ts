@@ -37,17 +37,6 @@ export class FileContextTracker {
 	}
 
 	/**
-	 * Gets the current working directory or returns undefined if it cannot be determined
-	 */
-	private async getCwd(): Promise<string | undefined> {
-		const cwd = await getCwd(undefined)
-		if (!cwd) {
-			console.info("No workspace folder available - cannot determine current working directory")
-		}
-		return cwd
-	}
-
-	/**
 	 * File watchers are set up for each file that is tracked in the task metadata.
 	 */
 	async setupFileWatcher(filePath: string) {
@@ -56,8 +45,9 @@ export class FileContextTracker {
 			return
 		}
 
-		const cwd = await this.getCwd()
+		const cwd = await getCwd()
 		if (!cwd) {
+			console.info("No workspace folder available - cannot determine current working directory")
 			return
 		}
 
@@ -87,8 +77,9 @@ export class FileContextTracker {
 	 */
 	async trackFileContext(filePath: string, operation: "read_tool" | "user_edited" | "cline_edited" | "file_mentioned") {
 		try {
-			const cwd = await this.getCwd()
+			const cwd = await getCwd()
 			if (!cwd) {
+				console.info("No workspace folder available - cannot determine current working directory")
 				return
 			}
 
