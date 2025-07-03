@@ -48,8 +48,9 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 	for (const key of keysToMigrate) {
 		// Use raw workspace state since these keys shouldn't be in workspace storage
 		const workspaceValue = await context.workspaceState.get(key)
+		const globalValue = await context.globalState.get(key)
 
-		if (workspaceValue !== undefined) {
+		if (workspaceValue !== undefined && globalValue === undefined) {
 			console.log(`[Storage Migration] migrating key: ${key} to global storage. Current value: ${workspaceValue}`)
 
 			// Move to global storage
