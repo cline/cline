@@ -1,13 +1,24 @@
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
-import { ChatSettings } from "@shared/ChatSettings"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { updateSetting } from "./utils/settingsHandlers"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 
-interface PreferredLanguageSettingProps {
-	chatSettings: ChatSettings
-	setChatSettings: (settings: ChatSettings) => void
-}
+const PreferredLanguageSetting: React.FC = () => {
+	const { chatSettings } = useExtensionState()
 
-const PreferredLanguageSetting: React.FC<PreferredLanguageSettingProps> = ({ chatSettings, setChatSettings }) => {
+	const handleLanguageChange = (newLanguage: string) => {
+		if (!chatSettings) return
+
+		const updatedChatSettings = {
+			...chatSettings,
+			preferredLanguage: newLanguage,
+		}
+
+		const protoChatSettings = convertChatSettingsToProtoChatSettings(updatedChatSettings)
+		updateSetting("chatSettings", protoChatSettings)
+	}
+
 	return (
 		<div style={{}}>
 			<label htmlFor="preferred-language-dropdown" className="block mb-1 text-sm font-medium">
@@ -17,11 +28,7 @@ const PreferredLanguageSetting: React.FC<PreferredLanguageSettingProps> = ({ cha
 				id="preferred-language-dropdown"
 				currentValue={chatSettings.preferredLanguage || "English"}
 				onChange={(e: any) => {
-					const newLanguage = e.target.value
-					setChatSettings({
-						...chatSettings,
-						preferredLanguage: newLanguage,
-					}) // This constructs a full ChatSettings object
+					handleLanguageChange(e.target.value)
 				}}
 				style={{ width: "100%" }}>
 				<VSCodeOption value="English">English</VSCodeOption>

@@ -2,6 +2,8 @@ import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
+import { updateSetting } from "../utils/settingsHandlers"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
@@ -9,18 +11,20 @@ interface FeatureSettingsSectionProps {
 }
 
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
-	const {
-		enableCheckpointsSetting,
-		setEnableCheckpointsSetting,
-		mcpMarketplaceEnabled,
-		setMcpMarketplaceEnabled,
-		mcpRichDisplayEnabled,
-		setMcpRichDisplayEnabled,
-		mcpResponsesCollapsed,
-		setMcpResponsesCollapsed,
-		chatSettings,
-		setChatSettings,
-	} = useExtensionState()
+	const { enableCheckpointsSetting, mcpMarketplaceEnabled, mcpRichDisplayEnabled, mcpResponsesCollapsed, chatSettings } =
+		useExtensionState()
+
+	const handleReasoningEffortChange = (newValue: OpenAIReasoningEffort) => {
+		if (!chatSettings) return
+
+		const updatedChatSettings = {
+			...chatSettings,
+			openAIReasoningEffort: newValue,
+		}
+
+		const protoChatSettings = convertChatSettingsToProtoChatSettings(updatedChatSettings)
+		updateSetting("chatSettings", protoChatSettings)
+	}
 
 	return (
 		<div>
@@ -32,7 +36,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							checked={enableCheckpointsSetting}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
-								setEnableCheckpointsSetting(checked)
+								updateSetting("enableCheckpointsSetting", checked)
 							}}>
 							Enable Checkpoints
 						</VSCodeCheckbox>
@@ -46,7 +50,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							checked={mcpMarketplaceEnabled}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
-								setMcpMarketplaceEnabled(checked)
+								updateSetting("mcpMarketplaceEnabled", checked)
 							}}>
 							Enable MCP Marketplace
 						</VSCodeCheckbox>
@@ -59,7 +63,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							checked={mcpRichDisplayEnabled}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
-								setMcpRichDisplayEnabled(checked)
+								updateSetting("mcpRichDisplayEnabled", checked)
 							}}>
 							Enable Rich MCP Display
 						</VSCodeCheckbox>
@@ -72,7 +76,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							checked={mcpResponsesCollapsed}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
-								setMcpResponsesCollapsed(checked)
+								updateSetting("mcpResponsesCollapsed", checked)
 							}}>
 							Collapse MCP Responses
 						</VSCodeCheckbox>
@@ -91,10 +95,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							currentValue={chatSettings.openAIReasoningEffort || "medium"}
 							onChange={(e: any) => {
 								const newValue = e.target.currentValue as OpenAIReasoningEffort
-								setChatSettings({
-									...chatSettings,
-									openAIReasoningEffort: newValue,
-								})
+								handleReasoningEffortChange(newValue)
 							}}
 							className="w-full">
 							<VSCodeOption value="low">Low</VSCodeOption>
