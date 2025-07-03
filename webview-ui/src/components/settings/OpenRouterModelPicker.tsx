@@ -44,13 +44,13 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "anthropic/claude-sonnet-4",
+		description: "Recommended for agentic coding in Cline",
 		label: "Best",
 	},
 	{
-		id: "anthropic/claude-sonnet-4",
-		description: "Recommended for agentic coding in Cline",
+		id: "google/gemini-2.5-pro",
+		description: "Large 1M context window, great value",
 		label: "Trending",
 	},
 	{
@@ -326,8 +326,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("google/gemini-2.5-pro")}>
-							google/gemini-2.5-pro.
+							onClick={() => handleModelChange("anthropic/claude-sonnet-4")}>
+							anthropic/claude-sonnet-4.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>
