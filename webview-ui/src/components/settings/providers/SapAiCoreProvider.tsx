@@ -1,15 +1,16 @@
-import { ApiConfiguration, sapAiCoreModels } from "@shared/api"
-import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { sapAiCoreModels } from "@shared/api"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the SapAiCoreProvider component
  */
 interface SapAiCoreProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -17,62 +18,65 @@ interface SapAiCoreProviderProps {
 /**
  * The SAP AI Core provider configuration component
  */
-export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreClientId || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={handleInputChange("sapAiCoreClientId")}
 				placeholder="Enter AI Core Client Id...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
 					Client Id is set. To change it, please re-enter the value.
 				</p>
 			)}
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={handleInputChange("sapAiCoreClientSecret")}
 				placeholder="Enter AI Core Client Secret...">
 				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
 					Client Secret is set. To change it, please re-enter the value.
 				</p>
 			)}
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreBaseUrl || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreBaseUrl || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiCoreBaseUrl")}
 				placeholder="Enter AI Core Base URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiCoreTokenUrl || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiCoreTokenUrl || ""}
+				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiCoreTokenUrl")}
 				placeholder="Enter AI Core Auth URL...">
 				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
-			<VSCodeTextField
-				value={apiConfiguration?.sapAiResourceGroup || ""}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.sapAiResourceGroup || ""}
+				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("sapAiResourceGroup")}
 				placeholder="Enter AI Core Resource Group...">
 				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			<p
 				style={{
@@ -93,7 +97,7 @@ export const SapAiCoreProvider = ({ apiConfiguration, handleInputChange, showMod
 					<ModelSelector
 						models={sapAiCoreModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
 					/>
 

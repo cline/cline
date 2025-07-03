@@ -71,6 +71,7 @@ export type GlobalStateKey =
 	| "terminalReuseEnabled"
 	| "defaultTerminalProfile"
 	| "isNewUser"
+	| "welcomeViewCompleted"
 	| "terminalOutputLineLimit"
 	| "mcpRichDisplayEnabled"
 	| "sapAiCoreTokenUrl"

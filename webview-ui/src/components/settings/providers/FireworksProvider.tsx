@@ -1,13 +1,13 @@
-import { ApiConfiguration } from "@shared/api"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { ApiConfiguration } from "@shared/api"
 
 /**
  * Props for the FireworksProvider component
  */
 interface FireworksProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
@@ -15,10 +15,12 @@ interface FireworksProviderProps {
 /**
  * The Fireworks provider configuration component
  */
-export const FireworksProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: FireworksProviderProps) => {
+export const FireworksProvider = ({ showModelOptions, isPopup }: FireworksProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
 	// Handler for number input fields with validation
-	const handleNumberInputChange = (field: keyof ApiConfiguration) => (e: any) => {
-		const value = (e.target as HTMLInputElement).value
+	const handleNumberInputChange = (field: keyof ApiConfiguration, value: string) => {
 		if (!value) {
 			return
 		}
@@ -26,31 +28,27 @@ export const FireworksProvider = ({ apiConfiguration, handleInputChange, showMod
 		if (isNaN(num)) {
 			return
 		}
-		handleInputChange(field)({
-			target: {
-				value: num,
-			},
-		})
+		handleFieldChange(field, num)
 	}
 
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.fireworksApiKey || ""}
-				onChange={handleInputChange("fireworksApiKey")}
+				initialValue={apiConfiguration?.fireworksApiKey || ""}
+				onChange={(value) => handleFieldChange("fireworksApiKey", value)}
 				providerName="Fireworks"
 				signupUrl="https://fireworks.ai/settings/users/api-keys"
 			/>
 
 			{showModelOptions && (
 				<>
-					<VSCodeTextField
-						value={apiConfiguration?.fireworksModelId || ""}
+					<DebouncedTextField
+						initialValue={apiConfiguration?.fireworksModelId || ""}
+						onChange={(value) => handleFieldChange("fireworksModelId", value)}
 						style={{ width: "100%" }}
-						onInput={handleInputChange("fireworksModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
+					</DebouncedTextField>
 					<p
 						style={{
 							fontSize: "12px",
@@ -62,20 +60,20 @@ export const FireworksProvider = ({ apiConfiguration, handleInputChange, showMod
 							models. Less capable models may not work as expected.)
 						</span>
 					</p>
-					<VSCodeTextField
-						value={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
+					<DebouncedTextField
+						initialValue={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
+						onChange={(value) => handleNumberInputChange("fireworksModelMaxCompletionTokens", value)}
 						style={{ width: "100%", marginBottom: 8 }}
-						onInput={handleNumberInputChange("fireworksModelMaxCompletionTokens")}
 						placeholder={"2000"}>
 						<span style={{ fontWeight: 500 }}>Max Completion Tokens</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
+					</DebouncedTextField>
+					<DebouncedTextField
+						initialValue={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
+						onChange={(value) => handleNumberInputChange("fireworksModelMaxTokens", value)}
 						style={{ width: "100%", marginBottom: 8 }}
-						onInput={handleNumberInputChange("fireworksModelMaxTokens")}
 						placeholder={"4000"}>
 						<span style={{ fontWeight: 500 }}>Max Context Tokens</span>
-					</VSCodeTextField>
+					</DebouncedTextField>
 				</>
 			)}
 		</div>
