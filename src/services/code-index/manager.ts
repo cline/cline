@@ -203,7 +203,7 @@ export class CodeIndexManager {
 
 	/**
 	 * Private helper method to recreate services with current configuration.
-	 * Used by both initialize() and handleExternalSettingsChange().
+	 * Used by both initialize() and handleSettingsChange().
 	 */
 	private async _recreateServices(): Promise<void> {
 		// Stop watcher if it exists
@@ -257,12 +257,12 @@ export class CodeIndexManager {
 	}
 
 	/**
-	 * Handles external settings changes by reloading configuration.
-	 * This method should be called when API provider settings are updated
+	 * Handle code index settings changes.
+	 * This method should be called when code index settings are updated
 	 * to ensure the CodeIndexConfigManager picks up the new configuration.
 	 * If the configuration changes require a restart, the service will be restarted.
 	 */
-	public async handleExternalSettingsChange(): Promise<void> {
+	public async handleSettingsChange(): Promise<void> {
 		if (this._configManager) {
 			const { requiresRestart } = await this._configManager.loadConfiguration()
 
@@ -275,7 +275,7 @@ export class CodeIndexManager {
 				await this._recreateServices()
 
 				// Start indexing with new services
-				await this.startIndexing()
+				this.startIndexing()
 			}
 		}
 	}

@@ -1115,6 +1115,21 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("browserToolEnabled", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
+		case "codebaseIndexEnabled":
+			// Update the codebaseIndexConfig with the new enabled state
+			const currentCodebaseConfig = getGlobalState("codebaseIndexConfig") || {}
+			await updateGlobalState("codebaseIndexConfig", {
+				...currentCodebaseConfig,
+				codebaseIndexEnabled: message.bool ?? false,
+			})
+
+			// Notify the code index manager about the change
+			if (provider.codeIndexManager) {
+				await provider.codeIndexManager.handleSettingsChange()
+			}
+
+			await provider.postStateToWebview()
+			break
 		case "language":
 			changeLanguage(message.text ?? "en")
 			await updateGlobalState("language", message.text as Language)
@@ -1806,43 +1821,111 @@ export const webviewMessageHandler = async (
 
 			break
 		}
-		case "codebaseIndexConfig": {
-			const codebaseIndexConfig = message.values ?? {
-				codebaseIndexEnabled: false,
-				codebaseIndexQdrantUrl: "http://localhost:6333",
-				codebaseIndexEmbedderProvider: "openai",
-				codebaseIndexEmbedderBaseUrl: "",
-				codebaseIndexEmbedderModelId: "",
+
+		case "saveCodeIndexSettingsAtomic": {
+			if (!message.codeIndexSettings) {
+				break
 			}
-			await updateGlobalState("codebaseIndexConfig", codebaseIndexConfig)
+
+			const settings = message.codeIndexSettings
 
 			try {
-				if (provider.codeIndexManager) {
-					await provider.codeIndexManager.handleExternalSettingsChange()
+				// Save global state settings atomically (without codebaseIndexEnabled which is now in global settings)
+				const currentConfig = getGlobalState("codebaseIndexConfig") || {}
+				const globalStateConfig = {
+					...currentConfig,
+					codebaseIndexQdrantUrl: settings.codebaseIndexQdrantUrl,
+					codebaseIndexEmbedderProvider: settings.codebaseIndexEmbedderProvider,
+					codebaseIndexEmbedderBaseUrl: settings.codebaseIndexEmbedderBaseUrl,
+					codebaseIndexEmbedderModelId: settings.codebaseIndexEmbedderModelId,
+					codebaseIndexOpenAiCompatibleBaseUrl: settings.codebaseIndexOpenAiCompatibleBaseUrl,
+					codebaseIndexOpenAiCompatibleModelDimension: settings.codebaseIndexOpenAiCompatibleModelDimension,
+				}
 
-					// If now configured and enabled, start indexing automatically
+				// Save global state first
+				await updateGlobalState("codebaseIndexConfig", globalStateConfig)
+
+				// Save secrets directly using context proxy
+				if (settings.codeIndexOpenAiKey !== undefined) {
+					await provider.contextProxy.storeSecret("codeIndexOpenAiKey", settings.codeIndexOpenAiKey)
+				}
+				if (settings.codeIndexQdrantApiKey !== undefined) {
+					await provider.contextProxy.storeSecret("codeIndexQdrantApiKey", settings.codeIndexQdrantApiKey)
+				}
+				if (settings.codebaseIndexOpenAiCompatibleApiKey !== undefined) {
+					await provider.contextProxy.storeSecret(
+						"codebaseIndexOpenAiCompatibleApiKey",
+						settings.codebaseIndexOpenAiCompatibleApiKey,
+					)
+				}
+				if (settings.codebaseIndexGeminiApiKey !== undefined) {
+					await provider.contextProxy.storeSecret(
+						"codebaseIndexGeminiApiKey",
+						settings.codebaseIndexGeminiApiKey,
+					)
+				}
+
+				// Verify secrets are actually stored
+				const storedOpenAiKey = provider.contextProxy.getSecret("codeIndexOpenAiKey")
+
+				// Notify code index manager of changes
+				if (provider.codeIndexManager) {
+					await provider.codeIndexManager.handleSettingsChange()
+
+					// Auto-start indexing if now enabled and configured
 					if (provider.codeIndexManager.isFeatureEnabled && provider.codeIndexManager.isFeatureConfigured) {
 						if (!provider.codeIndexManager.isInitialized) {
 							await provider.codeIndexManager.initialize(provider.contextProxy)
 						}
-						// Start indexing in background (no await)
 						provider.codeIndexManager.startIndexing()
 					}
 				}
-			} catch (error) {
-				provider.log(
-					`[CodeIndexManager] Error during background CodeIndexManager configuration/indexing: ${error.message || error}`,
-				)
-			}
 
-			await provider.postStateToWebview()
+				// Send success response
+				await provider.postMessageToWebview({
+					type: "codeIndexSettingsSaved",
+					success: true,
+					settings: globalStateConfig,
+				})
+
+				// Update webview state
+				await provider.postStateToWebview()
+			} catch (error) {
+				provider.log(`Error saving code index settings: ${error.message || error}`)
+				await provider.postMessageToWebview({
+					type: "codeIndexSettingsSaved",
+					success: false,
+					error: error.message || "Failed to save settings",
+				})
+			}
 			break
 		}
+
 		case "requestIndexingStatus": {
 			const status = provider.codeIndexManager!.getCurrentStatus()
 			provider.postMessageToWebview({
 				type: "indexingStatusUpdate",
 				values: status,
+			})
+			break
+		}
+		case "requestCodeIndexSecretStatus": {
+			// Check if secrets are set using the VSCode context directly for async access
+			const hasOpenAiKey = !!(await provider.context.secrets.get("codeIndexOpenAiKey"))
+			const hasQdrantApiKey = !!(await provider.context.secrets.get("codeIndexQdrantApiKey"))
+			const hasOpenAiCompatibleApiKey = !!(await provider.context.secrets.get(
+				"codebaseIndexOpenAiCompatibleApiKey",
+			))
+			const hasGeminiApiKey = !!(await provider.context.secrets.get("codebaseIndexGeminiApiKey"))
+
+			provider.postMessageToWebview({
+				type: "codeIndexSecretStatus",
+				values: {
+					hasOpenAiKey,
+					hasQdrantApiKey,
+					hasOpenAiCompatibleApiKey,
+					hasGeminiApiKey,
+				},
 			})
 			break
 		}

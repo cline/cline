@@ -3,6 +3,7 @@ import { cn } from "@src/lib/utils"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useTooltip } from "@/hooks/useTooltip"
+import { CodeIndexPopover } from "./CodeIndexPopover"
 import type { IndexingStatus, IndexingStatusUpdateMessage } from "@roo/ExtensionMessage"
 
 interface IndexingStatusDotProps {
@@ -66,18 +67,6 @@ export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className 
 		}
 	}
 
-	// Navigate to settings when clicked
-	const handleClick = () => {
-		window.postMessage(
-			{
-				type: "action",
-				action: "settingsButtonClicked",
-				values: { section: "experimental" },
-			},
-			"*",
-		)
-	}
-
 	const handleMouseEnterButton = () => {
 		setIsHovered(true)
 		handleMouseEnter()
@@ -115,25 +104,26 @@ export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className 
 
 	return (
 		<div className={cn("relative inline-block", className)}>
-			<button
-				onClick={handleClick}
-				onMouseEnter={handleMouseEnterButton}
-				onMouseLeave={handleMouseLeaveButton}
-				className={cn(
-					"flex items-center justify-center w-7 h-7 rounded-md",
-					"bg-transparent hover:bg-vscode-list-hoverBackground",
-					"cursor-pointer transition-all duration-200",
-					"opacity-85 hover:opacity-100 relative",
-				)}
-				aria-label={getTooltipText()}>
-				{/* Status dot */}
-				<span
+			<CodeIndexPopover indexingStatus={indexingStatus}>
+				<button
+					onMouseEnter={handleMouseEnterButton}
+					onMouseLeave={handleMouseLeaveButton}
 					className={cn(
-						"inline-block w-2 h-2 rounded-full relative z-10 transition-colors duration-200",
-						getStatusColorClass(),
+						"flex items-center justify-center w-7 h-7 rounded-md",
+						"bg-transparent hover:bg-vscode-list-hoverBackground",
+						"cursor-pointer transition-all duration-200",
+						"opacity-85 hover:opacity-100 relative",
 					)}
-				/>
-			</button>
+					aria-label={getTooltipText()}>
+					{/* Status dot */}
+					<span
+						className={cn(
+							"inline-block w-2 h-2 rounded-full relative z-10 transition-colors duration-200",
+							getStatusColorClass(),
+						)}
+					/>
+				</button>
+			</CodeIndexPopover>
 			{showTooltip && (
 				<div
 					className={cn(

@@ -27,6 +27,13 @@ export class CodeIndexConfigManager {
 	}
 
 	/**
+	 * Gets the context proxy instance
+	 */
+	public getContextProxy(): ContextProxy {
+		return this.contextProxy
+	}
+
+	/**
 	 * Private method that handles loading configuration from storage and updating instance variables.
 	 * This eliminates code duplication between initializeWithCurrentConfig() and loadConfiguration().
 	 */
@@ -131,6 +138,9 @@ export class CodeIndexConfigManager {
 			qdrantApiKey: this.qdrantApiKey ?? "",
 		}
 
+		// Refresh secrets from VSCode storage to ensure we have the latest values
+		await this.contextProxy.refreshSecrets()
+
 		// Load new configuration from storage and update instance variables
 		this._loadAndSetConfiguration()
 
@@ -162,38 +172,50 @@ export class CodeIndexConfigManager {
 		if (this.embedderProvider === "openai") {
 			const openAiKey = this.openAiOptions?.openAiNativeApiKey
 			const qdrantUrl = this.qdrantUrl
-			const isConfigured = !!(openAiKey && qdrantUrl)
-			return isConfigured
+			return !!(openAiKey && qdrantUrl)
 		} else if (this.embedderProvider === "ollama") {
 			// Ollama model ID has a default, so only base URL is strictly required for config
 			const ollamaBaseUrl = this.ollamaOptions?.ollamaBaseUrl
 			const qdrantUrl = this.qdrantUrl
-			const isConfigured = !!(ollamaBaseUrl && qdrantUrl)
-			return isConfigured
+			return !!(ollamaBaseUrl && qdrantUrl)
 		} else if (this.embedderProvider === "openai-compatible") {
 			const baseUrl = this.openAiCompatibleOptions?.baseUrl
 			const apiKey = this.openAiCompatibleOptions?.apiKey
 			const qdrantUrl = this.qdrantUrl
-			return !!(baseUrl && apiKey && qdrantUrl)
+			const isConfigured = !!(baseUrl && apiKey && qdrantUrl)
+			return isConfigured
 		} else if (this.embedderProvider === "gemini") {
 			const apiKey = this.geminiOptions?.apiKey
 			const qdrantUrl = this.qdrantUrl
-			return !!(apiKey && qdrantUrl)
+			const isConfigured = !!(apiKey && qdrantUrl)
+			return isConfigured
 		}
 		return false // Should not happen if embedderProvider is always set correctly
 	}
 
 	/**
 	 * Determines if a configuration change requires restarting the indexing process.
+	 * Simplified logic: only restart for critical changes that affect service functionality.
+	 *
+	 * CRITICAL CHANGES (require restart):
+	 * - Provider changes (openai -> ollama, etc.)
+	 * - Authentication changes (API keys, base URLs)
+	 * - Vector dimension changes (model changes that affect embedding size)
+	 * - Qdrant connection changes (URL, API key)
+	 * - Feature enable/disable transitions
+	 *
+	 * MINOR CHANGES (no restart needed):
+	 * - Search minimum score adjustments
+	 * - UI-only settings
+	 * - Non-functional configuration tweaks
 	 */
 	doesConfigChangeRequireRestart(prev: PreviousConfigSnapshot): boolean {
 		const nowConfigured = this.isConfigured()
 
-		// Handle null/undefined values safely - use empty strings for consistency with loaded config
+		// Handle null/undefined values safely
 		const prevEnabled = prev?.enabled ?? false
 		const prevConfigured = prev?.configured ?? false
 		const prevProvider = prev?.embedderProvider ?? "openai"
-		const prevModelId = prev?.modelId ?? undefined
 		const prevOpenAiKey = prev?.openAiKey ?? ""
 		const prevOllamaBaseUrl = prev?.ollamaBaseUrl ?? ""
 		const prevOpenAiCompatibleBaseUrl = prev?.openAiCompatibleBaseUrl ?? ""
@@ -218,57 +240,51 @@ export class CodeIndexConfigManager {
 			return false
 		}
 
-		// 4. Check for changes in relevant settings if the feature is enabled (or was enabled)
+		// 4. CRITICAL CHANGES - Always restart for these
 		if (this.isEnabled || prevEnabled) {
 			// Provider change
 			if (prevProvider !== this.embedderProvider) {
 				return true
 			}
 
-			if (this._hasVectorDimensionChanged(prevProvider, prevModelId)) {
-				return true
-			}
-
-			// Authentication changes
-			if (this.embedderProvider === "openai") {
-				const currentOpenAiKey = this.openAiOptions?.openAiNativeApiKey ?? ""
-				if (prevOpenAiKey !== currentOpenAiKey) {
-					return true
-				}
-			}
-
-			if (this.embedderProvider === "ollama") {
-				const currentOllamaBaseUrl = this.ollamaOptions?.ollamaBaseUrl ?? ""
-				if (prevOllamaBaseUrl !== currentOllamaBaseUrl) {
-					return true
-				}
-			}
-
-			if (this.embedderProvider === "openai-compatible") {
-				const currentOpenAiCompatibleBaseUrl = this.openAiCompatibleOptions?.baseUrl ?? ""
-				const currentOpenAiCompatibleApiKey = this.openAiCompatibleOptions?.apiKey ?? ""
-				const currentOpenAiCompatibleModelDimension = this.openAiCompatibleOptions?.modelDimension
-				if (
-					prevOpenAiCompatibleBaseUrl !== currentOpenAiCompatibleBaseUrl ||
-					prevOpenAiCompatibleApiKey !== currentOpenAiCompatibleApiKey ||
-					prevOpenAiCompatibleModelDimension !== currentOpenAiCompatibleModelDimension
-				) {
-					return true
-				}
-			}
-
-			if (this.embedderProvider === "gemini") {
-				const currentGeminiApiKey = this.geminiOptions?.apiKey ?? ""
-				if (prevGeminiApiKey !== currentGeminiApiKey) {
-					return true
-				}
-			}
-
-			// Qdrant configuration changes
+			// Authentication changes (API keys)
+			const currentOpenAiKey = this.openAiOptions?.openAiNativeApiKey ?? ""
+			const currentOllamaBaseUrl = this.ollamaOptions?.ollamaBaseUrl ?? ""
+			const currentOpenAiCompatibleBaseUrl = this.openAiCompatibleOptions?.baseUrl ?? ""
+			const currentOpenAiCompatibleApiKey = this.openAiCompatibleOptions?.apiKey ?? ""
+			const currentOpenAiCompatibleModelDimension = this.openAiCompatibleOptions?.modelDimension
+			const currentGeminiApiKey = this.geminiOptions?.apiKey ?? ""
 			const currentQdrantUrl = this.qdrantUrl ?? ""
 			const currentQdrantApiKey = this.qdrantApiKey ?? ""
 
+			if (prevOpenAiKey !== currentOpenAiKey) {
+				return true
+			}
+
+			if (prevOllamaBaseUrl !== currentOllamaBaseUrl) {
+				return true
+			}
+
+			if (
+				prevOpenAiCompatibleBaseUrl !== currentOpenAiCompatibleBaseUrl ||
+				prevOpenAiCompatibleApiKey !== currentOpenAiCompatibleApiKey
+			) {
+				return true
+			}
+
+			// Check for OpenAI Compatible modelDimension changes
+			if (this.embedderProvider === "openai-compatible" || prevProvider === "openai-compatible") {
+				if (prevOpenAiCompatibleModelDimension !== currentOpenAiCompatibleModelDimension) {
+					return true
+				}
+			}
+
 			if (prevQdrantUrl !== currentQdrantUrl || prevQdrantApiKey !== currentQdrantApiKey) {
+				return true
+			}
+
+			// Vector dimension changes (still important for compatibility)
+			if (this._hasVectorDimensionChanged(prevProvider, prev?.modelId)) {
 				return true
 			}
 		}

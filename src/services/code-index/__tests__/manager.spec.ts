@@ -13,7 +13,7 @@ vitest.mock("../state-manager", () => ({
 	})),
 }))
 
-describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
+describe("CodeIndexManager - handleSettingsChange regression", () => {
 	let mockContext: any
 	let manager: CodeIndexManager
 
@@ -48,9 +48,9 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 		CodeIndexManager.disposeAll()
 	})
 
-	describe("handleExternalSettingsChange", () => {
+	describe("handleSettingsChange", () => {
 		it("should not throw when called on uninitialized manager (regression test)", async () => {
-			// This is the core regression test: handleExternalSettingsChange() should not throw
+			// This is the core regression test: handleSettingsChange() should not throw
 			// when called before the manager is initialized (during first-time configuration)
 
 			// Ensure manager is not initialized
@@ -67,16 +67,28 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 			vitest.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
 
 			// The key test: this should NOT throw "CodeIndexManager not initialized" error
-			await expect(manager.handleExternalSettingsChange()).resolves.not.toThrow()
+			await expect(manager.handleSettingsChange()).resolves.not.toThrow()
 
 			// Verify that loadConfiguration was called (the method should still work)
 			expect(mockConfigManager.loadConfiguration).toHaveBeenCalled()
 		})
 
 		it("should work normally when manager is initialized", async () => {
-			// Mock a minimal config manager
+			// Mock a complete config manager with all required properties
 			const mockConfigManager = {
 				loadConfiguration: vitest.fn().mockResolvedValue({ requiresRestart: true }),
+				isFeatureConfigured: true,
+				isFeatureEnabled: true,
+				getConfig: vitest.fn().mockReturnValue({
+					isEnabled: true,
+					isConfigured: true,
+					embedderProvider: "openai",
+					modelId: "text-embedding-3-small",
+					openAiOptions: { openAiNativeApiKey: "test-key" },
+					qdrantUrl: "http://localhost:6333",
+					qdrantApiKey: "test-key",
+					searchMinScore: 0.4,
+				}),
 			}
 			;(manager as any)._configManager = mockConfigManager
 
@@ -96,10 +108,11 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 			vitest.spyOn(manager, "isFeatureEnabled", "get").mockReturnValue(true)
 			vitest.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
 
-			await manager.handleExternalSettingsChange()
+			await manager.handleSettingsChange()
 
 			// Verify that the restart sequence was called
 			expect(mockConfigManager.loadConfiguration).toHaveBeenCalled()
+			// stopWatcher is called inside _recreateServices, which we mocked
 			expect(recreateServicesSpy).toHaveBeenCalled()
 			expect(startIndexingSpy).toHaveBeenCalled()
 		})
@@ -109,7 +122,7 @@ describe("CodeIndexManager - handleExternalSettingsChange regression", () => {
 			;(manager as any)._configManager = undefined
 
 			// This should not throw an error
-			await expect(manager.handleExternalSettingsChange()).resolves.not.toThrow()
+			await expect(manager.handleSettingsChange()).resolves.not.toThrow()
 		})
 	})
 })

@@ -30,7 +30,9 @@ export class CodeIndexServiceFactory {
 		const provider = config.embedderProvider as EmbedderProvider
 
 		if (provider === "openai") {
-			if (!config.openAiOptions?.openAiNativeApiKey) {
+			const apiKey = config.openAiOptions?.openAiNativeApiKey
+
+			if (!apiKey) {
 				throw new Error("OpenAI configuration missing for embedder creation")
 			}
 			return new OpenAiEmbedder({
