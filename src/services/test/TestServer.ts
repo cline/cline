@@ -273,7 +273,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
 
 						// Update global state to use cline provider
-						await updateWorkspaceState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
+						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()

@@ -244,7 +244,9 @@ export class FileContextTracker {
 	async storePendingFileContextWarning(files: string[]): Promise<void> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			await updateWorkspaceState(this.context, key, files)
+			// NOTE: Using 'as any' because dynamic keys like pendingFileContextWarning_${taskId}
+			// are legitimate workspace state keys but don't fit the strict LocalStateKey type system
+			await updateWorkspaceState(this.context, key as any, files)
 		} catch (error) {
 			console.error("Error storing pending file context warning:", error)
 		}
@@ -256,7 +258,7 @@ export class FileContextTracker {
 	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			const files = (await getWorkspaceState(this.context, key)) as string[]
+			const files = (await getWorkspaceState(this.context, key as any)) as string[]
 			return files
 		} catch (error) {
 			console.error("Error retrieving pending file context warning:", error)
@@ -271,7 +273,7 @@ export class FileContextTracker {
 		try {
 			const files = await this.retrievePendingFileContextWarning()
 			if (files) {
-				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}`, undefined)
+				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}` as any, undefined)
 				return files
 			}
 		} catch (error) {
@@ -302,7 +304,7 @@ export class FileContextTracker {
 
 			if (orphanedPendingContextTasks.length > 0) {
 				for (const key of orphanedPendingContextTasks) {
-					await updateWorkspaceState(context, key, undefined)
+					await updateWorkspaceState(context, key as any, undefined)
 				}
 			}
 
