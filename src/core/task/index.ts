@@ -1024,11 +1024,8 @@ export class Task {
 							this.sidebarController.phaseTracker.getProjectOverview(),
 						)
 					: (task ?? "")
-			if (this.taskState.isPhaseRoot) {
-				userContent = [{ type: "text", text: `${PROMPTS.PLANNING}\n\n<task>\n${task}\n</task>` }, ...imageBlocks]
-			} else {
-				userContent = [{ type: "text", text: `<task>\n${phaseAwarePrompt}\n</task>` }, ...imageBlocks]
-			}
+
+			userContent = [{ type: "text", text: `<task>\n${phaseAwarePrompt}\n</task>` }, ...imageBlocks]
 		} else {
 			userContent = [{ type: "text", text: `<task>\n${task}\n</task>` }, ...imageBlocks]
 		}
@@ -1946,7 +1943,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		const apiToUse = this.taskState.isPhaseRoot && forceModel ? this.createTemporaryApiHandler(forceModel) : this.api
+		const isNextGenModel = isClaude4ModelFamily(apiToUse) || isGemini2dot5ModelFamily(apiToUse)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		await this.migratePreferredLanguageToolSetting()
@@ -2011,13 +2009,10 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 		// Use forced model if specified, otherwise use default api
-		let stream
-		if (this.taskState.isPhaseRoot) {
-			const apiToUse = forceModel ? this.createTemporaryApiHandler(forceModel) : this.api
-			stream = apiToUse.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
-		} else {
-			stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
-		}
+		const stream = apiToUse.createMessage(
+			this.taskState.isPhaseRoot ? PROMPTS.PLANNING : systemPrompt,
+			contextManagementMetadata.truncatedConversationHistory,
+		)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
