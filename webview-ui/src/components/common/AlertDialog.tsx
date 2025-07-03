@@ -94,6 +94,23 @@ export function UnsavedChangesDialog({
 	saveText?: string
 	showSaveOption?: boolean
 }) {
+	const handleConfirm = () => {
+		onConfirm()
+		onOpenChange(false)
+	}
+
+	const handleCancel = () => {
+		onCancel()
+		onOpenChange(false)
+	}
+
+	const handleSave = () => {
+		if (onSave) {
+			onSave()
+		}
+		onOpenChange(false)
+	}
+
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
 			<AlertDialogContent>
@@ -105,9 +122,9 @@ export function UnsavedChangesDialog({
 					<AlertDialogDescription>{description}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-					{showSaveOption && onSave && <AlertDialogAction onClick={onSave}>{saveText}</AlertDialogAction>}
-					<AlertDialogAction onClick={onConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
+					<AlertDialogCancel onClick={handleCancel}>Cancel</AlertDialogCancel>
+					{showSaveOption && onSave && <AlertDialogAction onClick={handleSave}>{saveText}</AlertDialogAction>}
+					<AlertDialogAction onClick={handleConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
 						{confirmText}
 					</AlertDialogAction>
 				</AlertDialogFooter>
