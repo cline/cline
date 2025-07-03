@@ -1,10 +1,8 @@
-import * as vscode from "vscode"
+import { getCwd } from "@/utils/path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
-import { ClaudeCodeMessage } from "./types"
 import readline from "readline"
-
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+import { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string
@@ -22,7 +20,7 @@ type ProcessState = {
 }
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
-	const process = runProcess(options)
+	const process = runProcess(options, await getCwd())
 
 	const rl = readline.createInterface({
 		input: process.stdout,
@@ -124,7 +122,7 @@ const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 // https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
 const BUFFER_SIZE = 20_000_000 // 20 MB
 
-function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions) {
+function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions, cwd: string) {
 	const claudePath = path?.trim() || "claude"
 
 	const args = [
