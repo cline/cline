@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "./state"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState, getAllExtensionState } from "./state"
 import { GlobalStateKey } from "./state-keys"
 
 export async function migratePlanActGlobalToWorkspaceStorage(context: vscode.ExtensionContext) {
@@ -142,6 +142,58 @@ export async function migrateModeFromWorkspaceStorageToControllerState(context: 
 		}
 	} catch (error) {
 		console.error("Failed to cleanup mode from workspace storage:", error)
+		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
+export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
+	try {
+		// Check if welcomeViewCompleted is already set
+		const welcomeViewCompleted = await getGlobalState(context, "welcomeViewCompleted")
+
+		if (welcomeViewCompleted === undefined) {
+			console.log("Migrating welcomeViewCompleted setting...")
+
+			// Get all extension state to check for existing API keys
+			const extensionState = await getAllExtensionState(context)
+			const config = extensionState.apiConfiguration
+
+			// This is the original logic used for checking is the welcome view should be shown
+			// It was located in the ExtensionStateContextProvider
+			const hasKey = config
+				? [
+						config.apiKey,
+						config.openRouterApiKey,
+						config.awsRegion,
+						config.vertexProjectId,
+						config.openAiApiKey,
+						config.ollamaModelId,
+						config.lmStudioModelId,
+						config.liteLlmApiKey,
+						config.geminiApiKey,
+						config.openAiNativeApiKey,
+						config.deepSeekApiKey,
+						config.requestyApiKey,
+						config.togetherApiKey,
+						config.qwenApiKey,
+						config.doubaoApiKey,
+						config.mistralApiKey,
+						config.vsCodeLmModelSelector,
+						config.clineApiKey,
+						config.asksageApiKey,
+						config.xaiApiKey,
+						config.sambanovaApiKey,
+						config.sapAiCoreClientId,
+					].some((key) => key !== undefined)
+				: false
+
+			// Set welcomeViewCompleted based on whether user has keys
+			await updateGlobalState(context, "welcomeViewCompleted", hasKey)
+
+			console.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
+		}
+	} catch (error) {
+		console.error("Failed to migrate welcomeViewCompleted:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }

@@ -63,7 +63,10 @@ export class ToolExecutor {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}
 
-	private shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+	private async shouldAutoApproveToolWithPath(
+		blockname: ToolUseName,
+		autoApproveActionpath: string | undefined,
+	): Promise<boolean> {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
 	}
 
@@ -573,7 +576,7 @@ export class ToolExecutor {
 						// update gui message
 						const partialMessage = JSON.stringify(sharedMessageProps)
 
-						if (this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -645,7 +648,7 @@ export class ToolExecutor {
 							// 	)
 							// : undefined,
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -782,7 +785,7 @@ export class ToolExecutor {
 							content: undefined,
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -813,7 +816,7 @@ export class ToolExecutor {
 							content: absolutePath,
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -864,7 +867,7 @@ export class ToolExecutor {
 							content: "",
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -896,7 +899,7 @@ export class ToolExecutor {
 							content: result,
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -939,7 +942,7 @@ export class ToolExecutor {
 							content: "",
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -968,7 +971,7 @@ export class ToolExecutor {
 							content: result,
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -1015,7 +1018,7 @@ export class ToolExecutor {
 							content: "",
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -1052,7 +1055,7 @@ export class ToolExecutor {
 							content: results,
 							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++

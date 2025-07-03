@@ -78,13 +78,10 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = new ClineAccountService(
-			(msg) => this.postMessageToWebview(msg),
-			async () => {
-				const { apiConfiguration } = await this.getStateToPostToWebview()
-				return apiConfiguration?.clineApiKey
-			},
-		)
+		this.accountService = new ClineAccountService(async () => {
+			const { apiConfiguration } = await this.getStateToPostToWebview()
+			return apiConfiguration?.clineApiKey
+		})
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -848,6 +845,7 @@ export class Controller {
 			terminalReuseEnabled,
 			defaultTerminalProfile,
 			isNewUser,
+			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
@@ -902,6 +900,7 @@ export class Controller {
 			terminalReuseEnabled,
 			defaultTerminalProfile,
 			isNewUser,
+			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		}

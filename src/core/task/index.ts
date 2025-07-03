@@ -35,6 +35,7 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { getGitRemoteUrls } from "@utils/git"
 
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
@@ -1436,7 +1437,10 @@ export class Task {
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
-					// proceed while running
+					// proceed while running - but still capture user feedback if provided
+					if (text || (images && images.length > 0) || (files && files.length > 0)) {
+						userFeedback = { text, images, files }
+					}
 				} else {
 					userFeedback = { text, images, files }
 				}
@@ -1927,12 +1931,42 @@ export class Task {
 					message: `Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests.`,
 				})
 			}
-			await this.ask(
+			const { response, text, images, files } = await this.ask(
 				"auto_approval_max_req_reached",
 				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
 			)
 			// if we get past the promise it means the user approved and did not start a new task
 			this.taskState.consecutiveAutoApprovedRequestsCount = 0
+
+			// Process user feedback if provided
+			if (response === "messageResponse") {
+				// Display the user's message in the chat UI
+				await this.say("user_feedback", text, images, files)
+
+				// This userContent is for the *next* API call.
+				const feedbackUserContent: UserContent = []
+				feedbackUserContent.push({
+					type: "text",
+					text: formatResponse.autoApprovalMaxReached(text),
+				})
+				if (images && images.length > 0) {
+					feedbackUserContent.push(...formatResponse.imageBlocks(images))
+				}
+
+				let fileContentString = ""
+				if (files && files.length > 0) {
+					fileContentString = await processFilesIntoText(files)
+				}
+
+				if (fileContentString) {
+					feedbackUserContent.push({
+						type: "text",
+						text: fileContentString,
+					})
+				}
+
+				userContent = feedbackUserContent
+			}
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
@@ -2546,6 +2580,12 @@ export class Task {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
 				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.clineIgnoreController)
 				details += result
+			}
+
+			// Add git remote URLs section
+			const gitRemotes = await getGitRemoteUrls(cwd)
+			if (gitRemotes.length > 0) {
+				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
 			}
 		}
 

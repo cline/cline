@@ -11,6 +11,7 @@ type ClaudeCodeOptions = {
 	messages: Anthropic.Messages.MessageParam[]
 	path?: string
 	modelId?: string
+	thinkingBudgetTokens?: number
 }
 
 type ProcessState = {
@@ -123,7 +124,7 @@ const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 // https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
 const BUFFER_SIZE = 20_000_000 // 20 MB
 
-function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
+function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions) {
 	const claudePath = path?.trim() || "claude"
 
 	const args = [
@@ -155,6 +156,7 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		// Disable telemetry, auto-updater and error reporting.
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
 		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
+		MAX_THINKING_TOKENS: (thinkingBudgetTokens || 0).toString(),
 	}
 
 	// We don't want to consume the user's ANTHROPIC_API_KEY,
