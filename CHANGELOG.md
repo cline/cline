@@ -2,12 +2,7 @@
 
 ## 3.19.0
 
-### Minor Changes
-
 -   09c773b: Add Claude Sonnet 4 and Opus 4 model in SAP AI Core provider.
-
-### Patch Changes
-
 -   64963c4: Add confirmation popup when deleting tasks
 -   9e69576: Refactor chat view into multiple modular files
 -   dcf91b0: Include litellm_session_id as part of chat completion requests
