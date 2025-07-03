@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.18.3]
+
+-   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)
+-   Improve Claude Code provider with better error handling and performance optimizations (Thanks @BarreiroT!)
+
 ## [3.18.2]
 
 -   Fix issue where terminal output would not be captured if shell integration fails by falling back to capturing the terminal content.
