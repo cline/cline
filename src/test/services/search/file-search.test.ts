@@ -1,184 +1,88 @@
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
-import * as childProcess from "child_process"
-import { Readable } from "stream"
 import type { FzfResultItem } from "fzf"
 import * as searchService from "@utils/search"
 import * as hostProviders from "@/hosts/host-providers"
-import { WorkspaceSearchResponse, WorkspaceSearchResult } from "@shared/proto/host/search"
+import {
+	WorkspaceSearchResponse,
+	WorkspaceSearchResult,
+	WorkspaceSearchRequest,
+	RegexSearchRequest,
+} from "@shared/proto/host/search"
 import { String } from "@shared/proto/common"
 import { OrderbyMatchScore } from "@hosts/vscode/search/searchWorkspaceFiles"
 
-describe("File Search", function () {
+describe("File Search Utils", function () {
 	let sandbox: sinon.SinonSandbox
-	let spawnStub: sinon.SinonStub
+	let mockHostBridgeProvider: any
 
 	beforeEach(function () {
 		sandbox = sinon.createSandbox()
-		spawnStub = sandbox.stub()
 
-		// Create a wrapper function that matches the signature of childProcess.spawn
-		const spawnWrapper: typeof childProcess.spawn = function (command, options) {
-			return spawnStub(command, options)
-		}
-
-		// Mock the host bridge provider instead of individual functions
-		const mockHostBridgeProvider = {
+		// Mock the host bridge provider with proper proto-based interface
+		mockHostBridgeProvider = {
 			searchClient: {
 				searchWorkspaceFiles: sandbox.stub(),
 				regexSearchFiles: sandbox.stub(),
-				getBinPath: sandbox.stub().resolves({ value: "mock/ripgrep/path" }),
+				getBinPath: sandbox.stub(),
 			},
 			uriServiceClient: {},
 			watchServiceClient: {},
 			workspaceClient: {},
 			envClient: {},
+			windowClient: {},
 		}
-		sandbox.stub(hostProviders, "getHostBridgeProvider").returns(mockHostBridgeProvider as any)
+		sandbox.stub(hostProviders, "getHostBridgeProvider").returns(mockHostBridgeProvider)
 	})
 
 	afterEach(function () {
 		sandbox.restore()
 	})
 
-	describe("executeRipgrepForFiles", function () {
-		it("should correctly process and return file and folder results", async function () {
-			const mockFiles = ["file1.txt", "folder1/file2.js", "folder1/subfolder/file3.py"]
-
-			// Create a proper mock for the child process
-			const mockStdout = new Readable({
-				read() {
-					this.push(mockFiles.join("\n"))
-					this.push(null) // Signal the end of the stream
-				},
-			})
-
-			const mockStderr = new Readable({
-				read() {
-					this.push(null) // Empty stream
-				},
-			})
-
-			spawnStub.returns({
-				stdout: mockStdout,
-				stderr: mockStderr,
-				on: sinon.stub().returns({}),
-			} as unknown as childProcess.ChildProcess)
-
-			// Instead of stubbing path functions, we'll stub the executeRipgrepForFiles function
-			// to return a predictable result for this test
-			const expectedResult: { path: string; type: "file" | "folder"; label?: string }[] = [
-				{ path: "file1.txt", type: "file", label: "file1.txt" },
-				{ path: "folder1/file2.js", type: "file", label: "file2.js" },
-				{ path: "folder1/subfolder/file3.py", type: "file", label: "file3.py" },
-				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
-			]
-
-			// Mock the host bridge to return expected result
-			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
-			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
-				results: expectedResult.map((item) => WorkspaceSearchResult.create(item)),
-			})
-
-			const result = await searchService.searchWorkspaceFiles("", "/workspace", 5000)
-
-			should(result).be.an.Array()
-			// Don't assert on the exact length as it may vary
-
-			const files = result.filter((item) => item.type === "file")
-			const folders = result.filter((item) => item.type === "folder")
-
-			// Verify we have at least the expected files and folders
-			should(files.length).be.greaterThanOrEqual(3)
-			should(folders.length).be.greaterThanOrEqual(2)
-
-			should(files[0]).have.properties({
-				path: "file1.txt",
-				type: "file",
-				label: "file1.txt",
-			})
-
-			should(folders).containDeep([
-				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
-			])
-		})
-
-		it("should handle errors from ripgrep", async function () {
-			const mockError = "Mock ripgrep error"
-
-			// Create proper mock streams for error case
-			const mockStdout = new Readable({
-				read() {
-					this.push(null) // Empty stream
-				},
-			})
-
-			const mockStderr = new Readable({
-				read() {
-					this.push(mockError)
-					this.push(null) // Signal the end of the stream
-				},
-			})
-
-			spawnStub.returns({
-				stdout: mockStdout,
-				stderr: mockStderr,
-				on: function (event: string, callback: Function) {
-					if (event === "error") {
-						callback(new Error(mockError))
-					}
-					return this
-				},
-			} as unknown as childProcess.ChildProcess)
-
-			// Mock the host bridge to throw an error
-			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
-			mockHostBridge.searchClient.searchWorkspaceFiles.rejects(new Error(`ripgrep process error: ${mockError}`))
-
-			await should(searchService.searchWorkspaceFiles("", "/workspace", 5000)).be.rejectedWith(
-				`ripgrep process error: ${mockError}`,
-			)
-		})
-	})
-
 	describe("searchWorkspaceFiles", function () {
-		it("should return top N results for empty query", async function () {
+		it("should call host bridge with proper proto request and return mapped results", async function () {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			// Mock the host bridge to return expected result
-			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
-			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
-				results: mockItems.slice(0, 2).map((item) => WorkspaceSearchResult.create(item)),
-			})
+			// Mock the host bridge to return expected result using proper proto response
+			mockHostBridgeProvider.searchClient.searchWorkspaceFiles.resolves(
+				WorkspaceSearchResponse.create({
+					results: mockItems.map((item) => WorkspaceSearchResult.create(item)),
+				}),
+			)
 
 			const result = await searchService.searchWorkspaceFiles("", "/workspace", 2)
 
 			should(result).be.an.Array()
 			should(result).have.length(2)
-			should(result).deepEqual(mockItems.slice(0, 2))
+			should(result).deepEqual(mockItems)
+
+			// Verify the host bridge was called with proper proto request
+			should(mockHostBridgeProvider.searchClient.searchWorkspaceFiles.calledOnce).be.true()
+			const callArgs = mockHostBridgeProvider.searchClient.searchWorkspaceFiles.getCall(0).args[0]
+			should(callArgs).have.properties({
+				query: "",
+				workspacePath: "/workspace",
+				limit: 2,
+			})
 		})
 
-		it("should apply fuzzy matching for non-empty query", async function () {
+		it("should handle non-empty query and verify proto request", async function () {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
-				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1/important.js", type: "file", label: "important.js" },
-				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
 			// Mock the host bridge to return the fuzzy search result
-			const mockHostBridge = hostProviders.getHostBridgeProvider() as any
-			mockHostBridge.searchClient.searchWorkspaceFiles.resolves({
-				results: [mockItems[1]].map((item) => WorkspaceSearchResult.create(item)),
-			})
+			mockHostBridgeProvider.searchClient.searchWorkspaceFiles.resolves(
+				WorkspaceSearchResponse.create({
+					results: mockItems.map((item) => WorkspaceSearchResult.create(item)),
+				}),
+			)
 
-			const result = await searchService.searchWorkspaceFiles("imp", "/workspace", 2)
+			const result = await searchService.searchWorkspaceFiles("imp", "/workspace", 10)
 
 			should(result).be.an.Array()
 			should(result).have.length(1)
@@ -187,6 +91,110 @@ describe("File Search", function () {
 				type: "file",
 				label: "important.js",
 			})
+
+			// Verify the proto request was constructed correctly
+			const callArgs = mockHostBridgeProvider.searchClient.searchWorkspaceFiles.getCall(0).args[0]
+			should(callArgs).have.properties({
+				query: "imp",
+				workspacePath: "/workspace",
+				limit: 10,
+			})
+		})
+
+		it("should use default limit when not specified", async function () {
+			mockHostBridgeProvider.searchClient.searchWorkspaceFiles.resolves(WorkspaceSearchResponse.create({ results: [] }))
+
+			await searchService.searchWorkspaceFiles("test", "/workspace")
+
+			const callArgs = mockHostBridgeProvider.searchClient.searchWorkspaceFiles.getCall(0).args[0]
+			should(callArgs.limit).equal(20) // Default limit
+		})
+	})
+
+	describe("regexSearchFiles", function () {
+		it("should call host bridge with proper proto request and return result", async function () {
+			const expectedResult = "file1.txt:1:match\nfile2.js:5:another match"
+
+			mockHostBridgeProvider.searchClient.regexSearchFiles.resolves(String.create({ value: expectedResult }))
+
+			const result = await searchService.regexSearchFiles("/workspace", "/workspace/src", "test.*pattern", "*.ts")
+
+			should(result).equal(expectedResult)
+
+			// Verify the host bridge was called with proper proto request
+			should(mockHostBridgeProvider.searchClient.regexSearchFiles.calledOnce).be.true()
+			const callArgs = mockHostBridgeProvider.searchClient.regexSearchFiles.getCall(0).args[0]
+			should(callArgs).have.properties({
+				cwd: "/workspace",
+				directoryPath: "/workspace/src",
+				regex: "test.*pattern",
+				filePattern: "*.ts",
+				ignorePatterns: [],
+			})
+		})
+
+		it("should handle ignore patterns when provided", async function () {
+			const mockIgnoreController = {
+				getIgnorePatterns: sandbox.stub().returns(["node_modules/**", "*.log"]),
+			}
+
+			mockHostBridgeProvider.searchClient.regexSearchFiles.resolves(String.create({ value: "result" }))
+
+			await searchService.regexSearchFiles(
+				"/workspace",
+				"/workspace/src",
+				"pattern",
+				undefined,
+				mockIgnoreController as any,
+			)
+
+			const callArgs = mockHostBridgeProvider.searchClient.regexSearchFiles.getCall(0).args[0]
+			should(callArgs.ignorePatterns).deepEqual(["node_modules/**", "*.log"])
+			should(callArgs.filePattern).be.undefined()
+		})
+
+		it("should handle missing ignore controller", async function () {
+			mockHostBridgeProvider.searchClient.regexSearchFiles.resolves(String.create({ value: "result" }))
+
+			await searchService.regexSearchFiles("/workspace", "/workspace/src", "pattern")
+
+			const callArgs = mockHostBridgeProvider.searchClient.regexSearchFiles.getCall(0).args[0]
+			should(callArgs.ignorePatterns).deepEqual([])
+		})
+	})
+
+	describe("getBinPath", function () {
+		it("should call host bridge with proper proto request and return binary path", async function () {
+			const expectedPath = "/usr/local/bin/rg"
+
+			mockHostBridgeProvider.searchClient.getBinPath.resolves(String.create({ value: expectedPath }))
+
+			const result = await searchService.getBinPath("/app/root")
+
+			should(result).equal(expectedPath)
+
+			// Verify the host bridge was called with proper proto request
+			should(mockHostBridgeProvider.searchClient.getBinPath.calledOnce).be.true()
+			const callArgs = mockHostBridgeProvider.searchClient.getBinPath.getCall(0).args[0]
+			should(callArgs).have.properties({
+				value: "/app/root",
+			})
+		})
+
+		it("should return undefined when host bridge returns empty value", async function () {
+			mockHostBridgeProvider.searchClient.getBinPath.resolves(String.create({ value: "" }))
+
+			const result = await searchService.getBinPath("/app/root")
+
+			should(result).be.undefined()
+		})
+
+		it("should return undefined when host bridge returns null value", async function () {
+			mockHostBridgeProvider.searchClient.getBinPath.resolves(String.create({ value: null as any }))
+
+			const result = await searchService.getBinPath("/app/root")
+
+			should(result).be.undefined()
 		})
 	})
 
