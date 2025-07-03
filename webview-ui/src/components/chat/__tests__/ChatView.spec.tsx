@@ -1020,6 +1020,38 @@ describe("ChatView - Sound Playing Tests", () => {
 			expect(mockPlayFunction).toHaveBeenCalled()
 		})
 	})
+
+	it("does not play sound when resuming a task from history", async () => {
+		renderChatView()
+		mockPlayFunction.mockClear()
+
+		// Send resume_task message
+		mockPostMessage({
+			clineMessages: [
+				{ type: "say", say: "task", ts: Date.now() - 2000, text: "Initial task" },
+				{ type: "ask", ask: "resume_task", ts: Date.now(), text: "Resume task", partial: false },
+			],
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 100))
+		expect(mockPlayFunction).not.toHaveBeenCalled()
+	})
+
+	it("does not play sound when resuming a completed task from history", async () => {
+		renderChatView()
+		mockPlayFunction.mockClear()
+
+		// Send resume_completed_task message
+		mockPostMessage({
+			clineMessages: [
+				{ type: "say", say: "task", ts: Date.now() - 2000, text: "Initial task" },
+				{ type: "ask", ask: "resume_completed_task", ts: Date.now(), text: "Resume completed", partial: false },
+			],
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 100))
+		expect(mockPlayFunction).not.toHaveBeenCalled()
+	})
 })
 
 describe("ChatView - Focus Grabbing Tests", () => {

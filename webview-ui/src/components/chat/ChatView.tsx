@@ -348,9 +348,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
-							if (!isAutoApproved(lastMessage) && !isPartial) {
-								playSound("notification")
-							}
 							setSendingDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
@@ -359,9 +356,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							setDidClickCancel(false) // special case where we reset the cancel button state
 							break
 						case "resume_completed_task":
-							if (!isPartial) {
-								playSound("celebration")
-							}
 							setSendingDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
