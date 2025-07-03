@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.19.0
+
+### Minor Changes
+
+-   09c773b: Add Claude Sonnet 4 and Opus 4 model in SAP AI Core provider.
+
+### Patch Changes
+
+-   64963c4: Add confirmation popup when deleting tasks
+-   9e69576: Refactor chat view into multiple modular files
+-   dcf91b0: Include litellm_session_id as part of chat completion requests
+-   27f8372: add cline.walkthrough command to command handler
+-   e5f78a0: fix: Do not read auth variables from the user env when using Claude Code
+-   72029fe: feat: Introduce Thinking Budget customization for Claude Code
+
 ## [3.18.1]
 
 -   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)
