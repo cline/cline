@@ -2,6 +2,7 @@
 
 ## [3.18.2]
 
+-   Fix issue where terminal output would not be captured if shell integration fails by falling back to capturing the terminal content.
 -   Add confirmation popup when deleting tasks
 -   Add support for Claude Sonnet 4 and Opus 4 model in SAP AI Core provider (Thanks @lizzzcai!)
 -   Add support for `litellm_session_id` to group requests in a single session (Thanks @jorgegarciarey!)
