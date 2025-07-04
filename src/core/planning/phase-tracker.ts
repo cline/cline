@@ -804,4 +804,24 @@ export class PhaseTracker {
 			// Note: Plan markdown is saved during initial parsing, not during checkpoint saves
 		} catch (error) {}
 	}
+
+	public async deleteCheckpoint(): Promise<void> {
+		try {
+			const checkpointUri = this.checkpointFileUri
+
+			try {
+				const stat = await vscode.workspace.fs.stat(checkpointUri)
+				console.log(`[deleteCheckpoint] File exists at: ${checkpointUri.toString()}`)
+			} catch (statError) {
+				console.log(`[deleteCheckpoint] File does not exist at: ${checkpointUri.toString()}`)
+				return
+			}
+
+			await vscode.workspace.fs.delete(checkpointUri, {
+				recursive: false,
+				useTrash: false,
+			})
+			console.log(`[deleteCheckpoint] Successfully deleted: ${checkpointUri.toString()}`)
+		} catch (error) {}
+	}
 }

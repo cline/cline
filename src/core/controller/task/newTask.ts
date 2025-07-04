@@ -9,7 +9,15 @@ import { NewTaskRequest } from "../../../shared/proto/task"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	// await controller.spawnNewTask(request.text, request.images)
-	await controller.initTask(request.text, request.images, request.files, undefined)
+	if (controller.phaseTracker === undefined) {
+		await controller.initTask(request.text, request.images, request.files)
+	} else {
+		const taskCreated = await controller.spawnNewTask(request.text, request.images, request.files)
+		if (!taskCreated) {
+			// User cancelled the task creation, don't return Empty.create()
+			// This will prevent the gRPC response from being sent immediately
+			throw new Error("Task creation cancelled by user")
+		}
+	}
 	return Empty.create()
 }
