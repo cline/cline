@@ -68,6 +68,13 @@ export async function sendStateUpdate(controllerId: string, state: any): Promise
 			},
 			false, // Not the last message
 		)
+		console.log(
+			"[SENDING  stateJson follow up STATE]",
+			stateJson.length,
+			"bytes =",
+			(stateJson.length / 1024 / 1024).toFixed(2),
+			"MB",
+		)
 		console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
 	} catch (error) {
 		console.error(`Error sending state update to controller ${controllerId}:`, error)

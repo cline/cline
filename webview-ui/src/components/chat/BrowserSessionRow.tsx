@@ -116,6 +116,26 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
+	const [currentPageIndex, setCurrentPageIndex] = useState(0)
+
+	// Memoize callbacks
+	const handleConsoleLogsToggle = useCallback(() => {
+		setConsoleLogsExpanded((prev) => !prev)
+	}, [])
+
+	const handlePreviousPage = useCallback(() => {
+		setCurrentPageIndex((i) => i - 1)
+	}, [])
+
+	const handleNextPage = useCallback(() => {
+		setCurrentPageIndex((i) => i + 1)
+	}, [])
+
+	const handleScreenshotClick = useCallback((screenshot: string) => {
+		FileServiceClient.openImage(StringRequest.create({ value: screenshot })).catch((err) =>
+			console.error("Failed to open image:", err),
+		)
+	}, [])
 
 	const isLastApiReqInterrupted = useMemo(() => {
 		// Check if last api_req_started is cancelled
@@ -227,7 +247,6 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	}, [messages])
 
 	// Auto-advance to latest page
-	const [currentPageIndex, setCurrentPageIndex] = useState(0)
 	useEffect(() => {
 		setCurrentPageIndex(pages.length - 1)
 	}, [pages.length])
@@ -299,8 +318,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					onToggleExpand={props.onToggleExpand}
 					lastModifiedMessage={props.lastModifiedMessage}
 					isLast={props.isLast}
-					onSetQuote={props.onSetQuote}
 					setMaxActionHeight={setMaxActionHeight}
+					onSetQuote={onSetQuote}
 				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
@@ -407,11 +426,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							src={displayState.screenshot}
 							alt="Browser screenshot"
 							style={imgScreenshotStyle}
-							onClick={() =>
-								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
-									(err) => console.error("Failed to open image:", err),
-								)
-							}
+							onClick={() => displayState.screenshot && handleScreenshotClick(displayState.screenshot)}
 						/>
 					) : (
 						<div style={noScreenshotContainerStyle}>
@@ -432,9 +447,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 				<div style={consoleLogsContainerStyle}>
 					<div
-						onClick={() => {
-							setConsoleLogsExpanded(!consoleLogsExpanded)
-						}}
+						onClick={handleConsoleLogsToggle}
 						style={{
 							display: "flex",
 							alignItems: "center",
@@ -463,14 +476,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						Step {currentPageIndex + 1} of {pages.length}
 					</div>
 					<div style={paginationButtonGroupStyle}>
-						<VSCodeButton
-							disabled={currentPageIndex === 0 || isBrowsing}
-							onClick={() => setCurrentPageIndex((i) => i - 1)}>
+						<VSCodeButton disabled={currentPageIndex === 0 || isBrowsing} onClick={handlePreviousPage}>
 							Previous
 						</VSCodeButton>
-						<VSCodeButton
-							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
-							onClick={() => setCurrentPageIndex((i) => i + 1)}>
+						<VSCodeButton disabled={currentPageIndex === pages.length - 1 || isBrowsing} onClick={handleNextPage}>
 							Next
 						</VSCodeButton>
 					</div>
@@ -516,7 +525,7 @@ const BrowserSessionRowContent = memo(
 				setMaxActionHeight(0)
 			}
 			onToggleExpand(message.ts)
-		}, [onToggleExpand, message.ts, setMaxActionHeight])
+		}, [onToggleExpand, message.ts, message.say, setMaxActionHeight])
 
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 			return (
