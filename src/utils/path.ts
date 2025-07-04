@@ -103,7 +103,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 }
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
-export const getCwd = async (defaultCwd = ""): Promise<string> => {
+export async function getCwd(defaultCwd = ""): Promise<string> {
 	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
 	return workspacePaths.paths.shift() || defaultCwd
 }
@@ -119,32 +119,44 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}
-	const absoluteFilePath = path.resolve(currentFilePath)
 
 	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
-		const relativePath = path.relative(path.resolve(workspacePath), absoluteFilePath)
-		if (relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)) {
+		if (isLocatedInPath(workspacePath, currentFilePath)) {
 			return workspacePath
 		}
 	}
 	return await getCwd(defaultCwd)
 }
 
-export const isLocatedInWorkspace = async (pathToCheck: string = ""): Promise<boolean> => {
-	const workspacePath = await getWorkspacePath()
+export async function isLocatedInWorkspace(pathToCheck: string = ""): Promise<boolean> {
+	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	for (const workspacePath of workspacePaths) {
+		const resolvedPath = path.resolve(workspacePath, pathToCheck)
+		if (isLocatedInPath(workspacePath, resolvedPath)) {
+			return true
+		}
+	}
+	return false
+}
 
+// Returns true if `pathToCheck` is located inside `dirPath`.
+export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
+	if (!dirPath || !pathToCheck) {
+		return false
+	}
 	// Handle long paths in Windows
-	if (pathToCheck.startsWith("\\\\?\\") || workspacePath.startsWith("\\\\?\\")) {
-		return pathToCheck.startsWith(workspacePath)
+	if (dirPath.startsWith("\\\\?\\") || pathToCheck.startsWith("\\\\?\\")) {
+		return pathToCheck.startsWith(dirPath)
 	}
 
-	// Normalize paths without resolving symlinks
-	const normalizedWorkspace = path.normalize(workspacePath)
-	const normalizedPath = path.normalize(path.resolve(workspacePath, pathToCheck))
-
-	// Use path.relative to check if the path is within the workspace
-	const relativePath = path.relative(normalizedWorkspace, normalizedPath)
-
-	return !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
+	const relativePath = path.relative(path.resolve(dirPath), path.resolve(pathToCheck))
+	if (relativePath.startsWith("..")) {
+		return false
+	}
+	if (path.isAbsolute(relativePath)) {
+		// This can happen on windows when the two paths are on different drives.
+		return false
+	}
+	return true
 }
