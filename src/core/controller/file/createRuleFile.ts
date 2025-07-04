@@ -33,7 +33,13 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 	}
 
 	const cwd = await getCwd(getDesktopDir())
-	const { filePath, fileExists } = await createRuleFileImpl(request.isGlobal, request.filename, cwd, request.type)
+	const { filePath, fileExists } = await createRuleFileImpl(
+		request.isGlobal,
+		request.filename,
+		cwd,
+		request.type,
+		controller.context,
+	)
 
 	if (!filePath) {
 		throw new Error("Failed to create file.")

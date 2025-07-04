@@ -73,7 +73,7 @@ export class Controller {
 
 		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
-			() => ensureMcpServersDirectoryExists(),
+			() => ensureMcpServersDirectoryExists(this.context),
 			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",

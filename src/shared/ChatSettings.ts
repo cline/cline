@@ -4,6 +4,7 @@ export interface ChatSettings {
 	mode: "plan" | "act"
 	preferredLanguage?: string
 	openAIReasoningEffort?: OpenAIReasoningEffort
+	userDocumentsPath?: string
 }
 
 export type PartialChatSettings = Partial<ChatSettings>
