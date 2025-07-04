@@ -10,28 +10,42 @@ import { withRetry } from "../retry"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: OpenAI
+	private client: OpenAI | undefined
 	lastGenerationId?: string
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.cline.bot/v1",
-			apiKey: this.options.clineApiKey || "",
-			defaultHeaders: {
-				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on cline.bot rankings.
-				"X-Title": "Cline", // Optional. Shows in rankings on cline.bot.
-				"X-Task-ID": this.options.taskId || "", // Include the task ID in the request headers
-			},
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.clineApiKey) {
+				throw new Error("You don't seem to be logged in to a Cline account.")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.cline.bot/v1",
+					apiKey: this.options.clineApiKey || "",
+					defaultHeaders: {
+						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on cline.bot rankings.
+						"X-Title": "Cline", // Optional. Shows in rankings on cline.bot.
+						"X-Task-ID": this.options.taskId || "", // Include the task ID in the request headers
+					},
+				})
+			} catch (error) {
+				throw new Error(`Error creating Cline client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
 		const stream = await createOpenRouterStream(
-			this.client,
+			client,
 			systemPrompt,
 			messages,
 			this.getModel(),

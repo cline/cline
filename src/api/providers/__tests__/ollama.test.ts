@@ -45,8 +45,10 @@ describe("OllamaHandler", () => {
 				this.skip()
 			}
 			this.timeout(5000)
+			// Ensure client is initialized
+			const client = (handler as any).ensureClient()
 			// Mock the Ollama client's chat method
-			const chatStub = sinon.stub(handler["client"], "chat").resolves({
+			const chatStub = sinon.stub(client, "chat").resolves({
 				[Symbol.asyncIterator]: async function* () {
 					yield {
 						message: { content: "Hello, world!" },
@@ -139,8 +141,9 @@ describe("OllamaHandler", () => {
 			// Restore real timers for this test
 			clock.restore()
 
-			// Mock the Ollama client's chat method to fail on first call and succeed on second
-			const chatStub = sinon.stub(handler["client"], "chat")
+			// Ensure client is initialized and mock the Ollama client's chat method to fail on first call and succeed on second
+			const client = (handler as any).ensureClient()
+			const chatStub = sinon.stub(client, "chat")
 
 			// First call throws an error
 			chatStub.onFirstCall().rejects(new Error("API Error"))
