@@ -4,6 +4,7 @@ import {
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
+	SearchServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 
 /**
@@ -15,6 +16,7 @@ export interface HostBridgeClientProvider {
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
+	searchClient: SearchServiceClientInterface
 }
 
 /**

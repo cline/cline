@@ -30,3 +30,12 @@ export async function readTextFromClipboard(): Promise<string> {
 		throw new Error(`Failed to read from clipboard: ${errorMessage}`)
 	}
 }
+
+/**
+ * Gets the VSCode application root directory path
+ * @returns Promise resolving to the VSCode application root path
+ */
+export async function getAppRoot(): Promise<string> {
+	const response = await getHostBridgeProvider().envClient.getAppRoot(EmptyRequest.create())
+	return response.value
+}

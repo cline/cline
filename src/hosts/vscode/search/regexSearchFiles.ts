@@ -1,9 +1,11 @@
-import * as vscode from "vscode"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
-import { fileExistsAtPath } from "@utils/fs"
+import { getAppRoot } from "@utils/env"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { RegexSearchRequest } from "@shared/proto/host/search"
+import { String } from "@shared/proto/common"
+import { getBinPath } from "./getBinPath"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -47,9 +49,6 @@ rel/path/to/helper.ts
 │----
 */
 
-const isWindows = /^win/.test(process.platform)
-const binName = isWindows ? "rg.exe" : "rg"
-
 interface SearchResult {
 	filePath: string
 	line: number
@@ -61,72 +60,22 @@ interface SearchResult {
 
 const MAX_RESULTS = 300
 
-export async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
-	const checkPath = async (pkgFolder: string) => {
-		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
-		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
+export async function regexSearchFiles(request: RegexSearchRequest): Promise<String> {
+	const { cwd, directoryPath, regex, filePattern, ignorePatterns } = request
+
+	let clineIgnoreController: ClineIgnoreController | undefined
+
+	const vscodeAppRoot = await getAppRoot()
+	const rgPathResponse = await getBinPath(String.create({ value: vscodeAppRoot }))
+
+	if (!rgPathResponse.value) {
+		throw new Error("Could not find ripgrep binary")
 	}
 
-	return (
-		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
-		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
-		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
-		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
-	)
-}
+	const rgPath = rgPathResponse.value
 
-async function execRipgrep(bin: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const rgProcess = childProcess.spawn(bin, args)
-		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
-		const rl = readline.createInterface({
-			input: rgProcess.stdout,
-			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
-		})
-
-		let output = ""
-		let lineCount = 0
-		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
-
-		rl.on("line", (line) => {
-			if (lineCount < maxLines) {
-				output += line + "\n"
-				lineCount++
-			} else {
-				rl.close()
-				rgProcess.kill()
-			}
-		})
-
-		let errorOutput = ""
-		rgProcess.stderr.on("data", (data) => {
-			errorOutput += data.toString()
-		})
-		rl.on("close", () => {
-			if (errorOutput) {
-				reject(new Error(`ripgrep process error: ${errorOutput}`))
-			} else {
-				resolve(output)
-			}
-		})
-		rgProcess.on("error", (error) => {
-			reject(new Error(`ripgrep process error: ${error.message}`))
-		})
-	})
-}
-
-export async function regexSearchFiles(
-	cwd: string,
-	directoryPath: string,
-	regex: string,
-	filePattern?: string,
-	clineIgnoreController?: ClineIgnoreController,
-): Promise<string> {
-	const vscodeAppRoot = vscode.env.appRoot
-	const rgPath = await getBinPath(vscodeAppRoot)
-
-	if (!rgPath) {
-		throw new Error("Could not find ripgrep binary")
+	if (ignorePatterns && ignorePatterns.length > 0) {
+		clineIgnoreController = ClineIgnoreController.fromPatterns(cwd, ignorePatterns)
 	}
 
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
@@ -135,7 +84,7 @@ export async function regexSearchFiles(
 	try {
 		output = await execRipgrep(rgPath, args)
 	} catch {
-		return "No results found"
+		return String.create({ value: "No results found" })
 	}
 	const results: SearchResult[] = []
 	let currentResult: Partial<SearchResult> | null = null
@@ -178,7 +127,7 @@ export async function regexSearchFiles(
 		? results.filter((result) => clineIgnoreController.validateAccess(result.filePath))
 		: results
 
-	return formatResults(filteredResults, cwd)
+	return String.create({ value: formatResults(filteredResults, cwd) })
 }
 
 const MAX_RIPGREP_MB = 0.25
@@ -302,4 +251,44 @@ function formatResults(results: SearchResult[], cwd: string): string {
 	}
 
 	return output.trim()
+}
+
+async function execRipgrep(bin: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const rgProcess = childProcess.spawn(bin, args)
+		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
+		const rl = readline.createInterface({
+			input: rgProcess.stdout,
+			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
+		})
+
+		let output = ""
+		let lineCount = 0
+		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
+
+		rl.on("line", (line) => {
+			if (lineCount < maxLines) {
+				output += line + "\n"
+				lineCount++
+			} else {
+				rl.close()
+				rgProcess.kill()
+			}
+		})
+
+		let errorOutput = ""
+		rgProcess.stderr.on("data", (data) => {
+			errorOutput += data.toString()
+		})
+		rl.on("close", () => {
+			if (errorOutput) {
+				reject(new Error(`ripgrep process error: ${errorOutput}`))
+			} else {
+				resolve(output)
+			}
+		})
+		rgProcess.on("error", (error) => {
+			reject(new Error(`ripgrep process error: ${error.message}`))
+		})
+	})
 }
