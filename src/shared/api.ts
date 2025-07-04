@@ -2374,6 +2374,42 @@ export const requestyDefaultModelInfo: ModelInfo = {
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels
 export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
 export const sapAiCoreModels = {
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
+		],
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.075,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
+	},
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
