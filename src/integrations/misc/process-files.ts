@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import sizeOf from "image-size"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowOpenDialogueRequest, ShowOpenDialogueOptions } from "@/shared/proto/host/window"
+import { ShowOpenDialogueRequest } from "@/shared/proto/host/window"
 
 /**
  * Supports processing of images and other file types
@@ -15,13 +15,11 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 
 	const showDialogueResponse = await getHostBridgeProvider().windowClient.showOpenDialogue(
 		ShowOpenDialogueRequest.create({
-			options: ShowOpenDialogueOptions.create({
-				canSelectMany: true,
-				openLabel: "Select",
-				filters: {
-					files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
-				},
-			}),
+			canSelectMany: true,
+			openLabel: "Select",
+			filters: {
+				files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
+			},
 		}),
 	)
 

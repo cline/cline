@@ -4,23 +4,17 @@ import { ShowOpenDialogueRequest, SelectedResources } from "@/shared/proto/host/
 export async function showOpenDialogue(request: ShowOpenDialogueRequest): Promise<SelectedResources> {
 	const options: vscode.OpenDialogOptions = {}
 
-	if (request?.options?.canSelectMany !== undefined) {
-		options.canSelectMany = request.options.canSelectMany
+	if (request.canSelectMany !== undefined) {
+		options.canSelectMany = request.canSelectMany
 	}
 
-	if (request?.options?.openLabel !== undefined) {
-		options.openLabel = request.options.openLabel
+	if (request.openLabel !== undefined) {
+		options.openLabel = request.openLabel
 	}
 
-	if (request?.options?.filters) {
-		const filters = request.options.filters
-
-		const files = filters?.files
-
-		if (files && files.length > 0) {
-			options.filters = {
-				Files: files,
-			}
+	if (request.filters?.files) {
+		options.filters = {
+			Files: request.filters.files,
 		}
 	}
 

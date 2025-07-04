@@ -34,14 +34,9 @@ message TextEditorInfo {
 
 message ShowOpenDialogueRequest {
   cline.Metadata metadata = 1;
-  optional ShowOpenDialogueOptions options = 2;
-}
-
-// See https://code.visualstudio.com/api/references/vscode-api#OpenDialogOptions
-message ShowOpenDialogueOptions {
-  optional bool can_select_many = 1;
-  optional string open_label = 2;
-  optional ShowOpenDialogueFilterOption filters = 3;
+  optional bool can_select_many = 2;
+  optional string open_label = 3;
+  optional ShowOpenDialogueFilterOption filters = 4;
 }
 
 message ShowOpenDialogueFilterOption {
