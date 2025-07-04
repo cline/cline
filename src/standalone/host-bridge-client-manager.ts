@@ -1,13 +1,11 @@
 import { Channel, createChannel } from "nice-grpc"
 import {
-	UriServiceClientImpl,
 	WatchServiceClientImpl,
 	WorkspaceServiceClientImpl,
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 } from "@generated/standalone/host-bridge-clients"
 import {
-	UriServiceClientInterface,
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
@@ -21,7 +19,6 @@ import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
  */
 export class ExternalHostBridgeClientManager implements HostBridgeClientProvider {
 	private channel: Channel
-	uriServiceClient: UriServiceClientInterface
 	watchServiceClient: WatchServiceClientInterface
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
@@ -31,7 +28,6 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
 		this.channel = createChannel(address)
 
-		this.uriServiceClient = new UriServiceClientImpl(this.channel)
 		this.watchServiceClient = new WatchServiceClientImpl(this.channel)
 		this.workspaceClient = new WorkspaceServiceClientImpl(this.channel)
 		this.envClient = new EnvServiceClientImpl(this.channel)
