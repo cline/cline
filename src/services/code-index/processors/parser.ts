@@ -3,6 +3,7 @@ import { createHash } from "crypto"
 import * as path from "path"
 import { Node } from "web-tree-sitter"
 import { LanguageParser, loadRequiredLanguageParsers } from "../../tree-sitter/languageParser"
+import { parseMarkdown } from "../../tree-sitter/markdownParser"
 import { ICodeParser, CodeBlock } from "../interfaces"
 import { scannerExtensions } from "../shared/supported-extensions"
 import { MAX_BLOCK_CHARS, MIN_BLOCK_CHARS, MIN_CHUNK_REMAINDER_CHARS, MAX_CHARS_TOLERANCE_FACTOR } from "../constants"
@@ -13,8 +14,8 @@ import { MAX_BLOCK_CHARS, MIN_BLOCK_CHARS, MIN_CHUNK_REMAINDER_CHARS, MAX_CHARS_
 export class CodeParser implements ICodeParser {
 	private loadedParsers: LanguageParser = {}
 	private pendingLoads: Map<string, Promise<LanguageParser>> = new Map()
-	// Markdown files are excluded because the current parser logic cannot effectively handle
-	// potentially large Markdown sections without a tree-sitter-like child node structure for chunking
+	// Markdown files are now supported using the custom markdown parser
+	// which extracts headers and sections for semantic indexing
 
 	/**
 	 * Parses a code file into code blocks
@@ -86,6 +87,11 @@ export class CodeParser implements ICodeParser {
 	private async parseContent(filePath: string, content: string, fileHash: string): Promise<CodeBlock[]> {
 		const ext = path.extname(filePath).slice(1).toLowerCase()
 		const seenSegmentHashes = new Set<string>()
+
+		// Handle markdown files specially
+		if (ext === "md" || ext === "markdown") {
+			return this.parseMarkdownContent(filePath, content, fileHash, seenSegmentHashes)
+		}
 
 		// Check if we already have the parser loaded
 		if (!this.loadedParsers[ext]) {
@@ -175,8 +181,9 @@ export class CodeParser implements ICodeParser {
 					const start_line = currentNode.startPosition.row + 1
 					const end_line = currentNode.endPosition.row + 1
 					const content = currentNode.text
+					const contentPreview = content.slice(0, 100)
 					const segmentHash = createHash("sha256")
-						.update(`${filePath}-${start_line}-${end_line}-${content}`)
+						.update(`${filePath}-${start_line}-${end_line}-${content.length}-${contentPreview}`)
 						.digest("hex")
 
 					if (!seenSegmentHashes.has(segmentHash)) {
@@ -223,8 +230,9 @@ export class CodeParser implements ICodeParser {
 				const chunkContent = currentChunkLines.join("\n")
 				const startLine = baseStartLine + chunkStartLineIndex
 				const endLine = baseStartLine + endLineIndex
+				const contentPreview = chunkContent.slice(0, 100)
 				const segmentHash = createHash("sha256")
-					.update(`${filePath}-${startLine}-${endLine}-${chunkContent}`)
+					.update(`${filePath}-${startLine}-${endLine}-${chunkContent.length}-${contentPreview}`)
 					.digest("hex")
 
 				if (!seenSegmentHashes.has(segmentHash)) {
@@ -247,8 +255,11 @@ export class CodeParser implements ICodeParser {
 		}
 
 		const createSegmentBlock = (segment: string, originalLineNumber: number, startCharIndex: number) => {
+			const segmentPreview = segment.slice(0, 100)
 			const segmentHash = createHash("sha256")
-				.update(`${filePath}-${originalLineNumber}-${originalLineNumber}-${startCharIndex}-${segment}`)
+				.update(
+					`${filePath}-${originalLineNumber}-${originalLineNumber}-${startCharIndex}-${segment.length}-${segmentPreview}`,
+				)
 				.digest("hex")
 
 			if (!seenSegmentHashes.has(segmentHash)) {
@@ -287,6 +298,8 @@ export class CodeParser implements ICodeParser {
 					createSegmentBlock(segment, originalLineNumber, currentSegmentStartChar)
 					currentSegmentStartChar += MAX_BLOCK_CHARS
 				}
+				// Update chunkStartLineIndex to continue processing from the next line
+				chunkStartLineIndex = i + 1
 				continue
 			}
 
@@ -369,6 +382,150 @@ export class CodeParser implements ICodeParser {
 			seenSegmentHashes,
 			baseStartLine,
 		)
+	}
+
+	/**
+	 * Helper method to process markdown content sections with consistent chunking logic
+	 */
+	private processMarkdownSection(
+		lines: string[],
+		filePath: string,
+		fileHash: string,
+		type: string,
+		seenSegmentHashes: Set<string>,
+		startLine: number,
+		identifier: string | null = null,
+	): CodeBlock[] {
+		const content = lines.join("\n")
+
+		if (content.trim().length < MIN_BLOCK_CHARS) {
+			return []
+		}
+
+		// Check if content needs chunking (either total size or individual line size)
+		const needsChunking =
+			content.length > MAX_BLOCK_CHARS * MAX_CHARS_TOLERANCE_FACTOR ||
+			lines.some((line) => line.length > MAX_BLOCK_CHARS * MAX_CHARS_TOLERANCE_FACTOR)
+
+		if (needsChunking) {
+			// Apply chunking for large content or oversized lines
+			const chunks = this._chunkTextByLines(lines, filePath, fileHash, type, seenSegmentHashes, startLine)
+			// Preserve identifier in all chunks if provided
+			if (identifier) {
+				chunks.forEach((chunk) => {
+					chunk.identifier = identifier
+				})
+			}
+			return chunks
+		}
+
+		// Create a single block for normal-sized content with no oversized lines
+		const endLine = startLine + lines.length - 1
+		const contentPreview = content.slice(0, 100)
+		const segmentHash = createHash("sha256")
+			.update(`${filePath}-${startLine}-${endLine}-${content.length}-${contentPreview}`)
+			.digest("hex")
+
+		if (!seenSegmentHashes.has(segmentHash)) {
+			seenSegmentHashes.add(segmentHash)
+			return [
+				{
+					file_path: filePath,
+					identifier,
+					type,
+					start_line: startLine,
+					end_line: endLine,
+					content,
+					segmentHash,
+					fileHash,
+				},
+			]
+		}
+
+		return []
+	}
+
+	private parseMarkdownContent(
+		filePath: string,
+		content: string,
+		fileHash: string,
+		seenSegmentHashes: Set<string>,
+	): CodeBlock[] {
+		const lines = content.split("\n")
+		const markdownCaptures = parseMarkdown(content) || []
+
+		if (markdownCaptures.length === 0) {
+			// No headers found, process entire content
+			return this.processMarkdownSection(lines, filePath, fileHash, "markdown_content", seenSegmentHashes, 1)
+		}
+
+		const results: CodeBlock[] = []
+		let lastProcessedLine = 0
+
+		// Process content before the first header
+		if (markdownCaptures.length > 0) {
+			const firstHeaderLine = markdownCaptures[0].node.startPosition.row
+			if (firstHeaderLine > 0) {
+				const preHeaderLines = lines.slice(0, firstHeaderLine)
+				const preHeaderBlocks = this.processMarkdownSection(
+					preHeaderLines,
+					filePath,
+					fileHash,
+					"markdown_content",
+					seenSegmentHashes,
+					1,
+				)
+				results.push(...preHeaderBlocks)
+			}
+		}
+
+		// Process markdown captures (headers and sections)
+		for (let i = 0; i < markdownCaptures.length; i += 2) {
+			const nameCapture = markdownCaptures[i]
+			// Ensure we don't go out of bounds when accessing the next capture
+			if (i + 1 >= markdownCaptures.length) break
+			const definitionCapture = markdownCaptures[i + 1]
+
+			if (!definitionCapture) continue
+
+			const startLine = definitionCapture.node.startPosition.row + 1
+			const endLine = definitionCapture.node.endPosition.row + 1
+			const sectionLines = lines.slice(startLine - 1, endLine)
+
+			// Extract header level for type classification
+			const headerMatch = nameCapture.name.match(/\.h(\d)$/)
+			const headerLevel = headerMatch ? parseInt(headerMatch[1]) : 1
+			const headerText = nameCapture.node.text
+
+			const sectionBlocks = this.processMarkdownSection(
+				sectionLines,
+				filePath,
+				fileHash,
+				`markdown_header_h${headerLevel}`,
+				seenSegmentHashes,
+				startLine,
+				headerText,
+			)
+			results.push(...sectionBlocks)
+
+			lastProcessedLine = endLine
+		}
+
+		// Process any remaining content after the last header section
+		if (lastProcessedLine < lines.length) {
+			const remainingLines = lines.slice(lastProcessedLine)
+			const remainingBlocks = this.processMarkdownSection(
+				remainingLines,
+				filePath,
+				fileHash,
+				"markdown_content",
+				seenSegmentHashes,
+				lastProcessedLine + 1,
+			)
+			results.push(...remainingBlocks)
+		}
+
+		return results
 	}
 }
 

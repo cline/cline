@@ -241,5 +241,141 @@ describe("DirectoryScanner", () => {
 			// Verify the stats
 			expect(mockCodeParser.parseFile).toHaveBeenCalledTimes(2)
 		})
+
+		it("should process markdown files alongside code files", async () => {
+			const { listFiles } = await import("../../../glob/list-files")
+			vi.mocked(listFiles).mockResolvedValue([["test/README.md", "test/app.js", "docs/guide.markdown"], false])
+
+			const mockMarkdownBlocks: any[] = [
+				{
+					file_path: "test/README.md",
+					content: "# Introduction\nThis is a comprehensive guide...",
+					start_line: 1,
+					end_line: 10,
+					identifier: "Introduction",
+					type: "markdown_header_h1",
+					fileHash: "md-hash",
+					segmentHash: "md-segment-hash",
+				},
+			]
+
+			const mockJsBlocks: any[] = [
+				{
+					file_path: "test/app.js",
+					content: "function main() { return 'hello'; }",
+					start_line: 1,
+					end_line: 3,
+					identifier: "main",
+					type: "function",
+					fileHash: "js-hash",
+					segmentHash: "js-segment-hash",
+				},
+			]
+
+			const mockMarkdownBlocks2: any[] = [
+				{
+					file_path: "docs/guide.markdown",
+					content: "## Getting Started\nFollow these steps...",
+					start_line: 1,
+					end_line: 8,
+					identifier: "Getting Started",
+					type: "markdown_header_h2",
+					fileHash: "markdown-hash",
+					segmentHash: "markdown-segment-hash",
+				},
+			]
+
+			// Mock parseFile to return different blocks based on file extension
+			;(mockCodeParser.parseFile as any).mockImplementation((filePath: string) => {
+				if (filePath.endsWith(".md")) {
+					return mockMarkdownBlocks
+				} else if (filePath.endsWith(".markdown")) {
+					return mockMarkdownBlocks2
+				} else if (filePath.endsWith(".js")) {
+					return mockJsBlocks
+				}
+				return []
+			})
+
+			const result = await scanner.scanDirectory("/test")
+
+			// Verify all files were processed
+			expect(mockCodeParser.parseFile).toHaveBeenCalledTimes(3)
+			expect(mockCodeParser.parseFile).toHaveBeenCalledWith("test/README.md", expect.any(Object))
+			expect(mockCodeParser.parseFile).toHaveBeenCalledWith("test/app.js", expect.any(Object))
+			expect(mockCodeParser.parseFile).toHaveBeenCalledWith("docs/guide.markdown", expect.any(Object))
+
+			// Verify code blocks include both markdown and code content
+			expect(result.codeBlocks).toHaveLength(3)
+			expect(result.codeBlocks).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ type: "markdown_header_h1" }),
+					expect.objectContaining({ type: "function" }),
+					expect.objectContaining({ type: "markdown_header_h2" }),
+				]),
+			)
+
+			expect(result.stats.processed).toBe(3)
+		})
+
+		it("should generate unique point IDs for each block from the same file", async () => {
+			const { listFiles } = await import("../../../glob/list-files")
+			vi.mocked(listFiles).mockResolvedValue([["test/large-doc.md"], false])
+
+			// Mock multiple blocks from the same file with different segmentHash values
+			const mockBlocks: any[] = [
+				{
+					file_path: "test/large-doc.md",
+					content: "# Introduction\nThis is the intro section...",
+					start_line: 1,
+					end_line: 10,
+					identifier: "Introduction",
+					type: "markdown_header_h1",
+					fileHash: "same-file-hash",
+					segmentHash: "unique-segment-hash-1",
+				},
+				{
+					file_path: "test/large-doc.md",
+					content: "## Getting Started\nHere's how to begin...",
+					start_line: 11,
+					end_line: 20,
+					identifier: "Getting Started",
+					type: "markdown_header_h2",
+					fileHash: "same-file-hash",
+					segmentHash: "unique-segment-hash-2",
+				},
+				{
+					file_path: "test/large-doc.md",
+					content: "## Advanced Topics\nFor advanced users...",
+					start_line: 21,
+					end_line: 30,
+					identifier: "Advanced Topics",
+					type: "markdown_header_h2",
+					fileHash: "same-file-hash",
+					segmentHash: "unique-segment-hash-3",
+				},
+			]
+
+			;(mockCodeParser.parseFile as any).mockResolvedValue(mockBlocks)
+
+			await scanner.scanDirectory("/test")
+
+			// Verify that upsertPoints was called with unique IDs for each block
+			expect(mockVectorStore.upsertPoints).toHaveBeenCalledTimes(1)
+			const upsertCall = mockVectorStore.upsertPoints.mock.calls[0]
+			const points = upsertCall[0]
+
+			// Extract the IDs from the points
+			const pointIds = points.map((point: any) => point.id)
+
+			// Verify all IDs are unique
+			expect(pointIds).toHaveLength(3)
+			expect(new Set(pointIds).size).toBe(3) // All IDs should be unique
+
+			// Verify that each point has the correct payload
+			expect(points[0].payload.segmentHash).toBe("unique-segment-hash-1")
+			expect(points[1].payload.segmentHash).toBe("unique-segment-hash-2")
+			expect(points[2].payload.segmentHash).toBe("unique-segment-hash-3")
+		})
 	})
 })

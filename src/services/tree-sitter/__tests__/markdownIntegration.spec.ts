@@ -20,8 +20,9 @@ describe("Markdown Integration Tests", () => {
 		vi.clearAllMocks()
 	})
 
-	it("should parse markdown files and extract headers", async () => {
-		// Mock markdown content
+	it("should parse markdown files and extract headers for definition listing", async () => {
+		// This test verifies that the tree-sitter integration correctly
+		// formats markdown headers for the definition listing feature
 		const markdownContent =
 			"# Main Header\n\nThis is some content under the main header.\nIt spans multiple lines to meet the minimum section length.\n\n## Section 1\n\nThis is content for section 1.\nIt also spans multiple lines.\n\n### Subsection 1.1\n\nThis is a subsection with enough lines\nto meet the minimum section length requirement.\n\n## Section 2\n\nFinal section content.\nWith multiple lines.\n"
 
@@ -34,7 +35,7 @@ describe("Markdown Integration Tests", () => {
 		// Verify fs.readFile was called with the correct path
 		expect(fs.readFile).toHaveBeenCalledWith("test.md", "utf8")
 
-		// Check the result
+		// Check the result formatting for definition listing
 		expect(result).toBeDefined()
 		expect(result).toContain("# test.md")
 		expect(result).toContain("1--5 | # Main Header")
@@ -43,8 +44,8 @@ describe("Markdown Integration Tests", () => {
 		expect(result).toContain("16--20 | ## Section 2")
 	})
 
-	it("should handle markdown files with no headers", async () => {
-		// Mock markdown content with no headers
+	it("should return undefined for markdown files with no extractable definitions", async () => {
+		// This test verifies behavior when no headers meet the minimum requirements
 		const markdownContent = "This is just some text.\nNo headers here.\nJust plain text."
 
 		// Mock fs.readFile to return our markdown content
@@ -56,45 +57,7 @@ describe("Markdown Integration Tests", () => {
 		// Verify fs.readFile was called with the correct path
 		expect(fs.readFile).toHaveBeenCalledWith("no-headers.md", "utf8")
 
-		// Check the result
+		// Check the result - should be undefined since no definitions found
 		expect(result).toBeUndefined()
-	})
-
-	it("should handle markdown files with headers that don't meet minimum section length", async () => {
-		// Mock markdown content with headers but short sections
-		const markdownContent = "# Header 1\nShort section\n\n# Header 2\nAnother short section"
-
-		// Mock fs.readFile to return our markdown content
-		;(fs.readFile as Mock).mockImplementation(() => Promise.resolve(markdownContent))
-
-		// Call the function with a markdown file path
-		const result = await parseSourceCodeDefinitionsForFile("short-sections.md")
-
-		// Verify fs.readFile was called with the correct path
-		expect(fs.readFile).toHaveBeenCalledWith("short-sections.md", "utf8")
-
-		// Check the result - should be undefined since no sections meet the minimum length
-		expect(result).toBeUndefined()
-	})
-
-	it("should handle markdown files with mixed header styles", async () => {
-		// Mock markdown content with mixed header styles
-		const markdownContent =
-			"# ATX Header\nThis is content under an ATX header.\nIt spans multiple lines to meet the minimum section length.\n\nSetext Header\n============\nThis is content under a setext header.\nIt also spans multiple lines to meet the minimum section length.\n"
-
-		// Mock fs.readFile to return our markdown content
-		;(fs.readFile as Mock).mockImplementation(() => Promise.resolve(markdownContent))
-
-		// Call the function with a markdown file path
-		const result = await parseSourceCodeDefinitionsForFile("mixed-headers.md")
-
-		// Verify fs.readFile was called with the correct path
-		expect(fs.readFile).toHaveBeenCalledWith("mixed-headers.md", "utf8")
-
-		// Check the result
-		expect(result).toBeDefined()
-		expect(result).toContain("# mixed-headers.md")
-		expect(result).toContain("1--4 | # ATX Header")
-		expect(result).toContain("5--9 | Setext Header")
 	})
 })

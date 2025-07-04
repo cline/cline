@@ -308,8 +308,8 @@ export class DirectoryScanner implements IDirectoryScanner {
 				const points = batchBlocks.map((block, index) => {
 					const normalizedAbsolutePath = generateNormalizedAbsolutePath(block.file_path)
 
-					const stableName = `${normalizedAbsolutePath}:${block.start_line}`
-					const pointId = uuidv5(stableName, QDRANT_CODE_BLOCK_NAMESPACE)
+					// Use segmentHash for unique ID generation to handle multiple segments from same line
+					const pointId = uuidv5(block.segmentHash, QDRANT_CODE_BLOCK_NAMESPACE)
 
 					return {
 						id: pointId,
@@ -319,6 +319,7 @@ export class DirectoryScanner implements IDirectoryScanner {
 							codeChunk: block.content,
 							startLine: block.start_line,
 							endLine: block.end_line,
+							segmentHash: block.segmentHash,
 						},
 					}
 				})
