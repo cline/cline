@@ -2,6 +2,8 @@ import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
 import sizeOf from "image-size"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowOpenDialogueRequest } from "@/shared/proto/host/window"
 
 /**
  * Supports processing of images and other file types
@@ -11,15 +13,17 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv"]
 
-	const options: vscode.OpenDialogOptions = {
-		canSelectMany: true,
-		openLabel: "Select",
-		filters: {
-			Files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
-		},
-	}
+	const showDialogueResponse = await getHostBridgeProvider().windowClient.showOpenDialogue(
+		ShowOpenDialogueRequest.create({
+			canSelectMany: true,
+			openLabel: "Select",
+			filters: {
+				files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
+			},
+		}),
+	)
 
-	const fileUris = await vscode.window.showOpenDialog(options)
+	const fileUris = showDialogueResponse.paths.map((path) => vscode.Uri.file(path))
 
 	if (!fileUris || fileUris.length === 0) {
 		return { images: [], files: [] }

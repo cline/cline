@@ -672,10 +672,6 @@ vscode.window.showWorkspaceFolderPick = function (options) {
 	console.log("Called stubbed function: vscode.window.showWorkspaceFolderPick")
 	return Promise.resolve(null)
 }
-vscode.window.showOpenDialog = function (options) {
-	console.log("Called stubbed function: vscode.window.showOpenDialog")
-	return []
-}
 vscode.window.showSaveDialog = function (options) {
 	console.log("Called stubbed function: vscode.window.showSaveDialog")
 	return Promise.resolve(null)

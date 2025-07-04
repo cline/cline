@@ -10,6 +10,7 @@ import "common.proto";
 service WindowService {
   // Opens a text document in the editor and returns editor information.
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
+  rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
 }
 
 message ShowTextDocumentRequest {
@@ -29,4 +30,19 @@ message TextEditorInfo {
   string document_path = 1;
   optional int32 view_column = 2;
   bool is_active = 3;
+}
+
+message ShowOpenDialogueRequest {
+  cline.Metadata metadata = 1;
+  optional bool can_select_many = 2;
+  optional string open_label = 3;
+  optional ShowOpenDialogueFilterOption filters = 4;
+}
+
+message ShowOpenDialogueFilterOption {
+  repeated string files = 1;
+}
+
+message SelectedResources {
+  repeated string paths = 1;
 }
