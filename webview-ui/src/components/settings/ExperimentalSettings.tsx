@@ -85,7 +85,15 @@ export const ExperimentalSettings = ({
 					<div className="flex items-center gap-2">
 						<VSCodeCheckbox
 							checked={codebaseIndexEnabled || false}
-							onChange={(e: any) => setCachedStateField?.("codebaseIndexEnabled", e.target.checked)}>
+							onChange={(e: any) => {
+								const newEnabledState = e.target.checked
+								if (setCachedStateField && codebaseIndexConfig) {
+									setCachedStateField("codebaseIndexConfig", {
+										...codebaseIndexConfig,
+										codebaseIndexEnabled: newEnabledState,
+									})
+								}
+							}}>
 							<span className="font-medium">{t("settings:codeIndex.enableLabel")}</span>
 						</VSCodeCheckbox>
 					</div>

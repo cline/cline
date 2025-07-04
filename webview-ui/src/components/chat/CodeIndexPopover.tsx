@@ -32,6 +32,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@src/components/ui"
+import { useRooPortal } from "@src/components/ui/hooks/useRooPortal"
 import type { EmbedderProvider } from "@roo/embeddingModels"
 import type { IndexingStatus } from "@roo/ExtensionMessage"
 
@@ -284,6 +285,8 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 		return models ? Object.keys(models) : []
 	}
 
+	const portalContainer = useRooPortal("roo-portal")
+
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -294,7 +297,8 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				side="bottom"
 				sideOffset={5}
 				collisionPadding={16}
-				avoidCollisions={true}>
+				avoidCollisions={true}
+				container={portalContainer}>
 				<div className="mb-4">
 					<h3 className="text-base font-medium mb-2">{t("settings:codeIndex.title")}</h3>
 					<p className="text-sm text-vscode-descriptionForeground">
