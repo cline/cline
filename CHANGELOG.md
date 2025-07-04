@@ -174,7 +174,7 @@
 
 -   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
 -   Add keyboard shortcut (Cmd+') to quickly focus Cline from anywhere in VS Code
--   Add lightbulb actions for selected text with options to "Add to Cline", "Explain with Cline", and "Improve with Cline"
+-   Add lightbulb actions for selected text with options to "Add Selected to Cline", "Explain with Cline", and "Improve with Cline"
 -   Automatically focus Cline window after extension updates
 
 ## [3.16.1]
@@ -383,7 +383,7 @@
 ## [3.10.1]
 
 -   Add CMD+' keyboard shortcut to add selected text to Cline
--   Cline now auto focuses the text field when using 'Add to Cline' shortcut
+-   Cline now auto focuses the text field when using 'Add Selected to Cline' shortcut
 -   Add new 'Create New Task' tool to let Cline start a new task autonomously!
 -   Fix Mermaid diagram issues
 -   Fix Gemini provider cost calculation to take new tiered pricing structure into account
@@ -461,7 +461,7 @@
 
 ## [3.8.0]
 
--   Add 'Add to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
+-   Add 'Add Selected to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
 -   Add 'Fix with Cline' code action - when you see a lightbulb icon in your editor, you can now select 'Fix with Cline' to send the code and associated errors for Cline to fix. (Cursor users can also use the 'Quick Fix (CMD + .)' menu to see this option)
 -   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
 -   Add 'Sort underling provider routing' setting to Cline/OpenRouter allowing you to sort provider used by throughput, price, latency, or the default (combination of price and uptime)
