@@ -505,7 +505,7 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 				cline.diffViewProvider.editType = "modify"
 				await cline.diffViewProvider.open(relPath)
 				await cline.diffViewProvider.update(originalContent!, true)
-				await cline.diffViewProvider.scrollToFirstDiff()
+				cline.diffViewProvider.scrollToFirstDiff()
 
 				// For batch operations, we've already gotten approval
 				const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
