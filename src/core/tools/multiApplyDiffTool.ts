@@ -159,7 +159,12 @@ Expected structure:
 </args>
 
 Original error: ${errorMessage}`
-			throw new Error(detailedError)
+			cline.consecutiveMistakeCount++
+			cline.recordToolError("apply_diff")
+			TelemetryService.instance.captureDiffApplicationError(cline.taskId, cline.consecutiveMistakeCount)
+			await cline.say("diff_error", `Failed to parse apply_diff XML: ${errorMessage}`)
+			pushToolResult(detailedError)
+			return
 		}
 	} else if (legacyPath && typeof legacyDiffContent === "string") {
 		// Handle legacy parameters (old way)
