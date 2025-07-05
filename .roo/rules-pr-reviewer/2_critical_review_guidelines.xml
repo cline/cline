@@ -1,0 +1,208 @@
+<critical_review_guidelines>
+  <overview>
+    These guidelines ensure PR reviews are appropriately critical while remaining
+    constructive. The goal is to maintain high code quality and consistency
+    across the codebase by identifying issues that might be overlooked in a
+    less thorough review.
+  </overview>
+
+  <being_appropriately_critical>
+    <principle name="evidence_based_criticism">
+      <description>Always support criticism with evidence from the codebase</description>
+      <example>
+        Instead of: "This doesn't follow our patterns"
+        Say: "This implementation differs from the pattern used in src/api/handlers/*.ts 
+        where we consistently use the factory pattern for endpoint creation"
+      </example>
+    </principle>
+
+    <principle name="compare_with_existing_code">
+      <description>Reference similar existing implementations</description>
+      <approach>
+        1. Find 2-3 examples of similar features
+        2. Identify the common patterns they follow
+        3. Explain how the PR deviates from these patterns
+        4. Suggest alignment with existing approaches
+      </approach>
+    </principle>
+
+    <principle name="question_design_decisions">
+      <description>Challenge architectural choices when appropriate</description>
+      <examples>
+        - "Why was this implemented as a separate module instead of extending the existing X module?"
+        - "This introduces a new pattern for Y. Have we considered using the established pattern from Z?"
+        - "This creates a circular dependency with module A. Could we restructure to maintain cleaner boundaries?"
+      </examples>
+    </principle>
+  </being_appropriately_critical>
+
+  <pattern_analysis_checklist>
+    <category name="api_endpoints">
+      <check>Do new endpoints follow the same structure as existing ones?</check>
+      <check>Are error responses consistent with other endpoints?</check>
+      <check>Is authentication/authorization handled the same way?</check>
+      <check>Are request validations following established patterns?</check>
+    </category>
+
+    <category name="react_components">
+      <check>Do components follow the same file structure (types, helpers, component)?</check>
+      <check>Are props interfaces defined consistently?</check>
+      <check>Is state management approach consistent with similar components?</check>
+      <check>Are hooks used in the same patterns as elsewhere?</check>
+    </category>
+
+    <category name="test_files">
+      <check>Are test files in the correct directory structure?</check>
+      <check>Do test descriptions follow the same format?</check>
+      <check>Are mocking strategies consistent with other tests?</check>
+      <check>Is test data generation following established patterns?</check>
+    </category>
+
+    <category name="utility_functions">
+      <check>Could this utility already exist elsewhere?</check>
+      <check>Should this be added to an existing utility module?</check>
+      <check>Does the naming convention match other utilities?</check>
+      <check>Are similar transformations already implemented?</check>
+    </category>
+  </pattern_analysis_checklist>
+
+  <redundancy_detection>
+    <search_strategies>
+      <strategy name="functionality_search">
+        <description>Search for similar functionality by behavior</description>
+        <example>
+          If PR adds a "formatDate" function, search for:
+          - "date format"
+          - "format.*date"
+          - "dateFormat"
+          - Existing date manipulation utilities
+        </example>
+      </strategy>
+
+      <strategy name="pattern_search">
+        <description>Search for similar code patterns</description>
+        <example>
+          If PR adds error handling, search for:
+          - try/catch patterns in similar contexts
+          - Error boundary implementations
+          - Existing error utilities
+        </example>
+      </strategy>
+
+      <strategy name="import_analysis">
+        <description>Check what similar files import</description>
+        <approach>
+          Look at imports in files with similar purposes
+          to discover existing utilities that could be reused
+        </approach>
+      </strategy>
+    </search_strategies>
+
+    <common_redundancies>
+      <type name="utility_duplication">
+        <description>Reimplementing existing utilities</description>
+        <examples>
+          - String manipulation functions
+          - Array transformations  
+          - Date formatting
+          - API response transformations
+        </examples>
+      </type>
+
+      <type name="component_duplication">
+        <description>Creating similar components</description>
+        <examples>
+          - Modal variations that could use a base modal
+          - Form inputs that could extend existing inputs
+          - List components with slight variations
+        </examples>
+      </type>
+
+      <type name="logic_duplication">
+        <description>Repeating business logic</description>
+        <examples>
+          - Validation rules implemented multiple times
+          - Permission checks duplicated across files
+          - Data transformation logic repeated
+        </examples>
+      </type>
+    </common_redundancies>
+  </redundancy_detection>
+
+  <constructive_criticism_templates>
+    <template name="pattern_deviation">
+      <format>
+        "I notice this [feature] implements [pattern X], but our existing
+        [similar features] consistently use [pattern Y]. For example:
+        - [Link to example 1]
+        - [Link to example 2]
+        
+        Consider aligning with the established pattern to maintain consistency.
+        If there's a specific reason for the deviation, it would be helpful
+        to document it."
+      </format>
+    </template>
+
+    <template name="redundancy_found">
+      <format>
+        "This functionality appears to overlap with existing code in
+        [file/module]. Specifically, [existing function/component] already
+        handles [similar use case].
+        
+        Could we either:
+        1. Reuse the existing implementation
+        2. Extend it to cover this use case
+        3. Extract a shared utility if both are needed"
+      </format>
+    </template>
+
+    <template name="organization_improvement">
+      <format>
+        "For better code organization, this [file/component/test] would
+        fit better in [suggested location] alongside [similar items].
+        This follows our pattern where [explanation of pattern]."
+      </format>
+    </template>
+
+    <template name="test_organization">
+      <format>
+        "I see the tests are in [current location], but our other
+        [type] tests are organized in [correct location]. Moving them
+        would make them easier to find and maintain consistency with
+        tests like [example test files]."
+      </format>
+    </template>
+  </constructive_criticism_templates>
+
+  <severity_guidelines>
+    <level name="must_fix">
+      <description>Issues that should block PR approval</description>
+      <examples>
+        - Security vulnerabilities
+        - Breaking changes without migration path
+        - Significant pattern violations that would confuse future developers
+        - Major redundancy that adds maintenance burden
+      </examples>
+    </level>
+
+    <level name="should_fix">
+      <description>Important issues that need addressing</description>
+      <examples>
+        - Test files in wrong location
+        - Inconsistent error handling
+        - Missing critical test cases
+        - Code organization that violates module boundaries
+      </examples>
+    </level>
+
+    <level name="consider_fixing">
+      <description>Improvements that would benefit the codebase</description>
+      <examples>
+        - Minor pattern inconsistencies
+        - Opportunities for code reuse
+        - Additional test coverage
+        - Documentation improvements
+      </examples>
+    </level>
+  </severity_guidelines>
+</critical_review_guidelines>

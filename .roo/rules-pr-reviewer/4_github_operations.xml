@@ -1,0 +1,226 @@
+<github_operations>
+  <overview>
+    Guidelines for handling GitHub operations with fallback strategies
+    when MCP tools are unavailable or failing.
+  </overview>
+
+  <mcp_vs_cli>
+    <principle>
+      Always try MCP tools first, fall back to GitHub CLI if they fail
+    </principle>
+    <benefits_of_mcp>
+      - Structured data responses
+      - Better error handling
+      - Integrated with the system
+    </benefits_of_mcp>
+    <benefits_of_cli>
+      - More reliable when MCP is down
+      - Direct GitHub API access
+      - Can handle complex queries
+    </benefits_of_cli>
+  </mcp_vs_cli>
+
+  <operation_patterns>
+    <operation name="fetch_pr_details">
+      <mcp_approach>
+        <tool>get_pull_request</tool>
+        <example><![CDATA[
+<use_mcp_tool>
+<server_name>github</server_name>
+<tool_name>get_pull_request</tool_name>
+<arguments>
+{
+  "owner": "RooCodeInc",
+  "repo": "Roo-Code",
+  "pullNumber": 123
+}
+</arguments>
+</use_mcp_tool>
+        ]]></example>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles</command>
+        <parse_json>true</parse_json>
+      </cli_fallback>
+    </operation>
+
+    <operation name="fetch_pr_diff">
+      <mcp_approach>
+        <tool>get_pull_request_diff</tool>
+        <example><![CDATA[
+<use_mcp_tool>
+<server_name>github</server_name>
+<tool_name>get_pull_request_diff</tool_name>
+<arguments>
+{
+  "owner": "RooCodeInc",
+  "repo": "Roo-Code",
+  "pullNumber": 123
+}
+</arguments>
+</use_mcp_tool>
+        ]]></example>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr diff [PR_NUMBER] --repo [owner]/[repo]</command>
+        <save_to>.roo/temp/pr-[PR_NUMBER]/pr.diff</save_to>
+      </cli_fallback>
+    </operation>
+
+    <operation name="fetch_pr_files">
+      <mcp_approach>
+        <tool>get_pull_request_files</tool>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json files --jq '.files[].path'</command>
+        <description>Lists all files changed in the PR</description>
+      </cli_fallback>
+    </operation>
+
+    <operation name="fetch_comments">
+      <mcp_approach>
+        <tool>get_pull_request_comments</tool>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json comments --jq '.comments'</command>
+      </cli_fallback>
+    </operation>
+
+    <operation name="fetch_reviews">
+      <mcp_approach>
+        <tool>get_pull_request_reviews</tool>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json reviews --jq '.reviews'</command>
+      </cli_fallback>
+    </operation>
+
+    <operation name="checkout_pr">
+      <cli_only>
+        <command>gh pr checkout [PR_NUMBER] --repo [owner]/[repo]</command>
+        <note>No MCP equivalent - always use CLI</note>
+      </cli_only>
+    </operation>
+
+    <operation name="post_comment">
+      <mcp_approach>
+        <tool>add_issue_comment</tool>
+        <note>PRs use same comment system as issues</note>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body-file [file_path]</command>
+        <alternative>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body "[comment_text]"</alternative>
+      </cli_fallback>
+    </operation>
+
+    <operation name="create_review">
+      <mcp_approach>
+        <sequence>
+          1. create_pending_pull_request_review
+          2. add_pull_request_review_comment_to_pending_review (multiple times)
+          3. submit_pending_pull_request_review
+        </sequence>
+      </mcp_approach>
+      <cli_fallback>
+        <command>gh pr review [PR_NUMBER] --repo [owner]/[repo] --comment --body-file [review_file]</command>
+      </cli_fallback>
+    </operation>
+  </operation_patterns>
+
+  <error_handling>
+    <scenario name="mcp_server_unavailable">
+      <detection>
+        Error message contains "MCP server" or "github server not found"
+      </detection>
+      <action>
+        Immediately switch to CLI commands for all operations
+      </action>
+    </scenario>
+
+    <scenario name="api_rate_limit">
+      <detection>
+        Error contains "rate limit" or status code 403
+      </detection>
+      <action>
+        1. Wait briefly (30 seconds)
+        2. Retry with CLI using --limit flag
+        3. Reduce number of API calls
+      </action>
+    </scenario>
+
+    <scenario name="authentication_failure">
+      <detection>
+        Error contains "authentication" or status code 401
+      </detection>
+      <action>
+        1. Inform user about auth issue
+        2. Suggest checking gh auth status
+        3. Continue with available data
+      </action>
+    </scenario>
+
+    <scenario name="pr_not_found">
+      <detection>
+        Error contains "not found" or status code 404
+      </detection>
+      <action>
+        1. Verify PR number and repository
+        2. Ask user to confirm details
+        3. Check if PR is from a fork
+      </action>
+    </scenario>
+  </error_handling>
+
+  <data_handling>
+    <principle name="save_everything">
+      <description>Always save API responses to temp files</description>
+      <reason>Preserve data in case of failures</reason>
+    </principle>
+
+    <principle name="parse_json_safely">
+      <description>Use jq or built-in JSON parsing</description>
+      <example>
+        gh pr view --json files --jq '.files[].path'
+      </example>
+    </principle>
+
+    <principle name="handle_large_prs">
+      <description>For PRs with many files, process in batches</description>
+      <threshold>More than 50 files</threshold>
+    </principle>
+  </data_handling>
+
+  <cli_command_reference>
+    <command_group name="pr_info">
+      <command>gh pr view [number] --json [fields]</command>
+      <fields>
+        number, title, author, state, body, url, 
+        headRefName, baseRefName, files, additions, 
+        deletions, changedFiles, comments, reviews
+      </fields>
+    </command_group>
+
+    <command_group name="pr_interaction">
+      <command>gh pr checkout [number]</command>
+      <command>gh pr diff [number]</command>
+      <command>gh pr comment [number] --body "[text]"</command>
+      <command>gh pr review [number] --comment --body "[text]"</command>
+    </command_group>
+
+    <command_group name="issue_info">
+      <command>gh issue view [number] --json [fields]</command>
+      <fields>
+        number, title, body, author, state, 
+        labels, assignees, milestone
+      </fields>
+    </command_group>
+  </cli_command_reference>
+
+  <best_practices>
+    <practice>Always specify --repo to avoid ambiguity</practice>
+    <practice>Use --json for structured data</practice>
+    <practice>Save command outputs to temp files</practice>
+    <practice>Check gh auth status before operations</practice>
+    <practice>Handle both personal repos and org repos</practice>
+  </best_practices>
+</github_operations>

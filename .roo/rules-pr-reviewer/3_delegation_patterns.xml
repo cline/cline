@@ -1,0 +1,238 @@
+<delegation_patterns>
+  <overview>
+    Patterns for effectively delegating analysis tasks to specialized modes
+    while maintaining context and ensuring comprehensive review coverage.
+  </overview>
+
+  <delegation_strategies>
+    <strategy name="pattern_analysis_delegation">
+      <when_to_delegate>
+        When PR contains new features or significant code changes
+      </when_to_delegate>
+      <delegate_to>code</delegate_to>
+      <task_template>
+        Analyze the following changed files for pattern consistency:
+        [List of changed files]
+        
+        Please focus on:
+        1. Finding similar existing implementations in the codebase
+        2. Identifying established patterns for this type of feature
+        3. Checking if the new code follows these patterns
+        4. Looking for potential code redundancy
+        5. Verifying proper file organization
+        
+        Use codebase_search and search_files to find similar code.
+        Document all findings with specific examples and file references.
+        
+        Save your analysis to: .roo/temp/pr-[PR_NUMBER]/pattern-analysis.md
+        
+        Format the output as:
+        ## Pattern Analysis for PR #[PR_NUMBER]
+        ### Similar Existing Implementations
+        ### Established Patterns
+        ### Pattern Deviations
+        ### Redundancy Findings
+        ### Organization Issues
+      </task_template>
+    </strategy>
+
+    <strategy name="architecture_review_delegation">
+      <when_to_delegate>
+        When PR modifies core modules, adds new modules, or changes dependencies
+      </when_to_delegate>
+      <delegate_to>architect</delegate_to>
+      <task_template>
+        Review the architectural implications of PR #[PR_NUMBER]:
+        
+        Changed files:
+        [List of changed files]
+        
+        PR Description:
+        [PR description]
+        
+        Please analyze:
+        1. Module boundary adherence
+        2. Dependency management (new dependencies, circular dependencies)
+        3. Separation of concerns
+        4. Impact on system architecture
+        5. Consistency with architectural patterns
+        
+        Save your findings to: .roo/temp/pr-[PR_NUMBER]/architecture-review.md
+        
+        Format as:
+        ## Architecture Review for PR #[PR_NUMBER]
+        ### Module Boundaries
+        ### Dependency Analysis
+        ### Architectural Concerns
+        ### Recommendations
+      </task_template>
+    </strategy>
+
+    <strategy name="test_analysis_delegation">
+      <when_to_delegate>
+        When PR adds or modifies test files
+      </when_to_delegate>
+      <delegate_to>test</delegate_to>
+      <task_template>
+        Analyze test changes in PR #[PR_NUMBER]:
+        
+        Test files changed:
+        [List of test files]
+        
+        Please review:
+        1. Test file organization and location
+        2. Test naming conventions
+        3. Coverage of edge cases
+        4. Mock usage patterns
+        5. Consistency with existing test patterns
+        
+        Compare with similar existing tests in the codebase.
+        
+        Save analysis to: .roo/temp/pr-[PR_NUMBER]/test-analysis.md
+        
+        Format as:
+        ## Test Analysis for PR #[PR_NUMBER]
+        ### Test Organization
+        ### Coverage Assessment
+        ### Pattern Consistency
+        ### Recommendations
+      </task_template>
+    </strategy>
+
+    <strategy name="ui_review_delegation">
+      <when_to_delegate>
+        When PR modifies UI components or adds new ones
+      </when_to_delegate>
+      <delegate_to>design-engineer</delegate_to>
+      <task_template>
+        Review UI changes in PR #[PR_NUMBER]:
+        
+        UI files changed:
+        [List of UI files]
+        
+        Please analyze:
+        1. Component structure consistency
+        2. Styling approach (Tailwind usage)
+        3. Accessibility considerations
+        4. i18n implementation
+        5. Component reusability
+        
+        Save findings to: .roo/temp/pr-[PR_NUMBER]/ui-review.md
+      </task_template>
+    </strategy>
+  </delegation_strategies>
+
+  <context_preservation>
+    <principle name="use_temp_files">
+      <description>Always save delegation results to temp files</description>
+      <pattern>.roo/temp/pr-[PR_NUMBER]/[analysis-type].md</pattern>
+    </principle>
+
+    <principle name="structured_output">
+      <description>Request structured markdown output from delegates</description>
+      <benefits>
+        - Easy to parse and combine
+        - Consistent formatting
+        - Clear section headers
+      </benefits>
+    </principle>
+
+    <principle name="pass_context_forward">
+      <description>Include relevant context in delegation requests</description>
+      <include>
+        - PR number and description
+        - List of changed files
+        - Specific areas of concern
+        - Output file location
+      </include>
+    </principle>
+  </context_preservation>
+
+  <coordination_patterns>
+    <pattern name="sequential_delegation">
+      <description>Delegate tasks one at a time, using results to inform next delegation</description>
+      <example>
+        1. Pattern analysis first
+        2. If patterns violated, delegate architecture review
+        3. If tests affected, delegate test analysis
+      </example>
+    </pattern>
+
+    <pattern name="parallel_delegation">
+      <description>Delegate multiple independent analyses simultaneously</description>
+      <example>
+        - Pattern analysis (code mode)
+        - Test analysis (test mode)
+        - UI review (design-engineer mode)
+      </example>
+    </pattern>
+
+    <pattern name="conditional_delegation">
+      <description>Only delegate based on file types changed</description>
+      <conditions>
+        - If *.test.ts changed -> delegate to test mode
+        - If src/components/* changed -> delegate to design-engineer
+        - If package.json changed -> delegate to architect
+      </conditions>
+    </pattern>
+  </coordination_patterns>
+
+  <result_synthesis>
+    <step name="collect_results">
+      <action>Read all analysis files from temp directory</action>
+      <files>
+        - pattern-analysis.md
+        - architecture-review.md
+        - test-analysis.md
+        - ui-review.md
+      </files>
+    </step>
+
+    <step name="identify_themes">
+      <action>Find common issues across analyses</action>
+      <themes>
+        - Pattern violations mentioned multiple times
+        - Redundancy identified by different modes
+        - Organizational issues
+      </themes>
+    </step>
+
+    <step name="prioritize_findings">
+      <action>Categorize by severity</action>
+      <categories>
+        - Critical (blocks PR)
+        - Important (should fix)
+        - Suggestions (nice to have)
+      </categories>
+    </step>
+
+    <step name="create_unified_report">
+      <action>Combine all findings into final review</action>
+      <format>
+        ## PR Review Summary
+        ### Critical Issues
+        ### Pattern Inconsistencies
+        ### Architecture Concerns
+        ### Test Coverage
+        ### Suggestions
+      </format>
+    </step>
+  </result_synthesis>
+
+  <fallback_strategies>
+    <scenario name="delegation_fails">
+      <action>Continue with available analyses</action>
+      <note>Document which analyses couldn't be completed</note>
+    </scenario>
+
+    <scenario name="mode_unavailable">
+      <action>Perform basic analysis in orchestrator mode</action>
+      <limitations>Note limitations in final report</limitations>
+    </scenario>
+
+    <scenario name="timeout">
+      <action>Use completed analyses</action>
+      <timeout>Set reasonable time limits for delegations</timeout>
+    </scenario>
+  </fallback_strategies>
+</delegation_patterns>

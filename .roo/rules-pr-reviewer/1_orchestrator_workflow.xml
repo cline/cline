@@ -1,0 +1,203 @@
+<orchestrator_workflow>
+  <overview>
+    This workflow orchestrates a comprehensive pull request review process by delegating
+    specialized analysis tasks to appropriate modes while maintaining context through
+    structured report files. The orchestrator ensures critical review coverage while
+    avoiding redundant feedback.
+  </overview>
+
+  <initialization>
+    <step number="1">
+      <name>Parse PR Information and Initialize Context</name>
+      <description>
+        Extract PR information from user input (URL or PR number).
+        Create context directory and tracking files.
+        If called by another mode (Issue Fixer, PR Fixer), set calledByMode field.
+      </description>
+      <actions>
+        - Parse PR URL or number from user input
+        - Create directory: .roo/temp/pr-[PR_NUMBER]/
+        - Initialize review-context.json with PR metadata
+        - Check if called by another mode and record it
+      </actions>
+    </step>
+  </initialization>
+
+  <github_operations>
+    <step number="2">
+      <name>Fetch PR Details and Context</name>
+      <description>
+        Try using GitHub MCP tools first. If unavailable or failing, fall back to GitHub CLI.
+      </description>
+      <mcp_approach>
+        Use get_pull_request tool to fetch PR details
+      </mcp_approach>
+      <cli_fallback>
+        gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles
+      </cli_fallback>
+    </step>
+
+    <step number="3">
+      <name>Fetch Linked Issue</name>
+      <description>
+        If PR references an issue, fetch its details for context.
+      </description>
+      <mcp_approach>
+        Use get_issue tool if issue is referenced
+      </mcp_approach>
+      <cli_fallback>
+        gh issue view [issue_number] --repo [owner]/[repo] --json number,title,body,author,state
+      </cli_fallback>
+    </step>
+
+    <step number="4">
+      <name>Fetch Existing Comments and Reviews</name>
+      <description>
+        CRITICAL: Get all existing feedback to avoid redundancy.
+      </description>
+      <mcp_approach>
+        Use get_pull_request_comments and get_pull_request_reviews
+      </mcp_approach>
+      <cli_fallback>
+        gh pr review [PR_NUMBER] --repo [owner]/[repo] --json comments,reviews
+      </cli_fallback>
+      <save_to>.roo/temp/pr-[PR_NUMBER]/existing-feedback.json</save_to>
+    </step>
+
+    <step number="5">
+      <name>Check Out PR Locally</name>
+      <command>gh pr checkout [PR_NUMBER] --repo [owner]/[repo]</command>
+      <purpose>Enable local code analysis and pattern comparison</purpose>
+    </step>
+  </github_operations>
+
+  <delegated_analysis>
+    <step number="6">
+      <name>Delegate Pattern Analysis</name>
+      <description>
+        Create a subtask to analyze code patterns and organization.
+      </description>
+      <delegation>
+        <mode>code</mode>
+        <focus_areas>
+          - Identifying similar existing features/components
+          - Checking if implementations follow established patterns
+          - Finding potential code redundancy
+          - Verifying test organization
+          - Checking file/directory structure consistency
+        </focus_areas>
+        <output>.roo/temp/pr-[PR_NUMBER]/pattern-analysis.md</output>
+      </delegation>
+    </step>
+
+    <step number="7">
+      <name>Delegate Architecture Review</name>
+      <description>
+        Create a subtask for architectural analysis.
+      </description>
+      <delegation>
+        <mode>architect</mode>
+        <focus_areas>
+          - Module boundary violations
+          - Dependency management issues
+          - Separation of concerns
+          - Potential circular dependencies
+          - Overall architectural consistency
+        </focus_areas>
+        <output>.roo/temp/pr-[PR_NUMBER]/architecture-review.md</output>
+      </delegation>
+    </step>
+
+    <step number="8">
+      <name>Delegate Test Coverage Analysis</name>
+      <description>
+        If test files are modified or added, delegate test analysis.
+      </description>
+      <delegation>
+        <mode>test</mode>
+        <focus_areas>
+          - Test organization and location
+          - Test coverage adequacy
+          - Test naming conventions
+          - Mock usage patterns
+          - Edge case coverage
+        </focus_areas>
+        <output>.roo/temp/pr-[PR_NUMBER]/test-analysis.md</output>
+      </delegation>
+    </step>
+  </delegated_analysis>
+
+  <synthesis>
+    <step number="9">
+      <name>Synthesize Findings</name>
+      <description>
+        Collect all delegated analysis results and create comprehensive review.
+      </description>
+      <actions>
+        - Read all analysis files from .roo/temp/pr-[PR_NUMBER]/
+        - Identify critical issues vs suggestions
+        - Check against existing comments to avoid redundancy
+        - Prioritize findings by impact
+      </actions>
+    </step>
+
+    <step number="10">
+      <name>Create Final Review Report</name>
+      <description>
+        Generate comprehensive review report with all findings.
+      </description>
+      <output>.roo/temp/pr-[PR_NUMBER]/final-review.md</output>
+      <sections>
+        - Executive Summary
+        - Critical Issues (must fix)
+        - Pattern Inconsistencies
+        - Redundancy Findings
+        - Architecture Concerns
+        - Test Coverage Issues
+        - Minor Suggestions
+      </sections>
+    </step>
+  </synthesis>
+
+  <completion>
+    <step number="11">
+      <name>Present Review to User</name>
+      <description>
+        Show the review findings and ask for action.
+      </description>
+      <decision_points>
+        <if_called_by_mode>
+          Only present the analysis report, do not comment on PR
+        </if_called_by_mode>
+        <if_direct_review>
+          Ask user if they want to post the review as a comment
+        </if_direct_review>
+      </decision_points>
+    </step>
+
+    <step number="12">
+      <name>Post Review Comment (if approved)</name>
+      <description>
+        If user approves and not called by another mode, post review.
+      </description>
+      <mcp_approach>
+        Use add_issue_comment or create PR review
+      </mcp_approach>
+      <cli_fallback>
+        gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body-file .roo/temp/pr-[PR_NUMBER]/final-review.md
+      </cli_fallback>
+    </step>
+  </completion>
+
+  <error_handling>
+    <github_api_failures>
+      Always fall back to GitHub CLI commands
+    </github_api_failures>
+    <delegation_failures>
+      Continue with available analysis and note limitations
+    </delegation_failures>
+    <context_preservation>
+      Always save intermediate results to temp files
+    </context_preservation>
+  </error_handling>
+</orchestrator_workflow>

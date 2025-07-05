@@ -1,0 +1,356 @@
+<context_management>
+  <overview>
+    Strategies for maintaining review context across delegated tasks and
+    ensuring no information is lost during the orchestration process.
+  </overview>
+
+  <context_files>
+    <file name="review-context.json">
+      <purpose>Central tracking file for the entire review process</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/review-context.json</location>
+      <structure>
+        {
+          "prNumber": "string",
+          "repository": "string", 
+          "reviewStartTime": "ISO timestamp",
+          "calledByMode": "string or null",
+          "prMetadata": {
+            "title": "string",
+            "author": "string",
+            "state": "string",
+            "baseRefName": "string",
+            "headRefName": "string",
+            "additions": "number",
+            "deletions": "number",
+            "changedFiles": "number"
+          },
+          "linkedIssue": {
+            "number": "number",
+            "title": "string",
+            "body": "string"
+          },
+          "existingComments": [],
+          "existingReviews": [],
+          "filesChanged": [],
+          "delegatedTasks": [
+            {
+              "mode": "string",
+              "status": "pending|completed|failed",
+              "outputFile": "string",
+              "startTime": "ISO timestamp",
+              "endTime": "ISO timestamp"
+            }
+          ],
+          "findings": {
+            "critical": [],
+            "patterns": [],
+            "redundancy": [],
+            "architecture": [],
+            "tests": []
+          },
+          "reviewStatus": "initialized|analyzing|synthesizing|completed"
+        }
+      </structure>
+    </file>
+
+    <file name="pr-metadata.json">
+      <purpose>Raw PR data from GitHub</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/pr-metadata.json</location>
+    </file>
+
+    <file name="existing-feedback.json">
+      <purpose>All existing comments and reviews</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/existing-feedback.json</location>
+    </file>
+
+    <file name="pattern-analysis.md">
+      <purpose>Output from code mode delegation</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/pattern-analysis.md</location>
+    </file>
+
+    <file name="architecture-review.md">
+      <purpose>Output from architect mode delegation</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/architecture-review.md</location>
+    </file>
+
+    <file name="test-analysis.md">
+      <purpose>Output from test mode delegation</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/test-analysis.md</location>
+    </file>
+
+    <file name="final-review.md">
+      <purpose>Synthesized review ready for posting</purpose>
+      <location>.roo/temp/pr-[PR_NUMBER]/final-review.md</location>
+    </file>
+  </context_files>
+
+  <update_patterns>
+    <pattern name="after_github_fetch">
+      <action>Update review-context.json with PR metadata</action>
+      <example><![CDATA[
+<read_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+</read_file>
+
+<!-- Parse and update the JSON -->
+
+<write_to_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+<content>
+{
+  ...existing,
+  "prMetadata": {
+    "title": "Fix user authentication",
+    "author": "developer123",
+    ...
+  },
+  "filesChanged": ["src/auth.ts", "tests/auth.test.ts"],
+  "reviewStatus": "analyzing"
+}
+</content>
+</write_to_file>
+      ]]></example>
+    </pattern>
+
+    <pattern name="after_delegation">
+      <action>Update delegatedTasks array with task status</action>
+      <fields>
+        - mode: Which mode was delegated to
+        - status: pending -> completed/failed
+        - outputFile: Where results were saved
+        - timestamps: Start and end times
+      </fields>
+    </pattern>
+
+    <pattern name="after_synthesis">
+      <action>Update findings object with categorized issues</action>
+      <categories>
+        - critical: Must-fix issues
+        - patterns: Pattern inconsistencies
+        - redundancy: Duplicate code findings
+        - architecture: Architectural concerns
+        - tests: Test-related issues
+      </categories>
+    </pattern>
+  </update_patterns>
+
+  <context_preservation_strategies>
+    <strategy name="atomic_updates">
+      <description>Always read-modify-write for JSON updates</description>
+      <steps>
+        1. Read current context file
+        2. Parse JSON
+        3. Update specific fields
+        4. Write entire updated JSON
+      </steps>
+    </strategy>
+
+    <strategy name="backup_critical_data">
+      <description>Save copies of important data</description>
+      <files>
+        - PR diff before analysis
+        - Existing comments before review
+        - Each delegation output
+      </files>
+    </strategy>
+
+    <strategy name="status_tracking">
+      <description>Track review progress through status field</description>
+      <states>
+        - initialized: Just started
+        - analyzing: Delegating tasks
+        - synthesizing: Combining results
+        - completed: Ready for user
+      </states>
+    </strategy>
+  </context_preservation_strategies>
+
+  <recovery_procedures>
+    <scenario name="partial_failure">
+      <description>Some delegations failed</description>
+      <action>
+        1. Mark failed tasks in context
+        2. Continue with available data
+        3. Note limitations in final review
+      </action>
+    </scenario>
+
+    <scenario name="context_corruption">
+      <description>JSON file becomes invalid</description>
+      <action>
+        1. Try to recover from backups
+        2. Reconstruct from individual files
+        3. Start fresh if necessary
+      </action>
+    </scenario>
+
+    <scenario name="interrupted_review">
+      <description>Review process interrupted</description>
+      <action>
+        1. Check reviewStatus field
+        2. Resume from last completed step
+        3. Re-run failed delegations
+      </action>
+    </scenario>
+  </recovery_procedures>
+
+  <best_practices>
+    <practice name="always_update_status">
+      Keep reviewStatus current to enable recovery
+    </practice>
+    
+    <practice name="timestamp_everything">
+      Add timestamps to all operations for debugging
+    </practice>
+    
+    <practice name="validate_json">
+      Ensure JSON is valid before writing
+    </practice>
+    
+    <practice name="use_descriptive_filenames">
+      Make it clear what each file contains
+    </practice>
+    
+    <practice name="clean_up_old_reviews">
+      Suggest cleaning .roo/temp/ periodically
+    </practice>
+  </best_practices>
+
+  <example_workflow>
+    <step number="1">
+      <action>Initialize context</action>
+      <code><![CDATA[
+<execute_command>
+<command>New-Item -ItemType Directory -Force -Path ".roo/temp/pr-123"</command>
+</execute_command>
+
+<write_to_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+<content>
+{
+  "prNumber": "123",
+  "repository": "RooCodeInc/Roo-Code",
+  "reviewStartTime": "2025-01-04T18:00:00Z",
+  "calledByMode": null,
+  "prMetadata": {},
+  "linkedIssue": {},
+  "existingComments": [],
+  "existingReviews": [],
+  "filesChanged": [],
+  "delegatedTasks": [],
+  "findings": {
+    "critical": [],
+    "patterns": [],
+    "redundancy": [],
+    "architecture": [],
+    "tests": []
+  },
+  "reviewStatus": "initialized"
+}
+</content>
+</write_to_file>
+      ]]></code>
+    </step>
+
+    <step number="2">
+      <action>Update after GitHub fetch</action>
+      <code><![CDATA[
+<read_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+</read_file>
+
+<!-- Update with PR data -->
+
+<write_to_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+<content>
+{
+  ...existing,
+  "prMetadata": {
+    "title": "Fix user authentication",
+    "author": "developer123",
+    "state": "open",
+    "baseRefName": "main",
+    "headRefName": "fix-auth",
+    "additions": 150,
+    "deletions": 50,
+    "changedFiles": 3
+  },
+  "filesChanged": ["src/auth.ts", "tests/auth.test.ts", "docs/auth.md"],
+  "reviewStatus": "analyzing"
+}
+</content>
+</write_to_file>
+      ]]></code>
+    </step>
+
+    <step number="3">
+      <action>Track delegation</action>
+      <code><![CDATA[
+<!-- Before delegation -->
+<read_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+</read_file>
+
+<!-- Update to add pending task -->
+<write_to_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+<content>
+{
+  ...existing,
+  "delegatedTasks": [
+    ...existing,
+    {
+      "mode": "code",
+      "status": "pending",
+      "outputFile": "pattern-analysis.md",
+      "startTime": "2025-01-04T18:05:00Z",
+      "endTime": null
+    }
+  ]
+}
+</content>
+</write_to_file>
+
+<!-- After delegation completes -->
+<!-- Update task status to completed -->
+      ]]></code>
+    </step>
+
+    <step number="4">
+      <action>Synthesize results</action>
+      <code><![CDATA[
+<!-- Read all analysis files -->
+<read_file>
+<path>.roo/temp/pr-123/pattern-analysis.md</path>
+</read_file>
+
+<read_file>
+<path>.roo/temp/pr-123/architecture-review.md</path>
+</read_file>
+
+<read_file>
+<path>.roo/temp/pr-123/test-analysis.md</path>
+</read_file>
+
+<!-- Update findings and status -->
+<write_to_file>
+<path>.roo/temp/pr-123/review-context.json</path>
+<content>
+{
+  ...existing,
+  "findings": {
+    "critical": ["Missing error handling in auth.ts"],
+    "patterns": ["Inconsistent naming convention"],
+    "redundancy": ["Duplicate validation logic"],
+    "architecture": [],
+    "tests": ["Missing test for edge case"]
+  },
+  "reviewStatus": "completed"
+}
+</content>
+</write_to_file>
+      ]]></code>
+    </step>
+  </example_workflow>
+</context_management>
