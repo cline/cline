@@ -100,7 +100,10 @@
 		"advancedConfigLabel": "Configuración avanzada",
 		"searchMinScoreLabel": "Umbral de puntuación de búsqueda",
 		"searchMinScoreDescription": "Puntuación mínima de similitud (0.0-1.0) requerida para los resultados de búsqueda. Valores más bajos devuelven más resultados pero pueden ser menos relevantes. Valores más altos devuelven menos resultados pero más relevantes.",
-		"searchMinScoreResetTooltip": "Restablecer al valor predeterminado (0.4)"
+		"searchMinScoreResetTooltip": "Restablecer al valor predeterminado (0.4)",
+		"searchMaxResultsLabel": "Resultados máximos de búsqueda",
+		"searchMaxResultsDescription": "Número máximo de resultados de búsqueda a devolver al consultar el índice de código. Valores más altos proporcionan más contexto pero pueden incluir resultados menos relevantes.",
+		"resetToDefault": "Restablecer al valor predeterminado"
 	},
 	"autoApprove": {
 		"description": "Permitir que Roo realice operaciones automáticamente sin requerir aprobación. Habilite esta configuración solo si confía plenamente en la IA y comprende los riesgos de seguridad asociados.",

@@ -1,6 +1,17 @@
 import { z } from "zod"
 
 /**
+ * Codebase Index Constants
+ */
+export const CODEBASE_INDEX_DEFAULTS = {
+	MIN_SEARCH_RESULTS: 10,
+	MAX_SEARCH_RESULTS: 200,
+	DEFAULT_SEARCH_RESULTS: 50,
+	SEARCH_RESULTS_STEP: 10,
+	DEFAULT_SEARCH_MIN_SCORE: 0.4,
+} as const
+
+/**
  * CodebaseIndexConfig
  */
 
@@ -11,6 +22,11 @@ export const codebaseIndexConfigSchema = z.object({
 	codebaseIndexEmbedderBaseUrl: z.string().optional(),
 	codebaseIndexEmbedderModelId: z.string().optional(),
 	codebaseIndexSearchMinScore: z.number().min(0).max(1).optional(),
+	codebaseIndexSearchMaxResults: z
+		.number()
+		.min(CODEBASE_INDEX_DEFAULTS.MIN_SEARCH_RESULTS)
+		.max(CODEBASE_INDEX_DEFAULTS.MAX_SEARCH_RESULTS)
+		.optional(),
 })
 
 export type CodebaseIndexConfig = z.infer<typeof codebaseIndexConfigSchema>

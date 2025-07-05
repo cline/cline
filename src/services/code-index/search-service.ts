@@ -30,6 +30,7 @@ export class CodeIndexSearchService {
 		}
 
 		const minScore = this.configManager.currentSearchMinScore
+		const maxResults = this.configManager.currentSearchMaxResults
 
 		const currentState = this.stateManager.getCurrentStatus().systemStatus
 		if (currentState !== "Indexed" && currentState !== "Indexing") {
@@ -52,7 +53,7 @@ export class CodeIndexSearchService {
 			}
 
 			// Perform search
-			const results = await this.vectorStore.search(vector, normalizedPrefix, minScore)
+			const results = await this.vectorStore.search(vector, normalizedPrefix, minScore, maxResults)
 			return results
 		} catch (error) {
 			console.error("[CodeIndexSearchService] Error during search:", error)

@@ -100,7 +100,10 @@
 		"advancedConfigLabel": "Geavanceerde configuratie",
 		"searchMinScoreLabel": "Zoekscore drempel",
 		"searchMinScoreDescription": "Minimale overeenkomstscore (0.0-1.0) vereist voor zoekresultaten. Lagere waarden leveren meer resultaten op, maar zijn mogelijk minder relevant. Hogere waarden leveren minder, maar relevantere resultaten op.",
-		"searchMinScoreResetTooltip": "Reset naar standaardwaarde (0.4)"
+		"searchMinScoreResetTooltip": "Reset naar standaardwaarde (0.4)",
+		"searchMaxResultsLabel": "Maximum Zoekresultaten",
+		"searchMaxResultsDescription": "Maximum aantal zoekresultaten dat wordt geretourneerd bij het doorzoeken van de codebase-index. Hogere waarden bieden meer context maar kunnen minder relevante resultaten bevatten.",
+		"resetToDefault": "Reset naar standaard"
 	},
 	"autoApprove": {
 		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",

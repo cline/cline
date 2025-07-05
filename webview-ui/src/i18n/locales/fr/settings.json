@@ -100,7 +100,10 @@
 		"advancedConfigLabel": "Configuration avancée",
 		"searchMinScoreLabel": "Seuil de score de recherche",
 		"searchMinScoreDescription": "Score de similarité minimum (0.0-1.0) requis pour les résultats de recherche. Des valeurs plus faibles renvoient plus de résultats mais peuvent être moins pertinents. Des valeurs plus élevées renvoient moins de résultats mais plus pertinents.",
-		"searchMinScoreResetTooltip": "Réinitialiser à la valeur par défaut (0.4)"
+		"searchMinScoreResetTooltip": "Réinitialiser à la valeur par défaut (0.4)",
+		"searchMaxResultsLabel": "Résultats de recherche maximum",
+		"searchMaxResultsDescription": "Nombre maximum de résultats de recherche à retourner lors de l'interrogation de l'index de code. Des valeurs plus élevées fournissent plus de contexte mais peuvent inclure des résultats moins pertinents.",
+		"resetToDefault": "Réinitialiser par défaut"
 	},
 	"autoApprove": {
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",

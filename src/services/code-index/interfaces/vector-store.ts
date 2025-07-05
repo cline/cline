@@ -23,10 +23,17 @@ export interface IVectorStore {
 	/**
 	 * Searches for similar vectors
 	 * @param queryVector Vector to search for
-	 * @param limit Maximum number of results to return
+	 * @param directoryPrefix Optional directory prefix to filter results
+	 * @param minScore Optional minimum score threshold
+	 * @param maxResults Optional maximum number of results to return
 	 * @returns Promise resolving to search results
 	 */
-	search(queryVector: number[], directoryPrefix?: string, minScore?: number): Promise<VectorStoreSearchResult[]>
+	search(
+		queryVector: number[],
+		directoryPrefix?: string,
+		minScore?: number,
+		maxResults?: number,
+	): Promise<VectorStoreSearchResult[]>
 
 	/**
 	 * Deletes points by file path

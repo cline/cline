@@ -1840,6 +1840,7 @@ export const webviewMessageHandler = async (
 					codebaseIndexEmbedderModelId: settings.codebaseIndexEmbedderModelId,
 					codebaseIndexOpenAiCompatibleBaseUrl: settings.codebaseIndexOpenAiCompatibleBaseUrl,
 					codebaseIndexOpenAiCompatibleModelDimension: settings.codebaseIndexOpenAiCompatibleModelDimension,
+					codebaseIndexSearchMaxResults: settings.codebaseIndexSearchMaxResults,
 				}
 
 				// Save global state first

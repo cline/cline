@@ -100,7 +100,10 @@
 		"advancedConfigLabel": "高级配置",
 		"searchMinScoreLabel": "搜索分数阈值",
 		"searchMinScoreDescription": "搜索结果所需的最低相似度分数（0.0-1.0）。较低的值返回更多结果，但可能不太相关。较高的值返回较少但更相关的结果。",
-		"searchMinScoreResetTooltip": "恢复默认值 (0.4)"
+		"searchMinScoreResetTooltip": "恢复默认值 (0.4)",
+		"searchMaxResultsLabel": "最大搜索结果数",
+		"searchMaxResultsDescription": "查询代码库索引时返回的最大搜索结果数。较高的值提供更多上下文，但可能包含相关性较低的结果。",
+		"resetToDefault": "恢复默认值"
 	},
 	"autoApprove": {
 		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",

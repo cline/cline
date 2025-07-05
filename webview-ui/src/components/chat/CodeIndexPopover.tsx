@@ -31,10 +31,13 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
+	Slider,
+	StandardTooltip,
 } from "@src/components/ui"
 import { useRooPortal } from "@src/components/ui/hooks/useRooPortal"
 import type { EmbedderProvider } from "@roo/embeddingModels"
 import type { IndexingStatus } from "@roo/ExtensionMessage"
+import { CODEBASE_INDEX_DEFAULTS } from "@roo-code/types"
 
 interface CodeIndexPopoverProps {
 	children: React.ReactNode
@@ -48,6 +51,7 @@ interface LocalCodeIndexSettings {
 	codebaseIndexEmbedderProvider: EmbedderProvider
 	codebaseIndexEmbedderBaseUrl?: string
 	codebaseIndexEmbedderModelId: string
+	codebaseIndexSearchMaxResults?: number
 
 	// Secret settings (start empty, will be loaded separately)
 	codeIndexOpenAiKey?: string
@@ -66,6 +70,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 	const { t } = useAppTranslation()
 	const { codebaseIndexConfig, codebaseIndexModels } = useExtensionState()
 	const [open, setOpen] = useState(false)
+	const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false)
 
 	const [indexingStatus, setIndexingStatus] = useState<IndexingStatus>(externalIndexingStatus)
 
@@ -79,6 +84,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 		codebaseIndexEmbedderProvider: "openai",
 		codebaseIndexEmbedderBaseUrl: "",
 		codebaseIndexEmbedderModelId: "",
+		codebaseIndexSearchMaxResults: CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
 		codeIndexOpenAiKey: "",
 		codeIndexQdrantApiKey: "",
 		codebaseIndexOpenAiCompatibleBaseUrl: "",
@@ -107,6 +113,8 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				codebaseIndexEmbedderProvider: codebaseIndexConfig.codebaseIndexEmbedderProvider || "openai",
 				codebaseIndexEmbedderBaseUrl: codebaseIndexConfig.codebaseIndexEmbedderBaseUrl || "",
 				codebaseIndexEmbedderModelId: codebaseIndexConfig.codebaseIndexEmbedderModelId || "",
+				codebaseIndexSearchMaxResults:
+					codebaseIndexConfig.codebaseIndexSearchMaxResults || CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
 				codeIndexOpenAiKey: "",
 				codeIndexQdrantApiKey: "",
 				codebaseIndexOpenAiCompatibleBaseUrl: "",
@@ -573,6 +581,65 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 							placeholder={t("settings:codeIndex.qdrantApiKeyPlaceholder")}
 							className="w-full"
 						/>
+					</div>
+
+					{/* Advanced Settings Disclosure */}
+					<div className="mt-4">
+						<button
+							onClick={() => setIsAdvancedSettingsOpen(!isAdvancedSettingsOpen)}
+							className="flex items-center text-xs text-vscode-foreground hover:text-vscode-textLink-foreground focus:outline-none"
+							aria-expanded={isAdvancedSettingsOpen}>
+							<span
+								className={`codicon codicon-${isAdvancedSettingsOpen ? "chevron-down" : "chevron-right"} mr-1`}></span>
+							<span>{t("settings:codeIndex.advancedConfigLabel")}</span>
+						</button>
+
+						{isAdvancedSettingsOpen && (
+							<div className="mt-4 space-y-4 pl-4">
+								{/* Maximum Search Results Slider */}
+								<div className="space-y-2">
+									<div className="flex items-center gap-2">
+										<label className="text-sm font-medium">
+											{t("settings:codeIndex.searchMaxResultsLabel")}
+										</label>
+										<StandardTooltip content={t("settings:codeIndex.searchMaxResultsDescription")}>
+											<span className="codicon codicon-info text-xs text-vscode-descriptionForeground cursor-help" />
+										</StandardTooltip>
+									</div>
+									<div className="flex items-center gap-2">
+										<Slider
+											min={CODEBASE_INDEX_DEFAULTS.MIN_SEARCH_RESULTS}
+											max={CODEBASE_INDEX_DEFAULTS.MAX_SEARCH_RESULTS}
+											step={CODEBASE_INDEX_DEFAULTS.SEARCH_RESULTS_STEP}
+											value={[
+												currentSettings.codebaseIndexSearchMaxResults ||
+													CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
+											]}
+											onValueChange={(values) =>
+												updateSetting("codebaseIndexSearchMaxResults", values[0])
+											}
+											className="flex-1"
+											data-testid="search-max-results-slider"
+										/>
+										<span className="w-12 text-center">
+											{currentSettings.codebaseIndexSearchMaxResults ||
+												CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS}
+										</span>
+										<VSCodeButton
+											appearance="icon"
+											title={t("settings:codeIndex.resetToDefault")}
+											onClick={() =>
+												updateSetting(
+													"codebaseIndexSearchMaxResults",
+													CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
+												)
+											}>
+											<span className="codicon codicon-discard" />
+										</VSCodeButton>
+									</div>
+								</div>
+							</div>
+						)}
 					</div>
 
 					{/* Action Buttons */}

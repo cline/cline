@@ -767,7 +767,7 @@ describe("CodeIndexConfigManager", () => {
 					expect(configManager.currentSearchMinScore).toBe(0.15)
 				})
 
-				it("should fall back to default SEARCH_MIN_SCORE when neither user setting nor model threshold exists", async () => {
+				it("should fall back to default DEFAULT_SEARCH_MIN_SCORE when neither user setting nor model threshold exists", async () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
@@ -781,7 +781,7 @@ describe("CodeIndexConfigManager", () => {
 					})
 
 					await configManager.loadConfiguration()
-					// Should fall back to default SEARCH_MIN_SCORE (0.4)
+					// Should fall back to default DEFAULT_SEARCH_MIN_SCORE (0.4)
 					expect(configManager.currentSearchMinScore).toBe(0.4)
 				})
 
@@ -879,6 +879,61 @@ describe("CodeIndexConfigManager", () => {
 					const anotherManager = new CodeIndexConfigManager(mockContextProxy)
 					await anotherManager.loadConfiguration()
 					expect(anotherManager.currentSearchMinScore).toBe(0.4) // Default
+				})
+			})
+
+			describe("currentSearchMaxResults", () => {
+				it("should return user setting when provided, otherwise default", async () => {
+					// Test 1: User setting takes precedence
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						codebaseIndexSearchMaxResults: 150, // User setting
+					})
+
+					await configManager.loadConfiguration()
+					expect(configManager.currentSearchMaxResults).toBe(150) // User setting
+
+					// Test 2: Default when no user setting
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						// No user setting
+					})
+
+					const newManager = new CodeIndexConfigManager(mockContextProxy)
+					await newManager.loadConfiguration()
+					expect(newManager.currentSearchMaxResults).toBe(50) // Default (DEFAULT_MAX_SEARCH_RESULTS)
+
+					// Test 3: Boundary values
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						codebaseIndexSearchMaxResults: 10, // Minimum allowed
+					})
+
+					const minManager = new CodeIndexConfigManager(mockContextProxy)
+					await minManager.loadConfiguration()
+					expect(minManager.currentSearchMaxResults).toBe(10)
+
+					// Test 4: Maximum value
+					mockContextProxy.getGlobalState.mockReturnValue({
+						codebaseIndexEnabled: true,
+						codebaseIndexQdrantUrl: "http://qdrant.local",
+						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderModelId: "text-embedding-3-small",
+						codebaseIndexSearchMaxResults: 200, // Maximum allowed
+					})
+
+					const maxManager = new CodeIndexConfigManager(mockContextProxy)
+					await maxManager.loadConfiguration()
+					expect(maxManager.currentSearchMaxResults).toBe(200)
 				})
 			})
 		})
@@ -1157,9 +1212,12 @@ describe("CodeIndexConfigManager", () => {
 				modelId: "text-embedding-3-large",
 				openAiOptions: { openAiNativeApiKey: "test-openai-key" },
 				ollamaOptions: { ollamaBaseUrl: undefined },
+				geminiOptions: undefined,
+				openAiCompatibleOptions: undefined,
 				qdrantUrl: "http://qdrant.local",
 				qdrantApiKey: "test-qdrant-key",
 				searchMinScore: 0.4,
+				searchMaxResults: 50,
 			})
 		})
 
