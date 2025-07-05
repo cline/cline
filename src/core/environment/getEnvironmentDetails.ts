@@ -252,18 +252,24 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 			details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 		} else {
 			const maxFiles = maxWorkspaceFiles ?? 200
-			const [files, didHitLimit] = await listFiles(cline.cwd, true, maxFiles)
-			const { showRooIgnoredFiles = true } = state ?? {}
 
-			const result = formatResponse.formatFilesList(
-				cline.cwd,
-				files,
-				didHitLimit,
-				cline.rooIgnoreController,
-				showRooIgnoredFiles,
-			)
+			// Early return for limit of 0
+			if (maxFiles === 0) {
+				details += "(Workspace files context disabled. Use list_files to explore if needed.)"
+			} else {
+				const [files, didHitLimit] = await listFiles(cline.cwd, true, maxFiles)
+				const { showRooIgnoredFiles = true } = state ?? {}
 
-			details += result
+				const result = formatResponse.formatFilesList(
+					cline.cwd,
+					files,
+					didHitLimit,
+					cline.rooIgnoreController,
+					showRooIgnoredFiles,
+				)
+
+				details += result
+			}
 		}
 	}
 
