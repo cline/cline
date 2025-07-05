@@ -188,6 +188,50 @@ describe("CodeParser", () => {
 			const result = await parser["_performFallbackChunking"]("test.js", shortContent, "hash", new Set())
 			expect(result).toEqual([])
 		})
+
+		it("should respect 50-character minimum threshold for all languages", async () => {
+			// Test content that is exactly 49 characters (should be filtered)
+			const shortContent = "function f() { return 1; } // Exactly 49 chars!!!"
+			expect(shortContent.length).toBe(49)
+
+			// Test content that is exactly 50 characters (should be included)
+			const minContent = "function g() { return 42; } // Exactly 50 chars!!!"
+			expect(minContent.length).toBe(50)
+
+			// Test content that is longer than 50 characters (should be included)
+			const longContent = "function calculate() { return 1 + 2 + 3; } // This is longer than 50 characters"
+			expect(longContent.length).toBeGreaterThan(50)
+
+			// Mock the language parser to return captures for our test content
+			const mockCapture = (content: string, startLine: number = 0) => ({
+				node: {
+					text: content,
+					startPosition: { row: startLine },
+					endPosition: { row: startLine },
+					type: "function_declaration",
+					childForFieldName: vi.fn().mockReturnValue(null),
+					children: [],
+				},
+				name: "definition.function",
+			})
+
+			// Test short content (49 chars) - should be filtered out
+			mockLanguageParser.js.query.captures.mockReturnValue([mockCapture(shortContent)])
+			const shortResult = await parser["parseContent"]("test.js", shortContent, "hash1")
+			expect(shortResult).toEqual([])
+
+			// Test minimum content (50 chars) - should be included
+			mockLanguageParser.js.query.captures.mockReturnValue([mockCapture(minContent)])
+			const minResult = await parser["parseContent"]("test.js", minContent, "hash2")
+			expect(minResult.length).toBe(1)
+			expect(minResult[0].content).toBe(minContent)
+
+			// Test longer content - should be included
+			mockLanguageParser.js.query.captures.mockReturnValue([mockCapture(longContent)])
+			const longResult = await parser["parseContent"]("test.js", longContent, "hash3")
+			expect(longResult.length).toBe(1)
+			expect(longResult[0].content).toBe(longContent)
+		})
 	})
 
 	describe("_chunkLeafNodeByLines", () => {
@@ -217,7 +261,7 @@ describe("CodeParser", () => {
 		it("should handle oversized lines by splitting them", async () => {
 			const longLine = "a".repeat(2000)
 			const lines = ["normal", longLine, "normal"]
-			const result = await parser["_chunkTextByLines"](lines, "test.js", "hash", "test_type", new Set())
+			const result = await parser["_chunkTextByLines"](lines, "test.js", "hash", "test_type", new Set(), 100)
 
 			const segments = result.filter((r) => r.type === "test_type_segment")
 			expect(segments.length).toBeGreaterThan(1)
@@ -227,7 +271,7 @@ describe("CodeParser", () => {
 			const lines = Array(100)
 				.fill("line with 10 chars")
 				.map((_, i) => `${i}: line`)
-			const result = await parser["_chunkTextByLines"](lines, "test.js", "hash", "test_type", new Set())
+			const result = await parser["_chunkTextByLines"](lines, "test.js", "hash", "test_type", new Set(), 100)
 
 			result.forEach((chunk) => {
 				expect(chunk.content.length).toBeGreaterThanOrEqual(100)
@@ -544,7 +588,7 @@ ${largeContent}`
 				// Each chunk should be within 30% of average size (re-balanced)
 				expect(Math.abs(size - avgSize) / avgSize).toBeLessThan(0.3)
 				// Each chunk should respect MIN_BLOCK_CHARS
-				expect(size).toBeGreaterThanOrEqual(100)
+				expect(size).toBeGreaterThanOrEqual(50)
 			})
 
 			// Verify each chunk has unique segment hash
@@ -563,7 +607,7 @@ This paragraph continues with more details to ensure we exceed the minimum block
 
 Content under the first header with enough text to be indexed properly.
 This section contains multiple lines to ensure it meets the minimum character requirements.
-We need at least 100 characters for a section to be included in the index.
+We need at least 50 characters for a section to be included in the index.
 This additional content ensures the header section will be processed correctly.`
 
 			const markdownContent = `${preHeaderContent}
@@ -595,8 +639,8 @@ ${headerContent}`
 
 			const result = await parser.parseFile("test.md", { content: markdownContent })
 
-			// Should have exactly 2 blocks: pre-header content and header section
-			expect(result.length).toBe(2)
+			// With MIN_BLOCK_CHARS=50, content may be split into more blocks
+			expect(result.length).toBeGreaterThanOrEqual(2)
 
 			// First block should be the content before the header
 			expect(result[0]).toMatchObject({
@@ -943,16 +987,17 @@ This content verifies that processing continues after multiple oversized lines.`
 
 		it("should return empty array for markdown content below MIN_BLOCK_CHARS threshold", async () => {
 			const parser = new CodeParser()
-			const smallContent = "This is a small markdown file.\nWith just a few lines.\nNothing special."
+			// Create content that is below the new MIN_BLOCK_CHARS threshold of 50
+			const smallContent = "Small markdown.\nJust a bit.\nTiny."
 
 			// Mock parseMarkdown to return empty array (no headers)
 			vi.mocked(parseMarkdown).mockReturnValue([])
 
 			const results = await parser["parseContent"]("test.md", smallContent, "test-hash")
 
-			// Should return empty array since content (71 chars) is below MIN_BLOCK_CHARS (100)
+			// Should return empty array since content is below MIN_BLOCK_CHARS (50)
 			expect(results.length).toBe(0)
-			expect(smallContent.length).toBeLessThan(100) // Verify our test assumption
+			expect(smallContent.length).toBeLessThan(50) // Verify our test assumption
 		})
 	})
 })

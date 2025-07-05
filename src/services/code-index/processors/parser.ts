@@ -161,8 +161,7 @@ export class CodeParser implements ICodeParser {
 						// If it has children, process them instead
 						queue.push(...currentNode.children.filter((child) => child !== null))
 					} else {
-						// If it's a leaf node, chunk it (passing MIN_BLOCK_CHARS as per Task 1 Step 5)
-						// Note: _chunkLeafNodeByLines logic might need further adjustment later
+						// If it's a leaf node, chunk it
 						const chunkedBlocks = this._chunkLeafNodeByLines(
 							currentNode,
 							filePath,
@@ -201,7 +200,7 @@ export class CodeParser implements ICodeParser {
 					}
 				}
 			}
-			// Nodes smaller than MIN_BLOCK_CHARS are ignored
+			// Nodes smaller than minBlockChars are ignored
 		}
 
 		return results
@@ -214,7 +213,6 @@ export class CodeParser implements ICodeParser {
 		lines: string[],
 		filePath: string,
 		fileHash: string,
-
 		chunkType: string,
 		seenSegmentHashes: Set<string>,
 		baseStartLine: number = 1, // 1-based start line of the *first* line in the `lines` array

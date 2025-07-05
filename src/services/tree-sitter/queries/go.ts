@@ -1,58 +1,26 @@
 /*
 Go Tree-Sitter Query Patterns
+Updated to capture full declarations instead of just identifiers
 */
 export default `
-; Package declarations
-(package_clause
-  (package_identifier) @name.definition.package)
+; Function declarations - capture the entire declaration
+(function_declaration) @name.definition.function
 
-; Import declarations
-(import_declaration
-  (import_spec_list
-    (import_spec path: (_) @name.definition.import)))
+; Method declarations - capture the entire declaration
+(method_declaration) @name.definition.method
 
-; Const declarations
-(const_declaration
-  (const_spec name: (identifier) @name.definition.const))
+; Type declarations (interfaces, structs, type aliases) - capture the entire declaration
+(type_declaration) @name.definition.type
 
-; Var declarations
-(var_declaration
-  (var_spec name: (identifier) @name.definition.var))
+; Variable declarations - capture the entire declaration
+(var_declaration) @name.definition.var
 
-; Interface declarations
-(type_declaration
-  (type_spec
-    name: (type_identifier) @name.definition.interface
-    type: (interface_type)))
+; Constant declarations - capture the entire declaration  
+(const_declaration) @name.definition.const
 
-; Struct declarations
-(type_declaration
-  (type_spec
-    name: (type_identifier) @name.definition.struct
-    type: (struct_type)))
+; Package clause
+(package_clause) @name.definition.package
 
-; Type declarations
-(type_declaration
-  (type_spec
-    name: (type_identifier) @name.definition.type))
-
-; Function declarations
-(function_declaration
-  name: (identifier) @name.definition.function)
-
-; Method declarations
-(method_declaration
-  name: (field_identifier) @name.definition.method)
-
-; Channel operations
-(channel_type) @name.definition.channel
-
-; Goroutine declarations
-(go_statement) @name.definition.goroutine
-
-; Defer statements
-(defer_statement) @name.definition.defer
-
-; Select statements
-(select_statement) @name.definition.select
+; Import declarations - capture the entire import block
+(import_declaration) @name.definition.import
 `
