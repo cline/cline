@@ -1,0 +1,99 @@
+<self_contained_workflow>
+  <overview>
+    The PR Fixer Orchestrator must be completely self-contained and able
+    to work on any PR without requiring pre-existing context files from
+    other workflows like the Issue Fixer.
+  </overview>
+
+  <independence_principles>
+    <principle>
+      <name>No External Dependencies</name>
+      <description>Never assume files from other workflows exist</description>
+      <implementation>
+        - Create own temp directory structure
+        - Gather all needed context independently
+        - Generate own analysis and plans
+      </implementation>
+    </principle>
+
+    <principle>
+      <name>Complete Context Gathering</name>
+      <description>Collect all information needed for the task</description>
+      <implementation>
+        - Fetch PR details and metadata
+        - Get linked issues if they exist
+        - Analyze codebase independently
+        - Understand requirements from available sources
+      </implementation>
+    </principle>
+
+    <principle>
+      <name>Flexible Requirements Analysis</name>
+      <description>Work with whatever information is available</description>
+      <implementation>
+        - Use linked issues when available
+        - Fall back to PR description
+        - Infer from code changes if needed
+        - Ask user for clarification when necessary
+      </implementation>
+    </principle>
+  </independence_principles>
+
+  <context_initialization>
+    <step>Create dedicated task directory</step>
+    <step>Fetch all PR-related information</step>
+    <step>Check for linked issues and fetch if present</step>
+    <step>Analyze PR changes to understand scope</step>
+    <step>Build complete context from available sources</step>
+  </context_initialization>
+
+  <handling_different_pr_types>
+    <type name="pr_with_linked_issue">
+      <description>PR that references a GitHub issue</description>
+      <approach>
+        - Fetch issue details for requirements
+        - Use issue acceptance criteria
+        - Cross-reference PR implementation with issue requirements
+      </approach>
+    </type>
+
+    <type name="standalone_pr">
+      <description>PR without linked issue</description>
+      <approach>
+        - Extract requirements from PR description
+        - Analyze code to understand intent
+        - Use PR comments for additional context
+        - Infer acceptance criteria from tests
+      </approach>
+    </type>
+
+    <type name="fork_pr">
+      <description>PR from a forked repository</description>
+      <approach>
+        - Handle remote configuration properly
+        - Ensure push targets correct repository
+        - Manage permissions appropriately
+      </approach>
+    </type>
+  </handling_different_pr_types>
+
+  <fallback_strategies>
+    <strategy name="missing_requirements">
+      <when>No clear requirements found</when>
+      <action>
+        - Analyze code changes to infer purpose
+        - Look at test changes for expected behavior
+        - Ask user for clarification if needed
+      </action>
+    </strategy>
+
+    <strategy name="unclear_scope">
+      <when>PR scope is ambiguous</when>
+      <action>
+        - Present findings to user
+        - Ask for specific guidance on what to fix
+        - Proceed with user-defined scope
+      </action>
+    </strategy>
+  </fallback_strategies>
+</self_contained_workflow>

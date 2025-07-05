@@ -1,0 +1,186 @@
+<best_practices>
+  <orchestration_principles>
+    <principle priority="critical">
+      <name>Always Delegate Specialized Work</name>
+      <description>The orchestrator coordinates but doesn't implement. Use specialized modes for analysis, coding, testing, and review.</description>
+      <rationale>Each mode has specific expertise and permissions optimized for their tasks.</rationale>
+    </principle>
+    
+    <principle priority="critical">
+      <name>Maintain Context Between Steps</name>
+      <description>Use temporary files in .roo/temp/pr-fixer-orchestrator/[TASK_ID]/ to pass context between subtasks. ALL delegated tasks must save outputs to this directory.</description>
+      <rationale>Subtasks run in isolation and need explicit context sharing. Files saved elsewhere will be inaccessible to subsequent steps.</rationale>
+    </principle>
+    
+    <principle priority="critical">
+      <name>Get User Approval Before Committing</name>
+      <description>ALWAYS present changes and get explicit user approval before committing. Show modified files, summarize changes, and ask for confirmation.</description>
+      <rationale>Users must maintain control over what gets committed to their PR. Unexpected changes can break functionality or introduce unwanted modifications.</rationale>
+    </principle>
+
+    <principle priority="critical">
+      <name>Understand Requirements First</name>
+      <description>Always analyze the PR's underlying purpose and requirements before fixing issues.</description>
+      <rationale>Fixing review comments without understanding the feature can lead to incomplete or incorrect solutions.</rationale>
+    </principle>
+
+    <principle priority="high">
+      <name>Handle Large Diffs Gracefully</name>
+      <description>Check diff size before processing. If over 2000 lines, create a summary instead of including the full diff.</description>
+      <rationale>Large diffs can overwhelm context windows and make analysis difficult. Summaries maintain clarity.</rationale>
+    </principle>
+  </orchestration_principles>
+
+  <pr_fixing_guidelines>
+    - Always understand the PR's purpose and requirements first
+    - Analyze before implementing - understand all issues comprehensively
+    - Address review feedback with the same priority as the reviewer's authority
+    - Fix root causes of test failures, not just symptoms
+    - Ensure all original PR requirements are met, not just review comments
+    - Resolve conflicts carefully, understanding both sides of changes
+    - Validate all changes before committing to avoid breaking the PR further
+    - NEVER use `git add -A` - always stage specific files intentionally
+    - Get user approval before committing any changes
+    - Keep commits focused and well-described
+    - Always check if PR is from a fork to push to correct remote
+    - Monitor CI/CD checks in real-time after pushing
+    - Consider translation needs for any user-facing changes
+    - Document what was changed and why in the PR update message
+    - Use the EXACT PR template format specified in 6_pr_template_format.xml
+  </pr_fixing_guidelines>
+
+  <git_operation_best_practices>
+    <practice category="conflict_resolution">
+      <name>Non-Interactive Rebasing</name>
+      <description>Always use GIT_EDITOR=true for automated rebase operations</description>
+      <example>GIT_EDITOR=true git rebase origin/main</example>
+    </practice>
+    
+    <practice category="remote_handling">
+      <name>Fork-Aware Pushing</name>
+      <description>Always check isCrossRepository before pushing</description>
+      <steps>
+        - Check if PR is from fork using gh pr view --json isCrossRepository
+        - Add fork remote if needed
+        - Push to correct remote (origin vs fork)
+      </steps>
+    </practice>
+    
+    <practice category="safe_pushing">
+      <name>Force with Lease</name>
+      <description>Use --force-with-lease for safer force pushing</description>
+      <fallback>If it fails, fetch and use --force</fallback>
+    </practice>
+
+    <practice category="staging_files">
+      <name>Selective File Staging</name>
+      <description>Always stage files individually, never use git add -A</description>
+      <steps>
+        - Review all modified files with git status
+        - Stage only files that were intentionally modified
+        - Use git add [specific-file] for each file
+        - Double-check staged files with git diff --cached
+      </steps>
+      <rationale>Prevents accidentally committing temporary files, debug logs, or unintended changes</rationale>
+    </practice>
+
+    <practice category="diff_management">
+      <name>Large Diff Handling</name>
+      <description>Check diff size before including in context files</description>
+      <steps>
+        - Save diff to file and check line count with wc -l
+        - If over 2000 lines, create a summary instead
+        - Include file counts, insertion/deletion stats
+        - List most significantly changed files
+      </steps>
+    </practice>
+  </git_operation_best_practices>
+
+  <subtask_delegation_patterns>
+    <pattern name="analysis_delegation">
+      <to_mode>architect</to_mode>
+      <purpose>Comprehensive analysis and planning</purpose>
+      <provides>Detailed reports and implementation plans</provides>
+      <output_requirement>MUST save all outputs to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/</output_requirement>
+    </pattern>
+    
+    <pattern name="implementation_delegation">
+      <to_mode>code</to_mode>
+      <purpose>Executing code changes and fixes</purpose>
+      <provides>Implemented solutions and change summaries</provides>
+      <output_requirement>MUST save changes_implemented.md to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/</output_requirement>
+    </pattern>
+    
+    <pattern name="validation_delegation">
+      <to_mode>test</to_mode>
+      <purpose>Testing and validating changes</purpose>
+      <provides>Test results and validation reports</provides>
+      <output_requirement>MUST save validation_report.md to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/</output_requirement>
+    </pattern>
+    
+    <pattern name="review_delegation">
+      <to_mode>pr-reviewer</to_mode>
+      <purpose>Final quality review before submission</purpose>
+      <provides>Quality assessment and recommendations</provides>
+      <output_requirement>MUST save final_review.md to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/</output_requirement>
+    </pattern>
+    
+    <pattern name="translation_delegation">
+      <to_mode>translate</to_mode>
+      <purpose>Updating translations for UI changes</purpose>
+      <provides>Synchronized translations across languages</provides>
+      <output_requirement>MUST save translation_summary.md to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/</output_requirement>
+    </pattern>
+  </subtask_delegation_patterns>
+
+  <error_handling>
+    <scenario name="auth_failure">
+      <error>GitHub CLI authentication error</error>
+      <action>Prompt user to run 'gh auth login'</action>
+    </scenario>
+    
+    <scenario name="no_linked_issue">
+      <error>No linked issue found</error>
+      <action>Extract requirements from PR description and comments</action>
+    </scenario>
+    
+    <scenario name="push_failure">
+      <error>Force-with-lease push fails</error>
+      <action>Fetch latest and retry with --force</action>
+    </scenario>
+
+    <scenario name="large_diff">
+      <error>Diff exceeds 2000 lines</error>
+      <action>Create summary with stats instead of full diff</action>
+    </scenario>
+
+    <scenario name="missing_context_files">
+      <error>Expected context files not found in temp directory</error>
+      <action>Check if delegated task saved to correct location, re-run if needed</action>
+    </scenario>
+  </error_handling>
+
+  <user_interaction_guidelines>
+    <guideline priority="critical">
+      <name>Pre-Commit Approval</name>
+      <description>Always get explicit user approval before committing changes</description>
+      <implementation>
+        - Show list of modified files
+        - Summarize key changes made
+        - Present clear approval options
+        - Wait for user confirmation
+      </implementation>
+    </guideline>
+
+    <guideline priority="high">
+      <name>Clear Communication</name>
+      <description>Present information clearly and concisely</description>
+      <implementation>
+        - Use bullet points for lists
+        - Highlight important warnings
+        - Provide actionable suggestions
+        - Avoid technical jargon when possible
+      </implementation>
+    </guideline>
+  </user_interaction_guidelines>
+</best_practices>

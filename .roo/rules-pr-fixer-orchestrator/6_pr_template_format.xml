@@ -1,0 +1,361 @@
+<pr_template_format>
+  <overview>
+    This file defines the EXACT PR message template that must be used when updating
+    pull requests. The format is specific to the Roo Code project and must be followed
+    precisely.
+  </overview>
+
+  <template>
+    <![CDATA[
+<!--
+Thank you for contributing to Roo Code!
+
+Before submitting your PR, please ensure:
+- It's linked to an approved GitHub Issue.
+- You've reviewed our [Contributing Guidelines](../CONTRIBUTING.md).
+-->
+
+### Related GitHub Issue
+
+<!-- Every PR MUST be linked to an approved issue. -->
+
+Closes: #[ISSUE_NUMBER] <!-- Replace with the issue number, e.g., Closes: #123 -->
+
+### Roo Code Task Context (Optional)
+
+<!--
+If you used Roo Code to help create this PR, you can share public task links here.
+This helps reviewers understand your development process and provides additional context.
+Example: https://app.roocode.com/share/task-id
+-->
+
+[TASK_CONTEXT_IF_APPLICABLE]
+
+### Description
+
+<!--
+Briefly summarize the changes in this PR and how they address the linked issue.
+The issue should cover the "what" and "why"; this section should focus on:
+- The "how": key implementation details, design choices, or trade-offs made.
+- Anything specific reviewers should pay attention to in this PR.
+-->
+
+[DESCRIPTION_OF_CHANGES]
+
+### Test Procedure
+
+<!--
+Detail the steps to test your changes. This helps reviewers verify your work.
+- How did you test this specific implementation? (e.g., unit tests, manual testing steps)
+- How can reviewers reproduce your tests or verify the fix/feature?
+- Include relevant testing environment details if applicable.
+-->
+
+[TEST_PROCEDURE_DETAILS]
+
+### Pre-Submission Checklist
+
+<!-- Go through this checklist before marking your PR as ready for review. -->
+
+- [x] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
+- [x] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
+- [x] **Self-Review**: I have performed a thorough self-review of my code.
+- [x] **Testing**: New and/or updated tests have been added to cover my changes (if applicable).
+- [x] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
+- [x] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
+
+### Screenshots / Videos
+
+<!--
+For UI changes, please provide before-and-after screenshots or a short video of the *actual results*.
+This greatly helps in understanding the visual impact of your changes.
+-->
+
+[SCREENSHOTS_OR_VIDEOS_IF_UI_CHANGES]
+
+### Documentation Updates
+
+<!--
+Does this PR necessitate updates to user-facing documentation?
+- [ ] No documentation updates are required.
+- [ ] Yes, documentation updates are required. (Please describe what needs to be updated or link to a PR in the docs repository).
+-->
+
+[DOCUMENTATION_UPDATE_STATUS]
+
+### Additional Notes
+
+<!-- Add any other context, questions, or information for reviewers here. -->
+
+[ADDITIONAL_NOTES]
+
+### Get in Touch
+
+<!--
+Please provide your Discord username for reviewers or maintainers to reach you if they have questions about your PR
+-->
+
+[DISCORD_USERNAME]
+    ]]>
+  </template>
+
+  <placeholders>
+    <placeholder name="[ISSUE_NUMBER]">
+      <description>The GitHub issue number this PR closes</description>
+      <source>From linked_issues.json or pr_context.json</source>
+    </placeholder>
+    
+    <placeholder name="[TASK_CONTEXT_IF_APPLICABLE]">
+      <description>Optional Roo Code task links if used</description>
+      <default>_No Roo Code task context for this PR._</default>
+    </placeholder>
+    
+    <placeholder name="[DESCRIPTION_OF_CHANGES]">
+      <description>Summary of changes and implementation details</description>
+      <content>
+        This PR addresses the review feedback and fixes identified issues for #[PR_NUMBER].
+
+        **Key Changes:**
+        - [List major changes from changes_implemented.md]
+        - [Implementation details and design choices]
+        - [Trade-offs or decisions made]
+
+        **Review Comments Addressed:**
+        [Summary of addressed review comments]
+
+        **Test Failures Fixed:**
+        [Summary of test fixes if applicable]
+
+        **Conflicts Resolved:**
+        [Summary of conflict resolutions if applicable]
+      </content>
+    </placeholder>
+    
+    <placeholder name="[TEST_PROCEDURE_DETAILS]">
+      <description>How the changes were tested</description>
+      <content>
+        **Testing performed:**
+        1. Ran all unit tests locally: `[test command used]`
+        2. Ran integration tests: `[test command used]`
+        3. Manual testing steps:
+           - [Step 1]
+           - [Step 2]
+           - [Step 3]
+
+        **To verify these changes:**
+        1. Check out this branch
+        2. Run `[specific test commands]`
+        3. [Additional verification steps]
+
+        **Test Environment:**
+        - Node.js version: [version]
+        - OS: [operating system]
+        - [Other relevant environment details]
+      </content>
+    </placeholder>
+    
+    <placeholder name="[SCREENSHOTS_OR_VIDEOS_IF_UI_CHANGES]">
+      <description>Visual evidence of UI changes</description>
+      <default>_No UI changes in this PR._</default>
+    </placeholder>
+    
+    <placeholder name="[DOCUMENTATION_UPDATE_STATUS]">
+      <description>Documentation impact assessment</description>
+      <options>
+        <option condition="no_docs_needed">- [x] No documentation updates are required.</option>
+        <option condition="docs_needed">- [x] Yes, documentation updates are required. [Describe what needs updating]</option>
+      </options>
+    </placeholder>
+    
+    <placeholder name="[ADDITIONAL_NOTES]">
+      <description>Any additional context for reviewers</description>
+      <content>
+        [Any special considerations, known issues, or questions for reviewers]
+        
+        **Files Modified:**
+        ```
+        [List of modified files from changes_implemented.md]
+        ```
+      </content>
+    </placeholder>
+    
+    <placeholder name="[DISCORD_USERNAME]">
+      <description>Contact information</description>
+      <default>Discord: @[username]</default>
+    </placeholder>
+  </placeholders>
+
+  <generation_instructions>
+    <instruction priority="1">
+      The template MUST be followed exactly - do not modify the structure or remove any sections
+    </instruction>
+    <instruction priority="2">
+      All placeholders must be replaced with actual content - no brackets should remain
+    </instruction>
+    <instruction priority="3">
+      The Pre-Submission Checklist items should all be marked as checked [x] since we're fixing an existing PR
+    </instruction>
+    <instruction priority="4">
+      Pull information from:
+      - changes_implemented.md for the description and file list
+      - validation_report.md for test results
+      - pr_context.json for issue numbers and PR details
+      - translation_summary.md for any translation updates
+    </instruction>
+    <instruction priority="5">
+      Keep the HTML comments intact - they provide guidance for reviewers
+    </instruction>
+  </generation_instructions>
+
+  <file_handling>
+    <location>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md</location>
+    <purpose>
+      - Used as the PR comment body when updating the PR
+      - Saved for reference and audit trail
+      - Can be edited by user before posting
+      - Should NOT be deleted even if temp files are cleaned
+    </purpose>
+    <usage>
+      Post to PR using: gh pr comment [pr_number] --repo [owner]/[repo] --body-file [path_to_file]
+    </usage>
+  </file_handling>
+
+  <example_filled_template>
+    <![CDATA[
+<!--
+Thank you for contributing to Roo Code!
+
+Before submitting your PR, please ensure:
+- It's linked to an approved GitHub Issue.
+- You've reviewed our [Contributing Guidelines](../CONTRIBUTING.md).
+-->
+
+### Related GitHub Issue
+
+<!-- Every PR MUST be linked to an approved issue. -->
+
+Closes: #456
+
+### Roo Code Task Context (Optional)
+
+<!--
+If you used Roo Code to help create this PR, you can share public task links here.
+This helps reviewers understand your development process and provides additional context.
+Example: https://app.roocode.com/share/task-id
+-->
+
+_No Roo Code task context for this PR._
+
+### Description
+
+<!--
+Briefly summarize the changes in this PR and how they address the linked issue.
+The issue should cover the "what" and "why"; this section should focus on:
+- The "how": key implementation details, design choices, or trade-offs made.
+- Anything specific reviewers should pay attention to in this PR.
+-->
+
+This PR addresses the review feedback and fixes identified issues for #789.
+
+**Key Changes:**
+- Fixed TypeScript type errors in the API handler by adding proper type annotations
+- Improved error handling in the authentication flow to handle edge cases
+- Refactored complex functions for better testability and maintainability
+- Added missing user role management functionality
+- Resolved merge conflicts with the latest main branch
+
+**Review Comments Addressed:**
+- Added timeout handling with exponential backoff for network requests
+- Refactored large functions into smaller, testable units
+- Added comprehensive TypeScript interfaces for API responses
+- Improved error messages for better debugging
+
+**Test Failures Fixed:**
+- Updated email validation tests to match new validation rules
+- Fixed mock server responses in integration tests
+- Added missing test coverage for new functionality
+
+### Test Procedure
+
+<!--
+Detail the steps to test your changes. This helps reviewers verify your work.
+- How did you test this specific implementation? (e.g., unit tests, manual testing steps)
+- How can reviewers reproduce your tests or verify the fix/feature?
+- Include relevant testing environment details if applicable.
+-->
+
+**Testing performed:**
+1. Ran all unit tests locally: `npm test`
+2. Ran integration tests: `npm run test:integration`
+3. Manual testing steps:
+   - Created new user with various role types
+   - Tested authentication flow with invalid credentials
+   - Verified timeout handling with slow network simulation
+
+**To verify these changes:**
+1. Check out this branch
+2. Run `npm install && npm test`
+3. Start the dev server with `npm run dev`
+4. Test the authentication flow at http://localhost:3000/login
+
+**Test Environment:**
+- Node.js version: 18.17.0
+- OS: Windows 11
+- Browser: Chrome 120
+
+### Pre-Submission Checklist
+
+<!-- Go through this checklist before marking your PR as ready for review. -->
+
+- [x] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
+- [x] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
+- [x] **Self-Review**: I have performed a thorough self-review of my code.
+- [x] **Testing**: New and/or updated tests have been added to cover my changes (if applicable).
+- [x] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
+- [x] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
+
+### Screenshots / Videos
+
+<!--
+For UI changes, please provide before-and-after screenshots or a short video of the *actual results*.
+This greatly helps in understanding the visual impact of your changes.
+-->
+
+_No UI changes in this PR._
+
+### Documentation Updates
+
+<!--
+Does this PR necessitate updates to user-facing documentation?
+- [ ] No documentation updates are required.
+- [ ] Yes, documentation updates are required. (Please describe what needs to be updated or link to a PR in the docs repository).
+-->
+
+- [x] No documentation updates are required.
+
+### Additional Notes
+
+<!-- Add any other context, questions, or information for reviewers here. -->
+
+All review feedback has been addressed. The main architectural change was refactoring the authentication service to use dependency injection, which improves testability.
+
+**Files Modified:**
+```
+src/api/handler.ts - Added type annotations, improved error handling
+src/services/auth.service.ts - Refactored for dependency injection
+src/services/user.service.ts - Added role management functionality
+src/types/api.types.ts - New TypeScript interfaces
+src/__tests__/services/auth.service.test.ts - Updated tests
+src/__tests__/integration/api.test.ts - Fixed mock responses
+```
+
+### Get in Touch
+
+<!--
+Please provide your Discord username for reviewers or maintainers to reach you if they have questions about your PR
+-->
+
+Discord: @contributor123
+    ]]>
+  </example_filled_template>
+</pr_template_format>

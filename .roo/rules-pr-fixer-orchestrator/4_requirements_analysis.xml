@@ -1,0 +1,120 @@
+<requirements_analysis_guidelines>
+  <overview>
+    The PR Fixer Orchestrator must understand the underlying requirements
+    of a PR before fixing issues. This ensures fixes align with the
+    original intent and all acceptance criteria are met.
+  </overview>
+
+  <sources_of_requirements>
+    <source priority="1">
+      <name>Linked GitHub Issues</name>
+      <description>Primary source of requirements and acceptance criteria</description>
+      <extraction>
+        - Issue title and body
+        - Acceptance criteria sections
+        - Technical specifications
+        - User stories or use cases
+      </extraction>
+    </source>
+
+    <source priority="2">
+      <name>PR Description</name>
+      <description>Often contains implementation notes and context</description>
+      <extraction>
+        - Feature description
+        - Implementation approach
+        - Testing notes
+        - Breaking changes
+      </extraction>
+    </source>
+
+    <source priority="3">
+      <name>PR Comments</name>
+      <description>May contain clarifications and additional requirements</description>
+      <extraction>
+        - Author clarifications
+        - Reviewer questions and answers
+        - Scope changes or additions
+      </extraction>
+    </source>
+
+    <source priority="4">
+      <name>Code Analysis</name>
+      <description>Infer requirements from the implementation</description>
+      <extraction>
+        - API contracts
+        - Data flow patterns
+        - Test cases (reveal expected behavior)
+        - Documentation comments
+      </extraction>
+    </source>
+  </sources_of_requirements>
+
+  <analysis_approach>
+    <step number="1">
+      <name>Extract Explicit Requirements</name>
+      <actions>
+        - Parse linked issues for acceptance criteria
+        - Extract requirements from PR description
+        - Identify success metrics
+      </actions>
+    </step>
+
+    <step number="2">
+      <name>Understand Implementation Intent</name>
+      <actions>
+        - Analyze the code changes to understand approach
+        - Identify design decisions made
+        - Note any architectural patterns used
+      </actions>
+    </step>
+
+    <step number="3">
+      <name>Map Requirements to Implementation</name>
+      <actions>
+        - Verify each requirement has corresponding code
+        - Identify any missing functionality
+        - Note any extra functionality added
+      </actions>
+    </step>
+
+    <step number="4">
+      <name>Identify Gaps</name>
+      <actions>
+        - List unimplemented requirements
+        - Note incomplete features
+        - Identify missing tests
+      </actions>
+    </step>
+  </analysis_approach>
+
+  <common_requirement_patterns>
+    <pattern name="bug_fix">
+      <requirements>
+        - Clear description of the bug
+        - Steps to reproduce
+        - Expected vs actual behavior
+        - Affected versions/environments
+      </requirements>
+    </pattern>
+
+    <pattern name="new_feature">
+      <requirements>
+        - Feature description
+        - User stories or use cases
+        - API design (if applicable)
+        - UI/UX specifications
+        - Performance requirements
+      </requirements>
+    </pattern>
+
+    <pattern name="refactoring">
+      <requirements>
+        - Motivation for refactoring
+        - Backward compatibility needs
+        - Performance improvements expected
+        - Migration path (if breaking)
+      </requirements>
+    </pattern>
+  </common_requirement_patterns>
+</requirements_analysis_guidelines>

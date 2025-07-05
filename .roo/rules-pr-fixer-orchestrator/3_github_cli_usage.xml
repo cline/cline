@@ -1,0 +1,68 @@
+<github_cli_usage>
+  <overview>
+    This mode uses the GitHub CLI (gh) for all GitHub operations.
+    The mode assumes the user has gh installed and authenticated.
+    It can work with PRs from both the main repository and forks.
+  </overview>
+
+  <pr_specific_commands>
+    <command name="gh_pr_view">
+      <purpose>Get comprehensive PR details</purpose>
+      <syntax>gh pr view [pr-number] --repo [owner]/[repo] --json [fields]</syntax>
+      <fields>number,title,body,state,labels,author,headRefName,baseRefName,mergeable,mergeStateStatus,isDraft,isCrossRepository,headRepositoryOwner,reviews,statusCheckRollup,comments</fields>
+    </command>
+
+    <command name="gh_pr_checkout">
+      <purpose>Checkout PR branch locally</purpose>
+      <syntax>gh pr checkout [pr-number] --repo [owner]/[repo] --force</syntax>
+      <note>Automatically handles fork setup</note>
+    </command>
+
+    <command name="gh_pr_checks">
+      <purpose>Monitor CI/CD status</purpose>
+      <syntax>gh pr checks [pr-number] --repo [owner]/[repo] --watch</syntax>
+      <note>Use --json for programmatic access</note>
+    </command>
+
+    <command name="gh_pr_diff">
+      <purpose>Get PR changes</purpose>
+      <syntax>gh pr diff [pr-number] --repo [owner]/[repo] --name-only</syntax>
+      <note>Use without --name-only for full diff</note>
+    </command>
+
+    <command name="gh_pr_comment">
+      <purpose>Add comment to PR</purpose>
+      <syntax>gh pr comment [pr-number] --repo [owner]/[repo] --body "[message]"</syntax>
+    </command>
+  </pr_specific_commands>
+
+  <issue_integration>
+    <command name="gh_pr_linked_issues">
+      <purpose>Get issues linked to PR</purpose>
+      <syntax>gh pr view [pr-number] --repo [owner]/[repo] --json closingIssuesReferences</syntax>
+      <note>Returns array of linked issues</note>
+    </command>
+
+    <command name="gh_issue_view">
+      <purpose>Get issue details if linked</purpose>
+      <syntax>gh issue view [issue-number] --repo [owner]/[repo] --json [fields]</syntax>
+      <fields>number,title,body,state,labels,assignees,milestone,createdAt,updatedAt,closedAt,author,comments</fields>
+    </command>
+  </issue_integration>
+
+  <workflow_commands>
+    <command name="gh_run_view">
+      <purpose>Get detailed CI logs</purpose>
+      <syntax>gh run view [run-id] --repo [owner]/[repo] --log-failed</syntax>
+      <note>Use to debug failing tests</note>
+    </command>
+
+    <command name="gh_api">
+      <purpose>Direct API access for advanced operations</purpose>
+      <examples>
+        - Get PR reviews: gh api repos/[owner]/[repo]/pulls/[pr-number]/reviews
+        - Get review comments: gh api repos/[owner]/[repo]/pulls/[pr-number]/comments
+      </examples>
+    </command>
+  </workflow_commands>
+</github_cli_usage>

@@ -1,0 +1,771 @@
+<workflow>
+  <step number="1">
+    <name>Initialize PR Context</name>
+    <instructions>
+      The user will provide a GitHub PR URL or number.
+      
+      1.  **Parse Input**: Extract the `owner`, `repo`, and `pr_number` from the URL or use provided number.
+      2.  **Create Task Directory**: Create a dedicated directory to store all context for this PR fix task.
+          <execute_command>
+          <command>mkdir -p .roo/temp/pr-fixer-orchestrator/[TASK_ID]</command>
+          </execute_command>
+      3.  **Retrieve PR Details**: Fetch the PR details, comments, and check status as a comprehensive JSON object.
+          <execute_command>
+          <command>gh pr view [pr_number] --repo [owner]/[repo] --json number,title,body,state,labels,author,headRefName,baseRefName,mergeable,mergeStateStatus,isDraft,isCrossRepository,headRepositoryOwner,reviews,statusCheckRollup,comments > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_context.json</command>
+          </execute_command>
+      4.  **Get Review Comments**: Fetch detailed review comments separately for better analysis.
+          <execute_command>
+          <command>gh pr view [pr_number] --repo [owner]/[repo] --comments > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_comments.txt</command>
+          </execute_command>
+      5.  **Check CI Status**: Get current check status and any failing workflows.
+          <execute_command>
+          <command>gh pr checks [pr_number] --repo [owner]/[repo] --json name,state,conclusion,detailsUrl > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_checks.json</command>
+          </execute_command>
+      6.  **Get Associated Issue**: Check if PR is linked to an issue and fetch issue details if available.
+          <execute_command>
+          <command>gh pr view [pr_number] --repo [owner]/[repo] --json closingIssuesReferences > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/linked_issues.json</command>
+          </execute_command>
+          If linked issues exist, fetch the first issue's details:
+          <execute_command>
+          <command>gh issue view [issue_number] --repo [owner]/[repo] --json number,title,body,state,labels,assignees,milestone,createdAt,updatedAt,closedAt,author,comments > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/issue_context.json</command>
+          </execute_command>
+      7.  **Handle Auth Errors**: If any `gh` command fails with authentication error, prompt the user to log in.
+      8.  **Confirm Context**: Inform the user that the PR context has been gathered.
+    </instructions>
+  </step>
+
+  <step number="2">
+    <name>Checkout PR Branch and Initial Analysis</name>
+    <instructions>
+      Before delegating analysis, ensure the PR branch is checked out locally.
+
+      1.  **Checkout PR Branch**: Use gh to checkout the PR branch locally.
+          <execute_command>
+          <command>gh pr checkout [pr_number] --repo [owner]/[repo] --force</command>
+          </execute_command>
+          
+      2.  **Determine Remote Type**: Check if this is a cross-repository PR (from a fork).
+          <execute_command>
+          <command>gh pr view [pr_number] --repo [owner]/[repo] --json isCrossRepository,headRepositoryOwner,headRefName > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_remote_info.json</command>
+          </execute_command>
+          
+      3.  **Setup Fork Remote if Needed**: If it's a cross-repository PR, ensure fork remote is configured.
+          Read the pr_remote_info.json file. If isCrossRepository is true:
+          <execute_command>
+          <command>git remote add fork https://github.com/[headRepositoryOwner]/[repo].git || git remote set-url fork https://github.com/[headRepositoryOwner]/[repo].git</command>
+          </execute_command>
+          
+      4.  **Fetch Latest Main**: Ensure we have the latest main branch for comparison.
+          <execute_command>
+          <command>git fetch origin main</command>
+          </execute_command>
+          
+      5.  **Check for Conflicts**: Determine if there are merge conflicts with main.
+          <execute_command>
+          <command>git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_conflicts.txt</command>
+          </execute_command>
+          
+      6.  **Get PR Diff**: Fetch the files changed in this PR for context.
+          <execute_command>
+          <command>gh pr diff [pr_number] --repo [owner]/[repo] --name-only > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_changed_files.txt</command>
+          </execute_command>
+          
+      7.  **Check Merge Diff Size**: Get the full diff and check line count.
+          <execute_command>
+          <command>git diff origin/main...HEAD > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/full_merge_diff.txt</command>
+          </execute_command>
+          <execute_command>
+          <command>wc -l .roo/temp/pr-fixer-orchestrator/[TASK_ID]/full_merge_diff.txt</command>
+          </execute_command>
+          
+          If the diff has over 2000 lines, create a summary instead:
+          <execute_command>
+          <command>git diff origin/main...HEAD --stat > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_diff_summary.txt</command>
+          </execute_command>
+          <execute_command>
+          <command>rm .roo/temp/pr-fixer-orchestrator/[TASK_ID]/full_merge_diff.txt</command>
+          </execute_command>
+    </instructions>
+  </step>
+
+  <step number="3">
+    <name>Delegate: Comprehensive Requirements and PR Analysis</name>
+    <instructions>
+      Launch a subtask in `architect` mode to perform a detailed analysis of the PR, its underlying requirements, and all issues that need to be addressed.
+
+      The context files in `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/` will be the input for this subtask. 
+      The subtask should write its findings to: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md`.
+
+      <new_task>
+        <mode>architect</mode>
+        <message>
+          **Task: Analyze Pull Request Requirements and Create Comprehensive Fix Plan**
+
+          You are an expert software architect. Your task is to analyze a pull request, understand its underlying requirements, and create a comprehensive plan to address all issues.
+
+          1.  **Read PR Context**: The PR details are in:
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_context.json` - Full PR metadata
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_comments.txt` - Review comments
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_checks.json` - CI/CD check status
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_conflicts.txt` - Conflict analysis
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_changed_files.txt` - Files changed in PR
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/linked_issues.json` - Associated issues (if any)
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/issue_context.json` - Issue details (if linked)
+              - `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/full_merge_diff.txt` OR `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_diff_summary.txt` - Diff information
+
+          2.  **Understand the PR's Purpose**:
+              - Extract the feature or bug being addressed from PR title, body, and linked issues
+              - Identify the acceptance criteria (from PR description or linked issue)
+              - Understand the intended functionality and expected behavior
+              - Note any design decisions or architectural choices made
+
+          3.  **Perform Architectural Analysis**:
+              - **Map Component Interactions**: Trace the complete data flow for the PR's changes
+              - **Identify Paired Operations**: For any operation (e.g., export), find its counterpart (e.g., import)
+              - **Find Similar Patterns**: Search for existing implementations of similar features
+              - **Analyze Dependencies**: Identify all consumers of the functionality being modified
+              - **Assess Impact**: Determine how changes affect other parts of the system
+
+          4.  **Explore Codebase Systematically**:
+              - Use `codebase_search` FIRST to understand the feature area
+              - Search for related functionality that might be affected
+              - Find all files that consume or depend on the changed functionality
+              - Identify configuration files, tests, and documentation that need updates
+              - Study similar features to understand established patterns
+
+          5.  **Analyze Review Feedback**:
+              - Categorize review comments by type (bug, enhancement, style, etc.)
+              - Identify which comments are actionable vs informational
+              - Prioritize changes based on reviewer authority and importance
+              - Note any conflicting feedback that needs clarification
+
+          6.  **Investigate Failing Tests**:
+              - For each failing check, determine the root cause
+              - Use `gh run view --log-failed` to get detailed error logs
+              - Identify if failures are due to code issues, flaky tests, or environment problems
+              - Determine which files need modification to fix test failures
+
+          7.  **Assess Merge Conflicts**:
+              - Analyze the merge_conflicts.txt file
+              - Identify which files have conflicts
+              - Determine the complexity of conflict resolution
+              - Plan the rebase/merge strategy
+
+          8.  **Create Comprehensive Fix Plan**: The plan must include:
+              - **PR Purpose Summary**: Clear description of what the PR is trying to achieve
+              - **Requirements Analysis**:
+                - Original requirements from issue or PR description
+                - Acceptance criteria that must be met
+                - Any missing functionality that needs to be added
+              - **Architectural Context**:
+                - Data flow diagram showing component interactions
+                - List of paired operations that must be updated together
+                - Dependencies and consumers of the affected functionality
+              - **Issue Summary**: Clear categorization of all issues found
+              - **Priority Order**: Which issues to tackle first and why
+              - **Review Feedback Analysis**:
+                - List of all actionable review comments
+                - Specific code changes required for each
+                - Any clarifications needed from reviewers
+              - **Test Failure Resolution**:
+                - Root cause of each failing test
+                - Files and changes needed to fix
+                - Any test updates required
+              - **Conflict Resolution Strategy**:
+                - Whether to rebase or merge
+                - Order of operations for conflict resolution
+                - Risk assessment of conflicts
+              - **Implementation Steps**:
+                - Detailed, ordered steps for fixing all issues
+                - Specific commands and file modifications
+                - Validation steps after each change
+              - **Risk Assessment**:
+                - Potential side effects of changes
+                - Areas requiring extra testing
+                - Backward compatibility concerns
+
+          9.  **Save the Analysis**: Write the complete analysis to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md`.
+
+          **Critical Requirements:**
+          - Always understand the PR's underlying purpose before analyzing issues
+          - Be thorough in analyzing all aspects of the PR
+          - Consider the interaction between different fixes
+          - Provide specific, actionable steps
+          - Include exact commands where applicable
+          - **IMPORTANT**: Save your analysis to the specified file in .roo/temp/pr-fixer-orchestrator/[TASK_ID]/
+
+          **Completion Protocol:**
+          - This is your only task. Do not deviate from these instructions.
+          - Once you have successfully written the analysis report, you MUST signal completion by using the `attempt_completion` tool.
+          - The `result` parameter MUST be: "PR analysis complete and saved to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md"
+        </message>
+      </new_task>
+
+      After launching the subtask, wait for it to complete. The orchestrator will then read the analysis report to proceed.
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Review Analysis and Get User Approval</name>
+    <instructions>
+      After the analysis subtask completes, present the findings to the user for approval.
+
+      1.  **Read the Analysis Report**:
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md</path>
+              </file>
+            </args>
+          </read_file>
+
+      2.  **Present for Approval**: Show the analysis to the user and ask how to proceed.
+          <ask_followup_question>
+            <question>
+              I've completed the analysis of PR #[pr_number]. Here's what I found:
+
+              ---
+              [Insert content of pr_analysis_report.md here]
+              ---
+
+              How would you like to proceed with fixing these issues?
+            </question>
+            <follow_up>
+              <suggest>Fix all issues in the recommended priority order</suggest>
+              <suggest>Only fix the review comments, skip failing tests for now</suggest>
+              <suggest>Only fix failing tests and conflicts, skip review comments</suggest>
+              <suggest>Let me choose specific issues to fix</suggest>
+            </follow_up>
+          </ask_followup_question>
+      
+      3.  **Handle User Choice**: Based on the user's selection, prepare the implementation scope.
+          Save the user's choice to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/implementation_scope.txt`
+    </instructions>
+  </step>
+
+  <step number="5">
+    <name>Fetch Latest from Main and Check Differences</name>
+    <instructions>
+      Before implementing fixes, ensure we're working with the latest code and understand what has changed.
+
+      1.  **Fetch Latest Changes**:
+          <execute_command>
+          <command>git fetch origin main</command>
+          </execute_command>
+
+      2.  **Analyze Differences**: Create a detailed diff report.
+          <execute_command>
+          <command>git diff origin/main...HEAD --name-status > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_file_changes.txt</command>
+          </execute_command>
+          
+      3.  **Check Commit History**: Understand what commits are in this PR.
+          <execute_command>
+          <command>git log origin/main..HEAD --oneline > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_commits.txt</command>
+          </execute_command>
+
+      4.  **Identify New Commits on Main**: See what has been merged to main since the PR was created.
+          <execute_command>
+          <command>git log HEAD..origin/main --oneline > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/new_main_commits.txt</command>
+          </execute_command>
+
+      5.  **Save Merge Strategy**: Based on the analysis, determine if we should rebase or merge.
+          Create `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_strategy.txt` with either "rebase" or "merge"
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Delegate: Implement Fixes</name>
+    <instructions>
+      Launch a subtask in `code` mode to implement all the fixes based on the analysis and user's choices.
+
+      <new_task>
+        <mode>code</mode>
+        <message>
+          **Task: Implement PR Fixes Based on Analysis**
+
+          You are an expert software developer. Your task is to implement fixes for a pull request based on the analysis and plan.
+
+          1.  **Read Context Files**:
+              - Analysis Report: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md`
+              - Implementation Scope: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/implementation_scope.txt`
+              - File Changes: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_file_changes.txt`
+              - Merge Strategy: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/merge_strategy.txt`
+
+          2.  **Handle Merge/Rebase First** (if conflicts exist):
+              - If merge_strategy.txt says "rebase":
+                <execute_command>
+                <command>GIT_EDITOR=true git rebase origin/main</command>
+                </execute_command>
+              - If conflicts occur, resolve them by editing the conflicted files
+              - Remember to escape conflict markers when using apply_diff
+              - After resolving each file: `git add [file]`
+              - Continue rebase: `git rebase --continue`
+
+          3.  **Implement Missing Functionality** (if identified in analysis):
+              - Add any missing features or functionality noted in the requirements analysis
+              - Follow the architectural patterns identified in the analysis
+              - Ensure all acceptance criteria are met
+              - Update related operations to maintain consistency
+
+          4.  **Implement Review Feedback**:
+              - Address each actionable review comment from the analysis
+              - Make code changes using appropriate file editing tools
+              - Ensure changes follow project coding standards
+              - Add comments where complex logic is introduced
+
+          5.  **Fix Failing Tests**:
+              - Based on the root cause analysis, fix test failures
+              - This may involve fixing source code or updating tests
+              - Run tests locally if possible to verify fixes
+              - Document any test changes made
+
+          6.  **Track All Changes**: As you make changes, maintain a list of:
+              - Files modified with brief description of changes
+              - Review comments addressed
+              - Tests fixed
+              - Missing functionality added
+              - Any additional improvements made
+
+          7.  **Create Change Summary**: Write a comprehensive summary to:
+              `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/changes_implemented.md`
+              Include:
+              - List of all files modified
+              - Review comments addressed (with file:line references)
+              - Test fixes applied
+              - Conflict resolutions performed
+              - Missing functionality implemented
+              - Any additional improvements
+
+          **Important Reminders:**
+          - Follow the implementation plan from the analysis
+          - Respect the user's chosen scope
+          - Make minimal, targeted changes
+          - Preserve existing functionality
+          - When resolving conflicts, understand both sides before choosing
+          - Ensure all original PR requirements are met
+          - **IMPORTANT**: Save all output files to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/
+
+          **Completion Protocol:**
+          - Once all fixes are implemented and the summary is saved, use `attempt_completion`.
+          - Result: "PR fixes implemented and summary saved to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/changes_implemented.md"
+        </message>
+      </new_task>
+
+      Wait for the implementation subtask to complete before proceeding.
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Delegate: Test and Validate Changes</name>
+    <instructions>
+      After implementation, delegate testing and validation to ensure all fixes work correctly.
+
+      <new_task>
+        <mode>test</mode>
+        <message>
+          **Task: Validate PR Fixes and Run Tests**
+
+          You are a meticulous QA engineer. Your task is to validate that all PR fixes have been properly implemented.
+
+          **Context Files:**
+          - Original Analysis: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md`
+          - Changes Made: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/changes_implemented.md`
+          - Original PR Checks: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_checks.json`
+
+          **Your Steps:**
+          1.  **Verify Requirements**: Check that all original PR requirements and acceptance criteria are met.
+          
+          2.  **Verify Review Comments**: Check that each review comment marked as addressed in changes_implemented.md has been properly fixed.
+          
+          3.  **Run Local Tests**: Execute relevant test suites.
+              - Identify test files related to changed code
+              - Run unit tests for modified components
+              - Run integration tests if applicable
+              - Document all test results
+
+          4.  **Validate Code Quality**:
+              - Run linters on changed files
+              - Check for type errors (if TypeScript)
+              - Verify no console.logs or debug code remains
+              - Ensure proper error handling
+
+          5.  **Check for Regressions**:
+              - Verify existing functionality still works
+              - Look for potential side effects of changes
+              - Test edge cases around modified code
+
+          6.  **Create Validation Report**: Write findings to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/validation_report.md`
+              Include:
+              - Test results summary (pass/fail counts)
+              - Requirements verification checklist
+              - Review comment verification checklist
+              - Any issues or concerns found
+              - Recommendations for additional testing
+              - Overall assessment: READY or NEEDS_WORK
+
+          **Critical Focus Areas:**
+          - Ensure all originally failing tests now pass
+          - Verify no new test failures introduced
+          - Confirm review feedback properly addressed
+          - Check that all PR requirements are fulfilled
+          - Check for unintended consequences
+          - **IMPORTANT**: Save your report to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/
+
+          **Completion Protocol:**
+          - Save validation report and use `attempt_completion`
+          - Result: "Validation complete. Report saved to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/validation_report.md"
+        </message>
+      </new_task>
+
+      Wait for validation to complete before proceeding.
+    </instructions>
+  </step>
+
+  <step number="8">
+    <name>Handle Validation Results and Translation Needs</name>
+    <instructions>
+      Review validation results and check if translation updates are needed.
+
+      1.  **Read Validation Report**:
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/validation_report.md</path>
+              </file>
+            </args>
+          </read_file>
+
+      2.  **If Validation Failed**: Present issues to user and ask how to proceed.
+          If the report indicates NEEDS_WORK, use ask_followup_question to get direction.
+
+      3.  **Check for Translation Requirements**:
+          Read the changes_implemented.md file and check for:
+          - Changes to i18n JSON files
+          - Modifications to UI components with user-facing text
+          - Updates to announcement files or documentation
+          - New error messages or notifications
+
+      4.  **Delegate Translation if Needed**:
+          If translation is required:
+          <new_task>
+            <mode>translate</mode>
+            <message>
+              **Task: Update Translations for PR Fixes**
+
+              PR #[pr_number] fixes have been implemented. Please handle translation updates for the following changes:
+
+              **Changed Files:**
+              [List specific files from changes_implemented.md that need translation]
+
+              **Specific Changes:**
+              [Detail what text was added/modified]
+
+              Please ensure all supported languages are updated with appropriate translations.
+              Save a summary of translation changes to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/translation_summary.md`
+
+              **IMPORTANT**: Save your summary to the specified file in .roo/temp/pr-fixer-orchestrator/[TASK_ID]/
+            </message>
+          </new_task>
+
+      5.  **Proceed When Ready**: Only continue after validation passes and translations complete (if needed).
+    </instructions>
+  </step>
+
+  <step number="9">
+    <name>Prepare PR Message and Get User Approval</name>
+    <instructions>
+      Before committing changes, prepare the PR update message and get user approval.
+
+      1.  **Check Files to be Committed**: List all modified files.
+          <execute_command>
+          <command>git status --porcelain > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/files_to_commit.txt</command>
+          </execute_command>
+          
+      2.  **Read Implementation Summary**:
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/changes_implemented.md</path>
+              </file>
+            </args>
+          </read_file>
+
+      3.  **Create PR Update Message**: Based on the changes, create a comprehensive PR update message following the template.
+          Save to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md`:
+          
+          ```markdown
+          ## PR Update Summary
+          
+          This update addresses the review feedback and fixes identified issues.
+          
+          ## Changes Made
+          
+          [List from changes_implemented.md]
+          - Fixed [specific issue] in [file]
+          - Addressed review comment about [topic]
+          - Updated tests for [functionality]
+          - Resolved merge conflicts in [files]
+          
+          ## Review Comments Addressed
+          
+          [For each review comment addressed]
+          - ✅ Comment: "[reviewer comment]"
+            - Fix: [what was done]
+            - Files: [files modified]
+          
+          ## Test Fixes
+          
+          [If tests were fixed]
+          - Fixed failing test: [test name]
+            - Issue: [root cause]
+            - Solution: [fix applied]
+          
+          ## Translations Updated
+          
+          [If translations were updated]
+          - Updated [X] language files for [changes]
+          - All user-facing strings properly translated
+          
+          ## Verification
+          
+          - [x] All review comments addressed
+          - [x] All tests passing locally
+          - [x] No regressions introduced
+          - [x] Code follows project standards
+          - [x] Translations updated (if applicable)
+          
+          ## Files Modified
+          
+          [List all files that will be committed]
+          ```
+
+      4.  **Get User Approval**: Present the changes and ask for confirmation.
+          <ask_followup_question>
+            <question>
+              I've completed all the fixes for PR #[pr_number]. Here's a summary of what will be committed:
+
+              **Files to be committed:**
+              [Content of files_to_commit.txt]
+
+              **PR Update Message:**
+              [Content of pr_update_message.md]
+
+              Would you like me to proceed with committing these changes?
+            </question>
+            <follow_up>
+              <suggest>Looks good, go ahead and commit the changes</suggest>
+              <suggest>I tested the changes and something is wrong - let me describe the issue</suggest>
+              <suggest>I still need to test the changes manually before committing</suggest>
+              <suggest>Let me review specific files before committing</suggest>
+            </follow_up>
+          </ask_followup_question>
+
+      5.  **Handle User Response**:
+          - If approved: Continue to commit
+          - If issues found: Document the issue and determine next steps
+          - If manual testing needed: Wait for user to complete testing
+          - If review requested: Show requested files and wait for approval
+    </instructions>
+  </step>
+
+  <step number="10">
+    <name>Commit Changes and Prepare for Push</name>
+    <instructions>
+      Once user approves, commit the changes with appropriate message.
+
+      1.  **Stage Only Necessary Files**: Review files and stage appropriately.
+          Read files_to_commit.txt and ensure only relevant files are staged.
+          <execute_command>
+          <command>git add [specific files from the implementation]</command>
+          </execute_command>
+          
+          Note: Do NOT use `git add -A` to avoid adding unintended files.
+
+      2.  **Create Commit Message**: Based on the changes made, create an appropriate commit message.
+          <execute_command>
+          <command>git commit -m "fix: address PR feedback and fix failing tests
+
+- addressed review comments
+- fixed failing tests
+- resolved conflicts (if applicable)
+- updated translations (if needed)
+
+See PR for detailed changes"</command>
+          </execute_command>
+
+      3.  **Verify Remote Configuration**: Check which remote to push to.
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_remote_info.json</path>
+              </file>
+            </args>
+          </read_file>
+
+      4.  **Determine Push Target**: 
+          - If isCrossRepository is false: push to origin
+          - If isCrossRepository is true: push to fork
+    </instructions>
+  </step>
+
+  <step number="11">
+    <name>Delegate: Final PR Review</name>
+    <instructions>
+      Before pushing changes, have the PR reviewer mode review all changes to ensure quality.
+
+      <new_task>
+        <mode>pr-reviewer</mode>
+        <message>
+          **Task: Review PR Fix Implementation**
+
+          You are reviewing the fixes applied to PR #[pr_number]. Your task is to ensure all changes are high quality and properly address the original feedback.
+
+          **Context Files:**
+          - Original PR Analysis: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_analysis_report.md`
+          - Changes Implemented: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/changes_implemented.md`
+          - Validation Report: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/validation_report.md`
+          - Translation Summary (if exists): `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/translation_summary.md`
+          - PR Update Message: `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md`
+
+          **Review Focus:**
+          1. **Completeness**: Verify all identified issues have been addressed
+          2. **Requirements**: Confirm all original PR requirements are met
+          3. **Code Quality**: Check that fixes follow best practices
+          4. **No Regressions**: Ensure no new issues introduced
+          5. **Review Feedback**: Confirm all reviewer comments properly addressed
+          6. **Test Coverage**: Verify tests cover the changes
+          7. **Documentation**: Check if docs/comments are adequate
+
+          **Your Task:**
+          1. Review the actual code changes using git diff
+          2. Cross-reference with the original review feedback
+          3. Verify all PR requirements are fulfilled
+          4. Assess the quality of the implementation
+          5. Check for any missed requirements
+          6. Create a final review report
+
+          Save your review to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/final_review.md` with:
+          - Overall Assessment: APPROVED or NEEDS_REVISION
+          - Quality Score: 1-10
+          - Detailed feedback on the implementation
+          - Any remaining concerns
+          - Recommendations for improvement
+
+          **IMPORTANT**: Save your review to the specified file in .roo/temp/pr-fixer-orchestrator/[TASK_ID]/
+
+          **Completion Protocol:**
+          - Save review and use `attempt_completion`
+          - Result: "Final review complete and saved to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/final_review.md"
+        </message>
+      </new_task>
+
+      Wait for the review to complete.
+    </instructions>
+  </step>
+
+  <step number="12">
+    <name>Process Final Review and Push Changes</name>
+    <instructions>
+      Based on the final review, either push changes or address remaining issues.
+
+      1.  **Read Final Review**:
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/final_review.md</path>
+              </file>
+            </args>
+          </read_file>
+
+      2.  **If Review Requests Revisions**:
+          Present the feedback to the user and ask if they want to address the issues now or push as-is.
+
+      3.  **Push Changes**: If approved or user chooses to push:
+          Based on pr_remote_info.json, push to the correct remote:
+          
+          For same-repository PRs:
+          <execute_command>
+          <command>git push --force-with-lease origin [branch_name]</command>
+          </execute_command>
+          
+          For cross-repository PRs:
+          <execute_command>
+          <command>git push --force-with-lease fork [branch_name]</command>
+          </execute_command>
+
+      4.  **Monitor Push Result**: Ensure the push succeeds.
+          If --force-with-lease fails, fetch and retry with --force.
+    </instructions>
+  </step>
+
+  <step number="13">
+    <name>Verify PR Status and Monitor Checks</name>
+    <instructions>
+      After pushing, verify the PR is in good state and monitor CI/CD checks.
+
+      1.  **Verify PR is Up to Date**:
+          <execute_command>
+          <command>gh pr view [pr_number] --repo [owner]/[repo] --json mergeable,mergeStateStatus</command>
+          </execute_command>
+
+      2.  **Monitor CI/CD Checks in Real-Time**:
+          <execute_command>
+          <command>gh pr checks [pr_number] --repo [owner]/[repo] --watch</command>
+          </execute_command>
+          This will continuously monitor until all checks complete.
+
+      3.  **Get Final Status**: Once monitoring completes, get the final state.
+          <execute_command>
+          <command>gh pr checks [pr_number] --repo [owner]/[repo] --json name,state,conclusion > .roo/temp/pr-fixer-orchestrator/[TASK_ID]/final_checks.json</command>
+          </execute_command>
+
+      4.  **Comment on PR**: Add a summary comment about the fixes applied.
+          Read the PR update message we prepared:
+          <read_file>
+            <args>
+              <file>
+                <path>.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md</path>
+              </file>
+            </args>
+          </read_file>
+          
+          Then post it as a comment:
+          <execute_command>
+          <command>gh pr comment [pr_number] --repo [owner]/[repo] --body-file .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md</command>
+          </execute_command>
+
+      5.  **Save PR Message**: Keep the PR message for reference.
+          The PR update message has already been saved to `.roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md`
+
+      6.  **Final Summary**: Present the final status to the user, confirming:
+          - All requested changes have been implemented
+          - The branch is synced with main
+          - CI/CD checks status
+          - The PR is ready for maintainer review and merge
+          - PR update message has been posted and saved
+
+      7.  **Optional Cleanup**: Ask user if they want to clean up temporary files.
+          <ask_followup_question>
+            <question>
+              PR #[pr_number] has been successfully updated!
+              
+              - All changes committed and pushed
+              - CI/CD checks are [status]
+              - PR comment posted with update summary
+              - PR message saved to .roo/temp/pr-fixer-orchestrator/[TASK_ID]/pr_update_message.md
+              
+              Would you like me to clean up the temporary files?
+            </question>
+            <follow_up>
+              <suggest>Yes, clean up temporary files</suggest>
+              <suggest>No, keep the files for reference</suggest>
+            </follow_up>
+          </ask_followup_question>
+          
+          If user chooses cleanup:
+          <execute_command>
+          <command>rm -rf .roo/temp/pr-fixer-orchestrator/[TASK_ID]</command>
+          </execute_command>
+    </instructions>
+  </step>
+</workflow>
