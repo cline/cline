@@ -235,6 +235,7 @@ export interface WebviewMessage {
 		codebaseIndexOpenAiCompatibleBaseUrl?: string
 		codebaseIndexOpenAiCompatibleModelDimension?: number
 		codebaseIndexSearchMaxResults?: number
+		codebaseIndexSearchMinScore?: number
 
 		// Secret settings
 		codeIndexOpenAiKey?: string

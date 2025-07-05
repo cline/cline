@@ -52,6 +52,7 @@ interface LocalCodeIndexSettings {
 	codebaseIndexEmbedderBaseUrl?: string
 	codebaseIndexEmbedderModelId: string
 	codebaseIndexSearchMaxResults?: number
+	codebaseIndexSearchMinScore?: number
 
 	// Secret settings (start empty, will be loaded separately)
 	codeIndexOpenAiKey?: string
@@ -85,6 +86,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 		codebaseIndexEmbedderBaseUrl: "",
 		codebaseIndexEmbedderModelId: "",
 		codebaseIndexSearchMaxResults: CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
+		codebaseIndexSearchMinScore: CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
 		codeIndexOpenAiKey: "",
 		codeIndexQdrantApiKey: "",
 		codebaseIndexOpenAiCompatibleBaseUrl: "",
@@ -114,7 +116,9 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				codebaseIndexEmbedderBaseUrl: codebaseIndexConfig.codebaseIndexEmbedderBaseUrl || "",
 				codebaseIndexEmbedderModelId: codebaseIndexConfig.codebaseIndexEmbedderModelId || "",
 				codebaseIndexSearchMaxResults:
-					codebaseIndexConfig.codebaseIndexSearchMaxResults || CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
+					codebaseIndexConfig.codebaseIndexSearchMaxResults ?? CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
+				codebaseIndexSearchMinScore:
+					codebaseIndexConfig.codebaseIndexSearchMinScore ?? CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
 				codeIndexOpenAiKey: "",
 				codeIndexQdrantApiKey: "",
 				codebaseIndexOpenAiCompatibleBaseUrl: "",
@@ -596,6 +600,51 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 
 						{isAdvancedSettingsOpen && (
 							<div className="mt-4 space-y-4 pl-4">
+								{/* Search Score Threshold Slider */}
+								<div className="space-y-2">
+									<div className="flex items-center gap-2">
+										<label className="text-sm font-medium">
+											{t("settings:codeIndex.searchMinScoreLabel")}
+										</label>
+										<StandardTooltip content={t("settings:codeIndex.searchMinScoreDescription")}>
+											<span className="codicon codicon-info text-xs text-vscode-descriptionForeground cursor-help" />
+										</StandardTooltip>
+									</div>
+									<div className="flex items-center gap-2">
+										<Slider
+											min={CODEBASE_INDEX_DEFAULTS.MIN_SEARCH_SCORE}
+											max={CODEBASE_INDEX_DEFAULTS.MAX_SEARCH_SCORE}
+											step={CODEBASE_INDEX_DEFAULTS.SEARCH_SCORE_STEP}
+											value={[
+												currentSettings.codebaseIndexSearchMinScore ??
+													CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
+											]}
+											onValueChange={(values) =>
+												updateSetting("codebaseIndexSearchMinScore", values[0])
+											}
+											className="flex-1"
+											data-testid="search-min-score-slider"
+										/>
+										<span className="w-12 text-center">
+											{(
+												currentSettings.codebaseIndexSearchMinScore ??
+												CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE
+											).toFixed(2)}
+										</span>
+										<VSCodeButton
+											appearance="icon"
+											title={t("settings:codeIndex.resetToDefault")}
+											onClick={() =>
+												updateSetting(
+													"codebaseIndexSearchMinScore",
+													CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
+												)
+											}>
+											<span className="codicon codicon-discard" />
+										</VSCodeButton>
+									</div>
+								</div>
+
 								{/* Maximum Search Results Slider */}
 								<div className="space-y-2">
 									<div className="flex items-center gap-2">
@@ -612,7 +661,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 											max={CODEBASE_INDEX_DEFAULTS.MAX_SEARCH_RESULTS}
 											step={CODEBASE_INDEX_DEFAULTS.SEARCH_RESULTS_STEP}
 											value={[
-												currentSettings.codebaseIndexSearchMaxResults ||
+												currentSettings.codebaseIndexSearchMaxResults ??
 													CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
 											]}
 											onValueChange={(values) =>
@@ -622,7 +671,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 											data-testid="search-max-results-slider"
 										/>
 										<span className="w-12 text-center">
-											{currentSettings.codebaseIndexSearchMaxResults ||
+											{currentSettings.codebaseIndexSearchMaxResults ??
 												CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS}
 										</span>
 										<VSCodeButton
