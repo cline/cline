@@ -1,0 +1,213 @@
+<pr_template_format>
+  <overview>
+    This document defines the format for PR messages that are saved to the temp folder
+    before creating a pull request. The PR message is saved in two formats:
+    1. JSON format in pr_summary.json (for programmatic use)
+    2. Markdown format in pr_message.md (for manual PR creation)
+    
+    The PR message must follow the exact Roo Code contribution template.
+  </overview>
+
+  <json_format>
+    <description>
+      The pr_summary.json file contains the PR title and body in a structured format
+      that can be easily parsed by scripts and the GitHub CLI.
+    </description>
+    <structure>
+      {
+        "title": "fix: [description] (#[issue-number])",
+        "body": "[Full markdown body as described below]",
+        "issue_number": 123,
+        "repo_owner": "owner",
+        "repo_name": "repo",
+        "base_branch": "main",
+        "head_branch": "fix/issue-123-description"
+      }
+    </structure>
+  </json_format>
+
+  <markdown_format>
+    <description>
+      The pr_message.md file contains the complete PR message in a format that can be
+      directly copied and pasted when creating a PR manually.
+    </description>
+    <structure>
+      PR Title: [title from JSON]
+      
+      ---
+      
+      [Full PR body from JSON]
+    </structure>
+  </markdown_format>
+
+  <pr_body_template>
+    <description>
+      The PR body must follow this exact Roo Code PR template with all required sections.
+    </description>
+    <template><![CDATA[
+<!--
+Thank you for contributing to Roo Code!
+
+Before submitting your PR, please ensure:
+- It's linked to an approved GitHub Issue.
+- You've reviewed our [Contributing Guidelines](../CONTRIBUTING.md).
+-->
+
+### Related GitHub Issue
+
+<!-- Every PR MUST be linked to an approved issue. -->
+
+Closes: #[ISSUE_NUMBER] <!-- Replace with the issue number, e.g., Closes: #123 -->
+
+### Roo Code Task Context (Optional)
+
+<!--
+If you used Roo Code to help create this PR, you can share public task links here.
+This helps reviewers understand your development process and provides additional context.
+Example: https://app.roocode.com/share/task-id
+-->
+
+[TASK_CONTEXT]
+
+### Description
+
+<!--
+Briefly summarize the changes in this PR and how they address the linked issue.
+The issue should cover the "what" and "why"; this section should focus on:
+- The "how": key implementation details, design choices, or trade-offs made.
+- Anything specific reviewers should pay attention to in this PR.
+-->
+
+[DESCRIPTION_CONTENT]
+
+### Test Procedure
+
+<!--
+Detail the steps to test your changes. This helps reviewers verify your work.
+- How did you test this specific implementation? (e.g., unit tests, manual testing steps)
+- How can reviewers reproduce your tests or verify the fix/feature?
+- Include relevant testing environment details if applicable.
+-->
+
+[TEST_PROCEDURE_CONTENT]
+
+### Pre-Submission Checklist
+
+<!-- Go through this checklist before marking your PR as ready for review. -->
+
+- [x] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
+- [x] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
+- [x] **Self-Review**: I have performed a thorough self-review of my code.
+- [x] **Testing**: New and/or updated tests have been added to cover my changes (if applicable).
+- [x] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
+- [x] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
+
+### Screenshots / Videos
+
+<!--
+For UI changes, please provide before-and-after screenshots or a short video of the *actual results*.
+This greatly helps in understanding the visual impact of your changes.
+-->
+
+[SCREENSHOTS_CONTENT]
+
+### Documentation Updates
+
+<!--
+Does this PR necessitate updates to user-facing documentation?
+- [ ] No documentation updates are required.
+- [ ] Yes, documentation updates are required. (Please describe what needs to be updated or link to a PR in the docs repository).
+-->
+
+[DOCUMENTATION_UPDATES_CONTENT]
+
+### Additional Notes
+
+<!-- Add any other context, questions, or information for reviewers here. -->
+
+[ADDITIONAL_NOTES_CONTENT]
+
+### Get in Touch
+
+<!--
+Please provide your Discord username for reviewers or maintainers to reach you if they have questions about your PR
+-->
+
+[DISCORD_USERNAME]
+    ]]></template>
+  </pr_body_template>
+
+  <template_placeholders>
+    <placeholder name="[ISSUE_NUMBER]">The GitHub issue number being fixed</placeholder>
+    <placeholder name="[TASK_CONTEXT]">Optional Roo Code task links (remove section if not applicable)</placeholder>
+    <placeholder name="[DESCRIPTION_CONTENT]">
+      Summary of changes and implementation details. Should include:
+      - Key implementation details
+      - Design choices or trade-offs made
+      - Specific areas reviewers should focus on
+    </placeholder>
+    <placeholder name="[TEST_PROCEDURE_CONTENT]">
+      Detailed testing steps including:
+      - Unit tests added/modified
+      - Manual testing steps performed
+      - How reviewers can reproduce tests
+      - Testing environment details
+    </placeholder>
+    <placeholder name="[SCREENSHOTS_CONTENT]">
+      For UI changes: before/after screenshots or video
+      For non-UI changes: "N/A - No UI changes"
+    </placeholder>
+    <placeholder name="[DOCUMENTATION_UPDATES_CONTENT]">
+      Check appropriate box:
+      - "- [x] No documentation updates are required." OR
+      - "- [x] Yes, documentation updates are required. [describe updates]"
+    </placeholder>
+    <placeholder name="[ADDITIONAL_NOTES_CONTENT]">
+      Any additional context, or remove entire section if not needed
+    </placeholder>
+    <placeholder name="[DISCORD_USERNAME]">User's Discord username for contact</placeholder>
+  </template_placeholders>
+
+  <file_locations>
+    <file>
+      <name>pr_summary.json</name>
+      <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json</path>
+      <purpose>Structured data for programmatic PR creation</purpose>
+    </file>
+    <file>
+      <name>pr_message.md</name>
+      <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md</path>
+      <purpose>Human-readable format for manual PR creation</purpose>
+    </file>
+  </file_locations>
+
+  <usage_guidelines>
+    <guideline>
+      Always save both formats when preparing a PR to give users flexibility
+      in how they create the pull request.
+    </guideline>
+    <guideline>
+      The pr_message.md file should be self-contained and ready to copy/paste
+      without any additional formatting needed.
+    </guideline>
+    <guideline>
+      Include all sections in the template, maintaining the exact format
+      and HTML comments as shown.
+    </guideline>
+    <guideline>
+      Pre-check all checklist items that can be verified programmatically.
+      Leave documentation checkbox unchecked for user to decide.
+    </guideline>
+    <guideline>
+      For sections that don't apply, use appropriate placeholder text
+      rather than removing the section entirely.
+    </guideline>
+  </usage_guidelines>
+
+  <translation_handling>
+    <note>
+      If translations were added during the issue fix, include details in the
+      Description section about which languages were updated.
+    </note>
+  </translation_handling>
+</pr_template_format>

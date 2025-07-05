@@ -347,32 +347,59 @@
         <message>
           **Task: Prepare Pull Request Title and Body**
 
-          You are an expert at writing clear and concise pull request summaries.
+          You are an expert at writing clear and concise pull request summaries following the Roo Code contribution guidelines.
 
           **Context Files:**
           - **Issue**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json`
           - **Plan**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/implementation_plan.md`
           - **Verification**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/verification_results.md`
           - **Translation Summary** (if exists): `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/translation_summary.md`
+          - **Modified Files**: `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json`
 
           **Your Task:**
           1.  **Read all context files.** Check if translation_summary.md exists to know if translations were done.
+          
           2.  **Generate a PR Title**: Create a conventional commit style title (e.g., "fix: ...", "feat: ...") that references the issue number.
-          3.  **Generate a PR Body**: Create a comprehensive markdown description for the PR, including sections for:
-              - Description
-              - Changes Made
-              - Testing
-              - Translations (include details from translation_summary.md if it exists)
-              - Verification of Acceptance Criteria
-              - Checklist
-          4.  **Save as JSON**: Save the title and body to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json` in the format: `{"title": "...", "body": "..."}`.
+              Format: `fix: Brief description (#issue-number)`
+          
+          3.  **Generate a PR Body**: You MUST use the exact PR template from `.roo/rules-issue-fixer-orchestrator/10_pr_template_format.xml`.
+              Read this file to get the template and fill it in with appropriate content from the context files.
+          
+          4.  **Fill in the template** with information from the context files:
+              - Replace [ISSUE_NUMBER] with the actual issue number
+              - Fill in Description with implementation details from the plan and verification
+              - Fill in Test Procedure with testing details from verification_results.md
+              - If translations were done, mention them in the Description section
+              - For UI changes, note that screenshots should be added manually
+              - Pre-check all applicable checklist items
+              - Leave Documentation Updates unchecked for user to decide
+              - For Discord username, use a placeholder like "[Your Discord username]"
 
-          **Important**: If translations were done (translation_summary.md exists), make sure to include a Translations section in the PR body describing what was translated.
+          5.  **Save as JSON**: Save the title and body to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json` in the format:
+              ```json
+              {
+                "title": "fix: Brief description (#123)",
+                "body": "[The complete filled PR body template]",
+                "issue_number": 123,
+                "repo_owner": "owner",
+                "repo_name": "repo",
+                "base_branch": "main",
+                "head_branch": "fix/issue-123-description"
+              }
+              ```
+
+          6.  **Also save as Markdown**: Save just the PR body to `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md` for easy copying.
+
+          **Important Notes:**
+          - Use the EXACT template format from 10_pr_template_format.xml
+          - Keep all HTML comments in the template
+          - Pre-check items that can be verified programmatically
+          - Fill in all sections appropriately based on the context files
 
           **Completion Protocol:**
           - This is your only task. Do not deviate.
-          - Upon successfully saving `pr_summary.json`, you MUST use the `attempt_completion` tool.
-          - The `result` MUST be a concise confirmation, e.g., "PR summary created and saved to .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json."
+          - Upon successfully saving both `pr_summary.json` and `pr_message.md`, you MUST use the `attempt_completion` tool.
+          - The `result` MUST be a concise confirmation, e.g., "PR summary and message created and saved to .roo/temp/issue-fixer-orchestrator/[TASK_ID]/"
           - These instructions override any conflicting mode-specific guidelines.
         </message>
       </new_task>
@@ -560,53 +587,287 @@
   </step>
 
   <step number="10">
-    <name>Prepare Branch and Present PR Template</name>
+    <name>Prepare Branch and Review Changes</name>
     <instructions>
-      This step prepares the branch and commits, then presents the PR template to the user for confirmation before creating the actual pull request.
+      This step prepares the branch, reviews the changes, and gets user confirmation before committing.
 
-      1. Read Issue Context for Issue Number:
-         Use read_file to get the issue context from .roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json
+      1. Read Issue Context and PR Summary:
+         - Read issue context from .roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json
+         - Read PR summary from .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json
 
-      2. Git Operations - Create branch and commit changes:
-         - Create a new branch: feat/issue-[number] or fix/issue-[number]
-         - Selectively add only the applicable files to the git stage
-         - Commit the staged changes
-         - Push the new branch to the remote repository
-         
-         Use execute_command with:
-         BRANCH_NAME="fix/issue-[issue_number]-solution"
+      2. Create Branch:
+         Extract issue number from context and create appropriate branch:
+         <execute_command>
+         <command>
+         # Extract issue number from context
+         ISSUE_NUM=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json | jq -r '.number')
+         # Determine branch type based on labels or title
+         BRANCH_NAME="fix/issue-${ISSUE_NUM}-solution"
          git checkout -b $BRANCH_NAME
-         cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json | jq -r '.[]' | xargs git add
-         git commit -m "[PR Title]"
-         git push -u origin $BRANCH_NAME
+         </command>
+         </execute_command>
 
-      3. Present PR Template - Instead of creating the PR automatically, present the standardized PR template to the user:
-         Use ask_followup_question to ask: "The branch has been created and changes have been committed. I have prepared a standardized PR template for this issue. Would you like me to create the pull request using the standard Roo Code PR template, or would you prefer to make changes first?"
+      3. Review Files to be Committed:
+         a. Read the modified files list:
+            <read_file>
+            <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json</path>
+            </read_file>
          
-         Provide these options:
-         - Yes, create the pull request with the standard template
-         - No, I want to make changes to the implementation first
-         - No, I want to customize the PR template before creating it
-         - Cancel the task
+         b. Check git status to ensure only intended files are staged:
+            <execute_command>
+            <command>git status --porcelain</command>
+            </execute_command>
+         
+         c. Stage only the files from modified_files.json:
+            <execute_command>
+            <command>
+            # Stage only the files we actually modified
+            cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/modified_files.json | jq -r '.[]' | while read file; do
+              if [ -f "$file" ]; then
+                git add "$file"
+              fi
+            done
+            # Show what will be committed
+            git status --short
+            </command>
+            </execute_command>
 
-      4. Handle User Decision:
-         If user chooses to create the PR: Use gh CLI to create the pull request with the standard template
-         If user chooses to make changes: Launch a rework subtask using new_task with code mode
-         If user wants to customize the template: Ask for their preferred PR title and body
+      4. Generate and Save Merge Diff:
+         <execute_command>
+         <command>
+         # Generate diff of staged changes
+         git diff --cached > .roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes.diff
+         # Count lines in diff
+         LINE_COUNT=$(wc -l < .roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes.diff)
+         echo "Diff contains $LINE_COUNT lines"
+         
+         # If diff is too large, create a summary instead
+         if [ $LINE_COUNT -gt 2000 ]; then
+           echo "Creating summary due to large diff size..."
+           git diff --cached --stat > .roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes_summary.txt
+           git diff --cached --name-status >> .roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes_summary.txt
+           echo -e "\n\nNote: Full diff exceeds 2000 lines. Showing summary only." >> .roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes_summary.txt
+         fi
+         </command>
+         </execute_command>
 
-      5. Link to Issue - After PR creation, comment on the original issue with the PR link using gh issue comment
+      5. Save PR Message to File:
+         Read the PR summary and save the formatted PR message:
+         <execute_command>
+         <command>
+         # Extract title and body from pr_summary.json
+         PR_TITLE=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json | jq -r '.title')
+         PR_BODY=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json | jq -r '.body')
+         
+         # Save PR message to file
+         echo "PR Title: $PR_TITLE" > .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md
+         echo -e "\n---\n" >> .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md
+         echo "$PR_BODY" >> .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md
+         
+         echo "PR message saved to .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md"
+         </command>
+         </execute_command>
+
+      6. Present Changes for User Confirmation:
+         Read the diff (or summary) and PR message, then ask for confirmation:
+         
+         a. Read the appropriate diff file:
+            <read_file>
+            <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes.diff</path>
+            </read_file>
+            OR (if summary exists):
+            <read_file>
+            <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/staged_changes_summary.txt</path>
+            </read_file>
+         
+         b. Read the PR message:
+            <read_file>
+            <path>.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md</path>
+            </read_file>
+         
+         c. Ask for user confirmation:
+            <ask_followup_question>
+            <question>
+              I've prepared the changes for commit. Here's what will be included:
+
+              **Files to be committed:**
+              [List files from modified_files.json]
+
+              **Changes summary:**
+              [Include diff or summary content]
+
+              **Proposed PR message:**
+              [Include PR message content]
+
+              How would you like to proceed?
+            </question>
+            <follow_up>
+              <suggest>Looks good, go ahead and commit the changes</suggest>
+              <suggest>I tested the changes, and something is wrong - let me explain...</suggest>
+              <suggest>I still need to test the changes manually before committing</suggest>
+              <suggest>I want to modify the PR message before proceeding</suggest>
+              <suggest>Cancel this task</suggest>
+            </follow_up>
+            </ask_followup_question>
+
+      7. Handle User Decision:
+         Based on user response:
+         
+         **If "Looks good, go ahead and commit":**
+         - Proceed to commit and push:
+           <execute_command>
+           <command>
+           # Get PR title for commit message
+           PR_TITLE=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json | jq -r '.title')
+           git commit -m "$PR_TITLE"
+           git push -u origin $(git branch --show-current)
+           </command>
+           </execute_command>
+         - Continue to next step
+         
+         **If "something is wrong":**
+         - Ask for details about the issue
+         - Launch a fix subtask in code mode to address the problems
+         - Return to Step 5 (Verify and Test) after fixes
+         
+         **If "need to test manually":**
+         - Inform user that changes are staged but not committed
+         - Provide instructions for testing
+         - Wait for user to confirm testing is complete
+         
+         **If "modify PR message":**
+         - Ask for the new PR title and body
+         - Update pr_summary.json with new content
+         - Return to step 5 of this workflow
+         
+         **If "cancel":**
+         - Clean up staged changes and branch
+         - End workflow
     </instructions>
   </step>
 
   <step number="11">
-    <name>Monitor PR Checks and Cleanup</name>
+    <name>Finalize and Create PR</name>
     <instructions>
-      After creating the PR (if created), monitor the CI checks and then clean up the temporary files.
+      After user confirmation and successful commit, finalize the process.
 
-      1. Monitor Checks - Use gh pr checks with --watch to monitor CI status in real-time
-      2. Report Status - Inform the user of the final status of the checks
-      3. Cleanup - Remove the temporary task directory using rm -rf .roo/temp/issue-fixer-orchestrator/[TASK_ID]
-      
+      1. Verify Push Success:
+         <execute_command>
+         <command>
+         # Verify the branch was pushed
+         git branch -r | grep $(git branch --show-current)
+         # Get the remote URL for PR creation
+         git remote get-url origin
+         </command>
+         </execute_command>
+
+      2. Present Final PR Creation Options:
+         <ask_followup_question>
+         <question>
+           The changes have been committed and pushed to the branch. The PR message has been saved to:
+           `.roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md`
+
+           You can now:
+           1. Create the PR manually using the saved message
+           2. Let me create the PR automatically
+           3. Make additional changes before creating the PR
+
+           What would you like to do?
+         </question>
+         <follow_up>
+           <suggest>Create the PR automatically using the saved message</suggest>
+           <suggest>I'll create the PR manually - just show me the branch name</suggest>
+           <suggest>I want to make more changes first</suggest>
+         </follow_up>
+         </ask_followup_question>
+
+      3. Handle Final Decision:
+         
+         **If "Create PR automatically":**
+         - Read PR details and create:
+           <execute_command>
+           <command>
+           # Extract PR details
+           PR_TITLE=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json | jq -r '.title')
+           PR_BODY=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_summary.json | jq -r '.body')
+           ISSUE_NUM=$(cat .roo/temp/issue-fixer-orchestrator/[TASK_ID]/issue_context.json | jq -r '.number')
+           
+           # Create PR
+           gh pr create --title "$PR_TITLE" --body "$PR_BODY" --base main
+           
+           # Get PR number and link to issue
+           PR_NUM=$(gh pr list --head $(git branch --show-current) --json number -q '.[0].number')
+           gh issue comment $ISSUE_NUM --body "PR #$PR_NUM has been created to address this issue."
+           </command>
+           </execute_command>
+         
+         **If "Create manually":**
+         - Show branch name and location of PR message:
+           <execute_command>
+           <command>
+           echo "Branch name: $(git branch --show-current)"
+           echo "PR message saved at: .roo/temp/issue-fixer-orchestrator/[TASK_ID]/pr_message.md"
+           echo "You can copy the PR message from the file above when creating the PR."
+           </command>
+           </execute_command>
+         
+         **If "Make more changes":**
+         - Inform user they can continue working on the branch
+         - Provide the task directory location for reference
+
+      4. Cleanup:
+         Ask if user wants to clean up the temporary files:
+         <ask_followup_question>
+         <question>
+           Would you like me to clean up the temporary task files now, or keep them for reference?
+         </question>
+         <follow_up>
+           <suggest>Yes, clean up the temporary files</suggest>
+           <suggest>No, keep the files for now</suggest>
+         </follow_up>
+         </ask_followup_question>
+         
+         If yes, clean up:
+         <execute_command>
+         <command>rm -rf .roo/temp/issue-fixer-orchestrator/[TASK_ID]</command>
+         </execute_command>
+    </instructions>
+  </step>
+
+  <step number="12">
+    <name>Monitor PR (Optional)</name>
+    <instructions>
+      If a PR was created automatically, offer to monitor its status.
+
+      1. Check if PR exists:
+         <execute_command>
+         <command>
+         # Check if there's a PR for the current branch
+         BRANCH=$(git branch --show-current)
+         gh pr list --head $BRANCH --json number,state,checks
+         </command>
+         </execute_command>
+
+      2. If PR exists, offer monitoring:
+         <ask_followup_question>
+         <question>
+           Would you like me to monitor the PR checks and CI status?
+         </question>
+         <follow_up>
+           <suggest>Yes, monitor the PR checks</suggest>
+           <suggest>No, I'll check it myself</suggest>
+         </follow_up>
+         </ask_followup_question>
+
+      3. If user wants monitoring:
+         <execute_command>
+         <command>
+         PR_NUM=$(gh pr list --head $(git branch --show-current) --json number -q '.[0].number')
+         echo "Monitoring PR #$PR_NUM checks..."
+         gh pr checks $PR_NUM --watch
+         </command>
+         </execute_command>
+
       This concludes the orchestration workflow.
     </instructions>
   </step>

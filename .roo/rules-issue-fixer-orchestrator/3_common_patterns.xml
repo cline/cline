@@ -18,4 +18,21 @@
     7. Add comprehensive tests
     8. Update documentation
   </feature_implementation_pattern>
+  
+  <commit_and_pr_pattern>
+    1. Review git status to identify all changes
+    2. Stage only files from modified_files.json
+    3. Generate diff for review (full or summary based on size)
+    4. Create PR message and save to temp directory
+    5. Present changes to user for confirmation
+    6. Handle user response:
+       - If approved: commit and proceed to PR options
+       - If issues found: return to implementation
+       - If manual testing needed: wait for user
+    7. After commit, offer PR creation options:
+       - Create PR automatically
+       - Save PR message for manual creation
+       - Skip PR creation
+    8. Optionally monitor PR and offer cleanup
+  </commit_and_pr_pattern>
 </common_patterns>

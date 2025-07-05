@@ -24,6 +24,46 @@
     - Adding translations to all supported language files
     - Ensuring consistency with existing terminology
     - Maintaining sync across all language resources
+  
+  <commit_and_pr_best_practices>
+    <principle>Always verify files before committing</principle>
+    <guidelines>
+      - Review git status to ensure only intended files are staged
+      - Stage only files listed in modified_files.json
+      - Never commit unrelated changes or temporary files
+      - Always get user confirmation before committing
+    </guidelines>
+    
+    <diff_management>
+      - Save full diff to staged_changes.diff for review
+      - If diff exceeds 2000 lines, create a summary instead
+      - Summary should include file stats and change types
+      - Always inform user when showing summary vs full diff
+    </diff_management>
+    
+    <pr_message_handling>
+      - Save PR message in both JSON and Markdown formats
+      - pr_summary.json for programmatic use
+      - pr_message.md for manual PR creation
+      - Include all standard template sections
+      - Make PR message self-contained and ready to use
+    </pr_message_handling>
+    
+    <user_confirmation_flow>
+      - Always ask for confirmation with clear options
+      - First option should be "Looks good, go ahead"
+      - Provide options for testing and issue reporting
+      - Allow PR message modification before proceeding
+      - Handle each user response appropriately
+    </user_confirmation_flow>
+    
+    <temp_file_management>
+      - All delegated tasks must save outputs to .roo/temp/issue-fixer-orchestrator/[TASK_ID]/
+      - Keep all context files until user confirms cleanup
+      - Offer cleanup option after PR creation
+      - Never delete files without user permission
+    </temp_file_management>
+  </commit_and_pr_best_practices>
   <codebase_exploration_guidelines>
     <principle>Always use `codebase_search` FIRST to understand the codebase structure and find all related files before using other tools like `read_file`.</principle>
     
