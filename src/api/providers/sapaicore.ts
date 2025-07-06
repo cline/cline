@@ -422,7 +422,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received GPT data:", data)
 
 							if (data.choices && data.choices.length > 0) {
 								const choice = data.choices[0]
@@ -446,7 +445,7 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 
-							if (data.choices && data.choices[0].finish_reason === "stop") {
+							if (data.choices?.[0]?.finish_reason === "stop") {
 								// Final usage yield, if not already provided
 								if (!data.usage) {
 									yield {
