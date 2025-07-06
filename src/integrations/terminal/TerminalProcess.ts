@@ -35,7 +35,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		try {
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
-				const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+				const fallbackMessage = `[Shell integration may have missed output - showing terminal contents]\n\n${terminalSnapshot}`
 				this.emit("line", fallbackMessage)
 			}
 		} catch (error) {
@@ -269,13 +269,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	private removeCommandEcho(data: string, command: string, streamState: any): string {
 		// first few chunks could be the command being echoed back, so we must ignore
-		// note this means that 'echo' commands won't work
+		// note this means that 'echo' commands won't work properly
 		const lines = data.split("\n")
 		for (let i = 0; i < lines.length; i++) {
-			if (command.includes(lines[i].trim())) {
+			const trimmedLine = lines[i].trim()
+			// Check if the line is the command being echoed back
+			if (trimmedLine && trimmedLine === command.trim()) {
 				lines.splice(i, 1)
 				i-- // Adjust index after removal
-			} else {
+			} else if (trimmedLine) {
+				// We've hit actual output, not just the command echo
 				streamState.didOutputNonCommand = true
 				break
 			}
