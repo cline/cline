@@ -167,12 +167,12 @@
 			},
 			{
 				"command": "cline.addToChat",
-				"title": "Add to Cline",
+				"title": "Add selected to Cline",
 				"category": "Cline"
 			},
 			{
 				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
+				"title": "Add selected to Cline",
 				"category": "Cline"
 			},
 			{

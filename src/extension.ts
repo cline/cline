@@ -465,11 +465,11 @@ export async function activate(context: vscode.ExtensionContext) {
 						)
 					}
 
-					// Add to Cline (Always available)
-					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
+					// Add selected to Cline (Always available)
+					const addAction = new vscode.CodeAction("Add selected to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
 						command: "cline.addToChat",
-						title: "Add to Cline",
+						title: "Add selected to Cline",
 						arguments: [expandedRange, context.diagnostics],
 					}
 					actions.push(addAction)

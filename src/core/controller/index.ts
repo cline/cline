@@ -669,7 +669,7 @@ export class Controller {
 		return "@/" + relativePath
 	}
 
-	// 'Add to Cline' context menu in editor and code action
+	// 'Add selected to Cline' context menu in editor and code action
 	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
@@ -689,7 +689,7 @@ export class Controller {
 		console.log("addSelectedCodeToChat", code, filePath, languageId)
 	}
 
-	// 'Add to Cline' context menu in Terminal
+	// 'Add selected to Cline' context menu in Terminal
 	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
