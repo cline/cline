@@ -283,7 +283,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received data:", data)
 							if (data.type === "message_start") {
 								usage.input_tokens = data.message.usage.input_tokens
 								yield {
@@ -346,7 +345,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						try {
 							// Parse the incoming JSON data from the stream
 							const data = JSON.parse(toStrictJson(jsonData))
-							console.log("Received data:", data)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
