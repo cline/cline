@@ -7,26 +7,37 @@ import { ApiStream } from "@api/transform/stream"
 
 export class CerebrasHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: Cerebras
+	private client: Cerebras | undefined
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+	}
 
-		// Clean and validate the API key
-		const cleanApiKey = this.options.cerebrasApiKey?.trim()
+	private ensureClient(): Cerebras {
+		if (!this.client) {
+			// Clean and validate the API key
+			const cleanApiKey = this.options.cerebrasApiKey?.trim()
 
-		if (!cleanApiKey) {
-			throw new Error("Cerebras API key is required")
+			if (!cleanApiKey) {
+				throw new Error("Cerebras API key is required")
+			}
+
+			try {
+				this.client = new Cerebras({
+					apiKey: cleanApiKey,
+					timeout: 30000, // 30 second timeout
+				})
+			} catch (error) {
+				throw new Error(`Error creating Cerebras client: ${error.message}`)
+			}
 		}
-
-		this.client = new Cerebras({
-			apiKey: cleanApiKey,
-			timeout: 30000, // 30 second timeout
-		})
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
+
 		// Convert Anthropic messages to Cerebras format
 		const cerebrasMessages: Array<{
 			role: "system" | "user" | "assistant"
@@ -81,7 +92,7 @@ export class CerebrasHandler implements ApiHandler {
 		}
 
 		try {
-			const stream = await this.client.chat.completions.create({
+			const stream = await client.chat.completions.create({
 				model: this.getModel().id,
 				messages: cerebrasMessages,
 				temperature: 0,

@@ -8,18 +8,32 @@ import { ApiStream } from "../transform/stream"
 
 export class MistralHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: Mistral
+	private client: Mistral | undefined
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new Mistral({
-			apiKey: this.options.mistralApiKey,
-		})
+	}
+
+	private ensureClient(): Mistral {
+		if (!this.client) {
+			if (!this.options.mistralApiKey) {
+				throw new Error("Mistral API key is required")
+			}
+			try {
+				this.client = new Mistral({
+					apiKey: this.options.mistralApiKey,
+				})
+			} catch (error) {
+				throw new Error(`Error creating Mistral client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const stream = await this.client.chat
+		const client = this.ensureClient()
+		const stream = await client.chat
 			.stream({
 				model: this.getModel().id,
 				// max_completion_tokens: this.getModel().info.maxTokens,

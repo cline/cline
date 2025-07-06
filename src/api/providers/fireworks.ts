@@ -15,18 +15,32 @@ import { ApiStream } from "../transform/stream"
 
 export class FireworksHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: OpenAI
+	private client: OpenAI | undefined
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.fireworks.ai/inference/v1",
-			apiKey: this.options.fireworksApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.fireworksApiKey) {
+				throw new Error("Fireworks API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.fireworks.ai/inference/v1",
+					apiKey: this.options.fireworksApiKey,
+				})
+			} catch (error) {
+				throw new Error(`Error creating Fireworks client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const modelId = this.options.fireworksModelId ?? ""
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -34,7 +48,7 @@ export class FireworksHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: modelId,
 			...(this.options.fireworksModelMaxCompletionTokens
 				? { max_completion_tokens: this.options.fireworksModelMaxCompletionTokens }

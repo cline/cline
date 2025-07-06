@@ -8,24 +8,37 @@ import { convertToR1Format } from "../transform/r1-format"
 import { nebiusDefaultModelId, nebiusModels, type ModelInfo, type ApiHandlerOptions, type NebiusModelId } from "../../shared/api"
 
 export class NebiusHandler implements ApiHandler {
-	private client: OpenAI
+	private client: OpenAI | undefined
 
-	constructor(private readonly options: ApiHandlerOptions) {
-		this.client = new OpenAI({
-			baseURL: "https://api.studio.nebius.ai/v1",
-			apiKey: this.options.nebiusApiKey,
-		})
+	constructor(private readonly options: ApiHandlerOptions) {}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.nebiusApiKey) {
+				throw new Error("Nebius API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.studio.nebius.ai/v1",
+					apiKey: this.options.nebiusApiKey,
+				})
+			} catch (error) {
+				throw new Error(`Error creating Nebius client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = model.id.includes("DeepSeek-R1")
 			? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 			: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: openAiMessages,
 			temperature: 0,
