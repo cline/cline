@@ -65,6 +65,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											backgroundColor:
 												"color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 30%, transparent)",
 											border: "1px solid color-mix(in srgb, var(--vscode-panel-border) 50%, transparent)",
+											backdropFilter: "blur(8px)",
 										}}
 										onClick={() => handleHistorySelect(item.id)}>
 										{/* Subtle gradient overlay for extra depth */}
@@ -152,6 +153,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								fontSize: "var(--vscode-font-size)",
 								backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 20%, transparent)",
 								border: "1px solid color-mix(in srgb, var(--vscode-panel-border) 30%, transparent)",
+								backdropFilter: "blur(8px)",
 							}}>
 							No recent tasks
 						</div>
