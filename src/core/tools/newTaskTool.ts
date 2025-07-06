@@ -22,7 +22,7 @@ export async function newTaskTool(
 			const partialMessage = JSON.stringify({
 				tool: "newTask",
 				mode: removeClosingTag("mode", mode),
-				message: removeClosingTag("message", message),
+				content: removeClosingTag("message", message),
 			})
 
 			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
