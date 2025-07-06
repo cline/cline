@@ -1,21 +1,29 @@
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { updateSetting } from "../utils/settingsHandlers"
+import { ChatSettings } from "@shared/ChatSettings"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
 
 interface GeneralSettingsSectionProps {
+	chatSettings: ChatSettings
+	setChatSettings: (settings: ChatSettings) => void
+	telemetrySetting: string
+	setTelemetrySetting: (value: TelemetrySetting) => void
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
-const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting } = useExtensionState()
-
+const GeneralSettingsSection = ({
+	chatSettings,
+	setChatSettings,
+	telemetrySetting,
+	setTelemetrySetting,
+	renderSectionHeader,
+}: GeneralSettingsSectionProps) => {
 	return (
 		<div>
 			{renderSectionHeader("general")}
 			<Section>
-				<PreferredLanguageSetting />
+				{chatSettings && <PreferredLanguageSetting chatSettings={chatSettings} setChatSettings={setChatSettings} />}
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
@@ -23,7 +31,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						checked={telemetrySetting !== "disabled"}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
-							updateSetting("telemetrySetting", checked ? "enabled" : "disabled")
+							setTelemetrySetting(checked ? "enabled" : "disabled")
 						}}>
 						Allow anonymous error and usage reporting
 					</VSCodeCheckbox>

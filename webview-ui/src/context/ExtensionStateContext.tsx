@@ -16,6 +16,7 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DictationSettings, DEFAULT_DICTATION_SETTINGS } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
@@ -68,6 +69,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTerminalOutputLineLimit: (value: number) => void
 	setDefaultTerminalProfile: (value: string) => void
 	setChatSettings: (value: ChatSettings) => void
+	setDictationSettings: (value: DictationSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -184,6 +186,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
+		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
@@ -202,7 +205,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalOutputLineLimit: 500,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
-		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -271,19 +273,50 @@ export const ExtensionStateContextProvider: React.FC<{
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
+							// Always preserve chat settings from the current state
+							// This prevents the backend from overwriting user changes
+							const chatSettings = prevState.chatSettings || stateData.chatSettings
+
 							const newState = {
 								...stateData,
+								chatSettings, // Use preserved or incoming chat settings
 								autoApprovalSettings: shouldUpdateAutoApproval
 									? stateData.autoApprovalSettings
 									: prevState.autoApprovalSettings,
 							}
 
 							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
+							const config = stateData.apiConfiguration
+							const hasKey = config
+								? [
+										config.apiKey,
+										config.openRouterApiKey,
+										config.awsRegion,
+										config.vertexProjectId,
+										config.openAiApiKey,
+										config.ollamaModelId,
+										config.lmStudioModelId,
+										config.liteLlmApiKey,
+										config.geminiApiKey,
+										config.openAiNativeApiKey,
+										config.deepSeekApiKey,
+										config.requestyApiKey,
+										config.togetherApiKey,
+										config.qwenApiKey,
+										config.doubaoApiKey,
+										config.mistralApiKey,
+										config.vsCodeLmModelSelector,
+										config.clineApiKey,
+										config.asksageApiKey,
+										config.xaiApiKey,
+										config.sambanovaApiKey,
+										config.sapAiCoreClientId,
+									].some((key) => key !== undefined)
+								: false
+
+							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
-
 							console.log("[DEBUG] returning new state in ESC")
-
 							return newState
 						})
 					} catch (error) {
@@ -816,6 +849,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				browserSettings: value,
+			})),
+		setDictationSettings: (value: DictationSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				dictationSettings: value,
 			})),
 	}
 

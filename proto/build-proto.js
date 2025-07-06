@@ -36,8 +36,25 @@ const TS_PROTO_OPTIONS = [
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
 
-// Service directories derived from imported serviceNameMap
-const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
+// List of gRPC services
+// To add a new service, simply add it to this map and run this script
+// The service handler will be automatically discovered and used by grpc-handler.ts
+const serviceNameMap = {
+	account: "cline.AccountService",
+	browser: "cline.BrowserService",
+	checkpoints: "cline.CheckpointsService",
+	file: "cline.FileService",
+	mcp: "cline.McpService",
+	state: "cline.StateService",
+	task: "cline.TaskService",
+	web: "cline.WebService",
+	models: "cline.ModelsService",
+	slash: "cline.SlashService",
+	ui: "cline.UiService",
+	voice: "cline.VoiceService",
+	// Add new services here - no other code changes needed!
+}
+const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
 
 // Host service directories derived from imported hostServiceNameMap
 const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>

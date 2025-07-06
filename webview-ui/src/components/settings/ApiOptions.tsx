@@ -77,7 +77,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
-
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
@@ -154,108 +153,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
-
-			{apiConfiguration && selectedProvider === "cline" && (
-				<ClineProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider showModelOptions={showModelOptions} isPopup={isPopup} uriScheme={uriScheme} />
-			)}
-
-			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider />}
-
-			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
 
 			{apiErrorMessage && (
 				<p

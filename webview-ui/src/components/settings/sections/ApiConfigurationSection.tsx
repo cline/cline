@@ -2,22 +2,30 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
 import Section from "../Section"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest } from "@shared/proto/state"
+
+import { ChatSettings } from "@shared/ChatSettings"
 
 interface ApiConfigurationSectionProps {
+	planActSeparateModelsSetting: boolean
+	chatSettings: ChatSettings
 	isSwitchingMode: boolean
+	apiErrorMessage?: string
+	modelIdErrorMessage?: string
 	handlePlanActModeChange: (mode: "plan" | "act") => Promise<void>
+	setPlanActSeparateModelsSetting: (value: boolean) => void
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
 const ApiConfigurationSection = ({
+	planActSeparateModelsSetting,
+	chatSettings,
 	isSwitchingMode,
+	apiErrorMessage,
+	modelIdErrorMessage,
 	handlePlanActModeChange,
+	setPlanActSeparateModelsSetting,
 	renderSectionHeader,
 }: ApiConfigurationSectionProps) => {
-	const { planActSeparateModelsSetting, chatSettings } = useExtensionState()
 	return (
 		<div>
 			{renderSectionHeader("api-config")}
@@ -50,28 +58,30 @@ const ApiConfigurationSection = ({
 
 						{/* Content container */}
 						<div className="-mb-3">
-							<ApiOptions showModelOptions={true} />
+							<ApiOptions
+								key={chatSettings.mode}
+								showModelOptions={true}
+								apiErrorMessage={apiErrorMessage}
+								modelIdErrorMessage={modelIdErrorMessage}
+							/>
 						</div>
 					</div>
 				) : (
-					<ApiOptions showModelOptions={true} />
+					<ApiOptions
+						key={"single"}
+						showModelOptions={true}
+						apiErrorMessage={apiErrorMessage}
+						modelIdErrorMessage={modelIdErrorMessage}
+					/>
 				)}
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
 						className="mb-[5px]"
 						checked={planActSeparateModelsSetting}
-						onChange={async (e: any) => {
+						onChange={(e: any) => {
 							const checked = e.target.checked === true
-							try {
-								await StateServiceClient.updateSettings(
-									UpdateSettingsRequest.create({
-										planActSeparateModelsSetting: checked,
-									}),
-								)
-							} catch (error) {
-								console.error("Failed to update separate models setting:", error)
-							}
+							setPlanActSeparateModelsSetting(checked)
 						}}>
 						Use different models for Plan and Act modes
 					</VSCodeCheckbox>
