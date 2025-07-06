@@ -8,21 +8,35 @@ import { withRetry } from "../retry"
 
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: OpenAI
+	private client: OpenAI | undefined
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
-			apiKey: this.options.liteLlmApiKey || "noop",
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.liteLlmApiKey) {
+				throw new Error("LiteLLM API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
+					apiKey: this.options.liteLlmApiKey || "noop",
+				})
+			} catch (error) {
+				throw new Error(`Error creating LiteLLM client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
+		const client = this.ensureClient()
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
 		try {
-			const response = await fetch(`${this.client.baseURL}/spend/calculate`, {
+			const response = await fetch(`${client.baseURL}/spend/calculate`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -54,6 +68,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
@@ -101,7 +116,7 @@ export class LiteLlmHandler implements ApiHandler {
 			return message
 		})
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
