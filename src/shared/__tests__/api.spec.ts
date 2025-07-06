@@ -66,7 +66,7 @@ describe("getMaxTokensForModel", () => {
 		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBe(8000)
 	})
 
-	it("should return undefined for non-thinking models with undefined maxTokens", () => {
+	it("should return 20% of context window for non-thinking models with undefined maxTokens", () => {
 		const model: ModelInfo = {
 			contextWindow: 200_000,
 			supportsPromptCache: true,
@@ -76,7 +76,8 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4000,
 		}
 
-		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBeUndefined()
+		// Should return 20% of context window when maxTokens is undefined
+		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBe(40000)
 	})
 
 	test("should return maxTokens from modelInfo when thinking is false", () => {

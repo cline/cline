@@ -190,10 +190,8 @@ export const parseOpenRouterModel = ({
 
 	const supportsPromptCache = typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
 
-	const useMaxTokens = OPEN_ROUTER_REASONING_BUDGET_MODELS.has(id) || id.startsWith("anthropic/")
-
 	const modelInfo: ModelInfo = {
-		maxTokens: useMaxTokens ? maxTokens || 0 : 0,
+		maxTokens: maxTokens || Math.ceil(model.context_length * 0.2),
 		contextWindow: model.context_length,
 		supportsImages: modality?.includes("image") ?? false,
 		supportsPromptCache,

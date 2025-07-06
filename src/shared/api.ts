@@ -71,7 +71,9 @@ export const getModelMaxOutputTokens = ({
 		return ANTHROPIC_DEFAULT_MAX_TOKENS
 	}
 
-	return model.maxTokens ?? undefined
+	// If maxTokens is 0 or undefined, fall back to 20% of context window
+	// This matches the sliding window logic
+	return model.maxTokens || Math.ceil(model.contextWindow * 0.2)
 }
 
 // GetModelsOptions
