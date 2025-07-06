@@ -31,20 +31,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// constructor() {
 	// 	super()
 
-	async run(terminal: vscode.Terminal, command: string) {
-		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
-		const emitCurrentTerminalContents = async () => {
-			try {
-				const terminalSnapshot = await getLatestTerminalOutput()
-				if (terminalSnapshot && terminalSnapshot.trim()) {
-					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
-					this.emit("line", fallbackMessage)
-				}
-			} catch (error) {
-				console.error("Error capturing terminal output:", error)
+	private async emitCurrentTerminalContents(): Promise<void> {
+		try {
+			const terminalSnapshot = await getLatestTerminalOutput()
+			if (terminalSnapshot && terminalSnapshot.trim()) {
+				const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+				this.emit("line", fallbackMessage)
 			}
+		} catch (error) {
+			console.error("Error capturing terminal output:", error)
 		}
+	}
 
+	async run(terminal: vscode.Terminal, command: string) {
 		// Clear any existing grace period timer from previous commands
 		if (this.gracePeriodTimer) {
 			clearTimeout(this.gracePeriodTimer)
@@ -89,18 +88,21 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didEmitEmptyLine = false
 			let receivedFirstChunk = false
 
-			// Set up a timeout to emit empty line if no output is received within 3 seconds
-			// This ensures the "proceed while running" button appears even for commands with no/delayed output
-			const firstChunkTimeout = setTimeout(() => {
+			// Set up a 3-second timeout to handle commands with no/delayed output.
+			// This ensures the UI remains responsive by:
+			// 1. Showing the "proceed while running" button after 3 seconds
+			// 2. Capturing current terminal contents in case shell integration missed output
+			// 3. Informing the user that the command is still running
+			const firstChunkTimeout = setTimeout(async () => {
 				if (!receivedFirstChunk && !didEmitEmptyLine) {
 					console.log(`[TerminalProcess] First chunk timeout fired - no output received within 3s for: "${command}"`)
 					this.emit("line", "") // empty line to show proceed button
 					didEmitEmptyLine = true
 
-					// Also emit a message indicating the command might be running without output
-					this.emit("line", "[Command is running but producing no output]")
+					// Capture terminal contents as fallback for shell integration issues
+					await this.emitCurrentTerminalContents()
 				}
-			}, 3000) // 3 second timeout
+			}, 3000)
 
 			for await (let data of stream) {
 				// Clear the timeout since we received output
@@ -252,21 +254,17 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 			}
 
+			// At this point, the stream has ended and we've exited the for await loop.
+			// This happens either because:
+			// 1. We processed all chunks and the command finished, OR
+			// 2. The command finished without producing any chunks
+			// If there's any remaining data in the buffer (partial line without \n), emit it now.
 			this.emitRemainingBufferIfListening()
 
 			// Clean up the first chunk timeout if it's still active
 			if (!receivedFirstChunk) {
 				clearTimeout(firstChunkTimeout)
 				console.log(`[TerminalProcess] WARNING: Stream ended without receiving any chunks for command: "${command}"`)
-
-				// If we never received any chunks and haven't emitted anything yet, emit now
-				if (!didEmitEmptyLine) {
-					console.log(`[TerminalProcess] Emitting fallback empty line for no-output command`)
-					this.emit("line", "") // empty line to show proceed button
-					// this.emit("line", "[Command completed with no output]")
-					await emitCurrentTerminalContents()
-					didEmitEmptyLine = true
-				}
 			}
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
@@ -311,7 +309,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// Ensure we emit at least one line for UI feedback
 				if (!didEmitEmptyLine) {
 					// this.emit("line", "[Command completed silently]")
-					await emitCurrentTerminalContents()
+					await this.emitCurrentTerminalContents()
 				}
 			}
 
@@ -331,23 +329,28 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
-			terminal.sendText(command, true)
-
-			// wait 3 seconds for the command to run
-			await new Promise((resolve) => setTimeout(resolve, 3000))
-
-			// For terminals without shell integration, also try to capture terminal content
-			await emitCurrentTerminalContents()
-			// For terminals without shell integration, we can't know when the command completes
-			// So we'll just emit the continue event after a delay
-			this.emit("completed")
-			this.emit("continue")
-			this.emit("no_shell_integration")
-			// setTimeout(() => {
-			// 	console.log(`Emitting continue after delay for terminal`)
-			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
-			// }, 500) // Adjust this delay as needed
+			this.runWithoutShellIntegration(terminal, command)
 		}
+	}
+
+	private async runWithoutShellIntegration(terminal: vscode.Terminal, command: string) {
+		// Send command to terminal
+		terminal.sendText(command, true)
+
+		// wait 3 seconds for the command to run
+		await new Promise((resolve) => setTimeout(resolve, 3000))
+
+		// For terminals without shell integration, also try to capture terminal content
+		await this.emitCurrentTerminalContents()
+		// For terminals without shell integration, we can't know when the command completes
+		// So we'll just emit the continue event after a delay
+		this.emit("completed")
+		this.emit("continue")
+		this.emit("no_shell_integration")
+		// setTimeout(() => {
+		// 	console.log(`Emitting continue after delay for terminal`)
+		// 	// can't emit completed since we don't if the command actually completed, it could still be running server
+		// }, 500) // Adjust this delay as needed
 	}
 
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
