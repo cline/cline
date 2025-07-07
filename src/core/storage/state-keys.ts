@@ -113,4 +113,9 @@ export type GlobalStateKey =
 	| "previousModeAwsBedrockCustomModelBaseId"
 	| "previousModeSapAiCoreModelId"
 
-export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
+export type LocalStateKey =
+	| "localClineRulesToggles"
+	| "localCursorRulesToggles"
+	| "localWindsurfRulesToggles"
+	| "workflowToggles"
+	| "chatSettings"

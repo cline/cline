@@ -204,7 +204,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
 	const [
-		chatSettings,
+		workspaceChatSettings,
+		currentMode,
 		storedApiProvider,
 		apiModelId,
 		thinkingBudgetTokens,
@@ -235,7 +236,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreModelId,
 		sapAiCoreModelId,
 	] = await Promise.all([
-		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getWorkspaceState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "mode") as Promise<"plan" | "act" | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
@@ -389,7 +391,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: {
 			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			...(workspaceChatSettings || {}), // Spread fetched workspace chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			mode: currentMode || "plan", // Merge mode from global state
 		},
 		userInfo,
 		previousModeApiProvider,
