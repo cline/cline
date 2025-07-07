@@ -4,7 +4,7 @@ import { EmptyRequest, String } from "../../shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
-import { AuthenticationInfo, AuthenticationStatus } from "@/generated/nice-grpc/auth"
+import { AuthState, UserInfo } from "@/shared/proto/account"
 import { getSecret, storeSecret } from "@/core/storage/state"
 
 const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
@@ -129,12 +129,11 @@ export class AuthService {
 		return this._authNonce
 	}
 
-	get status(): AuthenticationStatus {
+	get status(): AuthState {
 		console.log("Auth status:", this._authenticated, this._provider)
 
-		return AuthenticationStatus.create({
-			isAuthenticated: this._authenticated,
-			provider: this._provider ? this._provider.name : null,
+		return AuthState.create({
+			user: this._authenticated && this._user ? this._provider.provider.convertUserData(this._user) : undefined,
 		})
 	}
 
@@ -157,15 +156,14 @@ export class AuthService {
 		this._provider = providerConfig
 	}
 
-	getInfo(): AuthenticationInfo {
+	getInfo(): AuthState {
 		let user = null
 		if (this._user) {
 			user = this._provider.provider.convertUserData(this._user)
 		}
 
-		return AuthenticationInfo.create({
-			isAuthenticated: this._authenticated,
-			user: user,
+		return AuthState.create({
+			user: this._authenticated ? user : undefined,
 		})
 	}
 
@@ -351,7 +349,7 @@ export class AuthService {
 		// Send the event to all active subscribers
 		const promises = Array.from(this._activeAuthStatusUpdateSubscriptions).map(async ([controller, responseStream]) => {
 			try {
-				const authInfo: AuthenticationInfo = this.getInfo()
+				const authInfo: AuthState = this.getInfo()
 
 				console.log("Sending authStatusUpdate event:", authInfo, typeof authInfo)
 
