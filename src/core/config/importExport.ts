@@ -68,6 +68,9 @@ export async function importSettingsFromPath(
 			(globalSettings.customModes ?? []).map((mode) => customModesManager.updateCustomMode(mode.slug, mode)),
 		)
 
+		// OpenAI Compatible settings are now correctly stored in codebaseIndexConfig
+		// They will be imported automatically with the config - no special handling needed
+
 		await providerSettingsManager.import(providerProfiles)
 		await contextProxy.setValues(globalSettings)
 
@@ -161,10 +164,16 @@ export const exportSettings = async ({ providerSettingsManager, contextProxy }: 
 			return
 		}
 
+		// OpenAI Compatible settings are now correctly stored in codebaseIndexConfig
+		// No workaround needed - they will be exported automatically with the config
+
 		const dirname = path.dirname(uri.fsPath)
 		await fs.mkdir(dirname, { recursive: true })
 		await safeWriteJson(uri.fsPath, { providerProfiles, globalSettings })
-	} catch (e) {}
+	} catch (e) {
+		console.error("Failed to export settings:", e)
+		// Don't re-throw - the UI will handle showing error messages
+	}
 }
 
 /**

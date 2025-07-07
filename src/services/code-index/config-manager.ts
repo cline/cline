@@ -62,11 +62,12 @@ export class CodeIndexConfigManager {
 
 		const openAiKey = this.contextProxy?.getSecret("codeIndexOpenAiKey") ?? ""
 		const qdrantApiKey = this.contextProxy?.getSecret("codeIndexQdrantApiKey") ?? ""
-		const openAiCompatibleBaseUrl = this.contextProxy?.getGlobalState("codebaseIndexOpenAiCompatibleBaseUrl") ?? ""
+		// Fix: Read OpenAI Compatible settings from the correct location within codebaseIndexConfig
+		const openAiCompatibleBaseUrl = codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl ?? ""
 		const openAiCompatibleApiKey = this.contextProxy?.getSecret("codebaseIndexOpenAiCompatibleApiKey") ?? ""
-		const openAiCompatibleModelDimension = this.contextProxy?.getGlobalState(
-			"codebaseIndexOpenAiCompatibleModelDimension",
-		) as number | undefined
+		const openAiCompatibleModelDimension = codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension as
+			| number
+			| undefined
 		const geminiApiKey = this.contextProxy?.getSecret("codebaseIndexGeminiApiKey") ?? ""
 
 		// Update instance variables with configuration

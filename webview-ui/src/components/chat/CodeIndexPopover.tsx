@@ -121,9 +121,10 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 					codebaseIndexConfig.codebaseIndexSearchMinScore ?? CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
 				codeIndexOpenAiKey: "",
 				codeIndexQdrantApiKey: "",
-				codebaseIndexOpenAiCompatibleBaseUrl: "",
+				codebaseIndexOpenAiCompatibleBaseUrl: codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl || "",
 				codebaseIndexOpenAiCompatibleApiKey: "",
-				codebaseIndexOpenAiCompatibleModelDimension: undefined,
+				codebaseIndexOpenAiCompatibleModelDimension:
+					codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension || undefined,
 				codebaseIndexGeminiApiKey: "",
 			}
 			setInitialSettings(settings)
