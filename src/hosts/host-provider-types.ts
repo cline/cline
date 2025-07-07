@@ -1,5 +1,4 @@
 import {
-	UriServiceClientInterface,
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
@@ -10,7 +9,6 @@ import {
  * Interface for host bridge client providers
  */
 export interface HostBridgeClientProvider {
-	uriServiceClient: UriServiceClientInterface
 	watchServiceClient: WatchServiceClientInterface
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface

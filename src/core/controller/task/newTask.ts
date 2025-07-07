@@ -1,7 +1,6 @@
 import { Controller } from ".."
 import { Empty } from "../../../shared/proto/common"
 import { NewTaskRequest } from "../../../shared/proto/task"
-import { handleFileServiceRequest } from "../file"
 
 /**
  * Creates a new task with the given text and optional images
