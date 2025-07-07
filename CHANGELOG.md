@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.18.4]
+
+-   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
+-   Fix logging in with Cline account not getting past welcome screen
+
 ## [3.18.3]
 
 -   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)
