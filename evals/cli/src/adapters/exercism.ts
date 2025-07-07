@@ -164,8 +164,8 @@ class JavaTestOutputParser implements TestOutputParser {
 class GenericTestOutputParser implements TestOutputParser {
 	parse(output: string): TestResult {
 		// Look for common patterns
-		const passedMatches = output.match(/PASS|passed|✓|ok/gi) || []
-		const failedMatches = output.match(/FAIL|failed|✗|error/gi) || []
+		const passedMatches = output.match(/PASS|passed|✓|\bok\b/gi) || []
+		const failedMatches = output.match(/FAIL|failed|✗|\berror\b/gi) || []
 		
 		const testsPassed = passedMatches.length
 		const testsFailed = failedMatches.length
