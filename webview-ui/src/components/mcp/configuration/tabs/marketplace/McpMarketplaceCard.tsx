@@ -1,33 +1,22 @@
 import { McpServiceClient } from "@/services/grpc-client"
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/common"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useEvent } from "react-use"
+import { useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
 	installedServers: McpServer[]
+	setError: (error: string | null) => void
 }
 
-const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps) => {
+const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplaceCardProps) => {
 	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
 	const githubLinkRef = useRef<HTMLDivElement>(null)
 	const { onRelinquishControl } = useExtensionState()
-
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message = event.data
-		switch (message.type) {
-			case "mcpDownloadDetails":
-				setIsDownloading(false)
-				break
-		}
-	}, [])
-
-	useEvent("message", handleMessage)
 
 	useEffect(() => {
 		return onRelinquishControl(() => {
@@ -119,10 +108,21 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
 										try {
-											await McpServiceClient.downloadMcp(StringRequest.create({ value: item.mcpId }))
+											const response = await McpServiceClient.downloadMcp(
+												StringRequest.create({ value: item.mcpId }),
+											)
+											if (response.error) {
+												console.error("MCP download failed:", response.error)
+												setError(response.error)
+											} else {
+												console.log("MCP download successful:", response)
+												// Clear any previous errors on success
+												setError(null)
+											}
 										} catch (error) {
-											setIsDownloading(false)
 											console.error("Failed to download MCP:", error)
+										} finally {
+											setIsDownloading(false)
 										}
 									}
 								}}
