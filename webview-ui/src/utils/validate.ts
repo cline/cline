@@ -59,7 +59,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "cline":
-				if (!apiConfiguration.clineApiKey) {
+				if (!apiConfiguration.clineAccountId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
