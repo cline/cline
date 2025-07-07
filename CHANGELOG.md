@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.19.0
+## [3.19.0]
 
--   1842254: Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
--   7ab6189: Fix logging in with cline not getting past welcome screen
+-   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
+-   Fix logging in with Cline account not getting past welcome screen
 
 ## [3.18.3]
 
