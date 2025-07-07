@@ -12,7 +12,9 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { CloudServiceCallbacks } from "./types"
 import type { AuthService } from "./auth"
 import { WebAuthService, StaticTokenAuthService } from "./auth"
-import { SettingsService } from "./SettingsService"
+import type { SettingsService } from "./SettingsService"
+import { CloudSettingsService } from "./CloudSettingsService"
+import { StaticSettingsService } from "./StaticSettingsService"
 import { TelemetryClient } from "./TelemetryClient"
 import { ShareService, TaskNotFoundError } from "./ShareService"
 
@@ -59,13 +61,20 @@ export class CloudService {
 			this.authService.on("logged-out", this.authListener)
 			this.authService.on("user-info", this.authListener)
 
-			this.settingsService = new SettingsService(
-				this.context,
-				this.authService,
-				() => this.callbacks.stateChanged?.(),
-				this.log,
-			)
-			this.settingsService.initialize()
+			// Check for static settings environment variable
+			const staticOrgSettings = process.env.ROO_CODE_CLOUD_ORG_SETTINGS
+			if (staticOrgSettings && staticOrgSettings.length > 0) {
+				this.settingsService = new StaticSettingsService(staticOrgSettings, this.log)
+			} else {
+				const cloudSettingsService = new CloudSettingsService(
+					this.context,
+					this.authService,
+					() => this.callbacks.stateChanged?.(),
+					this.log,
+				)
+				cloudSettingsService.initialize()
+				this.settingsService = cloudSettingsService
+			}
 
 			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
 

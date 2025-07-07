@@ -8,7 +8,7 @@ import { BaseTelemetryClient } from "@roo-code/telemetry"
 
 import { getRooCodeApiUrl } from "./Config"
 import type { AuthService } from "./auth"
-import { SettingsService } from "./SettingsService"
+import type { SettingsService } from "./SettingsService"
 
 export class TelemetryClient extends BaseTelemetryClient {
 	constructor(
