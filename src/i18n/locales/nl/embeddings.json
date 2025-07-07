@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Kon foutinhoud niet lezen",
 		"requestFailed": "Ollama API-verzoek mislukt met status {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Ongeldige responsstructuur van Ollama API: \"embeddings\" array niet gevonden of is geen array.",
-		"embeddingFailed": "Ollama insluiting mislukt: {{message}}"
+		"embeddingFailed": "Ollama insluiting mislukt: {{message}}",
+		"serviceNotRunning": "Ollama-service draait niet op {{baseUrl}}",
+		"serviceUnavailable": "Ollama-service is niet beschikbaar (status: {{status}})",
+		"modelNotFound": "Ollama-model niet gevonden: {{modelId}}",
+		"modelNotEmbeddingCapable": "Ollama-model is niet in staat tot insluiten: {{modelId}}",
+		"hostNotFound": "Ollama-host niet gevonden: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Onbekende fout bij verwerken van bestand {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Kan geen verbinding maken met Qdrant vectordatabase. Zorg ervoor dat Qdrant draait en toegankelijk is op {{qdrantUrl}}. Fout: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Authenticatie mislukt. Controleer je API-sleutel in de instellingen.",
+		"connectionFailed": "Verbinding met de embedder-service mislukt. Controleer je verbindingsinstellingen en zorg ervoor dat de service draait.",
+		"modelNotAvailable": "Het opgegeven model is niet beschikbaar. Controleer je modelconfiguratie.",
+		"configurationError": "Ongeldige embedder-configuratie. Controleer je instellingen.",
+		"serviceUnavailable": "De embedder-service is niet beschikbaar. Zorg ervoor dat deze draait en toegankelijk is.",
+		"invalidEndpoint": "Ongeldig API-eindpunt. Controleer je URL-configuratie.",
+		"invalidEmbedderConfig": "Ongeldige embedder-configuratie. Controleer je instellingen.",
+		"invalidApiKey": "Ongeldige API-sleutel. Controleer je API-sleutelconfiguratie.",
+		"invalidBaseUrl": "Ongeldige basis-URL. Controleer je URL-configuratie.",
+		"invalidModel": "Ongeldig model. Controleer je modelconfiguratie.",
+		"invalidResponse": "Ongeldige reactie van embedder-service. Controleer je configuratie."
 	}
 }

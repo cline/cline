@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Fehlerinhalt konnte nicht gelesen werden",
 		"requestFailed": "Ollama API-Anfrage fehlgeschlagen mit Status {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Ungültige Antwortstruktur von Ollama API: \"embeddings\" Array nicht gefunden oder kein Array.",
-		"embeddingFailed": "Ollama Einbettung fehlgeschlagen: {{message}}"
+		"embeddingFailed": "Ollama Einbettung fehlgeschlagen: {{message}}",
+		"serviceNotRunning": "Ollama-Dienst wird unter {{baseUrl}} nicht ausgeführt",
+		"serviceUnavailable": "Ollama-Dienst ist nicht verfügbar (Status: {{status}})",
+		"modelNotFound": "Ollama-Modell nicht gefunden: {{modelId}}",
+		"modelNotEmbeddingCapable": "Ollama-Modell ist nicht für Einbettungen geeignet: {{modelId}}",
+		"hostNotFound": "Ollama-Host nicht gefunden: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Unbekannter Fehler beim Verarbeiten der Datei {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Verbindung zur Qdrant-Vektordatenbank fehlgeschlagen. Stelle sicher, dass Qdrant läuft und unter {{qdrantUrl}} erreichbar ist. Fehler: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Authentifizierung fehlgeschlagen. Bitte überprüfe deinen API-Schlüssel in den Einstellungen.",
+		"connectionFailed": "Verbindung zum Embedder-Dienst fehlgeschlagen. Bitte überprüfe deine Verbindungseinstellungen und stelle sicher, dass der Dienst läuft.",
+		"modelNotAvailable": "Das angegebene Modell ist nicht verfügbar. Bitte überprüfe deine Modellkonfiguration.",
+		"configurationError": "Ungültige Embedder-Konfiguration. Bitte überprüfe deine Einstellungen.",
+		"serviceUnavailable": "Der Embedder-Dienst ist nicht verfügbar. Bitte stelle sicher, dass er läuft und erreichbar ist.",
+		"invalidEndpoint": "Ungültiger API-Endpunkt. Bitte überprüfe deine URL-Konfiguration.",
+		"invalidEmbedderConfig": "Ungültige Embedder-Konfiguration. Bitte überprüfe deine Einstellungen.",
+		"invalidApiKey": "Ungültiger API-Schlüssel. Bitte überprüfe deine API-Schlüssel-Konfiguration.",
+		"invalidBaseUrl": "Ungültige Basis-URL. Bitte überprüfe deine URL-Konfiguration.",
+		"invalidModel": "Ungültiges Modell. Bitte überprüfe deine Modellkonfiguration.",
+		"invalidResponse": "Ungültige Antwort vom Embedder-Dienst. Bitte überprüfe deine Konfiguration."
 	}
 }

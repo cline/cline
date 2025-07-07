@@ -164,6 +164,31 @@ export class CodeIndexOrchestrator {
 				}
 			}
 
+			// Check for partial failures - if a significant portion of blocks failed
+			const failureRate = (cumulativeBlocksFoundSoFar - cumulativeBlocksIndexed) / cumulativeBlocksFoundSoFar
+			if (batchErrors.length > 0 && failureRate > 0.1) {
+				// More than 10% of blocks failed to index
+				const firstError = batchErrors[0]
+				throw new Error(
+					`Indexing partially failed: Only ${cumulativeBlocksIndexed} of ${cumulativeBlocksFoundSoFar} blocks were indexed. ${firstError.message}`,
+				)
+			}
+
+			// CRITICAL: If there were ANY batch errors and NO blocks were successfully indexed,
+			// this is a complete failure regardless of the failure rate calculation
+			if (batchErrors.length > 0 && cumulativeBlocksIndexed === 0) {
+				const firstError = batchErrors[0]
+				throw new Error(`Indexing failed completely: ${firstError.message}`)
+			}
+
+			// Final sanity check: If we found blocks but indexed none and somehow no errors were reported,
+			// this is still a failure
+			if (cumulativeBlocksFoundSoFar > 0 && cumulativeBlocksIndexed === 0) {
+				throw new Error(
+					"Indexing failed: No code blocks were successfully indexed despite finding files to process. This indicates a critical embedder failure.",
+				)
+			}
+
 			await this._startWatcher()
 
 			this.stateManager.setSystemState("Indexed", "File watcher started.")

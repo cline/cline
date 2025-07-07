@@ -882,4 +882,133 @@ describe("OpenAICompatibleEmbedder", () => {
 			expect(mockCreate).toHaveBeenCalled()
 		})
 	})
+
+	describe("validateConfiguration", () => {
+		let embedder: OpenAICompatibleEmbedder
+		let mockFetch: MockedFunction<typeof fetch>
+
+		beforeEach(() => {
+			vitest.clearAllMocks()
+			// Reset and re-assign the global fetch mock
+			global.fetch = vitest.fn()
+			mockFetch = global.fetch as MockedFunction<typeof fetch>
+		})
+
+		it("should validate successfully with valid configuration and base URL", async () => {
+			embedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+
+			const mockResponse = {
+				data: [{ embedding: [0.1, 0.2, 0.3] }],
+				usage: { prompt_tokens: 2, total_tokens: 2 },
+			}
+			mockEmbeddingsCreate.mockResolvedValue(mockResponse)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(true)
+			expect(result.error).toBeUndefined()
+			expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+				input: ["test"],
+				model: testModelId,
+				encoding_format: "base64",
+			})
+		})
+
+		it("should validate successfully with full endpoint URL", async () => {
+			const fullUrl = "https://api.example.com/v1/embeddings"
+			embedder = new OpenAICompatibleEmbedder(fullUrl, testApiKey, testModelId)
+
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					data: [{ embedding: [0.1, 0.2, 0.3] }],
+					usage: { prompt_tokens: 2, total_tokens: 2 },
+				}),
+				text: async () => "",
+			} as any)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(true)
+			expect(result.error).toBeUndefined()
+			expect(mockFetch).toHaveBeenCalledWith(
+				fullUrl,
+				expect.objectContaining({
+					method: "POST",
+					headers: expect.objectContaining({
+						Authorization: `Bearer ${testApiKey}`,
+					}),
+				}),
+			)
+		})
+
+		it("should fail validation with authentication error", async () => {
+			embedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+
+			const authError = new Error("Invalid API key")
+			;(authError as any).status = 401
+			mockEmbeddingsCreate.mockRejectedValue(authError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.authenticationFailed")
+		})
+
+		it("should fail validation with connection error", async () => {
+			embedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+
+			const connectionError = new Error("ECONNREFUSED")
+			mockEmbeddingsCreate.mockRejectedValue(connectionError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.connectionFailed")
+		})
+
+		it("should fail validation with invalid endpoint for full URL", async () => {
+			const fullUrl = "https://api.example.com/v1/embeddings"
+			embedder = new OpenAICompatibleEmbedder(fullUrl, testApiKey, testModelId)
+
+			mockFetch.mockResolvedValueOnce({
+				ok: false,
+				status: 404,
+				json: async () => ({ error: "Not found" }),
+				text: async () => "Not found",
+			} as any)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.invalidEndpoint")
+		})
+
+		it("should fail validation with rate limit error", async () => {
+			embedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+
+			const rateLimitError = new Error("Rate limit exceeded")
+			;(rateLimitError as any).status = 429
+			mockEmbeddingsCreate.mockRejectedValue(rateLimitError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.serviceUnavailable")
+		})
+
+		it("should fail validation with generic error", async () => {
+			embedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+
+			const genericError = new Error("Unknown error")
+			;(genericError as any).status = 500
+			mockEmbeddingsCreate.mockRejectedValue(genericError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.configurationError")
+		})
+	})
 })

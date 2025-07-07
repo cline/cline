@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "त्रुटि सामग्री पढ़ नहीं सका",
 		"requestFailed": "Ollama API अनुरोध स्थिति {{status}} {{statusText}} के साथ विफल: {{errorBody}}",
 		"invalidResponseStructure": "Ollama API से अमान्य प्रतिक्रिया संरचना: \"embeddings\" सरणी नहीं मिली या सरणी नहीं है।",
-		"embeddingFailed": "Ollama एम्बेडिंग विफल: {{message}}"
+		"embeddingFailed": "Ollama एम्बेडिंग विफल: {{message}}",
+		"serviceNotRunning": "ओलामा सेवा {{baseUrl}} पर नहीं चल रही है",
+		"serviceUnavailable": "ओलामा सेवा अनुपलब्ध है (स्थिति: {{status}})",
+		"modelNotFound": "ओलामा मॉडल नहीं मिला: {{modelId}}",
+		"modelNotEmbeddingCapable": "ओलामा मॉडल एम्बेडिंग में सक्षम नहीं है: {{modelId}}",
+		"hostNotFound": "ओलामा होस्ट नहीं मिला: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "फ़ाइल {{filePath}} प्रसंस्करण में अज्ञात त्रुटि",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Qdrant वेक्टर डेटाबेस से कनेक्ट करने में विफल। कृपया सुनिश्चित करें कि Qdrant चल रहा है और {{qdrantUrl}} पर पहुंच योग्य है। त्रुटि: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "प्रमाणीकरण विफल। कृपया सेटिंग्स में अपनी एपीआई कुंजी जांचें।",
+		"connectionFailed": "एम्बेडर सेवा से कनेक्ट करने में विफल। कृपया अपनी कनेक्शन सेटिंग्स जांचें और सुनिश्चित करें कि सेवा चल रही है।",
+		"modelNotAvailable": "निर्दिष्ट मॉडल उपलब्ध नहीं है। कृपया अपनी मॉडल कॉन्फ़िगरेशन जांचें।",
+		"configurationError": "अमान्य एम्बेडर कॉन्फ़िगरेशन। कृपया अपनी सेटिंग्स की समीक्षा करें।",
+		"serviceUnavailable": "एम्बेडर सेवा उपलब्ध नहीं है। कृपया सुनिश्चित करें कि यह चल रहा है और पहुंच योग्य है।",
+		"invalidEndpoint": "अमान्य एपीआई एंडपॉइंट। कृपया अपनी यूआरएल कॉन्फ़िगरेशन जांचें।",
+		"invalidEmbedderConfig": "अमान्य एम्बेडर कॉन्फ़िगरेशन। कृपया अपनी सेटिंग्स जांचें।",
+		"invalidApiKey": "अमान्य एपीआई कुंजी। कृपया अपनी एपीआई कुंजी कॉन्फ़िगरेशन जांचें।",
+		"invalidBaseUrl": "अमान्य बेस यूआरएल। कृपया अपनी यूआरएल कॉन्फ़िगरेशन जांचें।",
+		"invalidModel": "अमान्य मॉडल। कृपया अपनी मॉडल कॉन्फ़िगरेशन जांचें।",
+		"invalidResponse": "एम्बेडर सेवा से अमान्य प्रतिक्रिया। कृपया अपनी कॉन्फ़िगरेशन जांचें।"
 	}
 }

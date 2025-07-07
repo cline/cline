@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "无法读取错误内容",
 		"requestFailed": "Ollama API 请求失败，状态码 {{status}} {{statusText}}：{{errorBody}}",
 		"invalidResponseStructure": "Ollama API 响应结构无效：未找到 \"embeddings\" 数组或不是数组。",
-		"embeddingFailed": "Ollama 嵌入失败：{{message}}"
+		"embeddingFailed": "Ollama 嵌入失败：{{message}}",
+		"serviceNotRunning": "Ollama 服务未在 {{baseUrl}} 运行",
+		"serviceUnavailable": "Ollama 服务不可用（状态：{{status}}）",
+		"modelNotFound": "未找到 Ollama 模型：{{modelId}}",
+		"modelNotEmbeddingCapable": "Ollama 模型不具备嵌入能力：{{modelId}}",
+		"hostNotFound": "未找到 Ollama 主机：{{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "处理文件 {{filePath}} 时出现未知错误",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "连接 Qdrant 向量数据库失败。请确保 Qdrant 正在运行并可在 {{qdrantUrl}} 访问。错误：{{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "身份验证失败。请在设置中检查您的 API 密钥。",
+		"connectionFailed": "连接嵌入器服务失败。请检查您的连接设置并确保服务正在运行。",
+		"modelNotAvailable": "指定的模型不可用。请检查您的模型配置。",
+		"configurationError": "嵌入器配置无效。请查看您的设置。",
+		"serviceUnavailable": "嵌入器服务不可用。请确保它正在运行且可访问。",
+		"invalidEndpoint": "API 端点无效。请检查您的 URL 配置。",
+		"invalidEmbedderConfig": "嵌入器配置无效。请检查您的设置。",
+		"invalidApiKey": "API 密钥无效。请检查您的 API 密钥配置。",
+		"invalidBaseUrl": "基础 URL 无效。请检查您的 URL 配置。",
+		"invalidModel": "模型无效。请检查您的模型配置。",
+		"invalidResponse": "嵌入服务响应无效。请检查您的配置。"
 	}
 }

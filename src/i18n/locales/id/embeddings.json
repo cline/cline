@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Tidak dapat membaca body error",
 		"requestFailed": "Permintaan API Ollama gagal dengan status {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Struktur respons tidak valid dari API Ollama: array \"embeddings\" tidak ditemukan atau bukan array.",
-		"embeddingFailed": "Embedding Ollama gagal: {{message}}"
+		"embeddingFailed": "Embedding Ollama gagal: {{message}}",
+		"serviceNotRunning": "Layanan Ollama tidak berjalan di {{baseUrl}}",
+		"serviceUnavailable": "Layanan Ollama tidak tersedia (status: {{status}})",
+		"modelNotFound": "Model Ollama tidak ditemukan: {{modelId}}",
+		"modelNotEmbeddingCapable": "Model Ollama tidak mampu melakukan embedding: {{modelId}}",
+		"hostNotFound": "Host Ollama tidak ditemukan: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Error tidak dikenal saat memproses file {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Gagal terhubung ke database vektor Qdrant. Pastikan Qdrant berjalan dan dapat diakses di {{qdrantUrl}}. Error: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Autentikasi gagal. Silakan periksa kunci API Anda di pengaturan.",
+		"connectionFailed": "Gagal terhubung ke layanan embedder. Silakan periksa pengaturan koneksi Anda dan pastikan layanan berjalan.",
+		"modelNotAvailable": "Model yang ditentukan tidak tersedia. Silakan periksa konfigurasi model Anda.",
+		"configurationError": "Konfigurasi embedder tidak valid. Harap tinjau pengaturan Anda.",
+		"serviceUnavailable": "Layanan embedder tidak tersedia. Pastikan layanan tersebut berjalan dan dapat diakses.",
+		"invalidEndpoint": "Endpoint API tidak valid. Silakan periksa konfigurasi URL Anda.",
+		"invalidEmbedderConfig": "Konfigurasi embedder tidak valid. Silakan periksa pengaturan Anda.",
+		"invalidApiKey": "Kunci API tidak valid. Silakan periksa konfigurasi kunci API Anda.",
+		"invalidBaseUrl": "URL dasar tidak valid. Silakan periksa konfigurasi URL Anda.",
+		"invalidModel": "Model tidak valid. Silakan periksa konfigurasi model Anda.",
+		"invalidResponse": "Respons tidak valid dari layanan embedder. Silakan periksa konfigurasi Anda."
 	}
 }

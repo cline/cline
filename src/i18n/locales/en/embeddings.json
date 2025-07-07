@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Could not read error body",
 		"requestFailed": "Ollama API request failed with status {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Invalid response structure from Ollama API: \"embeddings\" array not found or not an array.",
-		"embeddingFailed": "Ollama embedding failed: {{message}}"
+		"embeddingFailed": "Ollama embedding failed: {{message}}",
+		"serviceNotRunning": "Ollama service is not running at {{baseUrl}}",
+		"serviceUnavailable": "Ollama service is unavailable (status: {{status}})",
+		"modelNotFound": "Ollama model not found: {{modelId}}",
+		"modelNotEmbeddingCapable": "Ollama model is not embedding capable: {{modelId}}",
+		"hostNotFound": "Ollama host not found: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Unknown error processing file {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Failed to connect to Qdrant vector database. Please ensure Qdrant is running and accessible at {{qdrantUrl}}. Error: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Authentication failed. Please check your API key in the settings.",
+		"connectionFailed": "Failed to connect to the embedder service. Please check your connection settings and ensure the service is running.",
+		"modelNotAvailable": "The specified model is not available. Please check your model configuration.",
+		"configurationError": "Invalid embedder configuration. Please review your settings.",
+		"serviceUnavailable": "The embedder service is not available. Please ensure it is running and accessible.",
+		"invalidEndpoint": "Invalid API endpoint. Please check your URL configuration.",
+		"invalidEmbedderConfig": "Invalid embedder configuration. Please check your settings.",
+		"invalidApiKey": "Invalid API key. Please check your API key configuration.",
+		"invalidBaseUrl": "Invalid base URL. Please check your URL configuration.",
+		"invalidModel": "Invalid model. Please check your model configuration.",
+		"invalidResponse": "Invalid response from embedder service. Please check your configuration."
 	}
 }

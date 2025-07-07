@@ -464,4 +464,66 @@ describe("OpenAiEmbedder", () => {
 			})
 		})
 	})
+
+	describe("validateConfiguration", () => {
+		it("should validate successfully with valid configuration", async () => {
+			const mockResponse = {
+				data: [{ embedding: [0.1, 0.2, 0.3] }],
+				usage: { prompt_tokens: 2, total_tokens: 2 },
+			}
+			mockEmbeddingsCreate.mockResolvedValue(mockResponse)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(true)
+			expect(result.error).toBeUndefined()
+			expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+				input: ["test"],
+				model: "text-embedding-3-small",
+			})
+		})
+
+		it("should fail validation with authentication error", async () => {
+			const authError = new Error("Invalid API key")
+			;(authError as any).status = 401
+			mockEmbeddingsCreate.mockRejectedValue(authError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.authenticationFailed")
+		})
+
+		it("should fail validation with rate limit error", async () => {
+			const rateLimitError = new Error("Rate limit exceeded")
+			;(rateLimitError as any).status = 429
+			mockEmbeddingsCreate.mockRejectedValue(rateLimitError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.serviceUnavailable")
+		})
+
+		it("should fail validation with connection error", async () => {
+			const connectionError = new Error("ECONNREFUSED")
+			mockEmbeddingsCreate.mockRejectedValue(connectionError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.connectionFailed")
+		})
+
+		it("should fail validation with generic error", async () => {
+			const genericError = new Error("Unknown error")
+			;(genericError as any).status = 500
+			mockEmbeddingsCreate.mockRejectedValue(genericError)
+
+			const result = await embedder.validateConfiguration()
+
+			expect(result.valid).toBe(false)
+			expect(result.error).toBe("embeddings:validation.configurationError")
+		})
+	})
 })

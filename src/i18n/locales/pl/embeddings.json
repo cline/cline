@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Nie można odczytać treści błędu",
 		"requestFailed": "Żądanie API Ollama nie powiodło się ze statusem {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Nieprawidłowa struktura odpowiedzi z API Ollama: tablica \"embeddings\" nie została znaleziona lub nie jest tablicą.",
-		"embeddingFailed": "Osadzenie Ollama nie powiodło się: {{message}}"
+		"embeddingFailed": "Osadzenie Ollama nie powiodło się: {{message}}",
+		"serviceNotRunning": "Usługa Ollama nie jest uruchomiona pod adresem {{baseUrl}}",
+		"serviceUnavailable": "Usługa Ollama jest niedostępna (status: {{status}})",
+		"modelNotFound": "Nie znaleziono modelu Ollama: {{modelId}}",
+		"modelNotEmbeddingCapable": "Model Ollama nie jest zdolny do osadzania: {{modelId}}",
+		"hostNotFound": "Nie znaleziono hosta Ollama: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Nieznany błąd podczas przetwarzania pliku {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Nie udało się połączyć z bazą danych wektorowych Qdrant. Upewnij się, że Qdrant jest uruchomiony i dostępny pod adresem {{qdrantUrl}}. Błąd: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Uwierzytelnianie nie powiodło się. Sprawdź swój klucz API w ustawieniach.",
+		"connectionFailed": "Nie udało się połączyć z usługą embeddera. Sprawdź ustawienia połączenia i upewnij się, że usługa jest uruchomiona.",
+		"modelNotAvailable": "Określony model jest niedostępny. Sprawdź konfigurację modelu.",
+		"configurationError": "Nieprawidłowa konfiguracja embeddera. Sprawdź swoje ustawienia.",
+		"serviceUnavailable": "Usługa embeddera jest niedostępna. Upewnij się, że jest uruchomiona i dostępna.",
+		"invalidEndpoint": "Nieprawidłowy punkt końcowy API. Sprawdź konfigurację adresu URL.",
+		"invalidEmbedderConfig": "Nieprawidłowa konfiguracja embeddera. Sprawdź swoje ustawienia.",
+		"invalidApiKey": "Nieprawidłowy klucz API. Sprawdź konfigurację klucza API.",
+		"invalidBaseUrl": "Nieprawidłowy podstawowy adres URL. Sprawdź konfigurację adresu URL.",
+		"invalidModel": "Nieprawidłowy model. Sprawdź konfigurację modelu.",
+		"invalidResponse": "Nieprawidłowa odpowiedź z usługi embedder. Sprawdź swoją konfigurację."
 	}
 }

@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Impossible de lire le corps de l'erreur",
 		"requestFailed": "Échec de la requête API Ollama avec le statut {{status}} {{statusText}} : {{errorBody}}",
 		"invalidResponseStructure": "Structure de réponse invalide de l'API Ollama : tableau \"embeddings\" non trouvé ou n'est pas un tableau.",
-		"embeddingFailed": "Échec de l'embedding Ollama : {{message}}"
+		"embeddingFailed": "Échec de l'embedding Ollama : {{message}}",
+		"serviceNotRunning": "Le service Ollama n'est pas en cours d'exécution sur {{baseUrl}}",
+		"serviceUnavailable": "Le service Ollama est indisponible (statut : {{status}})",
+		"modelNotFound": "Modèle Ollama introuvable : {{modelId}}",
+		"modelNotEmbeddingCapable": "Le modèle Ollama n'est pas capable d'intégrer : {{modelId}}",
+		"hostNotFound": "Hôte Ollama introuvable : {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Erreur inconnue lors du traitement du fichier {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Échec de la connexion à la base de données vectorielle Qdrant. Veuillez vous assurer que Qdrant fonctionne et est accessible à {{qdrantUrl}}. Erreur : {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Échec de l'authentification. Veuillez vérifier votre clé API dans les paramètres.",
+		"connectionFailed": "Échec de la connexion au service d'embedding. Veuillez vérifier vos paramètres de connexion et vous assurer que le service est en cours d'exécution.",
+		"modelNotAvailable": "Le modèle spécifié n'est pas disponible. Veuillez vérifier la configuration de votre modèle.",
+		"configurationError": "Configuration de l'embedder invalide. Veuillez vérifier vos paramètres.",
+		"serviceUnavailable": "Le service d'embedding n'est pas disponible. Veuillez vous assurer qu'il est en cours d'exécution et accessible.",
+		"invalidEndpoint": "Point de terminaison d'API invalide. Veuillez vérifier votre configuration d'URL.",
+		"invalidEmbedderConfig": "Configuration de l'embedder invalide. Veuillez vérifier vos paramètres.",
+		"invalidApiKey": "Clé API invalide. Veuillez vérifier votre configuration de clé API.",
+		"invalidBaseUrl": "URL de base invalide. Veuillez vérifier votre configuration d'URL.",
+		"invalidModel": "Modèle invalide. Veuillez vérifier votre configuration de modèle.",
+		"invalidResponse": "Réponse invalide du service d'embedder. Veuillez vérifier votre configuration."
 	}
 }

@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "エラー本文を読み取れませんでした",
 		"requestFailed": "Ollama APIリクエストが失敗しました。ステータス {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Ollama APIからの無効な応答構造：\"embeddings\"配列が見つからないか、配列ではありません。",
-		"embeddingFailed": "Ollama埋め込みが失敗しました：{{message}}"
+		"embeddingFailed": "Ollama埋め込みが失敗しました：{{message}}",
+		"serviceNotRunning": "Ollamaサービスは{{baseUrl}}で実行されていません",
+		"serviceUnavailable": "Ollamaサービスは利用できません（ステータス：{{status}}）",
+		"modelNotFound": "Ollamaモデルが見つかりません：{{modelId}}",
+		"modelNotEmbeddingCapable": "Ollamaモデルは埋め込みに対応していません：{{modelId}}",
+		"hostNotFound": "Ollamaホストが見つかりません：{{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "ファイル{{filePath}}の処理中に不明なエラーが発生しました",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Qdrantベクターデータベースへの接続に失敗しました。Qdrantが実行中で{{qdrantUrl}}でアクセス可能であることを確認してください。エラー：{{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "認証に失敗しました。設定でAPIキーを確認してください。",
+		"connectionFailed": "エンベッダーサービスへの接続に失敗しました。接続設定を確認し、サービスが実行されていることを確認してください。",
+		"modelNotAvailable": "指定されたモデルは利用できません。モデル構成を確認してください。",
+		"configurationError": "無効なエンベッダー構成です。設定を確認してください。",
+		"serviceUnavailable": "エンベッダーサービスは利用できません。実行中でアクセス可能であることを確認してください。",
+		"invalidEndpoint": "無効なAPIエンドポイントです。URL構成を確認してください。",
+		"invalidEmbedderConfig": "無効なエンベッダー構成です。設定を確認してください。",
+		"invalidApiKey": "無効なAPIキーです。APIキー構成を確認してください。",
+		"invalidBaseUrl": "無効なベースURLです。URL構成を確認してください。",
+		"invalidModel": "無効なモデルです。モデル構成を確認してください。",
+		"invalidResponse": "エンベッダーサービスからの無効な応答です。設定を確認してください。"
 	}
 }

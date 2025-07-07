@@ -118,7 +118,14 @@ export class CodeIndexManager {
 			return { requiresRestart }
 		}
 
-		// 3. CacheManager Initialization
+		// 3. Check if workspace is available
+		const workspacePath = getWorkspacePath()
+		if (!workspacePath) {
+			this._stateManager.setSystemState("Standby", "No workspace folder open")
+			return { requiresRestart }
+		}
+
+		// 4. CacheManager Initialization
 		if (!this._cacheManager) {
 			this._cacheManager = new CacheManager(this.context, this.workspacePath)
 			await this._cacheManager.initialize()
@@ -215,6 +222,9 @@ export class CodeIndexManager {
 		if (this._orchestrator) {
 			this.stopWatcher()
 		}
+		// Clear existing services to ensure clean state
+		this._orchestrator = undefined
+		this._searchService = undefined
 
 		// (Re)Initialize service factory
 		this._serviceFactory = new CodeIndexServiceFactory(
@@ -224,7 +234,14 @@ export class CodeIndexManager {
 		)
 
 		const ignoreInstance = ignore()
-		const ignorePath = path.join(getWorkspacePath(), ".gitignore")
+		const workspacePath = getWorkspacePath()
+
+		if (!workspacePath) {
+			this._stateManager.setSystemState("Standby", "")
+			return
+		}
+
+		const ignorePath = path.join(workspacePath, ".gitignore")
 		try {
 			const content = await fs.readFile(ignorePath, "utf8")
 			ignoreInstance.add(content)
@@ -240,6 +257,17 @@ export class CodeIndexManager {
 			this._cacheManager!,
 			ignoreInstance,
 		)
+
+		// Validate embedder configuration before proceeding
+		const validationResult = await this._serviceFactory.validateEmbedder(embedder)
+		if (!validationResult.valid) {
+			// Set error state with clear message
+			this._stateManager.setSystemState(
+				"Error",
+				validationResult.error || "Embedder configuration validation failed",
+			)
+			throw new Error(validationResult.error || "Invalid embedder configuration")
+		}
 
 		// (Re)Initialize orchestrator
 		this._orchestrator = new CodeIndexOrchestrator(
@@ -259,6 +287,9 @@ export class CodeIndexManager {
 			embedder,
 			vectorStore,
 		)
+
+		// Clear any error state after successful recreation
+		this._stateManager.setSystemState("Standby", "")
 	}
 
 	/**
@@ -274,13 +305,16 @@ export class CodeIndexManager {
 			const isFeatureEnabled = this.isFeatureEnabled
 			const isFeatureConfigured = this.isFeatureConfigured
 
-			// If configuration changes require a restart and the manager is initialized, restart the service
-			if (requiresRestart && isFeatureEnabled && isFeatureConfigured && this.isInitialized) {
-				// Recreate services with new configuration
-				await this._recreateServices()
-
-				// Start indexing with new services
-				this.startIndexing()
+			if (requiresRestart && isFeatureEnabled && isFeatureConfigured) {
+				try {
+					// Recreate services with new configuration
+					await this._recreateServices()
+				} catch (error) {
+					// Error state already set in _recreateServices
+					console.error("Failed to recreate services:", error)
+					// Re-throw the error so the caller knows validation failed
+					throw error
+				}
 			}
 		}
 	}

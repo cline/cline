@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "No se pudo leer el cuerpo del error",
 		"requestFailed": "La solicitud de la API de Ollama falló con estado {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Estructura de respuesta inválida de la API de Ollama: array \"embeddings\" no encontrado o no es un array.",
-		"embeddingFailed": "Incrustación de Ollama falló: {{message}}"
+		"embeddingFailed": "Incrustación de Ollama falló: {{message}}",
+		"serviceNotRunning": "El servicio Ollama no se está ejecutando en {{baseUrl}}",
+		"serviceUnavailable": "El servicio Ollama no está disponible (estado: {{status}})",
+		"modelNotFound": "No se encuentra el modelo Ollama: {{modelId}}",
+		"modelNotEmbeddingCapable": "El modelo Ollama no es capaz de realizar incrustaciones: {{modelId}}",
+		"hostNotFound": "No se encuentra el host de Ollama: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Error desconocido procesando archivo {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Error al conectar con la base de datos vectorial Qdrant. Asegúrate de que Qdrant esté funcionando y sea accesible en {{qdrantUrl}}. Error: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Error de autenticación. Comprueba tu clave de API en los ajustes.",
+		"connectionFailed": "Error al conectar con el servicio de embedder. Comprueba los ajustes de conexión y asegúrate de que el servicio esté funcionando.",
+		"modelNotAvailable": "El modelo especificado no está disponible. Comprueba la configuración de tu modelo.",
+		"configurationError": "Configuración de embedder no válida. Revisa tus ajustes.",
+		"serviceUnavailable": "El servicio de embedder no está disponible. Asegúrate de que esté funcionando y sea accesible.",
+		"invalidEndpoint": "Punto de conexión de API no válido. Comprueba la configuración de tu URL.",
+		"invalidEmbedderConfig": "Configuración de embedder no válida. Comprueba tus ajustes.",
+		"invalidApiKey": "Clave de API no válida. Comprueba la configuración de tu clave de API.",
+		"invalidBaseUrl": "URL base no válida. Comprueba la configuración de tu URL.",
+		"invalidModel": "Modelo no válido. Comprueba la configuración de tu modelo.",
+		"invalidResponse": "Respuesta no válida del servicio de embedder. Comprueba tu configuración."
 	}
 }

@@ -55,4 +55,54 @@ describe("GeminiEmbedder", () => {
 			expect(GeminiEmbedder.dimension).toBe(768)
 		})
 	})
+
+	describe("validateConfiguration", () => {
+		let mockValidateConfiguration: any
+
+		beforeEach(() => {
+			mockValidateConfiguration = vitest.fn()
+			MockedOpenAICompatibleEmbedder.prototype.validateConfiguration = mockValidateConfiguration
+		})
+
+		it("should delegate validation to OpenAICompatibleEmbedder", async () => {
+			// Arrange
+			embedder = new GeminiEmbedder("test-api-key")
+			mockValidateConfiguration.mockResolvedValue({ valid: true })
+
+			// Act
+			const result = await embedder.validateConfiguration()
+
+			// Assert
+			expect(mockValidateConfiguration).toHaveBeenCalled()
+			expect(result).toEqual({ valid: true })
+		})
+
+		it("should pass through validation errors from OpenAICompatibleEmbedder", async () => {
+			// Arrange
+			embedder = new GeminiEmbedder("test-api-key")
+			mockValidateConfiguration.mockResolvedValue({
+				valid: false,
+				error: "embeddings:validation.authenticationFailed",
+			})
+
+			// Act
+			const result = await embedder.validateConfiguration()
+
+			// Assert
+			expect(mockValidateConfiguration).toHaveBeenCalled()
+			expect(result).toEqual({
+				valid: false,
+				error: "embeddings:validation.authenticationFailed",
+			})
+		})
+
+		it("should handle validation exceptions", async () => {
+			// Arrange
+			embedder = new GeminiEmbedder("test-api-key")
+			mockValidateConfiguration.mockRejectedValue(new Error("Validation failed"))
+
+			// Act & Assert
+			await expect(embedder.validateConfiguration()).rejects.toThrow("Validation failed")
+		})
+	})
 })

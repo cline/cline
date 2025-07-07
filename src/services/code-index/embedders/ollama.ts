@@ -3,6 +3,7 @@ import { EmbedderInfo, EmbeddingResponse, IEmbedder } from "../interfaces"
 import { getModelQueryPrefix } from "../../../shared/embeddingModels"
 import { MAX_ITEM_TOKENS } from "../constants"
 import { t } from "../../../i18n"
+import { withValidationErrorHandling } from "../shared/validation-helpers"
 
 /**
  * Implements the IEmbedder interface using a local Ollama instance.
@@ -99,6 +100,127 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 			// Re-throw a more specific error for the caller
 			throw new Error(t("embeddings:ollama.embeddingFailed", { message: error.message }))
 		}
+	}
+
+	/**
+	 * Validates the Ollama embedder configuration by checking service availability and model existence
+	 * @returns Promise resolving to validation result with success status and optional error message
+	 */
+	async validateConfiguration(): Promise<{ valid: boolean; error?: string }> {
+		return withValidationErrorHandling(
+			async () => {
+				// First check if Ollama service is running by trying to list models
+				const modelsUrl = `${this.baseUrl}/api/tags`
+
+				// Add timeout to prevent indefinite hanging
+				const controller = new AbortController()
+				const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+				const modelsResponse = await fetch(modelsUrl, {
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					signal: controller.signal,
+				})
+				clearTimeout(timeoutId)
+
+				if (!modelsResponse.ok) {
+					if (modelsResponse.status === 404) {
+						return {
+							valid: false,
+							error: t("embeddings:errors.ollama.serviceNotRunning", { baseUrl: this.baseUrl }),
+						}
+					}
+					return {
+						valid: false,
+						error: t("embeddings:errors.ollama.serviceUnavailable", {
+							baseUrl: this.baseUrl,
+							status: modelsResponse.status,
+						}),
+					}
+				}
+
+				// Check if the specific model exists
+				const modelsData = await modelsResponse.json()
+				const models = modelsData.models || []
+
+				// Check both with and without :latest suffix
+				const modelExists = models.some((m: any) => {
+					const modelName = m.name || ""
+					return (
+						modelName === this.defaultModelId ||
+						modelName === `${this.defaultModelId}:latest` ||
+						modelName === this.defaultModelId.replace(":latest", "")
+					)
+				})
+
+				if (!modelExists) {
+					const availableModels = models.map((m: any) => m.name).join(", ")
+					return {
+						valid: false,
+						error: t("embeddings:errors.ollama.modelNotFound", {
+							model: this.defaultModelId,
+							availableModels,
+						}),
+					}
+				}
+
+				// Try a test embedding to ensure the model works for embeddings
+				const testUrl = `${this.baseUrl}/api/embed`
+
+				// Add timeout for test request too
+				const testController = new AbortController()
+				const testTimeoutId = setTimeout(() => testController.abort(), 5000)
+
+				const testResponse = await fetch(testUrl, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						model: this.defaultModelId,
+						input: ["test"],
+					}),
+					signal: testController.signal,
+				})
+				clearTimeout(testTimeoutId)
+
+				if (!testResponse.ok) {
+					return {
+						valid: false,
+						error: t("embeddings:errors.ollama.modelNotEmbedding", { model: this.defaultModelId }),
+					}
+				}
+
+				return { valid: true }
+			},
+			"ollama",
+			{
+				beforeStandardHandling: (error: any) => {
+					// Handle Ollama-specific connection errors
+					if (error?.message === "ECONNREFUSED") {
+						return {
+							valid: false,
+							error: t("embeddings:errors.ollama.connectionTimeout", { baseUrl: this.baseUrl }),
+						}
+					} else if (error?.message === "ENOTFOUND") {
+						return {
+							valid: false,
+							error: t("embeddings:errors.ollama.hostNotFound", { baseUrl: this.baseUrl }),
+						}
+					} else if (error?.name === "AbortError") {
+						// Handle timeout
+						return {
+							valid: false,
+							error: t("embeddings:errors.ollama.connectionTimeout", { baseUrl: this.baseUrl }),
+						}
+					}
+					// Let standard handling take over
+					return undefined
+				},
+			},
+		)
 	}
 
 	get embedderInfo(): EmbedderInfo {

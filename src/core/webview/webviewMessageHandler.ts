@@ -1843,8 +1843,12 @@ export const webviewMessageHandler = async (
 			const settings = message.codeIndexSettings
 
 			try {
-				// Save global state settings atomically (without codebaseIndexEnabled which is now in global settings)
+				// Check if embedder provider has changed
 				const currentConfig = getGlobalState("codebaseIndexConfig") || {}
+				const embedderProviderChanged =
+					currentConfig.codebaseIndexEmbedderProvider !== settings.codebaseIndexEmbedderProvider
+
+				// Save global state settings atomically (without codebaseIndexEnabled which is now in global settings)
 				const globalStateConfig = {
 					...currentConfig,
 					codebaseIndexQdrantUrl: settings.codebaseIndexQdrantUrl,
@@ -1880,23 +1884,7 @@ export const webviewMessageHandler = async (
 					)
 				}
 
-				// Verify secrets are actually stored
-				const storedOpenAiKey = provider.contextProxy.getSecret("codeIndexOpenAiKey")
-
-				// Notify code index manager of changes
-				if (provider.codeIndexManager) {
-					await provider.codeIndexManager.handleSettingsChange()
-
-					// Auto-start indexing if now enabled and configured
-					if (provider.codeIndexManager.isFeatureEnabled && provider.codeIndexManager.isFeatureConfigured) {
-						if (!provider.codeIndexManager.isInitialized) {
-							await provider.codeIndexManager.initialize(provider.contextProxy)
-						}
-						provider.codeIndexManager.startIndexing()
-					}
-				}
-
-				// Send success response
+				// Send success response first - settings are saved regardless of validation
 				await provider.postMessageToWebview({
 					type: "codeIndexSettingsSaved",
 					success: true,
@@ -1905,6 +1893,61 @@ export const webviewMessageHandler = async (
 
 				// Update webview state
 				await provider.postStateToWebview()
+
+				// Then handle validation and initialization
+				if (provider.codeIndexManager) {
+					// If embedder provider changed, perform proactive validation
+					if (embedderProviderChanged) {
+						try {
+							// Force handleSettingsChange which will trigger validation
+							await provider.codeIndexManager.handleSettingsChange()
+						} catch (error) {
+							// Validation failed - the error state is already set by handleSettingsChange
+							provider.log(
+								`Embedder validation failed after provider change: ${error instanceof Error ? error.message : String(error)}`,
+							)
+							// Send validation error to webview
+							await provider.postMessageToWebview({
+								type: "indexingStatusUpdate",
+								values: provider.codeIndexManager.getCurrentStatus(),
+							})
+							// Exit early - don't try to start indexing with invalid configuration
+							break
+						}
+					} else {
+						// No provider change, just handle settings normally
+						try {
+							await provider.codeIndexManager.handleSettingsChange()
+						} catch (error) {
+							// Log but don't fail - settings are saved
+							provider.log(
+								`Settings change handling error: ${error instanceof Error ? error.message : String(error)}`,
+							)
+						}
+					}
+
+					// Wait a bit more to ensure everything is ready
+					await new Promise((resolve) => setTimeout(resolve, 200))
+
+					// Auto-start indexing if now enabled and configured
+					if (provider.codeIndexManager.isFeatureEnabled && provider.codeIndexManager.isFeatureConfigured) {
+						if (!provider.codeIndexManager.isInitialized) {
+							try {
+								await provider.codeIndexManager.initialize(provider.contextProxy)
+								provider.log(`Code index manager initialized after settings save`)
+							} catch (error) {
+								provider.log(
+									`Code index initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+								)
+								// Send error status to webview
+								await provider.postMessageToWebview({
+									type: "indexingStatusUpdate",
+									values: provider.codeIndexManager.getCurrentStatus(),
+								})
+							}
+						}
+					}
+				}
 			} catch (error) {
 				provider.log(`Error saving code index settings: ${error.message || error}`)
 				await provider.postMessageToWebview({

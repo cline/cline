@@ -8,6 +8,7 @@ import {
 } from "../constants"
 import { getDefaultModelId, getModelQueryPrefix } from "../../../shared/embeddingModels"
 import { t } from "../../../i18n"
+import { withValidationErrorHandling, HttpError, formatEmbeddingError } from "../shared/validation-helpers"
 
 interface EmbeddingItem {
 	embedding: string | number[]
@@ -26,12 +27,6 @@ interface OpenAIEmbeddingResponse {
  * OpenAI Compatible implementation of the embedder interface with batching and rate limiting.
  * This embedder allows using any OpenAI-compatible API endpoint by specifying a custom baseURL.
  */
-interface HttpError extends Error {
-	status?: number
-	response?: {
-		status?: number
-	}
-}
 
 export class OpenAICompatibleEmbedder implements IEmbedder {
 	private embeddingsClient: OpenAI
@@ -201,14 +196,31 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 			}),
 		})
 
-		if (!response.ok) {
-			const errorText = await response.text()
-			const error = new Error(`HTTP ${response.status}: ${errorText}`) as HttpError
-			error.status = response.status
+		if (!response || !response.ok) {
+			const status = response?.status || 0
+			let errorText = "No response"
+			try {
+				if (response && typeof response.text === "function") {
+					errorText = await response.text()
+				} else if (response) {
+					errorText = `Error ${status}`
+				}
+			} catch {
+				// Ignore text parsing errors
+				errorText = `Error ${status}`
+			}
+			const error = new Error(`HTTP ${status}: ${errorText}`) as HttpError
+			error.status = status || response?.status || 0
 			throw error
 		}
 
-		return await response.json()
+		try {
+			return await response.json()
+		} catch (e) {
+			const error = new Error(`Failed to parse response JSON`) as HttpError
+			error.status = response.status
+			throw error
+		}
 	}
 
 	/**
@@ -272,11 +284,11 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 					},
 				}
 			} catch (error) {
-				const httpError = error as HttpError
-				const isRateLimitError = httpError?.status === 429
 				const hasMoreAttempts = attempts < MAX_RETRIES - 1
 
-				if (isRateLimitError && hasMoreAttempts) {
+				// Check if it's a rate limit error
+				const httpError = error as HttpError
+				if (httpError?.status === 429 && hasMoreAttempts) {
 					const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempts)
 					console.warn(
 						t("embeddings:rateLimitRetry", {
@@ -292,35 +304,48 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 				// Log the error for debugging
 				console.error(`OpenAI Compatible embedder error (attempt ${attempts + 1}/${MAX_RETRIES}):`, error)
 
-				// Provide more context in the error message using robust error extraction
-				let errorMessage = t("embeddings:unknownError")
-				if (httpError?.message) {
-					errorMessage = httpError.message
-				} else if (typeof error === "string") {
-					errorMessage = error
-				} else if (error && typeof error === "object" && "toString" in error) {
-					try {
-						errorMessage = String(error)
-					} catch {
-						errorMessage = t("embeddings:unknownError")
-					}
-				}
-
-				const statusCode = httpError?.status || httpError?.response?.status
-
-				if (statusCode === 401) {
-					throw new Error(t("embeddings:authenticationFailed"))
-				} else if (statusCode) {
-					throw new Error(
-						t("embeddings:failedWithStatus", { attempts: MAX_RETRIES, statusCode, errorMessage }),
-					)
-				} else {
-					throw new Error(t("embeddings:failedWithError", { attempts: MAX_RETRIES, errorMessage }))
-				}
+				// Format and throw the error
+				throw formatEmbeddingError(error, MAX_RETRIES)
 			}
 		}
 
 		throw new Error(t("embeddings:failedMaxAttempts", { attempts: MAX_RETRIES }))
+	}
+
+	/**
+	 * Validates the OpenAI-compatible embedder configuration by testing endpoint connectivity and API key
+	 * @returns Promise resolving to validation result with success status and optional error message
+	 */
+	async validateConfiguration(): Promise<{ valid: boolean; error?: string }> {
+		return withValidationErrorHandling(async () => {
+			// Test with a minimal embedding request
+			const testTexts = ["test"]
+			const modelToUse = this.defaultModelId
+
+			let response: OpenAIEmbeddingResponse
+
+			if (this.isFullUrl) {
+				// Test direct HTTP request for full endpoint URLs
+				response = await this.makeDirectEmbeddingRequest(this.baseUrl, testTexts, modelToUse)
+			} else {
+				// Test using OpenAI SDK for base URLs
+				response = (await this.embeddingsClient.embeddings.create({
+					input: testTexts,
+					model: modelToUse,
+					encoding_format: "base64",
+				})) as OpenAIEmbeddingResponse
+			}
+
+			// Check if we got a valid response
+			if (!response?.data || response.data.length === 0) {
+				return {
+					valid: false,
+					error: "embeddings:validation.invalidResponse",
+				}
+			}
+
+			return { valid: true }
+		}, "openai-compatible")
 	}
 
 	/**

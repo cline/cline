@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Không thể đọc nội dung lỗi",
 		"requestFailed": "Yêu cầu API Ollama thất bại với trạng thái {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Cấu trúc phản hồi không hợp lệ từ API Ollama: không tìm thấy mảng \"embeddings\" hoặc không phải là mảng.",
-		"embeddingFailed": "Nhúng Ollama thất bại: {{message}}"
+		"embeddingFailed": "Nhúng Ollama thất bại: {{message}}",
+		"serviceNotRunning": "Dịch vụ Ollama không chạy tại {{baseUrl}}",
+		"serviceUnavailable": "Dịch vụ Ollama không khả dụng (trạng thái: {{status}})",
+		"modelNotFound": "Không tìm thấy mô hình Ollama: {{modelId}}",
+		"modelNotEmbeddingCapable": "Mô hình Ollama không có khả năng nhúng: {{modelId}}",
+		"hostNotFound": "Không tìm thấy máy chủ Ollama: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Lỗi không xác định khi xử lý tệp {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Không thể kết nối với cơ sở dữ liệu vector Qdrant. Vui lòng đảm bảo Qdrant đang chạy và có thể truy cập tại {{qdrantUrl}}. Lỗi: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Xác thực không thành công. Vui lòng kiểm tra khóa API của bạn trong cài đặt.",
+		"connectionFailed": "Không thể kết nối với dịch vụ nhúng. Vui lòng kiểm tra cài đặt kết nối của bạn và đảm bảo dịch vụ đang chạy.",
+		"modelNotAvailable": "Mô hình được chỉ định không có sẵn. Vui lòng kiểm tra cấu hình mô hình của bạn.",
+		"configurationError": "Cấu hình nhúng không hợp lệ. Vui lòng xem lại cài đặt của bạn.",
+		"serviceUnavailable": "Dịch vụ nhúng không có sẵn. Vui lòng đảm bảo nó đang chạy và có thể truy cập được.",
+		"invalidEndpoint": "Điểm cuối API không hợp lệ. Vui lòng kiểm tra cấu hình URL của bạn.",
+		"invalidEmbedderConfig": "Cấu hình nhúng không hợp lệ. Vui lòng kiểm tra cài đặt của bạn.",
+		"invalidApiKey": "Khóa API không hợp lệ. Vui lòng kiểm tra cấu hình khóa API của bạn.",
+		"invalidBaseUrl": "URL cơ sở không hợp lệ. Vui lòng kiểm tra cấu hình URL của bạn.",
+		"invalidModel": "Mô hình không hợp lệ. Vui lòng kiểm tra cấu hình mô hình của bạn.",
+		"invalidResponse": "Phản hồi không hợp lệ từ dịch vụ embedder. Vui lòng kiểm tra cấu hình của bạn."
 	}
 }

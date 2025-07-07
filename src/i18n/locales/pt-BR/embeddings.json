@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Não foi possível ler o corpo do erro",
 		"requestFailed": "Solicitação da API Ollama falhou com status {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Estrutura de resposta inválida da API Ollama: array \"embeddings\" não encontrado ou não é um array.",
-		"embeddingFailed": "Embedding Ollama falhou: {{message}}"
+		"embeddingFailed": "Embedding Ollama falhou: {{message}}",
+		"serviceNotRunning": "O serviço Ollama não está em execução em {{baseUrl}}",
+		"serviceUnavailable": "O serviço Ollama não está disponível (status: {{status}})",
+		"modelNotFound": "Modelo Ollama não encontrado: {{modelId}}",
+		"modelNotEmbeddingCapable": "O modelo Ollama não é capaz de embedding: {{modelId}}",
+		"hostNotFound": "Host Ollama não encontrado: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Erro desconhecido ao processar arquivo {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Falha ao conectar com o banco de dados vetorial Qdrant. Certifique-se de que o Qdrant esteja rodando e acessível em {{qdrantUrl}}. Erro: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Falha na autenticação. Verifique sua chave de API nas configurações.",
+		"connectionFailed": "Falha ao conectar ao serviço do embedder. Verifique suas configurações de conexão e garanta que o serviço esteja em execução.",
+		"modelNotAvailable": "O modelo especificado não está disponível. Verifique a configuração do seu modelo.",
+		"configurationError": "Configuração do embedder inválida. Revise suas configurações.",
+		"serviceUnavailable": "O serviço do embedder não está disponível. Garanta que ele esteja em execução e acessível.",
+		"invalidEndpoint": "Endpoint de API inválido. Verifique sua configuração de URL.",
+		"invalidEmbedderConfig": "Configuração do embedder inválida. Verifique suas configurações.",
+		"invalidApiKey": "Chave de API inválida. Verifique sua configuração de chave de API.",
+		"invalidBaseUrl": "URL base inválida. Verifique sua configuração de URL.",
+		"invalidModel": "Modelo inválido. Verifique a configuração do seu modelo.",
+		"invalidResponse": "Resposta inválida do serviço de embedder. Verifique sua configuração."
 	}
 }

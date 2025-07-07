@@ -10,7 +10,12 @@
 		"couldNotReadErrorBody": "Не удалось прочитать тело ошибки",
 		"requestFailed": "Запрос к API Ollama не удался со статусом {{status}} {{statusText}}: {{errorBody}}",
 		"invalidResponseStructure": "Неверная структура ответа от API Ollama: массив \"embeddings\" не найден или не является массивом.",
-		"embeddingFailed": "Вложение Ollama не удалось: {{message}}"
+		"embeddingFailed": "Вложение Ollama не удалось: {{message}}",
+		"serviceNotRunning": "Сервис Ollama не запущен по адресу {{baseUrl}}",
+		"serviceUnavailable": "Сервис Ollama недоступен (статус: {{status}})",
+		"modelNotFound": "Модель Ollama не найдена: {{modelId}}",
+		"modelNotEmbeddingCapable": "Модель Ollama не способна к вложению: {{modelId}}",
+		"hostNotFound": "Хост Ollama не найден: {{baseUrl}}"
 	},
 	"scanner": {
 		"unknownErrorProcessingFile": "Неизвестная ошибка при обработке файла {{filePath}}",
@@ -19,5 +24,18 @@
 	},
 	"vectorStore": {
 		"qdrantConnectionFailed": "Не удалось подключиться к векторной базе данных Qdrant. Убедитесь, что Qdrant запущен и доступен по адресу {{qdrantUrl}}. Ошибка: {{errorMessage}}"
+	},
+	"validation": {
+		"authenticationFailed": "Ошибка аутентификации. Проверьте свой ключ API в настройках.",
+		"connectionFailed": "Не удалось подключиться к службе эмбеддера. Проверьте настройки подключения и убедитесь, что служба запущена.",
+		"modelNotAvailable": "Указанная модель недоступна. Проверьте конфигурацию модели.",
+		"configurationError": "Неверная конфигурация эмбеддера. Проверьте свои настройки.",
+		"serviceUnavailable": "Служба эмбеддера недоступна. Убедитесь, что она запущена и доступна.",
+		"invalidEndpoint": "Неверная конечная точка API. Проверьте конфигурацию URL.",
+		"invalidEmbedderConfig": "Неверная конфигурация эмбеддера. Проверьте свои настройки.",
+		"invalidApiKey": "Неверный ключ API. Проверьте конфигурацию ключа API.",
+		"invalidBaseUrl": "Неверный базовый URL. Проверьте конфигурацию URL.",
+		"invalidModel": "Неверная модель. Проверьте конфигурацию модели.",
+		"invalidResponse": "Неверный ответ от службы embedder. Проверьте вашу конфигурацию."
 	}
 }
