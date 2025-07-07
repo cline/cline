@@ -38,30 +38,45 @@ interface GeminiHandlerOptions extends ApiHandlerOptions {
  */
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: GoogleGenAI
+	private client: GoogleGenAI | undefined
 
 	constructor(options: GeminiHandlerOptions) {
 		// Store the options
 		this.options = options
+	}
 
-		if (options.isVertex) {
-			// Initialize with Vertex AI configuration
-			const project = this.options.vertexProjectId ?? "not-provided"
-			const location = this.options.vertexRegion ?? "not-provided"
+	private ensureClient(): GoogleGenAI {
+		if (!this.client) {
+			const options = this.options as GeminiHandlerOptions
 
-			this.client = new GoogleGenAI({
-				vertexai: true,
-				project,
-				location,
-			})
-		} else {
-			// Initialize with standard API key
-			if (!options.geminiApiKey) {
-				throw new Error("API key is required for Google Gemini when not using Vertex AI")
+			if (options.isVertex) {
+				// Initialize with Vertex AI configuration
+				const project = this.options.vertexProjectId ?? "not-provided"
+				const location = this.options.vertexRegion ?? "not-provided"
+
+				try {
+					this.client = new GoogleGenAI({
+						vertexai: true,
+						project,
+						location,
+					})
+				} catch (error) {
+					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
+				}
+			} else {
+				// Initialize with standard API key
+				if (!options.geminiApiKey) {
+					throw new Error("API key is required for Google Gemini when not using Vertex AI")
+				}
+
+				try {
+					this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+				} catch (error) {
+					throw new Error(`Error creating Gemini client: ${error.message}`)
+				}
 			}
-
-			this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
 		}
+		return this.client
 	}
 
 	/**
@@ -80,6 +95,7 @@ export class GeminiHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
@@ -117,7 +133,7 @@ export class GeminiHandler implements ApiHandler {
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
 		try {
-			const result = await this.client.models.generateContentStream({
+			const result = await client.models.generateContentStream({
 				model: modelId,
 				contents: contents,
 				config: {
@@ -351,6 +367,7 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	async countTokens(content: Array<any>): Promise<number> {
 		try {
+			const client = this.ensureClient()
 			const { id: model } = this.getModel()
 
 			// Convert content to Gemini format
@@ -362,7 +379,7 @@ export class GeminiHandler implements ApiHandler {
 			})
 
 			// Use Gemini's token counting API
-			const response = await this.client.models.countTokens({
+			const response = await client.models.countTokens({
 				model,
 				contents: [{ parts: geminiContent }],
 			})
