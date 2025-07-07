@@ -89,7 +89,7 @@ export class Controller {
 	}
 
 	private async getCurrentMode(): Promise<"plan" | "act"> {
-		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 
 	/*
@@ -402,7 +402,7 @@ export class Controller {
 
 		// Save only non-mode properties to workspace storage
 		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
-		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
+		await updateWorkspaceState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {

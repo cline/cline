@@ -25,7 +25,6 @@ import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToA
 import {
 	migrateWorkspaceToGlobalStorage,
 	migrateCustomInstructionsToGlobalRules,
-	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
 } from "./core/storage/state-migrations"
 
@@ -62,9 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
-
-	// Migrate mode from workspace storage to controller state (one-time cleanup)
-	await migrateModeFromWorkspaceStorageToControllerState(context)
 
 	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
 	await migrateWelcomeViewCompleted(context)

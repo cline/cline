@@ -13,7 +13,6 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"apiModelId",
 		"thinkingBudgetTokens",
 		"reasoningEffort",
-		"chatSettings",
 		"vsCodeLmModelSelector",
 
 		// Provider-specific model keys
@@ -128,43 +127,6 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 		}
 	} catch (error) {
 		console.error("Failed to migrate custom instructions to global rules:", error)
-		// Continue execution - migration failure shouldn't break extension startup
-	}
-}
-
-export async function migrateModeFromWorkspaceStorageToControllerState(context: vscode.ExtensionContext) {
-	try {
-		// Check legacy workspace storage (use raw methods since chatSettings is now global)
-		const workspaceChatSettings = (await context.workspaceState.get("chatSettings")) as any
-
-		if (workspaceChatSettings && typeof workspaceChatSettings === "object" && "mode" in workspaceChatSettings) {
-			console.log("Cleaning up mode from legacy workspace storage...")
-
-			// Remove mode property from chatSettings
-			const { mode, ...cleanedChatSettings } = workspaceChatSettings
-
-			// Save cleaned chatSettings back to workspace storage (will be migrated later)
-			await context.workspaceState.update("chatSettings", cleanedChatSettings)
-
-			console.log("Successfully removed mode from legacy workspace storage chatSettings")
-		}
-
-		// Also check global storage for any mode cleanup needed
-		const globalChatSettings = (await context.globalState.get("chatSettings")) as any
-
-		if (globalChatSettings && typeof globalChatSettings === "object" && "mode" in globalChatSettings) {
-			console.log("Cleaning up mode from global storage...")
-
-			// Remove mode property from chatSettings
-			const { mode, ...cleanedChatSettings } = globalChatSettings
-
-			// Save cleaned chatSettings back to global storage
-			await updateGlobalState(context, "chatSettings", cleanedChatSettings)
-
-			console.log("Successfully removed mode from global storage chatSettings")
-		}
-	} catch (error) {
-		console.error("Failed to cleanup mode from storage:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
