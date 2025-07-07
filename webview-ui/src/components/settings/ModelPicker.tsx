@@ -70,7 +70,7 @@ export const ModelPicker = ({
 
 	const { id: selectedModelId, info: selectedModelInfo } = useSelectedModel(apiConfiguration)
 
-	const [searchValue, setSearchValue] = useState(selectedModelId || "")
+	const [searchValue, setSearchValue] = useState("")
 
 	const onSelect = useCallback(
 		(modelId: string) => {
@@ -87,28 +87,25 @@ export const ModelPicker = ({
 			}
 
 			// Delay to ensure the popover is closed before setting the search value.
-			selectTimeoutRef.current = setTimeout(() => setSearchValue(modelId), 100)
+			selectTimeoutRef.current = setTimeout(() => setSearchValue(""), 100)
 		},
 		[modelIdKey, setApiConfigurationField],
 	)
 
-	const onOpenChange = useCallback(
-		(open: boolean) => {
-			setOpen(open)
+	const onOpenChange = useCallback((open: boolean) => {
+		setOpen(open)
 
-			// Abandon the current search if the popover is closed.
-			if (!open) {
-				// Clear any existing timeout
-				if (closeTimeoutRef.current) {
-					clearTimeout(closeTimeoutRef.current)
-				}
-
-				// Delay to ensure the popover is closed before setting the search value.
-				closeTimeoutRef.current = setTimeout(() => setSearchValue(selectedModelId), 100)
+		// Abandon the current search if the popover is closed.
+		if (!open) {
+			// Clear any existing timeout
+			if (closeTimeoutRef.current) {
+				clearTimeout(closeTimeoutRef.current)
 			}
-		},
-		[selectedModelId],
-	)
+
+			// Clear the search value when closing instead of prefilling it
+			closeTimeoutRef.current = setTimeout(() => setSearchValue(""), 100)
+		}
+	}, [])
 
 	const onClearSearch = useCallback(() => {
 		setSearchValue("")
