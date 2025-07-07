@@ -1,7 +1,7 @@
 # Default
 .vscode/**
 .vscode-test/**
-out/**
+out/
 dist-standalone/
 node_modules/**
 src/**
@@ -33,8 +33,8 @@ webview-ui/node_modules/**
 **/.gitignore
 
 # Ignore docs
-docs/**
-old_docs/**
+docs/
+old_docs/
 
 # Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
 !node_modules/@vscode/codicons/dist/codicon.css
