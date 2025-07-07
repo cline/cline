@@ -78,7 +78,7 @@ async function zipDistribution() {
 			return false
 		}
 		if (vscodeignore.ignores(entry.name)) {
-			// Exclude this entry
+			// Exclude entries also ignored by the vscode packager.
 			return false
 		}
 		return entry
