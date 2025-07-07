@@ -1,12 +1,13 @@
 import React from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { updateSetting } from "./utils/settingsHandlers"
 
 const TerminalOutputLineLimitSlider: React.FC = () => {
-	const { terminalOutputLineLimit, setTerminalOutputLineLimit } = useExtensionState()
+	const { terminalOutputLineLimit } = useExtensionState()
 
 	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
-		setTerminalOutputLineLimit(value)
+		updateSetting("terminalOutputLineLimit", value)
 	}
 
 	return (

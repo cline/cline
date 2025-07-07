@@ -8,21 +8,35 @@ import { withRetry } from "../retry"
 
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: OpenAI
+	private client: OpenAI | undefined
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
-			apiKey: this.options.liteLlmApiKey || "noop",
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.liteLlmApiKey) {
+				throw new Error("LiteLLM API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
+					apiKey: this.options.liteLlmApiKey || "noop",
+				})
+			} catch (error) {
+				throw new Error(`Error creating LiteLLM client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
+		const client = this.ensureClient()
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
 		try {
-			const response = await fetch(`${this.client.baseURL}/spend/calculate`, {
+			const response = await fetch(`${client.baseURL}/spend/calculate`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -54,6 +68,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
@@ -101,21 +116,15 @@ export class LiteLlmHandler implements ApiHandler {
 			return message
 		})
 
-		const requestPayload: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & {
-			metadata?: { cline_task_id: string }
-		} = {
+		const stream = await client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
-			...(this.options.taskId && {
-				metadata: { cline_task_id: this.options.taskId },
-			}),
-		}
-
-		const stream = await this.client.chat.completions.create(requestPayload)
+			...(this.options.taskId && { litellm_session_id: `cline-${this.options.taskId}` }), // Add session ID for LiteLLM tracking
+		})
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
 		const outputCost = (await this.calculateCost(0, 1e6)) || 0

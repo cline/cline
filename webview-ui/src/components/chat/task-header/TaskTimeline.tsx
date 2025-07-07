@@ -74,6 +74,22 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 	// Render a timeline block
 	const TimelineBlock = useCallback(
 		(index: number) => {
+			// Show placeholder block when no items exist
+			if (taskTimelinePropsMessages.length === 0 || index >= taskTimelinePropsMessages.length) {
+				return (
+					<div
+						style={{
+							width: BLOCK_WIDTH,
+							height: "100%",
+							backgroundColor: "#e5e5e5", // Light gray placeholder
+							flexShrink: 0,
+							marginRight: BLOCK_GAP,
+							opacity: 0.5,
+						}}
+					/>
+				)
+			}
+
 			const message = taskTimelinePropsMessages[index]
 			const originalMessageIndex = messageIndexMap[index]
 
@@ -112,10 +128,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 		}
 	}, [taskTimelinePropsMessages])
 
-	if (taskTimelinePropsMessages.length === 0) {
-		return null
-	}
-
 	return (
 		<div
 			ref={containerRef}
@@ -146,7 +158,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					height: TIMELINE_HEIGHT,
 					width: "100%",
 				}}
-				totalCount={taskTimelinePropsMessages.length}
+				totalCount={Math.max(1, taskTimelinePropsMessages.length)}
 				itemContent={TimelineBlock}
 				horizontalDirection={true}
 				increaseViewportBy={12}

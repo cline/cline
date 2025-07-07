@@ -5,6 +5,8 @@ import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
 import { getGlobalState } from "@core/storage/state"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { getCwd } from "@/utils/path"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -35,17 +37,6 @@ export class FileContextTracker {
 	}
 
 	/**
-	 * Gets the current working directory or returns undefined if it cannot be determined
-	 */
-	private getCwd(): string | undefined {
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		if (!cwd) {
-			console.info("No workspace folder available - cannot determine current working directory")
-		}
-		return cwd
-	}
-
-	/**
 	 * File watchers are set up for each file that is tracked in the task metadata.
 	 */
 	async setupFileWatcher(filePath: string) {
@@ -54,8 +45,9 @@ export class FileContextTracker {
 			return
 		}
 
-		const cwd = this.getCwd()
+		const cwd = await getCwd()
 		if (!cwd) {
+			console.info("No workspace folder available - cannot determine current working directory")
 			return
 		}
 
@@ -85,8 +77,9 @@ export class FileContextTracker {
 	 */
 	async trackFileContext(filePath: string, operation: "read_tool" | "user_edited" | "cline_edited" | "file_mentioned") {
 		try {
-			const cwd = this.getCwd()
+			const cwd = await getCwd()
 			if (!cwd) {
+				console.info("No workspace folder available - cannot determine current working directory")
 				return
 			}
 
@@ -242,7 +235,9 @@ export class FileContextTracker {
 	async storePendingFileContextWarning(files: string[]): Promise<void> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			await updateWorkspaceState(this.context, key, files)
+			// NOTE: Using 'as any' because dynamic keys like pendingFileContextWarning_${taskId}
+			// are legitimate workspace state keys but don't fit the strict LocalStateKey type system
+			await updateWorkspaceState(this.context, key as any, files)
 		} catch (error) {
 			console.error("Error storing pending file context warning:", error)
 		}
@@ -254,7 +249,7 @@ export class FileContextTracker {
 	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			const files = (await getWorkspaceState(this.context, key)) as string[]
+			const files = (await getWorkspaceState(this.context, key as any)) as string[]
 			return files
 		} catch (error) {
 			console.error("Error retrieving pending file context warning:", error)
@@ -269,7 +264,7 @@ export class FileContextTracker {
 		try {
 			const files = await this.retrievePendingFileContextWarning()
 			if (files) {
-				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}`, undefined)
+				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}` as any, undefined)
 				return files
 			}
 		} catch (error) {
@@ -300,7 +295,7 @@ export class FileContextTracker {
 
 			if (orphanedPendingContextTasks.length > 0) {
 				for (const key of orphanedPendingContextTasks) {
-					await updateWorkspaceState(context, key, undefined)
+					await updateWorkspaceState(context, key as any, undefined)
 				}
 			}
 

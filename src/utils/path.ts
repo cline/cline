@@ -1,6 +1,7 @@
 import * as path from "path"
 import os from "os"
 import * as vscode from "vscode"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -83,7 +84,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	relPath = relPath || ""
 	// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
 	const absolutePath = path.resolve(cwd, relPath)
-	if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
+	if (arePathsEqual(cwd, getDesktopDir())) {
 		// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
 		return absolutePath.toPosix()
 	}
@@ -101,9 +102,21 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	}
 }
 
-export const getWorkspacePath = (defaultCwdPath = "") => {
-	const cwdPath = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || defaultCwdPath
+// Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
+export const getCwd = async (defaultCwdPath = ""): Promise<string> => {
+	const workspaceFolders = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	return workspaceFolders.paths.shift() || defaultCwdPath
+}
+
+export function getDesktopDir() {
+	return path.join(os.homedir(), "Desktop")
+}
+
+// Returns the workspace path of the file in the current editor.
+// If there is no path, it returns the top level workspace directory.
+export const getWorkspacePath = async (defaultCwdPath = "") => {
 	const currentFileUri = vscode.window.activeTextEditor?.document.uri
+	const cwdPath = await getCwd(defaultCwdPath)
 	if (currentFileUri) {
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri)
 		return workspaceFolder?.uri.fsPath || cwdPath
@@ -111,8 +124,8 @@ export const getWorkspacePath = (defaultCwdPath = "") => {
 	return cwdPath
 }
 
-export const isLocatedInWorkspace = (pathToCheck: string = ""): boolean => {
-	const workspacePath = getWorkspacePath()
+export const isLocatedInWorkspace = async (pathToCheck: string = ""): Promise<boolean> => {
+	const workspacePath = await getWorkspacePath()
 
 	// Handle long paths in Windows
 	if (pathToCheck.startsWith("\\\\?\\") || workspacePath.startsWith("\\\\?\\")) {

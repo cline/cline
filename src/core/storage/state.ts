@@ -1,19 +1,17 @@
 import * as vscode from "vscode"
-import { DEFAULT_CHAT_SETTINGS, OpenAIReasoningEffort } from "@shared/ChatSettings"
+import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { GlobalStateKey, SecretKey } from "./state-keys"
+import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
 import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { ChatSettings } from "@shared/ChatSettings"
+import { StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { ensureRulesDirectoryExists } from "./disk"
-import fs from "fs/promises"
-import path from "path"
+import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -46,136 +44,18 @@ export async function getSecret(context: vscode.ExtensionContext, key: SecretKey
 
 // workspace
 
-export async function updateWorkspaceState(context: vscode.ExtensionContext, key: string, value: any) {
+export async function updateWorkspaceState(context: vscode.ExtensionContext, key: LocalStateKey, value: any) {
 	await context.workspaceState.update(key, value)
 }
 
-export async function getWorkspaceState(context: vscode.ExtensionContext, key: string) {
+export async function getWorkspaceState(context: vscode.ExtensionContext, key: LocalStateKey) {
 	return await context.workspaceState.get(key)
-}
-
-export async function migratePlanActGlobalToWorkspaceStorage(context: vscode.ExtensionContext) {
-	// Keys that were migrated from global storage to workspace storage
-	const keysToMigrate = [
-		// Core settings
-		"apiProvider",
-		"apiModelId",
-		"thinkingBudgetTokens",
-		"reasoningEffort",
-		"chatSettings",
-		"vsCodeLmModelSelector",
-
-		// Provider-specific model keys
-		"awsBedrockCustomSelected",
-		"awsBedrockCustomModelBaseId",
-		"openRouterModelId",
-		"openRouterModelInfo",
-		"openAiModelId",
-		"openAiModelInfo",
-		"ollamaModelId",
-		"lmStudioModelId",
-		"liteLlmModelId",
-		"liteLlmModelInfo",
-		"requestyModelId",
-		"requestyModelInfo",
-		"togetherModelId",
-		"fireworksModelId",
-
-		// Previous mode settings
-		"previousModeApiProvider",
-		"previousModeModelId",
-		"previousModeModelInfo",
-		"previousModeVsCodeLmModelSelector",
-		"previousModeThinkingBudgetTokens",
-		"previousModeReasoningEffort",
-		"previousModeAwsBedrockCustomSelected",
-		"previousModeAwsBedrockCustomModelBaseId",
-	]
-
-	for (const key of keysToMigrate) {
-		const globalValue = await getGlobalState(context, key as GlobalStateKey)
-		if (globalValue !== undefined) {
-			const workspaceValue = await getWorkspaceState(context, key)
-			if (workspaceValue === undefined) {
-				await updateWorkspaceState(context, key, globalValue)
-			}
-			// Delete from global storage regardless of whether we copied it
-			await updateGlobalState(context, key as GlobalStateKey, undefined)
-		}
-	}
-}
-
-async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
-	const mcpMarketplaceEnabled = config.get<boolean>("mcpMarketplace.enabled")
-	if (mcpMarketplaceEnabled !== undefined) {
-		// Remove from VSCode configuration
-		await config.update("mcpMarketplace.enabled", undefined, true)
-
-		return !mcpMarketplaceEnabled
-	}
-	return mcpMarketplaceEnabledRaw ?? true
-}
-
-async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
-	const enableCheckpoints = config.get<boolean>("enableCheckpoints")
-	if (enableCheckpoints !== undefined) {
-		// Remove from VSCode configuration
-		await config.update("enableCheckpoints", undefined, true)
-		return enableCheckpoints
-	}
-	return enableCheckpointsSettingRaw ?? true
-}
-
-export async function migrateCustomInstructionsToGlobalRules(context: vscode.ExtensionContext) {
-	try {
-		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
-
-		if (customInstructions?.trim()) {
-			console.log("Migrating custom instructions to global Cline rules...")
-
-			// Create global .clinerules directory if it doesn't exist
-			const globalRulesDir = await ensureRulesDirectoryExists()
-
-			// Use a fixed filename for custom instructions
-			const migrationFileName = "custom_instructions.md"
-			const migrationFilePath = path.join(globalRulesDir, migrationFileName)
-
-			try {
-				// Check if file already exists to determine if we should append
-				let existingContent = ""
-				try {
-					existingContent = await fs.readFile(migrationFilePath, "utf8")
-				} catch (readError) {
-					// File doesn't exist, which is fine
-				}
-
-				// Append or create the file with custom instructions
-				const contentToWrite = existingContent
-					? `${existingContent}\n\n---\n\n${customInstructions.trim()}`
-					: customInstructions.trim()
-
-				await fs.writeFile(migrationFilePath, contentToWrite)
-				console.log(`Successfully ${existingContent ? "appended to" : "created"} migration file: ${migrationFilePath}`)
-			} catch (fileError) {
-				console.error("Failed to write migration file:", fileError)
-				return
-			}
-
-			// Remove customInstructions from global state only after successful file creation
-			await context.globalState.update("customInstructions", undefined)
-			console.log("Successfully migrated custom instructions to global Cline rules")
-		}
-	} catch (error) {
-		console.error("Failed to migrate custom instructions to global rules:", error)
-		// Continue execution - migration failure shouldn't break extension startup
-	}
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
 		isNewUser,
+		welcomeViewCompleted,
 		apiKey,
 		openRouterApiKey,
 		clineApiKey,
@@ -245,10 +125,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreBaseUrl,
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
-		sapAiCoreModelId,
 		claudeCodePath,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
+		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
 		getSecret(context, "openRouterApiKey") as Promise<string | undefined>,
 		getSecret(context, "clineApiKey") as Promise<string | undefined>,
@@ -318,7 +198,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
-		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 	])
 
@@ -353,47 +232,39 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
-		previousModeSapAiCoreClientId,
-		previousModeSapAiCoreClientSecret,
-		previousModeSapAiCoreBaseUrl,
-		previousModeSapAiCoreTokenUrl,
-		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
+		sapAiCoreModelId,
 	] = await Promise.all([
-		getWorkspaceState(context, "chatSettings") as Promise<ChatSettings | undefined>,
-		getWorkspaceState(context, "apiProvider") as Promise<ApiProvider | undefined>,
-		getWorkspaceState(context, "apiModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
-		getWorkspaceState(context, "reasoningEffort") as Promise<string | undefined>,
-		getWorkspaceState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
-		getWorkspaceState(context, "awsBedrockCustomSelected") as Promise<boolean | undefined>,
-		getWorkspaceState(context, "awsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
-		getWorkspaceState(context, "openRouterModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "openRouterModelInfo") as Promise<ModelInfo | undefined>,
-		getWorkspaceState(context, "openAiModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "openAiModelInfo") as Promise<ModelInfo | undefined>,
-		getWorkspaceState(context, "ollamaModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "lmStudioModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "liteLlmModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "liteLlmModelInfo") as Promise<ModelInfo | undefined>,
-		getWorkspaceState(context, "requestyModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "requestyModelInfo") as Promise<ModelInfo | undefined>,
-		getWorkspaceState(context, "togetherModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "fireworksModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
-		getWorkspaceState(context, "previousModeModelId") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeModelInfo") as Promise<ModelInfo | undefined>,
-		getWorkspaceState(context, "previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
-		getWorkspaceState(context, "previousModeThinkingBudgetTokens") as Promise<number | undefined>,
-		getWorkspaceState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
-		getWorkspaceState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreClientId") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
-		getWorkspaceState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
+		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
+		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
+		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
+		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+		getGlobalState(context, "awsBedrockCustomSelected") as Promise<boolean | undefined>,
+		getGlobalState(context, "awsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getGlobalState(context, "openRouterModelId") as Promise<string | undefined>,
+		getGlobalState(context, "openRouterModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "openAiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "openAiModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "ollamaModelId") as Promise<string | undefined>,
+		getGlobalState(context, "lmStudioModelId") as Promise<string | undefined>,
+		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "liteLlmModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "requestyModelId") as Promise<string | undefined>,
+		getGlobalState(context, "requestyModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
+		getGlobalState(context, "fireworksModelId") as Promise<string | undefined>,
+		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
+		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
+		getGlobalState(context, "previousModeModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+		getGlobalState(context, "previousModeThinkingBudgetTokens") as Promise<number | undefined>,
+		getGlobalState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
+		getGlobalState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
+		getGlobalState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getGlobalState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -509,6 +380,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
+		welcomeViewCompleted,
 		lastShownAnnouncementId,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
@@ -528,11 +400,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeReasoningEffort,
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
-		previousModeSapAiCoreClientId,
-		previousModeSapAiCoreClientSecret,
-		previousModeSapAiCoreBaseUrl,
-		previousModeSapAiCoreTokenUrl,
-		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
@@ -623,26 +490,28 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreModelId,
 		claudeCodePath,
 	} = apiConfiguration
-	// Workspace state updates
-	await updateWorkspaceState(context, "apiProvider", apiProvider)
-	await updateWorkspaceState(context, "apiModelId", apiModelId)
-	await updateWorkspaceState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
-	await updateWorkspaceState(context, "reasoningEffort", reasoningEffort)
-	await updateWorkspaceState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
-	await updateWorkspaceState(context, "awsBedrockCustomSelected", awsBedrockCustomSelected)
-	await updateWorkspaceState(context, "awsBedrockCustomModelBaseId", awsBedrockCustomModelBaseId)
-	await updateWorkspaceState(context, "openRouterModelId", openRouterModelId)
-	await updateWorkspaceState(context, "openRouterModelInfo", openRouterModelInfo)
-	await updateWorkspaceState(context, "openAiModelId", openAiModelId)
-	await updateWorkspaceState(context, "openAiModelInfo", openAiModelInfo)
-	await updateWorkspaceState(context, "ollamaModelId", ollamaModelId)
-	await updateWorkspaceState(context, "lmStudioModelId", lmStudioModelId)
-	await updateWorkspaceState(context, "liteLlmModelId", liteLlmModelId)
-	await updateWorkspaceState(context, "liteLlmModelInfo", liteLlmModelInfo)
-	await updateWorkspaceState(context, "requestyModelId", requestyModelId)
-	await updateWorkspaceState(context, "requestyModelInfo", requestyModelInfo)
-	await updateWorkspaceState(context, "togetherModelId", togetherModelId)
-	await updateWorkspaceState(context, "fireworksModelId", fireworksModelId)
+
+	// Ephemeral model config updates
+	await updateGlobalState(context, "apiProvider", apiProvider)
+	await updateGlobalState(context, "apiModelId", apiModelId)
+	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
+	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
+	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
+	await updateGlobalState(context, "awsBedrockCustomSelected", awsBedrockCustomSelected)
+	await updateGlobalState(context, "awsBedrockCustomModelBaseId", awsBedrockCustomModelBaseId)
+	await updateGlobalState(context, "openRouterModelId", openRouterModelId)
+	await updateGlobalState(context, "openRouterModelInfo", openRouterModelInfo)
+	await updateGlobalState(context, "openAiModelId", openAiModelId)
+	await updateGlobalState(context, "openAiModelInfo", openAiModelInfo)
+	await updateGlobalState(context, "ollamaModelId", ollamaModelId)
+	await updateGlobalState(context, "lmStudioModelId", lmStudioModelId)
+	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
+	await updateGlobalState(context, "liteLlmModelInfo", liteLlmModelInfo)
+	await updateGlobalState(context, "requestyModelId", requestyModelId)
+	await updateGlobalState(context, "requestyModelInfo", requestyModelInfo)
+	await updateGlobalState(context, "togetherModelId", togetherModelId)
+	await updateGlobalState(context, "fireworksModelId", fireworksModelId)
+	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
 
 	// Global state updates
 	await updateGlobalState(context, "awsRegion", awsRegion)
@@ -670,12 +539,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
 	await updateGlobalState(context, "fireworksModelMaxTokens", fireworksModelMaxTokens)
-	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
-	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "sapAiCoreBaseUrl", sapAiCoreBaseUrl)
 	await updateGlobalState(context, "sapAiCoreTokenUrl", sapAiCoreTokenUrl)
 	await updateGlobalState(context, "sapAiResourceGroup", sapAiResourceGroup)
-	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
 	await updateGlobalState(context, "claudeCodePath", claudeCodePath)
 
 	// Secret updates
