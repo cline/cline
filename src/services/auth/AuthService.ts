@@ -8,6 +8,7 @@ import { AuthenticationInfo, AuthenticationStatus } from "@/generated/nice-grpc/
 import { getSecret, storeSecret } from "@/core/storage/state"
 
 const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
+// const DefaultClineAccountURI = "http://localhost:3000/auth"
 let authProviders: any[] = []
 
 type ServiceConfig = {
@@ -220,34 +221,16 @@ export class AuthService {
 		}
 
 		try {
-			this._user = await this._provider.provider.signIn(token)
+			this._user = await this._provider.provider.signIn(this._context, token)
 			this._authenticated = true
 
-			await this.storeAuthToken()
 			await this.sendAuthStatusUpdate()
-			// Set timeoutDuration to refresh the auth token 5 minutes before it expires
-			const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
-			setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+			this.setupAutoRefreshAuth()
 			return this._user
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
 		}
-	}
-
-	/**
-	 * Stores the authentication token in the extension's storage.
-	 * This is typically called after a successful authentication.
-	 */
-	async storeAuthToken(): Promise<void> {
-		if (!this._user) {
-			console.warn("No user is authenticated, skipping token storage")
-			return
-		}
-		if (!this._provider || !this._provider.provider) {
-			throw new Error("Auth provider is not set")
-		}
-		await storeSecret(this._context, "clineAccountId", await this._provider.provider.getRefreshToken(this._user))
 	}
 
 	/**
@@ -266,23 +249,27 @@ export class AuthService {
 		if (!this._provider || !this._provider.provider) {
 			throw new Error("Auth provider is not set")
 		}
-		return
-		// We can't support this yet, as it requires
-		// custom token validation on the server side.
-		// TODO: Implement custom token validation
-		// const token = await getSecret(this._context, "clineAccountId")
-		// if (token) {
-		// 	try {
-		// 		this._user = await this._provider.provider.signIn(token, true)
-		// 		this._authenticated = true
-		// 		await this.sendAuthStatusUpdate()
-		// 	} catch (error) {
-		// 		console.error("Error restoring auth token:", error)
-		// 		this._authenticated = false
-		// 		this._user = null
-		// 		await this.clearAuthToken()
-		// 	}
-		// }
+
+		try {
+			this._user = await this._provider.provider.restoreAuthCredential(this._context)
+			if (this._user) {
+				this._authenticated = true
+				await this.sendAuthStatusUpdate()
+				this.setupAutoRefreshAuth()
+				// Setup auto-refresh for the auth token
+			} else {
+				console.warn("No user found after restoring auth token")
+				this._authenticated = false
+				this._user = null
+				await this.clearAuthToken()
+			}
+		} catch (error) {
+			console.error("Error restoring auth token:", error)
+			this._authenticated = false
+			this._user = null
+			await this.clearAuthToken()
+			return
+		}
 	}
 
 	/**
@@ -298,14 +285,19 @@ export class AuthService {
 		this.sendAuthStatusUpdate()
 	}
 
+	private setupAutoRefreshAuth(): void {
+		// Set timeoutDuration to refresh the auth token 5 minutes before it expires
+		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
+		setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+	}
+
 	private async _autoRefreshAuth(): Promise<void> {
 		if (!this._user) {
 			console.warn("No user is authenticated, skipping auth refresh")
 			return
 		}
 		await this.refreshAuth()
-		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
-		setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+		this.setupAutoRefreshAuth() // Reschedule the next auto-refresh
 	}
 
 	/**

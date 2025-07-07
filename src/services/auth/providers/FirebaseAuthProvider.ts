@@ -1,6 +1,17 @@
+import { getSecret, storeSecret } from "@/core/storage/state"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeApp } from "firebase/app"
-import { GoogleAuthProvider, User, getAuth, signInWithCredential, signInWithCustomToken, signOut } from "firebase/auth"
+import {
+	AuthCredential,
+	GoogleAuthProvider,
+	OAuthCredential,
+	User,
+	UserCredential,
+	getAuth,
+	signInWithCredential,
+	signOut,
+} from "firebase/auth"
+import { ExtensionContext } from "vscode"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -78,41 +89,68 @@ export class FirebaseAuthProvider {
 	}
 
 	/**
+	 * Stores the authentication token using a provided token.
+	 * @param token - The authentication token to store.
+	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
+	 * @throws {Error} Throws an error if the storage fails.
+	 */
+	private async _storeAuthCredential(context: ExtensionContext, credential: AuthCredential): Promise<void> {
+		try {
+			await storeSecret(context, "clineAccountId", JSON.stringify(credential.toJSON()))
+		} catch (error) {
+			ErrorService.logMessage("Firebase store token error", "error")
+			ErrorService.logException(error)
+			throw error
+		}
+	}
+
+	/**
+	 * Restores the authentication token using a provided token.
+	 * @param token - The authentication token to restore.
+	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
+	 * @throws {Error} Throws an error if the restoration fails.
+	 */
+	async restoreAuthCredential(context: ExtensionContext): Promise<User> {
+		const credentialJSON = await getSecret(context, "clineAccountId")
+		if (!credentialJSON) {
+			throw new Error("Invalid credential JSON")
+		}
+		try {
+			const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
+			const userCredential = await this._signInWithCredential(credentialData)
+			return userCredential.user
+		} catch (error) {
+			ErrorService.logMessage("Firebase restore token error", "error")
+			ErrorService.logException(error)
+			throw error
+		}
+	}
+
+	async _signInWithCredential(credential: AuthCredential): Promise<UserCredential> {
+		const firebaseConfig = Object.assign({}, this._config)
+		const app = initializeApp(firebaseConfig)
+		const auth = getAuth(app)
+		try {
+			return await signInWithCredential(auth, credential)
+		} catch (error) {
+			ErrorService.logMessage("Firebase sign-in with credential error", "error")
+			ErrorService.logException(error)
+			throw error
+		}
+	}
+
+	/**
 	 * Signs in the user using Firebase authentication with a custom token.
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the sign-in fails.
 	 */
-	async signIn(token: string, custom?: boolean): Promise<User> {
-		const firebaseConfig = Object.assign({}, this._config)
-		const app = initializeApp(firebaseConfig)
-		const auth = getAuth(app)
-
+	async signIn(context: ExtensionContext, token: string): Promise<User> {
 		try {
 			let credential
 			let userCredential
-			if (custom) {
-				// TODO: Move ApiKey to a variable
-				const url = `https://securetoken.googleapis.com/v1/token?key=${"AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk"}` // Replace with your actual API key;
-				const params = new URLSearchParams()
-				params.append("grant_type", "refresh_token")
-				params.append("refresh_token", token)
-
-				// use fetch to make a POST request to the URL
-				const response = await fetch(url, {
-					method: "POST",
-					headers: { "Content-Type": "application/x-www-form-urlencoded" },
-					body: params.toString(),
-				})
-				if (!response.ok) {
-					throw new Error(`Failed to sign in with custom token: ${response.statusText}`)
-				}
-				const data = await response.json()
-				const rehydratedToken = data.id_token // Use the id_token from the response
-				userCredential = await signInWithCustomToken(auth, rehydratedToken)
-			} else {
-				credential = GoogleAuthProvider.credential(token)
-				userCredential = await signInWithCredential(auth, credential)
-			}
+			credential = GoogleAuthProvider.credential(token)
+			this._storeAuthCredential(context, credential)
+			userCredential = await this._signInWithCredential(credential)
 			return userCredential.user
 		} catch (error) {
 			ErrorService.logMessage("Firebase sign-in error", "error")
