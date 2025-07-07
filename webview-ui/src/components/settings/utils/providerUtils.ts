@@ -266,6 +266,15 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "oca":
+			const ocaModelId = currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
+			const ocaModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaModelInfo : apiConfiguration?.planModeOcaModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: ocaModelId || "",
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

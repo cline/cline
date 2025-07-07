@@ -544,6 +544,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.xaiApiKey,
 						config.sambanovaApiKey,
 						config.sapAiCoreClientId,
+						config.ocaAccessToken,
 					].some((key) => key !== undefined)
 				: false
 

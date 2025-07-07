@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "cline/common.proto";
+
+service OcaService {
+    // Handles the oracle sso user clicking the login link in the UI.
+    // and opens the authentication URL in the external browser.
+    rpc ocaLoginClicked(EmptyRequest) returns (Empty);
+
+    // Handles the token refresh for the access token.
+    rpc ocaRefreshToken(EmptyRequest) returns (Empty);
+
+    // Handles the user clicking the logout button in the UI.
+    // Clears API keys and user state.
+    rpc ocaLogoutClicked(EmptyRequest) returns (Empty);
+}

@@ -5,6 +5,7 @@ import {
 	ModelInfo,
 	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
 	LiteLLMModelInfo as AppLiteLLMModelInfo,
+	type OcaModelInfo,
 } from "../../api"
 import {
 	ModelsApiConfiguration as ProtoApiConfiguration,
@@ -13,6 +14,7 @@ import {
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
 	ThinkingConfig,
+	OcaModelInfo as ProtoOcaModelInfo,
 } from "@shared/proto/cline/models"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
@@ -183,6 +185,56 @@ function convertProtoToOpenAiCompatibleModelInfo(
 	}
 }
 
+// Convert application LiteLLMModelInfo to proto LiteLLMModelInfo
+function convertOcaModelInfoToProto(info: OcaModelInfo | undefined): ProtoOcaModelInfo | undefined {
+	if (!info) {
+		return undefined
+	}
+
+	return {
+		maxTokens: info.maxTokens,
+		contextWindow: info.contextWindow,
+		supportsImages: info.supportsImages,
+		supportsPromptCache: info.supportsPromptCache ?? false,
+		inputPrice: info.inputPrice,
+		outputPrice: info.outputPrice,
+		thinkingConfig: convertThinkingConfigToProto(info.thinkingConfig),
+		cacheWritesPrice: info.cacheWritesPrice,
+		cacheReadsPrice: info.cacheReadsPrice,
+		description: info.description,
+		temperature: info.temperature,
+		surveyContent: info.surveyContent,
+		surveyId: info.surveyId,
+		bannerContent: info.bannerContent,
+		modelName: info.modelName,
+	}
+}
+
+// Convert proto LiteLLMModelInfo to application LiteLLMModelInfo
+function convertProtoToOcaModelInfo(info: ProtoOcaModelInfo | undefined): OcaModelInfo | undefined {
+	if (!info) {
+		return undefined
+	}
+
+	return {
+		maxTokens: info.maxTokens,
+		contextWindow: info.contextWindow,
+		supportsImages: info.supportsImages,
+		supportsPromptCache: info.supportsPromptCache,
+		inputPrice: info.inputPrice,
+		outputPrice: info.outputPrice,
+		thinkingConfig: convertProtoToThinkingConfig(info.thinkingConfig),
+		cacheWritesPrice: info.cacheWritesPrice,
+		cacheReadsPrice: info.cacheReadsPrice,
+		description: info.description,
+		temperature: info.temperature,
+		surveyContent: info.surveyContent,
+		surveyId: info.surveyId,
+		bannerContent: info.bannerContent,
+		modelName: info.modelName,
+	}
+}
+
 // Convert application ApiProvider to proto ApiProvider
 function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider {
 	switch (provider) {
@@ -246,6 +298,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLAUDE_CODE
 		case "huawei-cloud-maas":
 			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
+		case "oca":
+			return ProtoApiProvider.OCA
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -314,6 +368,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "claude-code"
 		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
 			return "huawei-cloud-maas"
+		case ProtoApiProvider.OCA:
+			return "oca"
 		default:
 			return "anthropic"
 	}
@@ -383,6 +439,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: config.huaweiCloudMaasApiKey,
+		ocaAccessToken: config.ocaAccessToken,
+		ocaAccessTokenExpiresAt: config.ocaAccessTokenExpiresAt,
+		ocaAccessTokenSub: config.ocaAccessTokenSub,
+		ocaBaseUrl: config.ocaBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -411,6 +471,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: config.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuaweiCloudMaasModelInfo),
+		planModeOcaModelId: config.planModeOcaModelId,
+		planModeOcaModelInfo: convertOcaModelInfoToProto(config.planModeOcaModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -439,6 +501,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: config.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
+		actModeOcaModelId: config.actModeOcaModelId,
+		actModeOcaModelInfo: convertOcaModelInfoToProto(config.actModeOcaModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -509,6 +573,10 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: protoConfig.huaweiCloudMaasApiKey,
+		ocaAccessToken: protoConfig.ocaAccessToken,
+		ocaAccessTokenExpiresAt: protoConfig.ocaAccessTokenExpiresAt,
+		ocaAccessTokenSub: protoConfig.ocaAccessTokenSub,
+		ocaBaseUrl: protoConfig.ocaBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -540,6 +608,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: protoConfig.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.planModeHuaweiCloudMaasModelInfo),
+		planModeOcaModelId: protoConfig.planModeOcaModelId,
+		planModeOcaModelInfo: convertProtoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -569,6 +639,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: protoConfig.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
+		actModeOcaModelId: protoConfig.actModeOcaModelId,
+		actModeOcaModelInfo: convertProtoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds:

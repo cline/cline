@@ -32,6 +32,7 @@ import { GroqHandler } from "./providers/groq"
 import { Mode } from "@shared/storage/types"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
+import { OcaHandler } from "./providers/oca"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -280,6 +281,20 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+			})
+		case "oca":
+			return new OcaHandler({
+				ocaApiKey: options.ocaAccessToken,
+				ocaBaseUrl: options.ocaBaseUrl,
+				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
+				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				ocaUsePromptCache:
+					mode === "plan"
+						? options.planModeOcaModelInfo?.supportsPromptCache
+						: options.actModeOcaModelInfo?.supportsPromptCache,
+				taskId: options.taskId,
 			})
 		default:
 			return new AnthropicHandler({

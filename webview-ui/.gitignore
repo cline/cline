@@ -31,3 +31,4 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+.npmrc

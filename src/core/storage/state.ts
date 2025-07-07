@@ -12,6 +12,7 @@ import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
+import type { OcaModelInfo } from "@/shared/proto/cline/models"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -189,6 +190,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiResourceGroup,
 		claudeCodePath,
 		huaweiCloudMaasApiKey,
+		ocaBaseUrl,
+		ocaAccessToken,
+		ocaAccessTokenExpiresAt,
+		ocaAccessTokenSub,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,6 +274,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "ocaBaseUrl") as Promise<string | undefined>,
+		getSecret(context, "ocaAccessToken") as Promise<string | undefined>,
+		getGlobalState(context, "ocaAccessTokenExpiresAt") as Promise<number | undefined>,
+		getGlobalState(context, "ocaAccessTokenSub") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -304,6 +313,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeHuggingFaceModelInfo,
 		planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo,
+		planModeOcaModelId,
+		planModeOcaModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -331,6 +342,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeHuggingFaceModelInfo,
 		actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo,
+		actModeOcaModelId,
+		actModeOcaModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
 		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
@@ -362,6 +375,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeOcaModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeOcaModelInfo") as Promise<OcaModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -389,6 +404,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeOcaModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeOcaModelInfo") as Promise<OcaModelInfo | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -489,6 +506,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiResourceGroup,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			ocaAccessToken,
+			ocaAccessTokenSub,
+			ocaBaseUrl,
+			ocaAccessTokenExpiresAt,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -516,6 +537,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -543,6 +566,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -631,6 +656,10 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		claudeCodePath,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
+		ocaAccessToken,
+		ocaAccessTokenSub,
+		ocaBaseUrl,
+		ocaAccessTokenExpiresAt,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -658,6 +687,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeHuggingFaceModelInfo,
 		planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo,
+		planModeOcaModelId,
+		planModeOcaModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -685,6 +716,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeHuggingFaceModelInfo,
 		actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo,
+		actModeOcaModelId,
+		actModeOcaModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -716,6 +749,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeHuggingFaceModelInfo,
 		planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo,
+		planModeOcaModelId,
+		planModeOcaModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -744,6 +779,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeHuggingFaceModelInfo,
 		actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo,
+		actModeOcaModelId,
+		actModeOcaModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
@@ -777,6 +814,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		ocaAccessTokenSub,
+		ocaBaseUrl,
+		ocaAccessTokenExpiresAt,
 	}
 
 	// OPTIMIZED: Batch all secret updates into 1 operation instead of 23
@@ -810,6 +850,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreClientSecret,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
+		ocaAccessToken,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -855,6 +896,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"ocaAccessToken",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
