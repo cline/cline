@@ -88,6 +88,10 @@ export class Controller {
 		})
 	}
 
+	private async getCurrentMode(): Promise<"plan" | "act"> {
+		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+	}
+
 	/*
 	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
 	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
@@ -140,8 +144,8 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
-		// Get current mode from global state
-		const currentMode = ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
 
 		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
@@ -836,8 +840,8 @@ export class Controller {
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
-		// Get current mode from global state
-		const currentMode = ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "plan"
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
 
 		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {

@@ -69,7 +69,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.context.workspaceState.update("chatSettings", workspaceChatSettings)
 
 			if (controller.task) {
-				controller.task.chatSettings = chatSettings
+				// Ensure task settings include the current mode from global state
+				const currentMode = (await controller.context.globalState.get("mode")) as "plan" | "act" | undefined
+				controller.task.chatSettings = {
+					...chatSettings,
+					mode: chatSettings.mode || currentMode || "plan",
+				}
 			}
 		}
 
