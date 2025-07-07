@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
 			"addButton": "Toevoegen"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "De takenlijst wordt automatisch bijgewerkt zonder goedkeuring"
+		},
 		"apiRequestLimit": {
 			"title": "Maximale verzoeken",
 			"description": "Voer automatisch dit aantal API-verzoeken uit voordat om goedkeuring wordt gevraagd om door te gaan met de taak.",

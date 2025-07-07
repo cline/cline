@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Digite o prefixo do comando (ex. 'git ')",
 			"addButton": "Adicionar"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "A lista de tarefas é atualizada automaticamente sem aprovação"
+		},
 		"apiRequestLimit": {
 			"title": "Máximo de Solicitações",
 			"description": "Fazer automaticamente este número de requisições à API antes de pedir aprovação para continuar com a tarefa.",

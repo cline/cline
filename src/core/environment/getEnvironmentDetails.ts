@@ -18,6 +18,7 @@ import { arePathsEqual } from "../../utils/path"
 import { formatResponse } from "../prompts/responses"
 
 import { Task } from "../task/Task"
+import { formatReminderSection } from "./reminder"
 
 export async function getEnvironmentDetails(cline: Task, includeFileDetails: boolean = false) {
 	let details = ""
@@ -273,5 +274,6 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 		}
 	}
 
-	return `<environment_details>\n${details.trim()}\n</environment_details>`
+	const reminderSection = formatReminderSection(cline.todoList)
+	return `<environment_details>\n${details.trim()}\n${reminderSection}\n</environment_details>`
 }

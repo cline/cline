@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
 			"addButton": "Add"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "Automatically update the to-do list without requiring approval"
+		},
 		"apiRequestLimit": {
 			"title": "Max Requests",
 			"description": "Automatically make this many API requests before asking for approval to continue with the task.",

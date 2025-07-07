@@ -166,6 +166,10 @@
 			"label": "Tampilkan menu auto-approve di tampilan chat",
 			"description": "Ketika diaktifkan, menu auto-approve akan ditampilkan di bagian bawah tampilan chat, memungkinkan akses cepat ke pengaturan auto-approve"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "Daftar tugas diperbarui secara otomatis tanpa persetujuan"
+		},
 		"apiRequestLimit": {
 			"title": "Permintaan Maks",
 			"description": "Secara otomatis membuat sejumlah permintaan API ini sebelum meminta persetujuan untuk melanjutkan tugas.",

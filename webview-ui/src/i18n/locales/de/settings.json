@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Befehlspräfix eingeben (z.B. 'git ')",
 			"addButton": "Hinzufügen"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "To-Do-Liste wird automatisch aktualisiert, ohne dass du zustimmen musst"
+		},
 		"apiRequestLimit": {
 			"title": "Maximale Anfragen",
 			"description": "Automatisch so viele API-Anfragen stellen, bevor du um die Erlaubnis gebeten wirst, mit der Aufgabe fortzufahren.",

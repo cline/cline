@@ -46,6 +46,7 @@ import { getCommand } from "../../utils/commands"
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
+import { setPendingTodoList } from "../tools/updateTodoListTool"
 
 export const webviewMessageHandler = async (
 	provider: ClineProvider,
@@ -183,6 +184,10 @@ export const webviewMessageHandler = async (
 			break
 		case "alwaysAllowSubtasks":
 			await updateGlobalState("alwaysAllowSubtasks", message.bool)
+			await provider.postStateToWebview()
+			break
+		case "alwaysAllowUpdateTodoList":
+			await updateGlobalState("alwaysAllowUpdateTodoList", message.bool)
 			await provider.postStateToWebview()
 			break
 		case "askResponse":
@@ -1314,6 +1319,14 @@ export const webviewMessageHandler = async (
 					error: errorMessage,
 					requestId: message.requestId,
 				})
+			}
+			break
+		}
+		case "updateTodoList": {
+			const payload = message.payload as { todos?: any[] }
+			const todos = payload?.todos
+			if (Array.isArray(todos)) {
+				await setPendingTodoList(todos)
 			}
 			break
 		}

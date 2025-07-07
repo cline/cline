@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Introduïu prefix de comanda (ex. 'git ')",
 			"addButton": "Afegir"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "La llista de tasques es actualitza automàticament sense aprovació"
+		},
 		"apiRequestLimit": {
 			"title": "Màximes Sol·licituds",
 			"description": "Fes aquesta quantitat de sol·licituds API automàticament abans de demanar aprovació per continuar amb la tasca.",

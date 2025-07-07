@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Nhập tiền tố lệnh (ví dụ: 'git ')",
 			"addButton": "Thêm"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "Danh sách việc cần làm được cập nhật tự động mà không cần phê duyệt"
+		},
 		"apiRequestLimit": {
 			"title": "Số lượng yêu cầu tối đa",
 			"description": "Tự động thực hiện số lượng API request này trước khi yêu cầu phê duyệt để tiếp tục với nhiệm vụ.",

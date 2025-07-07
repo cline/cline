@@ -162,6 +162,10 @@
 			"commandPlaceholder": "Komut öneki girin (örn. 'git ')",
 			"addButton": "Ekle"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "Yapılacaklar listesi onay gerektirmeden otomatik olarak güncellenir"
+		},
 		"apiRequestLimit": {
 			"title": "Maksimum İstek",
 			"description": "Göreve devam etmek için onay istemeden önce bu sayıda API isteği otomatik olarak yap.",

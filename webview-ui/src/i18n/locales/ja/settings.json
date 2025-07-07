@@ -162,6 +162,10 @@
 			"commandPlaceholder": "コマンドプレフィックスを入力（例：'git '）",
 			"addButton": "追加"
 		},
+		"updateTodoList": {
+			"label": "Todo",
+			"description": "承認なしで自動的にToDoリストを更新"
+		},
 		"apiRequestLimit": {
 			"title": "最大リクエスト数",
 			"description": "タスクを続行するための承認を求める前に、自動的にこの数のAPIリクエストを行います。",

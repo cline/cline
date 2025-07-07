@@ -162,6 +162,10 @@
 			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
 			"addButton": "新增"
 		},
+		"updateTodoList": {
+			"label": "待辦",
+			"description": "自動更新待辦清單無需批准"
+		},
 		"apiRequestLimit": {
 			"title": "最大請求數",
 			"description": "在請求批准以繼續執行工作之前，自動發出此數量的 API 請求。",
