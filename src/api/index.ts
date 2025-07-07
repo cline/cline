@@ -31,6 +31,7 @@ import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
 import { Mode } from "../shared/ChatSettings"
 import { HuggingFaceHandler } from "./providers/huggingface"
+import { OcaHandler } from "./providers/oca"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -270,6 +271,20 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+			})
+		case "oca":
+			return new OcaHandler({
+				liteLlmApiKey: options.ocaAccessToken,
+				liteLlmBaseUrl: options.ocaLiteLlmBaseUrl,
+				liteLlmModelId: mode === "plan" ? options.planModeOcaLiteLlmModelId : options.actModeOcaLiteLlmModelId,
+				liteLlmModelInfo: mode === "plan" ? options.planModeOcaLiteLlmModelInfo : options.actModeOcaLiteLlmModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				liteLlmUsePromptCache:
+					mode === "plan"
+						? options.planModeOcaLiteLlmModelInfo?.supportsPromptCache
+						: options.actModeOcaLiteLlmModelInfo?.supportsPromptCache,
+				taskId: options.taskId,
 			})
 		default:
 			return new AnthropicHandler({

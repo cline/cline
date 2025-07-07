@@ -6,7 +6,7 @@ import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { withRetry } from "../retry"
 
-interface LiteLlmHandlerOptions {
+export interface LiteLlmHandlerOptions {
 	liteLlmApiKey?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
@@ -17,23 +17,28 @@ interface LiteLlmHandlerOptions {
 }
 
 export class LiteLlmHandler implements ApiHandler {
-	private options: LiteLlmHandlerOptions
-	private client: OpenAI | undefined
+	protected options: LiteLlmHandlerOptions
+	protected client: OpenAI | undefined
 
 	constructor(options: LiteLlmHandlerOptions) {
 		this.options = options
+		this.client = this.initializeClient(options)
 	}
 
-	private ensureClient(): OpenAI {
+	protected initializeClient(options: LiteLlmHandlerOptions) {
+		return new OpenAI({
+			baseURL: options.liteLlmBaseUrl || "http://localhost:4000",
+			apiKey: options.liteLlmApiKey || "noop",
+		})
+	}
+
+	protected ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.liteLlmApiKey) {
 				throw new Error("LiteLLM API key is required")
 			}
 			try {
-				this.client = new OpenAI({
-					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
-					apiKey: this.options.liteLlmApiKey || "noop",
-				})
+				this.client = this.initializeClient(this.options)
 			} catch (error) {
 				throw new Error(`Error creating LiteLLM client: ${error.message}`)
 			}

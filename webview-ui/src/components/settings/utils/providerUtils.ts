@@ -250,6 +250,18 @@ export function normalizeApiConfiguration(
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		case "oca":
+			const ocaLiteLlmModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaLiteLlmModelId : apiConfiguration?.actModeOcaLiteLlmModelId
+			const ocaLiteLlmModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeOcaLiteLlmModelInfo
+					: apiConfiguration?.planModeOcaLiteLlmModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: ocaLiteLlmModelId || "",
+				selectedModelInfo: ocaLiteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

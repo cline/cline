@@ -6,6 +6,7 @@ import {
 	UiServiceClient,
 	FileServiceClient,
 	McpServiceClient,
+	OcaServiceClient,
 } from "../services/grpc-client"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { UpdateSettingsRequest } from "@shared/proto/state"
@@ -20,6 +21,7 @@ import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
 import { findLastIndex } from "@shared/array"
 import {
 	ModelInfo,
+	OcaLiteLLMModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
@@ -31,7 +33,7 @@ import {
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
+import { OpenRouterCompatibleModelInfo, type OcaModelInfoMap } from "@shared/proto/models"
 import { UserInfo } from "@shared/proto/account"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 
@@ -44,6 +46,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
+	ocaModels?: Record<string, OcaLiteLLMModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
@@ -66,6 +69,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
+	setOcaModels: (value: Record<string, OcaLiteLLMModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -77,7 +81,13 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshOcaModels: (url: string) => void
 	setUserInfo: (userInfo?: UserInfo) => void
+
+	// Oca Helper functions
+	ocaRefreshToken: () => void
+	ocaLogin: () => void
+	ocaLogout: () => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -217,6 +227,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
+	const [ocaModels, setOcaModels] = useState<Record<string, OcaLiteLLMModelInfo>>()
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 
@@ -634,6 +645,39 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
+	const refreshOcaModels = useCallback((url: string) => {
+		ModelsServiceClient.refreshOcaModels(StringRequest.create({ value: url }))
+			.then((response: OcaModelInfoMap) => {
+				const models = response.models
+				setOcaModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh Oca models:", error))
+	}, [])
+
+	const ocaRefreshToken = useCallback(() => {
+		OcaServiceClient.ocaRefreshToken(EmptyRequest.create({}))
+			.then(() => {
+				console.log("OCA token refreshed successfully")
+			})
+			.catch((error: Error) => console.error("Failed to refresh OCA token:", error))
+	}, [])
+
+	const ocaLogin = useCallback(() => {
+		OcaServiceClient.ocaLoginClicked(EmptyRequest.create({}))
+			.then(() => {
+				console.log("OCA login successful")
+			})
+			.catch((error: Error) => console.error("Failed to login to OCA:", error))
+	}, [])
+
+	const ocaLogout = useCallback(() => {
+		OcaServiceClient.ocaLogoutClicked(EmptyRequest.create({}))
+			.then(() => {
+				console.log("OCA logout successful")
+			})
+			.catch((error: Error) => console.error("Failed to logout from OCA:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -644,6 +688,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		requestyModels,
 		groqModels: groqModelsState,
 		huggingFaceModels,
+		ocaModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,
@@ -685,6 +730,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
+		setOcaModels: (models: Record<string, OcaLiteLLMModelInfo>) => setOcaModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
@@ -753,6 +799,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshOcaModels,
+		ocaRefreshToken,
+		ocaLogin,
+		ocaLogout,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 	}
