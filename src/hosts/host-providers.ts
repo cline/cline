@@ -1,7 +1,6 @@
 import { WebviewProvider } from "@core/webview"
 import { HostBridgeClientProvider } from "./host-provider-types"
 import { WebviewProviderType } from "@/shared/webview/types"
-import * as vscode from "vscode"
 
 /**
  * A function that creates WebviewProvider instances
