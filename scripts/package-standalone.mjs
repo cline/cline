@@ -70,6 +70,9 @@ async function zipDistribution() {
 		if (entry.name.startsWith(".git")) {
 			return false
 		}
+		if (entry.name.endsWith(".DS_Store")) {
+			return false
+		}
 		if (entry.name === "dist" || entry.name.startsWith("dist" + path.sep)) {
 			// Don't include the vscode extension build dir.
 			return false

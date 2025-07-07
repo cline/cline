@@ -1,10 +1,11 @@
 # Default
 .vscode/**
 .vscode-test/**
-out/
-dist-standalone/
+out/**
+dist-standalone/**
 node_modules/**
 src/**
+standalone/**
 .gitignore
 .yarnrc
 esbuild.js
@@ -14,7 +15,7 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
-eslint-rules/
+eslint-rules/**
 
 # Custom
 demo.gif
@@ -33,8 +34,8 @@ webview-ui/node_modules/**
 **/.gitignore
 
 # Ignore docs
-docs/
-old_docs/
+docs/**
+old_docs/**
 
 # Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
 !node_modules/@vscode/codicons/dist/codicon.css
