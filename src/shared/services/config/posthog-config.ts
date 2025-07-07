@@ -12,4 +12,4 @@ const posthogDevEnvConfig = {
 	uiHost: "https://us.i.posthog.com",
 }
 
-export const posthogConfig = process.env.isDev ? posthogDevEnvConfig : posthogProdConfig
+export const posthogConfig = process.env.IS_DEV ? posthogDevEnvConfig : posthogProdConfig
