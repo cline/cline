@@ -25,12 +25,14 @@ import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTo
 import { browserActionToolDefinition } from "@core/tools/browserActionTool"
 import { newTaskToolDefinition } from "@core/tools/newTaskTool"
 import { editToolDefinition } from "@/core/tools/editTool"
+import { editFileToolDefinition } from "@/core/tools/editFileTool"
 
 export const SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL = async (
 	cwd: string,
 	supportsBrowserUse: boolean,
 	mcpHub: McpHub,
 	browserSettings: BrowserSettings,
+	fastApplySettings?: { enabled: boolean; provider: string; apiKey: string },
 ) => {
 	const bashTool = bashToolDefinition(cwd)
 	const readTool = readToolDefinition(cwd)
@@ -41,6 +43,7 @@ export const SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL = async (
 		accessMcpResourceToolDefinition.name,
 	)
 	const browserActionTool = browserActionToolDefinition(browserSettings)
+	const editFileTool = fastApplySettings?.enabled ? editFileToolDefinition(cwd) : null
 
 	const systemPrompt = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -326,6 +329,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		readTool,
 		writeTool,
 		editToolDefinition,
+		...(editFileTool ? [editFileTool] : []),
 		askQuestionToolDefinition,
 		planModeRespondToolDefinition,
 		bashTool,
@@ -337,7 +341,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		accessMcpResourceToolDefinition,
 		loadMcpDocumentationTool,
 		newTaskToolDefinition,
-		editToolDefinition,
 	]
 	if (supportsBrowserUse) {
 		tools.push(browserActionTool)

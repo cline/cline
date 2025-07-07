@@ -64,6 +64,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		// Update fast apply settings
+		if (request.fastApplySettings) {
+			await controller.context.globalState.update("fastApplySettings", {
+				enabled: request.fastApplySettings.enabled,
+				provider: request.fastApplySettings.provider,
+				apiKey: request.fastApplySettings.apiKey,
+			})
+		}
+
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
 			await controller.context.globalState.update("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))

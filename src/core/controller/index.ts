@@ -832,6 +832,7 @@ export class Controller {
 			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			fastApplySettings,
 		} = await getAllExtensionState(this.context)
 
 		// Reconstruct ChatSettings with in-memory mode and stored preferences
@@ -887,6 +888,7 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			fastApplySettings,
 		}
 	}
 

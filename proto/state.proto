@@ -115,6 +115,13 @@ message UpdateSettingsRequest {
   optional bool mcp_responses_collapsed = 10;
   optional bool mcp_rich_display_enabled = 11;
   optional int64 terminal_output_line_limit = 12;
+  optional FastApplySettings fast_apply_settings = 13;
+}
+
+message FastApplySettings {
+  bool enabled = 1;
+  string provider = 2;
+  string api_key = 3;
 }
 
 // Complete API Configuration message

@@ -78,6 +78,7 @@ export type GlobalStateKey =
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
+	| "fastApplySettings"
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
 	// Current active model configuration (per workspace)

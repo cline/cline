@@ -10,6 +10,7 @@ import { McpServer, McpMarketplaceCatalog, McpDownloadResponse, McpViewTab } fro
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
 import { ClineRulesToggles } from "./cline-rules"
+import { FastApplySettings } from "./FastApplySettings"
 import { UserInfo } from "./UserInfo"
 
 // webview will hold state
@@ -92,6 +93,7 @@ export interface ExtensionState {
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
+	fastApplySettings?: FastApplySettings
 }
 
 export interface ClineMessage {

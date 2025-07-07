@@ -69,7 +69,7 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import { getGlobalState } from "@core/storage/state"
+import { getAllExtensionState, getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -1580,7 +1580,18 @@ export class Task {
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+
+		// Get fast apply settings from extension state
+		const { fastApplySettings } = await getAllExtensionState(this.getContext())
+
+		let systemPrompt = await SYSTEM_PROMPT(
+			this.cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			isNextGenModel,
+			fastApplySettings,
+		)
 
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)

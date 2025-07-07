@@ -1,4 +1,4 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
@@ -11,8 +11,14 @@ interface FeatureSettingsSectionProps {
 }
 
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
-	const { enableCheckpointsSetting, mcpMarketplaceEnabled, mcpRichDisplayEnabled, mcpResponsesCollapsed, chatSettings } =
-		useExtensionState()
+	const {
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		mcpRichDisplayEnabled,
+		mcpResponsesCollapsed,
+		chatSettings,
+		fastApplySettings,
+	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenAIReasoningEffort) => {
 		if (!chatSettings) return
@@ -105,6 +111,76 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
 						</p>
+					</div>
+					<div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--vscode-widget-border)" }}>
+						<h3 className="text-sm font-medium text-[var(--vscode-foreground)] mb-3">Fast Apply Settings</h3>
+						<div>
+							<VSCodeCheckbox
+								checked={fastApplySettings?.enabled || false}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("fastApplySettings", {
+										enabled: checked,
+										provider: fastApplySettings?.provider || "morph",
+										apiKey: fastApplySettings?.apiKey || "",
+									})
+								}}>
+								Enable Fast Apply
+							</VSCodeCheckbox>
+							<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+								Use Morph's fast apply API to modify files efficiently
+							</p>
+						</div>
+						{fastApplySettings?.enabled && (
+							<>
+								<div style={{ marginTop: 10 }}>
+									<label
+										htmlFor="fast-apply-provider-dropdown"
+										className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+										Provider
+									</label>
+									<VSCodeDropdown
+										id="fast-apply-provider-dropdown"
+										currentValue={fastApplySettings?.provider || "morph"}
+										onChange={(e: any) => {
+											const newValue = e.target.currentValue
+											updateSetting("fastApplySettings", {
+												enabled: fastApplySettings?.enabled || false,
+												provider: newValue,
+												apiKey: fastApplySettings?.apiKey || "",
+											})
+										}}
+										className="w-full">
+										<VSCodeOption value="morph">Morph</VSCodeOption>
+									</VSCodeDropdown>
+								</div>
+								<div style={{ marginTop: 10 }}>
+									<label
+										htmlFor="fast-apply-api-key"
+										className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+										API Key
+									</label>
+									<VSCodeTextField
+										id="fast-apply-api-key"
+										type="password"
+										value={fastApplySettings?.apiKey || ""}
+										placeholder="Enter your Morph API key"
+										onInput={(e: any) => {
+											const newValue = e.target.value
+											updateSetting("fastApplySettings", {
+												enabled: fastApplySettings?.enabled || false,
+												provider: fastApplySettings?.provider || "morph",
+												apiKey: newValue,
+											})
+										}}
+										className="w-full"
+									/>
+									<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+										Your API key for the selected provider
+									</p>
+								</div>
+							</>
+						)}
 					</div>
 				</div>
 			</Section>
