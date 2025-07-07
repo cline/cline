@@ -2124,6 +2124,13 @@ export class Task {
 					this.api.getModel().id,
 					"assistant",
 					true,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
 				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -2297,6 +2304,13 @@ export class Task {
 					this.api.getModel().id,
 					"assistant",
 					true,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
 				)
 
 				await this.messageStateHandler.addToApiConversationHistory({
