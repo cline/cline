@@ -2,12 +2,7 @@
 
 ## 3.19.0
 
-### Minor Changes
-
 -   1842254: Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
-
-### Patch Changes
-
 -   7ab6189: Fix logging in with cline not getting past welcome screen
 
 ## [3.18.3]
