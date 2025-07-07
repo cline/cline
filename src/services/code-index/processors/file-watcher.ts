@@ -464,7 +464,7 @@ export class FileWatcher implements IFileWatcher {
 			}
 
 			// Check if file should be ignored
-			const relativeFilePath = generateRelativeFilePath(filePath)
+			const relativeFilePath = generateRelativeFilePath(filePath, this.workspacePath)
 			if (
 				!this.ignoreController.validateAccess(filePath) ||
 				(this.ignoreInstance && this.ignoreInstance.ignores(relativeFilePath))
@@ -512,7 +512,7 @@ export class FileWatcher implements IFileWatcher {
 				const { embeddings } = await this.embedder.createEmbeddings(texts)
 
 				pointsToUpsert = blocks.map((block, index) => {
-					const normalizedAbsolutePath = generateNormalizedAbsolutePath(block.file_path)
+					const normalizedAbsolutePath = generateNormalizedAbsolutePath(block.file_path, this.workspacePath)
 					const stableName = `${normalizedAbsolutePath}:${block.start_line}`
 					const pointId = uuidv5(stableName, QDRANT_CODE_BLOCK_NAMESPACE)
 
@@ -520,7 +520,7 @@ export class FileWatcher implements IFileWatcher {
 						id: pointId,
 						vector: embeddings[index],
 						payload: {
-							filePath: generateRelativeFilePath(normalizedAbsolutePath),
+							filePath: generateRelativeFilePath(normalizedAbsolutePath, this.workspacePath),
 							codeChunk: block.content,
 							startLine: block.start_line,
 							endLine: block.end_line,

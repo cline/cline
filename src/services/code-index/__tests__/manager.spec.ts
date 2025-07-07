@@ -1,17 +1,30 @@
-import { CodeIndexManager } from "../manager"
+// Mock vscode module
+vi.mock("vscode", () => ({
+	workspace: {
+		workspaceFolders: [
+			{
+				uri: { fsPath: "/test/workspace" },
+				name: "test",
+				index: 0,
+			},
+		],
+	},
+}))
 
 // Mock only the essential dependencies
-vitest.mock("../../../utils/path", () => ({
-	getWorkspacePath: vitest.fn(() => "/test/workspace"),
+vi.mock("../../../utils/path", () => ({
+	getWorkspacePath: vi.fn(() => "/test/workspace"),
 }))
 
-vitest.mock("../state-manager", () => ({
-	CodeIndexStateManager: vitest.fn().mockImplementation(() => ({
-		onProgressUpdate: vitest.fn(),
-		getCurrentStatus: vitest.fn(),
-		dispose: vitest.fn(),
+vi.mock("../state-manager", () => ({
+	CodeIndexStateManager: vi.fn().mockImplementation(() => ({
+		onProgressUpdate: vi.fn(),
+		getCurrentStatus: vi.fn(),
+		dispose: vi.fn(),
 	})),
 }))
+
+import { CodeIndexManager } from "../manager"
 
 describe("CodeIndexManager - handleSettingsChange regression", () => {
 	let mockContext: any
@@ -27,7 +40,7 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			globalState: {} as any,
 			extensionUri: {} as any,
 			extensionPath: "/test/extension",
-			asAbsolutePath: vitest.fn(),
+			asAbsolutePath: vi.fn(),
 			storageUri: {} as any,
 			storagePath: "/test/storage",
 			globalStorageUri: {} as any,
@@ -58,13 +71,13 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 
 			// Mock a minimal config manager that simulates first-time configuration
 			const mockConfigManager = {
-				loadConfiguration: vitest.fn().mockResolvedValue({ requiresRestart: true }),
+				loadConfiguration: vi.fn().mockResolvedValue({ requiresRestart: true }),
 			}
 			;(manager as any)._configManager = mockConfigManager
 
 			// Mock the feature state to simulate valid configuration that would normally trigger restart
-			vitest.spyOn(manager, "isFeatureEnabled", "get").mockReturnValue(true)
-			vitest.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
+			vi.spyOn(manager, "isFeatureEnabled", "get").mockReturnValue(true)
+			vi.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
 
 			// The key test: this should NOT throw "CodeIndexManager not initialized" error
 			await expect(manager.handleSettingsChange()).resolves.not.toThrow()
@@ -76,10 +89,10 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 		it("should work normally when manager is initialized", async () => {
 			// Mock a complete config manager with all required properties
 			const mockConfigManager = {
-				loadConfiguration: vitest.fn().mockResolvedValue({ requiresRestart: true }),
+				loadConfiguration: vi.fn().mockResolvedValue({ requiresRestart: true }),
 				isFeatureConfigured: true,
 				isFeatureEnabled: true,
-				getConfig: vitest.fn().mockReturnValue({
+				getConfig: vi.fn().mockReturnValue({
 					isEnabled: true,
 					isConfigured: true,
 					embedderProvider: "openai",
@@ -93,7 +106,7 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			;(manager as any)._configManager = mockConfigManager
 
 			// Simulate an initialized manager by setting the required properties
-			;(manager as any)._orchestrator = { stopWatcher: vitest.fn() }
+			;(manager as any)._orchestrator = { stopWatcher: vi.fn() }
 			;(manager as any)._searchService = {}
 			;(manager as any)._cacheManager = {}
 
@@ -101,12 +114,12 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			expect(manager.isInitialized).toBe(true)
 
 			// Mock the methods that would be called during restart
-			const recreateServicesSpy = vitest.spyOn(manager as any, "_recreateServices").mockImplementation(() => {})
-			const startIndexingSpy = vitest.spyOn(manager, "startIndexing").mockResolvedValue()
+			const recreateServicesSpy = vi.spyOn(manager as any, "_recreateServices").mockImplementation(() => {})
+			const startIndexingSpy = vi.spyOn(manager, "startIndexing").mockResolvedValue()
 
 			// Mock the feature state
-			vitest.spyOn(manager, "isFeatureEnabled", "get").mockReturnValue(true)
-			vitest.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
+			vi.spyOn(manager, "isFeatureEnabled", "get").mockReturnValue(true)
+			vi.spyOn(manager, "isFeatureConfigured", "get").mockReturnValue(true)
 
 			await manager.handleSettingsChange()
 

@@ -115,3 +115,18 @@ export const getWorkspacePath = (defaultCwdPath = "") => {
 	}
 	return cwdPath
 }
+
+export const getWorkspacePathForContext = (contextPath?: string): string => {
+	// If context path provided, find its workspace
+	if (contextPath) {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(contextPath))
+		if (workspaceFolder) {
+			return workspaceFolder.uri.fsPath
+		}
+		// Debug logging when falling back
+		console.debug(`[CodeIndex] No workspace found for context path: ${contextPath}, falling back to default`)
+	}
+
+	// Fall back to current behavior
+	return getWorkspacePath()
+}
