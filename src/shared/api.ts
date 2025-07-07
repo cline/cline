@@ -2374,42 +2374,6 @@ export const requestyDefaultModelInfo: ModelInfo = {
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels
 export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
 export const sapAiCoreModels = {
-	"gemini-2.5-pro": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 2.5,
-		outputPrice: 15,
-		cacheReadsPrice: 0.625,
-		tiers: [
-			{
-				contextWindow: 200000,
-				inputPrice: 1.25,
-				outputPrice: 10,
-				cacheReadsPrice: 0.31,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 2.5,
-				outputPrice: 15,
-				cacheReadsPrice: 0.625,
-			},
-		],
-	},
-	"gemini-2.5-flash": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.3,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.075,
-		thinkingConfig: {
-			maxBudget: 24576,
-			outputPrice: 3.5,
-		},
-	},
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -2466,21 +2430,41 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	"gpt-4o": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
+		],
 	},
-	"gpt-4o-mini": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.075,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
 	},
 	"gpt-4": {
 		maxTokens: 4096,
@@ -2490,7 +2474,7 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	o1: {
+	"gpt-4o": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -2498,7 +2482,7 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	"o3-mini": {
+	"gpt-4o-mini": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -2524,6 +2508,14 @@ export const sapAiCoreModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
 	},
+	o1: {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -2532,6 +2524,14 @@ export const sapAiCoreModels = {
 		inputPrice: 10.0,
 		outputPrice: 40.0,
 		cacheReadsPrice: 2.5,
+	},
+	"o3-mini": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
