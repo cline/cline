@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { BadgeCent } from "lucide-react"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -12,6 +12,12 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { get } from "http"
+
+type VSCodeDropdownChangeEvent = Event & {
+	target: {
+		value: string
+	}
+}
 
 type AccountViewProps = {
 	onDone: () => void
@@ -42,6 +48,7 @@ export const ClineAccountView = () => {
 	const [balance, setBalance] = useState(0)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
+	const [midOrgOptimisticUpdate, setMidOrgOptimisticUpdate] = useState(false)
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
@@ -114,12 +121,16 @@ export const ClineAccountView = () => {
 	}, [user])
 
 	useEffect(() => {
+		if (midOrgOptimisticUpdate) {
+			return
+		}
+
 		if (activeOrganization) {
 			getOrganizationCredits()
 		} else {
 			getUserCredits()
 		}
-	}, [activeOrganization])
+	}, [activeOrganization, midOrgOptimisticUpdate])
 
 	const handleLogin = () => {
 		handleSignIn()
@@ -129,14 +140,25 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 
-	const handleOrganizationChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-		console.log("Selected organization ID:", event.target.value, activeOrganization?.organizationId)
-		if (!activeOrganization || activeOrganization.organizationId !== event.target.value) {
-			// Set the selected organization ID in the state or context
-			await AccountServiceClient.setUserOrganization(
-				UserOrganizationUpdateRequest.create({ organizationId: event.target.value }),
-			)
-			getUserOrganizations()
+	const handleOrganizationChange = async (event: any) => {
+		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
+		console.log("Selected organization ID:", newOrgId, activeOrganization?.organizationId)
+
+		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
+			const newSelectedOrg =
+				newOrgId === "" ? null : userOrganizations.find((org) => org.organizationId === newOrgId) || null
+			const previousOrganization = activeOrganization
+			setMidOrgOptimisticUpdate(true)
+			setActiveOrganization(newSelectedOrg)
+			try {
+				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
+				setMidOrgOptimisticUpdate(false)
+				getUserOrganizations()
+			} catch (error) {
+				console.error("Failed to update organization:", error)
+				setMidOrgOptimisticUpdate(false)
+				setActiveOrganization(previousOrganization)
+			}
 		}
 	}
 
@@ -166,17 +188,17 @@ export const ClineAccountView = () => {
 								)}
 
 								{userOrganizations && (
-									// Then use that ID as the value for the select element
-									<select
-										value={userOrganizations.find((org) => org.active)?.organizationId || ""}
-										onChange={handleOrganizationChange}>
-										<option value="">Personal</option>
+									<VSCodeDropdown
+										currentValue={activeOrganization?.organizationId || ""}
+										onChange={handleOrganizationChange}
+										style={{ width: "100%", marginTop: "4px" }}>
+										<VSCodeOption value="">Personal</VSCodeOption>
 										{userOrganizations.map((org: UserOrganization) => (
-											<option key={org.organizationId} value={org.organizationId}>
+											<VSCodeOption key={org.organizationId} value={org.organizationId}>
 												{org.name}
-											</option>
+											</VSCodeOption>
 										))}
-									</select>
+									</VSCodeDropdown>
 								)}
 							</div>
 						</div>
