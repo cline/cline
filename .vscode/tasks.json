@@ -233,10 +233,10 @@
 			"type": "shell"
 		},
 		{
-			"label": "clean-sandbox",
+			"label": "clean-tmp-user",
 			"type": "shell",
 			"dependsOn": ["watch"],
-			"command": "rm -rf .vscode-dev"
+			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
 		}
 	],
 	"inputs": [

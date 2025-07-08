@@ -23,19 +23,20 @@
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
+				"--user-data-dir=${workspaceFolder}/dist/tmp/user",
 				"--profile-temp",
-				"--sync",
-				"off",
+				"--sync=off",
 				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "clean-sandbox",
+			"preLaunchTask": "clean-tmp-user",
 			"internalConsoleOptions": "openOnSessionStart",
 			"postDebugTask": "stop",
 			"env": {
 				"IS_DEV": "true",
+				"TEMP_PROFILE": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
 		},
