@@ -7,33 +7,18 @@ const createRule = ESLintUtils.RuleCreator((name) => `https://cline.bot/eslint-r
 const disallowedApis = {
 	"vscode.postMessage": {
 		messageId: "useGrpcClient",
-		message:
-			"Use gRPC service clients instead of vscode.postMessage().\n" +
-			"Example: AccountServiceClient.methodName(RequestType.create({...})) instead of vscode.postMessage({type: '...'}).",
 	},
 	"vscode.workspace.fs.stat": {
 		messageId: "useFsUtils",
-		message:
-			"Use utilities in @/utils/fs instead of vscode.workspace.fs.stat.\n" +
-			"Example: import { isDirectory } from '@/utils/fs' or use the file system methods from the host bridge provider.",
 	},
 	"vscode.workspace.workspaceFolders": {
 		messageId: "useHostBridge",
-		message:
-			"Use getHostBridgeProvider().workspaceClient.getWorkspacePaths({}) instead of vscode.workspace.workspaceFolders.\n" +
-			"This provides a consistent abstraction across VSCode and standalone environments.",
 	},
 	"vscode.workspace.asRelativePath": {
 		messageId: "usePathUtils",
-		message:
-			"Use asRelativePath() from @/utils/path instead of vscode.workspace.asRelativePath.\n" +
-			"This utility handles path resolution consistently across different environments.",
 	},
 	"vscode.workspace.getWorkspaceFolder": {
 		messageId: "usePathUtils",
-		message:
-			"Use workspace path utilities from @/utils/path or the host bridge provider instead of vscode.workspace.getWorkspaceFolder.\n" +
-			"Example: isLocatedInWorkspace() or getWorkspacePath() from @/utils/path.",
 	},
 }
 
