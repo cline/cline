@@ -99,7 +99,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	// Internal state management for description expansion
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
-	const isGeminiProvider = Object.keys(geminiModels).includes(selectedModelId)
+	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
 
@@ -170,7 +170,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 			supportsLabel="Supports browser use"
 			doesNotSupportLabel="Does not support browser use"
 		/>,
-		!isGeminiProvider && (
+		!isGemini && (
 			<ModelInfoSupportsItem
 				key="supportsPromptCache"
 				isSupported={supportsPromptCache(modelInfo)}
@@ -195,15 +195,6 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 			</span>
 		),
 		outputPriceElement, // Add the generated output price block
-		isGeminiProvider && (
-			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
-				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
-				billing depends on prompt size.{" "}
-				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
-					For more info, see pricing details.
-				</VSCodeLink>
-			</span>
-		),
 	].filter(Boolean)
 
 	return (

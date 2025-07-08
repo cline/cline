@@ -2,6 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -38,7 +40,12 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		try {
 			// Write content to the selected location
 			await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(markdownContent))
-			vscode.window.showTextDocument(saveUri, { preview: true })
+			await getHostBridgeProvider().windowClient.showTextDocument(
+				ShowTextDocumentRequest.create({
+					path: saveUri.fsPath,
+					options: ShowTextDocumentOptions.create({ preview: true }),
+				}),
+			)
 		} catch (error) {
 			vscode.window.showErrorMessage(
 				`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,

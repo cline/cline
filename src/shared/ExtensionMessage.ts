@@ -13,37 +13,8 @@ import { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages" | "mcpDownloadDetails" | "grpc_response" // New type for gRPC responses
-	text?: string
-	action?: "accountLogoutClicked"
-	state?: ExtensionState
-	images?: string[]
-	files?: string[]
-	ollamaModels?: string[]
-	lmStudioModels?: string[]
-	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	openAiModels?: string[]
-	mcpServers?: McpServer[]
-	customToken?: string
-	mcpMarketplaceCatalog?: McpMarketplaceCatalog
-	error?: string
-	mcpDownloadDetails?: McpDownloadResponse
-	commits?: GitCommit[]
-	url?: string
-	isImage?: boolean
-	success?: boolean
-	endpoint?: string
-	isBundled?: boolean
-	isConnected?: boolean
-	isRemote?: boolean
-	host?: string
-	mentionsRequestId?: string
-	results?: Array<{
-		path: string
-		type: "file" | "folder"
-		label?: string
-	}>
-	tab?: McpViewTab
+	type: "grpc_response" // New type for gRPC responses
+
 	grpc_response?: {
 		message?: any // JSON serialized protobuf message
 		request_id: string // Same ID as the request
@@ -59,6 +30,7 @@ export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
 	isNewUser: boolean
+	welcomeViewCompleted: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings

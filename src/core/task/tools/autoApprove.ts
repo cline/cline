@@ -1,11 +1,8 @@
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ToolUseName } from "@core/assistant-message"
 import * as path from "path"
-import * as vscode from "vscode"
 import os from "os"
-
-export const cwd =
-	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
@@ -54,9 +51,10 @@ export class AutoApprove {
 	// Check if the tool should be auto-approved based on the settings
 	// and the path of the action. Returns true if the tool should be auto-approved
 	// based on the user's settings and the path of the action.
-	shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+	async shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): Promise<boolean> {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
+			const cwd = await getCwd(getDesktopDir())
 			const absolutePath = path.resolve(cwd, autoApproveActionpath)
 			isLocalRead = absolutePath.startsWith(cwd)
 		} else {

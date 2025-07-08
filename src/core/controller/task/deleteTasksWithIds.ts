@@ -1,5 +1,6 @@
 import path from "path"
 import fs from "fs/promises"
+import vscode from "vscode"
 import { Controller } from ".."
 import { Empty, StringArrayRequest, BooleanRequest } from "../../../shared/proto/common"
 import { TaskMethodHandler } from "./index"
@@ -18,6 +19,18 @@ export const deleteTasksWithIds: TaskMethodHandler = async (
 ): Promise<Empty> => {
 	if (!request.value || request.value.length === 0) {
 		throw new Error("Missing task IDs")
+	}
+
+	const taskCount = request.value.length
+	const message =
+		taskCount === 1
+			? "Are you sure you want to delete this task? This action cannot be undone."
+			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
+
+	const userChoice = await vscode.window.showWarningMessage(message, { modal: true }, "Delete")
+
+	if (userChoice === undefined) {
+		return Empty.create()
 	}
 
 	for (const id of request.value) {

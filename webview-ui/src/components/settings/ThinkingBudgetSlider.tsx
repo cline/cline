@@ -1,7 +1,9 @@
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -80,26 +82,30 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 `
 
 interface ThinkingBudgetSliderProps {
-	apiConfiguration: ApiConfiguration | undefined
-	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
 	maxBudget?: number
 }
 
-const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
-	const maxTokens =
-		apiConfiguration?.apiProvider === "gemini"
-			? geminiModels[geminiDefaultModelId].maxTokens
-			: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+
+	const [isEnabled, setIsEnabled] = useState<boolean>((apiConfiguration?.thinkingBudgetTokens || 0) > 0)
+
+	const maxTokens = useMemo(
+		() =>
+			apiConfiguration?.apiProvider === "gemini"
+				? geminiModels[geminiDefaultModelId].maxTokens
+				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
+		[apiConfiguration?.apiProvider],
+	)
 
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
-	const maxSliderValue = (() => {
+	const maxSliderValue = useMemo(() => {
 		if (maxBudget !== undefined) {
 			return maxBudget
 		}
 		return Math.floor(maxTokens * MAX_PERCENTAGE)
-	})()
-
-	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
+	}, [maxBudget, maxTokens])
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
@@ -110,20 +116,16 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 	}, [])
 
 	const handleSliderComplete = () => {
-		setApiConfiguration({
-			...apiConfiguration,
-			thinkingBudgetTokens: localValue,
-		})
+		handleFieldChange("thinkingBudgetTokens", localValue)
 	}
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
 		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
+		setIsEnabled(isChecked)
 		setLocalValue(newValue)
-		setApiConfiguration({
-			...apiConfiguration,
-			thinkingBudgetTokens: newValue,
-		})
+
+		handleFieldChange("thinkingBudgetTokens", newValue)
 	}
 
 	return (

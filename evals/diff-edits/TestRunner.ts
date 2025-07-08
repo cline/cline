@@ -3,10 +3,11 @@ import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/pars
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
+import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
-import { formatResponse } from "./helpers"
+import { formatResponse, log } from "./helpers"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as fs from "fs"
 import * as path from "path"
@@ -38,12 +39,6 @@ import { get_encoding } from "tiktoken";
 const encoding = get_encoding("cl100k_base"); 
 
 let openRouterModelDataGlobal: Record<string, EvalOpenRouterModelInfo> = {}; // Global to store fetched data
-
-function log(isVerbose: boolean, message: string) {
-	if (isVerbose) {
-		console.log(message)
-	}
-}
 
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
 	basicSystemPrompt: basicSystemPrompt,
@@ -484,6 +479,7 @@ class NodeTestRunner {
 			"diff-06-06-25": constructNewFileContent_06_06_25,
 			"diff-06-23-25": constructNewFileContent_06_23_25,
 			"diff-06-25-25": constructNewFileContent_06_25_25,
+			"diff-06-26-25": constructNewFileContent_06_26_25,
 			constructNewFileContentV3: constructNewFileContentV3,
 		}
 		const constructNewFileContent = diffEditingFunctions[diffApplyFile]
@@ -639,6 +635,7 @@ class NodeTestRunner {
 			thinkingBudgetTokens: testConfig.thinking_tokens_budget,
 			originalDiffEditToolCallMessage: testConfig.replay ? testCase.original_diff_edit_tool_call_message : undefined,
 			diffApplyFile: testConfig.diff_apply_file,
+			isVerbose: isVerbose,
 		}
 
 		if (isVerbose) {
@@ -805,8 +802,8 @@ class NodeTestRunner {
 					log(isVerbose, `Warning: Failed to store result in database: ${error}`);
 				}
 				
-				// Safety check to prevent infinite loops - limit to 10 attempts per valid attempt requested
-				if (totalAttempts >= testConfig.number_of_runs * 10) {
+				// Safety check to prevent infinite loops - use configurable max attempts limit
+				if (totalAttempts >= testConfig.max_attempts_per_case) {
 					log(isVerbose, `  ⚠️ Reached maximum attempts (${totalAttempts}) for test case ${testCase.test_id}. Only got ${validAttempts}/${testConfig.number_of_runs} valid attempts.`);
 					break;
 				}
@@ -925,14 +922,16 @@ async function main() {
 		.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 		.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 		.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
+		.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 		.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-		.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+		.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-25-25")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
 		.option("--diff-apply-file <filename>", "The name of the diff apply file to use for the replay")
+		.option("--save-locally", "Save results to local JSON files in addition to database", false)
 		.option("-v, --verbose", "Enable verbose logging", false)
 		.option("--max-concurrency <number>", "Maximum number of parallel requests", "80")
 
@@ -943,6 +942,7 @@ async function main() {
 	const isVerbose = options.verbose
 	const testPath = options.testPath
 	const outputPath = options.outputPath
+	const saveLocally = options.saveLocally
 	const maxConcurrency = parseInt(options.maxConcurrency, 10);
 
 	// Parse model IDs from comma-separated string
@@ -953,6 +953,11 @@ async function main() {
 	}
 
 	const validAttemptsPerCase = parseInt(options.validAttemptsPerCase, 10);
+	
+	// Compute dynamic default for max attempts: 10x valid attempts if not specified
+	const maxAttemptsPerCase = options.maxAttemptsPerCase 
+		? parseInt(options.maxAttemptsPerCase, 10)
+		: validAttemptsPerCase * 10;
 
 	const runner = new NodeTestRunner(options.replay || !!options.replayRunId)
 
@@ -1058,6 +1063,7 @@ async function main() {
 					model_id: modelId,
 					system_prompt_name: options.systemPromptName,
 					number_of_runs: validAttemptsPerCase,
+					max_attempts_per_case: maxAttemptsPerCase,
 					parsing_function: options.parsingFunction,
 					diff_edit_function: options.diffEditFunction,
 					thinking_tokens_budget: parseInt(options.thinkingBudget, 10),
@@ -1125,7 +1131,7 @@ async function main() {
 
 			remainingTasks = remainingTasks.filter(task => {
 				const taskId = `${task.modelId}-${task.testCase.test_id}`;
-				if (taskStates[taskId].total >= validAttemptsPerCase * 10) {
+				if (taskStates[taskId].total >= task.testConfig.max_attempts_per_case) {
 					log(isVerbose, `  ⚠️ Reached maximum attempts for ${task.testCase.test_id} with ${task.modelId}.`);
 					return false;
 				}
@@ -1149,6 +1155,12 @@ async function main() {
 		const endTime = Date.now()
 		const durationSeconds = ((endTime - startTime) / 1000).toFixed(2)
 		log(isVerbose, `\n-Total execution time: ${durationSeconds} seconds`)
+
+		// Save results locally if requested
+		if (saveLocally) {
+			runner.saveTestResults(results, outputPath);
+			log(isVerbose, `✓ Results also saved to JSON files in ${outputPath}`);
+		}
 
 		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {

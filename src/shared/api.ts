@@ -10,7 +10,6 @@ export type ApiProvider =
 	| "ollama"
 	| "lmstudio"
 	| "gemini"
-	| "gemini-cli"
 	| "openai-native"
 	| "requesty"
 	| "together"
@@ -70,8 +69,6 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
-	geminiCliOAuthPath?: string
-	geminiCliProjectId?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
@@ -875,138 +872,6 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
-} as const satisfies Record<string, ModelInfo>
-
-// Gemini CLI (OAuth-based)
-export type GeminiCliModelId = keyof typeof geminiCliModels
-export const geminiCliDefaultModelId: GeminiCliModelId = "gemini-2.5-flash"
-export const geminiCliModels = {
-	"gemini-2.5-pro": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0, // Free tier via OAuth
-		outputPrice: 0, // Free tier via OAuth
-		description: "Google's Gemini 2.5 Pro model via OAuth (free tier)",
-	},
-	"gemini-2.5-flash": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0, // Free tier via OAuth
-		outputPrice: 0, // Free tier via OAuth
-		description: "Google's Gemini 2.5 Flash model via OAuth (free tier)",
-	},
-	"gemini-2.0-flash-001": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0, // Free tier via OAuth
-		outputPrice: 0, // Free tier via OAuth
-		description: "Google's Gemini 2.0 Flash model via OAuth (free tier)",
-	},
-	"gemini-2.0-flash-lite-preview-02-05": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 2.0 Flash Lite Preview model via OAuth",
-	},
-	"gemini-2.0-pro-exp-02-05": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 2.0 Pro Experimental model via OAuth",
-	},
-	"gemini-2.0-flash-thinking-exp-01-21": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 2.0 Flash Thinking Experimental model via OAuth",
-	},
-	"gemini-2.0-flash-thinking-exp-1219": {
-		maxTokens: 8192,
-		contextWindow: 32_767,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 2.0 Flash Thinking Experimental (1219) model via OAuth",
-	},
-	"gemini-2.0-flash-exp": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 2.0 Flash Experimental model via OAuth",
-	},
-	"gemini-1.5-flash-002": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0, // Free tier via OAuth
-		outputPrice: 0, // Free tier via OAuth
-		description: "Google's Gemini 1.5 Flash 002 model via OAuth (free tier)",
-	},
-	"gemini-1.5-flash-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 1.5 Flash Experimental (0827) model via OAuth",
-	},
-	"gemini-1.5-flash-8b-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 1.5 Flash 8B Experimental model via OAuth",
-	},
-	"gemini-1.5-pro-002": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 1.5 Pro 002 model via OAuth",
-	},
-	"gemini-1.5-pro-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini 1.5 Pro Experimental model via OAuth",
-	},
-	"gemini-exp-1206": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Google's Gemini Experimental (1206) model via OAuth",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -2509,6 +2374,22 @@ export const requestyDefaultModelInfo: ModelInfo = {
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels
 export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
 export const sapAiCoreModels = {
+	"anthropic--claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"anthropic--claude-4-opus": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	"anthropic--claude-3.7-sonnet": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
@@ -2549,21 +2430,41 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	"gpt-4o": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
+		],
 	},
-	"gpt-4o-mini": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.075,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
 	},
 	"gpt-4": {
 		maxTokens: 4096,
@@ -2573,7 +2474,7 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	o1: {
+	"gpt-4o": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -2581,7 +2482,7 @@ export const sapAiCoreModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	"o3-mini": {
+	"gpt-4o-mini": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -2607,6 +2508,14 @@ export const sapAiCoreModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
 	},
+	o1: {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -2615,6 +2524,14 @@ export const sapAiCoreModels = {
 		inputPrice: 10.0,
 		outputPrice: 40.0,
 		cacheReadsPrice: 2.5,
+	},
+	"o3-mini": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
