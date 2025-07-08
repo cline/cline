@@ -29,7 +29,7 @@ export const getRelativePaths: FileMethodHandler = async (
 
 async function getRelativePath(uriString: string): Promise<string> {
 	const filePath = URI.parse(uriString, true).fsPath
-	var relativePath = await asRelativePath(filePath)
+	const relativePath = await asRelativePath(filePath)
 
 	// If the path is still absolute, it's outside the workspace
 	if (path.isAbsolute(relativePath)) {
