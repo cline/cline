@@ -20,7 +20,7 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu","shard":"1/5"},{"runner":"ubuntu","shard":"2/5"},{"runner":"ubuntu","shard":"3/5"},{"runner":"ubuntu","shard":"4/5"},{"runner":"ubuntu","shard":"5/5"},{"runner":"windows","shard":"1/2"},{"runner":"windows","shard":"2/2"}]' >> $GITHUB_OUTPUT
+                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"}]' >> $GITHUB_OUTPUT
 
     e2e:
         needs: matrix_prep
@@ -41,17 +41,17 @@ jobs:
                   cache: "npm"
             - run: npm ci
             - run: npm run e2e:build
-            - run: GITHUB_REF=$BRANCH xvfb-run -a npm run e2e -- --shard=${{ matrix.shard }}
+            - run: GITHUB_REF=$BRANCH xvfb-run -a npm run e2e
               if: matrix.runner == 'ubuntu'
               env:
                   BRANCH: ${{ github.head_ref || github.ref_name }}
-            - run: npm run e2e -- --shard=${{ matrix.shard }}
+            - run: npm run e2e
               if: matrix.runner == 'windows'
               env:
                   BRANCH: ${{ github.head_ref || github.ref_name }}
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}
               with:
-                  name: playwright-recordings-${{ matrix.runner }}-${{ matrix.shard }}
+                  name: playwright-recordings-${{ matrix.runner }}
                   path: |
                       test-results/playwright/
