@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.19.0
+
+### Minor Changes
+
+-   bc46870: Update request header to include `"ai-client-type": "Cline"`
+
+### Patch Changes
+
+-   ff4bab2: host bridge migration - openExternal
+-   6f8627b: Add organization and personal account management with credit reporting and account switching
+
 ## [3.18.5]
 
 -   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
