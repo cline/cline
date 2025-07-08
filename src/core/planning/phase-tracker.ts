@@ -557,6 +557,7 @@ export class PhaseTracker {
 		// Step 1: Set up the first Phase (Plan) in Plan Mode
 		this.phaseStates.push({
 			index: 0,
+			taskId: "",
 			projOverview: projOverview,
 			executionPlan: executionPlan,
 			requirements: requirements,
@@ -617,7 +618,7 @@ export class PhaseTracker {
 		await this.completePhase(ps.index)
 	}
 
-	public async markCurrentPhaseSkipped(): Promise<void> {
+	public async markCurrentPhaseSkipped(skipRest: boolean = false): Promise<void> {
 		if (
 			this.currentPhaseIndex < 0 ||
 			this.currentPhaseIndex >= this.phaseStates.length ||
@@ -629,7 +630,18 @@ export class PhaseTracker {
 
 		const ps = this.phaseStates[this.currentPhaseIndex]
 		ps.status = PhaseStatus.Skipped
+		ps.startTime = Date.now()
 		ps.endTime = Date.now()
+
+		if (skipRest) {
+			// Skip all remaining phases
+			for (let i = this.currentPhaseIndex + 1; i < this.phaseStates.length; i++) {
+				const phase = this.phaseStates[i]
+				phase.status = PhaseStatus.Skipped
+				phase.startTime = Date.now()
+				phase.endTime = Date.now()
+			}
+		}
 	}
 
 	public updateTaskIdPhase(phaseId: number, taskId: string): void {
@@ -670,7 +682,14 @@ export class PhaseTracker {
 	}
 
 	public hasNextPhase(): boolean {
-		return this.currentPhaseIndex < this.phaseStates.length - 1
+		// Check if there are any pending phases after the current one
+		for (let i = this.currentPhaseIndex + 1; i < this.phaseStates.length; i++) {
+			const phase = this.phaseStates[i]
+			if (phase.status === PhaseStatus.Pending) {
+				return true
+			}
+		}
+		return false
 	}
 
 	public updatePhase(): void {
@@ -825,7 +844,7 @@ export class PhaseTracker {
 			const checkpointUri = this.checkpointFileUri
 
 			try {
-				const stat = await vscode.workspace.fs.stat(checkpointUri)
+				await vscode.workspace.fs.stat(checkpointUri)
 				console.log(`[deleteCheckpoint] File exists at: ${checkpointUri.toString()}`)
 			} catch (statError) {
 				console.log(`[deleteCheckpoint] File does not exist at: ${checkpointUri.toString()}`)
@@ -837,6 +856,29 @@ export class PhaseTracker {
 				useTrash: false,
 			})
 			console.log(`[deleteCheckpoint] Successfully deleted: ${checkpointUri.toString()}`)
+		} catch (error) {}
+	}
+
+	public async deletePlanMD(): Promise<void> {
+		try {
+			const baseUri = this.getBaseUri(this.controller)
+			const taskId = this.phaseStates[0].taskId
+			const filename = `project-execution-plan-${taskId}.md`
+			const fileUri = vscode.Uri.joinPath(baseUri, filename)
+
+			try {
+				await vscode.workspace.fs.stat(fileUri)
+				console.log(`[deletePlanMD] File exists at: ${fileUri.toString()}`)
+			} catch (statError) {
+				console.log(`[deletePlanMD] File does not exist at: ${fileUri.toString()}`)
+				return
+			}
+
+			await vscode.workspace.fs.delete(fileUri, {
+				recursive: false,
+				useTrash: false,
+			})
+			console.log(`[deletePlanMD] Successfully deleted: ${fileUri.toString()}`)
 		} catch (error) {}
 	}
 }
