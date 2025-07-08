@@ -392,7 +392,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		chatSettings: {
 			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
 			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
-			mode: currentMode || "plan", // Merge mode from global state
+			mode: currentMode || "act", // Merge mode from global state
 		},
 		userInfo,
 		previousModeApiProvider,
