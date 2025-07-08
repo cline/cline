@@ -1,28 +1,12 @@
 import { memo, useEffect, useRef, useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { ChevronsUpDown, Check, X, AlertTriangle } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 
 import type { ProviderSettingsEntry, OrganizationAllowList } from "@roo-code/types"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { cn } from "@/lib/utils"
-import {
-	Button,
-	Input,
-	Dialog,
-	DialogContent,
-	DialogTitle,
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-	StandardTooltip,
-} from "@/components/ui"
+import { Button, Input, Dialog, DialogContent, DialogTitle, StandardTooltip, SearchableSelect } from "@/components/ui"
+import type { SearchableSelectOption } from "@/components/ui"
 
 interface ApiConfigManagerProps {
 	currentApiConfigName?: string
@@ -50,12 +34,8 @@ const ApiConfigManager = ({
 	const [inputValue, setInputValue] = useState("")
 	const [newProfileName, setNewProfileName] = useState("")
 	const [error, setError] = useState<string | null>(null)
-	const [open, setOpen] = useState(false)
-	const [searchValue, setSearchValue] = useState("")
 	const inputRef = useRef<any>(null)
 	const newProfileInputRef = useRef<any>(null)
-	const searchInputRef = useRef<HTMLInputElement>(null)
-	const searchResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 	// Check if a profile is valid based on the organization allow list
 	const isProfileValid = (profile: ProviderSettingsEntry): boolean => {
@@ -128,42 +108,10 @@ const ApiConfigManager = ({
 	useEffect(() => {
 		resetCreateState()
 		resetRenameState()
-		// Reset search value when current profile changes
-		const timeoutId = setTimeout(() => setSearchValue(""), 100)
-		return () => clearTimeout(timeoutId)
 	}, [currentApiConfigName])
-
-	// Cleanup timeout on unmount
-	useEffect(() => {
-		return () => {
-			if (searchResetTimeoutRef.current) {
-				clearTimeout(searchResetTimeoutRef.current)
-			}
-		}
-	}, [])
-
-	const onOpenChange = (open: boolean) => {
-		setOpen(open)
-
-		// Reset search when closing the popover
-		if (!open) {
-			// Clear any existing timeout
-			if (searchResetTimeoutRef.current) {
-				clearTimeout(searchResetTimeoutRef.current)
-			}
-			searchResetTimeoutRef.current = setTimeout(() => setSearchValue(""), 100)
-		}
-	}
-
-	const onClearSearch = () => {
-		setSearchValue("")
-		searchInputRef.current?.focus()
-	}
 
 	const handleSelectConfig = (configName: string) => {
 		if (!configName) return
-
-		setOpen(false)
 		onSelectConfig(configName)
 	}
 
@@ -278,95 +226,30 @@ const ApiConfigManager = ({
 			) : (
 				<>
 					<div className="flex items-center gap-1">
-						<Popover open={open} onOpenChange={onOpenChange}>
-							<PopoverTrigger asChild>
-								<Button
-									variant="combobox"
-									role="combobox"
-									aria-expanded={open}
-									className="grow justify-between"
-									// Use select-component data-testid for test compatibility
-									data-testid="select-component">
-									<div>{currentApiConfigName || t("settings:common.select")}</div>
-									<ChevronsUpDown className="opacity-50" />
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
-								<Command>
-									<div className="relative">
-										<CommandInput
-											ref={searchInputRef}
-											value={searchValue}
-											onValueChange={setSearchValue}
-											placeholder={t("settings:providers.searchPlaceholder")}
-											className="h-9 mr-4"
-											data-testid="profile-search-input"
-										/>
-										{searchValue.length > 0 && (
-											<div className="absolute right-2 top-0 bottom-0 flex items-center justify-center">
-												<X
-													className="text-vscode-input-foreground opacity-50 hover:opacity-100 size-4 p-0.5 cursor-pointer"
-													onClick={onClearSearch}
-												/>
-											</div>
-										)}
-									</div>
-									<CommandList>
-										<CommandEmpty>
-											{searchValue && (
-												<div className="py-2 px-1 text-sm">
-													{t("settings:providers.noMatchFound")}
-												</div>
-											)}
-										</CommandEmpty>
-										<CommandGroup>
-											{listApiConfigMeta
-												.filter((config) =>
-													searchValue
-														? config.name.toLowerCase().includes(searchValue.toLowerCase())
-														: true,
-												)
-												.map((config) => {
-													const valid = isProfileValid(config)
-													return (
-														<CommandItem
-															key={config.name}
-															value={config.name}
-															onSelect={handleSelectConfig}
-															data-testid={`profile-option-${config.name}`}
-															className={!valid ? "text-vscode-errorForeground" : ""}>
-															<div className="flex items-center">
-																{!valid && (
-																	<StandardTooltip
-																		content={t(
-																			"settings:validation.profileInvalid",
-																		)}>
-																		<span>
-																			<AlertTriangle
-																				size={16}
-																				className="mr-2 text-vscode-errorForeground"
-																			/>
-																		</span>
-																	</StandardTooltip>
-																)}
-																{config.name}
-															</div>
-															<Check
-																className={cn(
-																	"size-4 p-0.5 ml-auto",
-																	config.name === currentApiConfigName
-																		? "opacity-100"
-																		: "opacity-0",
-																)}
-															/>
-														</CommandItem>
-													)
-												})}
-										</CommandGroup>
-									</CommandList>
-								</Command>
-							</PopoverContent>
-						</Popover>
+						<SearchableSelect
+							value={currentApiConfigName}
+							onValueChange={handleSelectConfig}
+							options={listApiConfigMeta.map((config) => {
+								const valid = isProfileValid(config)
+								return {
+									value: config.name,
+									label: config.name,
+									disabled: !valid,
+									icon: !valid ? (
+										<StandardTooltip content={t("settings:validation.profileInvalid")}>
+											<span>
+												<AlertTriangle size={16} className="mr-2 text-vscode-errorForeground" />
+											</span>
+										</StandardTooltip>
+									) : undefined,
+								} as SearchableSelectOption
+							})}
+							placeholder={t("settings:common.select")}
+							searchPlaceholder={t("settings:providers.searchPlaceholder")}
+							emptyMessage={t("settings:providers.noMatchFound")}
+							className="grow"
+							data-testid="select-component"
+						/>
 						<StandardTooltip content={t("settings:providers.addProfile")}>
 							<Button variant="ghost" size="icon" onClick={handleAdd} data-testid="add-profile-button">
 								<span className="codicon codicon-add" />
@@ -442,7 +325,7 @@ const ApiConfigManager = ({
 						}}
 					/>
 					{error && (
-						<p className="text-red-500 text-sm mt-2" data-testid="error-message">
+						<p className="text-vscode-errorForeground text-sm mt-2" data-testid="error-message">
 							{error}
 						</p>
 					)}

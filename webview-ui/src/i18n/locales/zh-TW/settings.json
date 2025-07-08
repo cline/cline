@@ -191,6 +191,8 @@
 		"createProfile": "建立設定檔",
 		"cannotDeleteOnlyProfile": "無法刪除唯一的設定檔",
 		"searchPlaceholder": "搜尋設定檔",
+		"searchProviderPlaceholder": "搜尋供應商",
+		"noProviderMatchFound": "找不到供應商",
 		"noMatchFound": "找不到符合的設定檔",
 		"vscodeLmDescription": "VS Code 語言模型 API 可以讓您使用其他擴充功能（如 GitHub Copilot）提供的模型。最簡單的方式是從 VS Code Marketplace 安裝 Copilot 和 Copilot Chat 擴充套件。",
 		"awsCustomArnUse": "輸入您要使用的模型的有效 Amazon Bedrock ARN。格式範例：",

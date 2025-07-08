@@ -191,6 +191,8 @@
 		"createProfile": "Profiel aanmaken",
 		"cannotDeleteOnlyProfile": "Kan het enige profiel niet verwijderen",
 		"searchPlaceholder": "Zoek profielen",
+		"searchProviderPlaceholder": "Zoek providers",
+		"noProviderMatchFound": "Geen providers gevonden",
 		"noMatchFound": "Geen overeenkomende profielen gevonden",
 		"vscodeLmDescription": "De VS Code Language Model API stelt je in staat modellen te draaien die door andere VS Code-extensies worden geleverd (waaronder GitHub Copilot). De eenvoudigste manier om te beginnen is door de Copilot- en Copilot Chat-extensies te installeren vanuit de VS Code Marketplace.",
 		"awsCustomArnUse": "Voer een geldige Amazon Bedrock ARN in voor het model dat je wilt gebruiken. Voorbeeldformaten:",

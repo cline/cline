@@ -191,6 +191,8 @@
 		"createProfile": "Profil erstellen",
 		"cannotDeleteOnlyProfile": "Das einzige Profil kann nicht gelöscht werden",
 		"searchPlaceholder": "Profile durchsuchen",
+		"searchProviderPlaceholder": "Suchanbieter durchsuchen",
+		"noProviderMatchFound": "Keine Anbieter gefunden",
 		"noMatchFound": "Keine passenden Profile gefunden",
 		"vscodeLmDescription": "Die VS Code Language Model API ermöglicht das Ausführen von Modellen, die von anderen VS Code-Erweiterungen bereitgestellt werden (einschließlich, aber nicht beschränkt auf GitHub Copilot). Der einfachste Weg, um zu starten, besteht darin, die Erweiterungen Copilot und Copilot Chat aus dem VS Code Marketplace zu installieren.",
 		"awsCustomArnUse": "Geben Sie eine gültige Amazon Bedrock ARN für das Modell ein, das Sie verwenden möchten. Formatbeispiele:",

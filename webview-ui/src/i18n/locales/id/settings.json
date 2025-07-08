@@ -195,6 +195,8 @@
 		"createProfile": "Buat Profil",
 		"cannotDeleteOnlyProfile": "Tidak dapat menghapus satu-satunya profil",
 		"searchPlaceholder": "Cari profil",
+		"searchProviderPlaceholder": "Cari penyedia",
+		"noProviderMatchFound": "Tidak ada penyedia ditemukan",
 		"noMatchFound": "Tidak ada profil yang cocok ditemukan",
 		"vscodeLmDescription": " API Model Bahasa VS Code memungkinkan kamu menjalankan model yang disediakan oleh ekstensi VS Code lainnya (termasuk namun tidak terbatas pada GitHub Copilot). Cara termudah untuk memulai adalah menginstal ekstensi Copilot dan Copilot Chat dari VS Code Marketplace.",
 		"awsCustomArnUse": "Masukkan ARN Amazon Bedrock yang valid untuk model yang ingin kamu gunakan. Contoh format:",

@@ -31,7 +31,7 @@ import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
 import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { filterProviders, filterModels } from "./utils/organizationFilters"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SearchableSelect } from "@src/components/ui"
 
 import {
 	Anthropic,
@@ -308,6 +308,14 @@ const ApiOptions = ({
 		}
 	}, [selectedProvider])
 
+	// Convert providers to SearchableSelect options
+	const providerOptions = useMemo(() => {
+		return filterProviders(PROVIDERS, organizationAllowList).map(({ value, label }) => ({
+			value,
+			label,
+		}))
+	}, [organizationAllowList])
+
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-col gap-1 relative">
@@ -321,18 +329,16 @@ const ApiOptions = ({
 						</div>
 					)}
 				</div>
-				<Select value={selectedProvider} onValueChange={(value) => onProviderChange(value as ProviderName)}>
-					<SelectTrigger className="w-full">
-						<SelectValue placeholder={t("settings:common.select")} />
-					</SelectTrigger>
-					<SelectContent>
-						{filterProviders(PROVIDERS, organizationAllowList).map(({ value, label }) => (
-							<SelectItem key={value} value={value}>
-								{label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<SearchableSelect
+					value={selectedProvider}
+					onValueChange={(value) => onProviderChange(value as ProviderName)}
+					options={providerOptions}
+					placeholder={t("settings:common.select")}
+					searchPlaceholder={t("settings:providers.searchProviderPlaceholder")}
+					emptyMessage={t("settings:providers.noProviderMatchFound")}
+					className="w-full"
+					data-testid="provider-select"
+				/>
 			</div>
 
 			{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}

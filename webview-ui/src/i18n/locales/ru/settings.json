@@ -191,6 +191,8 @@
 		"createProfile": "Создать профиль",
 		"cannotDeleteOnlyProfile": "Нельзя удалить единственный профиль",
 		"searchPlaceholder": "Поиск профилей",
+		"searchProviderPlaceholder": "Поиск провайдеров",
+		"noProviderMatchFound": "Провайдеры не найдены",
 		"noMatchFound": "Совпадений не найдено",
 		"vscodeLmDescription": "API языковой модели VS Code позволяет запускать модели, предоставляемые другими расширениями VS Code (включая, но не ограничиваясь GitHub Copilot). Для начала установите расширения Copilot и Copilot Chat из VS Code Marketplace.",
 		"awsCustomArnUse": "Введите действительный Amazon Bedrock ARN для используемой модели. Примеры формата:",

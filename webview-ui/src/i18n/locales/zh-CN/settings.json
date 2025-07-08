@@ -191,6 +191,8 @@
 		"createProfile": "创建配置",
 		"cannotDeleteOnlyProfile": "无法删除唯一的配置文件",
 		"searchPlaceholder": "搜索配置文件",
+		"searchProviderPlaceholder": "搜索提供商",
+		"noProviderMatchFound": "未找到提供商",
 		"noMatchFound": "未找到匹配的配置文件",
 		"vscodeLmDescription": "VS Code 语言模型 API 允许您运行由其他 VS Code 扩展（包括但不限于 GitHub Copilot）提供的模型。最简单的方法是从 VS Code 市场安装 Copilot 和 Copilot Chat 扩展。",
 		"awsCustomArnUse": "请输入有效的 Amazon Bedrock ARN（Amazon资源名称），格式示例：",
