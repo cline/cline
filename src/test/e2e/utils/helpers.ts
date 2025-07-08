@@ -85,9 +85,10 @@ export async function rmForRetries(path: PathLike, options?: RmOptions): Promise
 }
 
 export async function signin(webview: Frame): Promise<void> {
-	await expect(webview.getByRole("button", { name: "Use your own API key" })).toBeVisible()
+	const byokButton = webview.getByRole("button", { name: "Use your own API key" })
+	await expect(byokButton).toBeVisible()
 
-	await webview.getByRole("button", { name: "Use your own API key" }).click()
+	await byokButton.click()
 
 	// Complete setup with OpenRouter
 	const apiKeyInput = webview.getByRole("textbox", { name: "OpenRouter API Key" })
@@ -96,11 +97,20 @@ export async function signin(webview: Frame): Promise<void> {
 
 	// Verify start up page is no longer visible
 	await expect(webview.locator("#api-provider div").first()).not.toBeVisible()
-	await expect(webview.getByRole("button", { name: "Use your own API key" })).not.toBeVisible()
+	await expect(byokButton).not.toBeVisible()
 }
 
 export async function openClineSidebar(page: Page): Promise<void> {
 	await page.getByRole("tab", { name: /Cline/ }).locator("a").click()
+}
+
+export async function runCommandPalette(page: Page, command: string): Promise<void> {
+	await page.locator("li").filter({ hasText: "[Extension Development Host]" }).first().click()
+	const editorSearchBar = page.getByRole("textbox", { name: "Search files by name (append" })
+	await expect(editorSearchBar).toBeVisible()
+	await editorSearchBar.click()
+	await editorSearchBar.fill(`>${command}`)
+	await page.keyboard.press("Enter")
 }
 
 // Test configuration
@@ -167,6 +177,7 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
+			await runCommandPalette(page, "notifications: toggle do not disturb")
 			await openClineSidebar(page)
 			await use(page)
 		},

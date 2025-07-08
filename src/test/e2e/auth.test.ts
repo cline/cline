@@ -26,7 +26,8 @@ e2e("Auth", async ({ page, sidebar }) => {
 
 	const apiKeyInput = sidebar.getByRole("textbox", { name: "OpenRouter API Key" })
 	await apiKeyInput.fill("test-api-key")
-	await sidebar.getByRole("button", { name: "Let's go!" }).click()
+	await sidebar.getByRole("button", { name: "Let's go!" }).click({ delay: 100 })
+	await expect(sidebar.getByRole("button", { name: "Get Started for Free" })).not.toBeVisible()
 
 	// Verify start up page is no longer visible
 	await expect(apiKeyInput).not.toBeVisible()
