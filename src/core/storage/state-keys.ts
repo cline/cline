@@ -1,6 +1,6 @@
 export type SecretKey =
 	| "apiKey"
-	| "clineApiKey"
+	| "clineAccountId"
 	| "openRouterApiKey"
 	| "awsAccessKey"
 	| "awsSecretKey"

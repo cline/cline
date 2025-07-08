@@ -26,7 +26,6 @@ const inMemoryWorkspaceState = new Map<string, any>()
 const inMemorySecrets = new Map<string, string>()
 
 // global
-
 export async function updateGlobalState(context: vscode.ExtensionContext, key: GlobalStateKey, value: any) {
 	if (isTemporaryProfile) {
 		inMemoryGlobalState.set(key, value)
@@ -70,7 +69,6 @@ export async function updateSecretsBatch(context: vscode.ExtensionContext, updat
 }
 
 // secrets
-
 export async function storeSecret(context: vscode.ExtensionContext, key: SecretKey, value?: string) {
 	if (isTemporaryProfile) {
 		if (value) {
@@ -95,7 +93,6 @@ export async function getSecret(context: vscode.ExtensionContext, key: SecretKey
 }
 
 // workspace
-
 export async function updateWorkspaceState(context: vscode.ExtensionContext, key: LocalStateKey, value: any) {
 	if (isTemporaryProfile) {
 		inMemoryWorkspaceState.set(key, value)
@@ -118,7 +115,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		welcomeViewCompleted,
 		apiKey,
 		openRouterApiKey,
-		clineApiKey,
+		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
@@ -191,7 +188,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
 		getSecret(context, "openRouterApiKey") as Promise<string | undefined>,
-		getSecret(context, "clineApiKey") as Promise<string | undefined>,
+		getSecret(context, "clineAccountId") as Promise<string | undefined>,
 		getSecret(context, "awsAccessKey") as Promise<string | undefined>,
 		getSecret(context, "awsSecretKey") as Promise<string | undefined>,
 		getSecret(context, "awsSessionToken") as Promise<string | undefined>,
@@ -373,7 +370,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
-			clineApiKey,
+			clineAccountId,
 			claudeCodePath,
 			awsAccessKey,
 			awsSecretKey,
@@ -538,7 +535,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		xaiApiKey,
 		thinkingBudgetTokens,
 		reasoningEffort,
-		clineApiKey,
+		clineAccountId,
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
@@ -616,7 +613,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	const batchedSecretUpdates = {
 		apiKey,
 		openRouterApiKey,
-		clineApiKey,
+		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
@@ -670,7 +667,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"qwenApiKey",
 		"doubaoApiKey",
 		"mistralApiKey",
-		"clineApiKey",
+		"clineAccountId",
 		"liteLlmApiKey",
 		"fireworksApiKey",
 		"asksageApiKey",

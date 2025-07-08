@@ -8,7 +8,7 @@ import { UserCreditsData } from "@shared/proto/account"
  * @param request Empty request
  * @returns User credits data response
  */
-export async function fetchUserCreditsData(controller: Controller, request: EmptyRequest): Promise<UserCreditsData> {
+export async function getUserCredits(controller: Controller, request: EmptyRequest): Promise<UserCreditsData> {
 	try {
 		if (!controller.accountService) {
 			throw new Error("Account service not available")
@@ -21,11 +21,10 @@ export async function fetchUserCreditsData(controller: Controller, request: Empt
 			controller.accountService.fetchPaymentTransactionsRPC(),
 		])
 
-		// Since generated types match exactly, no conversion needed!
 		return UserCreditsData.create({
-			balance: balance ? { currentBalance: balance.currentBalance } : { currentBalance: 0 },
-			usageTransactions: usageTransactions || [],
-			paymentTransactions: paymentTransactions || [],
+			balance: balance ? { currentBalance: balance.balance / 100 } : { currentBalance: 0 },
+			usageTransactions: usageTransactions,
+			paymentTransactions: paymentTransactions,
 		})
 	} catch (error) {
 		console.error(`Failed to fetch user credits data: ${error}`)
