@@ -23,7 +23,7 @@
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"--user-data-dir=/tmp/cline/user",
+				"--user-data-dir=/tmp/cline-dev/ws${cwd}",
 				"--profile-temp",
 				"--sync=off",
 				"--disable-extensions",
