@@ -117,6 +117,7 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		if (user) {
 			getUserOrganizations()
+			getUserCredits()
 		}
 	}, [user])
 
@@ -127,8 +128,6 @@ export const ClineAccountView = () => {
 
 		if (activeOrganization) {
 			getOrganizationCredits()
-		} else {
-			getUserCredits()
 		}
 	}, [activeOrganization, midOrgOptimisticUpdate])
 
