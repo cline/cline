@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.18.5
+## [3.18.5]
 
--   d453eed: persist plan and act between sessions
--   7e32314: Optimizing provider switching performance with batched storage operations
--   4e27e06: Reorder the models for SAP AI Core in a more organized and logical manner, grouping them by provider and model type
+-   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
+-   Improve provider switching performance by 18x (from 550ms to 30ms) with batched storage operations
+-   Improve SAP AI Core provider model organization and fix exception handling (Thanks @schardosin!)
 
 ## [3.18.4]
 
