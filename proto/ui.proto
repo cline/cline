@@ -42,7 +42,8 @@ enum ClineAsk {
   CONDENSE = 14;
   REPORT_BUG = 15;
   ASK_PROCEED = 16;
-  ASK_CHECK = 17;
+  ASK_RETRY = 17;
+  ASK_CHECK = 18;
 }
 
 // Enum for ClineSay types
