@@ -189,6 +189,7 @@ export const ClineAccountView = () => {
 
 								{userOrganizations && (
 									<VSCodeDropdown
+										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
 										currentValue={activeOrganization?.organizationId || ""}
 										onChange={handleOrganizationChange}
 										style={{ width: "100%", marginTop: "4px" }}>
