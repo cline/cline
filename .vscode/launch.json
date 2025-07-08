@@ -18,7 +18,7 @@
 			}
 		},
 		{
-			"name": "Run Extension with Temp Profile (Fresh Install Mode)",
+			"name": "Run Extension (Fresh Install Mode)",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
