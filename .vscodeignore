@@ -5,6 +5,7 @@ out/
 dist-standalone/
 node_modules/
 src/**
+standalone/**
 .gitignore
 .yarnrc
 esbuild.js
@@ -14,6 +15,7 @@ tsconfig*.json
 **/*.map
 **/*.ts
 **/.vscode-test.*
+eslint-rules/**
 
 # Custom
 demo.gif
@@ -44,6 +46,7 @@ webview-ui/node_modules/**
 
 # Ignore docs
 docs/**
+old_docs/**
 
 # Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
 !node_modules/@vscode/codicons/dist/codicon.css
