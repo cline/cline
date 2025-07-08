@@ -986,7 +986,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							{!inputValue && (
 								<div
 									className="absolute left-2 z-30 pr-9 flex items-center h-8"
-									style={{ bottom: "0.25rem", color: "var(--vscode-tab-inactiveForeground)" }}>
+									style={{
+										bottom: "0.25rem",
+										color: "var(--vscode-tab-inactiveForeground)",
+										userSelect: "none",
+										pointerEvents: "none",
+									}}>
 									{placeholderBottomText}
 								</div>
 							)}
@@ -1147,6 +1152,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							title={t("chat:addImages")}
 							disabled={shouldDisableImages}
 							onClick={onSelectImages}
+							className="mr-1"
 						/>
 					</div>
 				</div>
