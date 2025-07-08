@@ -80,6 +80,7 @@ export type GlobalStateKey =
 	| "claudeCodePath"
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
+	| "mode"
 	// Current active model configuration (per workspace)
 	| "apiProvider"
 	| "apiModelId"
