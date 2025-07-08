@@ -207,6 +207,16 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.addPromptToChat",
+				"title": "Add Prompt To Chat",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.addFileMentionToChat",
+				"title": "Add File Mention To Chat",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [

@@ -490,7 +490,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			GitCommitGenerator?.abort?.()
 		}),
 	)
-
+	
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
 			if (event.key === "clineAccountId") {
@@ -508,6 +508,79 @@ export async function activate(context: vscode.ExtensionContext) {
 					authService?.handleDeauth()
 				}
 			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.addPromptToChat", async (prompt: string | undefined) => {
+			// 1. Get the prompt from the user if it wasn't provided.
+			if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+				prompt = await vscode.window.showInputBox({
+					prompt: "Enter the prompt to send to Cline",
+					placeHolder: "e.g., Explain this code",
+				})
+			}
+
+			// Exit if the user cancelled the input.
+			if (!prompt) {
+				return
+			}
+
+			// 2. Get the currently active/visible Cline webview instance.
+			// This reuses the robust logic from other commands like 'addToChat'.
+			await vscode.commands.executeCommand("cline.focusChatInput")
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				vscode.window.showErrorMessage("Could not find an active Cline chat window.")
+				return
+			}
+
+			// 3. Call the new method on the controller.
+			// This is the clean, encapsulated way to do it.
+			await visibleWebview.controller.addPromptToChat(prompt)
+
+			// 4. Telemetry
+			telemetryService.captureButtonClick("command_addPromptToChat", visibleWebview.controller.task?.taskId)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.addFileMentionToChat", async (filePath: string | undefined) => {
+			if (!filePath || typeof filePath !== "string") {
+				// ...then open a file picker dialog and ask the user to select a file.
+				const fileUris = await vscode.window.showOpenDialog({
+					canSelectFiles: true, // Allow selecting files
+					canSelectFolders: false, // Don't allow folders
+					canSelectMany: false, // Only allow one selection
+					openLabel: "Select File to Mention", // Custom button text
+				})
+
+				// 2. Check if the user selected a file. If they cancelled, stop the command.
+				if (!fileUris || fileUris.length === 0) {
+					return // User cancelled the dialog
+				}
+
+				// 3. Get the string path from the selected file's URI.
+				filePath = fileUris[0].fsPath
+			}
+
+			// 2. Get the active Cline webview instance.
+			await vscode.commands.executeCommand("cline.focusChatInput")
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				vscode.window.showErrorMessage("Could not find an active Cline chat window.")
+				return
+			}
+
+			// 3. Call the new method on the controller.
+			await visibleWebview.controller.addFileMentionToChat(filePath)
+
+			// 4. (Optional) Telemetry
+			telemetryService.captureButtonClick("command_addFileMentionToChat", visibleWebview.controller.task?.taskId)
 		}),
 	)
 
