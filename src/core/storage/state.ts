@@ -30,25 +30,13 @@ export async function getGlobalState(context: vscode.ExtensionContext, key: Glob
 
 // Batched operations for performance optimization
 export async function updateGlobalStateBatch(context: vscode.ExtensionContext, updates: Record<string, any>) {
-	const batchStart = performance.now()
-	console.log(`[PERF] Starting batched global state update with ${Object.keys(updates).length} keys`)
-
 	// Use Promise.all to batch the updates
 	await Promise.all(Object.entries(updates).map(([key, value]) => context.globalState.update(key as GlobalStateKey, value)))
-
-	const batchEnd = performance.now()
-	console.log(`[PERF] Batched global state update took: ${batchEnd - batchStart}ms`)
 }
 
 export async function updateSecretsBatch(context: vscode.ExtensionContext, updates: Record<string, string | undefined>) {
-	const batchStart = performance.now()
-	console.log(`[PERF] Starting batched secrets update with ${Object.keys(updates).length} keys`)
-
 	// Use Promise.all to batch the secret updates
 	await Promise.all(Object.entries(updates).map(([key, value]) => storeSecret(context, key as SecretKey, value)))
-
-	const batchEnd = performance.now()
-	console.log(`[PERF] Batched secrets update took: ${batchEnd - batchStart}ms`)
 }
 
 // secrets
@@ -76,9 +64,6 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
-	const startTime = performance.now()
-	console.log("[PERF] getAllExtensionState: Starting state retrieval")
-
 	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
@@ -227,13 +212,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 	])
-	const firstBatchEnd = performance.now()
-	console.log(`[PERF] First batch (66 state reads) took: ${firstBatchEnd - firstBatchStart}ms`)
 
-	const workspaceStart = performance.now()
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
-	const workspaceEnd = performance.now()
-	console.log(`[PERF] Workspace state read took: ${workspaceEnd - workspaceStart}ms`)
 
 	const secondBatchStart = performance.now()
 	const [
@@ -299,8 +279,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
 	])
-	const secondBatchEnd = performance.now()
-	console.log(`[PERF] Second batch (30 state reads) took: ${secondBatchEnd - secondBatchStart}ms`)
 
 	const processingStart = performance.now()
 	let apiProvider: ApiProvider
@@ -338,11 +316,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		// persist so next time state is retrieved it's set to the correct value.
 		await updateGlobalState(context, "planActSeparateModelsSetting", planActSeparateModelsSetting)
 	}
-	const processingEnd = performance.now()
-	console.log(`[PERF] State processing took: ${processingEnd - processingStart}ms`)
-
-	const totalTime = performance.now() - startTime
-	console.log(`[PERF] Total getAllExtensionState took: ${totalTime}ms`)
 
 	return {
 		apiConfiguration: {
@@ -457,9 +430,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 }
 
 export async function updateApiConfiguration(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
-	const startTime = performance.now()
-	console.log("[PERF] updateApiConfiguration: Starting OPTIMIZED storage updates")
-
 	const {
 		apiProvider,
 		apiModelId,
@@ -621,9 +591,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 
 	// Execute batched operations in parallel for maximum performance
 	await Promise.all([updateGlobalStateBatch(context, batchedGlobalUpdates), updateSecretsBatch(context, batchedSecretUpdates)])
-
-	const totalTime = performance.now() - startTime
-	console.log(`[PERF] OPTIMIZED updateApiConfiguration took: ${totalTime}ms (was ~535ms, now should be <50ms)`)
 }
 
 export async function resetWorkspaceState(context: vscode.ExtensionContext) {
