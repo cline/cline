@@ -6,6 +6,7 @@ interface RunDiffEvalOptions {
 	modelIds: string
 	systemPromptName: string
 	validAttemptsPerCase: number
+	maxAttemptsPerCase?: number
 	parsingFunction: string
 	diffEditFunction: string
 	thinkingBudget: number
@@ -69,6 +70,10 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 
 	if (options.verbose) {
 		args.push("--verbose")
+	}
+
+	if (options.maxAttemptsPerCase) {
+		args.push("--max-attempts-per-case", String(options.maxAttemptsPerCase))
 	}
 
 	if (options.maxCases) {

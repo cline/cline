@@ -23,3 +23,9 @@ export const formatResponse = {
 		return formatImagesIntoBlocks(images)
 	},
 }
+
+export function log(isVerbose: boolean, message: string) {
+	if (isVerbose) {
+		console.log(message)
+	}
+}
