@@ -139,32 +139,8 @@ export const usePromptHistory = ({
 				const isAtBeginning = selectionStart === 0 && selectionEnd === 0
 				const isAtEnd = selectionStart === value.length && selectionEnd === value.length
 
-				// Check for modifier keys (Alt or Cmd/Ctrl)
-				const hasModifier = event.altKey || event.metaKey || event.ctrlKey
-
-				// Handle explicit history navigation with Alt+Up/Down
-				if (hasModifier && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-					event.preventDefault()
-
-					if (event.key === "ArrowUp") {
-						// Save current input if starting navigation
-						if (historyIndex === -1) {
-							setTempInput(inputValue)
-						}
-						return navigateToHistory(historyIndex + 1, textarea, "start")
-					} else {
-						// ArrowDown
-						if (historyIndex > 0) {
-							return navigateToHistory(historyIndex - 1, textarea, "end")
-						} else if (historyIndex === 0) {
-							returnToCurrentInput(textarea, "end")
-							return true
-						}
-					}
-				}
-
-				// Handle smart navigation without modifiers
-				if (!hasSelection && !hasModifier) {
+				// Handle smart navigation
+				if (!hasSelection) {
 					// Only navigate history with UP if cursor is at the very beginning
 					if (event.key === "ArrowUp" && isAtBeginning) {
 						event.preventDefault()
