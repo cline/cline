@@ -54,13 +54,6 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 		}
 	}, [cloudIsAuthenticated, sharingEnabled])
 
-	// Cleanup effect to reset flag on unmount
-	useEffect(() => {
-		return () => {
-			initiatedAuthFromThisButtonRef.current = false
-		}
-	}, [])
-
 	// Listen for share success messages from the extension
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
