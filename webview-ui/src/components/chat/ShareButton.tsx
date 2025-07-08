@@ -35,19 +35,31 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 	const { t } = useTranslation()
 	const { sharingEnabled, cloudIsAuthenticated, cloudUserInfo } = useExtensionState()
 	const wasUnauthenticatedRef = useRef(false)
+	const initiatedAuthFromThisButtonRef = useRef(false)
 
 	// Track authentication state changes to auto-open popover after login
 	useEffect(() => {
 		if (!cloudIsAuthenticated || !sharingEnabled) {
 			wasUnauthenticatedRef.current = true
 		} else if (wasUnauthenticatedRef.current && cloudIsAuthenticated && sharingEnabled) {
-			// User just authenticated, send telemetry, close modal, and open the popover
-			telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_SUCCESS)
-			setConnectModalOpen(false)
-			setShareDropdownOpen(true)
+			// Only open dropdown if auth was initiated from this button
+			if (initiatedAuthFromThisButtonRef.current) {
+				// User just authenticated from this share button, send telemetry, close modal, and open the popover
+				telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_SUCCESS)
+				setConnectModalOpen(false)
+				setShareDropdownOpen(true)
+				initiatedAuthFromThisButtonRef.current = false // Reset the flag
+			}
 			wasUnauthenticatedRef.current = false
 		}
 	}, [cloudIsAuthenticated, sharingEnabled])
+
+	// Cleanup effect to reset flag on unmount
+	useEffect(() => {
+		return () => {
+			initiatedAuthFromThisButtonRef.current = false
+		}
+	}, [])
 
 	// Listen for share success messages from the extension
 	useEffect(() => {
@@ -92,6 +104,8 @@ export const ShareButton = ({ item, disabled = false }: ShareButtonProps) => {
 		// Send telemetry for connect to cloud action
 		telemetryClient.capture(TelemetryEventName.SHARE_CONNECT_TO_CLOUD_CLICKED)
 
+		// Mark that authentication was initiated from this button
+		initiatedAuthFromThisButtonRef.current = true
 		vscode.postMessage({ type: "rooCloudSignIn" })
 		setShareDropdownOpen(false)
 		setConnectModalOpen(false)
