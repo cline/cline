@@ -1,19 +1,29 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 
+interface ClineHandlerOptions {
+	clineApiKey?: string
+	taskId?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
+	openRouterProviderSorting?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+}
+
 export class ClineHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: ClineHandlerOptions
 	private client: OpenAI | undefined
 	lastGenerationId?: string
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: ClineHandlerOptions) {
 		this.options = options
 	}
 
