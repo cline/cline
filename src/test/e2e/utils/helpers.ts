@@ -148,7 +148,7 @@ export const e2e = test
 
 				const app = await _electron.launch({
 					executablePath,
-					env: { ...process.env, IS_DEV: "true" },
+					env: { ...process.env, IS_DEV: "true", TEMP_PROFILE: "true" },
 					args,
 					recordVideo: { dir: getResultsDir(testInfo.title, "recordings") },
 				})
