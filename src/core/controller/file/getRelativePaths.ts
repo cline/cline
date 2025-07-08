@@ -33,7 +33,7 @@ async function getRelativePath(uriString: string): Promise<string> {
 
 	// If the path is still absolute, it's outside the workspace
 	if (path.isAbsolute(relativePath)) {
-		throw Error(`Dropped file ${relativePath} is outside the workspace.`)
+		throw new Error(`Dropped file ${relativePath} is outside the workspace.`)
 	}
 
 	let result = "/" + relativePath.replace(/\\/g, "/")
