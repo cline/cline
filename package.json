@@ -359,7 +359,7 @@
 		"docs:rename-file": "cd docs && mintlify rename",
 		"report-issue": "node scripts/report-issue.js",
 		"e2e": "playwright test -c playwright.config.ts",
-		"e2e:build": "playwright install && vsce package --no-dependencies --out dist/e2e.vsix && node esbuild.js --e2e-build && node dist/e2e-build.js"
+		"e2e:build": "playwright install && vsce package --no-dependencies --out dist/e2e.vsix && node esbuild.js --e2e-build && node dist/e2e-build.js && playwright test"
 	},
 	"lint-staged": {
 		"*": [

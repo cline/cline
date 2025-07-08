@@ -68,6 +68,10 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Install xvfb on Linux
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y xvfb
+
             - name: Install local modules on windows
               if: runner.os == 'Windows' && steps.root-cache.outputs.cache-hit == 'true'
               run: |

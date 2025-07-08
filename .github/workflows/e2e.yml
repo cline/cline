@@ -20,7 +20,7 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"}]' >> $GITHUB_OUTPUT
+                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
 
     e2e:
         needs: matrix_prep
@@ -64,19 +64,22 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            # Build the extension before running tests
-            - name: Build Extension
-              run: npm run compile
-
-            - run: npm run e2e:build
-            - run: GITHUB_REF=$BRANCH xvfb-run -a npm run e2e
+            - name: Install xvfb on Linux
               if: matrix.runner == 'ubuntu'
-              env:
-                  BRANCH: ${{ github.head_ref || github.ref_name }}
-            - run: npm run e2e
-              if: matrix.runner == 'windows'
-              env:
-                  BRANCH: ${{ github.head_ref || github.ref_name }}
+              run: sudo apt-get update && sudo apt-get install -y xvfb
+
+            # Build the extension before running tests
+            - name: Build Tests and Extension
+              run: npm run pretest
+
+            - name: Run E2E tests - Linux
+              if: matrix.runner == 'ubuntu'
+              run: xvfb-run -a npm run e2e:build
+
+            - name: Run E2E tests - Non-Linux
+              if: matrix.runner != 'ubuntu'
+              run: npm run e2e:build
+
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}
               with:

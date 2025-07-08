@@ -122,7 +122,7 @@ export const e2e = test
 
 			// Base VS Code arguments
 			const baseArgs = [
-				"--disable-chromium-sandbox",
+				"--no-sandbox",
 				"--disable-updates",
 				"--disable-workspace-trust",
 				"--skip-welcome",
