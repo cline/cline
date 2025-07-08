@@ -160,7 +160,9 @@ export async function parseMentions(
 }
 
 async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
-	const absPath = path.resolve(cwd, mentionPath)
+	// If mentionPath is already absolute, use it directly
+	// Otherwise, resolve it relative to cwd
+	const absPath = path.isAbsolute(mentionPath) ? mentionPath : path.resolve(cwd, mentionPath)
 
 	try {
 		const stats = await fs.stat(absPath)
