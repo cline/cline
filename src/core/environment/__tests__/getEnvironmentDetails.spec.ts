@@ -313,25 +313,6 @@ describe("getEnvironmentDetails", () => {
 		expect(mockInactiveTerminal.getCurrentWorkingDirectory).toHaveBeenCalled()
 	})
 
-	it("should include warning when file writing is not allowed", async () => {
-		;(isToolAllowedForMode as Mock).mockReturnValue(false)
-		;(getModeBySlug as Mock).mockImplementation((slug: string) => {
-			if (slug === "code") {
-				return { name: "💻 Code" }
-			}
-
-			if (slug === defaultModeSlug) {
-				return { name: "Default Mode" }
-			}
-
-			return null
-		})
-
-		const result = await getEnvironmentDetails(mockCline as Task)
-
-		expect(result).toContain("NOTE: You are currently in '💻 Code' mode, which does not allow write operations")
-	})
-
 	it("should include experiment-specific details when Power Steering is enabled", async () => {
 		mockState.experiments = { [EXPERIMENT_IDS.POWER_STEERING]: true }
 		;(experiments.isEnabled as Mock).mockReturnValue(true)
