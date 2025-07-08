@@ -218,6 +218,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const secondBatchStart = performance.now()
 	const [
 		chatSettings,
+		currentMode,
 		storedApiProvider,
 		apiModelId,
 		thinkingBudgetTokens,
@@ -249,6 +250,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "mode") as Promise<"plan" | "act" | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
@@ -403,7 +405,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: {
 			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			mode: currentMode || "act", // Merge mode from global state
 		},
 		userInfo,
 		previousModeApiProvider,
