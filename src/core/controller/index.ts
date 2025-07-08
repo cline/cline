@@ -564,6 +564,39 @@ export class Controller {
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
 
+	// Add a given text prompt to the chat input
+	async addPromptToChat(prompt: string) {
+		// Ensure a webview is visible and ready, just like the other methods do.
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await setTimeoutPromise(100)
+
+		// --- CURRENT FLOW: Add text to the input without submitting ---
+		await sendAddToInputEvent(prompt)
+
+		// --- ALTERNATIVE FLOW: Uncomment the line below to submit the prompt immediately ---
+		// await this.initTask(prompt);
+
+		console.log("addPromptToChat", prompt)
+	}
+
+	// Add a file mention to the chat input
+	async addFileMentionToChat(filePath: string) {
+		// Ensure a webview is visible and ready.
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await setTimeoutPromise(100)
+
+		// 1. Reuse the existing function to create the file mention string.
+		const fileMention = await this.getFileMentionFromPath(filePath)
+
+		// --- CURRENT FLOW: Add file mention to the input without submitting ---
+		await sendAddToInputEvent(fileMention)
+
+		// --- ALTERNATIVE FLOW: Uncomment the line below to submit the mention immediately ---
+		// await this.initTask(fileMention);
+
+		console.log("addFileMentionToChat", fileMention)
+	}
+
 	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
 		let problemsString = ""
 		for (const diagnostic of diagnostics) {
