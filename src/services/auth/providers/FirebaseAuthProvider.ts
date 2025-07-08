@@ -4,6 +4,7 @@ import { initializeApp } from "firebase/app"
 import {
 	AuthCredential,
 	GoogleAuthProvider,
+	GithubAuthProvider,
 	OAuthCredential,
 	User,
 	UserCredential,
@@ -110,10 +111,11 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
-	async restoreAuthCredential(context: ExtensionContext): Promise<User> {
+	async restoreAuthCredential(context: ExtensionContext): Promise<User | null> {
 		const credentialJSON = await getSecret(context, "clineAccountId")
 		if (!credentialJSON) {
-			throw new Error("Invalid credential JSON")
+			console.error("No stored authentication credential found.")
+			return null
 		}
 		try {
 			const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
@@ -144,11 +146,20 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the sign-in fails.
 	 */
-	async signIn(context: ExtensionContext, token: string): Promise<User> {
+	async signIn(context: ExtensionContext, token: string, provider: string): Promise<User> {
 		try {
 			let credential
 			let userCredential
-			credential = GoogleAuthProvider.credential(token)
+			switch (provider) {
+				case "google":
+					credential = GoogleAuthProvider.credential(token)
+					break
+				case "github":
+					credential = GithubAuthProvider.credential(token)
+					break
+				default:
+					throw new Error(`Unsupported provider: ${provider}`)
+			}
 			this._storeAuthCredential(context, credential)
 			userCredential = await this._signInWithCredential(credential)
 			return userCredential.user

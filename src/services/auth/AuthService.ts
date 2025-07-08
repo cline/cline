@@ -131,8 +131,6 @@ export class AuthService {
 	}
 
 	get status(): AuthenticationStatus {
-		console.log("Auth status:", this._authenticated, this._provider)
-
 		return AuthenticationStatus.create({
 			isAuthenticated: this._authenticated,
 			provider: this._provider ? this._provider.name : null,
@@ -221,7 +219,7 @@ export class AuthService {
 		}
 
 		try {
-			this._user = await this._provider.provider.signIn(this._context, token)
+			this._user = await this._provider.provider.signIn(this._context, token, provider)
 			this._authenticated = true
 
 			await this.sendAuthStatusUpdate()
@@ -261,13 +259,11 @@ export class AuthService {
 				console.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._user = null
-				await this.clearAuthToken()
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._user = null
-			await this.clearAuthToken()
 			return
 		}
 	}
