@@ -54,7 +54,6 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
@@ -87,6 +86,10 @@ export class Controller {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	private async getCurrentMode(): Promise<"plan" | "act"> {
+		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 
 	/*
@@ -141,10 +144,13 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -239,8 +245,8 @@ export class Controller {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
-		// Store mode in-memory only
-		this.mode = chatSettings.mode
+		// Store mode to global state
+		await updateGlobalState(this.context, "mode", chatSettings.mode)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -394,7 +400,7 @@ export class Controller {
 			}
 		}
 
-		// Save only non-mode properties to workspace storage
+		// Save only non-mode properties to global storage
 		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
 		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
@@ -471,6 +477,9 @@ export class Controller {
 
 			const clineProvider: ApiProvider = "cline"
 			await updateGlobalState(this.context, "apiProvider", clineProvider)
+
+			// Mark welcome view as completed since user has successfully logged in
+			await updateGlobalState(this.context, "welcomeViewCompleted", true)
 
 			// Update API configuration with the new provider and API key
 			const { apiConfiguration } = await getAllExtensionState(this.context)
@@ -834,10 +843,13 @@ export class Controller {
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const localClineRulesToggles =

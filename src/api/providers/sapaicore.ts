@@ -60,6 +60,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
+			"AI-Client-Type": "Cline",
 		}
 
 		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
@@ -116,6 +117,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
+			"AI-Client-Type": "Cline",
 		}
 
 		const model = this.getModel()
@@ -283,7 +285,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received data:", data)
 							if (data.type === "message_start") {
 								usage.input_tokens = data.message.usage.input_tokens
 								yield {
@@ -346,7 +347,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						try {
 							// Parse the incoming JSON data from the stream
 							const data = JSON.parse(toStrictJson(jsonData))
-							console.log("Received data:", data)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
@@ -422,7 +422,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received GPT data:", data)
 
 							if (data.choices && data.choices.length > 0) {
 								const choice = data.choices[0]
@@ -446,7 +445,7 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 
-							if (data.choices && data.choices[0].finish_reason === "stop") {
+							if (data.choices?.[0]?.finish_reason === "stop") {
 								// Final usage yield, if not already provided
 								if (!data.usage) {
 									yield {
