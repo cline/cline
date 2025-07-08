@@ -11,7 +11,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
-import { get } from "http"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -60,12 +59,12 @@ export const ClineAccountView = () => {
 			setBalance(response.balance?.currentBalance || 0)
 			setUsageData(response.usageTransactions)
 			setPaymentsData(response.paymentTransactions)
-			setIsLoading(false)
 		} catch (error) {
 			console.error("Failed to fetch user credits data:", error)
 			setBalance(0)
 			setUsageData([])
 			setPaymentsData([])
+		} finally {
 			setIsLoading(false)
 		}
 	}
@@ -85,12 +84,12 @@ export const ClineAccountView = () => {
 			setBalance(response.balance?.currentBalance || 0)
 			setUsageData(response.usageTransactions)
 			setPaymentsData(response.paymentTransactions)
-			setIsLoading(false)
 		} catch (error) {
 			console.error("Failed to fetch organization credits data:", error)
 			setBalance(0)
 			setUsageData([])
 			setPaymentsData([])
+		} finally {
 			setIsLoading(false)
 		}
 	}
@@ -101,11 +100,11 @@ export const ClineAccountView = () => {
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			setUserOrganizations(response.organizations || [])
 			setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
-			setIsLoading(false)
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 			setUserOrganizations([])
 			setActiveOrganization(null)
+		} finally {
 			setIsLoading(false)
 		}
 	}
@@ -114,8 +113,7 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		if (user) {
 			;(async () => {
-				await getUserCredits()
-				await getUserOrganizations()
+				await Promise.all([getUserCredits(), getUserOrganizations()])
 			})()
 		}
 	}, [user])
