@@ -18,14 +18,14 @@
 			}
 		},
 		{
-			"name": "Run Extension (Fresh Install Mode)",
+			"name": "Run Extension with Temp Profile (Fresh Install Mode)",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
+				"--user-data-dir=/tmp/cline/user",
 				"--profile-temp",
-				"--sync",
-				"off",
+				"--sync=off",
 				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
