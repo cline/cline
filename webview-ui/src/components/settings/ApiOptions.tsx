@@ -1,14 +1,14 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useState } from "react"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { StringRequest, BooleanRequest } from "@shared/proto/common"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useState, useMemo } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { validateApiConfiguration } from "@/utils/validate"
 
-import { normalizeApiConfiguration } from "./utils/providerUtils"
-
+// Provider imports
 import { ClineProvider } from "./providers/ClineProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { MistralProvider } from "./providers/MistralProvider"
@@ -35,29 +35,86 @@ import { NebiusProvider } from "./providers/NebiusProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
+	showSubmitButton?: boolean
 	showModelOptions: boolean
-	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	isPopup?: boolean
 }
 
-// This is necessary to ensure dropdown opens downward, important for when this is used in popup
-export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2
 
 export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
 	z-index: ${(props) => props.zIndex || DROPDOWN_Z_INDEX};
 
-	// Force dropdowns to open downward
 	& vscode-dropdown::part(listbox) {
 		position: absolute !important;
 		top: 100% !important;
 		bottom: auto !important;
 	}
 `
+
+// Provider options configuration
+const PROVIDER_OPTIONS = [
+	{ value: "cline", label: "Cline" },
+	{ value: "openrouter", label: "OpenRouter" },
+	{ value: "anthropic", label: "Anthropic" },
+	{ value: "claude-code", label: "Claude Code" },
+	{ value: "bedrock", label: "Amazon Bedrock" },
+	{ value: "openai", label: "OpenAI Compatible" },
+	{ value: "vertex", label: "GCP Vertex AI" },
+	{ value: "gemini", label: "Google Gemini" },
+	{ value: "deepseek", label: "DeepSeek" },
+	{ value: "mistral", label: "Mistral" },
+	{ value: "openai-native", label: "OpenAI" },
+	{ value: "vscode-lm", label: "VS Code LM API" },
+	{ value: "requesty", label: "Requesty" },
+	{ value: "fireworks", label: "Fireworks" },
+	{ value: "together", label: "Together" },
+	{ value: "qwen", label: "Alibaba Qwen" },
+	{ value: "doubao", label: "Bytedance Doubao" },
+	{ value: "lmstudio", label: "LM Studio" },
+	{ value: "ollama", label: "Ollama" },
+	{ value: "litellm", label: "LiteLLM" },
+	{ value: "nebius", label: "Nebius AI Studio" },
+	{ value: "asksage", label: "AskSage" },
+	{ value: "xai", label: "xAI" },
+	{ value: "sambanova", label: "SambaNova" },
+	{ value: "cerebras", label: "Cerebras" },
+	{ value: "sapaicore", label: "SAP AI Core" },
+] as const
+
+// Provider component mapping
+const PROVIDER_COMPONENTS = {
+	cline: ClineProvider,
+	asksage: AskSageProvider,
+	anthropic: AnthropicProvider,
+	"claude-code": ClaudeCodeProvider,
+	"openai-native": OpenAINativeProvider,
+	qwen: QwenProvider,
+	doubao: DoubaoProvider,
+	mistral: MistralProvider,
+	openrouter: OpenRouterProvider,
+	deepseek: DeepSeekProvider,
+	together: TogetherProvider,
+	openai: OpenAICompatibleProvider,
+	sambanova: SambanovaProvider,
+	bedrock: BedrockProvider,
+	vertex: VertexProvider,
+	gemini: GeminiProvider,
+	requesty: RequestyProvider,
+	fireworks: FireworksProvider,
+	"vscode-lm": VSCodeLmProvider,
+	litellm: LiteLlmProvider,
+	lmstudio: LMStudioProvider,
+	ollama: OllamaProvider,
+	nebius: NebiusProvider,
+	xai: XaiProvider,
+	cerebras: CerebrasProvider,
+	sapaicore: SapAiCoreProvider,
+} as const
 
 declare module "vscode" {
 	interface LanguageModelChatSelector {
@@ -68,214 +125,114 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	// Use full context state for immediate save payload
-	const { apiConfiguration, uriScheme } = useExtensionState()
-
-	const selectedProvider = apiConfiguration?.apiProvider
-
-	const { handleFieldChange } = useApiConfigurationHandlers()
-
+const ApiOptions = ({ showSubmitButton, showModelOptions, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
+	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
-	// Poll ollama/vscode-lm models
-	const requestLocalModels = useCallback(async () => {
-		if (selectedProvider === "ollama") {
-			try {
-				const response = await ModelsServiceClient.getOllamaModels(
-					StringRequest.create({
-						value: apiConfiguration?.ollamaBaseUrl || "",
-					}),
-				)
-				if (response && response.values) {
-					setOllamaModels(response.values)
-				}
-			} catch (error) {
-				console.error("Failed to fetch Ollama models:", error)
-				setOllamaModels([])
-			}
+	const { handleFieldChange, apiConfiguration, uriScheme } = useApiConfigurationHandlers()
+	const selectedProvider = apiConfiguration?.apiProvider
+
+	// Memoize validation to prevent unnecessary recalculations
+	const validationError = useMemo(() => validateApiConfiguration(apiConfiguration), [apiConfiguration])
+
+	useEffect(() => {
+		setApiErrorMessage(validationError)
+	}, [validationError])
+
+	// Optimized Ollama models fetching
+	const requestOllamaModels = useCallback(async () => {
+		if (selectedProvider !== "ollama") return
+
+		try {
+			const response = await ModelsServiceClient.getOllamaModels(
+				StringRequest.create({
+					value: apiConfiguration?.ollamaBaseUrl || "",
+				}),
+			)
+			setOllamaModels(response?.values || [])
+		} catch (error) {
+			console.error("Failed to fetch Ollama models:", error)
+			setOllamaModels([])
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
+
 	useEffect(() => {
 		if (selectedProvider === "ollama") {
-			requestLocalModels()
+			requestOllamaModels()
 		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
+	}, [selectedProvider, requestOllamaModels])
 
-	/*
-	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
-	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
+	useInterval(requestOllamaModels, selectedProvider === "ollama" ? 2000 : null)
 
-	In our case, when the user switches between providers, we recalculate the selectedModelId depending on the provider, the default model for that provider, and a modelId that the user may have selected. Unfortunately, the VSCodeDropdown component wouldn't select this calculated value, and would default to the first "Select a model..." option instead, which makes it seem like the model was cleared out when it wasn't.
+	const handleSubmit = useCallback(async () => {
+		try {
+			await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true }))
+		} catch (error) {
+			console.error("Failed to update API configuration or complete welcome view:", error)
+		}
+	}, [])
 
-	As a workaround, we create separate instances of the dropdown for each provider, and then conditionally render the one that matches the current provider.
-	*/
+	const handleProviderChange = useCallback(
+		(e: any) => {
+			handleFieldChange("apiProvider", e.target.value)
+		},
+		[handleFieldChange],
+	)
+
+	// Render provider component
+	const renderProviderComponent = () => {
+		if (!apiConfiguration || !selectedProvider) return null
+
+		const ProviderComponent = PROVIDER_COMPONENTS[selectedProvider as keyof typeof PROVIDER_COMPONENTS]
+		if (!ProviderComponent) return null
+
+		const props = { showModelOptions, isPopup }
+
+		// Special cases for providers that need additional props
+		if (selectedProvider === "openrouter") {
+			return <ProviderComponent {...props} uriScheme={uriScheme} />
+		}
+
+		if (apiConfiguration && selectedProvider === "vscode-lm") {
+			return <VSCodeLmProvider />
+		}
+
+		return <ProviderComponent {...props} />
+	}
+
+	const disableLetsGoButton = apiErrorMessage != null
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+		<div className={`flex flex-col gap-1.5 ${isPopup ? "-mb-2.5" : "mb-0"}`}>
 			<DropdownContainer className="dropdown-container">
 				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
+					<span className="font-medium">API Provider</span>
 				</label>
 				<VSCodeDropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={(e: any) => handleFieldChange("apiProvider", e.target.value)}
-					style={{
-						minWidth: 130,
-						position: "relative",
-					}}>
-					<VSCodeOption value="cline">Cline</VSCodeOption>
-					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
-					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
-					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
-					<VSCodeOption value="mistral">Mistral</VSCodeOption>
-					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
-					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
-					<VSCodeOption value="requesty">Requesty</VSCodeOption>
-					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
-					<VSCodeOption value="together">Together</VSCodeOption>
-					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
-					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
-					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
-					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
-					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
-					<VSCodeOption value="asksage">AskSage</VSCodeOption>
-					<VSCodeOption value="xai">xAI</VSCodeOption>
-					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
-					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
-					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
+					onChange={handleProviderChange}
+					style={{ minWidth: 130, position: "relative" }}>
+					{PROVIDER_OPTIONS.map(({ value, label }) => (
+						<VSCodeOption key={value} value={value}>
+							{label}
+						</VSCodeOption>
+					))}
 				</VSCodeDropdown>
 			</DropdownContainer>
 
-			{apiConfiguration && selectedProvider === "cline" && (
-				<ClineProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
+			{renderProviderComponent()}
 
-			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
+			{apiErrorMessage && <p className="-mt-2.5 mb-1 text-xs text-[var(--vscode-errorForeground)]">{apiErrorMessage}</p>}
 
-			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider showModelOptions={showModelOptions} isPopup={isPopup} uriScheme={uriScheme} />
-			)}
-
-			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider />}
-
-			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
-
-			{apiErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{apiErrorMessage}
-				</p>
-			)}
 			{modelIdErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{modelIdErrorMessage}
-				</p>
+				<p className="-mt-2.5 mb-1 text-xs text-[var(--vscode-errorForeground)]">{modelIdErrorMessage}</p>
+			)}
+
+			{showSubmitButton && (
+				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} className="mt-0.75">
+					Let's go!
+				</VSCodeButton>
 			)}
 		</div>
 	)
