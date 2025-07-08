@@ -1,8 +1,10 @@
-import { Controller } from ".."
-import { RelativePathsRequest, RelativePaths } from "@shared/proto/file"
-import { FileMethodHandler } from "./index"
-import * as vscode from "vscode"
+import { asRelativePath } from "@/utils/path"
+import { RelativePaths, RelativePathsRequest } from "@shared/proto/file"
+import { promises as fs } from "fs"
 import * as path from "path"
+import { URI } from "vscode-uri"
+import { Controller } from ".."
+import { FileMethodHandler } from "./index"
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -14,37 +16,34 @@ export const getRelativePaths: FileMethodHandler = async (
 	_controller: Controller,
 	request: RelativePathsRequest,
 ): Promise<RelativePaths> => {
-	const resolvedPaths = await Promise.all(
-		request.uris.map(async (uriString) => {
-			try {
-				const fileUri = vscode.Uri.parse(uriString, true)
-				const relativePathToGet = vscode.workspace.asRelativePath(fileUri, false)
+	const result = []
+	for (const uriString of request.uris) {
+		try {
+			result.push(await getRelativePath(uriString))
+		} catch (error) {
+			console.error(`Error calculating relative path for ${uriString}:`, error)
+		}
+	}
+	return RelativePaths.create({ paths: result })
+}
 
-				// If the path is still absolute, it's outside the workspace
-				if (path.isAbsolute(relativePathToGet)) {
-					console.warn(`Dropped file ${relativePathToGet} is outside the workspace. Sending original path.`)
-					return fileUri.fsPath.replace(/\\/g, "/")
-				} else {
-					let finalPath = "/" + relativePathToGet.replace(/\\/g, "/")
-					try {
-						const stat = await vscode.workspace.fs.stat(fileUri)
-						if (stat.type === vscode.FileType.Directory) {
-							finalPath += "/"
-						}
-					} catch (statError) {
-						console.error(`Error stating file ${fileUri.fsPath}:`, statError)
-					}
-					return finalPath
-				}
-			} catch (error) {
-				console.error(`Error calculating relative path for ${uriString}:`, error)
-				return null
-			}
-		}),
-	)
+async function getRelativePath(uriString: string): Promise<string> {
+	const filePath = URI.parse(uriString, true).fsPath
+	var relativePath = await asRelativePath(filePath)
 
-	// Filter out any null values from errors
-	const validPaths = resolvedPaths.filter((path): path is string => path !== null)
+	// If the path is still absolute, it's outside the workspace
+	if (path.isAbsolute(relativePath)) {
+		throw Error(`Dropped file ${relativePath} is outside the workspace.`)
+	}
 
-	return RelativePaths.create({ paths: validPaths })
+	let result = "/" + relativePath.replace(/\\/g, "/")
+	if (await isDir(filePath)) {
+		result += "/"
+	}
+	return result
+}
+
+async function isDir(filePath: string): Promise<boolean> {
+	const stats = await fs.stat(filePath)
+	return stats.isDirectory()
 }
