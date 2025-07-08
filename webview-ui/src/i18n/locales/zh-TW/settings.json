@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "Ollama 基礎 URL",
 		"qdrantApiKeyLabel": "Qdrant API 金鑰",
 		"qdrantApiKeyPlaceholder": "輸入您的 Qdrant API 金鑰（選用）",
+		"setupConfigLabel": "設定",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

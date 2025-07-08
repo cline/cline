@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "Ollama आधार URL",
 		"qdrantApiKeyLabel": "Qdrant API कुंजी",
 		"qdrantApiKeyPlaceholder": "अपनी Qdrant API कुंजी दर्ज करें (वैकल्पिक)",
+		"setupConfigLabel": "सेटअप",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

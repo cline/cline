@@ -72,6 +72,7 @@
 		"qdrantKeyLabel": "Qdrant-Schlüssel:",
 		"qdrantApiKeyLabel": "Qdrant API-Schlüssel",
 		"qdrantApiKeyPlaceholder": "Gib deinen Qdrant API-Schlüssel ein (optional)",
+		"setupConfigLabel": "Einrichtung",
 		"startIndexingButton": "Start",
 		"clearIndexDataButton": "Index löschen",
 		"unsavedSettingsMessage": "Bitte speichere deine Einstellungen, bevor du den Indexierungsprozess startest.",
@@ -481,7 +482,7 @@
 		},
 		"commandDelay": {
 			"label": "Terminal-Befehlsverzögerung",
-			"description": "Verzögerung in Millisekunden, die nach der Befehlsausführung hinzugefügt wird. Die Standardeinstellung von 0 deaktiviert die Verzögerung vollständig. Dies kann dazu beitragen, dass die Befehlsausgabe in Terminals mit Timing-Problemen vollständig erfasst wird. In den meisten Terminals wird dies durch Setzen von `PROMPT_COMMAND='sleep N'` implementiert, und Powershell fügt `start-sleep` am Ende jedes Befehls hinzu. Ursprünglich war dies eine Lösung für VSCode-Bug#237208 und ist möglicherweise nicht mehr erforderlich. <0>Mehr erfahren</0>"
+			"description": "Verzögerung in Millisekunden, die nach der Befehlsausführung hinzugefügt wird. Die Standardeinstellung von 0 deaktiviert die Verzögerung vollständig. Dies kann dazu beitragen, dass die Befehlsausgabe in Terminals mit Timing-Problemen vollständig erfasst wird. In den meisten Terminals wird dies durch Setzen von `PROMPT_COMMAND='sleep N'` und Powershell fügt `start-sleep` am Ende jedes Befehls hinzu. Ursprünglich war dies eine Lösung für VSCode-Bug#237208 und ist möglicherweise nicht mehr erforderlich. <0>Mehr erfahren</0>"
 		},
 		"compressProgressBar": {
 			"label": "Fortschrittsbalken-Ausgabe komprimieren",
@@ -501,72 +502,72 @@
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k-Integration aktivieren",
-			"description": "Wenn aktiviert, wird POWERLEVEL9K_TERM_SHELL_INTEGRATION=true gesetzt, um die Shell-Integrationsfunktionen von Powerlevel10k zu aktivieren. <0>Mehr erfahren</0>"
+			"description": "Wenn aktiviert, wird POWERLEVEL9K_INSTANT_PROMPT=quiet gesetzt, um die Powerlevel10k-Integration zu aktivieren. Dies kann die Leistung verbessern, indem der Prompt sofort angezeigt wird. <0>Mehr erfahren</0>"
 		},
 		"zdotdir": {
-			"label": "ZDOTDIR-Behandlung aktivieren",
-			"description": "Erstellt bei Aktivierung ein temporäres Verzeichnis für ZDOTDIR, um die zsh-Shell-Integration korrekt zu handhaben. Dies stellt sicher, dass die VSCode-Shell-Integration mit zsh funktioniert und dabei deine zsh-Konfiguration erhalten bleibt. <0>Mehr erfahren</0>"
+			"label": "ZDOTDIR Handhabung aktivieren",
+			"description": "Wenn aktiviert, wird ein temporäres Verzeichnis für ZDOTDIR erstellt, um die Zsh-Shell-Integration ordnungsgemäß zu handhaben. Dies stellt sicher, dass die VSCode-Shell-Integration mit Zsh korrekt funktioniert, während deine Zsh-Konfiguration erhalten bleibt. <0>Mehr erfahren</0>"
 		},
 		"inheritEnv": {
-			"label": "Umgebungsvariablen übernehmen",
-			"description": "Wenn aktiviert, übernimmt das Terminal Umgebungsvariablen vom übergeordneten VSCode-Prozess, wie z.B. in Benutzerprofilen definierte Shell-Integrationseinstellungen. Dies schaltet direkt die globale VSCode-Einstellung `terminal.integrated.inheritEnv` um. <0>Mehr erfahren</0>"
+			"label": "Umgebungsvariablen erben",
+			"description": "Wenn aktiviert, erbt das Terminal Umgebungsvariablen aus dem übergeordneten Prozess von VSCode, wie z.B. benutzerdefinierte Shell-Integrationseinstellungen. Dies schaltet direkt die globale VSCode-Einstellung `terminal.integrated.inheritEnv` um. <0>Mehr erfahren</0>"
 		}
 	},
 	"advanced": {
 		"diff": {
 			"label": "Bearbeitung durch Diffs aktivieren",
-			"description": "Wenn aktiviert, kann Roo Dateien schneller bearbeiten und lehnt automatisch gekürzte vollständige Dateischreibvorgänge ab. Funktioniert am besten mit dem neuesten Claude 3.7 Sonnet-Modell.",
+			"description": "Wenn aktiviert, kann Roo Dateien schneller bearbeiten und lehnt automatisch abgeschnittene vollständige Dateischreibvorgänge ab. Funktioniert am besten mit dem neuesten Claude 3.7 Sonnet-Modell.",
 			"strategy": {
 				"label": "Diff-Strategie",
 				"options": {
-					"standard": "Standard (Einzelner Block)",
-					"multiBlock": "Experimentell: Multi-Block-Diff",
-					"unified": "Experimentell: Vereinheitlichter Diff"
+					"standard": "Standard (Einzelblock)",
+					"multiBlock": "Experimentell: Mehrblock-Diff",
+					"unified": "Experimentell: Einheitliches Diff"
 				},
 				"descriptions": {
-					"standard": "Die Standard-Diff-Strategie wendet Änderungen auf einen einzelnen Codeblock gleichzeitig an.",
-					"unified": "Die vereinheitlichte Diff-Strategie verwendet mehrere Ansätze zum Anwenden von Diffs und wählt den besten Ansatz aus.",
-					"multiBlock": "Die Multi-Block-Diff-Strategie ermöglicht die Aktualisierung mehrerer Codeblöcke in einer Datei in einer Anfrage."
+					"standard": "Die Standard-Diff-Strategie wendet Änderungen jeweils auf einen einzelnen Codeblock an.",
+					"unified": "Die einheitliche Diff-Strategie wendet mehrere Ansätze zur Anwendung von Diffs an und wählt den besten Ansatz.",
+					"multiBlock": "Die Mehrblock-Diff-Strategie ermöglicht das Aktualisieren mehrerer Codeblöcke in einer Datei in einer Anfrage."
 				}
 			},
 			"matchPrecision": {
-				"label": "Übereinstimmungsgenauigkeit",
-				"description": "Dieser Schieberegler steuert, wie genau Codeabschnitte beim Anwenden von Diffs übereinstimmen müssen. Niedrigere Werte ermöglichen flexiblere Übereinstimmungen, erhöhen aber das Risiko falscher Ersetzungen. Verwende Werte unter 100% mit äußerster Vorsicht."
+				"label": "Übereinstimmungspräzision",
+				"description": "Dieser Schieberegler steuert, wie genau Codeabschnitte bei der Anwendung von Diffs übereinstimmen müssen. Niedrigere Werte ermöglichen eine flexiblere Übereinstimmung, erhöhen aber das Risiko falscher Ersetzungen. Verwenden Sie Werte unter 100 % mit äußerster Vorsicht."
 			}
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
-			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn du die Risiken verstehst und bereit bist, alle Änderungen sorgfältig zu überprüfen."
+			"description": "Aktiviere die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungsversuche reduzieren, kann aber zu unerwartetem Verhalten oder falschen Bearbeitungen führen. Aktiviere sie nur, wenn du die Risiken verstehst und bereit bist, alle Änderungen sorgfältig zu überprüfen."
 		},
 		"SEARCH_AND_REPLACE": {
 			"name": "Experimentelles Such- und Ersetzungswerkzeug verwenden",
-			"description": "Aktiviert das experimentelle Such- und Ersetzungswerkzeug, das Roo ermöglicht, mehrere Instanzen eines Suchbegriffs in einer Anfrage zu ersetzen."
+			"description": "Aktiviere das experimentelle Such- und Ersetzungswerkzeug, mit dem Roo mehrere Instanzen eines Suchbegriffs in einer Anfrage ersetzen kann."
 		},
 		"INSERT_BLOCK": {
-			"name": "Experimentelles Inhalts-Einfüge-Werkzeug verwenden",
-			"description": "Aktiviert das experimentelle Inhalts-Einfüge-Werkzeug, das Roo ermöglicht, Inhalte an bestimmten Zeilennummern einzufügen, ohne einen Diff erstellen zu müssen."
+			"name": "Experimentelles Inhalts-Einfügewerkzeug verwenden",
+			"description": "Aktiviere das experimentelle Inhalts-Einfügewerkzeug, mit dem Roo Inhalte an bestimmten Zeilennummern einfügen kann, ohne einen Diff erstellen zu müssen."
 		},
 		"POWER_STEERING": {
-			"name": "Experimentellen \"Servolenkung\"-Modus verwenden",
-			"description": "Wenn aktiviert, wird Roo das Modell häufiger an die Details seiner aktuellen Modusdefinition erinnern. Dies führt zu einer stärkeren Einhaltung von Rollendefinitionen und benutzerdefinierten Anweisungen, verwendet aber mehr Tokens pro Nachricht."
-		},
-		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "Experimentelles Multi-Block-Diff-Werkzeug verwenden",
-			"description": "Wenn aktiviert, verwendet Roo das Multi-Block-Diff-Werkzeug. Dies versucht, mehrere Codeblöcke in der Datei in einer Anfrage zu aktualisieren."
+			"name": "Experimentellen \"Power Steering\"-Modus verwenden",
+			"description": "Wenn aktiviert, erinnert Roo das Modell häufiger an die Details seiner aktuellen Modusdefinition. Dies führt zu einer stärkeren Einhaltung von Rollendefinitionen und benutzerdefinierten Anweisungen, verbraucht aber mehr Token pro Nachricht."
 		},
 		"CONCURRENT_FILE_READS": {
 			"name": "Gleichzeitiges Lesen von Dateien aktivieren",
-			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage lesen. Wenn deaktiviert, muss Roo Dateien nacheinander lesen. Das Deaktivieren kann helfen, wenn du mit weniger leistungsfähigen Modellen arbeitest oder mehr Kontrolle über den Dateizugriff möchtest."
+			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage lesen. Wenn deaktiviert, muss Roo Dateien einzeln lesen. Das Deaktivieren kann hilfreich sein, wenn mit weniger fähigen Modellen gearbeitet wird oder wenn du mehr Kontrolle über den Dateizugriff haben möchtest."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Experimentelles Multi-Block-Diff-Tool verwenden",
+			"description": "Wenn aktiviert, wird Roo das Multi-Block-Diff-Tool verwenden. Dies wird versuchen, mehrere Codeblöcke in der Datei in einer Anfrage zu aktualisieren."
 		},
 		"MARKETPLACE": {
-			"name": "Marketplace aktivieren",
-			"description": "Wenn aktiviert, kannst du MCP und benutzerdefinierte Modi aus dem Marketplace installieren und verwalten."
+			"name": "Marktplatz aktivieren",
+			"description": "Wenn aktiviert, können Sie MCPs und benutzerdefinierte Modi aus dem Marketplace installieren."
 		},
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Gleichzeitige Dateibearbeitungen aktivieren",
-			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage bearbeiten. Wenn deaktiviert, muss Roo Dateien einzeln bearbeiten. Das Deaktivieren kann helfen, wenn du mit weniger fähigen Modellen arbeitest oder mehr Kontrolle über Dateiänderungen haben möchtest."
+			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage bearbeiten. Wenn deaktiviert, muss Roo Dateien einzeln bearbeiten. Das Deaktivieren kann hilfreich sein, wenn mit weniger fähigen Modellen gearbeitet wird oder wenn du mehr Kontrolle über Dateiänderungen haben möchtest."
 		}
 	},
 	"promptCaching": {
@@ -575,16 +576,16 @@
 	},
 	"temperature": {
 		"useCustom": "Benutzerdefinierte Temperatur verwenden",
-		"description": "Steuert die Zufälligkeit in den Antworten des Modells.",
+		"description": "Steuert die Zufälligkeit der Modellantworten.",
 		"rangeDescription": "Höhere Werte machen die Ausgabe zufälliger, niedrigere Werte machen sie deterministischer."
 	},
 	"modelInfo": {
 		"supportsImages": "Unterstützt Bilder",
 		"noImages": "Unterstützt keine Bilder",
-		"supportsComputerUse": "Unterstützt Computer-Nutzung",
-		"noComputerUse": "Unterstützt keine Computer-Nutzung",
-		"supportsPromptCache": "Unterstützt Prompt-Caching",
-		"noPromptCache": "Unterstützt kein Prompt-Caching",
+		"supportsComputerUse": "Unterstützt Computernutzung",
+		"noComputerUse": "Unterstützt keine Computernutzung",
+		"supportsPromptCache": "Unterstützt Prompt-Cache",
+		"noPromptCache": "Unterstützt keinen Prompt-Cache",
 		"maxOutput": "Maximale Ausgabe",
 		"inputPrice": "Eingabepreis",
 		"outputPrice": "Ausgabepreis",
@@ -592,27 +593,27 @@
 		"cacheWritesPrice": "Cache-Schreibpreis",
 		"enableStreaming": "Streaming aktivieren",
 		"enableR1Format": "R1-Modellparameter aktivieren",
-		"enableR1FormatTips": "Muss aktiviert werden, wenn R1-Modelle wie QWQ verwendet werden, um 400-Fehler zu vermeiden",
+		"enableR1FormatTips": "Muss bei Verwendung von R1-Modellen wie QWQ aktiviert werden, um 400er-Fehler zu vermeiden",
 		"useAzure": "Azure verwenden",
 		"azureApiVersion": "Azure API-Version festlegen",
 		"gemini": {
 			"freeRequests": "* Kostenlos bis zu {{count}} Anfragen pro Minute. Danach hängt die Abrechnung von der Prompt-Größe ab.",
-			"pricingDetails": "Weitere Informationen finden Sie in den Preisdetails.",
+			"pricingDetails": "Weitere Informationen finden Sie unter Preisdetails.",
 			"billingEstimate": "* Die Abrechnung ist eine Schätzung - die genauen Kosten hängen von der Prompt-Größe ab."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der verfügbaren Modelle von <serviceLink>{{serviceName}}</serviceLink> ab. Wenn du dir nicht sicher bist, welches Modell du wählen sollst, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Du kannst auch nach \"free\" suchen, um derzeit verfügbare kostenlose Optionen zu finden.",
+		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der auf <serviceLink>{{serviceName}}</serviceLink> verfügbaren Modelle ab. Wenn du dir nicht sicher bist, welches Modell du wählen sollst, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Du kannst auch versuchen, nach \"kostenlos\" zu suchen, um die derzeit verfügbaren kostenlosen Optionen zu finden.",
 		"label": "Modell",
 		"searchPlaceholder": "Suchen",
 		"noMatchFound": "Keine Übereinstimmung gefunden",
 		"useCustomModel": "Benutzerdefiniert verwenden: {{modelId}}"
 	},
 	"footer": {
-		"feedback": "Wenn du Fragen oder Feedback hast, kannst du gerne ein Issue auf <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
+		"feedback": "Wenn du Fragen oder Feedback hast, kannst du gerne ein Issue auf <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> eröffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
 		"telemetry": {
 			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",
-			"description": "Helfen Sie, Roo Code zu verbessern, indem Sie anonyme Nutzungsdaten und Fehlerberichte senden. Es werden niemals Code, Prompts oder persönliche Informationen gesendet. Weitere Details finden Sie in unserer Datenschutzrichtlinie."
+			"description": "Hilf mit, Roo Code zu verbessern, indem du anonyme Nutzungsdaten und Fehlerberichte sendest. Es werden niemals Code, Prompts oder persönliche Informationen gesendet (es sei denn, du verbindest dich mit Roo Code Cloud). Weitere Einzelheiten findest du in unserer <privacyLink>Datenschutzrichtlinie</privacyLink>."
 		},
 		"settings": {
 			"import": "Importieren",
@@ -621,19 +622,19 @@
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "Maximale Tokens",
-		"maxThinkingTokens": "Maximale Thinking-Tokens"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
 		"apiKey": "Du musst einen gültigen API-Schlüssel angeben.",
-		"awsRegion": "Du musst eine Region für Amazon Bedrock auswählen.",
+		"awsRegion": "Du musst eine Region für die Verwendung mit Amazon Bedrock auswählen.",
 		"googleCloud": "Du musst eine gültige Google Cloud Projekt-ID und Region angeben.",
 		"modelId": "Du musst eine gültige Modell-ID angeben.",
-		"modelSelector": "Du musst einen gültigen Modell-Selektor angeben.",
-		"openAi": "Du musst eine gültige Basis-URL, API-Schlüssel und Modell-ID angeben.",
+		"modelSelector": "Du musst einen gültigen Modellselektor angeben.",
+		"openAi": "Du musst eine gültige Basis-URL, einen API-Schlüssel und eine Modell-ID angeben.",
 		"arn": {
-			"invalidFormat": "Ungültiges ARN-Format. Bitte überprüfen Sie die Formatanforderungen.",
-			"regionMismatch": "Warnung: Die Region in deiner ARN ({{arnRegion}}) stimmt nicht mit deiner ausgewählten Region ({{region}}) überein. Dies kann zu Zugriffsproblemen führen. Der Provider wird die Region aus der ARN verwenden."
+			"invalidFormat": "Ungültiges ARN-Format. Bitte überprüfe die Formatanforderungen.",
+			"regionMismatch": "Warnung: Die Region in deiner ARN ({{arnRegion}}) stimmt nicht mit deiner ausgewählten Region ({{region}}) überein. Dies kann zu Zugriffsproblemen führen. Der Anbieter wird die Region aus der ARN verwenden."
 		},
 		"modelAvailability": "Die von dir angegebene Modell-ID ({{modelId}}) ist nicht verfügbar. Bitte wähle ein anderes Modell.",
 		"providerNotAllowed": "Anbieter '{{provider}}' ist von deiner Organisation nicht erlaubt",
@@ -646,7 +647,7 @@
 		"accessKey": "Zugriffsschlüssel eingeben...",
 		"secretKey": "Geheimschlüssel eingeben...",
 		"sessionToken": "Sitzungstoken eingeben...",
-		"credentialsJson": "Anmeldedaten-JSON eingeben...",
+		"credentialsJson": "Anmeldeinformationen JSON eingeben...",
 		"keyFilePath": "Schlüsseldateipfad eingeben...",
 		"projectId": "Projekt-ID eingeben...",
 		"customArn": "ARN eingeben (z.B. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
@@ -674,5 +675,5 @@
 		"useCustomArn": "Benutzerdefinierte ARN verwenden..."
 	},
 	"includeMaxOutputTokens": "Maximale Ausgabe-Tokens einbeziehen",
-	"includeMaxOutputTokensDescription": "Sende den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht."
+	"includeMaxOutputTokensDescription": "Senden Sie den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht."
 }

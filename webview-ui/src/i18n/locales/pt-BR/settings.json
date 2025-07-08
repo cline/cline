@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "URL Base do Ollama",
 		"qdrantApiKeyLabel": "Chave da API Qdrant",
 		"qdrantApiKeyPlaceholder": "Insira sua chave da API Qdrant (opcional)",
+		"setupConfigLabel": "Configuração",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

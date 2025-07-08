@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "URL cơ sở Ollama",
 		"qdrantApiKeyLabel": "Khóa API Qdrant",
 		"qdrantApiKeyPlaceholder": "Nhập khóa API Qdrant của bạn (tùy chọn)",
+		"setupConfigLabel": "Cài đặt",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

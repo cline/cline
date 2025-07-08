@@ -109,13 +109,17 @@ export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className 
 					onMouseEnter={handleMouseEnterButton}
 					onMouseLeave={handleMouseLeaveButton}
 					className={cn(
-						"flex items-center justify-center w-7 h-7 rounded-md",
-						"bg-transparent hover:bg-vscode-list-hoverBackground",
-						"cursor-pointer transition-all duration-200",
-						"opacity-85 hover:opacity-100 relative",
+						"relative inline-flex items-center justify-center",
+						"bg-transparent border-none p-1.5",
+						"rounded-md min-w-[28px] min-h-[28px]",
+						"opacity-85 text-vscode-foreground",
+						"transition-all duration-150",
+						"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+						"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+						"active:bg-[rgba(255,255,255,0.1)]",
+						className,
 					)}
 					aria-label={getTooltipText()}>
-					{/* Status dot */}
 					<span
 						className={cn(
 							"inline-block w-2 h-2 rounded-full relative z-10 transition-colors duration-200",

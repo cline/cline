@@ -943,10 +943,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									"resize-none",
 									"overflow-x-hidden",
 									"overflow-y-auto",
-									"pr-2",
+									"pr-9",
 									"flex-none flex-grow",
 									"z-[2]",
 									"scrollbar-none",
+									"scrollbar-hide",
 								)}
 								onScroll={() => updateHighlights()}
 							/>
@@ -961,24 +962,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</Button>
 							)}
 
+							<div className="absolute top-1 right-1 z-30">
+								<IconButton
+									iconClass={isEnhancingPrompt ? "codicon-loading" : "codicon-sparkle"}
+									title={t("chat:enhancePrompt")}
+									disabled={sendingDisabled}
+									isLoading={isEnhancingPrompt}
+									onClick={handleEnhancePrompt}
+									className="opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground"
+								/>
+							</div>
+
+							<div className="absolute bottom-1 right-1 z-30">
+								<IconButton
+									iconClass="codicon-send"
+									title={t("chat:sendMessage")}
+									disabled={sendingDisabled}
+									onClick={onSend}
+									className="opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground"
+								/>
+							</div>
+
 							{!inputValue && (
 								<div
-									className={cn(
-										"absolute",
-										"left-2",
-										"flex",
-										"gap-2",
-										"text-xs",
-										"text-descriptionForeground",
-										"pointer-events-none",
-										"z-25",
-										"bottom-1.5",
-										"pr-2",
-										"transition-opacity",
-										"duration-200",
-										"ease-in-out",
-										"opacity-70",
-									)}>
+									className="absolute left-2 z-30 pr-9 flex items-center h-8"
+									style={{ bottom: "0.25rem", color: "var(--vscode-tab-inactiveForeground)" }}>
 									{placeholderBottomText}
 								</div>
 							)}
@@ -1135,23 +1143,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className={cn("flex", "items-center", "gap-0.5", "shrink-0")}>
 						{codebaseIndexConfig?.codebaseIndexEnabled && <IndexingStatusDot />}
 						<IconButton
-							iconClass={isEnhancingPrompt ? "codicon-loading" : "codicon-sparkle"}
-							title={t("chat:enhancePrompt")}
-							disabled={sendingDisabled}
-							isLoading={isEnhancingPrompt}
-							onClick={handleEnhancePrompt}
-						/>
-						<IconButton
 							iconClass="codicon-device-camera"
 							title={t("chat:addImages")}
 							disabled={shouldDisableImages}
 							onClick={onSelectImages}
-						/>
-						<IconButton
-							iconClass="codicon-send"
-							title={t("chat:sendMessage")}
-							disabled={sendingDisabled}
-							onClick={onSend}
 						/>
 					</div>
 				</div>

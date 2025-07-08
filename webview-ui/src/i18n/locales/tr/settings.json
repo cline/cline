@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "Ollama Temel URL",
 		"qdrantApiKeyLabel": "Qdrant API Anahtarı",
 		"qdrantApiKeyPlaceholder": "Qdrant API anahtarınızı girin (isteğe bağlı)",
+		"setupConfigLabel": "Kurulum",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

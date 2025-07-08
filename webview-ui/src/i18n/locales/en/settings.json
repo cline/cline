@@ -72,6 +72,7 @@
 		"qdrantKeyLabel": "Qdrant Key:",
 		"qdrantApiKeyLabel": "Qdrant API Key",
 		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
 		"advancedConfigLabel": "Advanced Configuration",
 		"searchMinScoreLabel": "Search Score Threshold",
 		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",

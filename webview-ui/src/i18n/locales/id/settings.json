@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "URL Dasar Ollama",
 		"qdrantApiKeyLabel": "Kunci API Qdrant",
 		"qdrantApiKeyPlaceholder": "Masukkan kunci API Qdrant kamu (opsional)",
+		"setupConfigLabel": "Pengaturan",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

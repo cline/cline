@@ -81,6 +81,7 @@
 		"ollamaBaseUrlLabel": "Ollama 기본 URL",
 		"qdrantApiKeyLabel": "Qdrant API 키",
 		"qdrantApiKeyPlaceholder": "Qdrant API 키를 입력하세요 (선택사항)",
+		"setupConfigLabel": "설정",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",

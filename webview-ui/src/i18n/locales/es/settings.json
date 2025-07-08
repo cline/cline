@@ -72,6 +72,7 @@
 		"qdrantKeyLabel": "Clave de Qdrant:",
 		"qdrantApiKeyLabel": "Clave API de Qdrant",
 		"qdrantApiKeyPlaceholder": "Introduce tu clave API de Qdrant (opcional)",
+		"setupConfigLabel": "Configuración",
 		"startIndexingButton": "Iniciar",
 		"clearIndexDataButton": "Borrar índice",
 		"unsavedSettingsMessage": "Por favor guarda tus ajustes antes de iniciar el proceso de indexación.",
