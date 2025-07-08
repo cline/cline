@@ -23,8 +23,11 @@
 		"delete_config_profile": "Estàs segur que vols eliminar aquest perfil de configuració?",
 		"delete_custom_mode_with_rules": "Esteu segur que voleu suprimir aquest mode {scope}?\n\nAixò també suprimirà la carpeta de regles associada a:\n{rulesFolderPath}",
 		"delete_message": "Què vols eliminar?",
-		"just_this_message": "Només aquest missatge",
-		"this_and_subsequent": "Aquest i tots els missatges posteriors"
+		"edit_message": "Eliminar tots els missatges després d'aquest?",
+		"delete_just_this_message": "Només aquest missatge",
+		"edit_just_this_message": "No, només editar aquest",
+		"delete_this_and_subsequent": "Aquest i tots els missatges posteriors",
+		"edit_this_and_delete_subsequent": "Sí"
 	},
 	"errors": {
 		"invalid_data_uri": "Format d'URI de dades no vàlid",
@@ -111,6 +114,11 @@
 		"cancel": "Cancel·lar",
 		"remove": "Eliminar",
 		"keep": "Mantenir"
+	},
+	"buttons": {
+		"save": "Desar",
+		"cancel": "Cancel·lar",
+		"edit": "Editar"
 	},
 	"tasks": {
 		"canceled": "Error de tasca: Ha estat aturada i cancel·lada per l'usuari.",

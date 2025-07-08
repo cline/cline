@@ -19,8 +19,11 @@
 		"delete_config_profile": "Apakah kamu yakin ingin menghapus profil konfigurasi ini?",
 		"delete_custom_mode_with_rules": "Anda yakin ingin menghapus mode {scope} ini?\n\nIni juga akan menghapus folder aturan terkait di:\n{rulesFolderPath}",
 		"delete_message": "Apa yang ingin kamu hapus?",
-		"just_this_message": "Hanya pesan ini",
-		"this_and_subsequent": "Ini dan semua pesan selanjutnya"
+		"edit_message": "Hapus semua pesan setelah ini?",
+		"delete_just_this_message": "Hanya pesan ini",
+		"edit_just_this_message": "Tidak, hanya edit yang ini",
+		"delete_this_and_subsequent": "Ini dan semua pesan selanjutnya",
+		"edit_this_and_delete_subsequent": "Ya"
 	},
 	"errors": {
 		"invalid_data_uri": "Format data URI tidak valid",
@@ -107,6 +110,11 @@
 		"cancel": "Batal",
 		"remove": "Hapus",
 		"keep": "Simpan"
+	},
+	"buttons": {
+		"save": "Simpan",
+		"cancel": "Batal",
+		"edit": "Edit"
 	},
 	"tasks": {
 		"canceled": "Error tugas: Dihentikan dan dibatalkan oleh pengguna.",

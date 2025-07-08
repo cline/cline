@@ -19,8 +19,11 @@
 		"delete_config_profile": "Bạn có chắc chắn muốn xóa hồ sơ cấu hình này không?",
 		"delete_custom_mode_with_rules": "Bạn có chắc chắn muốn xóa chế độ {scope} này không?\n\nThao tác này cũng sẽ xóa thư mục quy tắc liên quan tại:\n{rulesFolderPath}",
 		"delete_message": "Bạn muốn xóa gì?",
-		"just_this_message": "Chỉ tin nhắn này",
-		"this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo"
+		"delete_just_this_message": "Chỉ tin nhắn này",
+		"delete_this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo",
+		"edit_message": "Xóa tất cả tin nhắn sau tin nhắn này?",
+		"edit_just_this_message": "Không, chỉ chỉnh sửa tin nhắn này",
+		"edit_this_and_delete_subsequent": "Có"
 	},
 	"errors": {
 		"invalid_data_uri": "Định dạng URI dữ liệu không hợp lệ",
@@ -107,6 +110,11 @@
 		"cancel": "Hủy",
 		"remove": "Xóa",
 		"keep": "Giữ"
+	},
+	"buttons": {
+		"save": "Lưu",
+		"cancel": "Hủy",
+		"edit": "Chỉnh sửa"
 	},
 	"tasks": {
 		"canceled": "Lỗi nhiệm vụ: Nó đã bị dừng và hủy bởi người dùng.",

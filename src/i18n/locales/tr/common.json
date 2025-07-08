@@ -19,8 +19,11 @@
 		"delete_config_profile": "Bu yapılandırma profilini silmek istediğinizden emin misiniz?",
 		"delete_custom_mode_with_rules": "Bu {scope} modunu silmek istediğinizden emin misiniz?\n\nBu işlem, ilişkili kurallar klasörünü de şu konumdan silecektir:\n{rulesFolderPath}",
 		"delete_message": "Neyi silmek istersiniz?",
-		"just_this_message": "Sadece bu mesajı",
-		"this_and_subsequent": "Bu ve sonraki tüm mesajları"
+		"delete_just_this_message": "Sadece bu mesajı",
+		"delete_this_and_subsequent": "Bu ve sonraki tüm mesajları",
+		"edit_message": "Bu mesajdan sonraki tüm mesajlar silinsin mi?",
+		"edit_just_this_message": "Hayır, sadece bunu düzenle",
+		"edit_this_and_delete_subsequent": "Evet"
 	},
 	"errors": {
 		"invalid_data_uri": "Geçersiz veri URI formatı",
@@ -107,6 +110,11 @@
 		"cancel": "İptal",
 		"remove": "Kaldır",
 		"keep": "Koru"
+	},
+	"buttons": {
+		"save": "Kaydet",
+		"cancel": "İptal",
+		"edit": "Düzenle"
 	},
 	"tasks": {
 		"canceled": "Görev hatası: Kullanıcı tarafından durduruldu ve iptal edildi.",

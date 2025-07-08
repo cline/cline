@@ -19,8 +19,11 @@
 		"delete_config_profile": "Sei sicuro di voler eliminare questo profilo di configurazione?",
 		"delete_custom_mode_with_rules": "Sei sicuro di voler eliminare questa modalità {scope}?\n\nQuesto eliminerà anche la cartella delle regole associata in:\n{rulesFolderPath}",
 		"delete_message": "Cosa desideri eliminare?",
-		"just_this_message": "Solo questo messaggio",
-		"this_and_subsequent": "Questo e tutti i messaggi successivi"
+		"edit_message": "Eliminare tutti i messaggi dopo questo?",
+		"delete_just_this_message": "Solo questo messaggio",
+		"edit_just_this_message": "No, modifica solo questo",
+		"delete_this_and_subsequent": "Questo e tutti i messaggi successivi",
+		"edit_this_and_delete_subsequent": "Sì"
 	},
 	"errors": {
 		"invalid_data_uri": "Formato URI dati non valido",
@@ -107,6 +110,11 @@
 		"cancel": "Annulla",
 		"remove": "Rimuovi",
 		"keep": "Mantieni"
+	},
+	"buttons": {
+		"save": "Salva",
+		"cancel": "Annulla",
+		"edit": "Modifica"
 	},
 	"tasks": {
 		"canceled": "Errore attività: È stata interrotta e annullata dall'utente.",

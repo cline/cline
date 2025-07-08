@@ -19,8 +19,11 @@
 		"delete_config_profile": "この設定プロファイルを削除してもよろしいですか？",
 		"delete_custom_mode_with_rules": "この{scope}モードを削除してもよろしいですか？\n\nこれにより、関連するルールフォルダも次の場所で削除されます:\n{rulesFolderPath}",
 		"delete_message": "何を削除しますか？",
-		"just_this_message": "このメッセージのみ",
-		"this_and_subsequent": "これ以降のすべてのメッセージ"
+		"edit_message": "これ以降のメッセージをすべて削除しますか？",
+		"delete_just_this_message": "このメッセージのみ",
+		"edit_just_this_message": "いいえ、これだけを編集",
+		"delete_this_and_subsequent": "これ以降のすべてのメッセージ",
+		"edit_this_and_delete_subsequent": "はい"
 	},
 	"errors": {
 		"invalid_data_uri": "データURIフォーマットが無効です",
@@ -107,6 +110,11 @@
 		"cancel": "キャンセル",
 		"remove": "削除",
 		"keep": "保持"
+	},
+	"buttons": {
+		"save": "保存",
+		"cancel": "キャンセル",
+		"edit": "編集"
 	},
 	"tasks": {
 		"canceled": "タスクエラー：ユーザーによって停止およびキャンセルされました。",

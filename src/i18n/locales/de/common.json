@@ -19,8 +19,11 @@
 		"delete_config_profile": "Möchtest du dieses Konfigurationsprofil wirklich löschen?",
 		"delete_custom_mode_with_rules": "Bist du sicher, dass du diesen {scope}-Modus löschen möchtest?\n\nDadurch wird auch der zugehörige Regelordner unter folgender Adresse gelöscht:\n{rulesFolderPath}",
 		"delete_message": "Was möchtest du löschen?",
-		"just_this_message": "Nur diese Nachricht",
-		"this_and_subsequent": "Diese und alle nachfolgenden Nachrichten"
+		"edit_message": "Alle Nachrichten nach dieser löschen?",
+		"delete_just_this_message": "Nur diese Nachricht",
+		"edit_just_this_message": "Nein, nur diese bearbeiten",
+		"delete_this_and_subsequent": "Diese und alle nachfolgenden Nachrichten",
+		"edit_this_and_delete_subsequent": "Ja"
 	},
 	"errors": {
 		"invalid_data_uri": "Ungültiges Daten-URI-Format",
@@ -107,6 +110,11 @@
 		"cancel": "Abbrechen",
 		"remove": "Entfernen",
 		"keep": "Behalten"
+	},
+	"buttons": {
+		"save": "Speichern",
+		"cancel": "Abbrechen",
+		"edit": "Bearbeiten"
 	},
 	"tasks": {
 		"canceled": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und abgebrochen.",

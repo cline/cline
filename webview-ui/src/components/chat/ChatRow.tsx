@@ -111,12 +111,39 @@ export const ChatRowContent = ({
 	const [reasoningCollapsed, setReasoningCollapsed] = useState(true)
 	const [isDiffErrorExpanded, setIsDiffErrorExpanded] = useState(false)
 	const [showCopySuccess, setShowCopySuccess] = useState(false)
+	const [isEditing, setIsEditing] = useState(false)
+	const [editedContent, setEditedContent] = useState("")
 	const { copyWithFeedback } = useCopyToClipboard()
 
 	// Memoized callback to prevent re-renders caused by inline arrow functions
 	const handleToggleExpand = useCallback(() => {
 		onToggleExpand(message.ts)
 	}, [onToggleExpand, message.ts])
+
+	// Handle edit button click
+	const handleEditClick = useCallback(() => {
+		setIsEditing(true)
+		setEditedContent(message.text || "")
+		// Edit mode is now handled entirely in the frontend
+		// No need to notify the backend
+	}, [message.text])
+
+	// Handle cancel edit
+	const handleCancelEdit = useCallback(() => {
+		setIsEditing(false)
+		setEditedContent(message.text || "")
+	}, [message.text])
+
+	// Handle save edit
+	const handleSaveEdit = useCallback(() => {
+		setIsEditing(false)
+		// Send edited message to backend
+		vscode.postMessage({
+			type: "submitEditedMessage",
+			value: message.ts,
+			editedMessageContent: editedContent,
+		})
+	}, [message.ts, editedContent])
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
@@ -1001,23 +1028,56 @@ export const ChatRowContent = ({
 				case "user_feedback":
 					return (
 						<div className="bg-vscode-editor-background border rounded-xs p-1 overflow-hidden whitespace-pre-wrap">
-							<div className="flex justify-between">
-								<div className="flex-grow px-2 py-1 wrap-anywhere">
-									<Mention text={message.text} withShadow />
+							{isEditing ? (
+								<div className="flex flex-col gap-2 p-2">
+									<textarea
+										className="w-full p-2 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded-xs"
+										value={editedContent}
+										onChange={(e) => setEditedContent(e.target.value)}
+										rows={5}
+										autoFocus
+									/>
+									<div className="flex justify-end gap-2">
+										<Button variant="secondary" size="sm" onClick={handleCancelEdit}>
+											{t("chat:cancel.title")}
+										</Button>
+										<Button variant="default" size="sm" onClick={handleSaveEdit}>
+											{t("chat:save.title")}
+										</Button>
+									</div>
 								</div>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="shrink-0"
-									disabled={isStreaming}
-									onClick={(e) => {
-										e.stopPropagation()
-										vscode.postMessage({ type: "deleteMessage", value: message.ts })
-									}}>
-									<span className="codicon codicon-trash" />
-								</Button>
-							</div>
-							{message.images && message.images.length > 0 && (
+							) : (
+								<div className="flex justify-between">
+									<div className="flex-grow px-2 py-1 wrap-anywhere">
+										<Mention text={message.text} withShadow />
+									</div>
+									<div className="flex">
+										<Button
+											variant="ghost"
+											size="icon"
+											className="shrink-0"
+											disabled={isStreaming}
+											onClick={(e) => {
+												e.stopPropagation()
+												handleEditClick()
+											}}>
+											<span className="codicon codicon-edit" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="shrink-0"
+											disabled={isStreaming}
+											onClick={(e) => {
+												e.stopPropagation()
+												vscode.postMessage({ type: "deleteMessage", value: message.ts })
+											}}>
+											<span className="codicon codicon-trash" />
+										</Button>
+									</div>
+								</div>
+							)}
+							{!isEditing && message.images && message.images.length > 0 && (
 								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
 							)}
 						</div>

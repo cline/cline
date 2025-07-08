@@ -19,8 +19,11 @@
 		"delete_config_profile": "Czy na pewno chcesz usunąć ten profil konfiguracyjny?",
 		"delete_custom_mode_with_rules": "Czy na pewno chcesz usunąć ten tryb {scope}?\n\nSpowoduje to również usunięcie powiązanego folderu reguł pod adresem:\n{rulesFolderPath}",
 		"delete_message": "Co chcesz usunąć?",
-		"just_this_message": "Tylko tę wiadomość",
-		"this_and_subsequent": "Tę i wszystkie kolejne wiadomości"
+		"delete_just_this_message": "Tylko tę wiadomość",
+		"delete_this_and_subsequent": "Tę i wszystkie kolejne wiadomości",
+		"edit_message": "Usunąć wszystkie wiadomości po tej?",
+		"edit_just_this_message": "Nie, tylko edytuj tę wiadomość",
+		"edit_this_and_delete_subsequent": "Tak"
 	},
 	"errors": {
 		"invalid_data_uri": "Nieprawidłowy format URI danych",
@@ -107,6 +110,11 @@
 		"cancel": "Anuluj",
 		"remove": "Usuń",
 		"keep": "Zachowaj"
+	},
+	"buttons": {
+		"save": "Zapisz",
+		"cancel": "Anuluj",
+		"edit": "Edytuj"
 	},
 	"tasks": {
 		"canceled": "Błąd zadania: Zostało zatrzymane i anulowane przez użytkownika.",

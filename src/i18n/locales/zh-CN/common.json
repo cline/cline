@@ -19,8 +19,11 @@
 		"delete_config_profile": "您确定要删除此配置文件吗？",
 		"delete_custom_mode_with_rules": "您确定要删除此 {scope} 模式吗？\n\n这也将删除位于以下位置的关联规则文件夹：\n{rulesFolderPath}",
 		"delete_message": "您想删除什么？",
-		"just_this_message": "仅此消息",
-		"this_and_subsequent": "此消息及所有后续消息"
+		"edit_message": "删除此消息后的所有消息？",
+		"delete_just_this_message": "仅此消息",
+		"edit_just_this_message": "不，仅编辑此消息",
+		"delete_this_and_subsequent": "此消息及所有后续消息",
+		"edit_this_and_delete_subsequent": "是"
 	},
 	"errors": {
 		"invalid_mcp_config": "项目MCP配置格式无效",
@@ -112,6 +115,11 @@
 		"cancel": "取消",
 		"remove": "删除",
 		"keep": "保留"
+	},
+	"buttons": {
+		"save": "保存",
+		"cancel": "取消",
+		"edit": "编辑"
 	},
 	"tasks": {
 		"canceled": "任务错误：它已被用户停止并取消。",
