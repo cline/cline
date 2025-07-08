@@ -53,71 +53,70 @@ export const ClineAccountView = () => {
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
-	function getUserCredits() {
+	async function getUserCredits() {
 		setIsLoading(true)
-		AccountServiceClient.getUserCredits(EmptyRequest.create())
-			.then((response) => {
-				setBalance(response.balance?.currentBalance || 0)
-				setUsageData(response.usageTransactions)
-				setPaymentsData(response.paymentTransactions)
-				setIsLoading(false)
-			})
-			.catch((error) => {
-				console.error("Failed to fetch user credits data:", error)
-				setBalance(0)
-				setUsageData([])
-				setPaymentsData([])
-				setIsLoading(false)
-			})
+		try {
+			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
+			setBalance(response.balance?.currentBalance || 0)
+			setUsageData(response.usageTransactions)
+			setPaymentsData(response.paymentTransactions)
+			setIsLoading(false)
+		} catch (error) {
+			console.error("Failed to fetch user credits data:", error)
+			setBalance(0)
+			setUsageData([])
+			setPaymentsData([])
+			setIsLoading(false)
+		}
 	}
 
-	function getOrganizationCredits() {
+	async function getOrganizationCredits() {
 		setIsLoading(true)
 		if (!activeOrganization) {
-			getUserCredits()
+			await getUserCredits()
 			return
 		}
-		AccountServiceClient.getOrganizationCredits(
-			GetOrganizationCreditsRequest.create({
-				organizationId: activeOrganization.organizationId,
-			}),
-		)
-			.then((response) => {
-				setBalance(response.balance?.currentBalance || 0)
-				setUsageData(response.usageTransactions)
-				setPaymentsData(response.paymentTransactions)
-				setIsLoading(false)
-			})
-			.catch((error) => {
-				console.error("Failed to fetch organization credits data:", error)
-				setBalance(0)
-				setUsageData([])
-				setPaymentsData([])
-				setIsLoading(false)
-			})
+		try {
+			const response = await AccountServiceClient.getOrganizationCredits(
+				GetOrganizationCreditsRequest.create({
+					organizationId: activeOrganization.organizationId,
+				}),
+			)
+			setBalance(response.balance?.currentBalance || 0)
+			setUsageData(response.usageTransactions)
+			setPaymentsData(response.paymentTransactions)
+			setIsLoading(false)
+		} catch (error) {
+			console.error("Failed to fetch organization credits data:", error)
+			setBalance(0)
+			setUsageData([])
+			setPaymentsData([])
+			setIsLoading(false)
+		}
 	}
 
-	function getUserOrganizations() {
+	async function getUserOrganizations() {
 		setIsLoading(true)
-		AccountServiceClient.getUserOrganizations(EmptyRequest.create())
-			.then((response) => {
-				setUserOrganizations(response.organizations || [])
-				setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
-				setIsLoading(false)
-			})
-			.catch((error) => {
-				console.error("Failed to fetch user organizations:", error)
-				setUserOrganizations([])
-				setActiveOrganization(null)
-				setIsLoading(false)
-			})
+		try {
+			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
+			setUserOrganizations(response.organizations || [])
+			setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
+			setIsLoading(false)
+		} catch (error) {
+			console.error("Failed to fetch user organizations:", error)
+			setUserOrganizations([])
+			setActiveOrganization(null)
+			setIsLoading(false)
+		}
 	}
 
 	// Fetch all account data when component mounts using gRPC
 	useEffect(() => {
 		if (user) {
-			getUserOrganizations()
-			getUserCredits()
+			;(async () => {
+				await getUserCredits()
+				await getUserOrganizations()
+			})()
 		}
 	}, [user])
 
@@ -127,7 +126,9 @@ export const ClineAccountView = () => {
 		}
 
 		if (activeOrganization) {
-			getOrganizationCredits()
+			;(async () => {
+				await getOrganizationCredits()
+			})()
 		}
 	}, [activeOrganization, midOrgOptimisticUpdate])
 
