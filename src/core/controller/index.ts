@@ -149,7 +149,7 @@ export class Controller {
 		if (selection === "Yes") {
 			this.phaseTracker?.deleteCheckpoint()
 			this.phaseTracker = undefined
-			await this.initTask(newPrompt, images)
+			await this.initTask(newPrompt, images, files)
 			return true
 		} else {
 			// 사용자가 'Cancel'을 선택했을 때 실행할 로직
