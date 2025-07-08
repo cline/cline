@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.19.0
+## [3.18.6]
 
--   bc46870: Update request header to include `"ai-client-type": "Cline"`
--   ff4bab2: host bridge migration - openExternal
--   6f8627b: Add organization and personal account management with credit reporting and account switching
+-   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
+-   Add organization organization accounts
 
 ## [3.18.5]
 
