@@ -209,11 +209,15 @@ export function getModeSelection(mode: string, promptComponent?: PromptComponent
 	}
 }
 
+// Edit operation parameters that indicate an actual edit operation
+const EDIT_OPERATION_PARAMS = ["diff", "content", "operations", "search", "replace", "args", "line"] as const
+
 // Custom error class for file restrictions
 export class FileRestrictionError extends Error {
-	constructor(mode: string, pattern: string, description: string | undefined, filePath: string) {
+	constructor(mode: string, pattern: string, description: string | undefined, filePath: string, tool?: string) {
+		const toolInfo = tool ? `Tool '${tool}' in mode '${mode}'` : `This mode (${mode})`
 		super(
-			`This mode (${mode}) can only edit files matching pattern: ${pattern}${description ? ` (${description})` : ""}. Got: ${filePath}`,
+			`${toolInfo} can only edit files matching pattern: ${pattern}${description ? ` (${description})` : ""}. Got: ${filePath}`,
 		)
 		this.name = "FileRestrictionError"
 	}
@@ -272,12 +276,48 @@ export function isToolAllowedForMode(
 		// For the edit group, check file regex if specified
 		if (groupName === "edit" && options.fileRegex) {
 			const filePath = toolParams?.path
-			if (
-				filePath &&
-				(toolParams.diff || toolParams.content || toolParams.operations) &&
-				!doesFileMatchRegex(filePath, options.fileRegex)
-			) {
-				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath)
+			// Check if this is an actual edit operation (not just path-only for streaming)
+			const isEditOperation = EDIT_OPERATION_PARAMS.some((param) => toolParams?.[param])
+
+			// Handle single file path validation
+			if (filePath && isEditOperation && !doesFileMatchRegex(filePath, options.fileRegex)) {
+				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath, tool)
+			}
+
+			// Handle XML args parameter (used by MULTI_FILE_APPLY_DIFF experiment)
+			if (toolParams?.args && typeof toolParams.args === "string") {
+				// Extract file paths from XML args with improved validation
+				try {
+					const filePathMatches = toolParams.args.match(/<path>([^<]+)<\/path>/g)
+					if (filePathMatches) {
+						for (const match of filePathMatches) {
+							// More robust path extraction with validation
+							const pathMatch = match.match(/<path>([^<]+)<\/path>/)
+							if (pathMatch && pathMatch[1]) {
+								const extractedPath = pathMatch[1].trim()
+								// Validate that the path is not empty and doesn't contain invalid characters
+								if (extractedPath && !extractedPath.includes("<") && !extractedPath.includes(">")) {
+									if (!doesFileMatchRegex(extractedPath, options.fileRegex)) {
+										throw new FileRestrictionError(
+											mode.name,
+											options.fileRegex,
+											options.description,
+											extractedPath,
+											tool,
+										)
+									}
+								}
+							}
+						}
+					}
+				} catch (error) {
+					// Re-throw FileRestrictionError as it's an expected validation error
+					if (error instanceof FileRestrictionError) {
+						throw error
+					}
+					// If XML parsing fails, log the error but don't block the operation
+					console.warn(`Failed to parse XML args for file restriction validation: ${error}`)
+				}
 			}
 		}
 
