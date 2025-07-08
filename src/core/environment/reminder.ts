@@ -5,7 +5,7 @@ import { TodoItem, TodoStatus } from "@roo-code/types"
  */
 export function formatReminderSection(todoList?: TodoItem[]): string {
 	if (!todoList || todoList.length === 0) {
-		return ""
+		return "You have not created a todo list yet. Create one with `update_todo_list` if your task is complicated or involves multiple steps."
 	}
 	const statusMap: Record<TodoStatus, string> = {
 		pending: "Pending",
