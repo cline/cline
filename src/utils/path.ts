@@ -160,3 +160,13 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 	}
 	return true
 }
+
+export async function asRelativePath(filePath: string): Promise<string> {
+	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	for (const workspacePath of workspacePaths.paths) {
+		if (isLocatedInPath(workspacePath, filePath)) {
+			return path.relative(workspacePath, filePath)
+		}
+	}
+	return filePath
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.18.5]
+
+-   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
+-   Improve provider switching performance by 18x (from 550ms to 30ms) with batched storage operations
+-   Improve SAP AI Core provider model organization and fix exception handling (Thanks @schardosin!)
+
 ## [3.18.4]
 
 -   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
