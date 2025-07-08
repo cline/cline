@@ -1,0 +1,57 @@
+name: E2E Tests
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        types: [opened, reopened, synchronize, ready_for_review]
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    matrix_prep:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - id: set-matrix
+              run: |
+                  echo 'matrix=[{"runner":"ubuntu","shard":"1/5"},{"runner":"ubuntu","shard":"2/5"},{"runner":"ubuntu","shard":"3/5"},{"runner":"ubuntu","shard":"4/5"},{"runner":"ubuntu","shard":"5/5"},{"runner":"windows","shard":"1/2"},{"runner":"windows","shard":"2/2"}]' >> $GITHUB_OUTPUT
+
+    e2e:
+        needs: matrix_prep
+        strategy:
+            fail-fast: false
+            matrix:
+                include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
+        runs-on: ${{ matrix.runner }}-latest
+        timeout-minutes: 20
+        permissions:
+            id-token: write
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "24"
+                  cache: "npm"
+            - run: npm ci
+            - run: npm run e2e:build
+            - run: GITHUB_REF=$BRANCH xvfb-run -a npm run e2e -- --shard=${{ matrix.shard }}
+              if: matrix.runner == 'ubuntu'
+              env:
+                  BRANCH: ${{ github.head_ref || github.ref_name }}
+            - run: npm run e2e -- --shard=${{ matrix.shard }}
+              if: matrix.runner == 'windows'
+              env:
+                  BRANCH: ${{ github.head_ref || github.ref_name }}
+            - uses: actions/upload-artifact@v4
+              if: ${{ failure() }}
+              with:
+                  name: playwright-recordings-${{ matrix.runner }}-${{ matrix.shard }}
+                  path: |
+                      test-results/playwright/
