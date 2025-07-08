@@ -5,6 +5,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { Base64ImageSource } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 interface Deployment {
 	id: string
@@ -615,8 +616,8 @@ export class SapAiCoreHandler implements ApiHandler {
 				} else if (block.type === "image") {
 					parts.push({
 						inlineData: {
-							mimeType: block.source.media_type,
-							data: block.source.data,
+							mimeType: (block.source as Base64ImageSource).media_type,
+							data: (block.source as Base64ImageSource).data,
 						},
 					})
 				}
