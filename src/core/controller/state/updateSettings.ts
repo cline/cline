@@ -59,22 +59,17 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.chatSettings) {
 			const chatSettings = convertProtoChatSettingsToChatSettings(request.chatSettings)
 
-			// Split settings: mode goes to global, other settings to workspace
+			// Store mode to global state
 			if (chatSettings.mode !== undefined) {
 				await controller.context.globalState.update("mode", chatSettings.mode)
 			}
 
-			// Store workspace-specific settings (excluding mode)
-			const { mode, ...workspaceChatSettings } = chatSettings
-			await controller.context.workspaceState.update("chatSettings", workspaceChatSettings)
+			// Store chat settings (excluding mode) to global state
+			const { mode, ...globalChatSettings } = chatSettings
+			await controller.context.globalState.update("chatSettings", globalChatSettings)
 
 			if (controller.task) {
-				// Ensure task settings include the current mode from global state
-				const currentMode = (await controller.context.globalState.get("mode")) as "plan" | "act" | undefined
-				controller.task.chatSettings = {
-					...chatSettings,
-					mode: chatSettings.mode || currentMode || "plan",
-				}
+				controller.task.chatSettings = chatSettings
 			}
 		}
 

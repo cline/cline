@@ -400,9 +400,9 @@ export class Controller {
 			}
 		}
 
-		// Save only non-mode properties to workspace storage
+		// Save only non-mode properties to global storage
 		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
-		await updateWorkspaceState(this.context, "chatSettings", persistentChatSettings)
+		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {

@@ -79,6 +79,7 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	// Settings around plan/act and ephemeral model configuration
+	| "chatSettings"
 	| "mode"
 	// Current active model configuration (per workspace)
 	| "apiProvider"
@@ -112,9 +113,4 @@ export type GlobalStateKey =
 	| "previousModeAwsBedrockCustomModelBaseId"
 	| "previousModeSapAiCoreModelId"
 
-export type LocalStateKey =
-	| "localClineRulesToggles"
-	| "localCursorRulesToggles"
-	| "localWindsurfRulesToggles"
-	| "workflowToggles"
-	| "chatSettings"
+export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
