@@ -1,10 +1,10 @@
 import { asRelativePath } from "@/utils/path"
 import { RelativePaths, RelativePathsRequest } from "@shared/proto/file"
-import { promises as fs } from "fs"
 import * as path from "path"
 import { URI } from "vscode-uri"
 import { Controller } from ".."
 import { FileMethodHandler } from "./index"
+import { isDirectory } from "@/utils/fs"
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -37,13 +37,8 @@ async function getRelativePath(uriString: string): Promise<string> {
 	}
 
 	let result = "/" + relativePath.replace(/\\/g, "/")
-	if (await isDir(filePath)) {
+	if (await isDirectory(filePath)) {
 		result += "/"
 	}
 	return result
-}
-
-async function isDir(filePath: string): Promise<boolean> {
-	const stats = await fs.stat(filePath)
-	return stats.isDirectory()
 }
