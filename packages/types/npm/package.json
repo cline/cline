@@ -1,6 +1,6 @@
 {
 	"name": "@roo-code/types",
-	"version": "1.29.0",
+	"version": "1.31.0",
 	"description": "TypeScript type definitions for Roo Code.",
 	"publishConfig": {
 		"access": "public",
