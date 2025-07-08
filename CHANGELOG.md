@@ -2,8 +2,6 @@
 
 ## 3.18.5
 
-### Patch Changes
-
 -   d453eed: persist plan and act between sessions
 -   7e32314: Optimizing provider switching performance with batched storage operations
 -   4e27e06: Reorder the models for SAP AI Core in a more organized and logical manner, grouping them by provider and model type
