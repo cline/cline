@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "Geçersiz temel URL. Lütfen URL yapılandırmanızı kontrol edin.",
 		"invalidModel": "Geçersiz model. Lütfen model yapılandırmanızı kontrol edin.",
 		"invalidResponse": "Embedder hizmetinden geçersiz yanıt. Lütfen yapılandırmanızı kontrol edin."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "Gömücü oluşturmak için OpenAI yapılandırması eksik",
+		"ollamaConfigMissing": "Gömücü oluşturmak için Ollama yapılandırması eksik",
+		"openAiCompatibleConfigMissing": "Gömücü oluşturmak için OpenAI uyumlu yapılandırması eksik",
+		"geminiConfigMissing": "Gömücü oluşturmak için Gemini yapılandırması eksik",
+		"invalidEmbedderType": "Geçersiz gömücü türü yapılandırıldı: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "'{{provider}}' sağlayıcısı ile '{{modelId}}' modeli için vektör boyutu belirlenemedi. OpenAI uyumlu sağlayıcı ayarlarında 'Gömme Boyutu'nun doğru ayarlandığından emin ol.",
+		"vectorDimensionNotDetermined": "'{{provider}}' sağlayıcısı ile '{{modelId}}' modeli için vektör boyutu belirlenemedi. Model profillerini veya yapılandırmayı kontrol et.",
+		"qdrantUrlMissing": "Vektör deposu oluşturmak için Qdrant URL'si eksik",
+		"codeIndexingNotConfigured": "Hizmetler oluşturulamıyor: Kod indeksleme düzgün yapılandırılmamış"
 	}
 }

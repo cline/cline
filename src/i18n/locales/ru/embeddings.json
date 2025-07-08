@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "Неверный базовый URL. Проверьте конфигурацию URL.",
 		"invalidModel": "Неверная модель. Проверьте конфигурацию модели.",
 		"invalidResponse": "Неверный ответ от службы embedder. Проверьте вашу конфигурацию."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "Отсутствует конфигурация OpenAI для создания эмбеддера",
+		"ollamaConfigMissing": "Отсутствует конфигурация Ollama для создания эмбеддера",
+		"openAiCompatibleConfigMissing": "Отсутствует конфигурация, совместимая с OpenAI, для создания эмбеддера",
+		"geminiConfigMissing": "Отсутствует конфигурация Gemini для создания эмбеддера",
+		"invalidEmbedderType": "Настроен недопустимый тип эмбеддера: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "Не удалось определить размерность вектора для модели '{{modelId}}' с провайдером '{{provider}}'. Убедитесь, что 'Размерность эмбеддинга' правильно установлена в настройках провайдера, совместимого с OpenAI.",
+		"vectorDimensionNotDetermined": "Не удалось определить размерность вектора для модели '{{modelId}}' с провайдером '{{provider}}'. Проверьте профили модели или конфигурацию.",
+		"qdrantUrlMissing": "Отсутствует URL Qdrant для создания векторного хранилища",
+		"codeIndexingNotConfigured": "Невозможно создать сервисы: Индексация кода не настроена должным образом"
 	}
 }

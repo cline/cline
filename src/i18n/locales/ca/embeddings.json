@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "URL base no vàlida. Comproveu la vostra configuració d'URL.",
 		"invalidModel": "Model no vàlid. Comproveu la vostra configuració de model.",
 		"invalidResponse": "Resposta no vàlida del servei d'incrustació. Comproveu la vostra configuració."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "Falta la configuració d'OpenAI per crear l'embedder",
+		"ollamaConfigMissing": "Falta la configuració d'Ollama per crear l'embedder",
+		"openAiCompatibleConfigMissing": "Falta la configuració compatible amb OpenAI per crear l'embedder",
+		"geminiConfigMissing": "Falta la configuració de Gemini per crear l'embedder",
+		"invalidEmbedderType": "Tipus d'embedder configurat no vàlid: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "No s'ha pogut determinar la dimensió del vector per al model '{{modelId}}' amb el proveïdor '{{provider}}'. Assegura't que la 'Dimensió d'incrustació' estigui configurada correctament als paràmetres del proveïdor compatible amb OpenAI.",
+		"vectorDimensionNotDetermined": "No s'ha pogut determinar la dimensió del vector per al model '{{modelId}}' amb el proveïdor '{{provider}}'. Comprova els perfils del model o la configuració.",
+		"qdrantUrlMissing": "Falta l'URL de Qdrant per crear l'emmagatzematge de vectors",
+		"codeIndexingNotConfigured": "No es poden crear serveis: La indexació de codi no està configurada correctament"
 	}
 }

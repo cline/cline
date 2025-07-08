@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "अमान्य बेस यूआरएल। कृपया अपनी यूआरएल कॉन्फ़िगरेशन जांचें।",
 		"invalidModel": "अमान्य मॉडल। कृपया अपनी मॉडल कॉन्फ़िगरेशन जांचें।",
 		"invalidResponse": "एम्बेडर सेवा से अमान्य प्रतिक्रिया। कृपया अपनी कॉन्फ़िगरेशन जांचें।"
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "एम्बेडर बनाने के लिए OpenAI कॉन्फ़िगरेशन गायब है",
+		"ollamaConfigMissing": "एम्बेडर बनाने के लिए Ollama कॉन्फ़िगरेशन गायब है",
+		"openAiCompatibleConfigMissing": "एम्बेडर बनाने के लिए OpenAI संगत कॉन्फ़िगरेशन गायब है",
+		"geminiConfigMissing": "एम्बेडर बनाने के लिए Gemini कॉन्फ़िगरेशन गायब है",
+		"invalidEmbedderType": "अमान्य एम्बेडर प्रकार कॉन्फ़िगर किया गया: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "प्रदाता '{{provider}}' के साथ मॉडल '{{modelId}}' के लिए वेक्टर आयाम निर्धारित नहीं कर सका। कृपया सुनिश्चित करें कि OpenAI-संगत प्रदाता सेटिंग्स में 'एम्बेडिंग आयाम' सही तरीके से सेट है।",
+		"vectorDimensionNotDetermined": "प्रदाता '{{provider}}' के साथ मॉडल '{{modelId}}' के लिए वेक्टर आयाम निर्धारित नहीं कर सका। मॉडल प्रोफ़ाइल या कॉन्फ़िगरेशन की जांच करें।",
+		"qdrantUrlMissing": "वेक्टर स्टोर बनाने के लिए Qdrant URL गायब है",
+		"codeIndexingNotConfigured": "सेवाएं नहीं बना सकते: कोड इंडेक्सिंग ठीक से कॉन्फ़िगर नहीं है"
 	}
 }

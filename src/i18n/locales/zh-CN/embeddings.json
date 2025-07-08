@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "基础 URL 无效。请检查您的 URL 配置。",
 		"invalidModel": "模型无效。请检查您的模型配置。",
 		"invalidResponse": "嵌入服务响应无效。请检查您的配置。"
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "创建嵌入器缺少 OpenAI 配置",
+		"ollamaConfigMissing": "创建嵌入器缺少 Ollama 配置",
+		"openAiCompatibleConfigMissing": "创建嵌入器缺少 OpenAI 兼容配置",
+		"geminiConfigMissing": "创建嵌入器缺少 Gemini 配置",
+		"invalidEmbedderType": "配置的嵌入器类型无效：{{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "无法确定提供商 '{{provider}}' 的模型 '{{modelId}}' 的向量维度。请确保在 OpenAI 兼容提供商设置中正确设置了「嵌入维度」。",
+		"vectorDimensionNotDetermined": "无法确定提供商 '{{provider}}' 的模型 '{{modelId}}' 的向量维度。请检查模型配置文件或配置。",
+		"qdrantUrlMissing": "创建向量存储缺少 Qdrant URL",
+		"codeIndexingNotConfigured": "无法创建服务：代码索引未正确配置"
 	}
 }

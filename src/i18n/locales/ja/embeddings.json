@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "無効なベースURLです。URL構成を確認してください。",
 		"invalidModel": "無効なモデルです。モデル構成を確認してください。",
 		"invalidResponse": "エンベッダーサービスからの無効な応答です。設定を確認してください。"
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "エンベッダー作成のためのOpenAI設定がありません",
+		"ollamaConfigMissing": "エンベッダー作成のためのOllama設定がありません",
+		"openAiCompatibleConfigMissing": "エンベッダー作成のためのOpenAI互換設定がありません",
+		"geminiConfigMissing": "エンベッダー作成のためのGemini設定がありません",
+		"invalidEmbedderType": "無効なエンベッダータイプが設定されています: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "プロバイダー '{{provider}}' のモデル '{{modelId}}' の埋め込み次元を決定できませんでした。OpenAI互換プロバイダー設定で「埋め込み次元」が正しく設定されていることを確認してください。",
+		"vectorDimensionNotDetermined": "プロバイダー '{{provider}}' のモデル '{{modelId}}' の埋め込み次元を決定できませんでした。モデルプロファイルまたは設定を確認してください。",
+		"qdrantUrlMissing": "ベクターストア作成のためのQdrant URLがありません",
+		"codeIndexingNotConfigured": "サービスを作成できません: コードインデックスが正しく設定されていません"
 	}
 }

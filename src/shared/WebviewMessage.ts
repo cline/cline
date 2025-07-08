@@ -241,8 +241,8 @@ export interface WebviewMessage {
 		codebaseIndexEmbedderProvider: "openai" | "ollama" | "openai-compatible" | "gemini"
 		codebaseIndexEmbedderBaseUrl?: string
 		codebaseIndexEmbedderModelId: string
+		codebaseIndexEmbedderModelDimension?: number // Generic dimension for all providers
 		codebaseIndexOpenAiCompatibleBaseUrl?: string
-		codebaseIndexOpenAiCompatibleModelDimension?: number
 		codebaseIndexSearchMaxResults?: number
 		codebaseIndexSearchMinScore?: number
 

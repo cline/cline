@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "URL cơ sở không hợp lệ. Vui lòng kiểm tra cấu hình URL của bạn.",
 		"invalidModel": "Mô hình không hợp lệ. Vui lòng kiểm tra cấu hình mô hình của bạn.",
 		"invalidResponse": "Phản hồi không hợp lệ từ dịch vụ embedder. Vui lòng kiểm tra cấu hình của bạn."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "Thiếu cấu hình OpenAI để tạo embedder",
+		"ollamaConfigMissing": "Thiếu cấu hình Ollama để tạo embedder",
+		"openAiCompatibleConfigMissing": "Thiếu cấu hình tương thích OpenAI để tạo embedder",
+		"geminiConfigMissing": "Thiếu cấu hình Gemini để tạo embedder",
+		"invalidEmbedderType": "Loại embedder được cấu hình không hợp lệ: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "Không thể xác định kích thước vector cho mô hình '{{modelId}}' với nhà cung cấp '{{provider}}'. Hãy đảm bảo 'Kích thước Embedding' được cài đặt đúng trong cài đặt nhà cung cấp tương thích OpenAI.",
+		"vectorDimensionNotDetermined": "Không thể xác định kích thước vector cho mô hình '{{modelId}}' với nhà cung cấp '{{provider}}'. Kiểm tra hồ sơ mô hình hoặc cấu hình.",
+		"qdrantUrlMissing": "Thiếu URL Qdrant để tạo kho lưu trữ vector",
+		"codeIndexingNotConfigured": "Không thể tạo dịch vụ: Lập chỉ mục mã không được cấu hình đúng cách"
 	}
 }

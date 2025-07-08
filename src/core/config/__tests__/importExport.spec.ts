@@ -628,7 +628,7 @@ describe("importExport", () => {
 						codebaseIndexEmbedderBaseUrl: "http://localhost:11434", // Wrong URL from Ollama
 						// OpenAI Compatible settings are now stored directly in codebaseIndexConfig
 						codebaseIndexOpenAiCompatibleBaseUrl: "https://custom-openai-api.example.com/v1",
-						codebaseIndexOpenAiCompatibleModelDimension: 1536,
+						codebaseIndexEmbedderModelDimension: 1536,
 					},
 				}
 
@@ -673,7 +673,7 @@ describe("importExport", () => {
 						codebaseIndexEmbedderBaseUrl: "",
 						// OpenAI Compatible settings are now stored directly in codebaseIndexConfig
 						codebaseIndexOpenAiCompatibleBaseUrl: "https://api.example.com/v1",
-						codebaseIndexOpenAiCompatibleModelDimension: 768,
+						codebaseIndexEmbedderModelDimension: 768,
 					},
 				}
 
@@ -688,9 +688,7 @@ describe("importExport", () => {
 
 				const exportedData = (safeWriteJson as Mock).mock.calls[0][1]
 				// Settings are now exported as-is from codebaseIndexConfig
-				expect(
-					exportedData.globalSettings.codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension,
-				).toBe(768)
+				expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexEmbedderModelDimension).toBe(768)
 				expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl).toBe(
 					"https://api.example.com/v1",
 				)
@@ -731,7 +729,7 @@ describe("importExport", () => {
 						codebaseIndexEmbedderBaseUrl: "http://localhost:11434", // Wrong URL from Ollama
 						// OpenAI Compatible settings are now stored directly in codebaseIndexConfig
 						codebaseIndexOpenAiCompatibleBaseUrl: "https://openai-compatible.example.com/v1",
-						codebaseIndexOpenAiCompatibleModelDimension: 1536,
+						codebaseIndexEmbedderModelDimension: 1536,
 					},
 				}
 
@@ -749,9 +747,7 @@ describe("importExport", () => {
 				expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl).toBe(
 					"https://openai-compatible.example.com/v1",
 				)
-				expect(
-					exportedData.globalSettings.codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension,
-				).toBe(1536)
+				expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexEmbedderModelDimension).toBe(1536)
 				// The generic embedder base URL is still there
 				expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexEmbedderBaseUrl).toBe(
 					"http://localhost:11434",
@@ -921,7 +917,6 @@ describe("importExport", () => {
 							codebaseIndexEmbedderModelDimension: 1536,
 							// OpenAI Compatible settings are now stored directly here
 							codebaseIndexOpenAiCompatibleBaseUrl: "https://imported-url.example.com/v1",
-							codebaseIndexOpenAiCompatibleModelDimension: 1536,
 						},
 					},
 				})
@@ -956,7 +951,7 @@ describe("importExport", () => {
 					expect.objectContaining({
 						codebaseIndexConfig: expect.objectContaining({
 							codebaseIndexOpenAiCompatibleBaseUrl: "https://imported-url.example.com/v1",
-							codebaseIndexOpenAiCompatibleModelDimension: 1536,
+							codebaseIndexEmbedderModelDimension: 1536,
 						}),
 					}),
 				)
@@ -1105,7 +1100,6 @@ describe("importExport", () => {
 					codebaseIndexEmbedderModelDimension: testModelDimension,
 					// OpenAI Compatible settings are now stored directly in codebaseIndexConfig
 					codebaseIndexOpenAiCompatibleBaseUrl: "https://api.example.com/v1",
-					codebaseIndexOpenAiCompatibleModelDimension: testModelDimension,
 				},
 			}
 
@@ -1160,7 +1154,7 @@ describe("importExport", () => {
 
 			// Step 9: Verify that the model dimension was preserved exactly in global settings
 			const importedGlobalSettings = mockContextProxy.setValues.mock.calls[0][0]
-			expect(importedGlobalSettings.codebaseIndexConfig?.codebaseIndexOpenAiCompatibleModelDimension).toBe(
+			expect(importedGlobalSettings.codebaseIndexConfig?.codebaseIndexEmbedderModelDimension).toBe(
 				testModelDimension,
 			)
 			expect(importedGlobalSettings.codebaseIndexConfig?.codebaseIndexOpenAiCompatibleBaseUrl).toBe(
@@ -1198,7 +1192,7 @@ describe("importExport", () => {
 					codebaseIndexEmbedderBaseUrl: "https://api.example.com/v1",
 					// OpenAI Compatible settings are now stored directly in codebaseIndexConfig
 					codebaseIndexOpenAiCompatibleBaseUrl: "https://api.example.com/v1",
-					codebaseIndexOpenAiCompatibleModelDimension: testModelDimension, // 0 is a valid value
+					codebaseIndexEmbedderModelDimension: testModelDimension, // 0 is a valid value
 				},
 			}
 
@@ -1219,7 +1213,7 @@ describe("importExport", () => {
 
 			// Verify the exported data includes the model dimension even when it's 0
 			const exportedData = (safeWriteJson as Mock).mock.calls[0][1]
-			expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension).toBe(0)
+			expect(exportedData.globalSettings.codebaseIndexConfig.codebaseIndexEmbedderModelDimension).toBe(0)
 
 			// Test import roundtrip
 			const exportedFileContent = JSON.stringify(exportedData)
@@ -1247,7 +1241,7 @@ describe("importExport", () => {
 
 			// Verify that model dimension 0 was preserved in global settings
 			const setValuesCall = mockContextProxy.setValues.mock.calls[0][0]
-			expect(setValuesCall.codebaseIndexConfig?.codebaseIndexOpenAiCompatibleModelDimension).toBe(0)
+			expect(setValuesCall.codebaseIndexConfig?.codebaseIndexEmbedderModelDimension).toBe(0)
 		})
 
 		it("should handle missing model dimension gracefully", async () => {

@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "URL base inválida. Verifique sua configuração de URL.",
 		"invalidModel": "Modelo inválido. Verifique a configuração do seu modelo.",
 		"invalidResponse": "Resposta inválida do serviço de embedder. Verifique sua configuração."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "Configuração do OpenAI ausente para criação do embedder",
+		"ollamaConfigMissing": "Configuração do Ollama ausente para criação do embedder",
+		"openAiCompatibleConfigMissing": "Configuração compatível com OpenAI ausente para criação do embedder",
+		"geminiConfigMissing": "Configuração do Gemini ausente para criação do embedder",
+		"invalidEmbedderType": "Tipo de embedder configurado inválido: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "Não foi possível determinar a dimensão do vetor para o modelo '{{modelId}}' com o provedor '{{provider}}'. Certifique-se de que a 'Dimensão de Embedding' esteja configurada corretamente nas configurações do provedor compatível com OpenAI.",
+		"vectorDimensionNotDetermined": "Não foi possível determinar a dimensão do vetor para o modelo '{{modelId}}' com o provedor '{{provider}}'. Verifique os perfis do modelo ou a configuração.",
+		"qdrantUrlMissing": "URL do Qdrant ausente para criação do armazenamento de vetores",
+		"codeIndexingNotConfigured": "Não é possível criar serviços: A indexação de código não está configurada corretamente"
 	}
 }

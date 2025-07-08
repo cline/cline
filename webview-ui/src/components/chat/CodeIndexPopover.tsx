@@ -51,6 +51,7 @@ interface LocalCodeIndexSettings {
 	codebaseIndexEmbedderProvider: EmbedderProvider
 	codebaseIndexEmbedderBaseUrl?: string
 	codebaseIndexEmbedderModelId: string
+	codebaseIndexEmbedderModelDimension?: number // Generic dimension for all providers
 	codebaseIndexSearchMaxResults?: number
 	codebaseIndexSearchMinScore?: number
 
@@ -59,7 +60,6 @@ interface LocalCodeIndexSettings {
 	codeIndexQdrantApiKey?: string
 	codebaseIndexOpenAiCompatibleBaseUrl?: string
 	codebaseIndexOpenAiCompatibleApiKey?: string
-	codebaseIndexOpenAiCompatibleModelDimension?: number
 	codebaseIndexGeminiApiKey?: string
 }
 
@@ -85,13 +85,13 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 		codebaseIndexEmbedderProvider: "openai",
 		codebaseIndexEmbedderBaseUrl: "",
 		codebaseIndexEmbedderModelId: "",
+		codebaseIndexEmbedderModelDimension: undefined,
 		codebaseIndexSearchMaxResults: CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
 		codebaseIndexSearchMinScore: CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_MIN_SCORE,
 		codeIndexOpenAiKey: "",
 		codeIndexQdrantApiKey: "",
 		codebaseIndexOpenAiCompatibleBaseUrl: "",
 		codebaseIndexOpenAiCompatibleApiKey: "",
-		codebaseIndexOpenAiCompatibleModelDimension: undefined,
 		codebaseIndexGeminiApiKey: "",
 	})
 
@@ -115,6 +115,8 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				codebaseIndexEmbedderProvider: codebaseIndexConfig.codebaseIndexEmbedderProvider || "openai",
 				codebaseIndexEmbedderBaseUrl: codebaseIndexConfig.codebaseIndexEmbedderBaseUrl || "",
 				codebaseIndexEmbedderModelId: codebaseIndexConfig.codebaseIndexEmbedderModelId || "",
+				codebaseIndexEmbedderModelDimension:
+					codebaseIndexConfig.codebaseIndexEmbedderModelDimension || undefined,
 				codebaseIndexSearchMaxResults:
 					codebaseIndexConfig.codebaseIndexSearchMaxResults ?? CODEBASE_INDEX_DEFAULTS.DEFAULT_SEARCH_RESULTS,
 				codebaseIndexSearchMinScore:
@@ -123,8 +125,6 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				codeIndexQdrantApiKey: "",
 				codebaseIndexOpenAiCompatibleBaseUrl: codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl || "",
 				codebaseIndexOpenAiCompatibleApiKey: "",
-				codebaseIndexOpenAiCompatibleModelDimension:
-					codebaseIndexConfig.codebaseIndexOpenAiCompatibleModelDimension || undefined,
 				codebaseIndexGeminiApiKey: "",
 			}
 			setInitialSettings(settings)
@@ -509,12 +509,10 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 									{t("settings:codeIndex.modelDimensionLabel")}
 								</label>
 								<VSCodeTextField
-									value={
-										currentSettings.codebaseIndexOpenAiCompatibleModelDimension?.toString() || ""
-									}
+									value={currentSettings.codebaseIndexEmbedderModelDimension?.toString() || ""}
 									onInput={(e: any) => {
 										const value = e.target.value ? parseInt(e.target.value) : undefined
-										updateSetting("codebaseIndexOpenAiCompatibleModelDimension", value)
+										updateSetting("codebaseIndexEmbedderModelDimension", value)
 									}}
 									placeholder={t("settings:codeIndex.modelDimensionPlaceholder")}
 									className="w-full"

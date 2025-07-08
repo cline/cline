@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "Ongeldige basis-URL. Controleer je URL-configuratie.",
 		"invalidModel": "Ongeldig model. Controleer je modelconfiguratie.",
 		"invalidResponse": "Ongeldige reactie van embedder-service. Controleer je configuratie."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "OpenAI-configuratie ontbreekt voor het maken van embedder",
+		"ollamaConfigMissing": "Ollama-configuratie ontbreekt voor het maken van embedder",
+		"openAiCompatibleConfigMissing": "OpenAI-compatibele configuratie ontbreekt voor het maken van embedder",
+		"geminiConfigMissing": "Gemini-configuratie ontbreekt voor het maken van embedder",
+		"invalidEmbedderType": "Ongeldig embedder-type geconfigureerd: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "Kan de vectordimensie voor model '{{modelId}}' met provider '{{provider}}' niet bepalen. Zorg ervoor dat de 'Embedding Dimensie' correct is ingesteld in de OpenAI-compatibele provider-instellingen.",
+		"vectorDimensionNotDetermined": "Kan de vectordimensie voor model '{{modelId}}' met provider '{{provider}}' niet bepalen. Controleer modelprofielen of configuratie.",
+		"qdrantUrlMissing": "Qdrant URL ontbreekt voor het maken van vectoropslag",
+		"codeIndexingNotConfigured": "Kan geen services maken: Code-indexering is niet correct geconfigureerd"
 	}
 }

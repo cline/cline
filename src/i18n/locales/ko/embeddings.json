@@ -37,5 +37,16 @@
 		"invalidBaseUrl": "잘못된 기본 URL입니다. URL 구성을 확인하세요.",
 		"invalidModel": "잘못된 모델입니다. 모델 구성을 확인하세요.",
 		"invalidResponse": "임베더 서비스에서 잘못된 응답이 왔습니다. 구성을 확인하세요."
+	},
+	"serviceFactory": {
+		"openAiConfigMissing": "임베더 생성을 위한 OpenAI 구성이 누락되었습니다",
+		"ollamaConfigMissing": "임베더 생성을 위한 Ollama 구성이 누락되었습니다",
+		"openAiCompatibleConfigMissing": "임베더 생성을 위한 OpenAI 호환 구성이 누락되었습니다",
+		"geminiConfigMissing": "임베더 생성을 위한 Gemini 구성이 누락되었습니다",
+		"invalidEmbedderType": "잘못된 임베더 유형이 구성되었습니다: {{embedderProvider}}",
+		"vectorDimensionNotDeterminedOpenAiCompatible": "프로바이더 '{{provider}}'의 모델 '{{modelId}}'에 대한 벡터 차원을 결정할 수 없습니다. OpenAI 호환 프로바이더 설정에서 '임베딩 차원'이 올바르게 설정되어 있는지 확인하세요.",
+		"vectorDimensionNotDetermined": "프로바이더 '{{provider}}'의 모델 '{{modelId}}'에 대한 벡터 차원을 결정할 수 없습니다. 모델 프로필 또는 구성을 확인하세요.",
+		"qdrantUrlMissing": "벡터 저장소 생성을 위한 Qdrant URL이 누락되었습니다",
+		"codeIndexingNotConfigured": "서비스를 생성할 수 없습니다: 코드 인덱싱이 올바르게 구성되지 않았습니다"
 	}
 }
