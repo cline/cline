@@ -818,8 +818,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 	}
 
-	console.log("Extension: ExtensionStateContextProvider: contextValue", contextValue)
-
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
 }
 

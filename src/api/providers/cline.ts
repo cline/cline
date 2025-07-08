@@ -14,7 +14,8 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
+	private readonly _baseUrl = "https://api.cline.bot"
+	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
 	// private readonly _baseUrl = "http://localhost:7777"
 	lastGenerationId?: string
 	private counter = 0
@@ -119,7 +120,7 @@ export class ClineHandler implements ApiHandler {
 				yield {
 					type: "usage",
 					cacheWriteTokens: 0,
-					cacheReadTokens: response.data.data.usage.prompt_tokens_details.cached_tokens || 0,
+					cacheReadTokens: response.data.data.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: response.data.data.usage.prompt_tokens || 0,
 					outputTokens: response.data.data.usage.completion_tokens || 0,
 					totalCost: response.data.data.usage.cost || 0,

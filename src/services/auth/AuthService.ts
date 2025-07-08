@@ -1,4 +1,4 @@
-import { env, Uri, ExtensionContext } from "vscode"
+import vscode from "vscode"
 import crypto from "crypto"
 import { EmptyRequest, String } from "../../shared/proto/common"
 import { AuthState } from "../../shared/proto/account"
@@ -7,7 +7,8 @@ import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
 
-const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
+const DefaultClineAccountURI = "https://app.cline.bot/auth"
+// const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
 // const DefaultClineAccountURI = "http://localhost:3000/auth"
 let authProviders: any[] = []
 
@@ -31,7 +32,7 @@ export class AuthService {
 	private _provider: any = null
 	private _authNonce: string | null = null
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
-	private _context: ExtensionContext
+	private _context: vscode.ExtensionContext
 
 	/**
 	 * Creates an instance of AuthService.
@@ -39,7 +40,7 @@ export class AuthService {
 	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 */
-	private constructor(context: ExtensionContext, config: ServiceConfig, authProvider?: any) {
+	private constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
 		const providerName = authProvider || "firebase"
 		this._config = Object.assign({ URI: DefaultClineAccountURI }, config)
 
@@ -50,23 +51,32 @@ export class AuthService {
 		const authProvidersConfigs = [
 			{
 				name: "firebase",
-				// config: {
-				// 	apiKey: "AIzaSyDcXAaanNgR2_T0dq2oOl5XyKPksYHppVo",
-				// 	authDomain: "cline-bot.firebaseapp.com",
-				// 	projectId: "cline-bot",
-				// 	storageBucket: "cline-bot.appspot.com",
-				// 	messagingSenderId: "364369702101",
-				// 	appId: "1:364369702101:web:0013885dcf20b43799c65c",
-				// 	measurementId: "G-MDPRELSCD1",
-				// },
 				config: {
-					apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-					authDomain: "cline-staging.firebaseapp.com",
-					projectId: "cline-staging",
-					storageBucket: "cline-staging.firebasestorage.app",
-					messagingSenderId: "853479478430",
-					appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
+					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
+					authDomain: "cline-prod.firebaseapp.com",
+					projectId: "cline-prod",
+					storageBucket: "cline-prod.firebasestorage.app",
+					messagingSenderId: "941048379330",
+					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
 				},
+				// Uncomment for staging environment
+				// config: {
+				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
+				// 	authDomain: "cline-staging.firebaseapp.com",
+				// 	projectId: "cline-staging",
+				// 	storageBucket: "cline-staging.firebasestorage.app",
+				// 	messagingSenderId: "853479478430",
+				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
+				// },
+				// Uncomment for local development environment
+				// config: {
+				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
+				// 	authDomain: "cline-staging.firebaseapp.com",
+				// 	projectId: "cline-staging",
+				// 	storageBucket: "cline-staging.firebasestorage.app",
+				// 	messagingSenderId: "853479478430",
+				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
+				// },
 				// config: {
 				// 	apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
 				// 	authDomain: "cline-preview.firebaseapp.com",
@@ -100,11 +110,11 @@ export class AuthService {
 	 * @param controller - Optional reference to the Controller instance.
 	 * @returns The singleton instance of AuthService.
 	 */
-	public static getInstance(context?: ExtensionContext, config?: ServiceConfig, authProvider?: any): AuthService {
+	public static getInstance(context?: vscode.ExtensionContext, config?: ServiceConfig, authProvider?: any): AuthService {
 		if (!AuthService.instance) {
 			if (!context) {
 				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
-				context = {} as ExtensionContext
+				context = {} as vscode.ExtensionContext
 			}
 			AuthService.instance = new AuthService(context, config || {}, authProvider)
 		}
@@ -114,7 +124,7 @@ export class AuthService {
 		return AuthService.instance
 	}
 
-	set context(context: ExtensionContext) {
+	set context(context: vscode.ExtensionContext) {
 		this._context = context
 	}
 
@@ -173,11 +183,11 @@ export class AuthService {
 			// Generate nonce for state validation
 			this._authNonce = crypto.randomBytes(32).toString("hex")
 
-			const uriScheme = env.uriScheme
-			const authUrl = Uri.parse(
+			const uriScheme = vscode.env.uriScheme
+			const authUrl = vscode.Uri.parse(
 				`${this._config.URI}?state=${encodeURIComponent(this._authNonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
 			)
-			await env.openExternal(authUrl)
+			await vscode.env.openExternal(authUrl)
 			return String.create({
 				value: authUrl.toString(),
 			})

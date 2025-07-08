@@ -13,8 +13,8 @@ export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
 	// TODO: replace this with a global API Host
-	// private readonly _baseUrl = "https://app.cline.bot/v1"
-	private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
+	private readonly _baseUrl = "https://api.cline.bot"
+	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
 	// private readonly _baseUrl = "http://localhost:7777"
 
 	constructor() {

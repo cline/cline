@@ -50,8 +50,6 @@ const AppContent = () => {
 		return null
 	}
 
-	console.log("Extension: App: showWelcome:", showWelcome)
-
 	return (
 		<>
 			{showWelcome ? (

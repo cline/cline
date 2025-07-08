@@ -11,7 +11,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
-import { get } from "http"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -142,7 +141,6 @@ export const ClineAccountView = () => {
 
 	const handleOrganizationChange = async (event: any) => {
 		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
-		console.log("Selected organization ID:", newOrgId, activeOrganization?.organizationId)
 
 		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
 			const newSelectedOrg =
