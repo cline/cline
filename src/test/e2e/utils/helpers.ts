@@ -1,7 +1,7 @@
 import { type ElectronApplication, type Frame, type Page, test, expect } from "@playwright/test"
 import { type PathLike, type RmOptions, mkdtempSync, rmSync } from "node:fs"
 import { _electron } from "playwright"
-import { installVSCode } from "./build"
+import { SilentReporter, downloadAndUnzipVSCode } from "@vscode/test-electron"
 import * as os from "node:os"
 import * as path from "node:path"
 
@@ -118,7 +118,7 @@ export const e2e = test
 	})
 	.extend<{ openVSCode: () => Promise<ElectronApplication> }>({
 		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
-			const executablePath = await installVSCode()
+			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
 			// Base VS Code arguments
 			const baseArgs = [

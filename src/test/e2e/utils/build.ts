@@ -1,33 +1,41 @@
 import { SilentReporter, downloadAndUnzipVSCode } from "@vscode/test-electron"
-import { spawn } from "node:child_process"
+import { execa } from "execa"
 
-const VSCODE_APP_TYPE: "stable" | "insiders" = "stable"
+const TIMEOUT_MINUTE = 1
+const INSTALL_TIMEOUT_MS = TIMEOUT_MINUTE * 60 * 1000
 
-export async function installVSCode(): Promise<string> {
+async function installVSCode(): Promise<string> {
+	const VSCODE_APP_TYPE: "stable" | "insiders" = "stable"
+	console.log("Downloading VS Code...")
 	return await downloadAndUnzipVSCode(VSCODE_APP_TYPE, undefined, new SilentReporter())
 }
 
-export async function installChromium(): Promise<void> {
-	const proc = spawn("npm", ["exec", "playwright", "install", "chromium"], {
-		shell: true,
-		stdio: "inherit",
-	})
-
-	return new Promise<void>((resolve, reject) => {
-		proc.on("error", reject)
-		proc.on("close", (code) => {
-			console.log("Playwright Chromium installation process closed with code:", code)
-			if (code === 0) {
-				resolve()
-			} else {
-				reject(new Error(`Failed to install Playwright Chromium: ${code}`))
-			}
+async function installChromium(): Promise<void> {
+	console.log("Installing Playwright Chromium...")
+	try {
+		await execa("npm", ["exec", "playwright", "install", "chromium"], {
+			stdio: "inherit",
 		})
-	})
+		console.log("Playwright Chromium installation completed successfully")
+	} catch (error) {
+		throw new Error(`Failed to install Playwright Chromium: ${error}`)
+	}
 }
 
-export async function installDependencies(): Promise<void> {
-	console.log("Download VS Code and installing Playwright Chromium...")
-	await Promise.all([installVSCode(), installChromium()])
-	console.log("Installation complete.")
+async function installDependencies(): Promise<unknown> {
+	return Promise.all([installVSCode(), installChromium()])
 }
+
+async function main(): Promise<void> {
+	const timeoutPromise = new Promise((_, reject) =>
+		setTimeout(() => reject(new Error("Installation timed out.")), INSTALL_TIMEOUT_MS),
+	)
+	await Promise.race([installDependencies(), timeoutPromise])
+	console.log("Installation complete.")
+	process.exit(0)
+}
+
+main().catch((error) => {
+	console.error("Failed to install dependencies for E2E test", error)
+	process.exit(1)
+})

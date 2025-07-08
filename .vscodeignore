@@ -42,3 +42,6 @@ docs/**
 
 # Include icons
 !assets/icons/**
+
+# Ignore E2E build files
+e2e-build.js

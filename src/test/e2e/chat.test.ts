@@ -16,7 +16,7 @@ e2e("Chat", async ({ page, sidebar }) => {
 	// Loading State initially
 	await expect(sidebar.getByText("API Request...")).toBeVisible()
 
-	// The request should eventually failed
+	// The request should eventually fail
 	await expect(sidebar.getByText("API Streaming Failed")).toBeVisible()
 
 	await expect(inputbox).toBeVisible()
