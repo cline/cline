@@ -17,7 +17,7 @@ import * as vscode from "vscode"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
-import { writeTextToClipboard } from "@/utils/env"
+import { writeTextToClipboard, openExternal } from "@/utils/env"
 
 /**
  * Creates a properly encoded GitHub issue URL.
@@ -141,16 +141,15 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 	} catch (error) {
 		console.error(`OS commands failed: ${error}`)
 
-		// First fallback: Try VS Code's openExternal
+		// First fallback: Try openExternal utility
 		// Note: This will likely have encoding issues per https://github.com/microsoft/vscode/issues/85930
 		// but we include it as a fallback in case OS commands completely fail
 		try {
-			// The 'true' parameter might help preserve some encodings, but this is not guaranteed
-			await vscode.env.openExternal(vscode.Uri.parse(url, true))
-			console.log("Opened URL with vscode.env.openExternal (note: URL encoding may be affected)")
+			await openExternal(url)
+			console.log("Opened URL with openExternal utility (note: URL encoding may be affected)")
 			return
-		} catch (vscodeError) {
-			console.error(`Error with vscode.env.openExternal: ${vscodeError}`)
+		} catch (openExternalError) {
+			console.error(`Error with openExternal utility: ${openExternalError}`)
 
 			// Last fallback: Show a message with instructions
 			vscode.window

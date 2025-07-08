@@ -30,3 +30,18 @@ export async function readTextFromClipboard(): Promise<string> {
 		throw new Error(`Failed to read from clipboard: ${errorMessage}`)
 	}
 }
+
+/**
+ * Opens an external URL in the default browser
+ * @param url The URL to open
+ * @returns Promise that resolves when the operation is complete
+ * @throws Error if the operation fails
+ */
+export async function openExternal(url: string): Promise<void> {
+	try {
+		await getHostBridgeProvider().envClient.openExternal(StringRequest.create({ value: url }))
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		throw new Error(`Failed to open external URL: ${errorMessage}`)
+	}
+}
