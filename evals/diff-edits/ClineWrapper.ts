@@ -30,6 +30,7 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 }
 
 import { TestInput, TestResult, ExtractedToolCall } from "./types"
+import { log } from "./helpers"
 export { TestInput, TestResult, ExtractedToolCall }
 
 interface StreamResult {
@@ -284,21 +285,21 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		}
 
 		// check that we are editing the correct file path
-		console.log(`Expected file path: "${originalFilePath}"`);
-		console.log(`Actual file path used: "${diffToolPath}"`);
+		log(input.isVerbose, `Expected file path: "${originalFilePath}"`)
+		log(input.isVerbose, `Actual file path used: "${diffToolPath}"`)
 		if (diffToolPath !== originalFilePath) {
-			console.log(`❌ File path mismatch detected!`);
+			log(input.isVerbose, `❌ File path mismatch detected!`)
 			// Enhanced logging:
 			if (streamResult?.assistantMessage) {
-				console.log(`   Full model output (assistantMessage):`);
-				console.log(`   -----------------------------------------`);
-				console.log(`   ${streamResult.assistantMessage}`);
-				console.log(`   -----------------------------------------`);
+				log(input.isVerbose, `   Full model output (assistantMessage):`)
+				log(input.isVerbose, `   -----------------------------------------`)
+				log(input.isVerbose, `   ${streamResult.assistantMessage}`)
+				log(input.isVerbose, `   -----------------------------------------`)
 			}
 			if (toolCall) {
-				console.log(`   Parsed tool call that caused mismatch:`);
-				console.log(`   ${JSON.stringify(toolCall, null, 2)}`);
-				console.log(`   -----------------------------------------`);
+				log(input.isVerbose, `   Parsed tool call that caused mismatch:`)
+				log(input.isVerbose, `   ${JSON.stringify(toolCall, null, 2)}`)
+				log(input.isVerbose, `   -----------------------------------------`)
 			}
 			return {
 				success: false,
@@ -321,7 +322,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			// If it's just a string, diffSuccess stays true and replacementData stays undefined
 		} catch (error: any) {
 			diffSuccess = false
-			console.log("ERROR:",error)
+			log(input.isVerbose, `ERROR: ${error}`)
 		}
 
 		return {

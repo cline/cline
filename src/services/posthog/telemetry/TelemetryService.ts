@@ -210,26 +210,23 @@ class TelemetryService {
 
 		const propertiesWithVersion = this.addProperties(event.properties)
 
+		const capturedEvent = {
+			event: event.event,
+			properties: propertiesWithVersion,
+		}
+
 		if (collect && taskId) {
 			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
 			if (existingTask) {
-				existingTask.collection.push({
-					event: event.event,
-					properties: propertiesWithVersion,
-				})
+				existingTask.collection.push(capturedEvent)
 			} else {
 				this.collectedTasks.push({
 					taskId,
-					collection: [
-						{
-							event: event.event,
-							properties: propertiesWithVersion,
-						},
-					],
+					collection: [capturedEvent],
 				})
 			}
 		} else {
-			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
+			this.client.capture({ ...capturedEvent, distinctId: this.distinctId })
 		}
 	}
 
@@ -296,6 +293,8 @@ class TelemetryService {
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param collect If true, collect event instead of sending
+	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
 		taskId: string,
@@ -303,6 +302,13 @@ class TelemetryService {
 		model: string = "unknown",
 		source: "user" | "assistant",
 		collect: boolean = false,
+		tokenUsage: {
+			tokensIn?: number
+			tokensOut?: number
+			cacheWriteTokens?: number
+			cacheReadTokens?: number
+			totalCost?: number
+		} = {},
 	) {
 		// Ensure required parameters are provided
 		if (!taskId || !provider || !model || !source) {
@@ -316,6 +322,7 @@ class TelemetryService {
 			model,
 			source,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
+			...tokenUsage,
 		}
 
 		this.capture(

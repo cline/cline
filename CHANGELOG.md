@@ -1,5 +1,43 @@
 # Changelog
 
+## [3.18.8]
+
+-   Update pricing for Grok 3 model because the promotion ended
+
+## [3.18.7]
+
+-   Remove promotional "free" messaging for Grok 3 model in UI
+
+## [3.18.6]
+
+-   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
+-   Add organization organization accounts
+
+## [3.18.5]
+
+-   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
+-   Improve provider switching performance by 18x (from 550ms to 30ms) with batched storage operations
+-   Improve SAP AI Core provider model organization and fix exception handling (Thanks @schardosin!)
+
+## [3.18.4]
+
+-   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
+-   Fix logging in with Cline account not getting past welcome screen
+
+## [3.18.3]
+
+-   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)
+-   Improve Claude Code provider with better error handling and performance optimizations (Thanks @BarreiroT!)
+
+## [3.18.2]
+
+-   Fix issue where terminal output would not be captured if shell integration fails by falling back to capturing the terminal content.
+-   Add confirmation popup when deleting tasks
+-   Add support for Claude Sonnet 4 and Opus 4 model in SAP AI Core provider (Thanks @lizzzcai!)
+-   Add support for `litellm_session_id` to group requests in a single session (Thanks @jorgegarciarey!)
+-   Add "Thinking Budget" customization for Claude Code (Thanks @BarreiroT!)
+-   Fix issue where the extension would use the user's environment variables for authentication when using Claude Code (Thanks @BarreiroT!)
+
 ## [3.18.1]
 
 -   Add support for Claude 4 Sonnet in SAP AI Core provider (Thanks @GTxx!)

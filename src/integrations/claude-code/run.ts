@@ -1,16 +1,15 @@
-import * as vscode from "vscode"
+import { getCwd } from "@/utils/path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
-import { ClaudeCodeMessage } from "./types"
 import readline from "readline"
-
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+import { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string
 	messages: Anthropic.Messages.MessageParam[]
 	path?: string
 	modelId?: string
+	thinkingBudgetTokens?: number
 }
 
 type ProcessState = {
@@ -21,7 +20,7 @@ type ProcessState = {
 }
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
-	const process = runProcess(options)
+	const process = runProcess(options, await getCwd())
 
 	const rl = readline.createInterface({
 		input: process.stdout,
@@ -76,6 +75,20 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
 			)
 		}
+	} catch (err) {
+		// When the command fails, execa throws an error with the arguments, which include the whole system prompt.
+		// We want to log that, but not show it to the user.
+		console.error(`Error during Claude Code execution:`, err)
+		if (err instanceof Error) {
+			const startOfCommand = err.message.indexOf(": ")
+			if (startOfCommand !== -1) {
+				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
+
+				throw new Error(messageWithoutCommand, { cause: err })
+			}
+		}
+
+		throw err
 	} finally {
 		rl.close()
 		if (!process.killed) {
@@ -106,9 +119,11 @@ const claudeCodeTools = [
 ].join(",")
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
+// https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
+const BUFFER_SIZE = 20_000_000 // 20 MB
 
-function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions) {
-	const claudePath = path || "claude"
+function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions, cwd: string) {
+	const claudePath = path?.trim() || "claude"
 
 	const args = [
 		"-p",
@@ -128,10 +143,18 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		args.push("--model", modelId)
 	}
 
+	/**
+	 * @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables}
+	 */
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
-		// The default is 32000. However, I've gotten larger responses, so we increase it unless the user specified it.
+		// Respect the user's environment variables but set defaults.
+		// The default is 32000. However, I've gotten larger responses.
 		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
+		// Disable telemetry, auto-updater and error reporting.
+		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
+		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
+		MAX_THINKING_TOKENS: (thinkingBudgetTokens || 0).toString(),
 	}
 
 	// We don't want to consume the user's ANTHROPIC_API_KEY,
@@ -144,7 +167,7 @@ function runProcess({ systemPrompt, messages, path, modelId }: ClaudeCodeOptions
 		stderr: "pipe",
 		env,
 		cwd,
-		maxBuffer: 1024 * 1024 * 1000,
+		maxBuffer: BUFFER_SIZE,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 

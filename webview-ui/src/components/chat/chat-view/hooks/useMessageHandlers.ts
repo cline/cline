@@ -57,6 +57,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+						case "auto_approval_max_req_reached":
+						case "api_req_failed":
 						case "new_task":
 						case "condense":
 						case "report_bug":
@@ -111,14 +113,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "command":
-				case "command_output":
 				case "tool":
 				case "browser_action_launch":
 				case "use_mcp_server":
-				case "resume_task":
-				case "mistake_limit_reached":
-				case "auto_approval_max_req_reached":
+					// For approval buttons, if there's input content, send it as a proper user message
+					// If there's no input content, just approve the action
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+						// Send as a regular message so it appears in the conversation
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -128,17 +129,60 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							}),
 						)
 					} else {
+						// No input content, just approve the action
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 							}),
 						)
+						// Clear input state after sending (only when no content was sent as a message)
+						setInputValue("")
+						setActiveQuote(null)
+						setSelectedImages([])
+						setSelectedFiles([])
 					}
-					// Clear input state after sending
-					setInputValue("")
-					setActiveQuote(null)
-					setSelectedImages([])
-					setSelectedFiles([])
+					break
+				case "mistake_limit_reached":
+				case "auto_approval_max_req_reached":
+				case "command_output":
+					// For proceed buttons, if there's input content, send it as a proper user message
+					// If there's no input content, just proceed with the action
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+						// Send as a regular message so it appears in the conversation
+						await handleSendMessage(trimmedInput || "", images || [], files || [])
+					} else {
+						// No input content, just proceed with the action
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+						// Clear input state after sending (only when no content was sent as a message)
+						setInputValue("")
+						setActiveQuote(null)
+						setSelectedImages([])
+						setSelectedFiles([])
+					}
+					break
+				case "resume_task":
+					// For resume_task, if there's input content, send it as a proper user message
+					// If there's no input content, just resume the task
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
+						// Send as a regular message so it appears in the conversation
+						await handleSendMessage(trimmedInput || "", images || [], files || [])
+					} else {
+						// No input content, just resume the task
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+						// Clear input state after sending (only when no content was sent as a message)
+						setInputValue("")
+						setActiveQuote(null)
+						setSelectedImages([])
+						setSelectedFiles([])
+					}
 					break
 				case "completion_result":
 				case "resume_completed_task":
@@ -185,6 +229,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setSendingDisabled,
 			setEnableButtons,
 			chatState,
+			handleSendMessage,
 		],
 	)
 

@@ -1353,7 +1353,7 @@ export const ChatRowContent = memo(
 									style={{
 										display: "flex",
 										flexDirection: "column",
-										backgroundColor: "rgba(255, 191, 0, 0.1)",
+										backgroundColor: "var(--vscode-textBlockQuote-background)",
 										padding: 8,
 										borderRadius: 3,
 										fontSize: 12,
@@ -1368,19 +1368,19 @@ export const ChatRowContent = memo(
 											className="codicon codicon-warning"
 											style={{
 												marginRight: 8,
-												fontSize: 18,
-												color: "#FFA500",
+												fontSize: 14,
+												color: "var(--vscode-descriptionForeground)",
 											}}></i>
 										<span
 											style={{
 												fontWeight: 500,
-												color: "#FFA500",
+												color: "var(--vscode-foreground)",
 											}}>
 											Shell Integration Unavailable
 										</span>
 									</div>
-									<div>
-										Cline won't be able to view the command's output. Please update VSCode (
+									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+										Cline may have trouble viewing the command's output. Please update VSCode (
 										<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
 										shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal:
 										Select Default Profile").{" "}
@@ -1551,7 +1551,10 @@ export const ChatRowContent = memo(
 									<OptionsButtons
 										options={options}
 										selected={selected}
-										isActive={isLast && lastModifiedMessage?.ask === "followup"}
+										isActive={
+											(isLast && lastModifiedMessage?.ask === "followup") ||
+											(!selected && options && options.length > 0)
+										}
 										inputValue={inputValue}
 									/>
 									{quoteButtonState.visible && (
@@ -1640,7 +1643,10 @@ export const ChatRowContent = memo(
 								<OptionsButtons
 									options={options}
 									selected={selected}
-									isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
+									isActive={
+										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
+										(!selected && options && options.length > 0)
+									}
 									inputValue={inputValue}
 								/>
 								{quoteButtonState.visible && (

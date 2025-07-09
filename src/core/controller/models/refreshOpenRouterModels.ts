@@ -101,7 +101,7 @@ export async function refreshOpenRouterModels(
 						break
 					case "x-ai/grok-3-beta":
 						modelInfo.supportsPromptCache = true
-						modelInfo.cacheWritesPrice = 0
+						modelInfo.cacheWritesPrice = 0.75
 						modelInfo.cacheReadsPrice = 0
 						break
 					default:
@@ -120,11 +120,6 @@ export async function refreshOpenRouterModels(
 							}
 						}
 						break
-				}
-
-				// add new model id
-				if (rawModel.id === "x-ai/grok-3-beta") {
-					models["x-ai/grok-3"] = modelInfo
 				}
 
 				models[rawModel.id] = modelInfo

@@ -498,17 +498,8 @@ Object.assign(vscode.workspace, {
 		},
 	},
 
-	// Add workspace folder configuration
 	rootPath: process.cwd(),
-	workspaceFolders: [
-		{
-			uri: vscode.Uri.file(process.cwd()),
-			name: path.basename(process.cwd()),
-			index: 0,
-		},
-	],
 	name: path.basename(process.cwd()),
-	workspaceFile: vscode.Uri.file(path.join(process.cwd(), ".vscode", "workspace.json")),
 
 	// Add other workspace methods as stubs
 	getConfiguration: () => ({
@@ -516,14 +507,6 @@ Object.assign(vscode.workspace, {
 		update: () => Promise.resolve(),
 		has: () => false,
 	}),
-	getWorkspaceFolder: (uri) => {
-		console.log("Called vscode.workspace.getWorkspaceFolder with:", uri)
-		// Return the first workspace folder for any URI in standalone mode
-		if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-			return vscode.workspace.workspaceFolders[0]
-		}
-		return undefined
-	},
 	createFileSystemWatcher: () => ({
 		onDidChange: () => ({ dispose: () => {} }),
 		onDidCreate: () => ({ dispose: () => {} }),
@@ -531,7 +514,6 @@ Object.assign(vscode.workspace, {
 		dispose: () => {},
 	}),
 	onDidChangeConfiguration: () => ({ dispose: () => {} }),
-	onDidChangeWorkspaceFolders: () => ({ dispose: () => {} }),
 	onDidCreateFiles: createStub("vscode.workspace.onDidCreateFiles"),
 	onDidDeleteFiles: createStub("vscode.workspace.onDidDeleteFiles"),
 	onDidRenameFiles: createStub("vscode.workspace.onDidRenameFiles"),
@@ -827,8 +809,6 @@ Object.assign(vscode.languages, {
 	}),
 })
 
-console.log("Finished loading stub impls...")
-
 // Export the terminal manager globally for Cline core to use
 global.standaloneTerminalManager = globalTerminalManager
 
@@ -839,3 +819,5 @@ if (typeof global !== "undefined") {
 }
 
 module.exports = vscode
+
+console.log("Finished loading stub impls...")

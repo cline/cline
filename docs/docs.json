@@ -171,6 +171,10 @@
 				]
 			},
 			{
+				"group": "Troubleshooting",
+				"pages": ["troubleshooting/terminal-quick-fixes", "troubleshooting/terminal-integration-guide"]
+			},
+			{
 				"group": "More Info",
 				"pages": ["more-info/telemetry"]
 			}
