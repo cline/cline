@@ -53,6 +53,11 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = await this.ensureClient()
+		const clineAccountAuthToken = await this._authService.getAuthToken()
+		if (!clineAccountAuthToken) {
+			throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+		}
+
 		this.lastGenerationId = undefined
 
 		const me = await this.clineAccountService.fetchMe()
@@ -166,6 +171,9 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
+			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
+				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+			}
 			console.error("Cline API Error:", error)
 		}
 	}
