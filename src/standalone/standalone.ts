@@ -17,7 +17,7 @@ import { v4 as uuidv4 } from "uuid"
 async function main() {
 	log("Starting standalone service...")
 
-	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager())
+	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager(), "~/.cline/core/<version>/")
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	startProtobusService(controller)

@@ -686,7 +686,7 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 		const createWebview = function (type: WebviewProviderType) {
 			return new VscodeWebviewProvider(context, outputChannel, type)
 		}
-		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient, "<vscode-app-root>/etc/etc/")
 	}
 }
 

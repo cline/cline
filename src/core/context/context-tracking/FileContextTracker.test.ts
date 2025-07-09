@@ -53,7 +53,7 @@ describe("FileContextTracker", () => {
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
-		hostProviders.initializeHostProviders(((_) => {}) as WebviewProviderCreator, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(((_) => {}) as WebviewProviderCreator, vscodeHostBridgeClient, "test")
 
 		// Create tracker instance
 		taskId = "test-task-id"
