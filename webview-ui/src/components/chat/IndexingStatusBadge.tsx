@@ -128,7 +128,7 @@ export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ classN
 					{/* Status dot badge */}
 					<span
 						className={cn(
-							"absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full transition-colors duration-200",
+							"absolute top-1 right-1 w-1.5 h-1.5 rounded-full transition-colors duration-200",
 							getStatusColorClass(),
 						)}
 					/>
