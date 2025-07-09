@@ -3,10 +3,9 @@ import { SelectedResponse, ShowMessageRequest } from "@/shared/proto/index.host"
 
 export async function showErrorMessage(
 	message: string,
-	args: Partial<ShowMessageRequest> = { modal: false },
+	{ modal, detail, items }: Partial<ShowMessageRequest> = { modal: false },
 ): Promise<SelectedResponse | undefined> {
-	const { modal, detail, items } = args
-	const option = items ? { modal, items } : { modal, detail }
-	const selectedOption = await vscode.window.showErrorMessage(message, option)
+	const selectedOption = await vscode.window.showErrorMessage(message, { modal, detail }, ...(items?.options || []))
+
 	return SelectedResponse.create({ selectedOption })
 }
