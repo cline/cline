@@ -52,6 +52,10 @@ export const ClineAccountView = () => {
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
+	const dashboardAddCreditsURL = activeOrganization
+		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+
 	async function getUserCredits() {
 		setIsLoading(true)
 		try {
@@ -204,8 +208,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
+							<VSCodeButtonLink href="https://app.cline.bot/dashboard" appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -237,8 +240,7 @@ export const ClineAccountView = () => {
 						</div>
 
 						<div className="w-full">
-							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
+							<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
 								Add Credits
 							</VSCodeButtonLink>
 						</div>
