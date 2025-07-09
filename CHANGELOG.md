@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.18.7
+## [3.18.7]
 
--   ff1e329: Ending grok 3 promo
+-   Remove promotional "free" messaging for Grok 3 model in UI
 
 ## [3.18.6]
 
