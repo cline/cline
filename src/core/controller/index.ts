@@ -144,6 +144,16 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
+		console.log("[Controller.initTask] API Configuration:", {
+			provider: apiConfiguration.apiProvider,
+			hasApiKey: !!apiConfiguration.apiKey,
+			hasVertexProjectId: !!apiConfiguration.vertexProjectId,
+			hasVertexRegion: !!apiConfiguration.vertexRegion,
+			vertexProjectId: apiConfiguration.vertexProjectId,
+			vertexRegion: apiConfiguration.vertexRegion,
+			modelId: apiConfiguration.apiModelId,
+		})
+
 		// Get current mode using helper function
 		const currentMode = await this.getCurrentMode()
 

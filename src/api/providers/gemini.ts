@@ -54,13 +54,29 @@ export class GeminiHandler implements ApiHandler {
 				const project = this.options.vertexProjectId ?? "not-provided"
 				const location = this.options.vertexRegion ?? "not-provided"
 
+				console.log("[GeminiHandler] Creating Vertex AI client with:", {
+					vertexai: true,
+					project,
+					location,
+					hasVertexProjectId: !!this.options.vertexProjectId,
+					hasVertexRegion: !!this.options.vertexRegion,
+				})
+
 				try {
 					this.client = new GoogleGenAI({
 						vertexai: true,
 						project,
 						location,
 					})
-				} catch (error) {
+					console.log("[GeminiHandler] Vertex AI client created successfully")
+				} catch (error: any) {
+					console.error("[GeminiHandler] Error creating Vertex AI client:", error)
+					console.error("[GeminiHandler] Error details:", {
+						message: error.message,
+						name: error.name,
+						code: error.code,
+						stack: error.stack,
+					})
 					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
 				}
 			} else {
@@ -95,9 +111,13 @@ export class GeminiHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		console.log("[GeminiHandler] createMessage called")
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
+		console.log("[GeminiHandler] Model selected:", { modelId, modelInfo: info })
+
 		const contents = messages.map(convertAnthropicMessageToGemini)
+		console.log("[GeminiHandler] Converted messages count:", contents.length)
 
 		// Configure thinking budget if supported
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
@@ -120,6 +140,15 @@ export class GeminiHandler implements ApiHandler {
 			}
 		}
 
+		console.log("[GeminiHandler] Request config:", {
+			hasBaseUrl: !!this.options.geminiBaseUrl,
+			baseUrl: this.options.geminiBaseUrl,
+			hasSystemInstruction: !!systemPrompt,
+			temperature: requestConfig.temperature,
+			hasThinkingConfig: !!requestConfig.thinkingConfig,
+			thinkingBudget,
+		})
+
 		// Generate content using the configured parameters
 		const sdkCallStartTime = Date.now()
 		let sdkFirstChunkTime: number | undefined
@@ -133,6 +162,12 @@ export class GeminiHandler implements ApiHandler {
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
 		try {
+			console.log("[GeminiHandler] Making API call to generateContentStream with:", {
+				model: modelId,
+				contentsLength: contents.length,
+				isVertex: !!(this.options as GeminiHandlerOptions).isVertex,
+			})
+
 			const result = await client.models.generateContentStream({
 				model: modelId,
 				contents: contents,
@@ -140,6 +175,8 @@ export class GeminiHandler implements ApiHandler {
 					...requestConfig,
 				},
 			})
+
+			console.log("[GeminiHandler] API call successful, streaming response")
 
 			let isFirstSdkChunk = true
 			for await (const chunk of result) {
@@ -211,10 +248,19 @@ export class GeminiHandler implements ApiHandler {
 			}
 		} catch (error) {
 			apiSuccess = false
+			console.error("[GeminiHandler] Error during API call:", error)
+
 			// Let the error propagate to be handled by withRetry or Task.ts
 			// Telemetry will be sent in the finally block.
 			if (error instanceof Error) {
 				apiError = error.message
+				console.error("[GeminiHandler] Error details:", {
+					message: error.message,
+					name: error.name,
+					stack: error.stack,
+					isVertex: !!(this.options as GeminiHandlerOptions).isVertex,
+					model: modelId,
+				})
 
 				// Gemini doesn't include status codes in their errors
 				// https://github.com/googleapis/js-genai/blob/61f7f27b866c74333ca6331883882489bcb708b9/src/_api_client.ts#L569
@@ -229,6 +275,7 @@ export class GeminiHandler implements ApiHandler {
 					error.name === "ClientError" && rateLimitPatterns.some((pattern) => pattern.test(error.message))
 
 				if (isRateLimit) {
+					console.log("[GeminiHandler] Detected rate limit error")
 					const rateLimitError = Object.assign(new Error(error.message), {
 						...error,
 						status: 429,
@@ -237,6 +284,7 @@ export class GeminiHandler implements ApiHandler {
 				}
 			} else {
 				apiError = String(error)
+				console.error("[GeminiHandler] Non-Error object thrown:", error)
 			}
 
 			throw error

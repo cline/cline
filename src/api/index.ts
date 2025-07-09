@@ -100,6 +100,16 @@ function createHandlerForProvider(apiProvider: string | undefined, options: any)
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 	const { apiProvider, ...options } = configuration
 
+	console.log("[buildApiHandler] Creating API handler for provider:", apiProvider)
+	console.log("[buildApiHandler] Configuration:", {
+		provider: apiProvider,
+		hasApiKey: !!options.apiKey,
+		hasVertexProjectId: !!options.vertexProjectId,
+		hasVertexRegion: !!options.vertexRegion,
+		modelId: options.apiModelId,
+		taskId: options.taskId,
+	})
+
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
 	// wrapped in a try-catch for safety, but this should never throw
 	try {
@@ -110,6 +120,12 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			if (modelInfo.maxTokens && options.thinkingBudgetTokens > modelInfo.maxTokens) {
 				const clippedValue = modelInfo.maxTokens - 1
 				options.thinkingBudgetTokens = clippedValue
+				console.log(
+					"[buildApiHandler] Adjusted thinking budget tokens from",
+					options.thinkingBudgetTokens,
+					"to",
+					clippedValue,
+				)
 			} else {
 				return handler // don't rebuild unless its necessary
 			}
@@ -118,5 +134,7 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 		console.error("buildApiHandler error:", error)
 	}
 
-	return createHandlerForProvider(apiProvider, options)
+	const handler = createHandlerForProvider(apiProvider, options)
+	console.log("[buildApiHandler] Handler created successfully")
+	return handler
 }

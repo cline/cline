@@ -12,18 +12,35 @@ export class VertexHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 
 	constructor(options: ApiHandlerOptions) {
+		console.log("[VertexHandler] Constructor called with options:", {
+			vertexProjectId: options.vertexProjectId,
+			vertexRegion: options.vertexRegion,
+			apiModelId: options.apiModelId,
+			hasApiKey: !!options.apiKey,
+			taskId: options.taskId,
+		})
 		this.options = options
 	}
 
 	private ensureGeminiHandler(): GeminiHandler {
 		if (!this.geminiHandler) {
+			console.log("[VertexHandler] Creating GeminiHandler for Vertex AI")
+			console.log("[VertexHandler] Options being passed to GeminiHandler:", {
+				vertexProjectId: this.options.vertexProjectId,
+				vertexRegion: this.options.vertexRegion,
+				isVertex: true,
+				apiModelId: this.options.apiModelId,
+			})
 			try {
 				// Create a GeminiHandler with isVertex flag for Gemini models
 				this.geminiHandler = new GeminiHandler({
 					...this.options,
 					isVertex: true,
 				})
+				console.log("[VertexHandler] GeminiHandler created successfully")
 			} catch (error: any) {
+				console.error("[VertexHandler] Error creating GeminiHandler:", error)
+				console.error("[VertexHandler] Error stack:", error.stack)
 				throw new Error(`Error creating Vertex AI Gemini handler: ${error.message}`)
 			}
 		}
@@ -32,12 +49,22 @@ export class VertexHandler implements ApiHandler {
 
 	private ensureAnthropicClient(): AnthropicVertex {
 		if (!this.clientAnthropic) {
+			console.log("[VertexHandler] Creating AnthropicVertex client")
+
 			if (!this.options.vertexProjectId) {
+				console.error("[VertexHandler] Missing vertexProjectId")
 				throw new Error("Vertex AI project ID is required")
 			}
 			if (!this.options.vertexRegion) {
+				console.error("[VertexHandler] Missing vertexRegion")
 				throw new Error("Vertex AI region is required")
 			}
+
+			console.log("[VertexHandler] Creating AnthropicVertex with:", {
+				projectId: this.options.vertexProjectId,
+				region: this.options.vertexRegion,
+			})
+
 			try {
 				// Initialize Anthropic client for Claude models
 				this.clientAnthropic = new AnthropicVertex({
@@ -45,7 +72,15 @@ export class VertexHandler implements ApiHandler {
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
 				})
+				console.log("[VertexHandler] AnthropicVertex client created successfully")
 			} catch (error: any) {
+				console.error("[VertexHandler] Error creating AnthropicVertex client:", error)
+				console.error("[VertexHandler] Error stack:", error.stack)
+				console.error("[VertexHandler] Error details:", {
+					message: error.message,
+					name: error.name,
+					code: error.code,
+				})
 				throw new Error(`Error creating Vertex AI Anthropic client: ${error.message}`)
 			}
 		}
@@ -54,16 +89,20 @@ export class VertexHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		console.log("[VertexHandler] createMessage called")
 		const model = this.getModel()
 		const modelId = model.id
+		console.log("[VertexHandler] Model selected:", { modelId, modelInfo: model.info })
 
 		// For Gemini models, use the GeminiHandler
 		if (!modelId.includes("claude")) {
+			console.log("[VertexHandler] Detected Gemini model, delegating to GeminiHandler")
 			const geminiHandler = this.ensureGeminiHandler()
 			yield* geminiHandler.createMessage(systemPrompt, messages)
 			return
 		}
 
+		console.log("[VertexHandler] Using Claude model, creating AnthropicVertex client")
 		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
@@ -90,21 +129,56 @@ export class VertexHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await clientAnthropic.beta.messages.create(
-					{
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						temperature: reasoningOn ? undefined : 0,
-						system: [
-							{
-								text: systemPrompt,
-								type: "text",
-								cache_control: { type: "ephemeral" },
-							},
-						],
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+
+				console.log("[VertexHandler] Making Claude API call with:", {
+					model: modelId,
+					maxTokens: model.info.maxTokens || 8192,
+					reasoningOn,
+					budgetTokens: budget_tokens,
+					messageCount: messages.length,
+				})
+
+				try {
+					stream = await clientAnthropic.beta.messages.create(
+						{
+							model: modelId,
+							max_tokens: model.info.maxTokens || 8192,
+							thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+							temperature: reasoningOn ? undefined : 0,
+							system: [
+								{
+									text: systemPrompt,
+									type: "text",
+									cache_control: { type: "ephemeral" },
+								},
+							],
+							messages: messages.map((message, index) => {
+								if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+									return {
+										...message,
+										content:
+											typeof message.content === "string"
+												? [
+														{
+															type: "text",
+															text: message.content,
+															cache_control: {
+																type: "ephemeral",
+															},
+														},
+													]
+												: message.content.map((content, contentIndex) =>
+														contentIndex === message.content.length - 1
+															? {
+																	...content,
+																	cache_control: {
+																		type: "ephemeral",
+																	},
+																}
+															: content,
+													),
+									}
+								}
 								return {
 									...message,
 									content:
@@ -113,42 +187,29 @@ export class VertexHandler implements ApiHandler {
 													{
 														type: "text",
 														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
 													},
 												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
+											: message.content,
 								}
-							}
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [
-												{
-													type: "text",
-													text: message.content,
-												},
-											]
-										: message.content,
-							}
-						}),
-						stream: true,
-					},
-					{
-						headers: {},
-					},
-				)
+							}),
+							stream: true,
+						},
+						{
+							headers: {},
+						},
+					)
+					console.log("[VertexHandler] Claude API call successful, stream created")
+				} catch (error: any) {
+					console.error("[VertexHandler] Error making Claude API call:", error)
+					console.error("[VertexHandler] Error details:", {
+						message: error.message,
+						name: error.name,
+						code: error.code,
+						status: error.status,
+						stack: error.stack,
+					})
+					throw error
+				}
 				break
 			}
 			default: {

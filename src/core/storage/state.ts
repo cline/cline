@@ -64,6 +64,7 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
+	console.log("[getAllExtensionState] Starting to retrieve extension state")
 	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
@@ -283,6 +284,14 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	])
 
 	const processingStart = performance.now()
+
+	console.log("[getAllExtensionState] Retrieved Vertex AI credentials:", {
+		vertexProjectId,
+		vertexRegion,
+		storedApiProvider,
+		apiModelId,
+	})
+
 	let apiProvider: ApiProvider
 	if (storedApiProvider) {
 		apiProvider = storedApiProvider
