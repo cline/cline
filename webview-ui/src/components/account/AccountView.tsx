@@ -1,8 +1,9 @@
-import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { BadgeCent } from "lucide-react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import { SegmentedToggle } from "../common/SegmentedToggle"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
@@ -11,12 +12,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
-
-type VSCodeDropdownChangeEvent = Event & {
-	target: {
-		value: string
-	}
-}
 
 type AccountViewProps = {
 	onDone: () => void
@@ -150,9 +145,7 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 
-	const handleOrganizationChange = async (event: any) => {
-		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
-
+	const handleOrganizationChange = async (newOrgId: string) => {
 		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
 			try {
 				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
@@ -188,19 +181,21 @@ export const ClineAccountView = () => {
 									<div className="text-sm text-[var(--vscode-descriptionForeground)]">{user.email}</div>
 								)}
 
-								{userOrganizations && (
-									<VSCodeDropdown
-										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
-										currentValue={activeOrganization?.organizationId || ""}
-										onChange={handleOrganizationChange}
-										style={{ width: "100%", marginTop: "4px" }}>
-										<VSCodeOption value="">Personal</VSCodeOption>
-										{userOrganizations.map((org: UserOrganization) => (
-											<VSCodeOption key={org.organizationId} value={org.organizationId}>
-												{org.name}
-											</VSCodeOption>
-										))}
-									</VSCodeDropdown>
+								{userOrganizations && userOrganizations.length > 0 && (
+									<div className="mt-2">
+										<SegmentedToggle
+											options={[
+												{ value: "", label: "Personal" },
+												...userOrganizations.map((org: UserOrganization) => ({
+													value: org.organizationId,
+													label: org.name,
+												})),
+											]}
+											value={activeOrganization?.organizationId || ""}
+											onChange={handleOrganizationChange}
+											className="w-full"
+										/>
+									</div>
 								)}
 							</div>
 						</div>
