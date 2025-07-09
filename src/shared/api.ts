@@ -642,6 +642,9 @@ export const vertexModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
 		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -774,6 +777,9 @@ export const geminiModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
 		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
 	},
 	"gemini-2.5-flash": {
 		maxTokens: 65536,
