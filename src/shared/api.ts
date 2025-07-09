@@ -602,7 +602,6 @@ export const vertexModels = {
 		cacheReadsPrice: 0.625,
 		thinkingConfig: {
 			maxBudget: 32767,
-			outputPrice: 15,
 		},
 		tiers: [
 			{
@@ -737,7 +736,6 @@ export const geminiModels = {
 		cacheReadsPrice: 0.625,
 		thinkingConfig: {
 			maxBudget: 32767,
-			outputPrice: 15,
 		},
 		tiers: [
 			{
