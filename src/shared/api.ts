@@ -2374,54 +2374,63 @@ export const requestyDefaultModelInfo: ModelInfo = {
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels
 export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
 // Pricing is calculated using Capacity Units, not directly in USD
+const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.7-sonnet": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-sonnet": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-haiku": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-opus": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
 	"gemini-2.5-flash": {
 		maxTokens: 65536,
@@ -2431,59 +2440,69 @@ export const sapAiCoreModels = {
 		thinkingConfig: {
 			maxBudget: 24576,
 		},
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4o": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
 	o1: {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
 	"o3-mini": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
 } as const satisfies Record<string, ModelInfo>
