@@ -124,12 +124,12 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const provider = modelId.split("/")[0]
 
-					// If provider is x-ai, set totalCost to 0 (we're doing a promo)
-					if (provider === "x-ai") {
-						totalCost = 0
-					}
+					// const provider = modelId.split("/")[0]
+					// // If provider is x-ai, set totalCost to 0 (we're doing a promo)
+					// if (provider === "x-ai") {
+					// 	totalCost = 0
+					// }
 
 					if (modelId.includes("gemini")) {
 						yield {
