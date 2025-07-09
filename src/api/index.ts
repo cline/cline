@@ -168,7 +168,6 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 			})
 		case "cline":
 			return new ClineHandler({
-				clineApiKey: options.clineApiKey,
 				taskId: options.taskId,
 				reasoningEffort: options.reasoningEffort,
 				thinkingBudgetTokens: options.thinkingBudgetTokens,

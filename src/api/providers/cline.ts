@@ -11,7 +11,6 @@ import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
 
 interface ClineHandlerOptions {
-	clineApiKey?: string
 	taskId?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
