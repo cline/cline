@@ -3,6 +3,7 @@ import * as path from "path"
 import * as fs from "fs"
 import * as childProcess from "child_process"
 import * as vscode from "vscode"
+import ignore from "ignore"
 import { arePathsEqual } from "../../utils/path"
 import { getBinPath } from "../../services/ripgrep"
 import { DIRS_TO_IGNORE } from "./constants"
@@ -34,9 +35,9 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	// Get files using ripgrep
 	const files = await listFilesWithRipgrep(rgPath, dirPath, recursive, limit)
 
-	// Get directories with proper filtering
-	const gitignorePatterns = await parseGitignoreFile(dirPath, recursive)
-	const directories = await listFilteredDirectories(dirPath, recursive, gitignorePatterns)
+	// Get directories with proper filtering using ignore library
+	const ignoreInstance = await createIgnoreInstance(dirPath)
+	const directories = await listFilteredDirectories(dirPath, recursive, ignoreInstance)
 
 	// Combine and format the results
 	return formatAndCombineResults(files, directories, limit)
@@ -134,8 +135,8 @@ function buildNonRecursiveArgs(): string[] {
 	args.push("-g", "*")
 	args.push("--maxdepth", "1") // ripgrep uses maxdepth, not max-depth
 
-	// Don't respect .gitignore in non-recursive mode (consistent with original behavior)
-	args.push("--no-ignore-vcs")
+	// Respect .gitignore in non-recursive mode too
+	// (ripgrep respects .gitignore by default)
 
 	// Apply directory exclusions for non-recursive searches
 	for (const dir of DIRS_TO_IGNORE) {
@@ -153,37 +154,61 @@ function buildNonRecursiveArgs(): string[] {
 }
 
 /**
- * Parse the .gitignore file if it exists and is relevant
+ * Create an ignore instance that handles .gitignore files properly
+ * This replaces the custom gitignore parsing with the proper ignore library
  */
-async function parseGitignoreFile(dirPath: string, recursive: boolean): Promise<string[]> {
-	if (!recursive) {
-		return [] // Only needed for recursive mode
+async function createIgnoreInstance(dirPath: string): Promise<ReturnType<typeof ignore>> {
+	const ignoreInstance = ignore()
+	const absolutePath = path.resolve(dirPath)
+
+	// Find all .gitignore files from the target directory up to the root
+	const gitignoreFiles = await findGitignoreFiles(absolutePath)
+
+	// Add patterns from all .gitignore files
+	for (const gitignoreFile of gitignoreFiles) {
+		try {
+			const content = await fs.promises.readFile(gitignoreFile, "utf8")
+			ignoreInstance.add(content)
+		} catch (err) {
+			// Continue if we can't read a .gitignore file
+			console.warn(`Error reading .gitignore at ${gitignoreFile}: ${err}`)
+		}
 	}
 
-	const absolutePath = path.resolve(dirPath)
-	const gitignorePath = path.join(absolutePath, ".gitignore")
+	// Always ignore .gitignore files themselves
+	ignoreInstance.add(".gitignore")
 
-	try {
-		// Check if .gitignore exists
-		const exists = await fs.promises
-			.access(gitignorePath)
-			.then(() => true)
-			.catch(() => false)
+	return ignoreInstance
+}
 
-		if (!exists) {
-			return []
+/**
+ * Find all .gitignore files from the given directory up to the workspace root
+ */
+async function findGitignoreFiles(startPath: string): Promise<string[]> {
+	const gitignoreFiles: string[] = []
+	let currentPath = startPath
+
+	// Walk up the directory tree looking for .gitignore files
+	while (currentPath && currentPath !== path.dirname(currentPath)) {
+		const gitignorePath = path.join(currentPath, ".gitignore")
+
+		try {
+			await fs.promises.access(gitignorePath)
+			gitignoreFiles.push(gitignorePath)
+		} catch {
+			// .gitignore doesn't exist at this level, continue
 		}
 
-		// Read and parse .gitignore file
-		const content = await fs.promises.readFile(gitignorePath, "utf8")
-		return content
-			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line && !line.startsWith("#"))
-	} catch (err) {
-		console.warn(`Error reading .gitignore: ${err}`)
-		return [] // Continue without gitignore patterns on error
+		// Move up one directory
+		const parentPath = path.dirname(currentPath)
+		if (parentPath === currentPath) {
+			break // Reached root
+		}
+		currentPath = parentPath
 	}
+
+	// Return in reverse order (root .gitignore first, then more specific ones)
+	return gitignoreFiles.reverse()
 }
 
 /**
@@ -192,7 +217,7 @@ async function parseGitignoreFile(dirPath: string, recursive: boolean): Promise<
 async function listFilteredDirectories(
 	dirPath: string,
 	recursive: boolean,
-	gitignorePatterns: string[],
+	ignoreInstance: ReturnType<typeof ignore>,
 ): Promise<string[]> {
 	const absolutePath = path.resolve(dirPath)
 	const directories: string[] = []
@@ -209,7 +234,7 @@ async function listFilteredDirectories(
 					const fullDirPath = path.join(currentPath, dirName)
 
 					// Check if this directory should be included
-					if (shouldIncludeDirectory(dirName, recursive, gitignorePatterns)) {
+					if (shouldIncludeDirectory(dirName, fullDirPath, dirPath, ignoreInstance)) {
 						// Add the directory to our results (with trailing slash)
 						const formattedPath = fullDirPath.endsWith("/") ? fullDirPath : `${fullDirPath}/`
 						directories.push(formattedPath)
@@ -236,7 +261,12 @@ async function listFilteredDirectories(
 /**
  * Determine if a directory should be included in results based on filters
  */
-function shouldIncludeDirectory(dirName: string, recursive: boolean, gitignorePatterns: string[]): boolean {
+function shouldIncludeDirectory(
+	dirName: string,
+	fullDirPath: string,
+	basePath: string,
+	ignoreInstance: ReturnType<typeof ignore>,
+): boolean {
 	// Skip hidden directories if configured to ignore them
 	if (dirName.startsWith(".") && DIRS_TO_IGNORE.includes(".*")) {
 		return false
@@ -247,8 +277,13 @@ function shouldIncludeDirectory(dirName: string, recursive: boolean, gitignorePa
 		return false
 	}
 
-	// Check against gitignore patterns in recursive mode
-	if (recursive && gitignorePatterns.length > 0 && isIgnoredByGitignore(dirName, gitignorePatterns)) {
+	// Check against gitignore patterns using the ignore library
+	// Calculate relative path from the base directory
+	const relativePath = path.relative(basePath, fullDirPath)
+	const normalizedPath = relativePath.replace(/\\/g, "/")
+
+	// Check if the directory is ignored by .gitignore
+	if (ignoreInstance.ignores(normalizedPath) || ignoreInstance.ignores(normalizedPath + "/")) {
 		return false
 	}
 
@@ -277,37 +312,6 @@ function isDirectoryExplicitlyIgnored(dirName: string): boolean {
 	return false
 }
 
-/**
- * Check if a directory matches any gitignore patterns
- */
-function isIgnoredByGitignore(dirName: string, gitignorePatterns: string[]): boolean {
-	for (const pattern of gitignorePatterns) {
-		// Directory patterns (ending with /)
-		if (pattern.endsWith("/")) {
-			const dirPattern = pattern.slice(0, -1)
-			if (dirName === dirPattern) {
-				return true
-			}
-			if (pattern.startsWith("**/") && dirName === dirPattern.slice(3)) {
-				return true
-			}
-		}
-		// Simple name patterns
-		else if (dirName === pattern) {
-			return true
-		}
-		// Wildcard patterns
-		else if (pattern.includes("*")) {
-			const regexPattern = pattern.replace(/\\/g, "\\\\").replace(/\./g, "\\.").replace(/\*/g, ".*")
-			const regex = new RegExp(`^${regexPattern}$`)
-			if (regex.test(dirName)) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
 
 /**
  * Combine file and directory results and format them properly
