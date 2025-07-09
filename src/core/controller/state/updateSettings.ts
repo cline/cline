@@ -5,6 +5,7 @@ import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
+import { convertProtoDictationSettingsToDictationSettings } from "../../../shared/proto-conversions/state/dictation-settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 
 /**
@@ -71,6 +72,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.chatSettings = chatSettings
 			}
+		}
+
+		// Update dictation settings
+		if (request.dictationSettings) {
+			const dictationSettings = convertProtoDictationSettingsToDictationSettings(request.dictationSettings)
+			await controller.context.globalState.update("dictationSettings", dictationSettings)
 		}
 
 		// Update terminal timeout setting

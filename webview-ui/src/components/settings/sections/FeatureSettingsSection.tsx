@@ -6,6 +6,7 @@ import { SUPPORTED_DICTATION_LANGUAGES } from "@shared/DictationSettings"
 // import CollapsibleContent from "../CollapsibleContent"
 import { updateSetting } from "../utils/settingsHandlers"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/dictation-settings-conversion"
 import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
@@ -120,7 +121,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								checked={dictationSettings?.voiceRecordingEnabled}
 								onChange={(e: any) => {
 									const checked = e.target.checked === true
-									updateSetting("voiceRecordingEnabled", checked)
+									const updatedDictationSettings = {
+										...dictationSettings,
+										voiceRecordingEnabled: checked,
+									}
+									const protoDictationSettings =
+										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+									updateSetting("dictationSettings", protoDictationSettings)
 								}}>
 								Enable Dictation
 							</VSCodeCheckbox>
@@ -143,7 +150,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								currentValue={dictationSettings?.dictationLanguage || "en"}
 								onChange={(e: any) => {
 									const newValue = e.target.value
-									updateSetting("dictationLanguage", newValue)
+									const updatedDictationSettings = {
+										...dictationSettings,
+										dictationLanguage: newValue,
+									}
+									const protoDictationSettings =
+										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+									updateSetting("dictationSettings", protoDictationSettings)
 								}}
 								className="w-full">
 								{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
