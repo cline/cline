@@ -2,8 +2,6 @@
 
 ## 3.18.7
 
-### Patch Changes
-
 -   ff1e329: Ending grok 3 promo
 
 ## [3.18.6]
