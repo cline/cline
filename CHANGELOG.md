@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.18.8]
+
+-   Update pricing for Grok 3 model because the promotion ended
+
 ## [3.18.7]
 
 -   Remove promotional "free" messaging for Grok 3 model in UI
