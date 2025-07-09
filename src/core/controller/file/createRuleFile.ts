@@ -7,8 +7,8 @@ import * as path from "path"
 import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { showWarningMessage } from "@/hosts/vscode/window/showWarningMessage"
-import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -43,7 +43,13 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	if (fileExists) {
-		showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
+		const message = `${fileTypeName} file "${request.filename}" already exists.`
+		getHostBridgeProvider().windowClient.showMessage(
+			ShowMessageRequest.create({
+				type: ShowMessageType.WARNING,
+				message,
+			}),
+		)
 		// Still open it for editing
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 	} else {
@@ -56,8 +62,12 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
-		showInformationMessage(
-			`Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`,
+		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
+		getHostBridgeProvider().windowClient.showMessage(
+			ShowMessageRequest.create({
+				type: ShowMessageType.INFORMATION,
+				message,
+			}),
 		)
 	}
 

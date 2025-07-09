@@ -34,8 +34,8 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { AuthService } from "@/services/auth/AuthService"
-import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
-import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -113,9 +113,19 @@ export class Controller {
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
-			showInformationMessage("Successfully logged out of Cline")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Successfully logged out of Cline",
+				}),
+			)
 		} catch (error) {
-			showErrorMessage("Logout failed")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Logout failed",
+				}),
+			)
 		}
 	}
 
@@ -484,7 +494,12 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			showErrorMessage("Failed to log in to Cline")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: "Failed to log in to Cline",
+				}),
+			)
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -519,7 +534,12 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				showErrorMessage(errorMessage)
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: errorMessage,
+					}),
+				)
 			}
 			return undefined
 		}
@@ -603,7 +623,12 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			showErrorMessage(errorMessage)
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: errorMessage,
+				}),
+			)
 		}
 	}
 
@@ -967,14 +992,24 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				showErrorMessage("No workspace folder open")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "No workspace folder open",
+					}),
+				)
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				showInformationMessage("No changes in workspace for commit message")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes in workspace for commit message",
+					}),
+				)
 				return
 			}
 
@@ -1041,25 +1076,59 @@ Commit message:`
 								if (api && api.repositories.length > 0) {
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
-									showInformationMessage("Commit message generated and applied")
+									const message = "Commit message generated and applied"
+									getHostBridgeProvider().windowClient.showMessage(
+										ShowMessageRequest.create({
+											type: ShowMessageType.INFORMATION,
+											message,
+										}),
+									)
 								} else {
-									showErrorMessage("No Git repositories found")
+									const message = "No Git repositories found"
+									getHostBridgeProvider().windowClient.showMessage(
+										ShowMessageRequest.create({
+											type: ShowMessageType.ERROR,
+											message,
+										}),
+									)
 								}
 							} else {
-								showErrorMessage("Git extension not found")
+								const message = "Git extension not found"
+								getHostBridgeProvider().windowClient.showMessage(
+									ShowMessageRequest.create({
+										type: ShowMessageType.ERROR,
+										message,
+									}),
+								)
 							}
 						} else {
-							showErrorMessage("Failed to generate commit message")
+							const message = "Failed to generate commit message"
+							getHostBridgeProvider().windowClient.showMessage(
+								ShowMessageRequest.create({
+									type: ShowMessageType.ERROR,
+									message,
+								}),
+							)
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+						getHostBridgeProvider().windowClient.showMessage(
+							ShowMessageRequest.create({
+								type: ShowMessageType.ERROR,
+								message: `Failed to generate commit message: ${innerErrorMessage}`,
+							}),
+						)
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: `Failed to generate commit message: ${errorMessage}`,
+				}),
+			)
 		}
 	}
 }

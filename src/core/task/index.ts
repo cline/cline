@@ -82,8 +82,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
-import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
-import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -341,7 +339,7 @@ export class Task {
 			case "taskAndWorkspace":
 			case "workspace":
 				if (!this.enableCheckpoints) {
-					showErrorMessage("Checkpoints are disabled in settings.")
+					vscode.window.showErrorMessage("Checkpoints are disabled in settings.")
 					didWorkspaceRestoreFail = true
 					break
 				}
@@ -359,7 +357,7 @@ export class Task {
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.taskState.checkpointTrackerErrorMessage = errorMessage
 						await this.postStateToWebview()
-						showErrorMessage(errorMessage)
+						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				}
@@ -368,7 +366,7 @@ export class Task {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -376,7 +374,7 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
+						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -386,11 +384,11 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else {
-					showErrorMessage("Failed to restore checkpoint")
+					vscode.window.showErrorMessage("Failed to restore checkpoint")
 				}
 				break
 		}
@@ -447,13 +445,13 @@ export class Task {
 
 			switch (restoreType) {
 				case "task":
-					showInformationMessage("Task messages have been restored to the checkpoint")
+					vscode.window.showInformationMessage("Task messages have been restored to the checkpoint")
 					break
 				case "workspace":
-					showInformationMessage("Workspace files have been restored to the checkpoint")
+					vscode.window.showInformationMessage("Workspace files have been restored to the checkpoint")
 					break
 				case "taskAndWorkspace":
-					showInformationMessage("Task and workspace have been restored to the checkpoint")
+					vscode.window.showInformationMessage("Task and workspace have been restored to the checkpoint")
 					break
 			}
 
@@ -484,7 +482,7 @@ export class Task {
 			sendRelinquishControlEvent()
 		}
 		if (!this.enableCheckpoints) {
-			showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
+			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
 			relinquishButton()
 			return
 		}
@@ -519,7 +517,7 @@ export class Task {
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.taskState.checkpointTrackerErrorMessage = errorMessage
 				await this.postStateToWebview()
-				showErrorMessage(errorMessage)
+				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
 			}
@@ -554,7 +552,7 @@ export class Task {
 				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
 
 				if (!previousCheckpointHash) {
-					showErrorMessage("Unexpected error: No checkpoint hash found")
+					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
 					relinquishButton()
 					return
 				}
@@ -562,7 +560,7 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
-					showInformationMessage("No changes found")
+					vscode.window.showInformationMessage("No changes found")
 					relinquishButton()
 					return
 				}
@@ -570,14 +568,14 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
 				if (!changedFiles?.length) {
-					showInformationMessage("No changes found")
+					vscode.window.showInformationMessage("No changes found")
 					relinquishButton()
 					return
 				}
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
 			relinquishButton()
 			return
 		}
@@ -587,7 +585,7 @@ export class Task {
 		// const isMultiDiffEnabled = config.get("multiDiffEditor.experimental.enabled")
 
 		// if (!isMultiDiffEnabled) {
-		// 	showErrorMessage(
+		// 	vscode.window.showErrorMessage(
 		// 		"Please enable 'multiDiffEditor.experimental.enabled' in your VS Code settings to use this feature.",
 		// 	)
 		// 	relinquishButton()

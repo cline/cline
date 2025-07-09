@@ -1,9 +1,8 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
-import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
+import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
+import { ShowMessageRequest } from "@/generated/grpc-js/index.host"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -61,7 +60,12 @@ export function extractCommitMessage(aiResponse: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	showInformationMessage("Commit message copied to clipboard")
+	getHostBridgeProvider().windowClient.showMessage(
+		ShowMessageRequest.create({
+			type: ShowMessageType.ERROR,
+			message: "Commit message copied to clipboard",
+		}),
+	)
 }
 
 /**
@@ -74,11 +78,17 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 	const editAction = "Edit Message"
 
 	const selectedAction = (
-		await showInformationMessage("Commit message generated", {
-			modal: false,
-			detail: message,
-			items: { options: [copyAction, applyAction, editAction] },
-		})
+		await getHostBridgeProvider().windowClient.showMessage(
+			ShowMessageRequest.create({
+				type: ShowMessageType.INFORMATION,
+				message: "Commit message generated",
+				options: {
+					modal: false,
+					detail: message,
+					items: [copyAction, applyAction, editAction],
+				},
+			}),
+		)
 	)?.selectedOption
 
 	// Handle user dismissing the dialog (selectedAction is undefined)
@@ -111,13 +121,28 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			showInformationMessage("Commit message applied to Git input")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Commit message applied to Git input",
+				}),
+			)
 		} else {
-			showErrorMessage("No Git repositories found")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: "No Git repositories found",
+				}),
+			)
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		showErrorMessage("Git extension not found")
+		getHostBridgeProvider().windowClient.showMessage(
+			ShowMessageRequest.create({
+				type: ShowMessageType.ERROR,
+				message: "Git extension not found",
+			}),
+		)
 		await copyCommitMessageToClipboard(message)
 	}
 }
@@ -137,5 +162,10 @@ async function editCommitMessage(message: string): Promise<void> {
 			path: document.uri.fsPath,
 		}),
 	)
-	showInformationMessage("Edit the commit message and copy when ready")
+	getHostBridgeProvider().windowClient.showMessage(
+		ShowMessageRequest.create({
+			type: ShowMessageType.INFORMATION,
+			message: "Edit the commit message and copy when ready",
+		}),
+	)
 }
