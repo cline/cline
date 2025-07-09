@@ -1,8 +1,7 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { ShowMessageRequest } from "@/generated/grpc-js/index.host"
+import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -62,7 +61,7 @@ export async function copyCommitMessageToClipboard(message: string): Promise<voi
 	await writeTextToClipboard(message)
 	getHostBridgeProvider().windowClient.showMessage(
 		ShowMessageRequest.create({
-			type: ShowMessageType.ERROR,
+			type: ShowMessageType.INFORMATION,
 			message: "Commit message copied to clipboard",
 		}),
 	)
