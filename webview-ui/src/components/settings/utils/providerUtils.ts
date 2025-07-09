@@ -141,7 +141,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.ollamaModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					contextWindow: Number(apiConfiguration?.ollamaApiOptionsCtxNum ?? 32768),
+				},
 			}
 		case "lmstudio":
 			return {

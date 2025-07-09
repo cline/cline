@@ -6,18 +6,22 @@ import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
+const DEFAULT_CONTEXT_WINDOW = 32768
+
 export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: Ollama | undefined
 
 	constructor(options: ApiHandlerOptions) {
-		this.options = options
+		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
+		this.options = { ...options, ollamaApiOptionsCtxNum }
 	}
 
 	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
-				this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+				// If ollamaBaseUrl is undefineded, it'd fallback to use the default ollama endpoint.
+				this.client = new Ollama({ host: this.options.ollamaBaseUrl })
 			} catch (error) {
 				throw new Error(`Error creating Ollama client: ${error.message}`)
 			}
@@ -43,7 +47,7 @@ export class OllamaHandler implements ApiHandler {
 				messages: ollamaMessages,
 				stream: true,
 				options: {
-					num_ctx: Number(this.options.ollamaApiOptionsCtxNum) || 32768,
+					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},
 			})
 
@@ -91,9 +95,7 @@ export class OllamaHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.ollamaModelId || "",
-			info: this.options.ollamaApiOptionsCtxNum
-				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32768 }
-				: openAiModelInfoSaneDefaults,
+			info: { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) },
 		}
 	}
 }
