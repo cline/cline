@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.18.9]
+
+-   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
+-   Fix authentication error handling for Cline provider to show clearer error messages when not signed in and prevent recursive failed requests
+-   Remove incorrect pricing display for SAP AI Core provider since it uses non-USD "Capacity Units" that cannot be directly converted (Thanks @ncryptedV1!)
+
 ## [3.18.8]
 
 -   Update pricing for Grok 3 model because the promotion ended
