@@ -81,7 +81,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			togglePinnedApiConfig,
 			taskHistory,
 			clineMessages,
-			codebaseIndexConfig,
 		} = useExtensionState()
 
 		// Find the ID and display text for the currently selected API configuration
@@ -1146,7 +1145,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</div>
 
 					<div className={cn("flex", "items-center", "gap-0.5", "shrink-0")}>
-						{codebaseIndexConfig?.codebaseIndexEnabled && <IndexingStatusDot />}
+						<IndexingStatusDot />
 						<IconButton
 							iconClass="codicon-device-camera"
 							title={t("chat:addImages")}
