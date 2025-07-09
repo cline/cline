@@ -205,7 +205,7 @@ export const ClineAccountView = () => {
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
 							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
+							<VSCodeButtonLink href="https://app.cline.bot/" appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -238,7 +238,7 @@ export const ClineAccountView = () => {
 
 						<div className="w-full">
 							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
+							<VSCodeButtonLink href="https://app.cline.bot/" className="w-full">
 								Add Credits
 							</VSCodeButtonLink>
 						</div>
