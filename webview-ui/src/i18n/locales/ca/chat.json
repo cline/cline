@@ -105,6 +105,7 @@
 	"enhancePrompt": "Millora la sol·licitud amb context addicional",
 	"addImages": "Afegeix imatges al missatge",
 	"sendMessage": "Envia el missatge",
+	"stopTts": "Atura la síntesi de veu",
 	"typeMessage": "Escriu un missatge...",
 	"typeTask": "Escriu la teva tasca aquí...",
 	"addContext": "@ per afegir context, / per canviar de mode",

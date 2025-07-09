@@ -105,6 +105,7 @@
 	"enhancePrompt": "추가 컨텍스트로 프롬프트 향상",
 	"addImages": "메시지에 이미지 추가",
 	"sendMessage": "메시지 보내기",
+	"stopTts": "텍스트 음성 변환 중지",
 	"typeMessage": "메시지 입력...",
 	"typeTask": "여기에 작업 입력...",
 	"addContext": "컨텍스트 추가는 @, 모드 전환은 /",

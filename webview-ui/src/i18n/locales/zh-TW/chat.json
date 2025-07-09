@@ -105,6 +105,7 @@
 	"enhancePrompt": "使用額外內容增強提示",
 	"addImages": "新增圖片到訊息中",
 	"sendMessage": "傳送訊息",
+	"stopTts": "停止文字轉語音",
 	"typeMessage": "輸入訊息...",
 	"typeTask": "在此處輸入您的工作...",
 	"addContext": "輸入 @ 新增內容，輸入 / 切換模式",

@@ -105,6 +105,7 @@
 	"enhancePrompt": "Mejorar el mensaje con contexto adicional",
 	"addImages": "Agregar imágenes al mensaje",
 	"sendMessage": "Enviar mensaje",
+	"stopTts": "Detener texto a voz",
 	"typeMessage": "Escribe un mensaje...",
 	"typeTask": "Escribe tu tarea aquí...",
 	"addContext": "@ para agregar contexto, / para cambiar modos",

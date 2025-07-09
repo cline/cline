@@ -105,6 +105,7 @@
 	"enhancePrompt": "Prompt mit zusätzlichem Kontext verbessern",
 	"addImages": "Bilder zur Nachricht hinzufügen",
 	"sendMessage": "Nachricht senden",
+	"stopTts": "Text-in-Sprache beenden",
 	"typeMessage": "Nachricht eingeben...",
 	"typeTask": "Gib deine Aufgabe hier ein...",
 	"addContext": "@ für Kontext, / zum Moduswechsel",

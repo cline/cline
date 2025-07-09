@@ -112,6 +112,7 @@
 	},
 	"addImages": "Afbeeldingen toevoegen aan bericht",
 	"sendMessage": "Bericht verzenden",
+	"stopTts": "Stop tekst-naar-spraak",
 	"typeMessage": "Typ een bericht...",
 	"typeTask": "Typ hier je taak...",
 	"addContext": "@ om context toe te voegen, / om van modus te wisselen",

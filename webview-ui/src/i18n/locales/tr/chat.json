@@ -105,6 +105,7 @@
 	"enhancePrompt": "Ek bağlamla istemi geliştir",
 	"addImages": "Mesaja resim ekle",
 	"sendMessage": "Mesaj gönder",
+	"stopTts": "Metin okumayı durdur",
 	"typeMessage": "Bir mesaj yazın...",
 	"typeTask": "Görevinizi buraya yazın...",
 	"addContext": "Bağlam eklemek için @, mod değiştirmek için /",

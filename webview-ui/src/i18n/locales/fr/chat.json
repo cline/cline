@@ -105,6 +105,7 @@
 	"enhancePrompt": "Améliorer la requête avec un contexte supplémentaire",
 	"addImages": "Ajouter des images au message",
 	"sendMessage": "Envoyer le message",
+	"stopTts": "Arrêter la synthèse vocale",
 	"typeMessage": "Écrivez un message...",
 	"typeTask": "Écrivez votre tâche ici...",
 	"addContext": "@ pour ajouter du contexte, / pour changer de mode",

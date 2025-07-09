@@ -105,6 +105,7 @@
 	"enhancePrompt": "追加コンテキストでプロンプトを強化",
 	"addImages": "メッセージに画像を追加",
 	"sendMessage": "メッセージを送信",
+	"stopTts": "テキスト読み上げを停止",
 	"typeMessage": "メッセージを入力...",
 	"typeTask": "ここにタスクを入力...",
 	"addContext": "コンテキスト追加は@、モード切替は/",

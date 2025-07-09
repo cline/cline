@@ -126,6 +126,7 @@
 	},
 	"addImages": "Tambahkan gambar ke pesan",
 	"sendMessage": "Kirim pesan",
+	"stopTts": "Hentikan text-to-speech",
 	"typeMessage": "Ketik pesan...",
 	"typeTask": "Bangun, cari, tanya sesuatu",
 	"addContext": "@ untuk menambah konteks, / untuk ganti mode",

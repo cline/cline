@@ -105,6 +105,7 @@
 	"enhancePrompt": "Aprimorar prompt com contexto adicional",
 	"addImages": "Adicionar imagens à mensagem",
 	"sendMessage": "Enviar mensagem",
+	"stopTts": "Parar conversão de texto em fala",
 	"typeMessage": "Digite uma mensagem...",
 	"typeTask": "Digite sua tarefa aqui...",
 	"addContext": "@ para adicionar contexto, / para alternar modos",
