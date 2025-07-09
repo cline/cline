@@ -58,6 +58,11 @@ message ChatSettings {
   optional string open_ai_reasoning_effort = 3;
 }
 
+message DictationSettings {
+  bool voice_recording_enabled = 1;
+  string dictation_language = 2;
+}
+
 message ChatContent {
   optional string message = 1;
   repeated string images = 2;
@@ -114,6 +119,7 @@ message UpdateSettingsRequest {
   optional bool mcp_responses_collapsed = 10;
   optional bool mcp_rich_display_enabled = 11;
   optional int64 terminal_output_line_limit = 12;
+  optional DictationSettings dictation_settings = 13;
 }
 
 // Complete API Configuration message
@@ -232,4 +238,8 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+
+  // Extension fields for Bedrock Api Keys
+  optional string aws_authentication = 78;
+  optional string aws_bedrock_api_key = 79;
 }

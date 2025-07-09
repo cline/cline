@@ -1,50 +1,23 @@
 import { Logger } from "@services/logging/Logger"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
 import axios from "axios"
 
-const JWT_TOKEN = ""
-
-const TRANSCRIPTION_ENDPOINT = ""
-
 export class VoiceTranscriptionService {
-	constructor() {}
+	private clineAccountService: ClineAccountService
+
+	constructor() {
+		this.clineAccountService = ClineAccountService.getInstance()
+	}
 
 	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text?: string; error?: string }> {
 		try {
-			if (!JWT_TOKEN) {
-				return {
-					error: "JWT token not configured. Please set your JWT token in VoiceTranscriptionService.ts",
-				}
-			}
+			Logger.info("Transcribing audio with Cline transcription service...")
 
-			Logger.info("Transcribing audio with localhost endpoint...")
-
-			// Make request to localhost transcription endpoint
-			const response = await axios.post(
-				TRANSCRIPTION_ENDPOINT,
-				{
-					audioData: audioBase64,
-				},
-				{
-					headers: {
-						Authorization: `Bearer ${JWT_TOKEN}`,
-						"Content-Type": "application/json",
-					},
-					timeout: 30000, // 30 second timeout
-				},
-			)
-
-			const transcription = response.data
-
-			// Extract text from response
-			const text = transcription?.data?.text
-
-			if (!text || !transcription.success) {
-				return { error: "Transcription service failed. Please try again." }
-			}
+			const result = await this.clineAccountService.transcribeAudio(audioBase64, language)
 
 			Logger.info("Transcription successful")
 
-			return { text }
+			return { text: result.text }
 		} catch (error) {
 			Logger.error("Voice transcription error:", error)
 

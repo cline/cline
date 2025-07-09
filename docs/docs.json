@@ -80,6 +80,7 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
+					"features/voice-recording",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",
@@ -147,6 +148,7 @@
 				"pages": [
 					"provider-config/anthropic",
 					"provider-config/claude-code",
+					"provider-config/aws-bedrock-with-apikey-authentication",
 					"provider-config/aws-bedrock-with-credentials-authentication",
 					"provider-config/aws-bedrock-with-profile-authentication",
 					"provider-config/gcp-vertex-ai",

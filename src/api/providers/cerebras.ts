@@ -1,15 +1,20 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
+import { ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "@api/transform/stream"
 
+interface CerebrasHandlerOptions {
+	cerebrasApiKey?: string
+	apiModelId?: string
+}
+
 export class CerebrasHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: CerebrasHandlerOptions
 	private client: Cerebras | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: CerebrasHandlerOptions) {
 		this.options = options
 	}
 

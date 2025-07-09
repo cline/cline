@@ -49,14 +49,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "moonshotai/kimi-k2",
+		description: "Latest open source model, trained for agentic tool calling.",
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-3",
-		description: "Latest flagship model from xAI, free for now!",
-		label: "Free",
+		id: "x-ai/grok-4",
+		description: "Latest flagship model from xAI",
+		label: "Fast & Cheap",
 	},
 ]
 

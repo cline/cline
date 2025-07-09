@@ -12,8 +12,15 @@ import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
 
-interface GeminiHandlerOptions extends ApiHandlerOptions {
+interface GeminiHandlerOptions {
 	isVertex?: boolean
+	vertexProjectId?: string
+	vertexRegion?: string
+	geminiApiKey?: string
+	geminiBaseUrl?: string
+	thinkingBudgetTokens?: number
+	apiModelId?: string
+	taskId?: string
 }
 
 /**

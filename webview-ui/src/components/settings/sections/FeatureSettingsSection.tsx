@@ -4,6 +4,7 @@ import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { updateSetting } from "../utils/settingsHandlers"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/dictation-settings-conversion"
 import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
@@ -112,16 +113,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								checked={dictationSettings?.voiceRecordingEnabled}
 								onChange={(e: any) => {
 									const checked = e.target.checked === true
-									setDictationSettings({
+									const updatedDictationSettings = {
 										...dictationSettings,
 										voiceRecordingEnabled: checked,
-									})
+									}
+									const protoDictationSettings =
+										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+									updateSetting("dictationSettings", protoDictationSettings)
 								}}>
 								Enable Dictation
 							</VSCodeCheckbox>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 								Enables voice recording with automatic transcription. Requires a Cline Account for the
-								transcription model.
+								transcription model. $0.006 per minute of audio processed.
 							</p>
 						</div>
 
@@ -138,10 +142,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								currentValue={dictationSettings?.dictationLanguage || "en"}
 								onChange={(e: any) => {
 									const newValue = e.target.value
-									setDictationSettings({
+									const updatedDictationSettings = {
 										...dictationSettings,
 										dictationLanguage: newValue,
-									})
+									}
+									const protoDictationSettings =
+										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+									updateSetting("dictationSettings", protoDictationSettings)
 								}}
 								className="w-full">
 								{SUPPORTED_DICTATION_LANGUAGES.map((language) => (

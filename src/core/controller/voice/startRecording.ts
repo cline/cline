@@ -18,6 +18,11 @@ export const startRecording: VoiceMethodHandler = async (
 	const taskId = controller.task?.taskId
 
 	try {
+		const userInfo = controller.authService.getInfo()
+		if (!userInfo?.user?.uid) {
+			throw new Error("User is not authenticated. Please log in first.")
+		}
+
 		const result = await audioRecordingService.startRecording()
 
 		// Capture telemetry for recording start

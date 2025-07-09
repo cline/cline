@@ -32,28 +32,40 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 				gap: 5,
 			}}>
 			<VSCodeRadioGroup
-				value={apiConfiguration?.awsUseProfile ? "profile" : "credentials"}
+				value={apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")}
 				onChange={(e) => {
 					const value = (e.target as HTMLInputElement)?.value
-					const useProfile = value === "profile"
-
-					handleFieldChange("awsUseProfile", useProfile)
+					handleFieldChange("awsAuthentication", value)
 				}}>
-				<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
+				<VSCodeRadio value="apikey">API Key</VSCodeRadio>
 				<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
+				<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
 			</VSCodeRadioGroup>
 
-			{apiConfiguration?.awsUseProfile ? (
+			{(apiConfiguration?.awsAuthentication === undefined && apiConfiguration?.awsUseProfile) ||
+			apiConfiguration?.awsAuthentication == "profile" ? (
 				<DebouncedTextField
-					initialValue={apiConfiguration?.awsProfile || ""}
-					onChange={(value) => handleFieldChange("awsProfile", value)}
+					key="profile"
+					initialValue={apiConfiguration?.awsProfile ?? ""}
 					style={{ width: "100%" }}
+					onChange={(value) => handleFieldChange("awsProfile", value)}
 					placeholder="Enter profile name (default if empty)">
 					<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
+				</DebouncedTextField>
+			) : apiConfiguration?.awsAuthentication == "apikey" ? (
+				<DebouncedTextField
+					key="apikey"
+					type="password"
+					initialValue={apiConfiguration?.awsBedrockApiKey ?? ""}
+					style={{ width: "100%" }}
+					onChange={(value) => handleFieldChange("awsBedrockApiKey", value)}
+					placeholder="Enter Bedrock Api Key">
+					<span style={{ fontWeight: 500 }}>AWS Bedrock Api Key</span>
 				</DebouncedTextField>
 			) : (
 				<>
 					<DebouncedTextField
+						key="accessKey"
 						initialValue={apiConfiguration?.awsAccessKey || ""}
 						onChange={(value) => handleFieldChange("awsAccessKey", value)}
 						style={{ width: "100%" }}

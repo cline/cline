@@ -36,7 +36,7 @@ export class AudioRecordingService {
 
 			// Create temporary file for audio output
 			const tempDir = os.tmpdir()
-			this.outputFile = path.join(tempDir, `cline_recording_${Date.now()}.wav`)
+			this.outputFile = path.join(tempDir, `cline_recording_${Date.now()}.webm`)
 
 			Logger.info("Starting audio recording...")
 
@@ -68,7 +68,6 @@ export class AudioRecordingService {
 				}
 			})
 
-			// Log stderr for debugging
 			this.recordingProcess.stderr?.on("data", (data) => {
 				const message = data.toString().trim()
 				if (message && !message.includes("In:") && !message.includes("Out:")) {
@@ -99,9 +98,15 @@ export class AudioRecordingService {
 			// Wait for the process to finish
 			await new Promise<void>((resolve) => {
 				if (this.recordingProcess) {
-					this.recordingProcess.on("exit", () => resolve())
-					// Timeout after 2 seconds
-					setTimeout(() => resolve(), 2000)
+					// Timeout after 5 seconds
+					const timeoutId = setTimeout(() => {
+						resolve()
+					}, 5000)
+
+					this.recordingProcess.on("exit", (code) => {
+						clearTimeout(timeoutId) // Clear the timeout since process exited
+						resolve()
+					})
 				} else {
 					resolve()
 				}

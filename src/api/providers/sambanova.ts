@@ -1,17 +1,22 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
+import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@/api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { convertToR1Format } from "@api/transform/r1-format"
 
+interface SambanovaHandlerOptions {
+	sambanovaApiKey?: string
+	apiModelId?: string
+}
+
 export class SambanovaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: SambanovaHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: SambanovaHandlerOptions) {
 		this.options = options
 	}
 

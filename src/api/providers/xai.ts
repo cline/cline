@@ -1,17 +1,24 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { withRetry } from "../retry"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+
+interface XAIHandlerOptions {
+	xaiApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
 
 export class XAIHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: XAIHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: XAIHandlerOptions) {
 		this.options = options
 	}
 
@@ -64,10 +71,13 @@ export class XAIHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					// @ts-ignore-next-line
-					reasoning: delta.reasoning_content,
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if (!shouldSkipReasoningForModel(modelId)) {
+					yield {
+						type: "reasoning",
+						// @ts-ignore-next-line
+						reasoning: delta.reasoning_content,
+					}
 				}
 			}
 

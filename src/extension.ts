@@ -37,7 +37,9 @@ import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
-
+import { VscodeDiffViewProvider } from "./integrations/editor/VscodeDiffViewProvider"
+import { getHostBridgeProvider } from "@hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "./shared/proto/host/window"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -104,7 +106,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				const message = `Cline has been updated to v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
-				vscode.window.showInformationMessage(message)
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.INFORMATION,
+						message,
+					}),
+				)
 				// Record that we've shown the popup for this version.
 				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 			}
@@ -307,10 +314,21 @@ export async function activate(context: vscode.ExtensionContext) {
 					provider: provider,
 				})
 
-				// Validate state parameter
-				if (!(authService.authNonce === state)) {
-					vscode.window.showErrorMessage("Invalid auth state")
-					return
+				// Ask user to confirm on state mismatch. This enables signins initiated from
+				// outside the extension (e.g. Cline web) to be handled correctly.
+				if (authService.authNonce !== state) {
+					const userConfirmation = (
+						await getHostBridgeProvider().windowClient.showMessage(
+							ShowMessageRequest.create({
+								type: ShowMessageType.ERROR,
+								message: "Invalid auth state",
+							}),
+						)
+					)?.selectedOption
+					if (userConfirmation === "Cancel") {
+						console.log("User declined to continue with auth callback due to state mismatch")
+						return
+					}
 				}
 
 				if (token) {
@@ -418,7 +436,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				vscode.window.showErrorMessage("Failed to get terminal contents")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "Failed to get terminal contents",
+					}),
+				)
 			}
 		}),
 	)
@@ -554,7 +577,12 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to explain.")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.INFORMATION,
+						message: "Please select some code to explain.",
+					}),
+				)
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -576,7 +604,12 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to improve.")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.INFORMATION,
+						message: "Please select some code to improve.",
+					}),
+				)
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -641,8 +674,11 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				vscode.window.showErrorMessage(
-					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
+					}),
 				)
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
@@ -677,6 +713,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		context.secrets.onDidChange((event) => {
+			if (event.key === "clineAccountId") {
+				AuthService.getInstance(context)?.restoreRefreshTokenAndRetrieveAuthInfo()
+			}
+		}),
+	)
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
@@ -686,7 +730,10 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 		const createWebview = function (type: WebviewProviderType) {
 			return new VscodeWebviewProvider(context, outputChannel, type)
 		}
-		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient)
+		const createDiffView = function () {
+			return new VscodeDiffViewProvider()
+		}
+		hostProviders.initializeHostProviders(createWebview, createDiffView, vscodeHostBridgeClient)
 	}
 }
 

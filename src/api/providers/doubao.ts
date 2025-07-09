@@ -1,15 +1,20 @@
 import { ApiHandler } from ".."
-import { ApiHandlerOptions, doubaoDefaultModelId, DoubaoModelId, doubaoModels, ModelInfo } from "@shared/api"
+import { doubaoDefaultModelId, DoubaoModelId, doubaoModels, ModelInfo } from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
+interface DoubaoHandlerOptions {
+	doubaoApiKey?: string
+	apiModelId?: string
+}
+
 export class DoubaoHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: DoubaoHandlerOptions
 	private client: OpenAI | undefined
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: DoubaoHandlerOptions) {
 		this.options = options
 	}
 

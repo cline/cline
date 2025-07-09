@@ -6,11 +6,16 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
+interface LmStudioHandlerOptions {
+	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+}
+
 export class LmStudioHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: LmStudioHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: LmStudioHandlerOptions) {
 		this.options = options
 	}
 

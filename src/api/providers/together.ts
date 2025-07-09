@@ -1,17 +1,22 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { convertToR1Format } from "@api/transform/r1-format"
 
+interface TogetherHandlerOptions {
+	togetherApiKey?: string
+	togetherModelId?: string
+}
+
 export class TogetherHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: TogetherHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: TogetherHandlerOptions) {
 		this.options = options
 	}
 

@@ -3,18 +3,28 @@ import axios from "axios"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+
+interface OpenRouterHandlerOptions {
+	openRouterApiKey?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
+}
 
 export class OpenRouterHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OpenRouterHandlerOptions
 	private client: OpenAI | undefined
 	lastGenerationId?: string
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenRouterHandlerOptions) {
 		this.options = options
 	}
 
@@ -103,7 +113,8 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			// Reasoning tokens are returned separately from the content
-			if ("reasoning" in delta && delta.reasoning) {
+			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line
@@ -204,9 +215,6 @@ export class OpenRouterHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		let modelId = this.options.openRouterModelId
-		if (modelId === "x-ai/grok-3") {
-			modelId = "x-ai/grok-3-beta"
-		}
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

@@ -5,6 +5,7 @@ export type SecretKey =
 	| "awsAccessKey"
 	| "awsSecretKey"
 	| "awsSessionToken"
+	| "awsBedrockApiKey"
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
@@ -31,6 +32,8 @@ export type GlobalStateKey =
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"
 	| "awsProfile"
+	| "awsBedrockApiKey"
+	| "awsAuthentication"
 	| "awsUseProfile"
 	| "vertexProjectId"
 	| "vertexRegion"
@@ -80,6 +83,7 @@ export type GlobalStateKey =
 	| "claudeCodePath"
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
+	| "dictationSettings"
 	| "mode"
 	// Current active model configuration (per workspace)
 	| "apiProvider"
