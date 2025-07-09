@@ -47,7 +47,6 @@ export const ClineAccountView = () => {
 	const [balance, setBalance] = useState(0)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
-	const [midOrgOptimisticUpdate, setMidOrgOptimisticUpdate] = useState(false)
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
@@ -115,24 +114,32 @@ export const ClineAccountView = () => {
 
 	// Fetch all account data when component mounts using gRPC
 	useEffect(() => {
-		if (user) {
-			;(async () => {
+		if (!user) return
+
+		const fetchUserData = async () => {
+			try {
 				await Promise.all([getUserCredits(), getUserOrganizations()])
-			})()
+			} catch (error) {
+				console.error("Failed to fetch user data:", error)
+			}
 		}
+
+		fetchUserData()
 	}, [user])
 
 	useEffect(() => {
-		if (midOrgOptimisticUpdate) {
-			return
+		if (!activeOrganization) return
+
+		const fetchOrgCredits = async () => {
+			try {
+				await getOrganizationCredits()
+			} catch (error) {
+				console.error("Failed to fetch organization credits:", error)
+			}
 		}
 
-		if (activeOrganization) {
-			;(async () => {
-				await getOrganizationCredits()
-			})()
-		}
-	}, [activeOrganization, midOrgOptimisticUpdate])
+		fetchOrgCredits()
+	}, [activeOrganization])
 
 	const handleLogin = () => {
 		handleSignIn()
@@ -146,19 +153,11 @@ export const ClineAccountView = () => {
 		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
 
 		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
-			const newSelectedOrg =
-				newOrgId === "" ? null : userOrganizations.find((org) => org.organizationId === newOrgId) || null
-			const previousOrganization = activeOrganization
-			setMidOrgOptimisticUpdate(true)
-			setActiveOrganization(newSelectedOrg)
 			try {
 				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
-				setMidOrgOptimisticUpdate(false)
 				getUserOrganizations()
 			} catch (error) {
 				console.error("Failed to update organization:", error)
-				setMidOrgOptimisticUpdate(false)
-				setActiveOrganization(previousOrganization)
 			}
 		}
 	}
