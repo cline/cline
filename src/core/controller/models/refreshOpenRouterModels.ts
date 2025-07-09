@@ -101,7 +101,7 @@ export async function refreshOpenRouterModels(
 						break
 					case "x-ai/grok-3-beta":
 						modelInfo.supportsPromptCache = true
-						modelInfo.cacheWritesPrice = 0
+						modelInfo.cacheWritesPrice = 0.75
 						modelInfo.cacheReadsPrice = 0
 						break
 					default:
