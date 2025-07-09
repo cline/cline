@@ -37,6 +37,7 @@ import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
+import { showErrorMessage, showInformationMessage } from "./hosts/vscode/window/showMessage"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -104,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const message = `Cline has been updated to v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
-				vscode.window.showInformationMessage(message)
+				showInformationMessage(message)
 				// Record that we've shown the popup for this version.
 				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 			}
@@ -309,7 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Validate state parameter
 				if (!(authService.authNonce === state)) {
-					vscode.window.showErrorMessage("Invalid auth state")
+					showErrorMessage("Invalid auth state")
 					return
 				}
 
@@ -418,7 +419,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				vscode.window.showErrorMessage("Failed to get terminal contents")
+				showErrorMessage("Failed to get terminal contents")
 			}
 		}),
 	)
@@ -554,7 +555,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to explain.")
+				showInformationMessage("Please select some code to explain.")
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -576,7 +577,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to improve.")
+				showInformationMessage("Please select some code to improve.")
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -641,9 +642,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				vscode.window.showErrorMessage(
-					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
-				)
+				showErrorMessage("Could not activate Cline view. Please try opening it manually from the Activity Bar.")
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
 		}),

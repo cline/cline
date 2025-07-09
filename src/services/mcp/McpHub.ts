@@ -20,10 +20,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
-import { Metadata } from "../../shared/proto/common"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
-	McpMode,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -33,14 +31,14 @@ import {
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { fileExistsAtPath } from "@utils/fs"
-import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
-import { Transport, McpConnection, McpTransportType, McpServerConfig } from "./types"
+import { McpConnection, McpServerConfig } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { showErrorMessage, showInformationMessage } from "@/hosts/vscode/window/showMessage"
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -112,16 +110,14 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (error) {
-				vscode.window.showErrorMessage(
-					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
-				)
+				showErrorMessage("Invalid MCP settings format. Please ensure your settings follow the correct JSON format.")
 				return undefined
 			}
 
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
-				vscode.window.showErrorMessage("Invalid MCP settings schema.")
+				showErrorMessage("Invalid MCP settings schema.")
 				return undefined
 			}
 
@@ -153,7 +149,7 @@ export class McpHub {
 						if (settings) {
 							try {
 								await this.updateServerConnections(settings.mcpServers)
-								vscode.window.showInformationMessage("MCP servers updated")
+								showInformationMessage("MCP servers updated")
 							} catch (error) {
 								console.error("Failed to process MCP settings change:", error)
 							}
@@ -403,7 +399,7 @@ export class McpHub {
 					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
-					vscode.window.showInformationMessage(
+					showInformationMessage(
 						`MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					)
 				}
@@ -658,7 +654,7 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
-			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
+			showInformationMessage(`Restarting ${serverName} MCP server...`)
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
@@ -667,10 +663,10 @@ export class McpHub {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config), "internal")
-				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
+				showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
-				vscode.window.showErrorMessage(`Failed to connect to ${serverName} MCP server`)
+				showErrorMessage(`Failed to connect to ${serverName} MCP server`)
 			}
 		}
 
@@ -756,9 +752,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			vscode.window.showErrorMessage(
-				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			showErrorMessage(`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
 		}
 	}
@@ -915,7 +909,7 @@ export class McpHub {
 			}
 		} catch (error) {
 			console.error("Failed to update autoApprove settings:", error)
-			vscode.window.showErrorMessage("Failed to update autoApprove settings")
+			showErrorMessage("Failed to update autoApprove settings")
 			throw error // Re-throw to ensure the error is properly handled
 		}
 	}
@@ -1033,9 +1027,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			vscode.window.showErrorMessage(
-				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			showErrorMessage(`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
 		}
 	}

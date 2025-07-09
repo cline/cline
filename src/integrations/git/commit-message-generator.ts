@@ -1,5 +1,4 @@
 import * as vscode from "vscode"
-import { getWorkingState } from "@utils/git"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
@@ -61,7 +60,7 @@ export function extractCommitMessage(aiResponse: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	vscode.window.showInformationMessage("Commit message copied to clipboard")
+	showInformationMessage("Commit message copied to clipboard")
 }
 
 /**
@@ -73,7 +72,7 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 	const applyAction = "Apply to Git Input"
 	const editAction = "Edit Message"
 
-	const selectedAction = await vscode.window.showInformationMessage(
+	const selectedAction = await showInformationMessage(
 		"Commit message generated",
 		{ modal: false, detail: message },
 		copyAction,
@@ -111,13 +110,13 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			vscode.window.showInformationMessage("Commit message applied to Git input")
+			showInformationMessage("Commit message applied to Git input")
 		} else {
-			vscode.window.showErrorMessage("No Git repositories found")
+			showErrorMessage("No Git repositories found")
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		vscode.window.showErrorMessage("Git extension not found")
+		showErrorMessage("Git extension not found")
 		await copyCommitMessageToClipboard(message)
 	}
 }
@@ -137,5 +136,5 @@ async function editCommitMessage(message: string): Promise<void> {
 			path: document.uri.fsPath,
 		}),
 	)
-	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
+	showInformationMessage("Edit the commit message and copy when ready")
 }

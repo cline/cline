@@ -1,8 +1,8 @@
-import * as vscode from "vscode"
 import { Controller } from "../index"
 import * as proto from "@/shared/proto"
 import { updateGlobalState } from "../../storage/state"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
+import { showInformationMessage, showWarningMessage } from "@/hosts/vscode/window/showMessage"
 
 export async function updateDefaultTerminalProfile(
 	controller: Controller,
@@ -25,14 +25,14 @@ export async function updateDefaultTerminalProfile(
 
 		// Show information message if terminals were closed
 		if (closedCount > 0) {
-			vscode.window.showInformationMessage(
+			showInformationMessage(
 				`Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`,
 			)
 		}
 
 		// Show warning if there are busy terminals that couldn't be closed
 		if (busyTerminals.length > 0) {
-			vscode.window.showWarningMessage(
+			showWarningMessage(
 				`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
 					`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`,
 			)

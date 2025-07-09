@@ -96,7 +96,7 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					// Update the UI to show the new tasks
 					await controller.postStateToWebview()
 
-					vscode.window.showInformationMessage(`Created ${tasksCount} test tasks`)
+					showInformationMessage(`Created ${tasksCount} test tasks`)
 				},
 			)
 		}),

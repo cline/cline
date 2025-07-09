@@ -27,20 +27,14 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import {
-	getAllExtensionState,
-	getGlobalState,
-	getWorkspaceState,
-	storeSecret,
-	updateGlobalState,
-	updateWorkspaceState,
-} from "../storage/state"
+import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { AuthService } from "@/services/auth/AuthService"
+import { showErrorMessage, showInformationMessage } from "@/hosts/vscode/window/showMessage"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -118,9 +112,9 @@ export class Controller {
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
-			vscode.window.showErrorMessage("Logout failed")
+			showErrorMessage("Logout failed")
 		}
 	}
 
@@ -489,7 +483,7 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			vscode.window.showErrorMessage("Failed to log in to Cline")
+			showErrorMessage("Failed to log in to Cline")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -524,7 +518,7 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				vscode.window.showErrorMessage(errorMessage)
+				showErrorMessage(errorMessage)
 			}
 			return undefined
 		}
@@ -608,7 +602,7 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			vscode.window.showErrorMessage(errorMessage)
+			showErrorMessage(errorMessage)
 		}
 	}
 
@@ -972,14 +966,14 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				vscode.window.showErrorMessage("No workspace folder open")
+				showErrorMessage("No workspace folder open")
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				vscode.window.showInformationMessage("No changes in workspace for commit message")
+				showInformationMessage("No changes in workspace for commit message")
 				return
 			}
 
@@ -1046,25 +1040,25 @@ Commit message:`
 								if (api && api.repositories.length > 0) {
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
-									vscode.window.showInformationMessage("Commit message generated and applied")
+									showInformationMessage("Commit message generated and applied")
 								} else {
-									vscode.window.showErrorMessage("No Git repositories found")
+									showErrorMessage("No Git repositories found")
 								}
 							} else {
-								vscode.window.showErrorMessage("Git extension not found")
+								showErrorMessage("Git extension not found")
 							}
 						} else {
-							vscode.window.showErrorMessage("Failed to generate commit message")
+							showErrorMessage("Failed to generate commit message")
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+						showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+			showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
 }

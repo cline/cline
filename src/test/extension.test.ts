@@ -1,3 +1,4 @@
+import { showInformationMessage } from "@/hosts/vscode/window/showMessage"
 import { readFile } from "fs/promises"
 import { describe, it, after } from "mocha"
 import path from "path"
@@ -8,7 +9,7 @@ const packagePath = path.join(__dirname, "..", "..", "package.json")
 
 describe("Cline Extension", () => {
 	after(() => {
-		vscode.window.showInformationMessage("All tests done!")
+		showInformationMessage("All tests done!")
 	})
 
 	it("should verify extension ID matches package.json", async () => {

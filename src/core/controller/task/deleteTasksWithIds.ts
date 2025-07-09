@@ -1,8 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
-import vscode from "vscode"
 import { Controller } from ".."
-import { Empty, StringArrayRequest, BooleanRequest } from "../../../shared/proto/common"
+import { Empty, StringArrayRequest } from "../../../shared/proto/common"
 import { TaskMethodHandler } from "./index"
 import { fileExistsAtPath } from "../../../utils/fs"
 
@@ -27,7 +26,7 @@ export const deleteTasksWithIds: TaskMethodHandler = async (
 			? "Are you sure you want to delete this task? This action cannot be undone."
 			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
 
-	const userChoice = await vscode.window.showWarningMessage(message, { modal: true }, "Delete")
+	const userChoice = await showWarningMessage(message, { modal: true }, "Delete")
 
 	if (userChoice === undefined) {
 		return Empty.create()

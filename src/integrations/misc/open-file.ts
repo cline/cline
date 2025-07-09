@@ -4,11 +4,12 @@ import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
+import { showErrorMessage } from "@/hosts/vscode/window/showMessage"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
-		vscode.window.showErrorMessage("Invalid data URI format")
+		showErrorMessage("Invalid data URI format")
 		return
 	}
 	const [, format, base64Data] = matches
@@ -18,7 +19,7 @@ export async function openImage(dataUri: string) {
 		await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), new Uint8Array(imageBuffer))
 		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
-		vscode.window.showErrorMessage(`Error opening image: ${error}`)
+		showErrorMessage(`Error opening image: ${error}`)
 	}
 }
 
@@ -51,6 +52,6 @@ export async function openFile(absolutePath: string) {
 			}),
 		)
 	} catch (error) {
-		vscode.window.showErrorMessage(`Could not open file!`)
+		showErrorMessage(`Could not open file!`)
 	}
 }

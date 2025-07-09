@@ -3,11 +3,11 @@ import { RuleFileRequest, RuleFile } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
-import * as vscode from "vscode"
 import * as path from "path"
 import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { showInformationMessage, showWarningMessage } from "@/hosts/vscode/window/showMessage"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -42,7 +42,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	if (fileExists) {
-		vscode.window.showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
+		showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
 		// Still open it for editing
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 	} else {
@@ -55,7 +55,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
-		vscode.window.showInformationMessage(
+		showInformationMessage(
 			`Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`,
 		)
 	}

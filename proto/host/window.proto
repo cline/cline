@@ -46,3 +46,18 @@ message ShowOpenDialogueFilterOption {
 message SelectedResources {
   repeated string paths = 1;
 }
+
+message ShowMessageRequest {
+  string message = 1;
+  optional bool modal = 2;
+  optional string detail = 3;
+  optional ShowMessageRequestOption items = 4;
+}
+
+message ShowMessageRequestOption {
+  repeated string options = 1;
+}
+
+message SelectedResponse {
+  optional string selected_option = 1;
+}
