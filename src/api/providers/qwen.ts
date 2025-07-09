@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import {
-	ApiHandlerOptions,
 	ModelInfo,
 	mainlandQwenModels,
 	internationalQwenModels,
@@ -16,11 +15,18 @@ import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { withRetry } from "../retry"
 
+interface QwenHandlerOptions {
+	qwenApiKey?: string
+	qwenApiLine?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+}
+
 export class QwenHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: QwenHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: QwenHandlerOptions) {
 		this.options = options
 	}
 

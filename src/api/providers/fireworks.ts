@@ -2,22 +2,22 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from ".."
-import {
-	ApiHandlerOptions,
-	DeepSeekModelId,
-	ModelInfo,
-	deepSeekDefaultModelId,
-	deepSeekModels,
-	openAiModelInfoSaneDefaults,
-} from "../../shared/api"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
+interface FireworksHandlerOptions {
+	fireworksApiKey?: string
+	fireworksModelId?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
+}
+
 export class FireworksHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: FireworksHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: FireworksHandlerOptions) {
 		this.options = options
 	}
 

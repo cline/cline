@@ -1,18 +1,28 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiCompatibleModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
+interface OpenAiHandlerOptions {
+	openAiApiKey?: string
+	openAiBaseUrl?: string
+	azureApiVersion?: string
+	openAiHeaders?: Record<string, string>
+	openAiModelId?: string
+	openAiModelInfo?: OpenAiCompatibleModelInfo
+	reasoningEffort?: string
+}
+
 export class OpenAiHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
 	}
 

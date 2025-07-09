@@ -1,16 +1,26 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, LiteLLMModelInfo } from "@shared/api"
 import { ApiHandler } from ".."
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { withRetry } from "../retry"
 
+interface LiteLlmHandlerOptions {
+	liteLlmApiKey?: string
+	liteLlmBaseUrl?: string
+	liteLlmModelId?: string
+	liteLlmModelInfo?: LiteLLMModelInfo
+	thinkingBudgetTokens?: number
+	liteLlmUsePromptCache?: boolean
+	taskId?: string
+}
+
 export class LiteLlmHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: LiteLlmHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: LiteLlmHandlerOptions) {
 		this.options = options
 	}
 
