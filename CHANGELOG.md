@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.18.7
+
+### Patch Changes
+
+-   ff1e329: Ending grok 3 promo
+
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
