@@ -12,9 +12,19 @@ interface OpenFileOptions {
 
 export async function openFile(filePath: string, options: OpenFileOptions = {}) {
 	try {
+		// Store the original path for error messages before any modifications
+		const originalFilePathForError = filePath
+
+		// Try to decode the URI component, but if it fails, use the original path
+		try {
+			filePath = decodeURIComponent(filePath)
+		} catch (decodeError) {
+			// If decoding fails (e.g., invalid escape sequences), continue with the original path
+			console.warn(`Failed to decode file path: ${decodeError}. Using original path.`)
+		}
+
 		const workspaceRoot = getWorkspacePath()
 		const homeDir = os.homedir()
-		const originalFilePathForError = filePath // Keep original for error messages
 
 		const attemptPaths: string[] = []
 
