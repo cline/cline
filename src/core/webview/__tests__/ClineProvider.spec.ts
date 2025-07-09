@@ -501,7 +501,7 @@ describe("ClineProvider", () => {
 			alwaysAllowReadOnlyOutsideWorkspace: false,
 			alwaysAllowWrite: false,
 			codebaseIndexConfig: {
-				codebaseIndexEnabled: false,
+				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "",
 				codebaseIndexEmbedderProvider: "openai",
 				codebaseIndexEmbedderBaseUrl: "",

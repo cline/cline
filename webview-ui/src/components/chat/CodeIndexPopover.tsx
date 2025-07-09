@@ -81,7 +81,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 
 	// Default settings template
 	const getDefaultSettings = (): LocalCodeIndexSettings => ({
-		codebaseIndexEnabled: false,
+		codebaseIndexEnabled: true,
 		codebaseIndexQdrantUrl: "",
 		codebaseIndexEmbedderProvider: "openai",
 		codebaseIndexEmbedderBaseUrl: "",
@@ -111,7 +111,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 	useEffect(() => {
 		if (codebaseIndexConfig) {
 			const settings = {
-				codebaseIndexEnabled: codebaseIndexConfig.codebaseIndexEnabled || false,
+				codebaseIndexEnabled: codebaseIndexConfig.codebaseIndexEnabled ?? true,
 				codebaseIndexQdrantUrl: codebaseIndexConfig.codebaseIndexQdrantUrl || "",
 				codebaseIndexEmbedderProvider: codebaseIndexConfig.codebaseIndexEmbedderProvider || "openai",
 				codebaseIndexEmbedderBaseUrl: codebaseIndexConfig.codebaseIndexEmbedderBaseUrl || "",

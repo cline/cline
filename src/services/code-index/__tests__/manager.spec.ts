@@ -81,7 +81,6 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				isFeatureConfigured: true,
 				isFeatureEnabled: true,
 				getConfig: vi.fn().mockReturnValue({
-					isEnabled: true,
 					isConfigured: true,
 					embedderProvider: "openai",
 					modelId: "text-embedding-3-small",
@@ -149,7 +148,6 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				isFeatureConfigured: true,
 				isFeatureEnabled: true,
 				getConfig: vi.fn().mockReturnValue({
-					isEnabled: true,
 					isConfigured: true,
 					embedderProvider: "openai",
 					modelId: "text-embedding-3-small",
@@ -276,7 +274,6 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 				isFeatureConfigured: true,
 				isFeatureEnabled: true,
 				getConfig: vitest.fn().mockReturnValue({
-					isEnabled: true,
 					isConfigured: true,
 					embedderProvider: "openai",
 					modelId: "text-embedding-3-small",

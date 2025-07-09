@@ -5,7 +5,6 @@ import { EmbedderProvider } from "./manager"
  * Configuration state for the code indexing feature
  */
 export interface CodeIndexConfig {
-	isEnabled: boolean
 	isConfigured: boolean
 	embedderProvider: EmbedderProvider
 	modelId?: string

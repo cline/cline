@@ -170,8 +170,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxConcurrentFileReads,
 		condensingApiConfigId,
 		customCondensingPrompt,
-		codebaseIndexConfig,
-		codebaseIndexModels,
 		customSupportPrompts,
 		profileThresholds,
 		alwaysAllowFollowupQuestions,
@@ -322,9 +320,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "updateSupportPrompt", values: customSupportPrompts || {} })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
-			if (codebaseIndexConfig) {
-				vscode.postMessage({ type: "codebaseIndexEnabled", bool: codebaseIndexConfig.codebaseIndexEnabled })
-			}
 			vscode.postMessage({ type: "profileThresholds", values: profileThresholds })
 			setChangeDetected(false)
 		}
@@ -691,14 +686,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 					{/* Experimental Section */}
 					{activeTab === "experimental" && (
-						<ExperimentalSettings
-							setExperimentEnabled={setExperimentEnabled}
-							experiments={experiments}
-							codebaseIndexModels={codebaseIndexModels}
-							codebaseIndexConfig={codebaseIndexConfig}
-							codebaseIndexEnabled={codebaseIndexConfig?.codebaseIndexEnabled}
-							setCachedStateField={setCachedStateField}
-						/>
+						<ExperimentalSettings setExperimentEnabled={setExperimentEnabled} experiments={experiments} />
 					)}
 
 					{/* Language Section */}

@@ -1510,7 +1510,7 @@ export class ClineProvider
 			customCondensingPrompt,
 			codebaseIndexModels: codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: codebaseIndexConfig ?? {
-				codebaseIndexEnabled: false,
+				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 				codebaseIndexEmbedderProvider: "openai",
 				codebaseIndexEmbedderBaseUrl: "",
@@ -1668,7 +1668,7 @@ export class ClineProvider
 			customCondensingPrompt: stateValues.customCondensingPrompt,
 			codebaseIndexModels: stateValues.codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: stateValues.codebaseIndexConfig ?? {
-				codebaseIndexEnabled: false,
+				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 				codebaseIndexEmbedderProvider: "openai",
 				codebaseIndexEmbedderBaseUrl: "",

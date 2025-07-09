@@ -1223,21 +1223,6 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("browserToolEnabled", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
-		case "codebaseIndexEnabled":
-			// Update the codebaseIndexConfig with the new enabled state
-			const currentCodebaseConfig = getGlobalState("codebaseIndexConfig") || {}
-			await updateGlobalState("codebaseIndexConfig", {
-				...currentCodebaseConfig,
-				codebaseIndexEnabled: message.bool ?? false,
-			})
-
-			// Notify the code index manager about the change
-			if (provider.codeIndexManager) {
-				await provider.codeIndexManager.handleSettingsChange()
-			}
-
-			await provider.postStateToWebview()
-			break
 		case "language":
 			changeLanguage(message.text ?? "en")
 			await updateGlobalState("language", message.text as Language)
