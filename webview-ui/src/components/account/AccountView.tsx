@@ -118,7 +118,8 @@ export const ClineAccountView = () => {
 
 		const fetchUserData = async () => {
 			try {
-				await Promise.all([getUserCredits(), getUserOrganizations()])
+				await getUserCredits()
+				await getUserOrganizations()
 			} catch (error) {
 				console.error("Failed to fetch user data:", error)
 			}
@@ -155,7 +156,7 @@ export const ClineAccountView = () => {
 		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
 			try {
 				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
-				getUserOrganizations()
+				await getUserOrganizations()
 			} catch (error) {
 				console.error("Failed to update organization:", error)
 			}
