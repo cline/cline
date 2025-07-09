@@ -55,8 +55,8 @@ const featuredModels = [
 	},
 	{
 		id: "x-ai/grok-3",
-		description: "Latest flagship model from xAI, free for now!",
-		label: "Free",
+		description: "Latest flagship model from xAI",
+		label: "Fast & Cheap",
 	},
 ]
 
