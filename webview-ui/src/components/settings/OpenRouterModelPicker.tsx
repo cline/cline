@@ -54,7 +54,7 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-3",
+		id: "x-ai/grok-3-beta",
 		description: "Latest flagship model from xAI",
 		label: "Fast & Cheap",
 	},
