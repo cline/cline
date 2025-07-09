@@ -15,7 +15,7 @@ function getEditingInstructions(diffStrategy?: DiffStrategy): string {
 		availableTools.push("write_to_file (for creating new files or complete file rewrites)")
 	}
 
-	availableTools.push("insert_content (for adding lines to existing files)")
+	availableTools.push("insert_content (for adding lines to files)")
 	availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
 
 	// Base editing instruction mentioning all available tools
