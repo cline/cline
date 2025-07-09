@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.18.9
+
+### Patch Changes
+
+-   9ff705f: Remove pricing calculation for SAP AI Core provider
+-   ba41131: Fixing streaming for cline provider
+-   0042230: Show authentication errors for Cline provider
+
 ## [3.18.8]
 
 -   Update pricing for Grok 3 model because the promotion ended
