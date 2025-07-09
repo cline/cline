@@ -59,23 +59,8 @@ const McpMarketplaceView = () => {
 	}, [items, searchQuery, selectedCategory, sortBy])
 
 	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "mcpDownloadDetails") {
-				if (message.error) {
-					setError(message.error)
-				}
-			}
-		}
-
-		window.addEventListener("message", handleMessage)
-
 		// Fetch marketplace catalog on initial load
 		fetchMarketplace()
-
-		return () => {
-			window.removeEventListener("message", handleMessage)
-		}
 	}, [])
 
 	useEffect(() => {
@@ -290,7 +275,9 @@ const McpMarketplaceView = () => {
 							: "No MCP servers found in the marketplace"}
 					</div>
 				) : (
-					filteredItems.map((item) => <McpMarketplaceCard key={item.mcpId} item={item} installedServers={mcpServers} />)
+					filteredItems.map((item) => (
+						<McpMarketplaceCard key={item.mcpId} item={item} installedServers={mcpServers} setError={setError} />
+					))
 				)}
 				<McpSubmitCard />
 			</div>

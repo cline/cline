@@ -213,9 +213,6 @@ export class OpenRouterHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		let modelId = this.options.openRouterModelId
-		if (modelId === "x-ai/grok-3") {
-			modelId = "x-ai/grok-3-beta"
-		}
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

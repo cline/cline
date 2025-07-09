@@ -1,16 +1,15 @@
 syntax = "proto3";
 
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
-  rpc downloadMcp(StringRequest) returns (Empty);
+  rpc downloadMcp(StringRequest) returns (McpDownloadResponse);
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
@@ -118,4 +117,16 @@ message McpMarketplaceItem {
 
 message McpMarketplaceCatalog {
   repeated McpMarketplaceItem items = 1;
+}
+
+message McpDownloadResponse {
+  string mcp_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string readme_content = 6;
+  string llms_installation_content = 7;
+  bool requires_api_key = 8;
+  optional string error = 9;
 }

@@ -30,18 +30,17 @@ import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalF
 import {
 	getAllExtensionState,
 	getGlobalState,
-	getSecret,
 	getWorkspaceState,
 	storeSecret,
 	updateGlobalState,
 	updateWorkspaceState,
 } from "../storage/state"
 import { Task } from "../task"
-import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
-import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { AuthService } from "@/services/auth/AuthService"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -54,11 +53,11 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
+	authService: AuthService
 	latestAnnouncementId = "june-25-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
@@ -78,15 +77,18 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = new ClineAccountService(async () => {
-			const { apiConfiguration } = await this.getStateToPostToWebview()
-			return apiConfiguration?.clineApiKey
-		})
+		this.accountService = ClineAccountService.getInstance()
+		this.authService = AuthService.getInstance(context)
+		this.authService.restoreAuthToken()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	private async getCurrentMode(): Promise<"plan" | "act"> {
+		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 
 	/*
@@ -111,7 +113,8 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			await storeSecret(this.context, "clineApiKey", undefined)
+			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
+			await storeSecret(this.context, "clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
@@ -141,10 +144,13 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -239,8 +245,8 @@ export class Controller {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
-		// Store mode in-memory only
-		this.mode = chatSettings.mode
+		// Store mode to global state
+		await updateGlobalState(this.context, "mode", chatSettings.mode)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -394,7 +400,7 @@ export class Controller {
 			}
 		}
 
-		// Save only non-mode properties to workspace storage
+		// Save only non-mode properties to global storage
 		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
 		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
@@ -451,33 +457,29 @@ export class Controller {
 	}
 
 	// Auth
-
 	public async validateAuthState(state: string | null): Promise<boolean> {
-		const storedNonce = await getSecret(this.context, "authNonce")
+		const storedNonce = this.authService.authNonce
 		if (!state || state !== storedNonce) {
 			return false
 		}
-		await storeSecret(this.context, "authNonce", undefined) // Clear after use
+		this.authService.resetAuthNonce() // Clear the nonce after validation
 		return true
 	}
 
-	async handleAuthCallback(customToken: string, apiKey: string) {
+	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			// Store API key for API calls
-			await storeSecret(this.context, "clineApiKey", apiKey)
-
-			// Send custom token to webview for Firebase auth
-			await sendAuthCallbackEvent(customToken)
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 			await updateGlobalState(this.context, "apiProvider", clineProvider)
 
-			// Update API configuration with the new provider and API key
+			// Mark welcome view as completed since user has successfully logged in
+			await updateGlobalState(this.context, "welcomeViewCompleted", true)
+
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 			const updatedConfig = {
 				...apiConfiguration,
 				apiProvider: clineProvider,
-				clineApiKey: apiKey,
 			}
 
 			if (this.task) {
@@ -485,7 +487,6 @@ export class Controller {
 			}
 
 			await this.postStateToWebview()
-			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
@@ -495,7 +496,6 @@ export class Controller {
 	}
 
 	// MCP Marketplace
-
 	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
 		try {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
@@ -834,10 +834,13 @@ export class Controller {
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const localClineRulesToggles =
@@ -1064,6 +1067,4 @@ Commit message:`
 			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
-
-	// dev
 }
