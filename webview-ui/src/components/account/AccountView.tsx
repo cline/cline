@@ -53,8 +53,8 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
 	const dashboardAddCreditsURL = activeOrganization
-		? "https://app.cline.bot/dashboard/organization?tab=credits"
-		: "https://app.cline.bot/dashboard/account?tab=credits"
+		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
 
 	async function getUserCredits() {
 		setIsLoading(true)
