@@ -22,9 +22,10 @@ describe("getObjectiveSection", () => {
 
 			// Check that the objective includes the codebase_search enforcement
 			expect(objective).toContain(
-				"if the task involves understanding existing code or functionality, you MUST use the `codebase_search` tool",
+				"for ANY exploration of code you haven't examined yet in this conversation, you MUST use the `codebase_search` tool",
 			)
 			expect(objective).toContain("BEFORE using any other search or file exploration tools")
+			expect(objective).toContain("This applies throughout the entire task, not just at the beginning")
 		})
 	})
 

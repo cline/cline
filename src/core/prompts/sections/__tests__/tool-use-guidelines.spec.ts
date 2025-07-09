@@ -22,11 +22,11 @@ describe("getToolUseGuidelinesSection", () => {
 
 			// Check that the guidelines include the codebase_search enforcement
 			expect(guidelines).toContain(
-				"IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST",
+				"CRITICAL: For ANY exploration of code you haven't examined yet in this conversation, you MUST use the `codebase_search` tool FIRST",
 			)
-			expect(guidelines).toContain("before any other search tools")
+			expect(guidelines).toContain("before any other search or file exploration tools")
 			expect(guidelines).toContain(
-				"semantic search tool helps you find relevant code based on meaning rather than just keywords",
+				"semantic search to find relevant code based on meaning rather than just keywords",
 			)
 		})
 
@@ -35,7 +35,7 @@ describe("getToolUseGuidelinesSection", () => {
 
 			// Check that all numbered items are present
 			expect(guidelines).toContain("1. In <thinking> tags")
-			expect(guidelines).toContain("2. **IMPORTANT:")
+			expect(guidelines).toContain("2. **CRITICAL:")
 			expect(guidelines).toContain("3. Choose the most appropriate tool")
 			expect(guidelines).toContain("4. If multiple actions are needed")
 			expect(guidelines).toContain("5. Formulate your tool use")
@@ -50,9 +50,9 @@ describe("getToolUseGuidelinesSection", () => {
 
 			// Check that the guidelines do not include the codebase_search enforcement
 			expect(guidelines).not.toContain(
-				"IMPORTANT: When starting a new task or when you need to understand existing code/functionality, you MUST use the `codebase_search` tool FIRST",
+				"CRITICAL: For ANY exploration of code you haven't examined yet in this conversation, you MUST use the `codebase_search` tool FIRST",
 			)
-			expect(guidelines).not.toContain("semantic search tool helps you find relevant code based on meaning")
+			expect(guidelines).not.toContain("semantic search to find relevant code based on meaning")
 		})
 
 		it("should maintain proper numbering without codebase_search", () => {
