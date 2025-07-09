@@ -4,7 +4,8 @@ import { Controller } from ".."
 import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { showErrorMessage, showWarningMessage } from "@/hosts/vscode/window/showMessage"
+import { showWarningMessage } from "@/hosts/vscode/window/showWarningMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 /**
  * Deletes all task history, with an option to preserve favorites

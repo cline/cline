@@ -7,7 +7,8 @@ import * as path from "path"
 import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { showInformationMessage, showWarningMessage } from "@/hosts/vscode/window/showMessage"
+import { showWarningMessage } from "@/hosts/vscode/window/showWarningMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
 
 /**
  * Creates a rule file in either global or workspace rules directory

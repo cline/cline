@@ -3,7 +3,7 @@ import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
 import { Controller } from ".."
 import { FileMethodHandler } from "./index"
-import { showInformationMessage } from "@/hosts/vscode/window/showMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
 
 /**
  * Deletes a rule file from either global or workspace rules directory

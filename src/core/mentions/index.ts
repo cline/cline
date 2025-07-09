@@ -13,6 +13,7 @@ import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {

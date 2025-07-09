@@ -38,8 +38,8 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpConnection, McpServerConfig } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { showErrorMessage, showInformationMessage } from "@/hosts/vscode/window/showMessage"
-
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>

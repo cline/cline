@@ -34,7 +34,8 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { AuthService } from "@/services/auth/AuthService"
-import { showErrorMessage, showInformationMessage } from "@/hosts/vscode/window/showMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

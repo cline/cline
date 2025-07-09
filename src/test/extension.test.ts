@@ -1,4 +1,4 @@
-import { showInformationMessage } from "@/hosts/vscode/window/showMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
 import { readFile } from "fs/promises"
 import { describe, it, after } from "mocha"
 import path from "path"

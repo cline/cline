@@ -47,6 +47,21 @@ message SelectedResources {
   repeated string paths = 1;
 }
 
+message ShowErrorMessageRequest {
+  string message = 1;
+  optional ShowMessageRequest request = 2;
+}
+
+message ShowInformationMessageRequest {
+  string message = 1;
+  optional ShowMessageRequest request = 2;
+}
+
+message ShowWarningMessageRequest {
+  string message = 1;
+  optional ShowMessageRequest request = 2;
+}
+
 message ShowMessageRequest {
   string message = 1;
   optional bool modal = 2;

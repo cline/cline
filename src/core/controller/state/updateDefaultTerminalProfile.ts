@@ -2,7 +2,8 @@ import { Controller } from "../index"
 import * as proto from "@/shared/proto"
 import { updateGlobalState } from "../../storage/state"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
-import { showInformationMessage, showWarningMessage } from "@/hosts/vscode/window/showMessage"
+import { showWarningMessage } from "@/hosts/vscode/window/showWarningMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
 
 export async function updateDefaultTerminalProfile(
 	controller: Controller,

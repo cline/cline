@@ -4,6 +4,7 @@ import * as path from "path"
 import { Controller } from "@core/controller"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
 
 /**
  * Registers development-only commands for task manipulation.

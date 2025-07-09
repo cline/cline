@@ -3,7 +3,8 @@ import { Empty } from "../../../shared/proto/common"
 import { ResetStateRequest } from "../../../shared/proto/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
-import { showErrorMessage, showInformationMessage } from "@/hosts/vscode/window/showMessage"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 /**
  * Resets the extension state to its defaults

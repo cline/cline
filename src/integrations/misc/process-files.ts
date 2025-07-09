@@ -4,7 +4,7 @@ import * as path from "path"
 import sizeOf from "image-size"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowOpenDialogueRequest } from "@/shared/proto/host/window"
-import { showErrorMessage } from "@/hosts/vscode/window/showMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 /**
  * Supports processing of images and other file types

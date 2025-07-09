@@ -3,8 +3,8 @@ import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
-import { showErrorMessage } from "@/hosts/vscode/window/showMessage"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name

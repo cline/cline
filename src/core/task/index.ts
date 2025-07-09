@@ -82,6 +82,8 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 

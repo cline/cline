@@ -2,7 +2,8 @@ import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
-
+import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showErrorMessage } from "@/hosts/vscode/window/showErrorMessage"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -72,13 +73,13 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 	const applyAction = "Apply to Git Input"
 	const editAction = "Edit Message"
 
-	const selectedAction = await showInformationMessage(
-		"Commit message generated",
-		{ modal: false, detail: message },
-		copyAction,
-		applyAction,
-		editAction,
-	)
+	const selectedAction = (
+		await showInformationMessage("Commit message generated", {
+			modal: false,
+			detail: message,
+			items: { options: [copyAction, applyAction, editAction] },
+		})
+	)?.selectedOption
 
 	// Handle user dismissing the dialog (selectedAction is undefined)
 	if (!selectedAction) {
