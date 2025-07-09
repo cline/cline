@@ -14,10 +14,17 @@ interface FollowUpSuggestProps {
 	suggestions?: SuggestionItem[]
 	onSuggestionClick?: (suggestion: SuggestionItem, event?: React.MouseEvent) => void
 	ts: number
-	onUnmount?: () => void
+	onCancelAutoApproval?: () => void
+	isAnswered?: boolean
 }
 
-export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, onUnmount }: FollowUpSuggestProps) => {
+export const FollowUpSuggest = ({
+	suggestions = [],
+	onSuggestionClick,
+	ts = 1,
+	onCancelAutoApproval,
+	isAnswered = false,
+}: FollowUpSuggestProps) => {
 	const { autoApprovalEnabled, alwaysAllowFollowupQuestions, followupAutoApproveTimeoutMs } = useExtensionState()
 	const [countdown, setCountdown] = useState<number | null>(null)
 	const [suggestionSelected, setSuggestionSelected] = useState(false)
@@ -26,7 +33,14 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, o
 	// Start countdown timer when auto-approval is enabled for follow-up questions
 	useEffect(() => {
 		// Only start countdown if auto-approval is enabled for follow-up questions and no suggestion has been selected
-		if (autoApprovalEnabled && alwaysAllowFollowupQuestions && suggestions.length > 0 && !suggestionSelected) {
+		// Also stop countdown if the question has been answered
+		if (
+			autoApprovalEnabled &&
+			alwaysAllowFollowupQuestions &&
+			suggestions.length > 0 &&
+			!suggestionSelected &&
+			!isAnswered
+		) {
 			// Start with the configured timeout in seconds
 			const timeoutMs =
 				typeof followupAutoApproveTimeoutMs === "number" && !isNaN(followupAutoApproveTimeoutMs)
@@ -52,7 +66,7 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, o
 				clearInterval(intervalId)
 				// Notify parent component that this component is unmounting
 				// so it can clear any related timeouts
-				onUnmount?.()
+				onCancelAutoApproval?.()
 			}
 		} else {
 			setCountdown(null)
@@ -63,7 +77,8 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, o
 		suggestions,
 		followupAutoApproveTimeoutMs,
 		suggestionSelected,
-		onUnmount,
+		onCancelAutoApproval,
+		isAnswered,
 	])
 	const handleSuggestionClick = useCallback(
 		(suggestion: SuggestionItem, event: React.MouseEvent) => {
@@ -72,14 +87,14 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, o
 				setSuggestionSelected(true)
 				// Also notify parent component to cancel auto-approval timeout
 				// This prevents race conditions between visual countdown and actual timeout
-				onUnmount?.()
+				onCancelAutoApproval?.()
 			}
 
 			// Pass the suggestion object to the parent component
 			// The parent component will handle mode switching if needed
 			onSuggestionClick?.(suggestion, event)
 		},
-		[onSuggestionClick, onUnmount],
+		[onSuggestionClick, onCancelAutoApproval],
 	)
 
 	// Don't render if there are no suggestions or no click handler.
@@ -100,7 +115,7 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1, o
 							onClick={(event) => handleSuggestionClick(suggestion, event)}
 							aria-label={suggestion.answer}>
 							{suggestion.answer}
-							{isFirstSuggestion && countdown !== null && !suggestionSelected && (
+							{isFirstSuggestion && countdown !== null && !suggestionSelected && !isAnswered && (
 								<span
 									className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-vscode-badge-background text-vscode-badge-foreground"
 									title={t("chat:followUpSuggest.autoSelectCountdown", { count: countdown })}>
