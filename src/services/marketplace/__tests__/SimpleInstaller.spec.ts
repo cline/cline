@@ -89,6 +89,59 @@ describe("SimpleInstaller", () => {
 			expect(writtenData.customModes.find((m: any) => m.slug === "test")).toBeDefined()
 		})
 
+		it("should handle empty .roomodes file", async () => {
+			// Empty file content
+			mockFs.readFile.mockResolvedValueOnce("")
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			const result = await installer.installItem(mockModeItem, { target: "project" })
+
+			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
+			expect(mockFs.writeFile).toHaveBeenCalled()
+
+			// Verify the written content contains the new mode
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toHaveLength(1)
+			expect(writtenData.customModes[0].slug).toBe("test")
+		})
+
+		it("should handle .roomodes file with null content", async () => {
+			// File exists but yaml.parse returns null
+			mockFs.readFile.mockResolvedValueOnce("---\n")
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			const result = await installer.installItem(mockModeItem, { target: "project" })
+
+			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
+			expect(mockFs.writeFile).toHaveBeenCalled()
+
+			// Verify the written content contains the new mode
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toHaveLength(1)
+			expect(writtenData.customModes[0].slug).toBe("test")
+		})
+
+		it("should handle .roomodes file without customModes property", async () => {
+			// File has valid YAML but no customModes property
+			const contentWithoutCustomModes = yaml.stringify({ someOtherProperty: "value" })
+			mockFs.readFile.mockResolvedValueOnce(contentWithoutCustomModes)
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			const result = await installer.installItem(mockModeItem, { target: "project" })
+
+			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
+			expect(mockFs.writeFile).toHaveBeenCalled()
+
+			// Verify the written content contains the new mode and preserves other properties
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toHaveLength(1)
+			expect(writtenData.customModes[0].slug).toBe("test")
+			expect(writtenData.someOtherProperty).toBe("value")
+		})
+
 		it("should throw error when .roomodes contains invalid YAML", async () => {
 			const invalidYaml = "invalid: yaml: content: {"
 
@@ -223,6 +276,53 @@ describe("SimpleInstaller", () => {
 			await installer.removeItem(mockModeItem, { target: "project" })
 
 			expect(mockFs.writeFile).not.toHaveBeenCalled()
+		})
+
+		it("should handle empty .roomodes file during removal", async () => {
+			// Empty file content
+			mockFs.readFile.mockResolvedValueOnce("")
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			// Should not throw
+			await installer.removeItem(mockModeItem, { target: "project" })
+
+			// Should write back a valid structure with empty customModes
+			expect(mockFs.writeFile).toHaveBeenCalled()
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toEqual([])
+		})
+
+		it("should handle .roomodes file with null content during removal", async () => {
+			// File exists but yaml.parse returns null
+			mockFs.readFile.mockResolvedValueOnce("---\n")
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			// Should not throw
+			await installer.removeItem(mockModeItem, { target: "project" })
+
+			// Should write back a valid structure with empty customModes
+			expect(mockFs.writeFile).toHaveBeenCalled()
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toEqual([])
+		})
+
+		it("should handle .roomodes file without customModes property during removal", async () => {
+			// File has valid YAML but no customModes property
+			const contentWithoutCustomModes = yaml.stringify({ someOtherProperty: "value" })
+			mockFs.readFile.mockResolvedValueOnce(contentWithoutCustomModes)
+			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+
+			// Should not throw
+			await installer.removeItem(mockModeItem, { target: "project" })
+
+			// Should write back the file with the same content (no modes to remove)
+			expect(mockFs.writeFile).toHaveBeenCalled()
+			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
+			const writtenData = yaml.parse(writtenContent)
+			expect(writtenData.customModes).toEqual([])
+			expect(writtenData.someOtherProperty).toBe("value")
 		})
 	})
 })

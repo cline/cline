@@ -47,7 +47,9 @@ export class SimpleInstaller {
 		let existingData: any = { customModes: [] }
 		try {
 			const existing = await fs.readFile(filePath, "utf-8")
-			existingData = yaml.parse(existing) || { customModes: [] }
+			const parsed = yaml.parse(existing)
+			// Ensure we have a valid object with customModes array
+			existingData = parsed && typeof parsed === "object" ? parsed : { customModes: [] }
 		} catch (error: any) {
 			if (error.code === "ENOENT") {
 				// File doesn't exist, use default structure - this is fine
@@ -253,7 +255,9 @@ export class SimpleInstaller {
 			let existingData: any
 
 			try {
-				existingData = yaml.parse(existing)
+				const parsed = yaml.parse(existing)
+				// Ensure we have a valid object
+				existingData = parsed && typeof parsed === "object" ? parsed : {}
 			} catch (parseError) {
 				// If we can't parse the file, we can't safely remove a mode
 				const fileName = target === "project" ? ".roomodes" : "custom-modes.yaml"
@@ -263,27 +267,30 @@ export class SimpleInstaller {
 				)
 			}
 
-			if (existingData?.customModes) {
-				// Parse the item content to get the slug
-				let content: string
-				if (Array.isArray(item.content)) {
-					// Array of McpInstallationMethod objects - use first method
-					content = item.content[0].content
-				} else {
-					content = item.content
-				}
-				const modeData = yaml.parse(content || "")
-
-				if (!modeData.slug) {
-					return // Nothing to remove if no slug
-				}
-
-				// Remove mode with matching slug
-				existingData.customModes = existingData.customModes.filter((mode: any) => mode.slug !== modeData.slug)
-
-				// Always write back the file, even if empty
-				await fs.writeFile(filePath, yaml.stringify(existingData, { lineWidth: 0 }), "utf-8")
+			// Ensure customModes array exists
+			if (!existingData.customModes) {
+				existingData.customModes = []
 			}
+
+			// Parse the item content to get the slug
+			let content: string
+			if (Array.isArray(item.content)) {
+				// Array of McpInstallationMethod objects - use first method
+				content = item.content[0].content
+			} else {
+				content = item.content
+			}
+			const modeData = yaml.parse(content || "")
+
+			if (!modeData.slug) {
+				return // Nothing to remove if no slug
+			}
+
+			// Remove mode with matching slug
+			existingData.customModes = existingData.customModes.filter((mode: any) => mode.slug !== modeData.slug)
+
+			// Always write back the file, even if empty
+			await fs.writeFile(filePath, yaml.stringify(existingData, { lineWidth: 0 }), "utf-8")
 		} catch (error: any) {
 			if (error.code === "ENOENT") {
 				// File doesn't exist, nothing to remove
