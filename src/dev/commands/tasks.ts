@@ -5,6 +5,7 @@ import { Controller } from "@core/controller"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { showInformationMessage } from "@/hosts/vscode/window/showInformationMessage"
+import { showInputBox } from "@/hosts/vscode/window/showInputBox"
 
 /**
  * Registers development-only commands for task manipulation.
@@ -13,11 +14,13 @@ import { showInformationMessage } from "@/hosts/vscode/window/showInformationMes
 export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
-			const count = await vscode.window.showInputBox({
-				title: "Test Tasks",
-				prompt: "How many test tasks to create?",
-				value: "10",
-			})
+			const count = (
+				await showInputBox({
+					title: "Test Tasks",
+					prompt: "How many test tasks to create?",
+					value: "10",
+				})
+			)?.selectedOption
 
 			if (!count) {
 				return
