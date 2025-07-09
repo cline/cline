@@ -19,11 +19,10 @@
 		"delete_config_profile": "¿Estás seguro de que deseas eliminar este perfil de configuración?",
 		"delete_custom_mode_with_rules": "¿Estás seguro de que quieres eliminar este modo {scope}?\n\nEsto también eliminará la carpeta de reglas asociada en:\n{rulesFolderPath}",
 		"delete_message": "¿Qué deseas eliminar?",
-		"edit_message": "¿Eliminar todos los mensajes posteriores a este?",
+		"edit_warning": "Editar este mensaje eliminará todos los mensajes posteriores en la conversación. ¿Deseas continuar?",
 		"delete_just_this_message": "Solo este mensaje",
-		"edit_just_this_message": "No, solo editar este",
 		"delete_this_and_subsequent": "Este y todos los mensajes posteriores",
-		"edit_this_and_delete_subsequent": "Sí"
+		"proceed": "Continuar"
 	},
 	"errors": {
 		"invalid_data_uri": "Formato de URI de datos no válido",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Sí",
 		"no": "No",
-		"cancel": "Cancelar",
 		"remove": "Eliminar",
 		"keep": "Mantener"
 	},
 	"buttons": {
 		"save": "Guardar",
-		"cancel": "Cancelar",
 		"edit": "Editar"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "Eliminar modo personalizado",
 			"description": "¿Estás seguro de que quieres eliminar este modo {{scope}}? Esto también eliminará la carpeta de reglas asociada en: {{rulesFolderPath}}",
 			"descriptionNoRules": "¿Estás seguro de que quieres eliminar este modo personalizado?",
-			"cancel": "Cancelar",
 			"confirm": "Eliminar"
 		}
 	}

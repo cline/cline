@@ -193,32 +193,23 @@ export const webviewMessageHandler = async (
 	 * Handles message editing operations with user confirmation
 	 */
 	const handleEditOperation = async (messageTs: number, editedContent: string): Promise<void> => {
-		const options = [
-			t("common:confirmation.edit_this_and_delete_subsequent"),
-			t("common:confirmation.edit_just_this_message"),
-		]
-
-		const answer = await vscode.window.showInformationMessage(
-			t("common:confirmation.edit_message"),
+		const answer = await vscode.window.showWarningMessage(
+			t("common:confirmation.edit_warning"),
 			{ modal: true },
-			...options,
+			t("common:confirmation.proceed"),
 		)
 
-		// Only proceed if user selected one of the options and we have a current cline
-		if (answer && options.includes(answer) && provider.getCurrentCline()) {
+		// Only proceed if user selected "Proceed" and we have a current cline
+		if (answer === t("common:confirmation.proceed") && provider.getCurrentCline()) {
 			const currentCline = provider.getCurrentCline()!
+
+			// Use findMessageIndices to find messages based on timestamp
 			const { messageIndex, apiConversationHistoryIndex } = findMessageIndices(messageTs, currentCline)
 
 			if (messageIndex !== -1) {
 				try {
-					// Check which option the user selected
-					if (answer === options[0]) {
-						// Edit this message and delete subsequent
-						await removeMessagesThisAndSubsequent(currentCline, messageIndex, apiConversationHistoryIndex)
-					} else if (answer === options[1]) {
-						// Edit just this message
-						await removeMessagesJustThis(currentCline, messageIndex, apiConversationHistoryIndex)
-					}
+					// Edit this message and delete subsequent
+					await removeMessagesThisAndSubsequent(currentCline, messageIndex, apiConversationHistoryIndex)
 
 					// Process the edited message as a regular user message
 					// This will add it to the conversation and trigger an AI response

@@ -19,11 +19,10 @@
 		"delete_config_profile": "Apakah kamu yakin ingin menghapus profil konfigurasi ini?",
 		"delete_custom_mode_with_rules": "Anda yakin ingin menghapus mode {scope} ini?\n\nIni juga akan menghapus folder aturan terkait di:\n{rulesFolderPath}",
 		"delete_message": "Apa yang ingin kamu hapus?",
-		"edit_message": "Hapus semua pesan setelah ini?",
+		"edit_warning": "Mengedit pesan ini akan menghapus semua pesan selanjutnya dalam percakapan. Apakah kamu ingin melanjutkan?",
 		"delete_just_this_message": "Hanya pesan ini",
-		"edit_just_this_message": "Tidak, hanya edit yang ini",
 		"delete_this_and_subsequent": "Ini dan semua pesan selanjutnya",
-		"edit_this_and_delete_subsequent": "Ya"
+		"proceed": "Lanjutkan"
 	},
 	"errors": {
 		"invalid_data_uri": "Format data URI tidak valid",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Ya",
 		"no": "Tidak",
-		"cancel": "Batal",
 		"remove": "Hapus",
 		"keep": "Simpan"
 	},
 	"buttons": {
 		"save": "Simpan",
-		"cancel": "Batal",
 		"edit": "Edit"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "Hapus Mode Kustom",
 			"description": "Anda yakin ingin menghapus mode {{scope}} ini? Ini juga akan menghapus folder aturan terkait di: {{rulesFolderPath}}",
 			"descriptionNoRules": "Anda yakin ingin menghapus mode kustom ini?",
-			"cancel": "Batal",
 			"confirm": "Hapus"
 		}
 	}

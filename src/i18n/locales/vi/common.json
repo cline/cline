@@ -21,9 +21,8 @@
 		"delete_message": "Bạn muốn xóa gì?",
 		"delete_just_this_message": "Chỉ tin nhắn này",
 		"delete_this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo",
-		"edit_message": "Xóa tất cả tin nhắn sau tin nhắn này?",
-		"edit_just_this_message": "Không, chỉ chỉnh sửa tin nhắn này",
-		"edit_this_and_delete_subsequent": "Có"
+		"edit_warning": "Chỉnh sửa tin nhắn này sẽ xóa tất cả tin nhắn tiếp theo trong cuộc trò chuyện. Bạn có muốn tiếp tục không?",
+		"proceed": "Tiếp tục"
 	},
 	"errors": {
 		"invalid_data_uri": "Định dạng URI dữ liệu không hợp lệ",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Có",
 		"no": "Không",
-		"cancel": "Hủy",
 		"remove": "Xóa",
 		"keep": "Giữ"
 	},
 	"buttons": {
 		"save": "Lưu",
-		"cancel": "Hủy",
 		"edit": "Chỉnh sửa"
 	},
 	"tasks": {
@@ -178,7 +175,6 @@
 				"deleteConfirmation": "Chắc chắn xóa chế độ này?"
 			},
 			"descriptionNoRules": "Bạn có chắc chắn muốn xóa chế độ tùy chỉnh này không?",
-			"cancel": "Hủy",
 			"confirm": "Xóa"
 		}
 	}

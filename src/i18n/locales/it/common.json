@@ -19,11 +19,10 @@
 		"delete_config_profile": "Sei sicuro di voler eliminare questo profilo di configurazione?",
 		"delete_custom_mode_with_rules": "Sei sicuro di voler eliminare questa modalità {scope}?\n\nQuesto eliminerà anche la cartella delle regole associata in:\n{rulesFolderPath}",
 		"delete_message": "Cosa desideri eliminare?",
-		"edit_message": "Eliminare tutti i messaggi dopo questo?",
+		"edit_warning": "Modificare questo messaggio eliminerà tutti i messaggi successivi nella conversazione. Vuoi continuare?",
 		"delete_just_this_message": "Solo questo messaggio",
-		"edit_just_this_message": "No, modifica solo questo",
 		"delete_this_and_subsequent": "Questo e tutti i messaggi successivi",
-		"edit_this_and_delete_subsequent": "Sì"
+		"proceed": "Continua"
 	},
 	"errors": {
 		"invalid_data_uri": "Formato URI dati non valido",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Sì",
 		"no": "No",
-		"cancel": "Annulla",
 		"remove": "Rimuovi",
 		"keep": "Mantieni"
 	},
 	"buttons": {
 		"save": "Salva",
-		"cancel": "Annulla",
 		"edit": "Modifica"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "Elimina Modalità Personalizzata",
 			"description": "Sei sicuro di voler eliminare questa modalità {{scope}}? Questo eliminerà anche la cartella delle regole associata a: {{rulesFolderPath}}",
 			"descriptionNoRules": "Sei sicuro di voler eliminare questa modalità personalizzata?",
-			"cancel": "Annulla",
 			"confirm": "Elimina"
 		}
 	}

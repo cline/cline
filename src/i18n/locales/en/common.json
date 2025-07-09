@@ -19,11 +19,10 @@
 		"delete_config_profile": "Are you sure you want to delete this configuration profile?",
 		"delete_custom_mode_with_rules": "Are you sure you want to delete this {scope} mode?\n\nThis will also delete the associated rules folder at:\n{rulesFolderPath}",
 		"delete_message": "What would you like to delete?",
-		"edit_message": "Delete all messages after this one?",
+		"edit_warning": "Editing this message will delete all subsequent messages in the conversation. Do you want to proceed?",
 		"delete_just_this_message": "Just this message",
-		"edit_just_this_message": "No, just edit this one",
 		"delete_this_and_subsequent": "This and all subsequent messages",
-		"edit_this_and_delete_subsequent": "Yes"
+		"proceed": "Proceed"
 	},
 	"errors": {
 		"invalid_data_uri": "Invalid data URI format",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Yes",
 		"no": "No",
-		"cancel": "Cancel",
 		"remove": "Remove",
 		"keep": "Keep"
 	},
 	"buttons": {
 		"save": "Save",
-		"cancel": "Cancel",
 		"edit": "Edit"
 	},
 	"tasks": {
@@ -160,7 +157,6 @@
 			"title": "Delete Custom Mode",
 			"description": "Are you sure you want to delete this {{scope}} mode? This will also delete the associated rules folder at: {{rulesFolderPath}}",
 			"descriptionNoRules": "Are you sure you want to delete this custom mode?",
-			"cancel": "Cancel",
 			"confirm": "Delete"
 		}
 	}

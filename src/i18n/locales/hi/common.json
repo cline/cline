@@ -19,11 +19,10 @@
 		"delete_config_profile": "क्या आप वाकई इस कॉन्फ़िगरेशन प्रोफ़ाइल को हटाना चाहते हैं?",
 		"delete_custom_mode_with_rules": "क्या आप वाकई इस {scope} मोड को हटाना चाहते हैं?\n\nयह संबंधित नियम फ़ोल्डर को भी यहाँ हटा देगा:\n{rulesFolderPath}",
 		"delete_message": "आप क्या हटाना चाहते हैं?",
-		"edit_message": "इसके बाद के सभी संदेशों को हटाएं?",
+		"edit_warning": "इस संदेश को संपादित करने से बातचीत के सभी बाद के संदेश हट जाएंगे। क्या आप जारी रखना चाहते हैं?",
 		"delete_just_this_message": "सिर्फ यह संदेश",
-		"edit_just_this_message": "नहीं, केवल इसे संपादित करें",
 		"delete_this_and_subsequent": "यह और सभी बाद के संदेश",
-		"edit_this_and_delete_subsequent": "हां"
+		"proceed": "जारी रखें"
 	},
 	"errors": {
 		"invalid_data_uri": "अमान्य डेटा URI फॉर्मेट",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "हां",
 		"no": "नहीं",
-		"cancel": "रद्द करें",
 		"remove": "हटाएं",
 		"keep": "रखें"
 	},
 	"buttons": {
 		"save": "सहेजें",
-		"cancel": "रद्द करें",
 		"edit": "संपादित करें"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "कस्टम मोड हटाएं",
 			"description": "क्या आप वाकई इस {{scope}} मोड को हटाना चाहते हैं? यह संबंधित नियम फ़ोल्डर को भी {{rulesFolderPath}} पर हटा देगा",
 			"descriptionNoRules": "क्या आप वाकई इस कस्टम मोड को हटाना चाहते हैं?",
-			"cancel": "रद्द करें",
 			"confirm": "हटाएं"
 		}
 	}

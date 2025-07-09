@@ -19,11 +19,10 @@
 		"delete_config_profile": "您確定要刪除此設定檔案嗎？",
 		"delete_custom_mode_with_rules": "您確定要刪除此 {scope} 模式嗎？\n\n這也將刪除位於以下位置的關聯規則資料夾：\n{rulesFolderPath}",
 		"delete_message": "您想刪除哪些內容？",
-		"edit_message": "刪除此訊息後的所有訊息？",
+		"edit_warning": "編輯此訊息將刪除對話中的所有後續訊息。您要繼續嗎？",
 		"delete_just_this_message": "僅這則訊息",
-		"edit_just_this_message": "否，僅編輯此訊息",
 		"delete_this_and_subsequent": "這則訊息及所有後續訊息",
-		"edit_this_and_delete_subsequent": "是"
+		"proceed": "繼續"
 	},
 	"errors": {
 		"invalid_data_uri": "資料 URI 格式無效",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "是",
 		"no": "否",
-		"cancel": "取消",
 		"remove": "刪除",
 		"keep": "保留"
 	},
 	"buttons": {
 		"save": "儲存",
-		"cancel": "取消",
 		"edit": "編輯"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "刪除自訂模式",
 			"description": "您確定要刪除此 {{scope}} 模式嗎？這也將刪除位於 {{rulesFolderPath}} 的關聯規則資料夾",
 			"descriptionNoRules": "您確定要刪除此自訂模式嗎？",
-			"cancel": "取消",
 			"confirm": "刪除"
 		}
 	}

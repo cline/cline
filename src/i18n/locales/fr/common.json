@@ -19,11 +19,10 @@
 		"delete_config_profile": "Êtes-vous sûr de vouloir supprimer ce profil de configuration ?",
 		"delete_custom_mode_with_rules": "Êtes-vous sûr de vouloir supprimer ce mode {scope} ?\n\nCela supprimera également le dossier de règles associé à l'adresse :\n{rulesFolderPath}",
 		"delete_message": "Que souhaitez-vous supprimer ?",
-		"edit_message": "Supprimer tous les messages après celui-ci ?",
+		"edit_warning": "Modifier ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
 		"delete_just_this_message": "Uniquement ce message",
-		"edit_just_this_message": "Non, modifier uniquement celui-ci",
 		"delete_this_and_subsequent": "Ce message et tous les messages suivants",
-		"edit_this_and_delete_subsequent": "Oui"
+		"proceed": "Continuer"
 	},
 	"errors": {
 		"invalid_data_uri": "Format d'URI de données invalide",
@@ -107,13 +106,11 @@
 	"answers": {
 		"yes": "Oui",
 		"no": "Non",
-		"cancel": "Annuler",
 		"remove": "Supprimer",
 		"keep": "Conserver"
 	},
 	"buttons": {
 		"save": "Enregistrer",
-		"cancel": "Annuler",
 		"edit": "Modifier"
 	},
 	"tasks": {
@@ -171,7 +168,6 @@
 			"title": "Supprimer le mode personnalisé",
 			"description": "Êtes-vous sûr de vouloir supprimer ce mode {{scope}} ? Cela supprimera également le dossier de règles associé à l'adresse : {{rulesFolderPath}}",
 			"descriptionNoRules": "Êtes-vous sûr de vouloir supprimer ce mode personnalisé ?",
-			"cancel": "Annuler",
 			"confirm": "Supprimer"
 		}
 	}
