@@ -242,8 +242,8 @@
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來強大的新功能和重大改進，提升您的開發工作流程。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>一鍵分享工作</bold>：只需一鍵即可立即與同事和社群分享您的工作。",
-		"feature2": "<bold>全域 .roo 目錄支援</bold>：從全域 .roo 目錄載入規則和設定，確保專案間設定一致。",
+		"feature1": "<bold>程式碼庫索引從實驗階段正式發布</bold>：完整的程式碼庫索引現已穩定，可用於正式環境，具備改進的搜尋和內容理解功能。",
+		"feature2": "<bold>新增待辦事項清單功能</bold>：透過整合的待辦事項管理保持工作進度，幫助您保持條理並專注於開發目標。",
 		"feature3": "<bold>改進的 Architect 到 Code 轉換</bold>：從 Architect 模式的規劃到 Code 模式的實作，轉換更加順暢。",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"

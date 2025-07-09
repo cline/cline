@@ -242,8 +242,8 @@
 		"title": "🎉 Roo Code {{version}} 출시",
 		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>원클릭 작업 공유</bold>: 한 번의 클릭으로 동료 및 커뮤니티와 작업을 즉시 공유하세요.",
-		"feature2": "<bold>글로벌 .roo 디렉토리 지원</bold>: 글로벌 .roo 디렉토리에서 규칙과 구성을 로드하여 프로젝트 간 일관된 설정을 유지하세요.",
+		"feature1": "<bold>코드베이스 인덱싱이 실험 단계에서 졸업</bold>: 전체 코드베이스 인덱싱이 이제 안정적이며 향상된 검색 및 컨텍스트 이해 기능으로 프로덕션 사용이 준비되었습니다.",
+		"feature2": "<bold>새로운 할 일 목록 기능</bold>: 통합된 할 일 관리로 작업을 궤도에 유지하여 개발 목표에 체계적이고 집중된 상태를 유지하세요.",
 		"feature3": "<bold>개선된 아키텍트에서 코드로의 전환</bold>: 아키텍트 모드에서의 계획부터 코드 모드에서의 구현까지 원활한 인수인계.",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 자세한 내용을 확인하고 토론에 참여하세요 🚀"

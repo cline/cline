@@ -49,13 +49,12 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.22 Released
+## 🎉 Roo Code 3.23 Released
 
-Roo Code 3.22 brings powerful new features and significant improvements to enhance your development workflow!
+Roo Code 3.23 brings powerful new features and significant improvements to enhance your development workflow!
 
-- **1-Click Task Sharing** - Share your tasks instantly with colleagues and the community with a single click.
-- **Global .roo Directory Support** - Load rules and configurations from a global .roo directory for consistent settings across projects.
-- **Improved Architect to Code Transitions** - Seamless handoffs from planning in Architect mode to implementation in Code mode.
+- **Codebase Indexing Graduated from Experimental** - Full codebase indexing is now stable and ready for production use with improved search and context understanding.
+- **New Todo List Feature** - Keep your tasks on track with integrated todo management that helps you stay organized and focused on your development goals.
 
 ---
 

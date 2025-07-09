@@ -247,9 +247,8 @@
 		"title": "🎉 Roo Code {{version}} Released",
 		"description": "Roo Code {{version}} brings powerful new features and significant improvements to enhance your development workflow.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>1-Click Task Sharing</bold>: Share your tasks instantly with colleagues and the community with a single click.",
-		"feature2": "<bold>Global .roo Directory Support</bold>: Load rules and configurations from a global .roo directory for consistent settings across projects.",
-		"feature3": "<bold>Improved Architect to Code Transitions</bold>: Seamless handoffs from planning in Architect mode to implementation in Code mode.",
+		"feature1": "<bold>Codebase Indexing Graduated from Experimental</bold>: Full codebase indexing is now stable and ready for production use with improved search and context understanding.",
+		"feature2": "<bold>New Todo List Feature</bold>: Keep your tasks on track with integrated todo management that helps you stay organized and focused on your development goals.",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},

@@ -51,7 +51,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 								components={{
 									bold: <b />,
 									code: <code />,
-									experimentalSettingsLink: (
+									settingsLink: (
 										<VSCodeLink
 											href="#"
 											onClick={(e) => {
@@ -62,7 +62,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 													{
 														type: "action",
 														action: "settingsButtonClicked",
-														values: { section: "experimental" },
+														values: { section: "codebaseIndexing" },
 													},
 													"*",
 												)
@@ -79,24 +79,6 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 								components={{
 									bold: <b />,
 									code: <code />,
-									contextSettingsLink: (
-										<VSCodeLink
-											href="#"
-											onClick={(e) => {
-												e.preventDefault()
-												setOpen(false)
-												hideAnnouncement()
-												window.postMessage(
-													{
-														type: "action",
-														action: "settingsButtonClicked",
-														values: { section: "contextManagement" },
-													},
-													"*",
-												)
-											}}
-										/>
-									),
 								}}
 							/>
 						</li>
