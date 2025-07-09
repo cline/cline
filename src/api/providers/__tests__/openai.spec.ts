@@ -5,6 +5,7 @@ import { ApiHandlerOptions } from "../../../shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { openAiModelInfoSaneDefaults } from "@roo-code/types"
+import { Package } from "../../../shared/package"
 
 const mockCreate = vitest.fn()
 
@@ -104,6 +105,7 @@ describe("OpenAiHandler", () => {
 				defaultHeaders: {
 					"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
 					"X-Title": "Roo Code",
+					"User-Agent": `RooCode/${Package.version}`,
 				},
 			})
 		})
