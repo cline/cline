@@ -1,15 +1,21 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { claudeCodeDefaultModelId, ClaudeCodeModelId, claudeCodeModels, type ApiHandlerOptions } from "@/shared/api"
+import { claudeCodeDefaultModelId, ClaudeCodeModelId, claudeCodeModels } from "@/shared/api"
 import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
 
-export class ClaudeCodeHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+interface ClaudeCodeHandlerOptions {
+	claudeCodePath?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class ClaudeCodeHandler implements ApiHandler {
+	private options: ClaudeCodeHandlerOptions
+
+	constructor(options: ClaudeCodeHandlerOptions) {
 		this.options = options
 	}
 

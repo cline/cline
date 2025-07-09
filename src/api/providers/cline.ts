@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
@@ -10,8 +10,18 @@ import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
 
+interface ClineHandlerOptions {
+	taskId?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
+	openRouterProviderSorting?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	clineAccountId?: string
+}
+
 export class ClineHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
@@ -22,7 +32,7 @@ export class ClineHandler implements ApiHandler {
 	lastGenerationId?: string
 	private counter = 0
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: ClineHandlerOptions) {
 		this.options = options
 		this._authService = AuthService.getInstance()
 	}
