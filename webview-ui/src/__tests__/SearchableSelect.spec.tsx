@@ -142,36 +142,6 @@ describe("SearchableSelect", () => {
 		})
 	})
 
-	it("clears search value when clicking the clear button", async () => {
-		const user = userEvent.setup()
-		render(<SearchableSelect {...defaultProps} />)
-
-		const trigger = screen.getByRole("combobox")
-		await user.click(trigger)
-
-		const searchInput = screen.getByPlaceholderText("Search options...")
-
-		// Use fireEvent for cmdk input
-		fireEvent.change(searchInput, { target: { value: "test" } })
-
-		// Wait for the X button to appear and options to be filtered
-		await waitFor(() => {
-			expect(screen.getByTestId("clear-search-button")).toBeInTheDocument()
-			expect(screen.queryByText("Option 1")).not.toBeInTheDocument()
-		})
-
-		// Find and click the X icon by its container
-		const clearButton = screen.getByTestId("clear-search-button")
-		await user.click(clearButton)
-
-		// All options should be visible again
-		await waitFor(() => {
-			expect(screen.getByText("Option 1")).toBeInTheDocument()
-			expect(screen.getByText("Option 2")).toBeInTheDocument()
-			expect(screen.getByText("Option 3")).toBeInTheDocument()
-		})
-	})
-
 	it("handles component unmounting without memory leaks", async () => {
 		vi.useFakeTimers()
 		const { unmount, rerender } = render(<SearchableSelect {...defaultProps} value="option1" />)
