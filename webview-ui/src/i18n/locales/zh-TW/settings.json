@@ -98,6 +98,21 @@
 			"error": "錯誤"
 		},
 		"close": "關閉",
+		"validation": {
+			"invalidQdrantUrl": "無效的 Qdrant URL",
+			"invalidOllamaUrl": "無效的 Ollama URL",
+			"invalidBaseUrl": "無效的基礎 URL",
+			"qdrantUrlRequired": "需要 Qdrant URL",
+			"openaiApiKeyRequired": "需要 OpenAI API 金鑰",
+			"modelSelectionRequired": "需要選擇模型",
+			"apiKeyRequired": "需要 API 金鑰",
+			"modelIdRequired": "需要模型 ID",
+			"modelDimensionRequired": "需要模型維度",
+			"geminiApiKeyRequired": "需要 Gemini API 金鑰",
+			"ollamaBaseUrlRequired": "需要 Ollama 基礎 URL",
+			"baseUrlRequired": "需要基礎 URL",
+			"modelDimensionMinValue": "模型維度必須大於 0"
+		},
 		"advancedConfigLabel": "進階設定",
 		"searchMinScoreLabel": "搜尋分數閾值",
 		"searchMinScoreDescription": "搜尋結果所需的最低相似度分數（0.0-1.0）。較低的值會傳回更多結果，但可能較不相關。較高的值會傳回較少但更相關的結果。",

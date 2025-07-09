@@ -98,6 +98,21 @@
 			"error": "エラー"
 		},
 		"close": "閉じる",
+		"validation": {
+			"invalidQdrantUrl": "無効なQdrant URL",
+			"invalidOllamaUrl": "無効なOllama URL",
+			"invalidBaseUrl": "無効なベースURL",
+			"qdrantUrlRequired": "Qdrant URL が必要です",
+			"openaiApiKeyRequired": "OpenAI APIキーが必要です",
+			"modelSelectionRequired": "モデルの選択が必要です",
+			"apiKeyRequired": "APIキーが必要です",
+			"modelIdRequired": "モデルIDが必要です",
+			"modelDimensionRequired": "モデルの次元が必要です",
+			"geminiApiKeyRequired": "Gemini APIキーが必要です",
+			"ollamaBaseUrlRequired": "OllamaのベースURLが必要です",
+			"baseUrlRequired": "ベースURLが必要です",
+			"modelDimensionMinValue": "モデルの次元は0より大きくなければなりません"
+		},
 		"advancedConfigLabel": "詳細設定",
 		"searchMinScoreLabel": "検索スコアのしきい値",
 		"searchMinScoreDescription": "検索結果に必要な最小類似度スコア（0.0-1.0）。値を低くするとより多くの結果が返されますが、関連性が低くなる可能性があります。値を高くすると返される結果は少なくなりますが、より関連性が高くなります。",

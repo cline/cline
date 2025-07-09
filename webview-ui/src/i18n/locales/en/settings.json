@@ -104,7 +104,22 @@
 			"indexed": "Indexed",
 			"error": "Error"
 		},
-		"close": "Close"
+		"close": "Close",
+		"validation": {
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
+		}
 	},
 	"autoApprove": {
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",

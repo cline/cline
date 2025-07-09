@@ -98,6 +98,21 @@
 			"error": "Lỗi"
 		},
 		"close": "Đóng",
+		"validation": {
+			"invalidQdrantUrl": "URL Qdrant không hợp lệ",
+			"invalidOllamaUrl": "URL Ollama không hợp lệ",
+			"invalidBaseUrl": "URL cơ sở không hợp lệ",
+			"qdrantUrlRequired": "Yêu cầu URL Qdrant",
+			"openaiApiKeyRequired": "Yêu cầu khóa API OpenAI",
+			"modelSelectionRequired": "Yêu cầu chọn mô hình",
+			"apiKeyRequired": "Yêu cầu khóa API",
+			"modelIdRequired": "Yêu cầu ID mô hình",
+			"modelDimensionRequired": "Yêu cầu kích thước mô hình",
+			"geminiApiKeyRequired": "Yêu cầu khóa API Gemini",
+			"ollamaBaseUrlRequired": "Yêu cầu URL cơ sở Ollama",
+			"baseUrlRequired": "Yêu cầu URL cơ sở",
+			"modelDimensionMinValue": "Kích thước mô hình phải lớn hơn 0"
+		},
 		"advancedConfigLabel": "Cấu hình nâng cao",
 		"searchMinScoreLabel": "Ngưỡng điểm tìm kiếm",
 		"searchMinScoreDescription": "Điểm tương đồng tối thiểu (0.0-1.0) cần thiết cho kết quả tìm kiếm. Giá trị thấp hơn trả về nhiều kết quả hơn nhưng có thể kém liên quan hơn. Giá trị cao hơn trả về ít kết quả hơn nhưng có liên quan hơn.",

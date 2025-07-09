@@ -56,6 +56,11 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 		try {
 			// Note: Standard Ollama API uses 'prompt' for single text, not 'input' for array.
 			// Implementing based on user's specific request structure.
+
+			// Add timeout to prevent indefinite hanging
+			const controller = new AbortController()
+			const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
 			const response = await fetch(url, {
 				method: "POST",
 				headers: {
@@ -65,7 +70,9 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 					model: modelToUse,
 					input: processedTexts, // Using 'input' as requested
 				}),
+				signal: controller.signal,
 			})
+			clearTimeout(timeoutId)
 
 			if (!response.ok) {
 				let errorBody = t("embeddings:ollama.couldNotReadErrorBody")
@@ -97,6 +104,16 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 		} catch (error: any) {
 			// Log the original error for debugging purposes
 			console.error("Ollama embedding failed:", error)
+
+			// Handle specific error types with better messages
+			if (error.name === "AbortError") {
+				throw new Error(t("embeddings:validation.connectionFailed"))
+			} else if (error.message?.includes("fetch failed") || error.code === "ECONNREFUSED") {
+				throw new Error(t("embeddings:ollama.serviceNotRunning", { baseUrl: this.baseUrl }))
+			} else if (error.code === "ENOTFOUND") {
+				throw new Error(t("embeddings:ollama.hostNotFound", { baseUrl: this.baseUrl }))
+			}
+
 			// Re-throw a more specific error for the caller
 			throw new Error(t("embeddings:ollama.embeddingFailed", { message: error.message }))
 		}
@@ -129,12 +146,12 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 					if (modelsResponse.status === 404) {
 						return {
 							valid: false,
-							error: t("embeddings:errors.ollama.serviceNotRunning", { baseUrl: this.baseUrl }),
+							error: t("embeddings:ollama.serviceNotRunning", { baseUrl: this.baseUrl }),
 						}
 					}
 					return {
 						valid: false,
-						error: t("embeddings:errors.ollama.serviceUnavailable", {
+						error: t("embeddings:ollama.serviceUnavailable", {
 							baseUrl: this.baseUrl,
 							status: modelsResponse.status,
 						}),
@@ -159,8 +176,8 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 					const availableModels = models.map((m: any) => m.name).join(", ")
 					return {
 						valid: false,
-						error: t("embeddings:errors.ollama.modelNotFound", {
-							model: this.defaultModelId,
+						error: t("embeddings:ollama.modelNotFound", {
+							modelId: this.defaultModelId,
 							availableModels,
 						}),
 					}
@@ -189,7 +206,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 				if (!testResponse.ok) {
 					return {
 						valid: false,
-						error: t("embeddings:errors.ollama.modelNotEmbedding", { model: this.defaultModelId }),
+						error: t("embeddings:ollama.modelNotEmbeddingCapable", { modelId: this.defaultModelId }),
 					}
 				}
 
@@ -199,21 +216,26 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 			{
 				beforeStandardHandling: (error: any) => {
 					// Handle Ollama-specific connection errors
-					if (error?.message === "ECONNREFUSED") {
+					// Check for fetch failed errors which indicate Ollama is not running
+					if (
+						error?.message?.includes("fetch failed") ||
+						error?.code === "ECONNREFUSED" ||
+						error?.message?.includes("ECONNREFUSED")
+					) {
 						return {
 							valid: false,
-							error: t("embeddings:errors.ollama.connectionTimeout", { baseUrl: this.baseUrl }),
+							error: t("embeddings:ollama.serviceNotRunning", { baseUrl: this.baseUrl }),
 						}
-					} else if (error?.message === "ENOTFOUND") {
+					} else if (error?.code === "ENOTFOUND" || error?.message?.includes("ENOTFOUND")) {
 						return {
 							valid: false,
-							error: t("embeddings:errors.ollama.hostNotFound", { baseUrl: this.baseUrl }),
+							error: t("embeddings:ollama.hostNotFound", { baseUrl: this.baseUrl }),
 						}
 					} else if (error?.name === "AbortError") {
 						// Handle timeout
 						return {
 							valid: false,
-							error: t("embeddings:errors.ollama.connectionTimeout", { baseUrl: this.baseUrl }),
+							error: t("embeddings:validation.connectionFailed"),
 						}
 					}
 					// Let standard handling take over

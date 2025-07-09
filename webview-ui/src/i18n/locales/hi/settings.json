@@ -98,6 +98,21 @@
 			"error": "त्रुटि"
 		},
 		"close": "बंद करें",
+		"validation": {
+			"invalidQdrantUrl": "अमान्य Qdrant URL",
+			"invalidOllamaUrl": "अमान्य Ollama URL",
+			"invalidBaseUrl": "अमान्य बेस URL",
+			"qdrantUrlRequired": "Qdrant URL आवश्यक है",
+			"openaiApiKeyRequired": "OpenAI API कुंजी आवश्यक है",
+			"modelSelectionRequired": "मॉडल चयन आवश्यक है",
+			"apiKeyRequired": "API कुंजी आवश्यक है",
+			"modelIdRequired": "मॉडल आईडी आवश्यक है",
+			"modelDimensionRequired": "मॉडल आयाम आवश्यक है",
+			"geminiApiKeyRequired": "Gemini API कुंजी आवश्यक है",
+			"ollamaBaseUrlRequired": "Ollama आधार URL आवश्यक है",
+			"baseUrlRequired": "आधार URL आवश्यक है",
+			"modelDimensionMinValue": "मॉडल आयाम 0 से बड़ा होना चाहिए"
+		},
 		"advancedConfigLabel": "उन्नत कॉन्फ़िगरेशन",
 		"searchMinScoreLabel": "खोज स्कोर थ्रेसहोल्ड",
 		"searchMinScoreDescription": "खोज परिणामों के लिए आवश्यक न्यूनतम समानता स्कोर (0.0-1.0)। कम मान अधिक परिणाम लौटाते हैं लेकिन कम प्रासंगिक हो सकते हैं। उच्च मान कम लेकिन अधिक प्रासंगिक परिणाम लौटाते हैं।",

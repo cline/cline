@@ -98,6 +98,21 @@
 			"error": "Erro"
 		},
 		"close": "Fechar",
+		"validation": {
+			"invalidQdrantUrl": "URL do Qdrant inválida",
+			"invalidOllamaUrl": "URL do Ollama inválida",
+			"invalidBaseUrl": "URL base inválida",
+			"qdrantUrlRequired": "A URL do Qdrant é obrigatória",
+			"openaiApiKeyRequired": "A chave de API da OpenAI é obrigatória",
+			"modelSelectionRequired": "A seleção do modelo é obrigatória",
+			"apiKeyRequired": "A chave de API é obrigatória",
+			"modelIdRequired": "O ID do modelo é obrigatório",
+			"modelDimensionRequired": "A dimensão do modelo é obrigatória",
+			"geminiApiKeyRequired": "A chave de API do Gemini é obrigatória",
+			"ollamaBaseUrlRequired": "A URL base do Ollama é obrigatória",
+			"baseUrlRequired": "A URL base é obrigatória",
+			"modelDimensionMinValue": "A dimensão do modelo deve ser maior que 0"
+		},
 		"advancedConfigLabel": "Configuração Avançada",
 		"searchMinScoreLabel": "Limite de pontuação de busca",
 		"searchMinScoreDescription": "Pontuação mínima de similaridade (0.0-1.0) necessária para os resultados da busca. Valores mais baixos retornam mais resultados, mas podem ser menos relevantes. Valores mais altos retornam menos resultados, mas mais relevantes.",

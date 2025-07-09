@@ -98,6 +98,21 @@
 			"error": "Błąd"
 		},
 		"close": "Zamknij",
+		"validation": {
+			"invalidQdrantUrl": "Nieprawidłowy URL Qdrant",
+			"invalidOllamaUrl": "Nieprawidłowy URL Ollama",
+			"invalidBaseUrl": "Nieprawidłowy podstawowy URL",
+			"qdrantUrlRequired": "Wymagany jest URL Qdrant",
+			"openaiApiKeyRequired": "Wymagany jest klucz API OpenAI",
+			"modelSelectionRequired": "Wymagany jest wybór modelu",
+			"apiKeyRequired": "Wymagany jest klucz API",
+			"modelIdRequired": "Wymagane jest ID modelu",
+			"modelDimensionRequired": "Wymagany jest wymiar modelu",
+			"geminiApiKeyRequired": "Wymagany jest klucz API Gemini",
+			"ollamaBaseUrlRequired": "Wymagany jest bazowy adres URL Ollama",
+			"baseUrlRequired": "Wymagany jest bazowy adres URL",
+			"modelDimensionMinValue": "Wymiar modelu musi być większy niż 0"
+		},
 		"advancedConfigLabel": "Konfiguracja zaawansowana",
 		"searchMinScoreLabel": "Próg wyniku wyszukiwania",
 		"searchMinScoreDescription": "Minimalny wynik podobieństwa (0.0-1.0) wymagany dla wyników wyszukiwania. Niższe wartości zwracają więcej wyników, ale mogą być mniej trafne. Wyższe wartości zwracają mniej wyników, ale bardziej trafnych.",

@@ -98,6 +98,21 @@
 			"error": "Hata"
 		},
 		"close": "Kapat",
+		"validation": {
+			"invalidQdrantUrl": "Geçersiz Qdrant URL'si",
+			"invalidOllamaUrl": "Geçersiz Ollama URL'si",
+			"invalidBaseUrl": "Geçersiz temel URL'si",
+			"qdrantUrlRequired": "Qdrant URL'si gereklidir",
+			"openaiApiKeyRequired": "OpenAI API anahtarı gereklidir",
+			"modelSelectionRequired": "Model seçimi gereklidir",
+			"apiKeyRequired": "API anahtarı gereklidir",
+			"modelIdRequired": "Model kimliği gereklidir",
+			"modelDimensionRequired": "Model boyutu gereklidir",
+			"geminiApiKeyRequired": "Gemini API anahtarı gereklidir",
+			"ollamaBaseUrlRequired": "Ollama temel URL'si gereklidir",
+			"baseUrlRequired": "Temel URL'si gereklidir",
+			"modelDimensionMinValue": "Model boyutu 0'dan büyük olmalıdır"
+		},
 		"advancedConfigLabel": "Gelişmiş Yapılandırma",
 		"searchMinScoreLabel": "Arama Skoru Eşiği",
 		"searchMinScoreDescription": "Arama sonuçları için gereken minimum benzerlik puanı (0.0-1.0). Düşük değerler daha fazla sonuç döndürür ancak daha az alakalı olabilir. Yüksek değerler daha az ancak daha alakalı sonuçlar döndürür.",

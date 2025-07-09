@@ -98,6 +98,21 @@
 			"error": "Error"
 		},
 		"close": "Tancar",
+		"validation": {
+			"invalidQdrantUrl": "URL de Qdrant no vàlida",
+			"invalidOllamaUrl": "URL d'Ollama no vàlida",
+			"invalidBaseUrl": "URL de base no vàlida",
+			"qdrantUrlRequired": "Cal una URL de Qdrant",
+			"openaiApiKeyRequired": "Cal una clau d'API d'OpenAI",
+			"modelSelectionRequired": "Cal seleccionar un model",
+			"apiKeyRequired": "Cal una clau d'API",
+			"modelIdRequired": "Cal un ID de model",
+			"modelDimensionRequired": "Cal una dimensió de model",
+			"geminiApiKeyRequired": "Cal una clau d'API de Gemini",
+			"ollamaBaseUrlRequired": "Cal una URL base d'Ollama",
+			"baseUrlRequired": "Cal una URL base",
+			"modelDimensionMinValue": "La dimensió del model ha de ser superior a 0"
+		},
 		"advancedConfigLabel": "Configuració avançada",
 		"searchMinScoreLabel": "Llindar de puntuació de cerca",
 		"searchMinScoreDescription": "Puntuació mínima de similitud (0.0-1.0) requerida per als resultats de la cerca. Valors més baixos retornen més resultats però poden ser menys rellevants. Valors més alts retornen menys resultats però més rellevants.",

@@ -98,6 +98,21 @@
 			"error": "Fehler"
 		},
 		"close": "Schließen",
+		"validation": {
+			"invalidQdrantUrl": "Ungültige Qdrant-URL",
+			"invalidOllamaUrl": "Ungültige Ollama-URL",
+			"invalidBaseUrl": "Ungültige Basis-URL",
+			"qdrantUrlRequired": "Qdrant-URL ist erforderlich",
+			"openaiApiKeyRequired": "OpenAI-API-Schlüssel ist erforderlich",
+			"modelSelectionRequired": "Modellauswahl ist erforderlich",
+			"apiKeyRequired": "API-Schlüssel ist erforderlich",
+			"modelIdRequired": "Modell-ID ist erforderlich",
+			"modelDimensionRequired": "Modellabmessung ist erforderlich",
+			"geminiApiKeyRequired": "Gemini-API-Schlüssel ist erforderlich",
+			"ollamaBaseUrlRequired": "Ollama-Basis-URL ist erforderlich",
+			"baseUrlRequired": "Basis-URL ist erforderlich",
+			"modelDimensionMinValue": "Modellabmessung muss größer als 0 sein"
+		},
 		"advancedConfigLabel": "Erweiterte Konfiguration",
 		"searchMinScoreLabel": "Suchergebnis-Schwellenwert",
 		"searchMinScoreDescription": "Mindestähnlichkeitswert (0.0-1.0), der für Suchergebnisse erforderlich ist. Niedrigere Werte liefern mehr Ergebnisse, die jedoch möglicherweise weniger relevant sind. Höhere Werte liefern weniger, aber relevantere Ergebnisse.",

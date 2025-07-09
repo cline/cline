@@ -98,6 +98,21 @@
 			"error": "Fout"
 		},
 		"close": "Sluiten",
+		"validation": {
+			"invalidQdrantUrl": "Ongeldige Qdrant URL",
+			"invalidOllamaUrl": "Ongeldige Ollama URL",
+			"invalidBaseUrl": "Ongeldige basis-URL",
+			"qdrantUrlRequired": "Qdrant URL is vereist",
+			"openaiApiKeyRequired": "OpenAI API-sleutel is vereist",
+			"modelSelectionRequired": "Modelselectie is vereist",
+			"apiKeyRequired": "API-sleutel is vereist",
+			"modelIdRequired": "Model-ID is vereist",
+			"modelDimensionRequired": "Modelafmeting is vereist",
+			"geminiApiKeyRequired": "Gemini API-sleutel is vereist",
+			"ollamaBaseUrlRequired": "Ollama basis-URL is vereist",
+			"baseUrlRequired": "Basis-URL is vereist",
+			"modelDimensionMinValue": "Modelafmeting moet groter zijn dan 0"
+		},
 		"advancedConfigLabel": "Geavanceerde configuratie",
 		"searchMinScoreLabel": "Zoekscore drempel",
 		"searchMinScoreDescription": "Minimale overeenkomstscore (0.0-1.0) vereist voor zoekresultaten. Lagere waarden leveren meer resultaten op, maar zijn mogelijk minder relevant. Hogere waarden leveren minder, maar relevantere resultaten op.",
