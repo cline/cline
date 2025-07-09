@@ -240,6 +240,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		if (lastMessage) {
 			switch (lastMessage.type) {
 				case "ask":
+					// Reset user response flag when a new ask arrives to allow auto-approval
+					userRespondedRef.current = false
 					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
