@@ -38,8 +38,8 @@ vi.mock("@src/context/ExtensionStateContext")
 const getEnhancePromptButton = () => {
 	return screen.getByRole("button", {
 		name: (_, element) => {
-			// Find the button with the sparkle icon
-			return element.querySelector(".codicon-sparkle") !== null
+			// Find the button with the wand sparkles icon (Lucide React)
+			return element.querySelector(".lucide-wand-sparkles") !== null
 		},
 	})
 }
@@ -154,8 +154,9 @@ describe("ChatTextArea", () => {
 			const enhanceButton = getEnhancePromptButton()
 			fireEvent.click(enhanceButton)
 
-			const loadingSpinner = screen.getByText("", { selector: ".codicon-loading" })
-			expect(loadingSpinner).toBeInTheDocument()
+			// Check if the WandSparkles icon has the animate-spin class
+			const animatingIcon = enhanceButton.querySelector(".animate-spin")
+			expect(animatingIcon).toBeInTheDocument()
 		})
 	})
 

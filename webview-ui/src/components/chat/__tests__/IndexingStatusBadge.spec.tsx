@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from "@/utils/test-utils"
 
 import { vscode } from "@src/utils/vscode"
 
-import { IndexingStatusDot } from "../IndexingStatusBadge"
+import { IndexingStatusBadge } from "../IndexingStatusBadge"
 
 vi.mock("@/i18n/setup", () => ({
 	__esModule: true,
@@ -104,9 +104,9 @@ vi.mock("@/i18n/TranslationContext", () => ({
 	}),
 }))
 
-describe("IndexingStatusDot", () => {
+describe("IndexingStatusBadge", () => {
 	const renderComponent = (props = {}) => {
-		return render(<IndexingStatusDot {...props} />)
+		return render(<IndexingStatusBadge {...props} />)
 	}
 
 	beforeEach(() => {

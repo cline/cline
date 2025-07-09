@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react"
+import { Database } from "lucide-react"
 import { cn } from "@src/lib/utils"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@/i18n/TranslationContext"
@@ -6,11 +7,11 @@ import { useTooltip } from "@/hooks/useTooltip"
 import { CodeIndexPopover } from "./CodeIndexPopover"
 import type { IndexingStatus, IndexingStatusUpdateMessage } from "@roo/ExtensionMessage"
 
-interface IndexingStatusDotProps {
+interface IndexingStatusBadgeProps {
 	className?: string
 }
 
-export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className }) => {
+export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ className }) => {
 	const { t } = useAppTranslation()
 	const { showTooltip, handleMouseEnter, handleMouseLeave, cleanup } = useTooltip({ delay: 300 })
 	const [isHovered, setIsHovered] = useState(false)
@@ -77,23 +78,23 @@ export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className 
 		handleMouseLeave()
 	}
 
-	// Get status color classes based on status and hover state
+	// Get status color classes for the badge dot
 	const getStatusColorClass = () => {
 		const statusColors = {
 			Standby: {
-				default: "bg-vscode-descriptionForeground/40",
-				hover: "bg-vscode-descriptionForeground/60",
+				default: "bg-vscode-descriptionForeground/60",
+				hover: "bg-vscode-descriptionForeground/80",
 			},
 			Indexing: {
-				default: "bg-yellow-500/40 animate-pulse",
+				default: "bg-yellow-500 animate-pulse",
 				hover: "bg-yellow-500 animate-pulse",
 			},
 			Indexed: {
-				default: "bg-green-500/40",
+				default: "bg-green-500",
 				hover: "bg-green-500",
 			},
 			Error: {
-				default: "bg-red-500/40",
+				default: "bg-red-500",
 				hover: "bg-red-500",
 			},
 		}
@@ -117,12 +118,17 @@ export const IndexingStatusDot: React.FC<IndexingStatusDotProps> = ({ className 
 						"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
 						"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 						"active:bg-[rgba(255,255,255,0.1)]",
+						"cursor-pointer",
 						className,
 					)}
 					aria-label={getTooltipText()}>
+					{/* File search icon */}
+					<Database className="w-4 h-4 text-vscode-foreground" />
+
+					{/* Status dot badge */}
 					<span
 						className={cn(
-							"inline-block w-2 h-2 rounded-full relative z-10 transition-colors duration-200",
+							"absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full transition-colors duration-200",
 							getStatusColorClass(),
 						)}
 					/>

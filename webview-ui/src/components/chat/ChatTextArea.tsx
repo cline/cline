@@ -25,9 +25,8 @@ import Thumbnails from "../common/Thumbnails"
 import ModeSelector from "./ModeSelector"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import { VolumeX, Pin, Check } from "lucide-react"
-import { IconButton } from "./IconButton"
-import { IndexingStatusDot } from "./IndexingStatusBadge"
+import { VolumeX, Pin, Check, Image, WandSparkles, SendHorizontal } from "lucide-react"
+import { IndexingStatusBadge } from "./IndexingStatusBadge"
 import { cn } from "@/lib/utils"
 import { usePromptHistory } from "./hooks/usePromptHistory"
 
@@ -962,24 +961,49 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)}
 
 							<div className="absolute top-1 right-1 z-30">
-								<IconButton
-									iconClass={isEnhancingPrompt ? "codicon-loading" : "codicon-sparkle"}
+								<button
+									aria-label={t("chat:enhancePrompt")}
 									title={t("chat:enhancePrompt")}
 									disabled={sendingDisabled}
-									isLoading={isEnhancingPrompt}
-									onClick={handleEnhancePrompt}
-									className="opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground"
-								/>
+									onClick={!sendingDisabled ? handleEnhancePrompt : undefined}
+									className={cn(
+										"relative inline-flex items-center justify-center",
+										"bg-transparent border-none p-1.5",
+										"rounded-md min-w-[28px] min-h-[28px]",
+										"opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground",
+										"transition-all duration-150",
+										"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+										"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+										"active:bg-[rgba(255,255,255,0.1)]",
+										!sendingDisabled && "cursor-pointer",
+										sendingDisabled &&
+											"opacity-40 cursor-not-allowed grayscale-[30%] hover:bg-transparent hover:border-[rgba(255,255,255,0.08)] active:bg-transparent",
+									)}>
+									<WandSparkles className={cn("w-4 h-4", isEnhancingPrompt && "animate-spin")} />
+								</button>
 							</div>
 
 							<div className="absolute bottom-1 right-1 z-30">
-								<IconButton
-									iconClass="codicon-send"
+								<button
+									aria-label={t("chat:sendMessage")}
 									title={t("chat:sendMessage")}
 									disabled={sendingDisabled}
-									onClick={onSend}
-									className="opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground"
-								/>
+									onClick={!sendingDisabled ? onSend : undefined}
+									className={cn(
+										"relative inline-flex items-center justify-center",
+										"bg-transparent border-none p-1.5",
+										"rounded-md min-w-[28px] min-h-[28px]",
+										"opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground",
+										"transition-all duration-150",
+										"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+										"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+										"active:bg-[rgba(255,255,255,0.1)]",
+										!sendingDisabled && "cursor-pointer",
+										sendingDisabled &&
+											"opacity-40 cursor-not-allowed grayscale-[30%] hover:bg-transparent hover:border-[rgba(255,255,255,0.08)] active:bg-transparent",
+									)}>
+									<SendHorizontal className="w-4 h-4" />
+								</button>
 							</div>
 
 							{!inputValue && (
@@ -1145,14 +1169,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</div>
 
 					<div className={cn("flex", "items-center", "gap-0.5", "shrink-0")}>
-						<IndexingStatusDot />
-						<IconButton
-							iconClass="codicon-device-camera"
+						<IndexingStatusBadge />
+						<button
+							aria-label={t("chat:addImages")}
 							title={t("chat:addImages")}
 							disabled={shouldDisableImages}
-							onClick={onSelectImages}
-							className="mr-1"
-						/>
+							onClick={!shouldDisableImages ? onSelectImages : undefined}
+							className={cn(
+								"relative inline-flex items-center justify-center",
+								"bg-transparent border-none p-1.5",
+								"rounded-md min-w-[28px] min-h-[28px]",
+								"text-vscode-foreground opacity-85",
+								"transition-all duration-150",
+								"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+								"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+								"active:bg-[rgba(255,255,255,0.1)]",
+								!shouldDisableImages && "cursor-pointer",
+								shouldDisableImages &&
+									"opacity-40 cursor-not-allowed grayscale-[30%] hover:bg-transparent hover:border-[rgba(255,255,255,0.08)] active:bg-transparent",
+								"mr-1",
+							)}>
+							<Image className="w-4 h-4" />
+						</button>
 					</div>
 				</div>
 			</div>
