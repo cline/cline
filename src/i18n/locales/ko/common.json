@@ -54,7 +54,7 @@
 		"cannot_access_path": "경로 {{path}}에 접근할 수 없습니다: {{error}}",
 		"settings_import_failed": "설정 가져오기 실패: {{error}}.",
 		"mistake_limit_guidance": "이는 모델의 사고 과정 실패나 도구를 제대로 사용하지 못하는 것을 나타낼 수 있으며, 사용자 가이드를 통해 완화할 수 있습니다 (예: \"작업을 더 작은 단계로 나누어 시도해보세요\").",
-		"violated_organization_allowlist": "작업 실행 실패: 현재 프로필이 조직 설정을 위반합니다",
+		"violated_organization_allowlist": "작업 실행 실패: 현재 프로필이 조직 설정과 호환되지 않습니다",
 		"condense_failed": "컨텍스트 압축에 실패했습니다",
 		"condense_not_enough_messages": "컨텍스트를 압축할 메시지가 충분하지 않습니다",
 		"condensed_recently": "컨텍스트가 최근 압축되었습니다; 이 시도를 건너뜁니다",

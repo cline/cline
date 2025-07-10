@@ -54,7 +54,7 @@
 		"cannot_access_path": "Zugriff auf Pfad {{path}} nicht möglich: {{error}}",
 		"settings_import_failed": "Fehler beim Importieren der Einstellungen: {{error}}.",
 		"mistake_limit_guidance": "Dies kann auf einen Fehler im Denkprozess des Modells oder die Unfähigkeit hinweisen, ein Tool richtig zu verwenden, was durch Benutzerführung behoben werden kann (z.B. \"Versuche, die Aufgabe in kleinere Schritte zu unterteilen\").",
-		"violated_organization_allowlist": "Aufgabe konnte nicht ausgeführt werden: Das aktuelle Profil verstößt gegen die Einstellungen deiner Organisation",
+		"violated_organization_allowlist": "Aufgabe konnte nicht ausgeführt werden: Das aktuelle Profil ist nicht kompatibel mit den Einstellungen deiner Organisation",
 		"condense_failed": "Fehler beim Verdichten des Kontexts",
 		"condense_not_enough_messages": "Nicht genügend Nachrichten zum Verdichten des Kontexts",
 		"condensed_recently": "Kontext wurde kürzlich verdichtet; dieser Versuch wird übersprungen",

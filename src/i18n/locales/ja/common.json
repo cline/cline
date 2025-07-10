@@ -54,7 +54,7 @@
 		"cannot_access_path": "パス {{path}} にアクセスできません：{{error}}",
 		"settings_import_failed": "設定のインポートに失敗しました：{{error}}",
 		"mistake_limit_guidance": "これは、モデルの思考プロセスの失敗やツールを適切に使用できないことを示している可能性があり、ユーザーのガイダンスによって軽減できます（例：「タスクをより小さなステップに分割してみてください」）。",
-		"violated_organization_allowlist": "タスクの実行に失敗しました: 現在のプロファイルは組織の設定に違反しています",
+		"violated_organization_allowlist": "タスクの実行に失敗しました: 現在のプロファイルは組織の設定と互換性がありません",
 		"condense_failed": "コンテキストの圧縮に失敗しました",
 		"condense_not_enough_messages": "コンテキストを圧縮するのに十分なメッセージがありません",
 		"condensed_recently": "コンテキストは最近圧縮されました；この試行をスキップします",

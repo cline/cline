@@ -58,7 +58,7 @@
 		"cannot_access_path": "Não é possível acessar o caminho {{path}}: {{error}}",
 		"settings_import_failed": "Falha ao importar configurações: {{error}}",
 		"mistake_limit_guidance": "Isso pode indicar uma falha no processo de pensamento do modelo ou incapacidade de usar uma ferramenta adequadamente, o que pode ser mitigado com orientação do usuário (ex. \"Tente dividir a tarefa em etapas menores\").",
-		"violated_organization_allowlist": "Falha ao executar a tarefa: o perfil atual viola as configurações da sua organização",
+		"violated_organization_allowlist": "Falha ao executar a tarefa: o perfil atual não é compatível com as configurações da sua organização",
 		"condense_failed": "Falha ao condensar o contexto",
 		"condense_not_enough_messages": "Não há mensagens suficientes para condensar o contexto",
 		"condensed_recently": "O contexto foi condensado recentemente; pulando esta tentativa",

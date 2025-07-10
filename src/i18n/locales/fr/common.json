@@ -54,7 +54,7 @@
 		"cannot_access_path": "Impossible d'accéder au chemin {{path}} : {{error}}",
 		"settings_import_failed": "Échec de l'importation des paramètres : {{error}}",
 		"mistake_limit_guidance": "Cela peut indiquer un échec dans le processus de réflexion du modèle ou une incapacité à utiliser un outil correctement, ce qui peut être atténué avec des conseils de l'utilisateur (par ex. \"Essaie de diviser la tâche en étapes plus petites\").",
-		"violated_organization_allowlist": "Échec de l'exécution de la tâche : le profil actuel enfreint les paramètres de votre organisation",
+		"violated_organization_allowlist": "Échec de l'exécution de la tâche : le profil actuel n'est pas compatible avec les paramètres de votre organisation",
 		"condense_failed": "Échec de la condensation du contexte",
 		"condense_not_enough_messages": "Pas assez de messages pour condenser le contexte",
 		"condensed_recently": "Le contexte a été condensé récemment ; cette tentative est ignorée",

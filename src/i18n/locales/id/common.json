@@ -54,7 +54,7 @@
 		"cannot_access_path": "Tidak dapat mengakses path {{path}}: {{error}}",
 		"settings_import_failed": "Impor pengaturan gagal: {{error}}.",
 		"mistake_limit_guidance": "Ini mungkin menunjukkan kegagalan dalam proses pemikiran model atau ketidakmampuan untuk menggunakan tool dengan benar, yang dapat diatasi dengan beberapa panduan pengguna (misalnya \"Coba bagi tugas menjadi langkah-langkah yang lebih kecil\").",
-		"violated_organization_allowlist": "Gagal menjalankan tugas: profil saat ini melanggar pengaturan organisasi kamu",
+		"violated_organization_allowlist": "Gagal menjalankan tugas: profil saat ini tidak kompatibel dengan pengaturan organisasi kamu",
 		"condense_failed": "Gagal mengompres konteks",
 		"condense_not_enough_messages": "Tidak cukup pesan untuk mengompres konteks",
 		"condensed_recently": "Konteks baru saja dikompres; melewati percobaan ini",

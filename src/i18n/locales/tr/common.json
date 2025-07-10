@@ -54,7 +54,7 @@
 		"cannot_access_path": "{{path}} yoluna erişilemiyor: {{error}}",
 		"settings_import_failed": "Ayarlar içe aktarılamadı: {{error}}.",
 		"mistake_limit_guidance": "Bu, modelin düşünce sürecindeki bir başarısızlığı veya bir aracı düzgün kullanamama durumunu gösterebilir, bu da kullanıcı rehberliği ile hafifletilebilir (örn. \"Görevi daha küçük adımlara bölmeyi deneyin\").",
-		"violated_organization_allowlist": "Görev yürütülemedi: Geçerli profil kuruluşunuzun ayarlarını ihlal ediyor",
+		"violated_organization_allowlist": "Görev yürütülemedi: Geçerli profil kuruluşunuzun ayarlarıyla uyumlu değil",
 		"condense_failed": "Bağlam sıkıştırılamadı",
 		"condense_not_enough_messages": "Bağlamı sıkıştırmak için yeterli mesaj yok",
 		"condensed_recently": "Bağlam yakın zamanda sıkıştırıldı; bu deneme atlanıyor",

@@ -54,7 +54,7 @@
 		"cannot_access_path": "Kan pad {{path}} niet openen: {{error}}",
 		"settings_import_failed": "Importeren van instellingen mislukt: {{error}}.",
 		"mistake_limit_guidance": "Dit kan duiden op een fout in het denkproces van het model of het onvermogen om een tool correct te gebruiken, wat kan worden verminderd met gebruikersbegeleiding (bijv. \"Probeer de taak op te delen in kleinere stappen\").",
-		"violated_organization_allowlist": "Taak uitvoeren mislukt: het huidige profiel schendt de instellingen van uw organisatie",
+		"violated_organization_allowlist": "Taak uitvoeren mislukt: het huidige profiel is niet compatibel met de instellingen van uw organisatie",
 		"condense_failed": "Comprimeren van context mislukt",
 		"condense_not_enough_messages": "Niet genoeg berichten om context te comprimeren",
 		"condensed_recently": "Context is recent gecomprimeerd; deze poging wordt overgeslagen",

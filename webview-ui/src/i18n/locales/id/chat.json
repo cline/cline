@@ -301,7 +301,7 @@
 		}
 	},
 	"systemPromptWarning": "PERINGATAN: Override system prompt kustom aktif. Ini dapat merusak fungsionalitas secara serius dan menyebabkan perilaku yang tidak terduga.",
-	"profileViolationWarning": "Profil saat ini melanggar pengaturan organisasi kamu",
+	"profileViolationWarning": "Profil saat ini tidak kompatibel dengan pengaturan organisasi kamu",
 	"shellIntegration": {
 		"title": "Peringatan Eksekusi Perintah",
 		"description": "Perintah kamu dijalankan tanpa integrasi shell terminal VSCode. Untuk menekan peringatan ini kamu bisa menonaktifkan integrasi shell di bagian <strong>Terminal</strong> dari <settingsLink>pengaturan Roo Code</settingsLink> atau troubleshoot integrasi terminal VSCode menggunakan link di bawah.",

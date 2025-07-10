@@ -54,7 +54,7 @@
 		"cannot_access_path": "Nie można uzyskać dostępu do ścieżki {{path}}: {{error}}",
 		"settings_import_failed": "Nie udało się zaimportować ustawień: {{error}}.",
 		"mistake_limit_guidance": "To może wskazywać na błąd w procesie myślowym modelu lub niezdolność do prawidłowego użycia narzędzia, co można złagodzić poprzez wskazówki użytkownika (np. \"Spróbuj podzielić zadanie na mniejsze kroki\").",
-		"violated_organization_allowlist": "Nie udało się uruchomić zadania: bieżący profil narusza ustawienia Twojej organizacji",
+		"violated_organization_allowlist": "Nie udało się uruchomić zadania: bieżący profil nie jest kompatybilny z ustawieniami Twojej organizacji",
 		"condense_failed": "Nie udało się skondensować kontekstu",
 		"condense_not_enough_messages": "Za mało wiadomości do skondensowania kontekstu",
 		"condensed_recently": "Kontekst został niedawno skondensowany; pomijanie tej próby",

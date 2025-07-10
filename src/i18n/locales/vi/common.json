@@ -54,7 +54,7 @@
 		"cannot_access_path": "Không thể truy cập đường dẫn {{path}}: {{error}}",
 		"settings_import_failed": "Nhập cài đặt thất bại: {{error}}.",
 		"mistake_limit_guidance": "Điều này có thể cho thấy sự thất bại trong quá trình suy nghĩ của mô hình hoặc không thể sử dụng công cụ đúng cách, có thể được giảm thiểu bằng hướng dẫn của người dùng (ví dụ: \"Hãy thử chia nhỏ nhiệm vụ thành các bước nhỏ hơn\").",
-		"violated_organization_allowlist": "Không thể chạy tác vụ: hồ sơ hiện tại vi phạm cài đặt của tổ chức của bạn",
+		"violated_organization_allowlist": "Không thể chạy tác vụ: hồ sơ hiện tại không tương thích với cài đặt của tổ chức của bạn",
 		"condense_failed": "Không thể nén ngữ cảnh",
 		"condense_not_enough_messages": "Không đủ tin nhắn để nén ngữ cảnh",
 		"condensed_recently": "Ngữ cảnh đã được nén gần đây; bỏ qua lần thử này",
