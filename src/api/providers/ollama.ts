@@ -6,11 +6,18 @@ import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
+interface OllamaHandlerOptions {
+	ollamaBaseUrl?: string
+	ollamaModelId?: string
+	ollamaApiOptionsCtxNum?: string
+	requestTimeoutMs?: number
+}
+
 export class OllamaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OllamaHandlerOptions) {
 		this.options = options
 	}
 

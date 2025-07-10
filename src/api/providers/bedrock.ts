@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
+import { bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
@@ -15,6 +15,22 @@ import {
 
 // Import proper AWS SDK types
 import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
+
+interface AwsBedrockHandlerOptions {
+	apiModelId?: string
+	awsAccessKey?: string
+	awsSecretKey?: string
+	awsSessionToken?: string
+	awsRegion?: string
+	awsUseCrossRegionInference?: boolean
+	awsBedrockUsePromptCache?: boolean
+	awsUseProfile?: boolean
+	awsProfile?: string
+	awsBedrockEndpoint?: string
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: BedrockModelId
+	thinkingBudgetTokens?: number
+}
 
 // Extend AWS SDK types to include additionalModelResponseFields
 interface ExtendedMetadata {
@@ -90,9 +106,9 @@ interface ProviderChainOptions {
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: AwsBedrockHandlerOptions
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: AwsBedrockHandlerOptions) {
 		this.options = options
 	}
 

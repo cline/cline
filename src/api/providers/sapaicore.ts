@@ -2,9 +2,18 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
+import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+
+interface SapAiCoreHandlerOptions {
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	sapAiCoreTokenUrl?: string
+	sapAiResourceGroup?: string
+	sapAiCoreBaseUrl?: string
+	apiModelId?: string
+}
 
 interface Deployment {
 	id: string
@@ -19,11 +28,11 @@ interface Token {
 	expires_at: number
 }
 export class SapAiCoreHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
 	}
 

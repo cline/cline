@@ -16,9 +16,11 @@ tsconfig*.json
 **/*.ts
 **/.vscode-test.*
 eslint-rules/**
+.github/**
+.husky/**
 
 # Custom
-demo.gif
+**/demo.gif
 .nvmrc
 .gitattributes
 .prettierignore

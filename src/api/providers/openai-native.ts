@@ -8,11 +8,17 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
+interface OpenAiNativeHandlerOptions {
+	openAiNativeApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
+
 export class OpenAiNativeHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OpenAiNativeHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
 	}
 
