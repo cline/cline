@@ -27,8 +27,8 @@ export interface RefinedPromptResult {
 // Template
 function getWebProjectTemplate() {
 	return {
-		name: "Modern Web Application Template",
-		description: "A template for creating modern web applications",
+		name: "Focused Web Application Template",
+		description: "A streamlined template for creating web applications with essential requirements",
 		slots: {
 			projectName: {
 				description: "Name of the project/application",
@@ -37,102 +37,125 @@ function getWebProjectTemplate() {
 			projectType: {
 				description: "Type of web application",
 				required: true,
-				options: ["portfolio", "blog", "dashboard", "landing-page"],
+				options: ["dashboard", "admin-panel", "client-portal", "service-platform"],
 			},
-			mainFeatures: {
-				description: "Key features and functionality",
+			mainPurpose: {
+				description: "Core objective and what the application should accomplish",
 				required: true,
+				options: ["showcase-work", "share-content", "manage-data", "generate-leads"],
 			},
-			designStyle: {
-				description: "Visual design preferences",
+			essentialFeatures: {
+				description: "Must-have functionality that defines the project",
 				required: true,
+				options: ["contact-form", "data-display", "user-authentication", "payment-integration", "search-function"],
+			},
+			keyPages: {
+				description: "Main pages or sections that are absolutely necessary",
+				required: true,
+				options: ["home", "about", "contact", "services", "products", "dashboard", "login"],
+			},
+			visualStyle: {
+				description: "Visual design preferences (modern, clean, professional, etc.)",
+				required: true,
+				options: ["modern", "clean", "professional", "minimalist", "creative", "corporate", "playful", "elegant"],
 			},
 			primaryColor: {
-				description: "Primary color scheme",
+				description: "Primary color preference",
 				required: true,
+				options: ["blue", "green", "purple", "red", "orange", "pink", "gray", "black", "white"],
 			},
-			targetAudience: {
-				description: "Target users or audience",
-				required: false,
+			technologyPreference: {
+				description: "Preferred frontend framework or technology",
+				required: true,
+				options: ["react", "vue", "angular", "vanilla-js", "nextjs", "nuxt", "svelte", "html-css"],
 			},
-			technologies: {
-				description: "Preferred technologies or frameworks",
+			navigationType: {
+				description: "Navigation structure preference",
 				required: false,
+				options: ["header-only", "sidebar", "breadcrumb", "footer-nav", "tab-navigation", "hamburger-menu"],
 			},
-			pages: {
-				description: "Specific pages or sections needed",
+			componentStyle: {
+				description: "UI component design preference",
 				required: false,
+				options: ["minimal", "material-design", "glassmorphism", "neumorphism", "flat-design", "skeuomorphic"],
 			},
-			animations: {
-				description: "Animation or interaction preferences",
+			typographyScale: {
+				description: "Typography system preference",
 				required: false,
+				options: ["large-scale", "medium-scale", "small-scale", "variable-scale", "fixed-scale"],
+			},
+			layoutSystem: {
+				description: "Layout and grid system preference",
+				required: false,
+				options: ["12-column-grid", "flexbox", "css-grid", "bootstrap-grid", "tailwind-grid"],
+			},
+			interactionStyle: {
+				description: "Interactive elements and animations preference",
+				required: false,
+				options: ["subtle", "smooth", "bouncy", "minimal", "dramatic", "none"],
 			},
 		},
 	}
 }
 
-// Project Speicifiaction Format
+// Project Specification Format
 function getProjectSpecificationFormat(): string {
 	return `
 	## Project Specification Format
 
-	Create a comprehensive project specification using the following structure:
+	Create a focused project specification using the following structure:
 
 	### Project Overview
 	- **Project Name**: [Extracted or inferred project name]
-	- **Project Type**: [Type of web application (portfolio, e-commerce, blog, etc.)]
-	- **Target Audience**: [Who will use this application]
-	- **Project Goals**: [Main objectives and purpose]
+	- **Project Type**: [Type of web application (portfolio, blog, dashboard, landing page, etc.)]
+	- **Main Purpose**: [Core objective and what the application should accomplish]
 
-	### Technical Requirements
-	- **Preferred Technologies**: [Frontend frameworks, libraries, tools]
-	- **Architecture**: [Basic structure and approach]
-	- **Platform**: [Web, mobile-responsive, PWA, etc.]
+	### Core Requirements
+	- **Essential Features**: [Must-have functionality that defines the project]
+	- **Key Pages/Sections**: [Main pages or sections that are absolutely necessary]
+	- **User Actions**: [Primary interactions users will perform]
 
-	### Design Specifications
-	- **Design Style**: [Modern, minimalist, professional, etc.]
-	- **Color Palette**: 
-	  - Primary Color: [Main brand color with hex code]
-	  - Secondary Colors: [Supporting colors]
-	  - Accent Colors: [Call-to-action and highlight colors]
-	- **Typography**: 
-	  - Heading Fonts: [Font family for titles and headings]
-	  - Body Fonts: [Font family for content text]
-	  - Font Sizes: [Responsive text scaling approach]
-	- **Layout & Spacing**:
-	  - Grid System: [12-column, flexbox, css grid approach]
-	  - Breakpoints: [Mobile: 768px, Tablet: 1024px, Desktop: 1200px+]
-	  - Spacing Scale: [Consistent margin/padding system]
-	- **UI Components**:
-	  - Button Styles: [Primary, secondary, outline variations]
-	  - Form Elements: [Input fields, dropdowns, checkboxes styling]
-	  - Navigation: [Header, sidebar, breadcrumb styles]
-	- **Visual Effects**:
-	  - Shadows: [Box shadows, text shadows]
-	  - Border Radius: [Corner rounding approach]
-	  - Animations: [Hover effects, transitions, loading states]
+	### Technical Approach
+	- **Technology Stack**: [Recommended frontend framework and key libraries]
+	- **Responsive Design**: [Mobile-first approach with breakpoints]
+	- **Basic Styling**: [Simple color scheme and typography preferences]
 
-	### Feature Requirements
-	- **Core Features**: [Essential functionality that must be included]
-	- **Additional Features**: [Nice-to-have features]
-	- **User Interactions**: [How users will interact with the application]
+	### Design Direction
+	- **Visual Style**: [Modern, clean, professional, etc.]
+	- **Color Scheme**: [Primary color and 2-3 supporting colors]
+	- **Layout**: [Simple grid or flexbox approach]
 
-	### Page Structure
-	- **Required Pages**: [List of necessary pages/sections]
-	- **Content Strategy**: [Type of content for each page]
-	- **Navigation**: [How users will move through the site]
+	### UI/UX Specifications
+	- **Navigation Structure**: [Header, sidebar, breadcrumb, footer layout]
+	- **Component Design**:
+	  - Buttons: [Primary, secondary, outline button styles]
+	  - Forms: [Input fields, dropdowns, checkboxes, radio buttons]
+	  - Cards: [Content card layouts and styling]
+	  - Tables: [Data table design and functionality]
+	  - Modals: [Dialog and popup window styles]
+	- **Typography System**:
+	  - Heading Hierarchy: [H1, H2, H3, H4 font sizes and weights]
+	  - Body Text: [Paragraph and content text styling]
+	  - Font Families: [Primary and secondary font choices]
+	- **Spacing & Layout**:
+	  - Grid System: [12-column, flexbox, or CSS Grid approach]
+	  - Breakpoints: [Mobile, tablet, desktop responsive breakpoints]
+	  - Spacing Scale: [Consistent margin and padding system]
+	- **Interactive Elements**:
+	  - Hover Effects: [Button and link hover states]
+	  - Transitions: [Smooth animations and transitions]
+	  - Loading States: [Loading spinners and skeleton screens]
+	- **Visual Hierarchy**:
+	  - Information Architecture: [Content organization and flow]
+	  - Call-to-Action Placement: [Primary action button positioning]
+	  - Content Prioritization: [Most important content emphasis]
 
-	### Implementation Details
-	- **Development Approach**: [Step-by-step implementation strategy]
-	- **File Structure**: 
-	  - Project Organization: [Root directory structure and main folders]
-	  - Asset Management: [Images, fonts, icons, media files organization]
-	  - Source Code Structure: [Main code files, modules, components organization]
-	  - Configuration Files: [Settings, environment, build configuration placement]
-	  - Documentation: [README, docs, comments structure]
-	  - Build Output: [Distribution, compiled files location]
+	### Implementation Plan
+	- **Project Structure**: [Basic folder organization]
+	- **Development Steps**: [3-4 key implementation phases]
+	- **Key Components**: [Main UI elements to build]
 
-	Use this format to create a clear, actionable specification that a developer can immediately use to build the project.`
+	Focus on what is essential for the project to function and meet the user's core needs. Avoid over-engineering or adding unnecessary complexity.`
 }
 
 /**
