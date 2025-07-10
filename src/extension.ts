@@ -704,6 +704,10 @@ export async function deactivate() {
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
 
+	// Dispose AuthService singleton
+	const { AuthService } = await import("./services/auth/AuthService")
+	AuthService.dispose()
+
 	await telemetryService.sendCollectedEvents()
 
 	// Clean up test mode

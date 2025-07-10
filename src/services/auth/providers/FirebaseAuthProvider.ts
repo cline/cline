@@ -107,23 +107,66 @@ export class FirebaseAuthProvider {
 
 	/**
 	 * Restores the authentication token using a provided token.
-	 * @param token - The authentication token to restore.
-	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
-	 * @throws {Error} Throws an error if the restoration fails.
+	 * @param context - The extension context for accessing stored credentials
+	 * @returns {Promise<User | null>} A promise that resolves with the authenticated user or null if no credentials
+	 * @throws {Error} Throws an error if the restoration fails due to invalid credentials
 	 */
 	async restoreAuthCredential(context: ExtensionContext): Promise<User | null> {
 		const credentialJSON = await getSecret(context, "clineAccountId")
 		if (!credentialJSON) {
-			console.error("No stored authentication credential found.")
+			console.log("No stored authentication credential found.")
 			return null
 		}
+
 		try {
-			const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
+			// Validate JSON format
+			let parsedCredential: any
+			try {
+				parsedCredential = JSON.parse(credentialJSON)
+			} catch (parseError) {
+				console.error("Invalid credential JSON format:", parseError)
+				throw new Error("Stored credentials are corrupted")
+			}
+
+			// Validate credential structure
+			if (!parsedCredential || typeof parsedCredential !== "object") {
+				throw new Error("Invalid credential structure")
+			}
+
+			const credentialData: AuthCredential = OAuthCredential.fromJSON(parsedCredential) as AuthCredential
+			if (!credentialData) {
+				throw new Error("Failed to parse OAuth credential")
+			}
+
 			const userCredential = await this._signInWithCredential(credentialData)
+
+			// Validate the returned user
+			if (!userCredential.user) {
+				throw new Error("Authentication succeeded but no user returned")
+			}
+
+			console.log("Firebase credential restored successfully")
 			return userCredential.user
 		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			console.error("Firebase restore credential failed:", errorMessage)
+
 			ErrorService.logMessage("Firebase restore token error", "error")
 			ErrorService.logException(error)
+
+			// Re-throw with more specific error information
+			if (
+				errorMessage.includes("auth/invalid-credential") ||
+				errorMessage.includes("auth/user-token-expired") ||
+				errorMessage.includes("auth/user-disabled")
+			) {
+				throw new Error("Authentication credentials have expired or been revoked")
+			} else if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
+				throw new Error("Network error during authentication")
+			} else if (errorMessage.includes("corrupted") || errorMessage.includes("Invalid credential")) {
+				throw new Error("Stored credentials are invalid or corrupted")
+			}
+
 			throw error
 		}
 	}

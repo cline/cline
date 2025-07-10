@@ -79,12 +79,37 @@ export class Controller {
 		)
 		this.accountService = ClineAccountService.getInstance()
 		this.authService = AuthService.getInstance(context)
-		this.authService.restoreAuthToken()
+
+		// Initialize authentication asynchronously
+		this.initializeAuthService().catch((error) => {
+			console.error("Failed to initialize auth service:", error)
+		})
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	/**
+	 * Initializes the AuthService and handles token restoration
+	 */
+	private async initializeAuthService(): Promise<void> {
+		try {
+			const restored = await this.authService.restoreAuthToken()
+			if (restored) {
+				console.log("Authentication restored successfully")
+			} else {
+				console.log("No valid authentication found")
+			}
+
+			// Post state to webview after auth initialization
+			await this.postStateToWebview()
+		} catch (error) {
+			console.error("Auth service initialization failed:", error)
+			// Continue without authentication - user can sign in manually
+			await this.postStateToWebview()
+		}
 	}
 
 	private async getCurrentMode(): Promise<"plan" | "act"> {
