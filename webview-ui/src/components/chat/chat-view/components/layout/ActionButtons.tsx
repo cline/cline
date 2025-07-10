@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -20,6 +20,8 @@ interface ActionButtonsProps {
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ chatState, messageHandlers, isStreaming, scrollBehavior }) => {
 	const { primaryButtonText, secondaryButtonText, enableButtons, didClickCancel, inputValue, selectedImages, selectedFiles } =
 		chatState
+	const [primaryFocused, setPrimaryFocused] = useState(false)
+	const [secondaryFocused, setSecondaryFocused] = useState(false)
 
 	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
 
@@ -51,10 +53,20 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ chatState, message
 				display: "flex",
 				padding: `${shouldShowButtons ? "10" : "0"}px 15px 0px 15px`,
 			}}>
+			<style>
+				{`
+          .focused {
+            outline: 1px solid var(--vscode-focusBorder);
+          }
+        `}
+			</style>
 			{primaryButtonText && !isStreaming && (
 				<VSCodeButton
 					appearance="primary"
 					disabled={!enableButtons}
+					className={primaryFocused ? "focused" : ""}
+					onFocus={() => setPrimaryFocused(true)}
+					onBlur={() => setPrimaryFocused(false)}
 					style={{
 						flex: secondaryButtonText ? 1 : 2,
 						marginRight: secondaryButtonText ? "6px" : "0",
@@ -67,6 +79,9 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ chatState, message
 				<VSCodeButton
 					appearance="secondary"
 					disabled={!enableButtons && !(isStreaming && !didClickCancel)}
+					className={secondaryFocused ? "focused" : ""}
+					onFocus={() => setSecondaryFocused(true)}
+					onBlur={() => setSecondaryFocused(false)}
 					style={{
 						flex: isStreaming ? 2 : 1,
 						marginLeft: isStreaming ? 0 : "6px",
