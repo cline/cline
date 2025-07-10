@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.18.10
+
+### Patch Changes
+
+-   268bbec: recommend grok 4
+-   398bc87: Fixing Gemini 2.5 pro slider and add support for gemini-2.5-flash-lite-preview-06-17 model
+
 ## [3.18.9]
 
 -   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
