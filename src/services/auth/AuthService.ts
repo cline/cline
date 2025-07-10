@@ -33,6 +33,7 @@ export class AuthService {
 	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
+	private _refreshTimer: NodeJS.Timeout | null = null
 
 	/**
 	 * Creates an instance of AuthService.
@@ -199,6 +200,12 @@ export class AuthService {
 		}
 
 		try {
+			// Clear any active refresh timer
+			if (this._refreshTimer) {
+				clearTimeout(this._refreshTimer)
+				this._refreshTimer = null
+			}
+
 			await this._provider.provider.signOut()
 			this._user = null
 			this._authenticated = false
@@ -207,6 +214,17 @@ export class AuthService {
 			console.error("Error signing out:", error)
 			throw error
 		}
+	}
+
+	/**
+	 * Dispose of the AuthService and clean up resources
+	 */
+	dispose(): void {
+		if (this._refreshTimer) {
+			clearTimeout(this._refreshTimer)
+			this._refreshTimer = null
+		}
+		this._activeAuthStatusUpdateSubscriptions.clear()
 	}
 
 	async handleAuthCallback(token: string, provider: string): Promise<void> {
@@ -273,14 +291,31 @@ export class AuthService {
 			return
 		}
 
-		await this._provider.provider.refreshAuthToken()
-		this.sendAuthStatusUpdate()
+		try {
+			await this._provider.provider.refreshAuthToken()
+			this.sendAuthStatusUpdate()
+		} catch (error) {
+			console.error("Token refresh failed:", error)
+			throw error // Let caller handle the error
+		}
 	}
 
 	private setupAutoRefreshAuth(): void {
+		// Clear any existing timer first
+		if (this._refreshTimer) {
+			clearTimeout(this._refreshTimer)
+			this._refreshTimer = null
+		}
+
 		// Set timeoutDuration to refresh the auth token 5 minutes before it expires
 		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
-		setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+
+		// Only set timer if duration is reasonable (between 1 minute and 2 hours)
+		if (timeoutDuration > 60000 && timeoutDuration < 7200000) {
+			this._refreshTimer = setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+		} else {
+			console.warn(`Invalid timeout duration: ${timeoutDuration}ms, skipping auto-refresh setup`)
+		}
 	}
 
 	private async _autoRefreshAuth(): Promise<void> {
@@ -288,8 +323,15 @@ export class AuthService {
 			console.warn("No user is authenticated, skipping auth refresh")
 			return
 		}
-		await this.refreshAuth()
-		this.setupAutoRefreshAuth() // Reschedule the next auto-refresh
+
+		try {
+			await this.refreshAuth()
+			// Only reschedule if refresh was successful
+			this.setupAutoRefreshAuth()
+		} catch (error) {
+			console.error("Auto-refresh failed:", error)
+			// Don't reschedule on failure - let user re-login
+		}
 	}
 
 	/**
