@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.18.11]
+
+-   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
+
 ## [3.18.10]
 
 -   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
