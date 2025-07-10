@@ -85,7 +85,7 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
 export async function writeFile(
 	filePath: string,
 	content: string | Uint8Array,
-	encoding: BufferEncoding = "utf8"
+	encoding: BufferEncoding = "utf8",
 ): Promise<void> {
 	console.log("[DEBUG] writing file:", filePath, content.length, encoding)
 	if (content instanceof Uint8Array) {
@@ -131,7 +131,7 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 					}
 
 					return true
-				})
+				}),
 			)
 
 		return filePaths
