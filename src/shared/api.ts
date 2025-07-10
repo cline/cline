@@ -2059,7 +2059,7 @@ export const xaiModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // will have different pricing for long context vs short context
-		outputPrice: 15.0,
+		outputPrice: 6.0,
 	},
 	"grok-3-beta": {
 		maxTokens: 8192,
