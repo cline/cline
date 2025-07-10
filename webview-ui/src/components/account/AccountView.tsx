@@ -48,6 +48,7 @@ export const ClineAccountView = () => {
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
@@ -96,6 +97,11 @@ export const ClineAccountView = () => {
 				Promise.all([getUserCredits(), getUserOrganizations()])
 			} catch (error) {
 				console.error("Failed to fetch user data:", error)
+				setBalance(0)
+				setUsageData([])
+				setPaymentsData([])
+			} finally {
+				setIsLoading(false)
 			}
 		}
 
@@ -155,9 +161,10 @@ export const ClineAccountView = () => {
 
 								{userOrganizations && (
 									<VSCodeDropdown
-										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
+										key={activeOrganization?.organizationId || "personal"}
 										currentValue={activeOrganization?.organizationId || ""}
 										onChange={handleOrganizationChange}
+										disabled={isSwitchingOrg || isLoading}
 										style={{ width: "100%", marginTop: "4px" }}>
 										<VSCodeOption value="">Personal</VSCodeOption>
 										{userOrganizations.map((org: UserOrganization) => (
