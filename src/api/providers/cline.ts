@@ -64,19 +64,19 @@ export class ClineHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const client = await this.ensureClient()
-
-		this.lastGenerationId = undefined
-
-		const me = await this.clineAccountService.fetchMe()
-		console.log(
-			"SwitchAuthToken: Active Organization",
-			me?.organizations.filter((org) => org.active)[0]?.name || "No active organization",
-		)
-
-		let didOutputUsage: boolean = false
-
 		try {
+			// Only continue the request if the user:
+			// 1. Has signed in to Cline with a token
+			// 2. Has more than 0 credits
+			// Or an error is thrown.
+			await this.clineAccountService.validateRequest()
+
+			const client = await this.ensureClient()
+
+			this.lastGenerationId = undefined
+
+			let didOutputUsage: boolean = false
+
 			const stream = await createOpenRouterStream(
 				client,
 				systemPrompt,
@@ -183,6 +183,7 @@ export class ClineHandler implements ApiHandler {
 				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
 			}
 			console.error("Cline API Error:", error)
+			throw error instanceof Error ? error : new Error(String(error))
 		}
 	}
 

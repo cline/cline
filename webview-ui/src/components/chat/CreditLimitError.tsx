@@ -6,27 +6,25 @@ import React from "react"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
-	totalSpent: number
-	totalPromotions: number
+	totalSpent?: number
+	totalPromotions?: number
 	message: string
 }
 
-const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, totalSpent, totalPromotions, message }) => {
+const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
+	currentBalance = 0,
+	totalSpent = 0,
+	totalPromotions = 0,
+	message = "You have run out of credit.",
+}) => {
+	// We have to divide because the balance is stored in microcredits
 	return (
-		<div
-			style={{
-				backgroundColor: "var(--vscode-textBlockQuote-background)",
-				padding: "12px",
-				borderRadius: "4px",
-				marginBottom: "12px",
-			}}>
-			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
-			<div style={{ marginBottom: "12px" }}>
-				<div style={{ color: "var(--vscode-foreground)" }}>
-					Current Balance: <span style={{ fontWeight: "bold" }}>${currentBalance.toFixed(2)}</span>
+		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
+			<div className="mb-2">{message}</div>
+			<div className="mb-3">
+				<div className="text-[var(--vscode-foreground)]">
+					Current Balance: <span className="font-bold">${(currentBalance / 1000000).toFixed(4)}</span>
 				</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: ${totalSpent.toFixed(2)}</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: ${totalPromotions.toFixed(2)}</div>
 			</div>
 
 			<VSCodeButtonLink
@@ -35,7 +33,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 					width: "100%",
 					marginBottom: "8px",
 				}}>
-				<span className="codicon codicon-credit-card" style={{ fontSize: "14px", marginRight: "6px" }} />
+				<span className="codicon codicon-credit-card mr-0.5 text-sm" />
 				Buy Credits
 			</VSCodeButtonLink>
 
