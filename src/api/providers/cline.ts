@@ -4,7 +4,7 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -38,11 +38,11 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	private async ensureClient(): Promise<OpenAI> {
+		const clineAccountAuthToken = await this._authService.getAuthToken()
+		if (!clineAccountAuthToken) {
+			throw new Error("Cline account authentication token is required")
+		}
 		if (!this.client) {
-			const clineAccountAuthToken = await this._authService.getAuthToken()
-			if (!clineAccountAuthToken) {
-				throw new Error("Cline account authentication token is required")
-			}
 			try {
 				this.client = new OpenAI({
 					baseURL: `${this._baseUrl}/api/v1`,
@@ -57,16 +57,14 @@ export class ClineHandler implements ApiHandler {
 				throw new Error(`Error creating Cline client: ${error.message}`)
 			}
 		}
+		// Ensure the client is always using the latest auth token
+		this.client.apiKey = clineAccountAuthToken
 		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = await this.ensureClient()
-		const clineAccountAuthToken = await this._authService.getAuthToken()
-		if (!clineAccountAuthToken) {
-			throw new Error("Unauthorized: Please sign in to Cline before trying again.")
-		}
 
 		this.lastGenerationId = undefined
 
