@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.18.10
+## [3.18.10]
 
--   268bbec: recommend grok 4
--   398bc87: Fixing Gemini 2.5 pro slider and add support for gemini-2.5-flash-lite-preview-06-17 model
+-   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
+-   Fix Gemini 2.5 Pro thinking budget slider and add support for Gemini 2.5 Flash Lite Preview model (Thanks @arafatkatze!)
 
 ## [3.18.9]
 
