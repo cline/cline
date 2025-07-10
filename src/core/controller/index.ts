@@ -458,12 +458,7 @@ export class Controller {
 
 	// Auth
 	public async validateAuthState(state: string | null): Promise<boolean> {
-		const storedNonce = this.authService.authNonce
-		if (!state || state !== storedNonce) {
-			return false
-		}
-		this.authService.resetAuthNonce() // Clear the nonce after validation
-		return true
+		return state === this.authService.authNonce
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
