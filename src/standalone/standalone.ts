@@ -20,6 +20,9 @@ async function main() {
 	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
+	controller.initialize().catch((error) => {
+		console.error("Failed to initialize controller:", error)
+	})
 	startProtobusService(controller)
 }
 
