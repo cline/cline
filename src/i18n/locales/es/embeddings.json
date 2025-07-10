@@ -37,7 +37,9 @@
 		"invalidApiKey": "Clave de API no válida. Comprueba la configuración de tu clave de API.",
 		"invalidBaseUrl": "URL base no válida. Comprueba la configuración de tu URL.",
 		"invalidModel": "Modelo no válido. Comprueba la configuración de tu modelo.",
-		"invalidResponse": "Respuesta no válida del servicio de embedder. Comprueba tu configuración."
+		"invalidResponse": "Respuesta no válida del servicio de embedder. Comprueba tu configuración.",
+		"apiKeyRequired": "Se requiere una clave de API para este embedder",
+		"baseUrlRequired": "Se requiere una URL base para este embedder"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "Falta la configuración de OpenAI para crear el incrustador",

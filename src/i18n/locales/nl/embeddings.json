@@ -37,7 +37,9 @@
 		"invalidApiKey": "Ongeldige API-sleutel. Controleer je API-sleutelconfiguratie.",
 		"invalidBaseUrl": "Ongeldige basis-URL. Controleer je URL-configuratie.",
 		"invalidModel": "Ongeldig model. Controleer je modelconfiguratie.",
-		"invalidResponse": "Ongeldige reactie van embedder-service. Controleer je configuratie."
+		"invalidResponse": "Ongeldige reactie van embedder-service. Controleer je configuratie.",
+		"apiKeyRequired": "API-sleutel is vereist voor deze embedder",
+		"baseUrlRequired": "Basis-URL is vereist voor deze embedder"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "OpenAI-configuratie ontbreekt voor het maken van embedder",

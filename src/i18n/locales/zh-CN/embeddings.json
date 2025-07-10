@@ -37,7 +37,9 @@
 		"invalidApiKey": "API 密钥无效。请检查您的 API 密钥配置。",
 		"invalidBaseUrl": "基础 URL 无效。请检查您的 URL 配置。",
 		"invalidModel": "模型无效。请检查您的模型配置。",
-		"invalidResponse": "嵌入服务响应无效。请检查您的配置。"
+		"invalidResponse": "嵌入服务响应无效。请检查您的配置。",
+		"apiKeyRequired": "此嵌入器需要 API 密钥",
+		"baseUrlRequired": "此嵌入器需要基础 URL"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "创建嵌入器缺少 OpenAI 配置",

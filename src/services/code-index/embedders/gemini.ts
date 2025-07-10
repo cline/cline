@@ -1,6 +1,7 @@
 import { OpenAICompatibleEmbedder } from "./openai-compatible"
 import { IEmbedder, EmbeddingResponse, EmbedderInfo } from "../interfaces/embedder"
 import { GEMINI_MAX_ITEM_TOKENS } from "../constants"
+import { t } from "../../../i18n"
 
 /**
  * Gemini embedder implementation that wraps the OpenAI Compatible embedder
@@ -23,7 +24,7 @@ export class GeminiEmbedder implements IEmbedder {
 	 */
 	constructor(apiKey: string) {
 		if (!apiKey) {
-			throw new Error("API key is required for Gemini embedder")
+			throw new Error(t("embeddings:validation.apiKeyRequired"))
 		}
 
 		// Create an OpenAI Compatible embedder with Gemini's fixed configuration

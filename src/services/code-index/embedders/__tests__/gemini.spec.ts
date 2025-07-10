@@ -34,9 +34,9 @@ describe("GeminiEmbedder", () => {
 
 		it("should throw error when API key is not provided", () => {
 			// Act & Assert
-			expect(() => new GeminiEmbedder("")).toThrow("API key is required for Gemini embedder")
-			expect(() => new GeminiEmbedder(null as any)).toThrow("API key is required for Gemini embedder")
-			expect(() => new GeminiEmbedder(undefined as any)).toThrow("API key is required for Gemini embedder")
+			expect(() => new GeminiEmbedder("")).toThrow("validation.apiKeyRequired")
+			expect(() => new GeminiEmbedder(null as any)).toThrow("validation.apiKeyRequired")
+			expect(() => new GeminiEmbedder(undefined as any)).toThrow("validation.apiKeyRequired")
 		})
 	})
 

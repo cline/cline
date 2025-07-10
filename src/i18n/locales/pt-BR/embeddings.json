@@ -37,7 +37,9 @@
 		"invalidApiKey": "Chave de API inválida. Verifique sua configuração de chave de API.",
 		"invalidBaseUrl": "URL base inválida. Verifique sua configuração de URL.",
 		"invalidModel": "Modelo inválido. Verifique a configuração do seu modelo.",
-		"invalidResponse": "Resposta inválida do serviço de embedder. Verifique sua configuração."
+		"invalidResponse": "Resposta inválida do serviço de embedder. Verifique sua configuração.",
+		"apiKeyRequired": "A chave de API é necessária para este embedder",
+		"baseUrlRequired": "A URL base é necessária para este embedder"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "Configuração do OpenAI ausente para criação do embedder",

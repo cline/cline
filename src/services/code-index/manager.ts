@@ -263,15 +263,8 @@ export class CodeIndexManager {
 		const validationResult = await this._serviceFactory.validateEmbedder(embedder)
 		if (!validationResult.valid) {
 			const errorMessage = validationResult.error || "Embedder configuration validation failed"
-			// Always attempt translation, use original as fallback
-			let translatedMessage = t(errorMessage)
-			// If translation returns a different value (stripped namespace), use original
-			if (translatedMessage !== errorMessage && !translatedMessage.includes(":")) {
-				translatedMessage = errorMessage
-			}
-
-			this._stateManager.setSystemState("Error", translatedMessage)
-			throw new Error(translatedMessage)
+			this._stateManager.setSystemState("Error", errorMessage)
+			throw new Error(errorMessage)
 		}
 
 		// (Re)Initialize orchestrator

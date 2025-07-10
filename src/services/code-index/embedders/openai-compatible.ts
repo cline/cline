@@ -45,10 +45,10 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	 */
 	constructor(baseUrl: string, apiKey: string, modelId?: string, maxItemTokens?: number) {
 		if (!baseUrl) {
-			throw new Error("Base URL is required for OpenAI Compatible embedder")
+			throw new Error(t("embeddings:validation.baseUrlRequired"))
 		}
 		if (!apiKey) {
-			throw new Error("API key is required for OpenAI Compatible embedder")
+			throw new Error(t("embeddings:validation.apiKeyRequired"))
 		}
 
 		this.baseUrl = baseUrl

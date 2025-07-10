@@ -37,7 +37,9 @@
 		"invalidApiKey": "Kunci API tidak valid. Silakan periksa konfigurasi kunci API Anda.",
 		"invalidBaseUrl": "URL dasar tidak valid. Silakan periksa konfigurasi URL Anda.",
 		"invalidModel": "Model tidak valid. Silakan periksa konfigurasi model Anda.",
-		"invalidResponse": "Respons tidak valid dari layanan embedder. Silakan periksa konfigurasi Anda."
+		"invalidResponse": "Respons tidak valid dari layanan embedder. Silakan periksa konfigurasi Anda.",
+		"apiKeyRequired": "Kunci API diperlukan untuk embedder ini",
+		"baseUrlRequired": "URL dasar diperlukan untuk embedder ini"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "Konfigurasi OpenAI tidak ada untuk membuat embedder",

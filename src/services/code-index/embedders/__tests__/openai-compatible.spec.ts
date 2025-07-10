@@ -80,19 +80,19 @@ describe("OpenAICompatibleEmbedder", () => {
 
 		it("should throw error when baseUrl is missing", () => {
 			expect(() => new OpenAICompatibleEmbedder("", testApiKey, testModelId)).toThrow(
-				"Base URL is required for OpenAI Compatible embedder",
+				"embeddings:validation.baseUrlRequired",
 			)
 		})
 
 		it("should throw error when apiKey is missing", () => {
 			expect(() => new OpenAICompatibleEmbedder(testBaseUrl, "", testModelId)).toThrow(
-				"API key is required for OpenAI Compatible embedder",
+				"embeddings:validation.apiKeyRequired",
 			)
 		})
 
 		it("should throw error when both baseUrl and apiKey are missing", () => {
 			expect(() => new OpenAICompatibleEmbedder("", "", testModelId)).toThrow(
-				"Base URL is required for OpenAI Compatible embedder",
+				"embeddings:validation.baseUrlRequired",
 			)
 		})
 	})

@@ -28,16 +28,16 @@ export function getErrorMessageForStatus(status: number | undefined, embedderTyp
 	switch (status) {
 		case 401:
 		case 403:
-			return "embeddings:validation.authenticationFailed"
+			return t("embeddings:validation.authenticationFailed")
 		case 404:
 			return embedderType === "openai"
-				? "embeddings:validation.modelNotAvailable"
-				: "embeddings:validation.invalidEndpoint"
+				? t("embeddings:validation.modelNotAvailable")
+				: t("embeddings:validation.invalidEndpoint")
 		case 429:
-			return "embeddings:validation.serviceUnavailable"
+			return t("embeddings:validation.serviceUnavailable")
 		default:
 			if (status && status >= 400 && status < 600) {
-				return "embeddings:validation.configurationError"
+				return t("embeddings:validation.configurationError")
 			}
 			return undefined
 	}
@@ -138,11 +138,11 @@ export function handleValidationError(
 			errorMessage.includes("HTTP 0:") ||
 			errorMessage === "No response"
 		) {
-			return { valid: false, error: "embeddings:validation.connectionFailed" }
+			return { valid: false, error: t("embeddings:validation.connectionFailed") }
 		}
 
 		if (errorMessage.includes("Failed to parse response JSON")) {
-			return { valid: false, error: "embeddings:validation.invalidResponse" }
+			return { valid: false, error: t("embeddings:validation.invalidResponse") }
 		}
 	}
 
@@ -152,7 +152,7 @@ export function handleValidationError(
 	}
 
 	// Fallback to generic error
-	return { valid: false, error: "embeddings:validation.configurationError" }
+	return { valid: false, error: t("embeddings:validation.configurationError") }
 }
 
 /**

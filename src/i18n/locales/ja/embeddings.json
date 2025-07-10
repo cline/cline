@@ -37,7 +37,9 @@
 		"invalidApiKey": "無効なAPIキーです。APIキー構成を確認してください。",
 		"invalidBaseUrl": "無効なベースURLです。URL構成を確認してください。",
 		"invalidModel": "無効なモデルです。モデル構成を確認してください。",
-		"invalidResponse": "エンベッダーサービスからの無効な応答です。設定を確認してください。"
+		"invalidResponse": "エンベッダーサービスからの無効な応答です。設定を確認してください。",
+		"apiKeyRequired": "このエンベッダーにはAPIキーが必要です。",
+		"baseUrlRequired": "このエンベッダーにはベースURLが必要です"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "エンベッダー作成のためのOpenAI設定がありません",

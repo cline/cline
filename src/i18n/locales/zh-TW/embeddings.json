@@ -37,7 +37,9 @@
 		"invalidApiKey": "無效的 API 金鑰。請檢查您的 API 金鑰組態。",
 		"invalidBaseUrl": "無效的基礎 URL。請檢查您的 URL 組態。",
 		"invalidModel": "無效的模型。請檢查您的模型組態。",
-		"invalidResponse": "內嵌服務回應無效。請檢查您的組態。"
+		"invalidResponse": "內嵌服務回應無效。請檢查您的組態。",
+		"apiKeyRequired": "此嵌入器需要 API 金鑰",
+		"baseUrlRequired": "此嵌入器需要基礎 URL"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "建立嵌入器缺少 OpenAI 設定",

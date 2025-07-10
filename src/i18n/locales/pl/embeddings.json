@@ -37,7 +37,9 @@
 		"invalidApiKey": "Nieprawidłowy klucz API. Sprawdź konfigurację klucza API.",
 		"invalidBaseUrl": "Nieprawidłowy podstawowy adres URL. Sprawdź konfigurację adresu URL.",
 		"invalidModel": "Nieprawidłowy model. Sprawdź konfigurację modelu.",
-		"invalidResponse": "Nieprawidłowa odpowiedź z usługi embedder. Sprawdź swoją konfigurację."
+		"invalidResponse": "Nieprawidłowa odpowiedź z usługi embedder. Sprawdź swoją konfigurację.",
+		"apiKeyRequired": "Klucz API jest wymagany dla tego embeddera",
+		"baseUrlRequired": "Podstawowy adres URL jest wymagany dla tego embeddera"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "Brak konfiguracji OpenAI do utworzenia embeddera",

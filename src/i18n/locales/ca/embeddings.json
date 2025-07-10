@@ -37,7 +37,9 @@
 		"invalidApiKey": "Clau d'API no vàlida. Comproveu la vostra configuració de clau d'API.",
 		"invalidBaseUrl": "URL base no vàlida. Comproveu la vostra configuració d'URL.",
 		"invalidModel": "Model no vàlid. Comproveu la vostra configuració de model.",
-		"invalidResponse": "Resposta no vàlida del servei d'incrustació. Comproveu la vostra configuració."
+		"invalidResponse": "Resposta no vàlida del servei d'incrustació. Comproveu la vostra configuració.",
+		"apiKeyRequired": "Es requereix una clau d'API per a aquest incrustador",
+		"baseUrlRequired": "Es requereix una URL base per a aquest incrustador"
 	},
 	"serviceFactory": {
 		"openAiConfigMissing": "Falta la configuració d'OpenAI per crear l'embedder",
