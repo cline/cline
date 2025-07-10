@@ -307,14 +307,26 @@ export class AuthService {
 			this._refreshTimer = null
 		}
 
-		// Set timeoutDuration to refresh the auth token 5 minutes before it expires
-		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
+		// Validate user and token manager
+		if (!this._user?.stsTokenManager?.expirationTime) {
+			console.warn("No valid expiration time found, skipping auto-refresh setup")
+			return
+		}
 
-		// Only set timer if duration is reasonable (between 1 minute and 2 hours)
-		if (timeoutDuration > 60000 && timeoutDuration < 7200000) {
-			this._refreshTimer = setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
+		const expirationTime = this._user.stsTokenManager.expirationTime
+		const now = Date.now()
+		const timeUntilExpiry = expirationTime - now
+
+		// Set refresh time to 10 minutes before expiry (increased buffer from 5 minutes)
+		// But ensure minimum of 1 minute delay
+		const refreshTime = Math.max(timeUntilExpiry - 10 * 60 * 1000, 60000)
+
+		// Only set timer if refresh time is reasonable (between 1 minute and 2 hours)
+		if (refreshTime > 0 && refreshTime < 2 * 60 * 60 * 1000) {
+			this._refreshTimer = setTimeout(() => this._autoRefreshAuth(), refreshTime)
+			console.log(`Auth refresh scheduled in ${Math.round(refreshTime / 60000)} minutes`)
 		} else {
-			console.warn(`Invalid timeout duration: ${timeoutDuration}ms, skipping auto-refresh setup`)
+			console.warn(`Invalid refresh time: ${Math.round(refreshTime / 60000)} minutes, skipping auto-refresh setup`)
 		}
 	}
 
@@ -324,14 +336,31 @@ export class AuthService {
 			return
 		}
 
-		try {
-			await this.refreshAuth()
-			// Only reschedule if refresh was successful
-			this.setupAutoRefreshAuth()
-		} catch (error) {
-			console.error("Auto-refresh failed:", error)
-			// Don't reschedule on failure - let user re-login
+		let retries = 3
+		let lastError: Error | null = null
+
+		while (retries > 0) {
+			try {
+				await this.refreshAuth()
+				console.log("Auth token refreshed successfully")
+				// Only reschedule if refresh was successful
+				this.setupAutoRefreshAuth()
+				return
+			} catch (error) {
+				lastError = error as Error
+				retries--
+				console.warn(`Auth refresh attempt failed (${3 - retries}/3): ${lastError.message}`)
+
+				if (retries > 0) {
+					// Wait 5 seconds before retrying
+					await new Promise((resolve) => setTimeout(resolve, 5000))
+				}
+			}
 		}
+
+		// All retries failed
+		console.error(`Auth refresh failed after 3 attempts. Last error: ${lastError?.message}`)
+		// Don't reschedule on complete failure - user will need to re-authenticate
 	}
 
 	/**
