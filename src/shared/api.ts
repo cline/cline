@@ -1034,8 +1034,8 @@ export const deepSeekModels = {
 
 // StepFun
 // https://platform.stepfun.com/account-overview
-export type StepfunModelId = keyof typeof stepFunModels
-export const stepFunDefaultModelId: StepfunModelId = "step-ds-r1"
+export type StepFunModelId = keyof typeof stepFunModels
+export const stepFunDefaultModelId: StepFunModelId = "step-ds-r1"
 export const stepFunModels = {
 	"step-ds-r1": {
 		maxTokens: 8_000,

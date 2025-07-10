@@ -11,6 +11,7 @@ import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { StepfunHandler } from "./providers/stepfun"
 import { RequestyHandler } from "./providers/requesty"
 import { TogetherHandler } from "./providers/together"
 import { NebiusHandler } from "./providers/nebius"
@@ -92,6 +93,8 @@ function createHandlerForProvider(apiProvider: string | undefined, options: any)
 			return new SapAiCoreHandler(options)
 		case "claude-code":
 			return new ClaudeCodeHandler(options)
+		case "stepfun":
+			return new StepfunHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
