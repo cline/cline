@@ -121,13 +121,18 @@ export const ClineAccountView = () => {
 			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
 
 			if (activeOrganization?.organizationId !== newOrgId) {
+				setIsSwitchingOrg(true) // Disable dropdown
+
 				try {
 					await AccountServiceClient.setUserOrganization(
 						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
 					)
-					await getUserOrganizations()
+					await getUserOrganizations() // Refresh to get new active org
+					await getUserCredits() // Refresh credits for new org
 				} catch (error) {
 					console.error("Failed to update organization:", error)
+				} finally {
+					setIsSwitchingOrg(false) // Re-enable dropdown
 				}
 			}
 		},
