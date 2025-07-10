@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.18.11
+## [3.18.11]
 
--   5b475fe: Fix: Ensure Cline client is initialized with the latest auth token
+-   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
 
 ## [3.18.10]
 
