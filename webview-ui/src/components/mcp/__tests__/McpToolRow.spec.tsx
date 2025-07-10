@@ -144,40 +144,40 @@ describe("McpToolRow", () => {
 		expect(screen.getByText("Second parameter")).toBeInTheDocument()
 	})
 
-	it("shows eye button when serverName is provided and not in chat context", () => {
+	it("shows toggle switch when serverName is provided and not in chat context", () => {
 		render(<McpToolRow tool={mockTool} serverName="test-server" />)
 
-		const eyeButton = screen.getByRole("button", { name: "Toggle prompt inclusion" })
-		expect(eyeButton).toBeInTheDocument()
+		const toggleSwitch = screen.getByRole("switch", { name: "Toggle prompt inclusion" })
+		expect(toggleSwitch).toBeInTheDocument()
 	})
 
-	it("hides eye button when isInChatContext is true", () => {
+	it("hides toggle switch when isInChatContext is true", () => {
 		render(<McpToolRow tool={mockTool} serverName="test-server" isInChatContext={true} />)
 
-		const eyeButton = screen.queryByRole("button", { name: "Toggle prompt inclusion" })
-		expect(eyeButton).not.toBeInTheDocument()
+		const toggleSwitch = screen.queryByRole("switch", { name: "Toggle prompt inclusion" })
+		expect(toggleSwitch).not.toBeInTheDocument()
 	})
 
-	it("shows correct eye icon based on enabledForPrompt state", () => {
-		// Test when enabled (should show eye-closed icon)
+	it("shows correct toggle switch state based on enabledForPrompt", () => {
+		// Test when enabled (should be checked)
 		const { rerender } = render(<McpToolRow tool={mockTool} serverName="test-server" />)
 
-		let eyeIcon = screen.getByRole("button", { name: "Toggle prompt inclusion" }).querySelector("span")
-		expect(eyeIcon).toHaveClass("codicon-eye-closed")
+		let toggleSwitch = screen.getByRole("switch", { name: "Toggle prompt inclusion" })
+		expect(toggleSwitch).toHaveAttribute("aria-checked", "true")
 
-		// Test when disabled (should show eye icon)
+		// Test when disabled (should not be checked)
 		const disabledTool = { ...mockTool, enabledForPrompt: false }
 		rerender(<McpToolRow tool={disabledTool} serverName="test-server" />)
 
-		eyeIcon = screen.getByRole("button", { name: "Toggle prompt inclusion" }).querySelector("span")
-		expect(eyeIcon).toHaveClass("codicon-eye")
+		toggleSwitch = screen.getByRole("switch", { name: "Toggle prompt inclusion" })
+		expect(toggleSwitch).toHaveAttribute("aria-checked", "false")
 	})
 
-	it("sends message to toggle enabledForPrompt when eye button is clicked", () => {
+	it("sends message to toggle enabledForPrompt when toggle switch is clicked", () => {
 		render(<McpToolRow tool={mockTool} serverName="test-server" />)
 
-		const eyeButton = screen.getByRole("button", { name: "Toggle prompt inclusion" })
-		fireEvent.click(eyeButton)
+		const toggleSwitch = screen.getByRole("switch", { name: "Toggle prompt inclusion" })
+		fireEvent.click(toggleSwitch)
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "toggleToolEnabledForPrompt",
@@ -186,5 +186,103 @@ describe("McpToolRow", () => {
 			toolName: "test-tool",
 			isEnabled: false,
 		})
+	})
+
+	it("hides always allow checkbox when tool is disabled", () => {
+		const disabledTool = { ...mockTool, enabledForPrompt: false }
+		render(<McpToolRow tool={disabledTool} serverName="test-server" alwaysAllowMcp={true} />)
+
+		expect(screen.queryByText("Always allow")).not.toBeInTheDocument()
+	})
+
+	it("shows always allow checkbox when tool is enabled", () => {
+		const enabledTool = { ...mockTool, enabledForPrompt: true }
+		render(<McpToolRow tool={enabledTool} serverName="test-server" alwaysAllowMcp={true} />)
+
+		expect(screen.getByText("Always allow")).toBeInTheDocument()
+	})
+
+	it("hides parameters section when tool is disabled", () => {
+		const disabledToolWithSchema = {
+			...mockTool,
+			enabledForPrompt: false,
+			inputSchema: {
+				type: "object",
+				properties: {
+					param1: {
+						type: "string",
+						description: "First parameter",
+					},
+				},
+				required: ["param1"],
+			},
+		}
+
+		render(<McpToolRow tool={disabledToolWithSchema} serverName="test-server" />)
+
+		expect(screen.queryByText("Parameters")).not.toBeInTheDocument()
+		expect(screen.queryByText("param1")).not.toBeInTheDocument()
+		expect(screen.queryByText("First parameter")).not.toBeInTheDocument()
+	})
+
+	it("shows parameters section when tool is enabled", () => {
+		const enabledToolWithSchema = {
+			...mockTool,
+			enabledForPrompt: true,
+			inputSchema: {
+				type: "object",
+				properties: {
+					param1: {
+						type: "string",
+						description: "First parameter",
+					},
+				},
+				required: ["param1"],
+			},
+		}
+
+		render(<McpToolRow tool={enabledToolWithSchema} serverName="test-server" />)
+
+		expect(screen.getByText("Parameters")).toBeInTheDocument()
+		expect(screen.getByText("param1")).toBeInTheDocument()
+		expect(screen.getByText("First parameter")).toBeInTheDocument()
+	})
+
+	it("grays out tool name and description when tool is disabled", () => {
+		const disabledTool = {
+			...mockTool,
+			enabledForPrompt: false,
+			description: "A disabled tool",
+		}
+		render(<McpToolRow tool={disabledTool} serverName="test-server" />)
+
+		const toolName = screen.getByText("test-tool")
+		const toolDescription = screen.getByText("A disabled tool")
+
+		// Check that the tool name has the grayed out classes
+		expect(toolName).toHaveClass("text-vscode-descriptionForeground", "opacity-60")
+
+		// Check that the description has reduced opacity
+		expect(toolDescription).toHaveClass("opacity-40")
+	})
+
+	it("shows normal styling for tool name and description when tool is enabled", () => {
+		const enabledTool = {
+			...mockTool,
+			enabledForPrompt: true,
+			description: "An enabled tool",
+		}
+		render(<McpToolRow tool={enabledTool} serverName="test-server" />)
+
+		const toolName = screen.getByText("test-tool")
+		const toolDescription = screen.getByText("An enabled tool")
+
+		// Check that the tool name has normal styling
+		expect(toolName).toHaveClass("text-vscode-foreground")
+		expect(toolName).not.toHaveClass("text-vscode-descriptionForeground", "opacity-60")
+
+		// Check that the description has normal opacity
+		expect(toolDescription).toHaveClass("opacity-80")
+		expect(toolDescription).not.toHaveClass("opacity-40")
 	})
 })

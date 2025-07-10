@@ -22,6 +22,7 @@ import {
 	DialogTitle,
 	DialogDescription,
 	DialogFooter,
+	ToggleSwitch,
 } from "@src/components/ui"
 import { buildDocLink } from "@src/utils/docLinks"
 
@@ -295,54 +296,6 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						style={{ marginRight: "8px" }}>
 						<span className="codicon codicon-refresh" style={{ fontSize: "14px" }}></span>
 					</Button>
-					<div
-						role="switch"
-						aria-checked={!server.disabled}
-						tabIndex={0}
-						style={{
-							width: "20px",
-							height: "10px",
-							backgroundColor: server.disabled
-								? "var(--vscode-titleBar-inactiveForeground)"
-								: "var(--vscode-button-background)",
-							borderRadius: "5px",
-							position: "relative",
-							cursor: "pointer",
-							transition: "background-color 0.2s",
-							opacity: server.disabled ? 0.4 : 0.8,
-						}}
-						onClick={() => {
-							vscode.postMessage({
-								type: "toggleMcpServer",
-								serverName: server.name,
-								source: server.source || "global",
-								disabled: !server.disabled,
-							})
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								vscode.postMessage({
-									type: "toggleMcpServer",
-									serverName: server.name,
-									source: server.source || "global",
-									disabled: !server.disabled,
-								})
-							}
-						}}>
-						<div
-							style={{
-								width: "6px",
-								height: "6px",
-								backgroundColor: "var(--vscode-titleBar-activeForeground)",
-								borderRadius: "50%",
-								position: "absolute",
-								top: "2px",
-								left: server.disabled ? "2px" : "12px",
-								transition: "left 0.2s",
-							}}
-						/>
-					</div>
 				</div>
 				<div
 					style={{
@@ -353,6 +306,21 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						marginLeft: "8px",
 					}}
 				/>
+				<div style={{ marginLeft: "8px" }}>
+					<ToggleSwitch
+						checked={!server.disabled}
+						onChange={() => {
+							vscode.postMessage({
+								type: "toggleMcpServer",
+								serverName: server.name,
+								source: server.source || "global",
+								disabled: !server.disabled,
+							})
+						}}
+						size="medium"
+						aria-label={`Toggle ${server.name} server`}
+					/>
+				</div>
 			</div>
 
 			{server.status === "connected" ? (

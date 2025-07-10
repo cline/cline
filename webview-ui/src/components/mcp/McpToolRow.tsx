@@ -4,7 +4,7 @@ import { McpTool } from "@roo/mcp"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
-import { StandardTooltip } from "@/components/ui"
+import { StandardTooltip, ToggleSwitch } from "@/components/ui"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -16,6 +16,8 @@ type McpToolRowProps = {
 
 const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp, isInChatContext = false }: McpToolRowProps) => {
 	const { t } = useAppTranslation()
+	const isToolEnabled = tool.enabledForPrompt ?? true
+
 	const handleAlwaysAllowChange = () => {
 		if (!serverName) return
 		vscode.postMessage({
@@ -46,17 +48,29 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp, isInChatCo
 				onClick={(e) => e.stopPropagation()}>
 				{/* Tool name section */}
 				<div className="flex items-center min-w-0 flex-1">
-					<span className="codicon codicon-symbol-method mr-2 flex-shrink-0 text-vscode-symbolIcon-methodForeground"></span>
+					<span
+						className={`codicon codicon-symbol-method mr-2 flex-shrink-0 ${
+							isToolEnabled
+								? "text-vscode-symbolIcon-methodForeground"
+								: "text-vscode-descriptionForeground opacity-60"
+						}`}></span>
 					<StandardTooltip content={tool.name}>
-						<span className="font-medium truncate text-vscode-foreground">{tool.name}</span>
+						<span
+							className={`font-medium truncate ${
+								isToolEnabled
+									? "text-vscode-foreground"
+									: "text-vscode-descriptionForeground opacity-60"
+							}`}>
+							{tool.name}
+						</span>
 					</StandardTooltip>
 				</div>
 
 				{/* Controls section */}
 				{serverName && (
 					<div className="flex items-center gap-4 flex-shrink-0">
-						{/* Always Allow checkbox */}
-						{alwaysAllowMcp && (
+						{/* Always Allow checkbox - only show when tool is enabled */}
+						{alwaysAllowMcp && isToolEnabled && (
 							<VSCodeCheckbox
 								checked={tool.alwaysAllow}
 								onChange={handleAlwaysAllowChange}
@@ -68,35 +82,31 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp, isInChatCo
 							</VSCodeCheckbox>
 						)}
 
-						{/* Enabled eye button - only show in settings context */}
+						{/* Enabled toggle switch - only show in settings context */}
 						{!isInChatContext && (
 							<StandardTooltip content={t("mcp:tool.togglePromptInclusion")}>
-								<button
-									role="button"
-									aria-pressed={tool.enabledForPrompt}
+								<ToggleSwitch
+									checked={isToolEnabled}
+									onChange={handleEnabledForPromptChange}
+									size="medium"
 									aria-label={t("mcp:tool.togglePromptInclusion")}
-									className={`p-1 rounded hover:bg-vscode-toolbar-hoverBackground transition-colors ${
-										tool.enabledForPrompt
-											? "text-vscode-foreground"
-											: "text-vscode-descriptionForeground opacity-60"
-									}`}
-									onClick={handleEnabledForPromptChange}
-									data-tool-prompt-toggle={tool.name}>
-									<span
-										className={`codicon ${
-											tool.enabledForPrompt ? "codicon-eye-closed" : "codicon-eye"
-										} text-base`}
-									/>
-								</button>
+									data-testid={`tool-prompt-toggle-${tool.name}`}
+								/>
 							</StandardTooltip>
 						)}
 					</div>
 				)}
 			</div>
 			{tool.description && (
-				<div className="mt-1 text-xs text-vscode-descriptionForeground opacity-80">{tool.description}</div>
+				<div
+					className={`mt-1 text-xs text-vscode-descriptionForeground ${
+						isToolEnabled ? "opacity-80" : "opacity-40"
+					}`}>
+					{tool.description}
+				</div>
 			)}
-			{tool.inputSchema &&
+			{isToolEnabled &&
+				tool.inputSchema &&
 				"properties" in tool.inputSchema &&
 				Object.keys(tool.inputSchema.properties as Record<string, any>).length > 0 && (
 					<div className="mt-2 text-xs border border-vscode-panel-border rounded p-2">
