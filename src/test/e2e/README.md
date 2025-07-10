@@ -7,10 +7,10 @@ This directory contains the end-to-end tests for the extension using Playwright.
 First, set up the test environment by running the following command:
 
 ```bash
-npm run e2e:build
+npm run test:e2e
 ```
 
-To run all the E2E tests:
+To run all the E2E tests without re-doing the setup:
 
 ```bash
 npm run e2e

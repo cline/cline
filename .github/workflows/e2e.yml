@@ -74,11 +74,11 @@ jobs:
 
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
-              run: xvfb-run -a npm run e2e:build
+              run: xvfb-run -a npm run test:e2e
 
             - name: Run E2E tests - Non-Linux
               if: matrix.runner != 'ubuntu'
-              run: npm run e2e:build
+              run: npm run test:e2e
 
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}

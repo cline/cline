@@ -1,16 +1,19 @@
+/**
+ * Script to install dependencies for running E2E tests in GitHub Actions.
+ */
 import { SilentReporter, downloadAndUnzipVSCode } from "@vscode/test-electron"
 import { execa } from "execa"
 
 const TIMEOUT_MINUTE = 1
 const INSTALL_TIMEOUT_MS = TIMEOUT_MINUTE * 60 * 1000
 
-async function installVSCode(): Promise<string> {
-	const VSCODE_APP_TYPE: "stable" | "insiders" = "stable"
+async function installVSCode() {
+	const VSCODE_APP_TYPE = "stable"
 	console.log("Downloading VS Code...")
 	return await downloadAndUnzipVSCode(VSCODE_APP_TYPE, undefined, new SilentReporter())
 }
 
-async function installChromium(): Promise<void> {
+async function installChromium() {
 	console.log("Installing Playwright Chromium...")
 	try {
 		await execa("npm", ["exec", "playwright", "install", "chromium"], {
@@ -22,11 +25,11 @@ async function installChromium(): Promise<void> {
 	}
 }
 
-async function installDependencies(): Promise<unknown> {
+async function installDependencies() {
 	return Promise.all([installVSCode(), installChromium()])
 }
 
-async function main(): Promise<void> {
+async function main() {
 	const timeoutPromise = new Promise((_, reject) =>
 		setTimeout(() => reject(new Error("Installation timed out.")), INSTALL_TIMEOUT_MS),
 	)

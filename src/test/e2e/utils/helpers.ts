@@ -130,29 +130,24 @@ export const e2e = test
 		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
-			// Base VS Code arguments
-			const baseArgs = [
-				"--no-sandbox",
-				"--disable-updates",
-				"--disable-workspace-trust",
-				"--skip-welcome",
-				"--skip-release-notes",
-				`--user-data-dir=${userDataDir}`,
-				`--extensions-dir=${extensionsDir}`,
-				`--install-extension=${path.join(CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
-				`--extensionDevelopmentPath=${CODEBASE_ROOT_DIR}`,
-			]
-
 			await use(async () => {
-				const args = [...baseArgs, workspaceDir]
-
 				const app = await _electron.launch({
 					executablePath,
-					env: { ...process.env, IS_DEV: "true", TEMP_PROFILE: "true" },
-					args,
+					env: { ...process.env, IS_DEV: "true", TEMP_PROFILE: "true", E2E_TEST: "true" },
 					recordVideo: { dir: getResultsDir(testInfo.title, "recordings") },
+					args: [
+						"--no-sandbox",
+						"--disable-updates",
+						"--disable-workspace-trust",
+						"--skip-welcome",
+						"--skip-release-notes",
+						`--user-data-dir=${userDataDir}`,
+						`--extensions-dir=${extensionsDir}`,
+						`--install-extension=${path.join(CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
+						`--extensionDevelopmentPath=${CODEBASE_ROOT_DIR}`,
+						workspaceDir,
+					],
 				})
-
 				await waitUntil(() => app.windows().length > 0)
 				return app
 			})
