@@ -80,15 +80,17 @@ export class Controller {
 		this.accountService = ClineAccountService.getInstance()
 		this.authService = AuthService.getInstance(context)
 
-		// Initialize authentication asynchronously
-		this.initializeAuthService().catch((error) => {
-			console.error("Failed to initialize auth service:", error)
-		})
-
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	/**
+	 * Initialize the controller after construction - must be called after creating the Controller
+	 */
+	async initialize(): Promise<void> {
+		await this.initializeAuthService()
 	}
 
 	/**

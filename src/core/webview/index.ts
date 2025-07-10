@@ -29,6 +29,11 @@ export abstract class WebviewProvider {
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
 		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
+
+		// Initialize the controller asynchronously to prevent race conditions
+		this.controller.initialize().catch((error) => {
+			console.error("Failed to initialize controller:", error)
+		})
 	}
 
 	// Add a method to get the client ID
