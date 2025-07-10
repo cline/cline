@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Elaborazione del batch fallita dopo {{maxRetries}} tentativi: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Impossibile connettersi al database vettoriale Qdrant. Assicurati che Qdrant sia in esecuzione e accessibile su {{qdrantUrl}}. Errore: {{errorMessage}}"
+		"qdrantConnectionFailed": "Impossibile connettersi al database vettoriale Qdrant. Assicurati che Qdrant sia in esecuzione e accessibile su {{qdrantUrl}}. Errore: {{errorMessage}}",
+		"vectorDimensionMismatch": "Impossibile aggiornare l'indice vettoriale per il nuovo modello. Prova a cancellare l'indice e a ricominciare. Dettagli: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Autenticazione fallita. Controlla la tua chiave API nelle impostazioni.",

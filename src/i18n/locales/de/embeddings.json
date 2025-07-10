@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Verarbeitung des Batches nach {{maxRetries}} Versuchen fehlgeschlagen: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Verbindung zur Qdrant-Vektordatenbank fehlgeschlagen. Stelle sicher, dass Qdrant läuft und unter {{qdrantUrl}} erreichbar ist. Fehler: {{errorMessage}}"
+		"qdrantConnectionFailed": "Verbindung zur Qdrant-Vektordatenbank fehlgeschlagen. Stelle sicher, dass Qdrant läuft und unter {{qdrantUrl}} erreichbar ist. Fehler: {{errorMessage}}",
+		"vectorDimensionMismatch": "Aktualisierung des Vektorindex für neues Modell fehlgeschlagen. Bitte versuche, den Index zu löschen und von vorne zu beginnen. Details: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Authentifizierung fehlgeschlagen. Bitte überprüfe deinen API-Schlüssel in den Einstellungen.",

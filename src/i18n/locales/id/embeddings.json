@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Gagal memproses batch setelah {{maxRetries}} percobaan: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Gagal terhubung ke database vektor Qdrant. Pastikan Qdrant berjalan dan dapat diakses di {{qdrantUrl}}. Error: {{errorMessage}}"
+		"qdrantConnectionFailed": "Gagal terhubung ke database vektor Qdrant. Pastikan Qdrant berjalan dan dapat diakses di {{qdrantUrl}}. Error: {{errorMessage}}",
+		"vectorDimensionMismatch": "Gagal memperbarui indeks vektor untuk model baru. Silakan coba bersihkan indeks dan mulai lagi. Detail: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Autentikasi gagal. Silakan periksa kunci API Anda di pengaturan.",

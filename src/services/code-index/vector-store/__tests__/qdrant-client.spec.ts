@@ -9,6 +9,9 @@ import { DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_SEARCH_MIN_SCORE } from "../../cons
 vitest.mock("@qdrant/js-client-rest")
 vitest.mock("crypto")
 vitest.mock("../../../../utils/path")
+vitest.mock("../../../../i18n", () => ({
+	t: (key: string) => key, // Just return the key for testing
+}))
 vitest.mock("path", () => ({
 	...vitest.importActual("path"),
 	sep: "/",
@@ -674,7 +677,7 @@ describe("QdrantVectorStore", () => {
 			;(console.warn as any).mockRestore()
 		})
 
-		it("should re-throw error from deleteCollection when recreating collection with mismatched vectorSize", async () => {
+		it("should throw vectorDimensionMismatch error when deleteCollection fails during recreation", async () => {
 			const differentVectorSize = 768
 			mockQdrantClientInstance.getCollection.mockResolvedValue({
 				config: {
@@ -691,15 +694,67 @@ describe("QdrantVectorStore", () => {
 			vitest.spyOn(console, "error").mockImplementation(() => {})
 			vitest.spyOn(console, "warn").mockImplementation(() => {})
 
-			// The actual error message includes the URL and error details
-			await expect(vectorStore.initialize()).rejects.toThrow(
-				/Failed to connect to Qdrant vector database|vectorStore\.qdrantConnectionFailed/,
-			)
+			// The error should have a cause property set to the original error
+			let caughtError: any
+			try {
+				await vectorStore.initialize()
+			} catch (error: any) {
+				caughtError = error
+			}
+
+			expect(caughtError).toBeDefined()
+			expect(caughtError.message).toContain("embeddings:vectorStore.vectorDimensionMismatch")
+			expect(caughtError.cause).toBe(deleteError)
 
 			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.createCollection).not.toHaveBeenCalled()
 			expect(mockQdrantClientInstance.createPayloadIndex).not.toHaveBeenCalled()
+			// Should log both the warning and the critical error
+			expect(console.warn).toHaveBeenCalledTimes(1)
+			expect(console.error).toHaveBeenCalledTimes(2) // One for the critical error, one for the outer catch
+			;(console.error as any).mockRestore()
+			;(console.warn as any).mockRestore()
+		})
+
+		it("should throw vectorDimensionMismatch error when createCollection fails during recreation", async () => {
+			const differentVectorSize = 768
+			mockQdrantClientInstance.getCollection.mockResolvedValue({
+				config: {
+					params: {
+						vectors: {
+							size: differentVectorSize,
+						},
+					},
+				},
+			} as any)
+
+			// Delete succeeds but create fails
+			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
+			const createError = new Error("Create Collection Failed")
+			mockQdrantClientInstance.createCollection.mockRejectedValue(createError)
+			vitest.spyOn(console, "error").mockImplementation(() => {})
+			vitest.spyOn(console, "warn").mockImplementation(() => {})
+
+			// Should throw an error with cause property set to the original error
+			let caughtError: any
+			try {
+				await vectorStore.initialize()
+			} catch (error: any) {
+				caughtError = error
+			}
+
+			expect(caughtError).toBeDefined()
+			expect(caughtError.message).toContain("embeddings:vectorStore.vectorDimensionMismatch")
+			expect(caughtError.cause).toBe(createError)
+
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createPayloadIndex).not.toHaveBeenCalled()
+			// Should log warning, critical error, and outer error
+			expect(console.warn).toHaveBeenCalledTimes(1)
+			expect(console.error).toHaveBeenCalledTimes(2)
 			;(console.error as any).mockRestore()
 			;(console.warn as any).mockRestore()
 		})

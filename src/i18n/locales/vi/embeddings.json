@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Không thể xử lý lô sau {{maxRetries}} lần thử: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Không thể kết nối với cơ sở dữ liệu vector Qdrant. Vui lòng đảm bảo Qdrant đang chạy và có thể truy cập tại {{qdrantUrl}}. Lỗi: {{errorMessage}}"
+		"qdrantConnectionFailed": "Không thể kết nối với cơ sở dữ liệu vector Qdrant. Vui lòng đảm bảo Qdrant đang chạy và có thể truy cập tại {{qdrantUrl}}. Lỗi: {{errorMessage}}",
+		"vectorDimensionMismatch": "Không thể cập nhật chỉ mục vector cho mô hình mới. Vui lòng thử xóa chỉ mục và bắt đầu lại. Chi tiết: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Xác thực không thành công. Vui lòng kiểm tra khóa API của bạn trong cài đặt.",

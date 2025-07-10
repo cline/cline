@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "嘗試 {{maxRetries}} 次後批次處理失敗：{{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "連接 Qdrant 向量資料庫失敗。請確保 Qdrant 正在執行並可在 {{qdrantUrl}} 存取。錯誤：{{errorMessage}}"
+		"qdrantConnectionFailed": "連接 Qdrant 向量資料庫失敗。請確保 Qdrant 正在執行並可在 {{qdrantUrl}} 存取。錯誤：{{errorMessage}}",
+		"vectorDimensionMismatch": "無法更新新模型的向量索引。請嘗試清除索引並重新開始。詳細資訊: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "驗證失敗。請在設定中檢查您的 API 金鑰。",

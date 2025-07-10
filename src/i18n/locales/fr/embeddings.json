@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Échec du traitement du lot après {{maxRetries}} tentatives : {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Échec de la connexion à la base de données vectorielle Qdrant. Veuillez vous assurer que Qdrant fonctionne et est accessible à {{qdrantUrl}}. Erreur : {{errorMessage}}"
+		"qdrantConnectionFailed": "Échec de la connexion à la base de données vectorielle Qdrant. Veuillez vous assurer que Qdrant fonctionne et est accessible à {{qdrantUrl}}. Erreur : {{errorMessage}}",
+		"vectorDimensionMismatch": "Échec de la mise à jour de l'index vectoriel pour le nouveau modèle. Veuillez essayer de vider l'index et de recommencer. Détails : {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Échec de l'authentification. Veuillez vérifier votre clé API dans les paramètres.",

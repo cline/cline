@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Не удалось обработать пакет после {{maxRetries}} попыток: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Не удалось подключиться к векторной базе данных Qdrant. Убедитесь, что Qdrant запущен и доступен по адресу {{qdrantUrl}}. Ошибка: {{errorMessage}}"
+		"qdrantConnectionFailed": "Не удалось подключиться к векторной базе данных Qdrant. Убедитесь, что Qdrant запущен и доступен по адресу {{qdrantUrl}}. Ошибка: {{errorMessage}}",
+		"vectorDimensionMismatch": "Не удалось обновить векторный индекс для новой модели. Попробуйте очистить индекс и начать сначала. Подробности: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Ошибка аутентификации. Проверьте свой ключ API в настройках.",

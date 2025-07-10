@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "{{maxRetries}} denemeden sonra toplu işlem başarısız oldu: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Qdrant vektör veritabanına bağlanılamadı. Qdrant'ın çalıştığından ve {{qdrantUrl}} adresinde erişilebilir olduğundan emin olun. Hata: {{errorMessage}}"
+		"qdrantConnectionFailed": "Qdrant vektör veritabanına bağlanılamadı. Qdrant'ın çalıştığından ve {{qdrantUrl}} adresinde erişilebilir olduğundan emin olun. Hata: {{errorMessage}}",
+		"vectorDimensionMismatch": "Yeni model için vektör dizini güncellenemedi. Lütfen dizini temizleyip yeniden başlatmayı deneyin. Detaylar: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Kimlik doğrulama başarısız oldu. Lütfen ayarlardan API anahtarınızı kontrol edin.",

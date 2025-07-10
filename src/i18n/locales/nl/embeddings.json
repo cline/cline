@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Verwerken van batch mislukt na {{maxRetries}} pogingen: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Kan geen verbinding maken met Qdrant vectordatabase. Zorg ervoor dat Qdrant draait en toegankelijk is op {{qdrantUrl}}. Fout: {{errorMessage}}"
+		"qdrantConnectionFailed": "Kan geen verbinding maken met Qdrant vectordatabase. Zorg ervoor dat Qdrant draait en toegankelijk is op {{qdrantUrl}}. Fout: {{errorMessage}}",
+		"vectorDimensionMismatch": "Kan de vectorindex voor het nieuwe model niet bijwerken. Probeer de index te wissen en opnieuw te beginnen. Details: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Authenticatie mislukt. Controleer je API-sleutel in de instellingen.",

@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "{{maxRetries}}번 시도 후 배치 처리 실패: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Qdrant 벡터 데이터베이스에 연결하지 못했습니다. Qdrant가 실행 중이고 {{qdrantUrl}}에서 접근 가능한지 확인하세요. 오류: {{errorMessage}}"
+		"qdrantConnectionFailed": "Qdrant 벡터 데이터베이스에 연결하지 못했습니다. Qdrant가 실행 중이고 {{qdrantUrl}}에서 접근 가능한지 확인하세요. 오류: {{errorMessage}}",
+		"vectorDimensionMismatch": "새 모델의 벡터 인덱스를 업데이트하지 못했습니다. 인덱스를 지우고 다시 시작해 보세요. 세부 정보: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "인증에 실패했습니다. 설정에서 API 키를 확인하세요.",

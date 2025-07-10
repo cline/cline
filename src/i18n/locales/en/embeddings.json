@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Failed to process batch after {{maxRetries}} attempts: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Failed to connect to Qdrant vector database. Please ensure Qdrant is running and accessible at {{qdrantUrl}}. Error: {{errorMessage}}"
+		"qdrantConnectionFailed": "Failed to connect to Qdrant vector database. Please ensure Qdrant is running and accessible at {{qdrantUrl}}. Error: {{errorMessage}}",
+		"vectorDimensionMismatch": "Failed to update vector index for new model. Please try clearing the index and starting again. Details: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Authentication failed. Please check your API key in the settings.",

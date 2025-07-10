@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "No s'ha pogut processar el lot després de {{maxRetries}} intents: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "No s'ha pogut connectar a la base de dades vectorial Qdrant. Assegura't que Qdrant estigui funcionant i sigui accessible a {{qdrantUrl}}. Error: {{errorMessage}}"
+		"qdrantConnectionFailed": "No s'ha pogut connectar a la base de dades vectorial Qdrant. Assegura't que Qdrant estigui funcionant i sigui accessible a {{qdrantUrl}}. Error: {{errorMessage}}",
+		"vectorDimensionMismatch": "No s'ha pogut actualitzar l'índex de vectors per al nou model. Prova d'esborrar l'índex i tornar a començar. Detalls: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Ha fallat l'autenticació. Comproveu la vostra clau d'API a la configuració.",

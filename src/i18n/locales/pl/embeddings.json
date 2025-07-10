@@ -23,7 +23,8 @@
 		"failedToProcessBatchWithError": "Nie udało się przetworzyć partii po {{maxRetries}} próbach: {{errorMessage}}"
 	},
 	"vectorStore": {
-		"qdrantConnectionFailed": "Nie udało się połączyć z bazą danych wektorowych Qdrant. Upewnij się, że Qdrant jest uruchomiony i dostępny pod adresem {{qdrantUrl}}. Błąd: {{errorMessage}}"
+		"qdrantConnectionFailed": "Nie udało się połączyć z bazą danych wektorowych Qdrant. Upewnij się, że Qdrant jest uruchomiony i dostępny pod adresem {{qdrantUrl}}. Błąd: {{errorMessage}}",
+		"vectorDimensionMismatch": "Nie udało się zaktualizować indeksu wektorowego dla nowego modelu. Spróbuj wyczyścić indeks i zacząć od nowa. Szczegóły: {{errorMessage}}"
 	},
 	"validation": {
 		"authenticationFailed": "Uwierzytelnianie nie powiodło się. Sprawdź swój klucz API w ustawieniach.",
