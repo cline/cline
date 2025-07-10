@@ -3,26 +3,19 @@ import type { ModelInfo } from "../model.js"
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
 
-export const xaiDefaultModelId: XAIModelId = "grok-3"
+export const xaiDefaultModelId: XAIModelId = "grok-4"
 
 export const xaiModels = {
-	"grok-2-1212": {
+	"grok-4": {
 		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 10.0,
-		description: "xAI's Grok-2 model (version 1212) with 128K context window",
-	},
-	"grok-2-vision-1212": {
-		maxTokens: 8192,
-		contextWindow: 32768,
+		contextWindow: 256000,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 10.0,
-		description: "xAI's Grok-2 Vision model (version 1212) with image support and 32K context window",
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 0.75,
+		cacheReadsPrice: 0.75,
+		description: "xAI's Grok-4 model with 256K context window",
 	},
 	"grok-3": {
 		maxTokens: 8192,
@@ -69,5 +62,23 @@ export const xaiModels = {
 		cacheReadsPrice: 0.15,
 		description: "xAI's Grok-3 mini fast model with 128K context window",
 		supportsReasoningEffort: true,
+	},
+	"grok-2-1212": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 model (version 1212) with 128K context window",
+	},
+	"grok-2-vision-1212": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 Vision model (version 1212) with image support and 32K context window",
 	},
 } as const satisfies Record<string, ModelInfo>
