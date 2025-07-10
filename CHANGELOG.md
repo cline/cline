@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.18.10]
+
+-   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
+-   Fix Gemini 2.5 Pro thinking budget slider and add support for Gemini 2.5 Flash Lite Preview model (Thanks @arafatkatze!)
+
 ## [3.18.9]
 
 -   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
