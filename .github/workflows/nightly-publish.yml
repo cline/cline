@@ -1,10 +1,7 @@
 name: Nightly Publish
 
 on:
-  workflow_run:
-    workflows: ["Code QA Roo Code"]
-    types:
-      - completed
+  push:
     branches: [main]
   workflow_dispatch: # Allows manual triggering.
 
