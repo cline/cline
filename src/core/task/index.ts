@@ -995,12 +995,51 @@ export class Task {
 		this.taskState.isInitialized = true
 
 		if (this.taskState.isPhaseRoot && task && this.autoApprovalSettings.actions.usePromptRefinement) {
-			try {
-				console.log("[Task] Applying prompt refinement...")
-				let refinedResult = await refinePrompt(task, this.api, this)
-				task = refinedResult.refinedPrompt
-			} catch (error) {
-				console.error("[Task] Prompt refinement failed:", error)
+			const MAX_REFINEMENT_RETRIES = 2
+			let refinementAttempts = 0
+			let refinementSucceeded = false
+
+			while (!refinementSucceeded && refinementAttempts <= MAX_REFINEMENT_RETRIES) {
+				try {
+					console.log(
+						`[Task] Applying prompt refinement... (attempt ${refinementAttempts + 1}/${MAX_REFINEMENT_RETRIES + 1})`,
+					)
+					let refinedResult = await refinePrompt(task, this.api, this)
+
+					if (refinedResult.success) {
+						task = refinedResult.refinedPrompt
+						refinementSucceeded = true
+						console.log("[Task] Prompt refinement completed successfully")
+					} else {
+						throw new Error("Prompt refinement returned success: false")
+					}
+				} catch (error) {
+					refinementAttempts++
+					console.error(`[Task] Prompt refinement failed (attempt ${refinementAttempts}):`, error)
+
+					if (refinementAttempts <= MAX_REFINEMENT_RETRIES) {
+						// Ask user if they want to retry
+						const shouldRetry = await this.askUserApproval(
+							"ask_retry",
+							`프롬프트 정제가 실패했습니다. 다시 시도하시겠습니까? (${refinementAttempts}/${MAX_REFINEMENT_RETRIES} 실패)`,
+						)
+
+						if (!shouldRetry) {
+							await this.say("text", "프롬프트 정제를 취소합니다.")
+							console.log("[Task] User declined to retry prompt refinement")
+							break
+						}
+					} else {
+						await this.say("text", "프롬프트 정제가 실패했습니다.")
+						console.log("[Task] Maximum refinement retries reached, proceeding without refinement")
+					}
+				}
+			}
+
+			// Ensure task is restored to original if refinement ultimately failed
+			if (!refinementSucceeded) {
+				await this.say("text", "프롬프트 정제 단계를 생략하고, 기존 프롬프트로 진행합니다.")
+				console.log("[Task] Proceeding with original task prompt")
 			}
 		}
 

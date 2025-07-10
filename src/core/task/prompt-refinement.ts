@@ -21,6 +21,7 @@ export interface RefinedPromptResult {
 	followUpQuestions: FollowUpQuestion[]
 	originalPrompt: string
 	explanation: string
+	success: boolean
 }
 
 // Template
@@ -274,6 +275,7 @@ export async function refinePrompt(prompt: string, apiHandler: ApiHandler, taskI
 			explanation: refinedPrompt.explanation,
 			needsMoreInfo: refinedPrompt.needsMoreInfo || false,
 			followUpQuestions: refinedPrompt.followUpQuestions || [],
+			success: true,
 		}
 	} catch (error) {
 		console.error("Error in prompt refinement:", error)
@@ -283,6 +285,7 @@ export async function refinePrompt(prompt: string, apiHandler: ApiHandler, taskI
 			explanation: `LLM refinement failed.`,
 			needsMoreInfo: false,
 			followUpQuestions: [],
+			success: false,
 		}
 	}
 }
