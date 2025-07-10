@@ -2086,8 +2086,16 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-3"
+export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4": {
+		maxTokens: 8192,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // will have different pricing for long context vs short context
+		outputPrice: 6.0,
+	},
 	"grok-3-beta": {
 		maxTokens: 8192,
 		contextWindow: 131072,
