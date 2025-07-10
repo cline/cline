@@ -1,4 +1,4 @@
-import { ApiConfiguration, deepSeekModels } from "@shared/api"
+import { ApiConfiguration, stepFunModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -7,37 +7,37 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
- * Props for the DeepSeekProvider component
+ * Props for the StepfunProvider component
  */
-interface DeepSeekProviderProps {
+interface StepfunProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 }
 
 /**
- * The DeepSeek provider configuration component
+ * The Stepfun provider configuration component
  */
-export const DeepSeekProvider = ({ showModelOptions, isPopup }: DeepSeekProviderProps) => {
+export const StepfunProvider = ({ showModelOptions, isPopup }: StepfunProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
-	console.log("deepseek", selectedModelId, selectedModelInfo)
+	console.log("stepfun", selectedModelId, selectedModelInfo)
+
 	return (
 		<div>
 			<ApiKeyField
-				initialValue={apiConfiguration?.deepSeekApiKey || ""}
-				onChange={(value) => handleFieldChange("deepSeekApiKey", value)}
-				providerName="DeepSeek"
-				signupUrl="https://www.deepseek.com/"
+				initialValue={apiConfiguration?.stepFunApiKey || ""}
+				onChange={(value) => handleFieldChange("stepFunApiKey", value)}
+				providerName="StepFun"
+				signupUrl="https://platform.stepfun.com/account-overview"
 			/>
-
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={deepSeekModels}
+						models={stepFunModels}
 						selectedModelId={selectedModelId}
 						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"

@@ -9,6 +9,7 @@ export type SecretKey =
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
+	| "stepFunApiKey"
 	| "requestyApiKey"
 	| "togetherApiKey"
 	| "fireworksApiKey"

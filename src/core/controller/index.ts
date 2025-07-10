@@ -280,6 +280,7 @@ export class Controller {
 				case "asksage":
 				case "openai-native":
 				case "qwen":
+				case "stepfun":
 				case "deepseek":
 				case "xai":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)

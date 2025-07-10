@@ -4,6 +4,7 @@ export type ApiProvider =
 	| "anthropic"
 	| "claude-code"
 	| "openrouter"
+	| "stepfun"
 	| "bedrock"
 	| "vertex"
 	| "openai"
@@ -71,6 +72,7 @@ export interface ApiHandlerOptions {
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	stepFunApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
 	requestyModelInfo?: ModelInfo
@@ -1024,6 +1026,33 @@ export const deepSeekModels = {
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// StepFun
+// https://platform.stepfun.com/account-overview
+export type StepfunModelId = keyof typeof stepFunModels
+export const stepFunDefaultModelId: StepfunModelId = "step-ds-r1"
+export const stepFunModels = {
+	"step-ds-r1": {
+		maxTokens: 8_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0.01,
+		cacheReadsPrice: 0.01,
+	},
+	"step-ds-v3": {
+		maxTokens: 16_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,

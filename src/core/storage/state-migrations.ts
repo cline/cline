@@ -195,6 +195,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.liteLlmApiKey,
 						config.geminiApiKey,
 						config.openAiNativeApiKey,
+						config.stepFunApiKey,
 						config.deepSeekApiKey,
 						config.requestyApiKey,
 						config.togetherApiKey,

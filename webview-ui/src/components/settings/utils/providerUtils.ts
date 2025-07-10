@@ -42,6 +42,8 @@ import {
 	sapAiCoreDefaultModelId,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	stepFunModels,
+	stepFunDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -70,6 +72,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			selectedModelId = defaultId
 			selectedModelInfo = models[defaultId]
 		}
+
+		console.log(selectedModelId, selectedModelInfo)
 		return {
 			selectedProvider: provider,
 			selectedModelId,
@@ -100,6 +104,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+		case "stepfun":
+			return getProviderData(stepFunModels, stepFunDefaultModelId)
 		case "qwen":
 			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 			const qwenDefaultId =

@@ -232,4 +232,7 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+
+  // Stepfun specific
+  optional string stepfun_api_key = 78;
 }

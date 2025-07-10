@@ -239,7 +239,7 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 		case "claude-code":
 			return ProtoApiProvider.CLAUDE_CODE
 		default:
-			return ProtoApiProvider.ANTHROPIC
+			return ProtoApiProvider.STEPFUN
 	}
 }
 
@@ -299,7 +299,7 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 		case ProtoApiProvider.CLAUDE_CODE:
 			return "claude-code"
 		default:
-			return "anthropic"
+			return "stepfun"
 	}
 }
 
@@ -346,6 +346,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		geminiApiKey: config.geminiApiKey,
 		geminiBaseUrl: config.geminiBaseUrl,
 		openAiNativeApiKey: config.openAiNativeApiKey,
+		stepfunApiKey: config.stepFunApiKey,
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
 		requestyModelId: config.requestyModelId,
@@ -426,6 +427,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		geminiBaseUrl: protoConfig.geminiBaseUrl,
 		openAiNativeApiKey: protoConfig.openAiNativeApiKey,
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
+		stepFunApiKey: protoConfig.stepfunApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,
 		requestyModelId: protoConfig.requestyModelId,
 		requestyModelInfo: convertProtoToModelInfo(protoConfig.requestyModelInfo),

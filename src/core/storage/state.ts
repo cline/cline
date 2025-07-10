@@ -137,6 +137,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		geminiApiKey,
 		geminiBaseUrl,
 		openAiNativeApiKey,
+		stepFunApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
 		togetherApiKey,
@@ -210,6 +211,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "geminiApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "geminiBaseUrl") as Promise<string | undefined>,
 		getSecret(context, "openAiNativeApiKey") as Promise<string | undefined>,
+		getSecret(context, "stepFunApiKey") as Promise<string | undefined>,
 		getSecret(context, "deepSeekApiKey") as Promise<string | undefined>,
 		getSecret(context, "requestyApiKey") as Promise<string | undefined>,
 		getSecret(context, "togetherApiKey") as Promise<string | undefined>,
@@ -255,6 +257,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
+		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 	])
 
@@ -335,7 +338,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		// Either new user or legacy user that doesn't have the apiProvider stored in state
 		// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
 		if (apiKey) {
-			apiProvider = "anthropic"
+			// apiProvider = "anthropic"
+			apiProvider = "stepfun"
 		} else {
 			// New users should default to openrouter, since they've opted to use an API key instead of signing in
 			apiProvider = "openrouter"
@@ -399,6 +403,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			geminiApiKey,
 			geminiBaseUrl,
 			openAiNativeApiKey,
+			stepFunApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
@@ -510,6 +515,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		geminiApiKey,
 		geminiBaseUrl,
 		openAiNativeApiKey,
+		stepFunApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
 		requestyModelId,
@@ -620,6 +626,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		openAiApiKey,
 		geminiApiKey,
 		openAiNativeApiKey,
+		stepFunApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
 		togetherApiKey,
@@ -661,6 +668,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"openAiApiKey",
 		"geminiApiKey",
 		"openAiNativeApiKey",
+		"stepFunApiKey",
 		"deepSeekApiKey",
 		"requestyApiKey",
 		"togetherApiKey",

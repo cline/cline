@@ -23,6 +23,7 @@ export const useApiConfigurationHandlers = () => {
 			[field]: value,
 		}
 
+		console.log(field, updatedConfig)
 		const protoConfig = convertApiConfigurationToProto(updatedConfig)
 		ModelsServiceClient.updateApiConfigurationProto(
 			UpdateApiConfigurationRequest.create({
