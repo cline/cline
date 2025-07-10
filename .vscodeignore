@@ -3,7 +3,7 @@
 .vscode-test/**
 out/**
 dist-standalone/**
-node_modules/**
+node_modules/
 src/**
 standalone/**
 .gitignore
