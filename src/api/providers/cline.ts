@@ -27,7 +27,7 @@ export class ClineHandler implements ApiHandler {
 	private _authService: AuthService
 	private client: OpenAI | undefined
 	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
+	private readonly _baseUrl = "http://localhost:7777"
 	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
 	// private readonly _baseUrl = "http://localhost:7777"
 	lastGenerationId?: string
