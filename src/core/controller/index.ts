@@ -96,12 +96,8 @@ export class Controller {
 	 */
 	private async initializeAuthService(): Promise<void> {
 		try {
-			const restored = await this.authService.restoreAuthToken()
-			if (restored) {
-				console.log("Authentication restored successfully")
-			} else {
-				console.log("No valid authentication found")
-			}
+			await this.authService.restoreAuthToken()
+			console.log("Auth service initialization completed")
 
 			// Post state to webview after auth initialization
 			await this.postStateToWebview()

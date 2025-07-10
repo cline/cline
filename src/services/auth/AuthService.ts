@@ -6,8 +6,6 @@ import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
-import { AuthRetryManager } from "./AuthRetryManager"
-import { TokenValidator } from "./TokenValidator"
 
 const DefaultClineAccountURI = "https://app.cline.bot/auth"
 // const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
@@ -35,7 +33,6 @@ export class AuthService {
 	private _authNonce: string | null = null
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
-	private _retryManager = new AuthRetryManager()
 	private _refreshTimeoutId: NodeJS.Timeout | null = null
 	private _isInitialized: boolean = false
 
@@ -249,99 +246,42 @@ export class AuthService {
 	/**
 	 * Restores the authentication token from the extension's storage.
 	 * This is typically called when the extension is activated.
-	 * @returns Promise<boolean> - true if restoration was successful, false otherwise
 	 */
-	async restoreAuthToken(): Promise<boolean> {
+	async restoreAuthToken(): Promise<void> {
 		if (this._isInitialized) {
 			console.log("AuthService already initialized, skipping token restoration")
-			return this._authenticated
+			return
 		}
 
 		if (!this._provider || !this._provider.provider) {
-			const error = new Error("Auth provider is not set")
-			console.error("Token restoration failed:", error.message)
-			this._showAuthError("Authentication provider not configured. Please restart the extension.")
-			return false
+			console.error("Auth provider is not set")
+			this._isInitialized = true
+			return
 		}
 
 		try {
-			const result = await this._retryManager.executeWithRetry(
-				async () => {
-					const user = await this._provider.provider.restoreAuthCredential(this._context)
-					if (!user) {
-						throw new Error("No stored authentication credentials found")
-					}
-
-					// Validate the restored token
-					const validation = TokenValidator.validateTokenStructure(user)
-					if (!validation.isValid) {
-						throw new Error(`Invalid token structure: ${validation.errors.join(", ")}`)
-					}
-
-					if (!TokenValidator.isTokenValid(user)) {
-						throw new Error("Restored token is expired or invalid")
-					}
-
-					return user
-				},
-				"Token Restoration",
-				(error, attempt) => {
-					console.warn(`Token restoration attempt ${attempt} failed: ${error.message}`)
-				},
-			)
-
-			this._user = result
-			this._authenticated = true
-			this._isInitialized = true
-			this._retryManager.reset()
-
-			console.log(`Token restored successfully. Expires in: ${TokenValidator.getTimeUntilExpiration(this._user)}`)
-
-			// Send auth status update and setup refresh
-			await this.sendAuthStatusUpdate()
-			this.setupAutoRefreshAuth()
-
-			return true
+			this._user = await this._provider.provider.restoreAuthCredential(this._context)
+			if (this._user) {
+				this._authenticated = true
+				this._isInitialized = true
+				console.log("Token restored successfully")
+				await this.sendAuthStatusUpdate()
+				this.setupAutoRefreshAuth()
+			} else {
+				console.log("No stored authentication credentials found")
+				this._authenticated = false
+				this._user = null
+				this._isInitialized = true
+			}
 		} catch (error) {
-			console.error("Token restoration failed after all retries:", error)
-
-			// Clear invalid authentication state
+			console.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._user = null
 			this._isInitialized = true
 
-			// Clear stored credentials if they're invalid
-			if (error.message.includes("Invalid token structure") || error.message.includes("expired")) {
-				console.log("Clearing invalid stored credentials")
-				await this.clearAuthToken()
-			}
-
-			// Show user-friendly error message
-			if (!this._retryManager.isCircuitBreakerOpen()) {
-				this._showAuthError("Authentication session expired. Please sign in again.")
-			}
-
-			// Send auth status update to reflect unauthenticated state
-			try {
-				await this.sendAuthStatusUpdate()
-			} catch (updateError) {
-				console.error("Failed to send auth status update:", updateError)
-			}
-
-			return false
+			// Clear corrupted credentials
+			await this.clearAuthToken()
 		}
-	}
-
-	/**
-	 * Shows authentication error to the user
-	 */
-	private _showAuthError(message: string): void {
-		vscode.window.showWarningMessage(message, "Sign In").then((selection) => {
-			if (selection === "Sign In") {
-				// Trigger sign-in flow
-				vscode.commands.executeCommand("cline.accountButtonClicked")
-			}
-		})
 	}
 
 	/**
@@ -354,38 +294,12 @@ export class AuthService {
 		}
 
 		try {
-			await this._retryManager.executeWithRetry(
-				async () => {
-					await this._provider.provider.refreshAuthToken()
-				},
-				"Token Refresh",
-				(error, attempt) => {
-					console.warn(`Token refresh attempt ${attempt} failed: ${error.message}`)
-				},
-			)
-
-			// Reset retry manager on successful refresh
-			this._retryManager.reset()
-			console.log(`Token refreshed successfully. New expiration: ${TokenValidator.getTimeUntilExpiration(this._user)}`)
-
+			await this._provider.provider.refreshAuthToken()
+			console.log("Token refreshed successfully")
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Token refresh failed after all retries:", error)
-
-			// If refresh fails persistently, clear authentication
-			this._authenticated = false
-			this._user = null
-
-			// Clear stored credentials
-			await this.clearAuthToken()
-
-			// Notify user
-			this._showAuthError("Authentication session expired. Please sign in again.")
-
-			// Send auth status update
-			await this.sendAuthStatusUpdate()
-
-			throw error
+			console.error("Token refresh failed:", error)
+			// Don't clear auth on single failure - let user re-authenticate manually if needed
 		}
 	}
 
@@ -396,26 +310,23 @@ export class AuthService {
 			this._refreshTimeoutId = null
 		}
 
-		if (!this._user || !TokenValidator.isTokenValid(this._user)) {
+		if (!this._user || !this._user.stsTokenManager?.expirationTime) {
 			console.warn("Cannot setup auto-refresh: invalid user or token")
 			return
 		}
 
-		// Use TokenValidator to calculate safe timeout
-		const timeoutDuration = TokenValidator.calculateRefreshTimeout(this._user)
+		// Simple timeout calculation with bounds check - refresh 5 minutes before expiration
+		const timeoutDuration = Math.max(0, Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()))
 
 		if (timeoutDuration <= 0) {
 			console.log("Token expires very soon, refreshing immediately")
-			// Refresh immediately but don't block
 			this._autoRefreshAuth().catch((error) => {
 				console.error("Immediate token refresh failed:", error)
 			})
 			return
 		}
 
-		console.log(
-			`Scheduling token refresh in ${Math.round(timeoutDuration / 1000)}s (${Math.round(timeoutDuration / 60000)}m)`,
-		)
+		console.log(`Scheduling token refresh in ${Math.round(timeoutDuration / 1000)}s`)
 
 		this._refreshTimeoutId = setTimeout(() => {
 			this._autoRefreshAuth().catch((error) => {
@@ -430,16 +341,9 @@ export class AuthService {
 			return
 		}
 
-		// Check if token still needs refreshing
-		if (!TokenValidator.shouldRefreshToken(this._user)) {
-			console.log("Token doesn't need refreshing yet, rescheduling")
-			this.setupAutoRefreshAuth()
-			return
-		}
-
 		try {
 			await this.refreshAuth()
-			// Reschedule the next auto-refresh
+			// Only reschedule on success
 			this.setupAutoRefreshAuth()
 		} catch (error) {
 			console.error("Auto-refresh failed:", error)
@@ -455,7 +359,6 @@ export class AuthService {
 			clearTimeout(this._refreshTimeoutId)
 			this._refreshTimeoutId = null
 		}
-		this._retryManager.reset()
 	}
 
 	/**
