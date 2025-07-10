@@ -183,7 +183,7 @@ export class ClineHandler implements ApiHandler {
 				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
 			}
 			console.error("Cline API Error:", error)
-			throw error instanceof Error ? error : new Error(error)
+			throw error instanceof Error ? error : new Error(String(error))
 		}
 	}
 
