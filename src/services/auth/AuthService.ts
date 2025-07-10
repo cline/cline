@@ -7,7 +7,7 @@ import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
 
-const DefaultClineAccountURI = "https://app.cline.bot/auth"
+const DefaultClineAccountURI = "http://localhost:3000/auth"
 // const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
 // const DefaultClineAccountURI = "http://localhost:3000/auth"
 let authProviders: any[] = []
@@ -51,14 +51,14 @@ export class AuthService {
 		const authProvidersConfigs = [
 			{
 				name: "firebase",
-				config: {
-					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
-					authDomain: "cline-prod.firebaseapp.com",
-					projectId: "cline-prod",
-					storageBucket: "cline-prod.firebasestorage.app",
-					messagingSenderId: "941048379330",
-					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
-				},
+				// config: {
+				// 	apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
+				// 	authDomain: "cline-prod.firebaseapp.com",
+				// 	projectId: "cline-prod",
+				// 	storageBucket: "cline-prod.firebasestorage.app",
+				// 	messagingSenderId: "941048379330",
+				// 	appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
+				// },
 				// Uncomment for staging environment
 				// config: {
 				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
@@ -69,14 +69,15 @@ export class AuthService {
 				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
 				// },
 				// Uncomment for local development environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
+				config: {
+					apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
+					authDomain: "cline-preview.firebaseapp.com",
+					projectId: "cline-preview",
+					storageBucket: "cline-preview.firebasestorage.app",
+					messagingSenderId: "654681443338",
+					appId: "1:654681443338:web:93bfe710626a573d9123f3",
+					measurementId: "G-QL8CKK5TNJ",
+				},
 				// config: {
 				// 	apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
 				// 	authDomain: "cline-preview.firebaseapp.com",
