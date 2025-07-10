@@ -203,7 +203,7 @@ export function Evals({
 						</ScatterChart>
 					</ChartContainer>
 					<div className="py-4 text-xs opacity-50">
-						(Note: Very expensive models are exluded from the scatter plot.)
+						(Note: Very expensive models are excluded from the scatter plot.)
 					</div>
 				</TableCaption>
 			</Table>

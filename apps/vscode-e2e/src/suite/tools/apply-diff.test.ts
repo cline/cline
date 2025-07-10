@@ -224,7 +224,7 @@ function validateInput(input) {
 				},
 				text: `Use apply_diff on the file ${testFile.name} to change "Hello World" to "Hello Universe". The file already exists with this content:
 ${testFile.content}\nAssume the file exists and you can modify it directly.`,
-			}) //Temporary meassure since list_files ignores all the files inside a tmp workspace
+			}) //Temporary measure since list_files ignores all the files inside a tmp workspace
 
 			console.log("Task ID:", taskId)
 			console.log("Test filename:", testFile.name)
