@@ -564,37 +564,46 @@ export class Controller {
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
 
-	// Add a given text prompt to the chat input
-	async addPromptToChat(prompt: string) {
-		// Ensure a webview is visible and ready, just like the other methods do.
+	/**
+	 * Adds a prompt to the chat input or submits it directly as a new task.
+	 * @param prompt The text to add or submit.
+	 * @param submit If true, the prompt is submitted immediately. Defaults to false.
+	 */
+	async addPromptToChat(prompt: string, submit: boolean = false) {
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
+		await setTimeoutPromise(200)
 
-		// --- CURRENT FLOW: Add text to the input without submitting ---
-		await sendAddToInputEvent(prompt)
-
-		// --- ALTERNATIVE FLOW: Uncomment the line below to submit the prompt immediately ---
-		// await this.initTask(prompt);
-
-		console.log("addPromptToChat", prompt)
+		if (submit) {
+			// --- NEW: Submit Flow ---
+			await this.initTask(prompt)
+			console.log("addPromptToChat (submitted)", prompt)
+		} else {
+			// --- EXISTING: Add to Input Flow ---
+			await sendAddToInputEvent(prompt)
+			console.log("addPromptToChat (added to input)", prompt)
+		}
 	}
 
-	// Add a file mention to the chat input
-	async addFileMentionToChat(filePath: string) {
-		// Ensure a webview is visible and ready.
+	/**
+	 * Adds a file mention to the chat input or submits it directly as a new task.
+	 * @param filePath The absolute path to the file to mention.
+	 * @param submit If true, the mention is submitted immediately. Defaults to false.
+	 */
+	async addFileMentionToChat(filePath: string, submit: boolean = false) {
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
+		await setTimeoutPromise(200)
 
-		// 1. Reuse the existing function to create the file mention string.
 		const fileMention = await this.getFileMentionFromPath(filePath)
 
-		// --- CURRENT FLOW: Add file mention to the input without submitting ---
-		await sendAddToInputEvent(fileMention)
-
-		// --- ALTERNATIVE FLOW: Uncomment the line below to submit the mention immediately ---
-		// await this.initTask(fileMention);
-
-		console.log("addFileMentionToChat", fileMention)
+		if (submit) {
+			// --- NEW: Submit Flow ---
+			await this.initTask(fileMention)
+			console.log("addFileMentionToChat (submitted)", fileMention)
+		} else {
+			// --- EXISTING: Add to Input Flow ---
+			await sendAddToInputEvent(fileMention)
+			console.log("addFileMentionToChat (added to input)", fileMention)
+		}
 	}
 
 	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
