@@ -6,27 +6,43 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
-export class LmStudioHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface LmStudioHandlerOptions {
+	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class LmStudioHandler implements ApiHandler {
+	private options: LmStudioHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: LmStudioHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
-			apiKey: "noop",
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			try {
+				this.client = new OpenAI({
+					baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
+					apiKey: "noop",
+				})
+			} catch (error) {
+				throw new Error(`Error creating LM Studio client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
 		try {
-			const stream = await this.client.chat.completions.create({
+			const stream = await client.chat.completions.create({
 				model: this.getModel().id,
 				messages: openAiMessages,
 				stream: true,

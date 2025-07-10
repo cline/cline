@@ -252,6 +252,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					// Clear any existing task
 					await visibleWebview.controller.clearTask()
 
+					// TODO: convert apiKey to clineAccountId
 					// If API key is provided, update the API configuration
 					if (apiKey) {
 						Logger.log("API key provided, updating API configuration")
@@ -263,11 +264,11 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						const updatedConfig = {
 							...apiConfiguration,
 							apiProvider: "cline" as ApiProvider,
-							clineApiKey: apiKey,
+							clineAccountId: apiKey,
 						}
 
 						// Store the API key securely
-						await storeSecret(visibleWebview.controller.context, "clineApiKey", apiKey)
+						await storeSecret(visibleWebview.controller.context, "clineAccountId", apiKey)
 
 						// Update the API configuration
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)

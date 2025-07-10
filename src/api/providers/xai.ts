@@ -1,26 +1,46 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { withRetry } from "../retry"
 
-export class XAIHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface XAIHandlerOptions {
+	xaiApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class XAIHandler implements ApiHandler {
+	private options: XAIHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: XAIHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.x.ai/v1",
-			apiKey: this.options.xaiApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.xaiApiKey) {
+				throw new Error("xAI API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.x.ai/v1",
+					apiKey: this.options.xaiApiKey,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating xAI client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const modelId = this.getModel().id
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
@@ -30,7 +50,7 @@ export class XAIHandler implements ApiHandler {
 				reasoningEffort = undefined
 			}
 		}
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: modelId,
 			max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,

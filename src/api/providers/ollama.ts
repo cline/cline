@@ -6,17 +6,35 @@ import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
-export class OllamaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: Ollama
+interface OllamaHandlerOptions {
+	ollamaBaseUrl?: string
+	ollamaModelId?: string
+	ollamaApiOptionsCtxNum?: string
+	requestTimeoutMs?: number
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class OllamaHandler implements ApiHandler {
+	private options: OllamaHandlerOptions
+	private client: Ollama | undefined
+
+	constructor(options: OllamaHandlerOptions) {
 		this.options = options
-		this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+	}
+
+	private ensureClient(): Ollama {
+		if (!this.client) {
+			try {
+				this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+			} catch (error) {
+				throw new Error(`Error creating Ollama client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
 		try {
@@ -27,7 +45,7 @@ export class OllamaHandler implements ApiHandler {
 			})
 
 			// Create the actual API request promise
-			const apiPromise = this.client.chat({
+			const apiPromise = client.chat({
 				model: this.getModel().id,
 				messages: ollamaMessages,
 				stream: true,

@@ -6,26 +6,60 @@ import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vert
 import { ApiStream } from "@api/transform/stream"
 import { GeminiHandler } from "./gemini"
 
+interface VertexHandlerOptions {
+	vertexProjectId?: string
+	vertexRegion?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+	geminiApiKey?: string
+	geminiBaseUrl?: string
+	taskId?: string
+}
+
 export class VertexHandler implements ApiHandler {
-	private geminiHandler: GeminiHandler
-	private clientAnthropic: AnthropicVertex
-	private options: ApiHandlerOptions
+	private geminiHandler: GeminiHandler | undefined
+	private clientAnthropic: AnthropicVertex | undefined
+	private options: VertexHandlerOptions
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: VertexHandlerOptions) {
 		this.options = options
+	}
 
-		// Create a GeminiHandler with isVertex flag for Gemini models
-		this.geminiHandler = new GeminiHandler({
-			...options,
-			isVertex: true,
-		})
+	private ensureGeminiHandler(): GeminiHandler {
+		if (!this.geminiHandler) {
+			try {
+				// Create a GeminiHandler with isVertex flag for Gemini models
+				this.geminiHandler = new GeminiHandler({
+					...this.options,
+					isVertex: true,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating Vertex AI Gemini handler: ${error.message}`)
+			}
+		}
+		return this.geminiHandler
+	}
 
-		// Initialize Anthropic client for Claude models
-		this.clientAnthropic = new AnthropicVertex({
-			projectId: this.options.vertexProjectId,
-			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-			region: this.options.vertexRegion,
-		})
+	private ensureAnthropicClient(): AnthropicVertex {
+		if (!this.clientAnthropic) {
+			if (!this.options.vertexProjectId) {
+				throw new Error("Vertex AI project ID is required")
+			}
+			if (!this.options.vertexRegion) {
+				throw new Error("Vertex AI region is required")
+			}
+			try {
+				// Initialize Anthropic client for Claude models
+				this.clientAnthropic = new AnthropicVertex({
+					projectId: this.options.vertexProjectId,
+					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+					region: this.options.vertexRegion,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating Vertex AI Anthropic client: ${error.message}`)
+			}
+		}
+		return this.clientAnthropic
 	}
 
 	@withRetry()
@@ -35,9 +69,12 @@ export class VertexHandler implements ApiHandler {
 
 		// For Gemini models, use the GeminiHandler
 		if (!modelId.includes("claude")) {
-			yield* this.geminiHandler.createMessage(systemPrompt, messages)
+			const geminiHandler = this.ensureGeminiHandler()
+			yield* geminiHandler.createMessage(systemPrompt, messages)
 			return
 		}
+
+		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
@@ -63,7 +100,7 @@ export class VertexHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.clientAnthropic.beta.messages.create(
+				stream = await clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
 						max_tokens: model.info.maxTokens || 8192,
@@ -125,7 +162,7 @@ export class VertexHandler implements ApiHandler {
 				break
 			}
 			default: {
-				stream = await this.clientAnthropic.beta.messages.create({
+				stream = await clientAnthropic.beta.messages.create({
 					model: modelId,
 					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,

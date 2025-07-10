@@ -308,7 +308,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 	return {
 		apiModelId: config.apiModelId,
 		apiKey: config.apiKey,
-		clineApiKey: config.clineApiKey,
+		clineAccountId: config.clineAccountId,
 		taskId: config.taskId,
 		liteLlmBaseUrl: config.liteLlmBaseUrl,
 		liteLlmModelId: config.liteLlmModelId,
@@ -387,7 +387,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 	return {
 		apiModelId: protoConfig.apiModelId,
 		apiKey: protoConfig.apiKey,
-		clineApiKey: protoConfig.clineApiKey,
+		clineAccountId: protoConfig.clineAccountId,
 		taskId: protoConfig.taskId,
 		liteLlmBaseUrl: protoConfig.liteLlmBaseUrl,
 		liteLlmModelId: protoConfig.liteLlmModelId,

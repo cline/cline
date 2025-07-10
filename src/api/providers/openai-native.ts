@@ -8,15 +8,34 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
-export class OpenAiNativeHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface OpenAiNativeHandlerOptions {
+	openAiNativeApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class OpenAiNativeHandler implements ApiHandler {
+	private options: OpenAiNativeHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			apiKey: this.options.openAiNativeApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.openAiNativeApiKey) {
+				throw new Error("OpenAI API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					apiKey: this.options.openAiNativeApiKey,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating OpenAI client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
@@ -38,6 +57,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		switch (model.id) {
@@ -45,7 +65,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1-preview":
 			case "o1-mini": {
 				// o1 doesn't support streaming, non-1 temp, or system prompt
-				const response = await this.client.chat.completions.create({
+				const response = await client.chat.completions.create({
 					model: model.id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 				})
@@ -61,7 +81,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o4-mini":
 			case "o3":
 			case "o3-mini": {
-				const stream = await this.client.chat.completions.create({
+				const stream = await client.chat.completions.create({
 					model: model.id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
@@ -85,7 +105,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				break
 			}
 			default: {
-				const stream = await this.client.chat.completions.create({
+				const stream = await client.chat.completions.create({
 					model: model.id,
 					// max_completion_tokens: this.getModel().info.maxTokens,
 					temperature: 0,
