@@ -200,6 +200,11 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.completion.toggle",
+				"title": "Toggle Inline Completion",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [

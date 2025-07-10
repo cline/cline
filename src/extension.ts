@@ -37,6 +37,7 @@ import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
+import { CompletionManager } from "./core/completion/CompletionManager"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -48,6 +49,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 */
 
 let outputChannel: vscode.OutputChannel
+let completionManager: CompletionManager
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -84,6 +86,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
 	context.subscriptions.push(...testModeWatchers)
+
+	// Initialize completion manager
+	outputChannel.appendLine("🎯 Cline 扩展：开始初始化智能补全功能")
+	completionManager = new CompletionManager(context)
+	context.subscriptions.push(completionManager)
+	outputChannel.appendLine("✅ Cline 扩展：智能补全功能初始化完成")
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
@@ -709,6 +717,12 @@ export async function deactivate() {
 	// Clean up test mode
 	cleanupTestMode()
 	await posthogClientProvider.shutdown()
+
+	// Dispose completion manager
+	if (completionManager) {
+		outputChannel.appendLine("🛑 Cline 扩展：正在销毁智能补全功能")
+		completionManager.dispose()
+	}
 
 	Logger.log("Cline extension deactivated")
 }
