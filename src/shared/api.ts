@@ -600,6 +600,9 @@ export const vertexModels = {
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		tiers: [
 			{
 				contextWindow: 200000,
@@ -626,6 +629,21 @@ export const vertexModels = {
 		thinkingConfig: {
 			maxBudget: 24576,
 			outputPrice: 3.5,
+		},
+	},
+
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
 		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
@@ -731,6 +749,9 @@ export const geminiModels = {
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		tiers: [
 			{
 				contextWindow: 200000,
@@ -745,6 +766,20 @@ export const geminiModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
+	},
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
 	},
 	"gemini-2.5-flash": {
 		maxTokens: 65536,
@@ -2051,8 +2086,16 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-3"
+export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4": {
+		maxTokens: 8192,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // will have different pricing for long context vs short context
+		outputPrice: 6.0,
+	},
 	"grok-3-beta": {
 		maxTokens: 8192,
 		contextWindow: 131072,
