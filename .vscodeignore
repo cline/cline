@@ -9,16 +9,17 @@ standalone/**
 .gitignore
 .yarnrc
 esbuild.js
-vsc-extension-quickstart.md
 **/tsconfig.json
 **/.eslintrc.json
 **/*.map
 **/*.ts
 **/.vscode-test.*
 eslint-rules/**
+.github/**
+.husky/**
 
 # Custom
-demo.gif
+**/demo.gif
 .nvmrc
 .gitattributes
 .prettierignore
