@@ -1166,9 +1166,9 @@ export const ChatRowContent = ({
 						return <div>Error displaying search results.</div>
 					}
 
-					const { query = "", results = [] } = parsed?.content || {}
+					const { results = [] } = parsed?.content || {}
 
-					return <CodebaseSearchResultsDisplay query={query} results={results} />
+					return <CodebaseSearchResultsDisplay results={results} />
 				case "user_edit_todos":
 					return <UpdateTodoListToolBlock userEdited onChange={() => {}} />
 				default:

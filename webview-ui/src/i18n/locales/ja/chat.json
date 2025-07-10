@@ -297,7 +297,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Rooはコードベースで <code>{{query}}</code> を検索したい:",
 		"wantsToSearchWithPath": "Rooは <code>{{path}}</code> 内のコードベースで <code>{{query}}</code> を検索したい:",
-		"didSearch": "<code>{{query}}</code> の検索結果: {{count}} 件",
+		"didSearch_one": "1件の結果が見つかりました",
+		"didSearch_other": "{{count}}件の結果が見つかりました",
 		"resultTooltip": "類似度スコア: {{score}} (クリックしてファイルを開く)"
 	},
 	"read-batch": {

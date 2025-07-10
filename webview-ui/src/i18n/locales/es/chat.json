@@ -297,7 +297,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo quiere buscar en la base de código <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo quiere buscar en la base de código <code>{{query}}</code> en <code>{{path}}</code>:",
-		"didSearch": "Se encontraron {{count}} resultado(s) para <code>{{query}}</code>:",
+		"didSearch_one": "Se encontró 1 resultado",
+		"didSearch_other": "Se encontraron {{count}} resultados",
 		"resultTooltip": "Puntuación de similitud: {{score}} (haz clic para abrir el archivo)"
 	},
 	"read-batch": {

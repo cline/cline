@@ -297,7 +297,8 @@
 	"codebaseSearch": {
 		"wantsToSearch": "Roo vol cercar a la base de codi <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo vol cercar a la base de codi <code>{{query}}</code> a <code>{{path}}</code>:",
-		"didSearch": "S'han trobat {{count}} resultat(s) per a <code>{{query}}</code>:",
+		"didSearch_one": "S'ha trobat 1 resultat",
+		"didSearch_other": "S'han trobat {{count}} resultats",
 		"resultTooltip": "Puntuació de similitud: {{score}} (fes clic per obrir el fitxer)"
 	},
 	"read-batch": {
