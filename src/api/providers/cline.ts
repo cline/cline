@@ -4,7 +4,7 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -93,10 +93,10 @@ export class ClineHandler implements ApiHandler {
 				// openrouter returns an error object instead of the openai sdk throwing an error
 				if ("error" in chunk) {
 					const error = chunk.error as OpenRouterErrorResponse["error"]
-					console.error(`Cline API Error: ${error?.code} - ${error?.message}`)
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
+					console.error(`Cline API Error: ${error?.code} - ${error?.message}${metadataStr}`)
+					throw error
 				}
 				if (!this.lastGenerationId && chunk.id) {
 					this.lastGenerationId = chunk.id
@@ -181,10 +181,8 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
-			}
 			console.error("Cline API Error:", error)
+			throw new Error("Cline API Error: " + error?.data?.error || error?.message)
 		}
 	}
 
