@@ -699,7 +699,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		// The command can now accept a string OR an object { prompt: string, submit?: boolean }
 		vscode.commands.registerCommand(
 			"cline.addPromptToChat",
 			async (args: string | { prompt: string; submit?: boolean } | undefined) => {
@@ -720,7 +719,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						prompt: "Enter the prompt to send to Cline",
 						placeHolder: "e.g., Explain this code",
 					})
-					if (!prompt) return // User cancelled
+					if (!prompt) return
 				}
 
 				// Get the currently active/visible Cline webview instance.
@@ -736,14 +735,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Call the controller with both arguments
 				await visibleWebview.controller.addPromptToChat(prompt, submit)
 
-				// Telemetry
 				telemetryService.captureButtonClick("command_addPromptToChat", visibleWebview.controller.task?.taskId, true)
 			},
 		),
 	)
 
 	context.subscriptions.push(
-		// The command can now accept a string OR an object { filePath: string, submit?: boolean }
 		vscode.commands.registerCommand(
 			"cline.addFileMentionToChat",
 			async (args: string | { filePath: string; submit?: boolean } | undefined) => {
@@ -761,12 +758,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Interactive fallback if no path was provided
 				if (!filePath) {
 					const fileUris = await vscode.window.showOpenDialog({
-						canSelectFiles: true, // Allow selecting files
-						canSelectFolders: false, // Don't allow folders
-						canSelectMany: false, // Only allow one selection
-						openLabel: "Select File to Mention", // Custom button text
+						canSelectFiles: true,
+						canSelectFolders: false,
+						canSelectMany: false,
+						openLabel: "Select File to Mention",
 					})
-					if (!fileUris || fileUris.length === 0) return // User cancelled the dialog
+					if (!fileUris || fileUris.length === 0) return
 					filePath = fileUris[0].fsPath
 				}
 
@@ -783,7 +780,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Call the controller with both arguments
 				await visibleWebview.controller.addFileMentionToChat(filePath, submit)
 
-				// Telemetry
 				telemetryService.captureButtonClick("command_addFileMentionToChat", visibleWebview.controller.task?.taskId, true)
 			},
 		),
