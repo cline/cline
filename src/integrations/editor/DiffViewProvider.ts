@@ -60,7 +60,7 @@ export class DiffViewProvider {
 		if (!fileExists) {
 			await fs.writeFile(this.absolutePath, "")
 		}
-		this.activeDiffEditor = await this.openDiffEditor()
+		await this.openDiffEditor()
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
 	}
@@ -327,7 +327,7 @@ export class DiffViewProvider {
 		}
 	}
 
-	private async openDiffEditor(): Promise<vscode.TextEditor> {
+	private async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
 		}
@@ -372,42 +372,41 @@ export class DiffViewProvider {
 			if (!editor) {
 				throw new Error("Failed to find opened text editor")
 			}
-			return editor
-		}
-		// Open new diff editor
-		const diffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
-			const fileName = path.basename(uri.fsPath)
-			const fileExists = this.editType === "modify"
-			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-				if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
+			this.activeDiffEditor = editor
+		} else {
+			// Open new diff editor
+			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
+				const fileName = path.basename(uri.fsPath)
+				const fileExists = this.editType === "modify"
+				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+					if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
+						disposable.dispose()
+						resolve(editor)
+					}
+				})
+				vscode.commands.executeCommand(
+					"vscode.diff",
+					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+						query: Buffer.from(this.originalContent ?? "").toString("base64"),
+					}),
+					uri,
+					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+					{
+						preserveFocus: true,
+					},
+				)
+				// This may happen on very slow machines ie project idx
+				setTimeout(() => {
 					disposable.dispose()
-					resolve(editor)
-				}
+					reject(new Error("Failed to open diff editor, please try again..."))
+				}, 10_000)
 			})
-			vscode.commands.executeCommand(
-				"vscode.diff",
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
-					query: Buffer.from(this.originalContent ?? "").toString("base64"),
-				}),
-				uri,
-				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
-				{
-					preserveFocus: true,
-				},
-			)
-			// This may happen on very slow machines ie project idx
-			setTimeout(() => {
-				disposable.dispose()
-				reject(new Error("Failed to open diff editor, please try again..."))
-			}, 10_000)
-		})
+		}
 
-		this.fadedOverlayController = new DecorationController("fadedOverlay", diffEditor)
-		this.activeLineController = new DecorationController("activeLine", diffEditor)
+		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
+		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
 		// Apply faded overlay to all lines initially
-		this.fadedOverlayController.addLines(0, diffEditor.document.lineCount)
-
-		return diffEditor
+		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
 	}
 
 	private scrollEditorToLine(line: number) {
