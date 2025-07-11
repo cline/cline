@@ -685,6 +685,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		context.secrets.onDidChange((event) => {
+			if (event.key === "clineAccountId") {
+				AuthService.getInstance(context)?.restoreAuthToken()
+			}
+		}),
+	)
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
