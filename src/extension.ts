@@ -37,6 +37,7 @@ import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
+import { VscodeDiffViewProvider } from "./integrations/editor/VscodeDiffViewProvider"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -694,7 +695,10 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 		const createWebview = function (type: WebviewProviderType) {
 			return new VscodeWebviewProvider(context, outputChannel, type)
 		}
-		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient)
+		const createDiffView = function () {
+			return new VscodeDiffViewProvider()
+		}
+		hostProviders.initializeHostProviders(createWebview, createDiffView, vscodeHostBridgeClient)
 	}
 }
 
