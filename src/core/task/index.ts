@@ -174,7 +174,7 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.diffViewProvider = new DiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
