@@ -689,7 +689,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}),
 	)
-	
+
 	context.subscriptions.push(
 		context.secrets.onDidChange((event) => {
 			if (event.key === "clineAccountId") {
@@ -735,7 +735,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Call the controller with both arguments
 				await visibleWebview.controller.addPromptToChat(prompt, submit)
 
-				telemetryService.captureButtonClick("command_addPromptToChat", visibleWebview.controller.task?.taskId, true)
+				telemetryService.captureButtonClick("command_addPromptToChat", visibleWebview.controller.task?.taskId)
 			},
 		),
 	)
@@ -780,7 +780,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Call the controller with both arguments
 				await visibleWebview.controller.addFileMentionToChat(filePath, submit)
 
-				telemetryService.captureButtonClick("command_addFileMentionToChat", visibleWebview.controller.task?.taskId, true)
+				telemetryService.captureButtonClick("command_addFileMentionToChat", visibleWebview.controller.task?.taskId)
 			},
 		),
 	)
