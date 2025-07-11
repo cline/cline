@@ -23,6 +23,7 @@ import {
 	DialogDescription,
 	DialogFooter,
 	ToggleSwitch,
+	StandardTooltip,
 } from "@src/components/ui"
 import { buildDocLink } from "@src/utils/docLinks"
 
@@ -124,13 +125,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 							style={{
 								marginTop: "10px",
 								width: "100%",
-								display: "flex",
-								flexWrap: "wrap",
+								display: "grid",
+								gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
 								gap: "10px",
 							}}>
 							<Button
 								variant="secondary"
-								style={{ flex: "1 1 auto", minWidth: "120px" }}
+								style={{ width: "100%" }}
 								onClick={() => {
 									vscode.postMessage({ type: "openMcpSettings" })
 								}}>
@@ -139,7 +140,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							</Button>
 							<Button
 								variant="secondary"
-								style={{ flex: "1 1 auto", minWidth: "120px" }}
+								style={{ width: "100%" }}
 								onClick={() => {
 									vscode.postMessage({ type: "openProjectMcpSettings" })
 								}}>
@@ -148,13 +149,31 @@ const McpView = ({ onDone }: McpViewProps) => {
 							</Button>
 							<Button
 								variant="secondary"
-								style={{ flex: "1 1 auto", minWidth: "120px" }}
+								style={{ width: "100%" }}
 								onClick={() => {
 									vscode.postMessage({ type: "refreshAllMcpServers" })
 								}}>
 								<span className="codicon codicon-refresh" style={{ marginRight: "6px" }}></span>
 								{t("mcp:refreshMCP")}
 							</Button>
+							<StandardTooltip content={t("mcp:marketplace")}>
+								<Button
+									variant="secondary"
+									style={{ width: "100%" }}
+									onClick={() => {
+										window.postMessage(
+											{
+												type: "action",
+												action: "marketplaceButtonClicked",
+												values: { marketplaceTab: "mcp" },
+											},
+											"*",
+										)
+									}}>
+									<span className="codicon codicon-extensions" style={{ marginRight: "6px" }}></span>
+									{t("mcp:marketplace")}
+								</Button>
+							</StandardTooltip>
 						</div>
 						<div
 							style={{

@@ -1,6 +1,7 @@
 {
 	"title": "MCP 伺服器",
 	"done": "完成",
+	"marketplace": "MCP 市集",
 	"description": "<0>Model Context Protocol</0> 能與本機執行的 MCP 伺服器通訊，提供額外的工具和資源來擴展 Roo 的功能。您可以使用<1>社群開發的伺服器</1>，或請 Roo 為您的工作流程建立新工具（例如「新增一個取得最新 npm 文件的工具」）。",
 	"instructions": "使用說明",
 	"enableToggle": {

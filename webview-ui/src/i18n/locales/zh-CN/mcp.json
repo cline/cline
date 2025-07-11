@@ -1,6 +1,7 @@
 {
 	"title": "MCP 服务器",
 	"done": "完成",
+	"marketplace": "MCP 市场",
 	"description": "<0>Model Context Protocol</0> 支持与本地MCP服务通信，提供扩展功能。您可以使用<1>社区服务器</1>，或通过指令创建定制工具（例如：\"新增获取最新npm文档的工具\"）。",
 	"instructions": "使用说明",
 	"enableToggle": {

@@ -1,6 +1,7 @@
 {
 	"title": "Servidores MCP",
 	"done": "Concluído",
+	"marketplace": "Marketplace MCP",
 	"description": "O <0>Model Context Protocol</0> permite a comunicação com servidores MCP em execução localmente que fornecem ferramentas e recursos adicionais para estender as capacidades do Roo. Você pode usar <1>servidores criados pela comunidade</1> ou pedir ao Roo para criar novas ferramentas específicas para seu fluxo de trabalho (por exemplo, \"adicionar uma ferramenta que obtém a documentação mais recente do npm\").",
 	"instructions": "Instruções",
 	"enableToggle": {

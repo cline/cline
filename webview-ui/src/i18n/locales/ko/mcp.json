@@ -1,6 +1,7 @@
 {
 	"title": "MCP 서버",
 	"done": "완료",
+	"marketplace": "MCP 마켓플레이스",
 	"description": "<0>Model Context Protocol</0>은 로컬에서 실행되는 MCP 서버와 통신하여 Roo의 기능을 확장하는 추가 도구 및 리소스를 제공합니다. <1>커뮤니티에서 만든 서버</1>를 사용하거나 Roo에게 작업 흐름에 맞는 새로운 도구를 만들도록 요청할 수 있습니다 (예: \"최신 npm 문서를 가져오는 도구 추가\").",
 	"instructions": "지침",
 	"enableToggle": {

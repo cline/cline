@@ -1,6 +1,7 @@
 {
 	"title": "MCP-servers",
 	"done": "Gereed",
+	"marketplace": "MCP-marktplaats",
 	"description": "Het <0>Model Context Protocol</0> maakt communicatie mogelijk met lokaal draaiende MCP-servers die extra tools en bronnen bieden om Roo's mogelijkheden uit te breiden. Je kunt <1>community-servers</1> gebruiken of Roo vragen om nieuwe tools te maken die specifiek zijn voor jouw workflow (bijv. 'voeg een tool toe die de nieuwste npm-documentatie ophaalt').",
 	"instructions": "Instructies",
 	"enableToggle": {

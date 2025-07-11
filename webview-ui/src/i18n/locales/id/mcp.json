@@ -1,6 +1,7 @@
 {
 	"title": "Server MCP",
 	"done": "Selesai",
+	"marketplace": "Marketplace MCP",
 	"description": "<0>Model Context Protocol</0> memungkinkan komunikasi dengan server MCP yang berjalan secara lokal yang menyediakan tools dan resources tambahan untuk memperluas kemampuan Roo Code. Anda dapat menggunakan <1>server buatan komunitas</1> atau meminta Roo membuat tools baru yang spesifik untuk workflow Anda (misalnya, \"tambahkan tool yang mendapatkan dokumentasi npm terbaru\").",
 	"instructions": "Instruksi",
 	"enableToggle": {

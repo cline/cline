@@ -1,6 +1,7 @@
 {
 	"title": "MCP Sunucuları",
 	"done": "Tamam",
+	"marketplace": "MCP Pazaryeri",
 	"description": "<0>Model Context Protocol</0>, Roo'nun yeteneklerini genişletmek için ek araçlar ve kaynaklar sağlayan yerel olarak çalışan MCP sunucularıyla iletişim kurmanızı sağlar. <1>Topluluk tarafından oluşturulan sunucuları</1> kullanabilir veya Roo'dan iş akışınıza özel yeni araçlar oluşturmasını isteyebilirsiniz (örneğin, \"en son npm belgelerini alan bir araç ekle\").",
 	"instructions": "Talimatlar",
 	"enableToggle": {
