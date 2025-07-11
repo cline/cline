@@ -2,8 +2,6 @@
 
 ## 3.18.12
 
-### Patch Changes
-
 -   3ed47fb: Better error handling for credits-related issues.
 -   77ab7f8: Fix flaky cline provider toggle
 -   6d5ea98: fix insufficient credits display
