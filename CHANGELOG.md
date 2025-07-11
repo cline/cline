@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.18.12]
+
+-   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
+-   Fix insufficient credits error display to properly show error messages when account balance is too low
+-   Improve credit balance validation and error handling for Cline provider requests
+
 ## [3.18.11]
 
 -   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
