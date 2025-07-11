@@ -129,21 +129,21 @@ export class FirebaseAuthProvider {
 	}
 
 	async _signInWithCredential(credential: AuthCredential): Promise<UserCredential> {
-		// check if the user's token needs refresh. This is a short-lived token that the firebase sdk internally manages, that the long-lived refresh token stored in secret storage is used to refresh.
-		const user = getAuth().currentUser
-		if (user) {
-			const tokenResult = await user.getIdTokenResult()
-			const expirationTime = new Date(tokenResult.expirationTime)
-			const now = new Date()
-			if (expirationTime <= now) {
-				// this refreshes the token and updates the user object used by the firebase auth service
-				await user.getIdToken(true)
-			}
-		}
-
 		const firebaseConfig = Object.assign({}, this._config)
 		const app = initializeApp(firebaseConfig)
 		const auth = getAuth(app)
+
+		// check if the user's token needs refresh. This is a short-lived access token that the firebase sdk internally manages, that the long-lived refresh token stored in secret storage is used to refresh.
+		const user = auth.currentUser
+		if (user) {
+			try {
+				// this refreshes the token and updates the user object used by the firebase auth service (if needed within 5 minutes of expiry)
+				await user.getIdToken()
+			} catch (error) {
+				console.warn("Token refresh failed", error)
+			}
+		}
+
 		try {
 			// Now that we've ensured that the access token being managed by the firebase sdk is valid, we can call the sign in method.
 			return await signInWithCredential(auth, credential)
