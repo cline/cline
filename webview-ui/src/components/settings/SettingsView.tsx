@@ -53,13 +53,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		icon: Settings,
 	},
 	{
-		id: "features",
-		name: "Features",
-		tooltipText: "Feature Settings",
-		headerText: "Feature Settings",
-		icon: CheckCheck,
-	},
-	{
 		id: "browser",
 		name: "Browser",
 		tooltipText: "Browser Settings",
@@ -85,13 +78,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 				},
 			]
 		: []),
-	{
-		id: "about",
-		name: "About",
-		tooltipText: "About Cline",
-		headerText: "About",
-		icon: Info,
-	},
+	// {
+	// 	id: "about",
+	// 	name: "About",
+	// 	tooltipText: "About Cline",
+	// 	headerText: "About",
+	// 	icon: Info,
+	// },
 ]
 
 type SettingsViewProps = {

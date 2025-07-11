@@ -1,8 +1,8 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
+	"displayName": "StepCline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.18.8",
+	"version": "0.0.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -49,7 +49,7 @@
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
+				"title": "Meet StepCline, your new coding partner",
 				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
@@ -102,13 +102,13 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
+					"title": "StepCline (⌘+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "isMac"
 				},
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
+					"title": "StepCline (Ctrl+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "!isMac"
 				}
@@ -252,11 +252,6 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
@@ -281,11 +276,6 @@
 				{
 					"command": "cline.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
@@ -322,7 +312,7 @@
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "StepCline",
 			"properties": {}
 		}
 	},
