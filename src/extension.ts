@@ -313,15 +313,19 @@ export async function activate(context: vscode.ExtensionContext) {
 					provider: provider,
 				})
 
-				// Validate state parameter
-				if (!(authService.authNonce === state)) {
-					getHostBridgeProvider().windowClient.showMessage(
+				// Ask user to confirm on state mismatch. This enables signins initiated from
+				// outside the extension (e.g. Cline web) to be handled correctly.
+				if (authService.authNonce !== state) {
+					const userConfirmation = await getHostBridgeProvider().windowClient.showMessage(
 						ShowMessageRequest.create({
 							type: ShowMessageType.ERROR,
 							message: "Invalid auth state",
 						}),
 					)
-					return
+					if (userConfirmation === "Cancel") {
+						console.log("User declined to continue with auth callback due to state mismatch")
+						return
+					}
 				}
 
 				if (token) {
@@ -702,6 +706,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				await tempController.generateGitCommitMessage()
 				outputChannel.dispose()
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		context.secrets.onDidChange((event) => {
+			if (event.key === "clineAccountId") {
+				AuthService.getInstance(context)?.restoreAuthToken()
 			}
 		}),
 	)

@@ -30,7 +30,7 @@ export class AuthService {
 	private _authenticated: boolean = false
 	private _user: any = null
 	private _provider: any = null
-	private _authNonce: string | null = null
+	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
 
@@ -100,6 +100,7 @@ export class AuthService {
 		})
 
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
+
 		this._context = context
 	}
 
@@ -118,7 +119,7 @@ export class AuthService {
 			}
 			AuthService.instance = new AuthService(context, config || {}, authProvider)
 		}
-		if (context) {
+		if (context !== undefined) {
 			AuthService.instance.context = context
 		}
 		return AuthService.instance
@@ -136,7 +137,7 @@ export class AuthService {
 		this._setProvider(providerName)
 	}
 
-	get authNonce(): string | null {
+	get authNonce(): string {
 		return this._authNonce
 	}
 
@@ -170,33 +171,27 @@ export class AuthService {
 		})
 	}
 
-	/**
-	 * Resets the auth nonce to null.
-	 * This is typically called after a successful authentication.
-	 */
-	resetAuthNonce(): void {
-		this._authNonce = null
-	}
-
 	async createAuthRequest(): Promise<String> {
-		if (!this._authenticated) {
-			// Generate nonce for state validation
-			this._authNonce = crypto.randomBytes(32).toString("hex")
-
-			const uriScheme = vscode.env.uriScheme
-			const authUrl = vscode.Uri.parse(
-				`${this._config.URI}?state=${encodeURIComponent(this._authNonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
-			)
-			await vscode.env.openExternal(authUrl)
-			return String.create({
-				value: authUrl.toString(),
-			})
-		} else {
+		if (this._authenticated) {
 			this.sendAuthStatusUpdate()
-			return String.create({
-				value: "Already authenticated",
-			})
+			return String.create({ value: "Already authenticated" })
 		}
+
+		if (!this._config.URI) {
+			throw new Error("Authentication URI is not configured")
+		}
+
+		const callbackUrl = `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`
+
+		// Use URL object for more graceful query construction
+		const authUrl = new URL(this._config.URI)
+		authUrl.searchParams.set("state", this._authNonce)
+		authUrl.searchParams.set("callback_url", callbackUrl)
+
+		const authUrlString = authUrl.toString()
+
+		await vscode.env.openExternal(vscode.Uri.parse(authUrlString))
+		return String.create({ value: authUrlString })
 	}
 
 	async handleDeauth(): Promise<void> {

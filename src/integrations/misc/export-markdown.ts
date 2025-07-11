@@ -4,6 +4,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { writeFile } from "@utils/fs"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -39,7 +40,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	if (saveUri) {
 		try {
 			// Write content to the selected location
-			await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(markdownContent))
+			await writeFile(saveUri.fsPath, markdownContent)
 			await getHostBridgeProvider().windowClient.showTextDocument(
 				ShowTextDocumentRequest.create({
 					path: saveUri.fsPath,

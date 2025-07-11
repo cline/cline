@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { BadgeCent } from "lucide-react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -10,7 +10,7 @@ import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
-import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -47,10 +47,14 @@ export const ClineAccountView = () => {
 	const [balance, setBalance] = useState(0)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
-	const [midOrgOptimisticUpdate, setMidOrgOptimisticUpdate] = useState(false)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
+
+	const dashboardAddCreditsURL = activeOrganization
+		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -61,31 +65,6 @@ export const ClineAccountView = () => {
 			setPaymentsData(response.paymentTransactions)
 		} catch (error) {
 			console.error("Failed to fetch user credits data:", error)
-			setBalance(0)
-			setUsageData([])
-			setPaymentsData([])
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	async function getOrganizationCredits() {
-		setIsLoading(true)
-		if (!activeOrganization) {
-			await getUserCredits()
-			return
-		}
-		try {
-			const response = await AccountServiceClient.getOrganizationCredits(
-				GetOrganizationCreditsRequest.create({
-					organizationId: activeOrganization.organizationId,
-				}),
-			)
-			setBalance(response.balance?.currentBalance || 0)
-			setUsageData(response.usageTransactions)
-			setPaymentsData(response.paymentTransactions)
-		} catch (error) {
-			console.error("Failed to fetch organization credits data:", error)
 			setBalance(0)
 			setUsageData([])
 			setPaymentsData([])
@@ -111,24 +90,23 @@ export const ClineAccountView = () => {
 
 	// Fetch all account data when component mounts using gRPC
 	useEffect(() => {
-		if (user) {
-			;(async () => {
-				await Promise.all([getUserCredits(), getUserOrganizations()])
-			})()
+		if (!user) return
+
+		const fetchUserData = async () => {
+			try {
+				Promise.all([getUserCredits(), getUserOrganizations()])
+			} catch (error) {
+				console.error("Failed to fetch user data:", error)
+				setBalance(0)
+				setUsageData([])
+				setPaymentsData([])
+			} finally {
+				setIsLoading(false)
+			}
 		}
+
+		fetchUserData()
 	}, [user])
-
-	useEffect(() => {
-		if (midOrgOptimisticUpdate) {
-			return
-		}
-
-		if (activeOrganization) {
-			;(async () => {
-				await getOrganizationCredits()
-			})()
-		}
-	}, [activeOrganization, midOrgOptimisticUpdate])
 
 	const handleLogin = () => {
 		handleSignIn()
@@ -138,26 +116,28 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 
-	const handleOrganizationChange = async (event: any) => {
-		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
+	const handleOrganizationChange = useCallback(
+		async (event: any) => {
+			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
 
-		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
-			const newSelectedOrg =
-				newOrgId === "" ? null : userOrganizations.find((org) => org.organizationId === newOrgId) || null
-			const previousOrganization = activeOrganization
-			setMidOrgOptimisticUpdate(true)
-			setActiveOrganization(newSelectedOrg)
-			try {
-				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
-				setMidOrgOptimisticUpdate(false)
-				getUserOrganizations()
-			} catch (error) {
-				console.error("Failed to update organization:", error)
-				setMidOrgOptimisticUpdate(false)
-				setActiveOrganization(previousOrganization)
+			if (activeOrganization?.organizationId !== newOrgId) {
+				setIsSwitchingOrg(true) // Disable dropdown
+
+				try {
+					await AccountServiceClient.setUserOrganization(
+						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
+					)
+					await getUserOrganizations() // Refresh to get new active org
+					await getUserCredits() // Refresh credits for new org
+				} catch (error) {
+					console.error("Failed to update organization:", error)
+				} finally {
+					setIsSwitchingOrg(false) // Re-enable dropdown
+				}
 			}
-		}
-	}
+		},
+		[activeOrganization],
+	)
 
 	return (
 		<div className="h-full flex flex-col">
@@ -186,9 +166,10 @@ export const ClineAccountView = () => {
 
 								{userOrganizations && (
 									<VSCodeDropdown
-										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
+										key={activeOrganization?.organizationId || "personal"}
 										currentValue={activeOrganization?.organizationId || ""}
 										onChange={handleOrganizationChange}
+										disabled={isSwitchingOrg || isLoading}
 										style={{ width: "100%", marginTop: "4px" }}>
 										<VSCodeOption value="">Personal</VSCodeOption>
 										{userOrganizations.map((org: UserOrganization) => (
@@ -204,8 +185,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
+							<VSCodeButtonLink href="https://app.cline.bot/dashboard" appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -214,35 +194,37 @@ export const ClineAccountView = () => {
 						</VSCodeButton>
 					</div>
 
-					<VSCodeDivider className="w-full my-6" />
+					{/* Credit balance is not available for organization account */}
+					{activeOrganization === null && <VSCodeDivider className="w-full my-6" />}
 
-					<div className="w-full flex flex-col items-center">
-						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
+					{activeOrganization === null && (
+						<div className="w-full flex flex-col items-center">
+							<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
 
-						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
-							{isLoading ? (
-								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
-							) : (
-								<>
-									<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
-									{/* TODO: Do this in a more correct way.  We have to divide by 10000
-									 * because the balance is stored in microcredits in the backend.
-									 */}
-									<CountUp end={balance / 10000} duration={0.66} decimals={4} />
-									<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
-										<span className="codicon codicon-refresh"></span>
-									</VSCodeButton>
-								</>
-							)}
+							<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
+								{isLoading ? (
+									<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+								) : (
+									<>
+										<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
+										{/* TODO: Do this in a more correct way.  We have to divide by 10000
+										 * because the balance is stored in microcredits in the backend.
+										 */}
+										<CountUp end={balance / 10000} duration={0.66} decimals={4} />
+										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
+											<span className="codicon codicon-refresh"></span>
+										</VSCodeButton>
+									</>
+								)}
+							</div>
+
+							<div className="w-full">
+								<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
+									Add Credits
+								</VSCodeButtonLink>
+							</div>
 						</div>
-
-						<div className="w-full">
-							{/* TODO: Update to get url for dashboard from EXT */}
-							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
-								Add Credits
-							</VSCodeButtonLink>
-						</div>
-					</div>
+					)}
 
 					<VSCodeDivider className="mt-6 mb-3 w-full" />
 

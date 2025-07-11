@@ -1,5 +1,34 @@
 # Changelog
 
+## [3.18.12]
+
+-   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
+-   Fix insufficient credits error display to properly show error messages when account balance is too low
+-   Improve credit balance validation and error handling for Cline provider requests
+
+## [3.18.11]
+
+-   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
+
+## [3.18.10]
+
+-   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
+-   Fix Gemini 2.5 Pro thinking budget slider and add support for Gemini 2.5 Flash Lite Preview model (Thanks @arafatkatze!)
+
+## [3.18.9]
+
+-   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
+-   Fix authentication error handling for Cline provider to show clearer error messages when not signed in and prevent recursive failed requests
+-   Remove incorrect pricing display for SAP AI Core provider since it uses non-USD "Capacity Units" that cannot be directly converted (Thanks @ncryptedV1!)
+
+## [3.18.8]
+
+-   Update pricing for Grok 3 model because the promotion ended
+
+## [3.18.7]
+
+-   Remove promotional "free" messaging for Grok 3 model in UI
+
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
