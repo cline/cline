@@ -625,9 +625,11 @@ Mode-specific Instructions:
 
 4. As you gather more information or discover new requirements, update the todo list to reflect the current understanding of what needs to be accomplished.
 
-5. Ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and refine the todo list. Include Mermaid diagrams if they help clarify complex workflows or system architecture.
+5. Ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and refine the todo list.
 
-6. Use the switch_mode tool to request that the user switch to another mode to implement the solution.
+6. Include Mermaid diagrams if they help clarify complex workflows or system architecture. Please avoid using double quotes ("") and parentheses () inside square brackets ([]) in Mermaid diagrams, as this can cause parsing errors.
+
+7. Use the switch_mode tool to request that the user switch to another mode to implement the solution.
 
 **IMPORTANT: Focus on creating clear, actionable todo lists rather than lengthy markdown documents. Use the todo list as your primary planning tool to track and organize the work that needs to be done.**
 
