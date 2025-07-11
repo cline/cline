@@ -12,17 +12,18 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface DeepSeekProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The DeepSeek provider configuration component
  */
-export const DeepSeekProvider = ({ showModelOptions, isPopup }: DeepSeekProviderProps) => {
+export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: DeepSeekProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -38,7 +39,13 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup }: DeepSeekProvider
 					<ModelSelector
 						models={deepSeekModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

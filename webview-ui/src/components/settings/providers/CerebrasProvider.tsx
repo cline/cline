@@ -12,17 +12,18 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface CerebrasProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Cerebras provider configuration component
  */
-export const CerebrasProvider = ({ showModelOptions, isPopup }: CerebrasProviderProps) => {
+export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: CerebrasProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -38,7 +39,13 @@ export const CerebrasProvider = ({ showModelOptions, isPopup }: CerebrasProvider
 					<ModelSelector
 						models={cerebrasModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

@@ -56,6 +56,10 @@ export class Controller {
 	private disposables: vscode.Disposable[] = []
 	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
+
+	get currentMode(): "plan" | "act" {
+		return this.mode
+	}
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
@@ -113,7 +117,10 @@ export class Controller {
 		try {
 			await storeSecret(this.context, "clineApiKey", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await updateGlobalState(this.context, "apiProvider", "openrouter")
+			await Promise.all([
+				updateGlobalState(this.context, "planModeApiProvider", "openrouter"),
+				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
+			])
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
@@ -245,153 +252,10 @@ export class Controller {
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
 
-		// Get previous model info that we will revert to after saving current mode api info
-		const {
-			apiConfiguration,
-			previousModeApiProvider: newApiProvider,
-			previousModeModelId: newModelId,
-			previousModeModelInfo: newModelInfo,
-			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
-			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
-			previousModeReasoningEffort: newReasoningEffort,
-			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
-			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
-			previousModeSapAiCoreModelId: newSapAiCoreModelId,
-			planActSeparateModelsSetting,
-		} = await getAllExtensionState(this.context)
-
-		const shouldSwitchModel = planActSeparateModelsSetting === true
-
-		if (shouldSwitchModel) {
-			// Save the last model used in this mode
-			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
-			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
-			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
-			switch (apiConfiguration.apiProvider) {
-				case "anthropic":
-				case "vertex":
-				case "gemini":
-				case "asksage":
-				case "openai-native":
-				case "qwen":
-				case "deepseek":
-				case "xai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					break
-				case "bedrock":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.awsBedrockCustomSelected,
-					)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.awsBedrockCustomModelBaseId,
-					)
-					break
-				case "openrouter":
-				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
-					break
-				case "vscode-lm":
-					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
-					await updateGlobalState(
-						this.context,
-						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector,
-					)
-					break
-				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
-					break
-				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
-					break
-				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
-					break
-				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
-					break
-				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
-					break
-				case "sapaicore":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
-					break
-			}
-
-			// Restore the model used in previous mode
-			if (
-				newApiProvider ||
-				newModelId ||
-				newThinkingBudgetTokens !== undefined ||
-				newReasoningEffort ||
-				newVsCodeLmModelSelector
-			) {
-				await updateGlobalState(this.context, "apiProvider", newApiProvider)
-				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
-				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
-				switch (newApiProvider) {
-					case "anthropic":
-					case "vertex":
-					case "gemini":
-					case "asksage":
-					case "openai-native":
-					case "qwen":
-					case "deepseek":
-					case "xai":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						break
-					case "bedrock":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
-						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
-						break
-					case "openrouter":
-					case "cline":
-						await updateGlobalState(this.context, "openRouterModelId", newModelId)
-						await updateGlobalState(this.context, "openRouterModelInfo", newModelInfo)
-						break
-					case "vscode-lm":
-						await updateGlobalState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
-						break
-					case "openai":
-						await updateGlobalState(this.context, "openAiModelId", newModelId)
-						await updateGlobalState(this.context, "openAiModelInfo", newModelInfo)
-						break
-					case "ollama":
-						await updateGlobalState(this.context, "ollamaModelId", newModelId)
-						break
-					case "lmstudio":
-						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
-						break
-					case "litellm":
-						await updateGlobalState(this.context, "liteLlmModelId", newModelId)
-						await updateGlobalState(this.context, "liteLlmModelInfo", newModelInfo)
-						break
-					case "requesty":
-						await updateGlobalState(this.context, "requestyModelId", newModelId)
-						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
-						break
-					case "sapaicore":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "sapAiCoreModelId", newSapAiCoreModelId)
-						break
-				}
-
-				if (this.task) {
-					const { apiConfiguration: updatedApiConfiguration } = await getAllExtensionState(this.context)
-					this.task.api = buildApiHandler(updatedApiConfiguration)
-				}
-			}
+		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
+		if (this.task) {
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+			this.task.api = buildApiHandler(apiConfiguration, chatSettings.mode)
 		}
 
 		// Save only non-mode properties to workspace storage
@@ -470,18 +334,34 @@ export class Controller {
 			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
-			await updateGlobalState(this.context, "apiProvider", clineProvider)
 
-			// Update API configuration with the new provider and API key
+			// Get current settings to determine how to update providers
+			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
+
+			if (planActSeparateModelsSetting) {
+				// Only update the current mode's provider
+				if (this.mode === "plan") {
+					await updateGlobalState(this.context, "planModeApiProvider", clineProvider)
+				} else {
+					await updateGlobalState(this.context, "actModeApiProvider", clineProvider)
+				}
+			} else {
+				// Update both modes to keep them in sync
+				await Promise.all([
+					updateGlobalState(this.context, "planModeApiProvider", clineProvider),
+					updateGlobalState(this.context, "actModeApiProvider", clineProvider),
+				])
+			}
+
+			// Get the updated API configuration (now includes the updated providers)
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 			const updatedConfig = {
 				...apiConfiguration,
-				apiProvider: clineProvider,
 				clineApiKey: apiKey,
 			}
 
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig)
+				this.task.api = buildApiHandler(updatedConfig, this.mode)
 			}
 
 			await this.postStateToWebview()
@@ -629,14 +509,20 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		await updateGlobalState(this.context, "apiProvider", openrouter)
+		await Promise.all([
+			updateGlobalState(this.context, "planModeApiProvider", openrouter),
+			updateGlobalState(this.context, "actModeApiProvider", openrouter),
+		])
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({
-				apiProvider: openrouter,
+			// Get the updated API configuration (now includes the updated providers)
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+			const updatedConfig = {
+				...apiConfiguration,
 				openRouterApiKey: apiKey,
-			})
+			}
+			this.task.api = buildApiHandler(updatedConfig, this.mode)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -1006,7 +892,7 @@ Commit message:`
 						const { apiConfiguration } = await getAllExtensionState(this.context)
 
 						// Build the API handler
-						const apiHandler = buildApiHandler(apiConfiguration)
+						const apiHandler = buildApiHandler(apiConfiguration, this.mode)
 
 						// Create a system prompt
 						const systemPrompt =

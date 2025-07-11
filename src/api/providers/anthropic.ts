@@ -13,7 +13,7 @@ interface AnthropicHandlerOptions {
 }
 
 export class AnthropicHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: AnthropicHandlerOptions
 	private client: Anthropic | undefined
 
 	constructor(options: AnthropicHandlerOptions) {

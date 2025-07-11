@@ -13,16 +13,17 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface SapAiCoreProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The SAP AI Core provider configuration component
  */
-export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: SapAiCoreProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -97,7 +98,13 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProvid
 					<ModelSelector
 						models={sapAiCoreModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

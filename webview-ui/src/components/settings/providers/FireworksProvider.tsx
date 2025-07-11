@@ -2,6 +2,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { ApiConfiguration } from "@shared/api"
 
 /**
@@ -10,14 +11,17 @@ import { ApiConfiguration } from "@shared/api"
 interface FireworksProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Fireworks provider configuration component
  */
-export const FireworksProvider = ({ showModelOptions, isPopup }: FireworksProviderProps) => {
+export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: FireworksProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
+
+	const { fireworksModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Handler for number input fields with validation
 	const handleNumberInputChange = (field: keyof ApiConfiguration, value: string) => {
@@ -43,8 +47,14 @@ export const FireworksProvider = ({ showModelOptions, isPopup }: FireworksProvid
 			{showModelOptions && (
 				<>
 					<DebouncedTextField
-						initialValue={apiConfiguration?.fireworksModelId || ""}
-						onChange={(value) => handleFieldChange("fireworksModelId", value)}
+						initialValue={fireworksModelId || ""}
+						onChange={(value) =>
+							handleModeFieldChange(
+								{ plan: "planModeFireworksModelId", act: "actModeFireworksModelId" },
+								value,
+								currentMode,
+							)
+						}
 						style={{ width: "100%" }}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>

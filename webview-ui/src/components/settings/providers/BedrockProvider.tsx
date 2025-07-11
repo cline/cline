@@ -5,7 +5,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -15,13 +15,15 @@ const DROPDOWN_Z_INDEX = 1000
 interface BedrockProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
-export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderProps) => {
+export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleFieldsChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 
 	return (
@@ -195,15 +197,29 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 						<VSCodeDropdown
 							id="bedrock-model-dropdown"
-							value={apiConfiguration?.awsBedrockCustomSelected ? "custom" : selectedModelId}
+							value={modeFields.awsBedrockCustomSelected ? "custom" : selectedModelId}
 							onChange={(e: any) => {
 								const isCustom = e.target.value === "custom"
 
-								handleFieldsChange({
-									apiModelId: isCustom ? "" : e.target.value,
-									awsBedrockCustomSelected: isCustom,
-									awsBedrockCustomModelBaseId: bedrockDefaultModelId,
-								})
+								handleModeFieldsChange(
+									{
+										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
+										awsBedrockCustomSelected: {
+											plan: "planModeAwsBedrockCustomSelected",
+											act: "actModeAwsBedrockCustomSelected",
+										},
+										awsBedrockCustomModelBaseId: {
+											plan: "planModeAwsBedrockCustomModelBaseId",
+											act: "actModeAwsBedrockCustomModelBaseId",
+										},
+									},
+									{
+										apiModelId: isCustom ? "" : e.target.value,
+										awsBedrockCustomSelected: isCustom,
+										awsBedrockCustomModelBaseId: bedrockDefaultModelId,
+									},
+									currentMode,
+								)
 							}}
 							style={{ width: "100%" }}>
 							<VSCodeOption value="">Select a model...</VSCodeOption>
@@ -223,7 +239,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 						</VSCodeDropdown>
 					</DropdownContainer>
 
-					{apiConfiguration?.awsBedrockCustomSelected && (
+					{modeFields.awsBedrockCustomSelected && (
 						<div>
 							<p
 								style={{
@@ -236,8 +252,14 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 							</p>
 							<DebouncedTextField
 								id="bedrock-model-input"
-								initialValue={apiConfiguration?.apiModelId || ""}
-								onChange={(value) => handleFieldChange("apiModelId", value)}
+								initialValue={modeFields.apiModelId || ""}
+								onChange={(value) =>
+									handleModeFieldChange(
+										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+										value,
+										currentMode,
+									)
+								}
 								style={{ width: "100%", marginTop: 3 }}
 								placeholder="Enter custom model ID...">
 								<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -248,8 +270,17 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 							<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 3} className="dropdown-container">
 								<VSCodeDropdown
 									id="bedrock-base-model-dropdown"
-									value={apiConfiguration?.awsBedrockCustomModelBaseId || bedrockDefaultModelId}
-									onChange={(e: any) => handleFieldChange("awsBedrockCustomModelBaseId", e.target.value)}
+									value={modeFields.awsBedrockCustomModelBaseId || bedrockDefaultModelId}
+									onChange={(e: any) =>
+										handleModeFieldChange(
+											{
+												plan: "planModeAwsBedrockCustomModelBaseId",
+												act: "actModeAwsBedrockCustomModelBaseId",
+											},
+											e.target.value,
+											currentMode,
+										)
+									}
 									style={{ width: "100%" }}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>
 									{Object.keys(bedrockModels).map((modelId) => (
@@ -272,13 +303,13 @@ export const BedrockProvider = ({ showModelOptions, isPopup }: BedrockProviderPr
 					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
 						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
 						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
-						(apiConfiguration?.awsBedrockCustomSelected &&
-							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
-						(apiConfiguration?.awsBedrockCustomSelected &&
-							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
-						(apiConfiguration?.awsBedrockCustomSelected &&
-							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-20250514-v1:0")) && (
-						<ThinkingBudgetSlider />
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-20250514-v1:0")) && (
+						<ThinkingBudgetSlider currentMode={currentMode} />
 					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />

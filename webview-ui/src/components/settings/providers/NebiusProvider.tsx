@@ -12,17 +12,17 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface NebiusProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Nebius AI Studio provider configuration component
  */
-export const NebiusProvider = ({ showModelOptions, isPopup }: NebiusProviderProps) => {
+export const NebiusProvider = ({ showModelOptions, isPopup, currentMode }: NebiusProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -39,7 +39,13 @@ export const NebiusProvider = ({ showModelOptions, isPopup }: NebiusProviderProp
 					<ModelSelector
 						models={nebiusModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

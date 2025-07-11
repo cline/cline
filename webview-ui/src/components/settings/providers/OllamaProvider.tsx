@@ -8,6 +8,7 @@ import OllamaModelPicker from "../OllamaModelPicker"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
 
 /**
  * Props for the OllamaProvider component
@@ -15,14 +16,17 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface OllamaProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Ollama provider configuration component
  */
-export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProps) => {
+export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -64,9 +68,9 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
-				selectedModelId={apiConfiguration?.ollamaModelId || ""}
+				selectedModelId={ollamaModelId || ""}
 				onModelChange={(modelId) => {
-					handleFieldChange("ollamaModelId", modelId)
+					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
 			/>

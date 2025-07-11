@@ -21,7 +21,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await updateApiConfiguration(controller.context, apiConfiguration)
 
 			if (controller.task) {
-				controller.task.api = buildApiHandler(apiConfiguration)
+				controller.task.api = buildApiHandler(apiConfiguration, controller.currentMode)
 			}
 		}
 

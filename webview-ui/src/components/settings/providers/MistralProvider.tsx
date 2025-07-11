@@ -12,17 +12,18 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface MistralProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Mistral provider configuration component
  */
-export const MistralProvider = ({ showModelOptions, isPopup }: MistralProviderProps) => {
+export const MistralProvider = ({ showModelOptions, isPopup, currentMode }: MistralProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -38,7 +39,13 @@ export const MistralProvider = ({ showModelOptions, isPopup }: MistralProviderPr
 					<ModelSelector
 						models={mistralModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

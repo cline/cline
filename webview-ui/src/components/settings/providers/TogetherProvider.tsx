@@ -3,6 +3,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
 
 /**
  * Props for the TogetherProvider component
@@ -10,14 +11,17 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface TogetherProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Together provider configuration component
  */
-export const TogetherProvider = ({ showModelOptions, isPopup }: TogetherProviderProps) => {
+export const TogetherProvider = ({ showModelOptions, isPopup, currentMode }: TogetherProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { togetherModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -27,8 +31,10 @@ export const TogetherProvider = ({ showModelOptions, isPopup }: TogetherProvider
 				providerName="Together"
 			/>
 			<DebouncedTextField
-				initialValue={apiConfiguration?.togetherModelId || ""}
-				onChange={(value) => handleFieldChange("togetherModelId", value)}
+				initialValue={togetherModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeTogetherModelId", act: "actModeTogetherModelId" }, value, currentMode)
+				}
 				style={{ width: "100%" }}
 				placeholder={"Enter Model ID..."}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>

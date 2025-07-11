@@ -29,20 +29,16 @@ export type ApiProvider =
 	| "sapaicore"
 
 export interface ApiHandlerOptions {
-	apiModelId?: string
+	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineApiKey?: string
 	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	liteLlmModelInfo?: LiteLLMModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -53,45 +49,32 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	awsProfile?: string
 	awsBedrockEndpoint?: string
-	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
-	openAiModelId?: string
-	openAiModelInfo?: OpenAiCompatibleModelInfo
-	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	ollamaApiOptionsCtxNum?: string
-	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
-	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
-	togetherModelId?: string
 	fireworksApiKey?: string
-	fireworksModelId?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
 	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
-	thinkingBudgetTokens?: number
-	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
 	requestTimeoutMs?: number
@@ -100,12 +83,53 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
-	sapAiCoreModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	// Plan mode configurations
+	planModeApiModelId?: string
+	planModeThinkingBudgetTokens?: number
+	planModeReasoningEffort?: string
+	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	planModeAwsBedrockCustomSelected?: boolean
+	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeOpenRouterModelId?: string
+	planModeOpenRouterModelInfo?: ModelInfo
+	planModeOpenAiModelId?: string
+	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	planModeOllamaModelId?: string
+	planModeLmStudioModelId?: string
+	planModeLiteLlmModelId?: string
+	planModeLiteLlmModelInfo?: LiteLLMModelInfo
+	planModeRequestyModelId?: string
+	planModeRequestyModelInfo?: ModelInfo
+	planModeTogetherModelId?: string
+	planModeFireworksModelId?: string
+	planModeSapAiCoreModelId?: string
+	// Act mode configurations
+
+	actModeApiModelId?: string
+	actModeThinkingBudgetTokens?: number
+	actModeReasoningEffort?: string
+	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	actModeAwsBedrockCustomSelected?: boolean
+	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeOpenRouterModelId?: string
+	actModeOpenRouterModelInfo?: ModelInfo
+	actModeOpenAiModelId?: string
+	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	actModeOllamaModelId?: string
+	actModeLmStudioModelId?: string
+	actModeLiteLlmModelId?: string
+	actModeLiteLlmModelInfo?: LiteLLMModelInfo
+	actModeRequestyModelId?: string
+	actModeRequestyModelInfo?: ModelInfo
+	actModeTogetherModelId?: string
+	actModeFireworksModelId?: string
+	actModeSapAiCoreModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+	planModeApiProvider?: ApiProvider
+	actModeApiProvider?: ApiProvider
 	favoritedModelIds?: string[]
 }
 

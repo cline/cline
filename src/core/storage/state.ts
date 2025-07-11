@@ -205,71 +205,97 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const [
 		chatSettings,
-		storedApiProvider,
-		apiModelId,
-		thinkingBudgetTokens,
-		reasoningEffort,
-		vsCodeLmModelSelector,
-		awsBedrockCustomSelected,
-		awsBedrockCustomModelBaseId,
-		openRouterModelId,
-		openRouterModelInfo,
-		openAiModelId,
-		openAiModelInfo,
-		ollamaModelId,
-		lmStudioModelId,
-		liteLlmModelId,
-		liteLlmModelInfo,
-		requestyModelId,
-		requestyModelInfo,
-		togetherModelId,
-		fireworksModelId,
-		previousModeApiProvider,
-		previousModeModelId,
-		previousModeModelInfo,
-		previousModeVsCodeLmModelSelector,
-		previousModeThinkingBudgetTokens,
-		previousModeReasoningEffort,
-		previousModeAwsBedrockCustomSelected,
-		previousModeAwsBedrockCustomModelBaseId,
-		previousModeSapAiCoreModelId,
-		sapAiCoreModelId,
+		// Plan mode configurations
+		planModeApiProvider,
+		planModeApiModelId,
+		planModeThinkingBudgetTokens,
+		planModeReasoningEffort,
+		planModeVsCodeLmModelSelector,
+		planModeAwsBedrockCustomSelected,
+		planModeAwsBedrockCustomModelBaseId,
+		planModeOpenRouterModelId,
+		planModeOpenRouterModelInfo,
+		planModeOpenAiModelId,
+		planModeOpenAiModelInfo,
+		planModeOllamaModelId,
+		planModeLmStudioModelId,
+		planModeLiteLlmModelId,
+		planModeLiteLlmModelInfo,
+		planModeRequestyModelId,
+		planModeRequestyModelInfo,
+		planModeTogetherModelId,
+		planModeFireworksModelId,
+		planModeSapAiCoreModelId,
+		// Act mode configurations
+		actModeApiProvider,
+		actModeApiModelId,
+		actModeThinkingBudgetTokens,
+		actModeReasoningEffort,
+		actModeVsCodeLmModelSelector,
+		actModeAwsBedrockCustomSelected,
+		actModeAwsBedrockCustomModelBaseId,
+		actModeOpenRouterModelId,
+		actModeOpenRouterModelInfo,
+		actModeOpenAiModelId,
+		actModeOpenAiModelInfo,
+		actModeOllamaModelId,
+		actModeLmStudioModelId,
+		actModeLiteLlmModelId,
+		actModeLiteLlmModelInfo,
+		actModeRequestyModelId,
+		actModeRequestyModelInfo,
+		actModeTogetherModelId,
+		actModeFireworksModelId,
+		actModeSapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
-		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
-		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
-		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
-		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
-		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
-		getGlobalState(context, "awsBedrockCustomSelected") as Promise<boolean | undefined>,
-		getGlobalState(context, "awsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
-		getGlobalState(context, "openRouterModelId") as Promise<string | undefined>,
-		getGlobalState(context, "openRouterModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "openAiModelId") as Promise<string | undefined>,
-		getGlobalState(context, "openAiModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "ollamaModelId") as Promise<string | undefined>,
-		getGlobalState(context, "lmStudioModelId") as Promise<string | undefined>,
-		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
-		getGlobalState(context, "liteLlmModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "requestyModelId") as Promise<string | undefined>,
-		getGlobalState(context, "requestyModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
-		getGlobalState(context, "fireworksModelId") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
-		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
-		getGlobalState(context, "previousModeThinkingBudgetTokens") as Promise<number | undefined>,
-		getGlobalState(context, "previousModeReasoningEffort") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
-		getGlobalState(context, "previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
-		getGlobalState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
-		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
+		// Plan mode configurations
+		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
+		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeThinkingBudgetTokens") as Promise<number | undefined>,
+		getGlobalState(context, "planModeReasoningEffort") as Promise<string | undefined>,
+		getGlobalState(context, "planModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+		getGlobalState(context, "planModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
+		getGlobalState(context, "planModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getGlobalState(context, "planModeOpenRouterModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeOpenRouterModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeOpenAiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeOpenAiModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeOllamaModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeLmStudioModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeLiteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeLiteLlmModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeRequestyModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeRequestyModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeTogetherModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeFireworksModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeSapAiCoreModelId") as Promise<string | undefined>,
+		// Act mode configurations
+		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
+		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeThinkingBudgetTokens") as Promise<number | undefined>,
+		getGlobalState(context, "actModeReasoningEffort") as Promise<string | undefined>,
+		getGlobalState(context, "actModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+		getGlobalState(context, "actModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
+		getGlobalState(context, "actModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
+		getGlobalState(context, "actModeOpenRouterModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeOpenRouterModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeOpenAiModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeOpenAiModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeOllamaModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeLmStudioModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeLiteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeLiteLlmModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeRequestyModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeRequestyModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeTogetherModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeFireworksModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
-	if (storedApiProvider) {
-		apiProvider = storedApiProvider
+	if (planModeApiProvider) {
+		apiProvider = planModeApiProvider
 	} else {
 		// Either new user or legacy user that doesn't have the apiProvider stored in state
 		// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
@@ -292,7 +318,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
 		// default to true for existing users
-		if (storedApiProvider) {
+		if (planModeApiProvider) {
 			planActSeparateModelsSetting = true
 		} else {
 			// default to false for new users
@@ -305,8 +331,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	return {
 		apiConfiguration: {
-			apiProvider,
-			apiModelId,
 			apiKey,
 			openRouterApiKey,
 			clineApiKey,
@@ -320,19 +344,13 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			awsBedrockEndpoint,
 			awsProfile,
 			awsUseProfile,
-			awsBedrockCustomSelected,
-			awsBedrockCustomModelBaseId,
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
 			openAiApiKey,
-			openAiModelId,
-			openAiModelInfo,
 			openAiHeaders: openAiHeaders || {},
-			ollamaModelId,
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
-			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
 			geminiApiKey,
@@ -340,28 +358,17 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
-			requestyModelId,
-			requestyModelInfo,
 			togetherApiKey,
-			togetherModelId,
 			qwenApiKey,
 			qwenApiLine,
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
-			openRouterModelId,
-			openRouterModelInfo,
 			openRouterProviderSorting,
-			vsCodeLmModelSelector,
-			thinkingBudgetTokens,
-			reasoningEffort,
 			liteLlmBaseUrl,
-			liteLlmModelId,
-			liteLlmModelInfo,
 			liteLlmApiKey,
 			liteLlmUsePromptCache,
 			fireworksApiKey,
-			fireworksModelId,
 			fireworksModelMaxCompletionTokens,
 			fireworksModelMaxTokens,
 			asksageApiKey,
@@ -377,7 +384,48 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
-			sapAiCoreModelId,
+			// Plan mode configurations
+			planModeApiProvider: planModeApiProvider || apiProvider,
+			planModeApiModelId,
+			planModeThinkingBudgetTokens,
+			planModeReasoningEffort,
+			planModeVsCodeLmModelSelector,
+			planModeAwsBedrockCustomSelected,
+			planModeAwsBedrockCustomModelBaseId,
+			planModeOpenRouterModelId,
+			planModeOpenRouterModelInfo,
+			planModeOpenAiModelId,
+			planModeOpenAiModelInfo,
+			planModeOllamaModelId,
+			planModeLmStudioModelId,
+			planModeLiteLlmModelId,
+			planModeLiteLlmModelInfo,
+			planModeRequestyModelId,
+			planModeRequestyModelInfo,
+			planModeTogetherModelId,
+			planModeFireworksModelId,
+			planModeSapAiCoreModelId,
+			// Act mode configurations
+			actModeApiProvider: actModeApiProvider || apiProvider,
+			actModeApiModelId,
+			actModeThinkingBudgetTokens,
+			actModeReasoningEffort,
+			actModeVsCodeLmModelSelector,
+			actModeAwsBedrockCustomSelected,
+			actModeAwsBedrockCustomModelBaseId,
+			actModeOpenRouterModelId,
+			actModeOpenRouterModelInfo,
+			actModeOpenAiModelId,
+			actModeOpenAiModelInfo,
+			actModeOllamaModelId,
+			actModeLmStudioModelId,
+			actModeLiteLlmModelId,
+			actModeLiteLlmModelInfo,
+			actModeRequestyModelId,
+			actModeRequestyModelInfo,
+			actModeTogetherModelId,
+			actModeFireworksModelId,
+			actModeSapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -392,15 +440,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			...(chatSettings || {}), // Spread fetched chatSettings, which includes preferredLanguage, and openAIReasoningEffort
 		},
 		userInfo,
-		previousModeApiProvider,
-		previousModeModelId,
-		previousModeModelInfo,
-		previousModeVsCodeLmModelSelector,
-		previousModeThinkingBudgetTokens,
-		previousModeReasoningEffort,
-		previousModeAwsBedrockCustomSelected,
-		previousModeAwsBedrockCustomModelBaseId,
-		previousModeSapAiCoreModelId,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
@@ -417,8 +456,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 export async function updateApiConfiguration(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
 	const {
-		apiProvider,
-		apiModelId,
 		apiKey,
 		openRouterApiKey,
 		awsAccessKey,
@@ -430,19 +467,13 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		awsBedrockEndpoint,
 		awsProfile,
 		awsUseProfile,
-		awsBedrockCustomSelected,
-		awsBedrockCustomModelBaseId,
 		vertexProjectId,
 		vertexRegion,
 		openAiBaseUrl,
 		openAiApiKey,
-		openAiModelId,
-		openAiModelInfo,
 		openAiHeaders,
-		ollamaModelId,
 		ollamaBaseUrl,
 		ollamaApiOptionsCtxNum,
-		lmStudioModelId,
 		lmStudioBaseUrl,
 		anthropicBaseUrl,
 		geminiApiKey,
@@ -450,36 +481,25 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		openAiNativeApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
-		requestyModelId,
-		requestyModelInfo,
 		togetherApiKey,
-		togetherModelId,
 		qwenApiKey,
 		doubaoApiKey,
 		mistralApiKey,
 		azureApiVersion,
-		openRouterModelId,
-		openRouterModelInfo,
 		openRouterProviderSorting,
-		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
-		liteLlmModelId,
-		liteLlmModelInfo,
 		liteLlmApiKey,
 		liteLlmUsePromptCache,
 		qwenApiLine,
 		asksageApiKey,
 		asksageApiUrl,
 		xaiApiKey,
-		thinkingBudgetTokens,
-		reasoningEffort,
 		clineApiKey,
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
 		fireworksApiKey,
-		fireworksModelId,
 		fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens,
 		sapAiCoreClientId,
@@ -487,31 +507,94 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreBaseUrl,
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
-		sapAiCoreModelId,
 		claudeCodePath,
+		// Plan mode configurations
+		planModeApiProvider,
+		planModeApiModelId,
+		planModeThinkingBudgetTokens,
+		planModeReasoningEffort,
+		planModeVsCodeLmModelSelector,
+		planModeAwsBedrockCustomSelected,
+		planModeAwsBedrockCustomModelBaseId,
+		planModeOpenRouterModelId,
+		planModeOpenRouterModelInfo,
+		planModeOpenAiModelId,
+		planModeOpenAiModelInfo,
+		planModeOllamaModelId,
+		planModeLmStudioModelId,
+		planModeLiteLlmModelId,
+		planModeLiteLlmModelInfo,
+		planModeRequestyModelId,
+		planModeRequestyModelInfo,
+		planModeTogetherModelId,
+		planModeFireworksModelId,
+		planModeSapAiCoreModelId,
+		// Act mode configurations
+		actModeApiProvider,
+		actModeApiModelId,
+		actModeThinkingBudgetTokens,
+		actModeReasoningEffort,
+		actModeVsCodeLmModelSelector,
+		actModeAwsBedrockCustomSelected,
+		actModeAwsBedrockCustomModelBaseId,
+		actModeOpenRouterModelId,
+		actModeOpenRouterModelInfo,
+		actModeOpenAiModelId,
+		actModeOpenAiModelInfo,
+		actModeOllamaModelId,
+		actModeLmStudioModelId,
+		actModeLiteLlmModelId,
+		actModeLiteLlmModelInfo,
+		actModeRequestyModelId,
+		actModeRequestyModelInfo,
+		actModeTogetherModelId,
+		actModeFireworksModelId,
+		actModeSapAiCoreModelId,
 	} = apiConfiguration
 
-	// Ephemeral model config updates
-	await updateGlobalState(context, "apiProvider", apiProvider)
-	await updateGlobalState(context, "apiModelId", apiModelId)
-	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
-	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
-	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
-	await updateGlobalState(context, "awsBedrockCustomSelected", awsBedrockCustomSelected)
-	await updateGlobalState(context, "awsBedrockCustomModelBaseId", awsBedrockCustomModelBaseId)
-	await updateGlobalState(context, "openRouterModelId", openRouterModelId)
-	await updateGlobalState(context, "openRouterModelInfo", openRouterModelInfo)
-	await updateGlobalState(context, "openAiModelId", openAiModelId)
-	await updateGlobalState(context, "openAiModelInfo", openAiModelInfo)
-	await updateGlobalState(context, "ollamaModelId", ollamaModelId)
-	await updateGlobalState(context, "lmStudioModelId", lmStudioModelId)
-	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
-	await updateGlobalState(context, "liteLlmModelInfo", liteLlmModelInfo)
-	await updateGlobalState(context, "requestyModelId", requestyModelId)
-	await updateGlobalState(context, "requestyModelInfo", requestyModelInfo)
-	await updateGlobalState(context, "togetherModelId", togetherModelId)
-	await updateGlobalState(context, "fireworksModelId", fireworksModelId)
-	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
+	// Plan mode configuration updates
+	await updateGlobalState(context, "planModeApiProvider", planModeApiProvider)
+	await updateGlobalState(context, "planModeApiModelId", planModeApiModelId)
+	await updateGlobalState(context, "planModeThinkingBudgetTokens", planModeThinkingBudgetTokens)
+	await updateGlobalState(context, "planModeReasoningEffort", planModeReasoningEffort)
+	await updateGlobalState(context, "planModeVsCodeLmModelSelector", planModeVsCodeLmModelSelector)
+	await updateGlobalState(context, "planModeAwsBedrockCustomSelected", planModeAwsBedrockCustomSelected)
+	await updateGlobalState(context, "planModeAwsBedrockCustomModelBaseId", planModeAwsBedrockCustomModelBaseId)
+	await updateGlobalState(context, "planModeOpenRouterModelId", planModeOpenRouterModelId)
+	await updateGlobalState(context, "planModeOpenRouterModelInfo", planModeOpenRouterModelInfo)
+	await updateGlobalState(context, "planModeOpenAiModelId", planModeOpenAiModelId)
+	await updateGlobalState(context, "planModeOpenAiModelInfo", planModeOpenAiModelInfo)
+	await updateGlobalState(context, "planModeOllamaModelId", planModeOllamaModelId)
+	await updateGlobalState(context, "planModeLmStudioModelId", planModeLmStudioModelId)
+	await updateGlobalState(context, "planModeLiteLlmModelId", planModeLiteLlmModelId)
+	await updateGlobalState(context, "planModeLiteLlmModelInfo", planModeLiteLlmModelInfo)
+	await updateGlobalState(context, "planModeRequestyModelId", planModeRequestyModelId)
+	await updateGlobalState(context, "planModeRequestyModelInfo", planModeRequestyModelInfo)
+	await updateGlobalState(context, "planModeTogetherModelId", planModeTogetherModelId)
+	await updateGlobalState(context, "planModeFireworksModelId", planModeFireworksModelId)
+	await updateGlobalState(context, "planModeSapAiCoreModelId", planModeSapAiCoreModelId)
+
+	// Act mode configuration updates
+	await updateGlobalState(context, "actModeApiProvider", actModeApiProvider)
+	await updateGlobalState(context, "actModeApiModelId", actModeApiModelId)
+	await updateGlobalState(context, "actModeThinkingBudgetTokens", actModeThinkingBudgetTokens)
+	await updateGlobalState(context, "actModeReasoningEffort", actModeReasoningEffort)
+	await updateGlobalState(context, "actModeVsCodeLmModelSelector", actModeVsCodeLmModelSelector)
+	await updateGlobalState(context, "actModeAwsBedrockCustomSelected", actModeAwsBedrockCustomSelected)
+	await updateGlobalState(context, "actModeAwsBedrockCustomModelBaseId", actModeAwsBedrockCustomModelBaseId)
+	await updateGlobalState(context, "actModeOpenRouterModelId", actModeOpenRouterModelId)
+	await updateGlobalState(context, "actModeOpenRouterModelInfo", actModeOpenRouterModelInfo)
+	await updateGlobalState(context, "actModeOpenAiModelId", actModeOpenAiModelId)
+	await updateGlobalState(context, "actModeOpenAiModelInfo", actModeOpenAiModelInfo)
+	await updateGlobalState(context, "actModeOllamaModelId", actModeOllamaModelId)
+	await updateGlobalState(context, "actModeLmStudioModelId", actModeLmStudioModelId)
+	await updateGlobalState(context, "actModeLiteLlmModelId", actModeLiteLlmModelId)
+	await updateGlobalState(context, "actModeLiteLlmModelInfo", actModeLiteLlmModelInfo)
+	await updateGlobalState(context, "actModeRequestyModelId", actModeRequestyModelId)
+	await updateGlobalState(context, "actModeRequestyModelInfo", actModeRequestyModelInfo)
+	await updateGlobalState(context, "actModeTogetherModelId", actModeTogetherModelId)
+	await updateGlobalState(context, "actModeFireworksModelId", actModeFireworksModelId)
+	await updateGlobalState(context, "actModeSapAiCoreModelId", actModeSapAiCoreModelId)
 
 	// Global state updates
 	await updateGlobalState(context, "awsRegion", awsRegion)

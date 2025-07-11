@@ -13,12 +13,13 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface ClineProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: "plan" | "act"
 }
 
 /**
  * The Cline provider configuration component
  */
-export const ClineProvider = ({ showModelOptions, isPopup }: ClineProviderProps) => {
+export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -76,7 +77,7 @@ export const ClineProvider = ({ showModelOptions, isPopup }: ClineProviderProps)
 					)}
 
 					{/* OpenRouter Model Picker */}
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>

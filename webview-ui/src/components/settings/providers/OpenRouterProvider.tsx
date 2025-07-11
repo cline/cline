@@ -54,12 +54,13 @@ interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	uriScheme?: string
+	currentMode: "plan" | "act"
 }
 
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: OpenRouterProviderProps) => {
+export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme, currentMode }: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -142,7 +143,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 						</div>
 					)}
 
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>
