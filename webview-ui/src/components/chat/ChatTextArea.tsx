@@ -950,18 +950,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								onScroll={() => updateHighlights()}
 							/>
 
-							{isTtsPlaying && (
-								<StandardTooltip content={t("chat:stopTts")}>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="absolute top-0 right-0 opacity-25 hover:opacity-100 z-10"
-										onClick={() => vscode.postMessage({ type: "stopTts" })}>
-										<VolumeX className="size-4" />
-									</Button>
-								</StandardTooltip>
-							)}
-
 							<div className="absolute top-1 right-1 z-30">
 								<StandardTooltip content={t("chat:enhancePrompt")}>
 									<button
@@ -1173,6 +1161,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</div>
 
 					<div className={cn("flex", "items-center", "gap-0.5", "shrink-0")}>
+						{isTtsPlaying && (
+							<StandardTooltip content={t("chat:stopTts")}>
+								<button
+									aria-label={t("chat:stopTts")}
+									onClick={() => vscode.postMessage({ type: "stopTts" })}
+									className={cn(
+										"relative inline-flex items-center justify-center",
+										"bg-transparent border-none p-1.5",
+										"rounded-md min-w-[28px] min-h-[28px]",
+										"text-vscode-foreground opacity-85",
+										"transition-all duration-150",
+										"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
+										"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+										"active:bg-[rgba(255,255,255,0.1)]",
+										"cursor-pointer",
+									)}>
+									<VolumeX className="w-4 h-4" />
+								</button>
+							</StandardTooltip>
+						)}
 						<IndexingStatusBadge />
 						<StandardTooltip content={t("chat:addImages")}>
 							<button
