@@ -181,6 +181,8 @@ export class ClineHandler implements ApiHandler {
 		} catch (error) {
 			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
 				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+			} else if (error.code === "insufficient_credits" || error.status === 402) {
+				throw new Error(JSON.stringify(error.error))
 			}
 			console.error("Cline API Error:", error)
 			throw error instanceof Error ? error : new Error(String(error))
