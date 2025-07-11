@@ -21,6 +21,7 @@ import {
 	type HistoryItem,
 	TelemetryEventName,
 	TodoItem,
+	getApiProtocol,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
@@ -1207,11 +1208,16 @@ export class Task extends EventEmitter<ClineEvents> {
 		// top-down build file structure of project which for large projects can
 		// take a few seconds. For the best UX we show a placeholder api_req_started
 		// message with a loading spinner as this happens.
+
+		// Determine API protocol based on provider
+		const apiProtocol = getApiProtocol(this.apiConfiguration.apiProvider)
+
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
 				request:
 					userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				apiProtocol,
 			}),
 		)
 
@@ -1243,6 +1249,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: finalUserContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+			apiProtocol,
 		} satisfies ClineApiReqInfo)
 
 		await this.saveClineMessages()
@@ -1263,8 +1270,9 @@ export class Task extends EventEmitter<ClineEvents> {
 			// of prices in tasks from history (it's worth removing a few months
 			// from now).
 			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				const existingData = JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}")
 				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-					...JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}"),
+					...existingData,
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWrites: cacheWriteTokens,

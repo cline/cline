@@ -292,3 +292,11 @@ export const getModelId = (settings: ProviderSettings): string | undefined => {
 	const modelIdKey = MODEL_ID_KEYS.find((key) => settings[key])
 	return modelIdKey ? (settings[modelIdKey] as string) : undefined
 }
+
+// Providers that use Anthropic-style API protocol
+export const ANTHROPIC_STYLE_PROVIDERS: ProviderName[] = ["anthropic", "claude-code"]
+
+// Helper function to determine API protocol for a provider
+export const getApiProtocol = (provider: ProviderName | undefined): "anthropic" | "openai" => {
+	return provider && ANTHROPIC_STYLE_PROVIDERS.includes(provider) ? "anthropic" : "openai"
+}
