@@ -101,6 +101,13 @@ export class AuthService {
 
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
 		this._context = context
+
+		context.secrets.onDidChange((event) => {
+			if (event.key === "clineAccountId") {
+				// Handle secret changes if needed
+				this.sendAuthStatusUpdate()
+			}
+		})
 	}
 
 	/**
