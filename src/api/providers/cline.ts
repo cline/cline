@@ -179,13 +179,15 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
+			console.error("Cline API Error", error)
+			let message = error.error ? JSON.stringify(error.error) : String(error)
 			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
-			} else if (error.code === "insufficient_credits" || error.status === 402) {
-				throw new Error(error.error ? JSON.stringify(error.error) : "Insufficient credits or unknown error.")
+				message = "Unauthorized: Please sign in to Cline before trying again."
+			} else if (error?.error?.code === "insufficient_credits" && error.status === 402) {
+				error.error.request_id = error.request_id
+				message = JSON.stringify(error.error)
 			}
-			console.error("Cline API Error:", error)
-			throw error instanceof Error ? error : new Error(String(error))
+			throw new Error(message + ` (${error?.request_id})`)
 		}
 	}
 
