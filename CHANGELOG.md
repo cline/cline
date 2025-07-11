@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.18.12
+
+### Patch Changes
+
+-   3ed47fb: Better error handling for credits-related issues.
+-   77ab7f8: Fix flaky cline provider toggle
+-   6d5ea98: fix insufficient credits display
+
 ## [3.18.11]
 
 -   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
