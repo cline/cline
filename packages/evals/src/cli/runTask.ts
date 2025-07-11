@@ -44,10 +44,12 @@ export const processTask = async ({ taskId, logger }: { taskId: number; logger?:
 	const run = await findRun(task.runId)
 	await registerRunner({ runId: run.id, taskId })
 
+	const containerized = isDockerContainer()
+
 	logger =
 		logger ||
 		new Logger({
-			logDir: `/var/log/evals/runs/${run.id}`,
+			logDir: containerized ? `/var/log/evals/runs/${run.id}` : `/tmp/evals/runs/${run.id}`,
 			filename: `${language}-${exercise}.log`,
 			tag: getTag("runTask", { run, task }),
 		})
@@ -298,7 +300,6 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 				...run.settings, // Allow the provided settings to override `openRouterApiKey`.
 			},
 			text: prompt,
-			newTab: true,
 		},
 	})
 

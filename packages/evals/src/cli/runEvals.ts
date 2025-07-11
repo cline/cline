@@ -20,15 +20,15 @@ export const runEvals = async (runId: number) => {
 		throw new Error(`Run ${run.id} has no tasks.`)
 	}
 
+	const containerized = isDockerContainer()
+
 	const logger = new Logger({
-		logDir: `/var/log/evals/runs/${run.id}`,
+		logDir: containerized ? `/var/log/evals/runs/${run.id}` : `/tmp/evals/runs/${run.id}`,
 		filename: `controller.log`,
 		tag: getTag("runEvals", { run }),
 	})
 
 	logger.info(`running ${tasks.length} task(s)`)
-
-	const containerized = isDockerContainer()
 
 	if (!containerized) {
 		await resetEvalsRepo({ run, cwd: EVALS_REPO_PATH })

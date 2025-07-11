@@ -17,8 +17,6 @@ services:
     db:
         container_name: evals-db
         image: postgres:15.4
-        # expose:
-        #     - 5432
         ports:
             - "${EVALS_DB_PORT:-5432}:5432"
         volumes:
@@ -40,8 +38,6 @@ services:
     redis:
         container_name: evals-redis
         image: redis:7-alpine
-        # expose:
-        #     - 6379
         ports:
             - "${EVALS_REDIS_PORT:-6379}:6379"
         volumes:
