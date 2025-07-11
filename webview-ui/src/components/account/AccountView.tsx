@@ -11,6 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { formatCreditsBalance } from "@/utils/format"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -211,10 +212,7 @@ export const ClineAccountView = () => {
 										) : (
 											<>
 												<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
-												{/* TODO: Do this in a more correct way.  We have to divide by 10000
-												 * because the balance is stored in microcredits in the backend.
-												 */}
-												<CountUp end={balance / 10000} duration={0.66} decimals={4} />
+												<CountUp end={formatCreditsBalance(balance)} duration={0.66} decimals={4} />
 											</>
 										)}
 										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
