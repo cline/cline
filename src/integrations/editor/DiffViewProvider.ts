@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
-import { arePathsEqual } from "@utils/path"
+import { arePathsEqual, getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
@@ -21,6 +21,7 @@ export class DiffViewProvider {
 	private createdDirs: string[] = []
 	private documentWasOpen = false
 	private relPath?: string
+	private absolutePath?: string
 	private newContent?: string
 	private activeDiffEditor?: vscode.TextEditor
 	private fadedOverlayController?: DecorationController
@@ -28,18 +29,20 @@ export class DiffViewProvider {
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 	private fileEncoding: string = "utf8"
-	private scrollListener?: vscode.Disposable
 
-	constructor(private cwd: string) {}
+	constructor() {}
 
 	async open(relPath: string): Promise<void> {
-		this.relPath = relPath
-		const fileExists = this.editType === "modify"
-		const absolutePath = path.resolve(this.cwd, relPath)
 		this.isEditing = true
+		this.relPath = relPath
+		this.absolutePath = path.resolve(await getCwd(), relPath)
+		const fileExists = this.editType === "modify"
+
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, absolutePath))
+			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
+				arePathsEqual(doc.uri.fsPath, this.absolutePath),
+			)
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
 			}
@@ -49,7 +52,7 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
-			const fileBuffer = await fs.readFile(absolutePath)
+			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
@@ -57,10 +60,10 @@ export class DiffViewProvider {
 			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
-		this.createdDirs = await createDirectoriesForFile(absolutePath)
+		this.createdDirs = await createDirectoriesForFile(this.absolutePath)
 		// make sure the file exists before we open it
 		if (!fileExists) {
-			await fs.writeFile(absolutePath, "")
+			await fs.writeFile(this.absolutePath, "")
 		}
 		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
 		this.documentWasOpen = false
@@ -68,7 +71,7 @@ export class DiffViewProvider {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
-			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath))
+			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
 				await vscode.window.tabGroups.close(tab)
@@ -204,7 +207,6 @@ export class DiffViewProvider {
 				finalContent: undefined,
 			}
 		}
-		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
 
 		// get the contents before save operation which may do auto-formatting
@@ -219,7 +221,7 @@ export class DiffViewProvider {
 
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				path: absolutePath,
+				path: this.absolutePath,
 				options: ShowTextDocumentOptions.create({
 					preview: false,
 					preserveFocus: true,
@@ -246,13 +248,9 @@ export class DiffViewProvider {
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = diagnosticsToProblemsString(
-			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
-			[
-				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
-			],
-			this.cwd,
-		) // will be empty string if no errors
+		const newProblems = await diagnosticsToProblemsString(getNewDiagnostics(this.preDiagnostics, postDiagnostics), [
+			vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+		]) // will be empty string if no errors
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
@@ -292,24 +290,23 @@ export class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		if (!this.relPath || !this.activeDiffEditor) {
+		if (!this.absolutePath || !this.activeDiffEditor) {
 			return
 		}
 		const fileExists = this.editType === "modify"
 		const updatedDocument = this.activeDiffEditor.document
-		const absolutePath = path.resolve(this.cwd, this.relPath)
 		if (!fileExists) {
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
 			await this.closeAllDiffViews()
-			await fs.unlink(absolutePath)
+			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
 				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 			}
-			console.log(`File ${absolutePath} has been deleted.`)
+			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
 			const edit = new vscode.WorkspaceEdit()
@@ -321,11 +318,11 @@ export class DiffViewProvider {
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
-			console.log(`File ${absolutePath} has been reverted to its original content.`)
+			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				await getHostBridgeProvider().windowClient.showTextDocument(
 					ShowTextDocumentRequest.create({
-						path: absolutePath,
+						path: this.absolutePath,
 						options: ShowTextDocumentOptions.create({
 							preview: false,
 							preserveFocus: true,
@@ -353,10 +350,10 @@ export class DiffViewProvider {
 	}
 
 	private async openDiffEditor(): Promise<vscode.TextEditor> {
-		if (!this.relPath) {
+		if (!this.absolutePath) {
 			throw new Error("No file path set")
 		}
-		const uri = vscode.Uri.file(path.resolve(this.cwd, this.relPath))
+		const uri = vscode.Uri.file(this.absolutePath)
 		// If this diff editor is already open (ie if a previous write file was interrupted) then we should activate that instead of opening a new diff
 		const diffTab = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
@@ -455,11 +452,5 @@ export class DiffViewProvider {
 		this.activeLineController = undefined
 		this.streamedLines = []
 		this.preDiagnostics = []
-
-		// Clean up the scroll listener
-		if (this.scrollListener) {
-			this.scrollListener.dispose()
-			this.scrollListener = undefined
-		}
 	}
 }
