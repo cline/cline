@@ -9,6 +9,7 @@ import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
+import { version as extensionVersion } from "../../../package.json"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -51,6 +52,7 @@ export class ClineHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 						"X-Task-ID": this.options.taskId || "",
+						"X-Cline-Version": extensionVersion,
 					},
 				})
 			} catch (error: any) {
