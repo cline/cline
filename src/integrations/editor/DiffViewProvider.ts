@@ -46,12 +46,7 @@ export class DiffViewProvider {
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
 			}
-		}
 
-		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
-		this.preDiagnostics = vscode.languages.getDiagnostics()
-
-		if (fileExists) {
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
@@ -65,24 +60,7 @@ export class DiffViewProvider {
 		if (!fileExists) {
 			await fs.writeFile(this.absolutePath, "")
 		}
-		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
-		this.documentWasOpen = false
-		// close the tab if it's open (it's already saved above)
-		const tabs = vscode.window.tabGroups.all
-			.map((tg) => tg.tabs)
-			.flat()
-			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
-		for (const tab of tabs) {
-			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
-			}
-			this.documentWasOpen = true
-		}
 		this.activeDiffEditor = await this.openDiffEditor()
-		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
-		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
-		// Apply faded overlay to all lines initially
-		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
 	}
@@ -353,6 +331,23 @@ export class DiffViewProvider {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
 		}
+		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
+		this.preDiagnostics = vscode.languages.getDiagnostics()
+
+		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+		this.documentWasOpen = false
+		// close the tab if it's open (it's already been saved)
+		const tabs = vscode.window.tabGroups.all
+			.map((tg) => tg.tabs)
+			.flat()
+			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
+		for (const tab of tabs) {
+			if (!tab.isDirty) {
+				await vscode.window.tabGroups.close(tab)
+			}
+			this.documentWasOpen = true
+		}
+
 		const uri = vscode.Uri.file(this.absolutePath)
 		// If this diff editor is already open (ie if a previous write file was interrupted) then we should activate that instead of opening a new diff
 		const diffTab = vscode.window.tabGroups.all
@@ -380,7 +375,7 @@ export class DiffViewProvider {
 			return editor
 		}
 		// Open new diff editor
-		return new Promise<vscode.TextEditor>((resolve, reject) => {
+		const diffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
 			const fileName = path.basename(uri.fsPath)
 			const fileExists = this.editType === "modify"
 			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -406,6 +401,13 @@ export class DiffViewProvider {
 				reject(new Error("Failed to open diff editor, please try again..."))
 			}, 10_000)
 		})
+
+		this.fadedOverlayController = new DecorationController("fadedOverlay", diffEditor)
+		this.activeLineController = new DecorationController("activeLine", diffEditor)
+		// Apply faded overlay to all lines initially
+		this.fadedOverlayController.addLines(0, diffEditor.document.lineCount)
+
+		return diffEditor
 	}
 
 	private scrollEditorToLine(line: number) {
