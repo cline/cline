@@ -75,11 +75,11 @@ export async function diagnosticsToProblemsString(
 	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
 	severities: vscode.DiagnosticSeverity[],
 ): Promise<string> {
+	const cwd = await getCwd()
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {
 		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))
 		if (problems.length > 0) {
-			const cwd = await getCwd()
 			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
 			for (const diagnostic of problems) {
 				let label: string
