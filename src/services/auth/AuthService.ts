@@ -100,6 +100,7 @@ export class AuthService {
 		})
 
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
+
 		this._context = context
 	}
 
@@ -118,7 +119,7 @@ export class AuthService {
 			}
 			AuthService.instance = new AuthService(context, config || {}, authProvider)
 		}
-		if (context) {
+		if (context !== undefined) {
 			AuthService.instance.context = context
 		}
 		return AuthService.instance
