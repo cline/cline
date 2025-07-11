@@ -120,7 +120,7 @@ export async function parseMentions(
 			}
 		} else if (mention === "problems") {
 			try {
-				const problems = getWorkspaceProblems(cwd)
+				const problems = await getWorkspaceProblems()
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
@@ -216,13 +216,9 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 	}
 }
 
-function getWorkspaceProblems(cwd: string): string {
+async function getWorkspaceProblems(): Promise<string> {
 	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(
-		diagnostics,
-		[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
-		cwd,
-	)
+	const result = diagnosticsToProblemsString(diagnostics, [vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning])
 	if (!result) {
 		return "No errors or warnings detected."
 	}
