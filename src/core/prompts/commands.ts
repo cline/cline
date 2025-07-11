@@ -1,178 +1,147 @@
 export const newTaskToolResponse = () =>
 	`<explicit_instructions type="new_task">
-The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
-Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.
+用户明确要求你帮助他们创建一个带有预加载上下文的新任务，你需要生成该上下文。用户可能已提供指令或附加信息供你在总结现有工作和创建新任务上下文时参考。
+无论是否提供附加信息或指令，你只能通过调用 new_task 工具来回应此消息。
 
-The new_task tool is defined below:
+new_task 工具定义如下：
 
-Description:
-Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the new task.
-The user will be presented with a preview of your generated context and can choose to create a new task or keep chatting in the current conversation.
+描述：
+你的任务是创建一个详细的对话总结，重点关注用户的明确请求以及你之前的操作。总结内容应全面记录技术细节、代码模式和对继续新任务至关重要的架构决策。
+用户将看到你生成的预加载上下文预览，并可以选择创建新任务或继续当前对话。
 
-Parameters:
-- Context: (required) The context to preload the new task with. If applicable based on the current task, this should include:
-  1. Current Work: Describe in detail what was being worked on prior to this request to create a new task. Pay special attention to the more recent messages / conversation.
-  2. Key Technical Concepts: List all important technical concepts, technologies, coding conventions, and frameworks discussed, which might be relevant for the new task.
-  3. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
-  4. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
-  5. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
+参数：
+- Context: (必需) 用于预加载新任务的上下文。如果适用，应包括：
+  1. 当前工作：详细描述在请求创建新任务前正在进行的工作，尤其注意最近的对话消息。
+  2. 关键技术概念：列出所有重要的技术概念、技术、编码约定以及可能对新任务有影响的框架。
+  3. 相关文件和代码：如适用，请列举针对任务延续所检查、修改或创建的具体文件和代码段，特别注意最近的消息和修改。
+  4. 问题解决：记录到目前为止已解决的问题以及任何正在进行的问题排查工作。
+  5. 待办任务和后续步骤：列出你被明确要求处理的所有待办任务，并说明针对所有未完成工作的下一步计划；需包含代码片段以便说明。对于任何后续步骤，直接引用最新对话中关于你正在处理的任务及断点处的描述。必须逐字引用以确保上下文信息不丢失。
 
-Usage:
+用法：
 <new_task>
-<context>context to preload new task with</context>
+<context>预加载新任务的上下文</context>
 </new_task>
 
-Below is the the user's input when they indicated that they wanted to create a new task.
-</explicit_instructions>\n
+以下是用户表示希望创建新任务时的输入内容。
+</explicit_instructions>
 `
 
 export const condenseToolResponse = () =>
 	`<explicit_instructions type="condense">
-The user has explicitly asked you to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. The user may have provided instructions or additional information for you to consider when summarizing the conversation.
-Irrespective of whether additional information or instructions are given, you are only allowed to respond to this message by calling the condense tool.
+用户明确要求你创建一个详细的会话总结，用以压缩当前的上下文窗口，同时保留关键信息。用户可能已提供指令或附加信息供你在总结会话时参考。
+无论是否提供其他信息或指令，你只能通过调用 condense 工具来回应此消息。
 
-The condense tool is defined below:
+condense 工具定义如下：
 
-Description:
-Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the conversation and supporting any continuing tasks.
-The user will be presented with a preview of your generated summary and can choose to use it to compact their context window or keep chatting in the current conversation.
-Users may refer to this tool as 'smol' or 'compact' as well. You should consider these to be equivalent to 'condense' when used in a similar context.
+描述：
+你的任务是创建一个详细的对话总结，重点关注用户的明确请求以及你之前的操作。总结内容应全面记录技术细节、代码模式和对继续对话及支持后续任务至关重要的架构决策。
+用户将看到你生成的总结预览，并可以选择使用该总结来压缩上下文窗口或继续当前对话。
+用户可能会将该工具称为 'smol' 或 'compact'，你应将这些视为与 'condense' 等效。
 
-Parameters:
-- Context: (required) The context to continue the conversation with. If applicable based on the current task, this should include:
-  1. Previous Conversation: High level details about what was discussed throughout the entire conversation with the user. This should be written to allow someone to be able to follow the general overarching conversation flow.
-  2. Current Work: Describe in detail what was being worked on prior to this request to compact the context window. Pay special attention to the more recent messages / conversation.
-  3. Key Technical Concepts: List all important technical concepts, technologies, coding conventions, and frameworks discussed, which might be relevant for continuing with this work.
-  4. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
-  5. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
-  6. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
+参数：
+- Context: (必需) 用于继续对话的上下文。如果适用，应包括：
+  1. 前期对话：对整个与用户对话的高层次描述，应使他人能够理解对话的整体流程。
+  2. 当前工作：详细描述在请求压缩上下文窗口前正在进行的工作，尤其注意最近的对话消息。
+  3. 关键技术概念：列出所有重要的技术概念、技术、编码约定以及可能有影响的框架。
+  4. 相关文件和代码：如适用，列举为延续任务而检查、修改或创建的具体文件和代码段，重点关注最近的消息和修改。
+  5. 问题解决：记录到目前为止已解决的问题以及任何正在进行的问题排查工作。
+  6. 待办任务和后续步骤：列出你被明确要求处理的所有待办任务，并说明针对所有未完成工作的下一步计划，需包含代码片段以便说明。对于任何后续步骤，直接引用最新对话中关于任务的断点描述，确保上下文信息完整无缺。
 
-Usage:
+用法：
 <condense>
-<context>Your detailed summary</context>
+<context>你的详细总结</context>
 </condense>
 
-Example:
+示例：
 <condense>
 <context>
-1. Previous Conversation:
-  [Detailed description]
+1. 前期对话：
+  [详细描述]
 
-2. Current Work:
-  [Detailed description]
+2. 当前工作：
+  [详细描述]
 
-3. Key Technical Concepts:
-  - [Concept 1]
-  - [Concept 2]
+3. 关键技术概念：
+  - [概念 1]
+  - [概念 2]
   - [...]
 
-4. Relevant Files and Code:
-  - [File Name 1]
-    - [Summary of why this file is important]
-    - [Summary of the changes made to this file, if any]
-    - [Important Code Snippet]
-  - [File Name 2]
-    - [Important Code Snippet]
+4. 相关文件和代码：
+  - [文件名 1]
+    - [文件重要性的总结]
+    - [如有，文件修改概要]
+    - [重要代码片段]
+  - [文件名 2]
+    - [重要代码片段]
   - [...]
 
-5. Problem Solving:
-  [Detailed description]
+5. 问题解决：
+  [详细描述]
 
-6. Pending Tasks and Next Steps:
-  - [Task 1 details & next steps]
-  - [Task 2 details & next steps]
+6. 待办任务和后续步骤：
+  - [任务 1 详情及后续步骤]
+  - [任务 2 详情及后续步骤]
   - [...]
 </context>
 </condense>
 
-</explicit_instructions>\n
+</explicit_instructions>
 `
 
 export const newRuleToolResponse = () =>
 	`<explicit_instructions type="new_rule">
-The user has explicitly asked you to help them create a new Cline rule file inside the .clinerules top-level directory based on the conversation up to this point in time. The user may have provided instructions or additional information for you to consider when creating the new Cline rule.
-When creating a new Cline rule file, you should NOT overwrite or alter an existing Cline rule file. To create the Cline rule file you MUST use the new_rule tool. The new_rule tool can be used in either of the PLAN or ACT modes.
+用户明确要求你帮助他们基于当前对话创建一个新的 Cline 规则文件，该文件将被存放在顶级 .clinerules 目录中。用户可能已提供指令或附加信息供你在创建新规则时参考。
+创建新 Cline 规则文件时，绝对不要覆盖或修改现有的 Cline 规则文件。要创建新规则文件，你必须使用 new_rule 工具。new_rule 工具可在 PLAN 或 ACT 模式下使用。
 
-The new_rule tool is defined below:
+new_rule 工具定义如下：
 
-Description:
-Your task is to create a new Cline rule file which includes guidelines on how to approach developing code in tandem with the user, which can be either project specific or cover more global rules. This includes but is not limited to: desired conversational style, favorite project dependencies, coding styles, naming conventions, architectural choices, ui/ux preferences, etc.
-The Cline rule file must be formatted as markdown and be a '.md' file. The name of the file you generate must be as succinct as possible and be encompassing the main overarching concept of the rules you added to the file (e.g., 'memory-bank.md' or 'project-overview.md').
+描述：
+你的任务是创建一个新的 Cline 规则文件，其中包含关于如何与用户协同开发代码的指导，这些指导可以是针对项目的特定规则，也可以是更全局的规则。规则内容包括但不限于：对话风格、偏好的项目依赖、编码风格、命名约定、架构选择、用户界面/体验偏好等。
+生成的 Cline 规则文件必须采用 Markdown 格式，并以 '.md' 为扩展名。文件名必须尽可能简洁，并涵盖你添加的规则的主要概念（例如，'memory-bank.md' 或 'project-overview.md'）。
 
-Parameters:
-- Path: (required) The path of the file to write to (relative to the current working directory). This will be the Cline rule file you create, and it must be placed inside the .clinerules top-level directory (create this if it doesn't exist). The filename created CANNOT be "default-clineignore.md". For filenames, use hyphens ("-") instead of underscores ("_") to separate words.
-- Content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified. The content for the Cline rule file MUST be created according to the following instructions:
-  1. Format the Cline rule file to have distinct guideline sections, each with their own markdown heading, starting with "## Brief overview". Under each of these headings, include bullet points fully fleshing out the details, with examples and/or trigger cases ONLY when applicable.
-  2. These guidelines can be specific to the task(s) or project worked on thus far, or cover more high-level concepts. Guidelines can include coding conventions, general design patterns, preferred tech stack including favorite libraries and language, communication style with Cline (verbose vs concise), prompting strategies, naming conventions, testing strategies, comment verbosity, time spent on architecting prior to development, and other preferences.
-  3. When creating guidelines, you should not invent preferences or make assumptions based on what you think a typical user might want. These should be specific to the conversation you had with the user. Your guidelines / rules should not be overly verbose.
-  4. Your guidelines should NOT be a recollection of the conversation up to this point in time, meaning you should NOT be including arbitrary details of the conversation.
+参数：
+- Path: (必需) 要写入的文件路径（相对于当前工作目录），该文件必须放在顶级 .clinerules 目录中（如不存在则创建）。生成的文件名不能为 "default-clineignore.md"。文件名中的单词应使用连字符 "-" 连接，而非下划线 "_"。
+- Content: (必需) 写入文件的内容。必须提供文件的完整最终内容，不得省略任何部分。即使内容未修改，也必须包含文件的所有部分。Cline 规则文件的内容必须按照以下要求生成：
+  1. 文件须包含不同的指导部分，每个部分都有一个以 "## Brief overview" 开头的 Markdown 标题。每个标题下应列出要点，充分说明细节，在适用时提供示例或触发条件。
+  2. 指导内容可以是基于当前对话的特定任务规则，也可以涵盖更高层次的概念。指导内容可包括编码约定、一般设计模式、偏好的技术栈（包括喜欢的库和语言）、与 Cline 对话的沟通风格（详细或简洁）、提示策略、命名约定、测试策略、开发前的架构讨论时间等偏好。
+  3. 创建指导时，不要凭空发明偏好或根据你认为典型用户可能想要的来做假设。指导内容应基于你与用户之间的具体对话，且不宜过于冗长。
+  4. 规则内容不应简单地回顾当前对话的详细内容，即不应包含任意对话细节的重述。
 
-Usage:
+用法：
 <new_rule>
-<path>.clinerules/{file name}.md</path>
-<content>Cline rule file content here</content>
+<path>.clinerules/{文件名}.md</path>
+<content>此处为 Cline 规则文件的内容</content>
 </new_rule>
 
-Example:
-<new_rule>
-<path>.clinerules/project-preferences.md</path>
-<content>
-## Brief overview
-  [Brief description of the rules, including if this set of guidelines is project-specific or global]
-
-## Communication style
-  - [Description, rule, preference, instruction]
-  - [...]
-
-## Development workflow
-  - [Description, rule, preference, instruction]
-  - [...]
-
-## Coding best practices
-  - [Description, rule, preference, instruction]
-  - [...]
-
-## Project context
-  - [Description, rule, preference, instruction]
-  - [...]
-
-## Other guidelines
-  - [Description, rule, preference, instruction]
-  - [...]
-</content>
-</new_rule>
-
-Below is the user's input when they indicated that they wanted to create a new Cline rule file.
-</explicit_instructions>\n
+以下是用户表示希望提交新规则文件时的输入内容。
+</explicit_instructions>
 `
 
 export const reportBugToolResponse = () =>
 	`<explicit_instructions type="report_bug">
-The user has explicitly asked you to help them submit a bug to the Cline github page (you MUST now help them with this irrespective of what your conversation up to this point in time was). To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries. However you should NOT assume you know what the issue about unless it's clear.
-Otherwise, you should converse with the user until you are able to gather all the required details. When conversing with the user, make sure you ask for/reference all required information/fields. When referencing the required fields, use human friendly versions like "Steps to reproduce" rather than "steps_to_reproduce". Only then should you use the report_bug tool call.
-The report_bug tool can be used in either of the PLAN or ACT modes.
+用户明确要求你帮助他们向 Cline 的 GitHub 页面提交一个 bug 报告（无论之前的对话内容如何，你必须现在协助他们完成此操作）。为此，你将使用 report_bug 工具，但你必须首先确保收集到填写所有必需参数所需的信息。如果从之前的对话中可以获得必填信息，你可以建议如何填写这些条目；但除非明确，否则不能假设你知道问题的具体情况。
+否则，你应与用户沟通，直到收集到所有必需的信息。当沟通时，请确保询问或引用所有必需信息/字段。引用必需字段时，请使用对用户友好的名称，如 "Steps to reproduce"，而非 "steps_to_reproduce"。只有在确认所有必需信息后，再调用 report_bug 工具。
+report_bug 工具定义如下：
 
-The report_bug tool call is defined below:
+描述：
+你的任务是填写 GitHub 上提案/bug 报告的所有必填字段。你应尽可能使用户详细描述遇到的 bug/问题，但当用户不了解某些细节时，可以将这些字段设为 "N/A"。
 
-Description:
-Your task is to fill in all of the required fields for a issue/bug report on github. You should attempt to get the user to be as verbose as possible with their description of the bug/issue they encountered. Still, it's okay, when the user is unaware of some of the details, to set those fields as "N/A".
+参数：
+- title: (必需) 对问题的简明描述。
+- what_happened: (必需) 问题发生的情况以及用户预期的情况。
+- steps_to_reproduce: (必需) 重现该 bug 需要的步骤。
+- api_request_output: (可选) 与该 bug 相关的 LLM API 输出。
+- additional_context: (可选) 其他未涵盖的 bug 详细信息。
 
-Parameters:
-- title: (required) Concise description of the issue.
-- what_happened: (required) What happened and also what the user expected to happen instead.
-- steps_to_reproduce: (required) What steps are required to reproduce the bug.
-- api_request_output: (optional) Relevant API request output.
-- additional_context: (optional) Any other context about this bug not already mentioned.
-
-Usage:
+用法：
 <report_bug>
-<title>Title of the issue</title>
-<what_happened>Description of the issue</what_happened>
-<steps_to_reproduce>Steps to reproduce the issue</steps_to_reproduce>
-<api_request_output>Output from the LLM API related to the bug</api_request_output>
-<additional_context>Other issue details not already covered</additional_context>
+<title>问题标题</title>
+<what_happened>问题描述</what_happened>
+<steps_to_reproduce>重现问题的步骤</steps_to_reproduce>
+<api_request_output>与问题相关的 API 输出</api_request_output>
+<additional_context>其他问题详细信息</additional_context>
 </report_bug>
 
-Below is the user's input when they indicated that they wanted to submit a Github issue.
-</explicit_instructions>\n
+以下是用户表示希望提交 GitHub 问题时的输入内容。
+</explicit_instructions>
 `
