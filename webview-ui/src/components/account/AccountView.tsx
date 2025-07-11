@@ -48,6 +48,7 @@ export const ClineAccountView = () => {
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
@@ -96,6 +97,11 @@ export const ClineAccountView = () => {
 				Promise.all([getUserCredits(), getUserOrganizations()])
 			} catch (error) {
 				console.error("Failed to fetch user data:", error)
+				setBalance(0)
+				setUsageData([])
+				setPaymentsData([])
+			} finally {
+				setIsLoading(false)
 			}
 		}
 
@@ -115,13 +121,18 @@ export const ClineAccountView = () => {
 			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
 
 			if (activeOrganization?.organizationId !== newOrgId) {
+				setIsSwitchingOrg(true) // Disable dropdown
+
 				try {
 					await AccountServiceClient.setUserOrganization(
 						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
 					)
-					await getUserOrganizations()
+					await getUserOrganizations() // Refresh to get new active org
+					await getUserCredits() // Refresh credits for new org
 				} catch (error) {
 					console.error("Failed to update organization:", error)
+				} finally {
+					setIsSwitchingOrg(false) // Re-enable dropdown
 				}
 			}
 		},
@@ -155,9 +166,10 @@ export const ClineAccountView = () => {
 
 								{userOrganizations && (
 									<VSCodeDropdown
-										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
+										key={activeOrganization?.organizationId || "personal"}
 										currentValue={activeOrganization?.organizationId || ""}
 										onChange={handleOrganizationChange}
+										disabled={isSwitchingOrg || isLoading}
 										style={{ width: "100%", marginTop: "4px" }}>
 										<VSCodeOption value="">Personal</VSCodeOption>
 										{userOrganizations.map((org: UserOrganization) => (
