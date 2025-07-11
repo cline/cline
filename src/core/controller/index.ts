@@ -574,11 +574,9 @@ export class Controller {
 		await setTimeoutPromise(200)
 
 		if (submit) {
-			// --- NEW: Submit Flow ---
 			await this.initTask(prompt)
 			console.log("addPromptToChat (submitted)", prompt)
 		} else {
-			// --- EXISTING: Add to Input Flow ---
 			await sendAddToInputEvent(prompt)
 			console.log("addPromptToChat (added to input)", prompt)
 		}
@@ -596,11 +594,9 @@ export class Controller {
 		const fileMention = await this.getFileMentionFromPath(filePath)
 
 		if (submit) {
-			// --- NEW: Submit Flow ---
 			await this.initTask(fileMention)
 			console.log("addFileMentionToChat (submitted)", fileMention)
 		} else {
-			// --- EXISTING: Add to Input Flow ---
 			await sendAddToInputEvent(fileMention)
 			console.log("addFileMentionToChat (added to input)", fileMention)
 		}
