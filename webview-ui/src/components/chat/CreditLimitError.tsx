@@ -9,7 +9,7 @@ interface CreditLimitErrorProps {
 	totalSpent?: number
 	totalPromotions?: number
 	message: string
-	buyCreditsURL?: string
+	buyCreditsUrl?: string
 }
 
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
@@ -17,7 +17,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	totalSpent = 0,
 	totalPromotions = 0,
 	message = "You have run out of credit.",
-	buyCreditsURL = "https://app.cline.bot/dashboard/account?tab=credits",
+	buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits",
 }) => {
 	// We have to divide because the balance is stored in microcredits
 	return (
@@ -30,7 +30,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			</div>
 
 			<VSCodeButtonLink
-				href={buyCreditsURL}
+				href={buyCreditsUrl}
 				style={{
 					width: "100%",
 					marginBottom: "8px",

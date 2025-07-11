@@ -956,7 +956,7 @@ export const ChatRowContent = memo(
 															totalSpent={errorData.total_spent}
 															totalPromotions={errorData.total_promotions}
 															message={errorData.message}
-															buyCreditsURL={errorData.buy_credits_url}
+															buyCreditsUrl={errorData.buy_credits_url}
 														/>
 													)
 												}
