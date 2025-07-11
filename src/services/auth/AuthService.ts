@@ -105,7 +105,7 @@ export class AuthService {
 		context.secrets.onDidChange((event) => {
 			if (event.key === "clineAccountId") {
 				// Handle secret changes if needed
-				this.sendAuthStatusUpdate()
+				this.restoreAuthToken()
 			}
 		})
 	}
