@@ -185,7 +185,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
-		const { handleSignIn } = useClineAuth()
+		const { handleSignIn, clineUser } = useClineAuth()
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -1014,9 +1014,15 @@ export const ChatRowContent = memo(
 														<>
 															<br />
 															<br />
-															<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
-																Sign in to Cline
-															</VSCodeButton>
+															{clineUser ? (
+																<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+																	(Click "Retry" below)
+																</span>
+															) : (
+																<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
+																	Sign in to Cline
+																</VSCodeButton>
+															)}
 														</>
 													)}
 												</p>
