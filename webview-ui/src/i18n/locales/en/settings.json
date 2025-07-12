@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
 			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
 			"addButton": "Add",
-			"autoDenied": "The command prefix `{{prefix}}` has been automatically denied. Please do not attempt to bypass this restriction."
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"updateTodoList": {
 			"label": "Todo",

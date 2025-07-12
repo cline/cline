@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Inserisci prefisso comando (es. 'git ')",
 			"deniedCommandPlaceholder": "Inserisci prefisso comando da negare (es. 'rm -rf')",
 			"addButton": "Aggiungi",
-			"autoDenied": "Il prefisso del comando `{{prefix}}` è stato automaticamente negato. Si prega di non tentare di aggirare questa restrizione."
+			"autoDenied": "I comandi con il prefisso `{{prefix}}` sono stati vietati dall'utente. Non aggirare questa restrizione eseguendo un altro comando."
 		},
 		"updateTodoList": {
 			"label": "Todo",

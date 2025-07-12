@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Wprowadź prefiks polecenia (np. 'git ')",
 			"deniedCommandPlaceholder": "Wprowadź prefiks polecenia do odrzucenia (np. 'rm -rf')",
 			"addButton": "Dodaj",
-			"autoDenied": "Prefiks polecenia `{{prefix}}` został automatycznie odrzucony. Próba obejścia tego ograniczenia może narazić system na ryzyko bezpieczeństwa."
+			"autoDenied": "Polecenia z prefiksem `{{prefix}}` zostały zabronione przez użytkownika. Nie obchodź tego ograniczenia uruchamiając inne polecenie."
 		},
 		"updateTodoList": {
 			"label": "Todo",

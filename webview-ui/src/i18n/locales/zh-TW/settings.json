@@ -180,7 +180,7 @@
 			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
 			"deniedCommandPlaceholder": "輸入要拒絕的命令前綴（例如 'rm -rf'）",
 			"addButton": "新增",
-			"autoDenied": "命令前綴 `{{prefix}}` 已被自動拒絕。嘗試繞過此限制可能會使系統面臨安全風險。"
+			"autoDenied": "前綴為 `{{prefix}}` 的命令已被使用者禁止。不要透過執行其他命令來繞過此限制。"
 		},
 		"updateTodoList": {
 			"label": "待辦",

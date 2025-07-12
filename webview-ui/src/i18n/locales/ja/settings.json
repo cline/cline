@@ -180,7 +180,7 @@
 			"commandPlaceholder": "コマンドプレフィックスを入力（例：'git '）",
 			"deniedCommandPlaceholder": "拒否するコマンドプレフィックスを入力（例：'rm -rf'）",
 			"addButton": "追加",
-			"autoDenied": "コマンドプレフィックス `{{prefix}}` が自動的に拒否されました。この制限を回避しようとしないでください。"
+			"autoDenied": "プレフィックス `{{prefix}}` を持つコマンドはユーザーによって禁止されています。別のコマンドを実行してこの制限を回避しないでください。"
 		},
 		"updateTodoList": {
 			"label": "Todo",

@@ -180,7 +180,7 @@
 			"commandPlaceholder": "명령 접두사 입력(예: 'git ')",
 			"deniedCommandPlaceholder": "거부할 명령 접두사 입력(예: 'rm -rf')",
 			"addButton": "추가",
-			"autoDenied": "명령어 접두사 `{{prefix}}`가 자동으로 거부되었습니다. 이 제한을 우회하려고 시도하면 시스템 보안이 위험해질 수 있습니다."
+			"autoDenied": "접두사 `{{prefix}}`를 가진 명령어는 사용자에 의해 금지되었습니다. 다른 명령어를 실행하여 이 제한을 우회하지 마세요."
 		},
 		"updateTodoList": {
 			"label": "Todo",

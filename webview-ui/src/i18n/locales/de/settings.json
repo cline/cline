@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Befehlspräfix eingeben (z.B. 'git ')",
 			"deniedCommandPlaceholder": "Befehlspräfix zum Verweigern eingeben (z.B. 'rm -rf')",
 			"addButton": "Hinzufügen",
-			"autoDenied": "Das Befehlspräfix `{{prefix}}` wurde automatisch verweigert. Bitte versuchen Sie nicht, diese Beschränkung zu umgehen."
+			"autoDenied": "Befehle mit dem Präfix `{{prefix}}` wurden vom Benutzer verboten. Umgehe diese Beschränkung nicht durch das Ausführen eines anderen Befehls."
 		},
 		"updateTodoList": {
 			"label": "Todo",

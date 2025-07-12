@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Nhập tiền tố lệnh (ví dụ: 'git ')",
 			"deniedCommandPlaceholder": "Nhập tiền tố lệnh để từ chối (ví dụ: 'rm -rf')",
 			"addButton": "Thêm",
-			"autoDenied": "Tiền tố lệnh `{{prefix}}` đã được tự động từ chối. Việc cố gắng vượt qua hạn chế này có thể khiến hệ thống gặp rủi ro bảo mật."
+			"autoDenied": "Các lệnh có tiền tố `{{prefix}}` đã bị người dùng cấm. Đừng vượt qua hạn chế này bằng cách chạy lệnh khác."
 		},
 		"updateTodoList": {
 			"label": "Todo",

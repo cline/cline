@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Introduïu prefix de comanda (ex. 'git ')",
 			"deniedCommandPlaceholder": "Introduïu prefix de comanda a denegar (ex. 'rm -rf')",
 			"addButton": "Afegir",
-			"autoDenied": "El prefix de comanda `{{prefix}}` ha estat automàticament denegat. Intentar eludir aquesta restricció pot comprometre la seguretat del sistema."
+			"autoDenied": "Les comandes amb el prefix `{{prefix}}` han estat prohibides per l'usuari. No eludeixis aquesta restricció executant una altra comanda."
 		},
 		"updateTodoList": {
 			"label": "Todo",

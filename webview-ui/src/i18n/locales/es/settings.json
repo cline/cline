@@ -180,7 +180,7 @@
 			"commandPlaceholder": "Ingrese prefijo de comando (ej. 'git ')",
 			"deniedCommandPlaceholder": "Ingrese prefijo de comando a denegar (ej. 'rm -rf')",
 			"addButton": "Añadir",
-			"autoDenied": "El prefijo de comando `{{prefix}}` ha sido automáticamente denegado. Por favor, no intente eludir esta restricción."
+			"autoDenied": "Los comandos con el prefijo `{{prefix}}` han sido prohibidos por el usuario. No eludes esta restricción ejecutando otro comando."
 		},
 		"updateTodoList": {
 			"label": "Todo",
