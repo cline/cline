@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.18.13]
+
+-   Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+
 ## [3.18.12]
 
 -   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
