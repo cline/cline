@@ -40,8 +40,15 @@ export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.Me
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										toolResultImages.push(`data:${part.source.media_type};base64,${part.source.data}`)
-										return "(see following user message for image)"
+										if (
+											part.source.type === "base64" &&
+											"media_type" in part.source &&
+											"data" in part.source
+										) {
+											toolResultImages.push(`data:${part.source.media_type};base64,${part.source.data}`)
+											return "(see following user message for image)"
+										}
+										throw new Error("Only base64 images are supported")
 									}
 									return part.text
 								})
@@ -61,7 +68,10 @@ export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.Me
 						content: nonToolMessages
 							.map((part) => {
 								if (part.type === "image") {
-									return `data:${part.source.media_type};base64,${part.source.data}`
+									if (part.source.type === "base64" && "media_type" in part.source && "data" in part.source) {
+										return `data:${part.source.media_type};base64,${part.source.data}`
+									}
+									throw new Error("Only base64 images are supported")
 								}
 								return part.text
 							})

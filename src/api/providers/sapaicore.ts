@@ -654,15 +654,17 @@ export class SapAiCoreHandler implements ApiHandler {
 							throw new Error('Image block is missing the "source" field.')
 						}
 
-						const { type, media_type, data } = block.source
-
-						if (!type || !media_type || !data) {
-							throw new Error('Image source must have "type", "media_type", and "data" fields.')
-						}
+						const { type } = block.source
 
 						if (type !== "base64") {
 							throw new Error(`Unsupported image source type: ${type}. Only "base64" is supported.`)
 						}
+
+						if (!("media_type" in block.source) || !("data" in block.source)) {
+							throw new Error('Base64 image source must have "media_type" and "data" fields.')
+						}
+
+						const { media_type, data } = block.source
 
 						const format = this.getValidImageFormat(media_type)
 

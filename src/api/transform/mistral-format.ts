@@ -30,12 +30,15 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 						role: "user",
 						content: textAndImageBlocks.map((part) => {
 							if (part.type === "image") {
-								return {
-									type: "image_url",
-									imageUrl: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
-									},
+								if (part.source.type === "base64" && "media_type" in part.source && "data" in part.source) {
+									return {
+										type: "image_url",
+										imageUrl: {
+											url: `data:${part.source.media_type};base64,${part.source.data}`,
+										},
+									}
 								}
+								throw new Error("Only base64 images are supported")
 							}
 							return { type: "text", text: part.text }
 						}),

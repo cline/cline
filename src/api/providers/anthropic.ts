@@ -172,8 +172,10 @@ export class AnthropicHandler implements ApiHandler {
 
 					yield {
 						type: "usage",
-						inputTokens: 0,
+						inputTokens: chunk.usage.input_tokens || 0,
 						outputTokens: chunk.usage.output_tokens || 0,
+						cacheWriteTokens: chunk.usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: chunk.usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_stop":
