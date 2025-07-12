@@ -47,7 +47,8 @@ export class FirebaseAuthProvider {
 			return null
 		}
 		try {
-			// Step 1: Exchange refresh token for new access token using Firebase's secure token endpoint
+			// Exchange refresh token for new access token using Firebase's secure token endpoint
+			// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
 			const firebaseApiKey = this._config.apiKey
 			const googleAccessTokenResponse = await axios.post(
 				`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
@@ -59,12 +60,13 @@ export class FirebaseAuthProvider {
 				},
 			)
 
-			console.log("googleAccessTokenResponse", googleAccessTokenResponse)
+			// console.log("googleAccessTokenResponse", googleAccessTokenResponse)
 
+			// This returns an object with access_token, expires_in (3600), id_token (can be used as bearer token to authenticate requests, we'll use this in the future instead of firebase but need to be aware of how we use firebase sdk for e.g. user info like the profile image), project_id, refresh_token, token_type (always Bearer), and user_id
 			const idToken = googleAccessTokenResponse.data.id_token
 			// const idTokenExpirationDate = new Date(Date.now() + googleAccessTokenResponse.data.expires_in * 1000)
 
-			// Now retrieve the user info from the backend
+			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
 			// TODO: consolidate with fetchMe() instead of making the call directly here
 			const userResponse = await axios.get("https://api.cline.bot/api/v1/users/me", {
