@@ -170,7 +170,7 @@ export class AuthService {
 		const shouldRefreshIdToken = await this._provider?.provider.shouldRefreshIdToken(idToken)
 		if (shouldRefreshIdToken) {
 			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
-			await this.restoreAuthToken()
+			await this.restoreRefreshTokenAndRetrieveAuthInfo()
 			if (!this._clineAuthInfo) {
 				return null
 			}
@@ -272,7 +272,7 @@ export class AuthService {
 	 * Restores the authentication token from the extension's storage.
 	 * This is typically called when the extension is activated.
 	 */
-	async restoreAuthToken(): Promise<void> {
+	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
 		if (!this._provider || !this._provider.provider) {
 			throw new Error("Auth provider is not set")
 		}
