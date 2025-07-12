@@ -1,0 +1,94 @@
+---
+title: Voice Recording
+description: Record audio messages and have them transcribed using OpenAI Whisper
+---
+
+# Voice Recording
+
+Cline supports voice recording functionality that allows you to record audio messages directly in the chat interface. Your voice is automatically transcribed using OpenAI's Whisper model.
+
+## How It Works
+
+1. **Enable voice recording** in General Settings (enabled by default)
+2. **Click the microphone button** in the chat input area
+3. **Speak your message** - the button will show a red recording indicator
+4. **Click the stop button** when finished
+5. **Wait for transcription** - you'll see "[Transcribing...]" in the input field
+6. **Review and send** - the transcribed text appears in the input field
+
+## Settings
+
+### Enable/Disable Voice Recording
+
+You can toggle voice recording on or off in the General Settings:
+
+1. Open Cline settings (gear icon)
+2. Go to "General Settings"
+3. Toggle "Enable Voice Recording" checkbox
+4. The microphone button will appear/disappear based on this setting
+
+## Requirements
+
+### OpenAI API Key
+
+Voice transcription requires an OpenAI API key to use the Whisper model. The voice feature will automatically search for any configured OpenAI key in your settings, regardless of which provider you're using for chat.
+
+You can configure an OpenAI key in any of these ways:
+
+-   As your main chat provider (OpenAI or OpenAI Native)
+-   Just having an OpenAI key saved in settings (even if using a different chat provider)
+
+### Audio Recording Tools
+
+Cline uses common system audio recording tools to capture your voice:
+
+-   **macOS**: SoX
+-   **Linux**: ALSA
+-   **Windows**: SoX (via winget)
+
+If you don't have the required tools installed, Cline will automatically detect them and prompt you to install them with a single click.
+
+## Technical Details
+
+### Independent from Chat Provider
+
+The voice transcription feature is completely independent from your chat provider selection. This means:
+
+-   You can use Claude, GPT-4, or any other model for chat
+-   Voice transcription will always use OpenAI's Whisper model
+-   As long as you have an OpenAI API key configured somewhere, voice will work
+
+### Audio Format
+
+-   Records in WAV format at system default sample rate
+-   Mono channel for optimal speech recognition
+-   16-bit encoding for quality
+
+### Privacy & Security
+
+-   Audio is recorded locally on your machine
+-   Only the audio file is sent to OpenAI for transcription
+-   No audio is stored after transcription
+-   Temporary files are automatically cleaned up
+
+## Troubleshooting
+
+### "No OpenAI API key found"
+
+Make sure you have configured an OpenAI API key in Cline's settings. You don't need to switch to OpenAI as your chat provider - just having the key saved is enough.
+
+### "Failed to start recording"
+
+If you see this error, it means that the audio recording tools are not installed on your system. Cline will prompt you to install them automatically. Follow the on-screen instructions to install the required tools.
+
+### "Transcription failed"
+
+Check that:
+
+-   Your OpenAI API key is valid
+-   You have sufficient OpenAI API credits
+-   Your internet connection is stable
+
+## API Usage
+
+Voice transcription uses the OpenAI Whisper API, which is billed separately from chat completions. Check OpenAI's pricing page for current rates.
