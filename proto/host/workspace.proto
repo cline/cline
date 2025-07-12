@@ -8,6 +8,7 @@ option java_multiple_files = true;
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+  
 }
 
 message GetWorkspacePathsRequest {
@@ -22,3 +23,4 @@ message GetWorkspacePathsResponse {
   optional string id = 1;
   repeated string paths = 2;
 }
+
