@@ -1,5 +1,22 @@
 # Roo Code Changelog
 
+## [3.23.7] - 2025-07-11
+
+- Fix Mermaid syntax warning (thanks @MuriloFP!)
+- Expand Vertex AI region config to include all available regions in GCP Vertex AI (thanks @shubhamgupta731!)
+- Handle Qdrant vector dimension mismatch when switching embedding models (thanks @daniel-lxs!)
+- Fix typos in comment & document (thanks @noritaka1166!)
+- Improve the display of codebase search results
+- Correct translation fallback logic for embedding errors (thanks @daniel-lxs!)
+- Clean up MCP tool disabling
+- Link to marketplace from modes and MCP tab
+- Fix TTS button display (thanks @sensei-woo!)
+- Add Devstral Medium model support
+- Add comprehensive error telemetry to code-index service (thanks @daniel-lxs!)
+- Exclude cache tokens from context window calculation (thanks @daniel-lxs!)
+- Enable dynamic tool selection in architect mode for context discovery
+- Add configurable max output tokens setting for claude-code
+
 ## [3.23.6] - 2025-07-10
 
 - Grok 4
