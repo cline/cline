@@ -11,10 +11,11 @@ service DiffService {
 }
 
 message OpenDiffRequest {
+  optional Metadata metadata = 1;
   // The absolute path of the document being edited.
-  optional string path = 1;
+  optional string path = 2;
   // The new content for the file.
-  optional string content = 2;
+  optional string content = 3;
 }
 
 message OpenDiffResponse {
