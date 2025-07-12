@@ -8,7 +8,15 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	const { telemetrySetting, distinctId, version } = useExtensionState()
 	const isTelemetryEnabled = telemetrySetting !== "disabled"
 
+	// NOTE: This is a hack to stop recording webview click events temporarily.
+	// Remove this to re-enable.
+	const temporaryDisabled = true
+
 	useEffect(() => {
+		if (temporaryDisabled) {
+			return
+		}
+
 		posthog.init(posthogConfig.apiKey, {
 			api_host: posthogConfig.host,
 			ui_host: posthogConfig.uiHost,
@@ -19,7 +27,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	}, [])
 
 	useEffect(() => {
-		if (distinctId.length === 0 || version.length === 0) {
+		if (temporaryDisabled || distinctId.length === 0 || version.length === 0) {
 			return
 		}
 
