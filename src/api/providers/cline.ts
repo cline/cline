@@ -182,7 +182,7 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+				throw new Error("Unauthorized: Please sign in to Cline before trying again.") // match with webview-ui/src/components/chat/ChatRow.tsx
 			} else if (error.code === "insufficient_credits" || error.status === 402) {
 				throw new Error(error.error ? JSON.stringify(error.error) : "Insufficient credits or unknown error.")
 			}
