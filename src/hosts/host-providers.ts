@@ -9,15 +9,18 @@ export type WebviewProviderCreator = (providerType: WebviewProviderType) => Webv
 
 let _webviewProviderCreator: WebviewProviderCreator | undefined
 let _hostBridgeProvider: HostBridgeClientProvider | undefined
+export let binaryInstallPath: String
 
 export var isSetup: boolean = false
 
 export function initializeHostProviders(
 	webviewProviderCreator: WebviewProviderCreator,
 	hostBridgeProvider: HostBridgeClientProvider,
+	binaryInstallPath: string,
 ) {
 	_webviewProviderCreator = webviewProviderCreator
 	_hostBridgeProvider = hostBridgeProvider
+	binaryInstallPath = binaryInstallPath
 	isSetup = true
 }
 
