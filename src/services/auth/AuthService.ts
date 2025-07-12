@@ -188,20 +188,23 @@ export class AuthService {
 	}
 
 	getInfo(): AuthState {
-		let userInfo = null
+		// TODO: this logic should be cleaner, but this will determine the authentication state for the webview -- if a user object is returned then the webview assumes authenticated, otherwise it assumes logged out (we previously returned a UserInfo object with empty fields, and this represented a broken logged in state)
+		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
-			userInfo = this._clineAuthInfo.userInfo
-		}
-
-		// TODO: create proto for new user info type
-
-		return AuthState.create({
-			user: UserInfo.create({
+			const userInfo = this._clineAuthInfo.userInfo
+			user = UserInfo.create({
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
-			}),
+			})
+		}
+
+		// TODO: create proto for new user info type
+
+		// If the user is logged out
+		return AuthState.create({
+			user: user,
 		})
 	}
 
