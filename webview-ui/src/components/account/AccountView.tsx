@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { BadgeCent } from "lucide-react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -10,7 +10,8 @@ import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
-import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { formatCreditsBalance } from "@/utils/format"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -44,10 +45,11 @@ export const ClineAccountView = () => {
 
 	let user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
 
-	const [balance, setBalance] = useState(0)
+	const [balance, setBalance] = useState<number | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
@@ -59,37 +61,12 @@ export const ClineAccountView = () => {
 		setIsLoading(true)
 		try {
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
-			setBalance(response.balance?.currentBalance || 0)
+			setBalance(response.balance?.currentBalance ?? null)
 			setUsageData(response.usageTransactions)
 			setPaymentsData(response.paymentTransactions)
 		} catch (error) {
 			console.error("Failed to fetch user credits data:", error)
-			setBalance(0)
-			setUsageData([])
-			setPaymentsData([])
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	async function getOrganizationCredits() {
-		setIsLoading(true)
-		if (!activeOrganization) {
-			await getUserCredits()
-			return
-		}
-		try {
-			const response = await AccountServiceClient.getOrganizationCredits(
-				GetOrganizationCreditsRequest.create({
-					organizationId: activeOrganization.organizationId,
-				}),
-			)
-			setBalance(response.balance?.currentBalance || 0)
-			setUsageData(response.usageTransactions)
-			setPaymentsData(response.paymentTransactions)
-		} catch (error) {
-			console.error("Failed to fetch organization credits data:", error)
-			setBalance(0)
+			setBalance(null)
 			setUsageData([])
 			setPaymentsData([])
 		} finally {
@@ -118,29 +95,19 @@ export const ClineAccountView = () => {
 
 		const fetchUserData = async () => {
 			try {
-				await getUserCredits()
-				await getUserOrganizations()
+				Promise.all([getUserCredits(), getUserOrganizations()])
 			} catch (error) {
 				console.error("Failed to fetch user data:", error)
+				setBalance(null)
+				setUsageData([])
+				setPaymentsData([])
+			} finally {
+				setIsLoading(false)
 			}
 		}
 
 		fetchUserData()
 	}, [user])
-
-	useEffect(() => {
-		if (!activeOrganization) return
-
-		const fetchOrgCredits = async () => {
-			try {
-				await getOrganizationCredits()
-			} catch (error) {
-				console.error("Failed to fetch organization credits:", error)
-			}
-		}
-
-		fetchOrgCredits()
-	}, [activeOrganization])
 
 	const handleLogin = () => {
 		handleSignIn()
@@ -150,18 +117,28 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 
-	const handleOrganizationChange = async (event: any) => {
-		const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
+	const handleOrganizationChange = useCallback(
+		async (event: any) => {
+			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
 
-		if (!activeOrganization || activeOrganization.organizationId !== newOrgId) {
-			try {
-				await AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
-				await getUserOrganizations()
-			} catch (error) {
-				console.error("Failed to update organization:", error)
+			if (activeOrganization?.organizationId !== newOrgId) {
+				setIsSwitchingOrg(true) // Disable dropdown
+
+				try {
+					await AccountServiceClient.setUserOrganization(
+						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
+					)
+					await getUserOrganizations() // Refresh to get new active org
+					await getUserCredits() // Refresh credits for new org
+				} catch (error) {
+					console.error("Failed to update organization:", error)
+				} finally {
+					setIsSwitchingOrg(false) // Re-enable dropdown
+				}
 			}
-		}
-	}
+		},
+		[activeOrganization],
+	)
 
 	return (
 		<div className="h-full flex flex-col">
@@ -190,9 +167,10 @@ export const ClineAccountView = () => {
 
 								{userOrganizations && (
 									<VSCodeDropdown
-										key={`dropdown-${activeOrganization?.organizationId || "Personal"}`}
+										key={activeOrganization?.organizationId || "personal"}
 										currentValue={activeOrganization?.organizationId || ""}
 										onChange={handleOrganizationChange}
+										disabled={isSwitchingOrg || isLoading}
 										style={{ width: "100%", marginTop: "4px" }}>
 										<VSCodeOption value="">Personal</VSCodeOption>
 										{userOrganizations.map((org: UserOrganization) => (
@@ -217,34 +195,40 @@ export const ClineAccountView = () => {
 						</VSCodeButton>
 					</div>
 
-					<VSCodeDivider className="w-full my-6" />
+					{/* Credit balance is not available for organization account */}
+					{activeOrganization === null && <VSCodeDivider className="w-full my-6" />}
 
-					<div className="w-full flex flex-col items-center">
-						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
+					{activeOrganization === null && (
+						<div className="w-full flex flex-col items-center">
+							<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
 
-						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
-							{isLoading ? (
-								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
-							) : (
-								<>
-									<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
-									{/* TODO: Do this in a more correct way.  We have to divide by 10000
-									 * because the balance is stored in microcredits in the backend.
-									 */}
-									<CountUp end={balance / 10000} duration={0.66} decimals={4} />
-									<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
-										<span className="codicon codicon-refresh"></span>
-									</VSCodeButton>
-								</>
-							)}
+							<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
+								{isLoading ? (
+									<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+								) : (
+									<>
+										{balance === null ? (
+											<span>----</span>
+										) : (
+											<>
+												<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
+												<CountUp end={formatCreditsBalance(balance)} duration={0.66} decimals={4} />
+											</>
+										)}
+										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
+											<span className="codicon codicon-refresh"></span>
+										</VSCodeButton>
+									</>
+								)}
+							</div>
+
+							<div className="w-full">
+								<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
+									Add Credits
+								</VSCodeButtonLink>
+							</div>
 						</div>
-
-						<div className="w-full">
-							<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
-								Add Credits
-							</VSCodeButtonLink>
-						</div>
-					</div>
+					)}
 
 					<VSCodeDivider className="mt-6 mb-3 w-full" />
 

@@ -5,11 +5,18 @@ import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerO
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
+interface AnthropicHandlerOptions {
+	apiKey?: string
+	anthropicBaseUrl?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+}
+
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: AnthropicHandlerOptions) {
 		this.options = options
 	}
 
