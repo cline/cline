@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.18.13
+
+### Patch Changes
+
+-   b7ca95e: Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+-   59f42c7: Default the credits balance to dashes on the account page, making it clear that the balance is not zero
+
 ## [3.18.12]
 
 -   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
