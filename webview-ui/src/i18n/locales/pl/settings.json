@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Ścieżka Claude Code",
 			"description": "Opcjonalna ścieżka do Twojego CLI Claude Code. Domyślnie 'claude', jeśli nie ustawiono.",
-			"placeholder": "Domyślnie: claude"
+			"placeholder": "Domyślnie: claude",
+			"maxTokensLabel": "Maksymalna liczba tokenów wyjściowych",
+			"maxTokensDescription": "Maksymalna liczba tokenów wyjściowych dla odpowiedzi Claude Code. Domyślnie 8000."
 		}
 	},
 	"browser": {

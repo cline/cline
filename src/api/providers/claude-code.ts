@@ -1,5 +1,5 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { claudeCodeDefaultModelId, type ClaudeCodeModelId, claudeCodeModels } from "@roo-code/types"
+import { claudeCodeDefaultModelId, type ClaudeCodeModelId, claudeCodeModels, type ModelInfo } from "@roo-code/types"
 import { type ApiHandler } from ".."
 import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
 import { runClaudeCode } from "../../integrations/claude-code/run"
@@ -25,6 +25,7 @@ export class ClaudeCodeHandler extends BaseProvider implements ApiHandler {
 			messages: filteredMessages,
 			path: this.options.claudeCodePath,
 			modelId: this.getModel().id,
+			maxOutputTokens: this.options.claudeCodeMaxOutputTokens,
 		})
 
 		// Usage is included with assistant messages,
@@ -129,12 +130,26 @@ export class ClaudeCodeHandler extends BaseProvider implements ApiHandler {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in claudeCodeModels) {
 			const id = modelId as ClaudeCodeModelId
-			return { id, info: claudeCodeModels[id] }
+			const modelInfo: ModelInfo = { ...claudeCodeModels[id] }
+
+			// Override maxTokens with the configured value if provided
+			if (this.options.claudeCodeMaxOutputTokens !== undefined) {
+				modelInfo.maxTokens = this.options.claudeCodeMaxOutputTokens
+			}
+
+			return { id, info: modelInfo }
+		}
+
+		const defaultModelInfo: ModelInfo = { ...claudeCodeModels[claudeCodeDefaultModelId] }
+
+		// Override maxTokens with the configured value if provided
+		if (this.options.claudeCodeMaxOutputTokens !== undefined) {
+			defaultModelInfo.maxTokens = this.options.claudeCodeMaxOutputTokens
 		}
 
 		return {
 			id: claudeCodeDefaultModelId,
-			info: claudeCodeModels[claudeCodeDefaultModelId],
+			info: defaultModelInfo,
 		}
 	}
 

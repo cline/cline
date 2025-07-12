@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "クロードコードパス",
 			"description": "Claude Code CLIへのオプションパス。設定されていない場合、デフォルトは「claude」です。",
-			"placeholder": "デフォルト：claude"
+			"placeholder": "デフォルト：claude",
+			"maxTokensLabel": "最大出力トークン",
+			"maxTokensDescription": "Claude Codeレスポンスの最大出力トークン数。デフォルトは8000です。"
 		}
 	},
 	"browser": {

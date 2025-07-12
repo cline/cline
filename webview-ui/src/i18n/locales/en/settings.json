@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code Path",
 			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
-			"placeholder": "Default: claude"
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"browser": {

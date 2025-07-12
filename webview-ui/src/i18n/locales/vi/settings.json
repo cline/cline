@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Đường dẫn Claude Code",
 			"description": "Đường dẫn tùy chọn đến Claude Code CLI của bạn. Mặc định là 'claude' nếu không được đặt.",
-			"placeholder": "Mặc định: claude"
+			"placeholder": "Mặc định: claude",
+			"maxTokensLabel": "Số token đầu ra tối đa",
+			"maxTokensDescription": "Số lượng token đầu ra tối đa cho các phản hồi của Claude Code. Mặc định là 8000."
 		}
 	},
 	"browser": {

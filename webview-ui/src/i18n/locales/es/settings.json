@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Ruta de Claude Code",
 			"description": "Ruta opcional a su CLI de Claude Code. Por defecto, es 'claude' si no se establece.",
-			"placeholder": "Por defecto: claude"
+			"placeholder": "Por defecto: claude",
+			"maxTokensLabel": "Tokens máximos de salida",
+			"maxTokensDescription": "Número máximo de tokens de salida para las respuestas de Claude Code. El valor predeterminado es 8000."
 		}
 	},
 	"browser": {

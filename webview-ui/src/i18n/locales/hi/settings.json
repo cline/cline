@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "क्लाउड कोड पथ",
 			"description": "आपके क्लाउड कोड सीएलआई का वैकल्पिक पथ। यदि सेट नहीं है तो डिफ़ॉल्ट 'claude' है।",
-			"placeholder": "डिफ़ॉल्ट: claude"
+			"placeholder": "डिफ़ॉल्ट: claude",
+			"maxTokensLabel": "अधिकतम आउटपुट टोकन",
+			"maxTokensDescription": "Claude Code प्रतिक्रियाओं के लिए आउटपुट टोकन की अधिकतम संख्या। डिफ़ॉल्ट 8000 है।"
 		}
 	},
 	"browser": {

@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Chemin du code Claude",
 			"description": "Chemin facultatif vers votre CLI Claude Code. La valeur par défaut est 'claude' si non défini.",
-			"placeholder": "Défaut : claude"
+			"placeholder": "Défaut : claude",
+			"maxTokensLabel": "Jetons de sortie max",
+			"maxTokensDescription": "Nombre maximum de jetons de sortie pour les réponses de Claude Code. La valeur par défaut est 8000."
 		}
 	},
 	"browser": {

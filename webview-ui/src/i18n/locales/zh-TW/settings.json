@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code 路徑",
 			"description": "可選的 Claude Code CLI 路徑。如果未設定，則預設為 'claude'。",
-			"placeholder": "預設：claude"
+			"placeholder": "預設：claude",
+			"maxTokensLabel": "最大輸出 Token",
+			"maxTokensDescription": "Claude Code 回應的最大輸出 Token 數量。預設為 8000。"
 		}
 	},
 	"browser": {

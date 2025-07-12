@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Caminho do Claude Code",
 			"description": "Caminho opcional para o seu Claude Code CLI. O padrão é 'claude' se não for definido.",
-			"placeholder": "Padrão: claude"
+			"placeholder": "Padrão: claude",
+			"maxTokensLabel": "Tokens de saída máximos",
+			"maxTokensDescription": "Número máximo de tokens de saída para respostas do Claude Code. O padrão é 8000."
 		}
 	},
 	"browser": {

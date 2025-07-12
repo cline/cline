@@ -80,6 +80,7 @@ const anthropicSchema = apiModelIdProviderModelSchema.extend({
 
 const claudeCodeSchema = apiModelIdProviderModelSchema.extend({
 	claudeCodePath: z.string().optional(),
+	claudeCodeMaxOutputTokens: z.number().int().min(1).max(200000).optional(),
 })
 
 const glamaSchema = baseProviderSettingsSchema.extend({

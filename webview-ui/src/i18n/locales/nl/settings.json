@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code Pad",
 			"description": "Optioneel pad naar uw Claude Code CLI. Standaard 'claude' als niet ingesteld.",
-			"placeholder": "Standaard: claude"
+			"placeholder": "Standaard: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximaal aantal output-tokens voor Claude Code-reacties. Standaard is 8000."
 		}
 	},
 	"browser": {

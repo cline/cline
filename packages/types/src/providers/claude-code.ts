@@ -4,6 +4,7 @@ import { anthropicModels } from "./anthropic.js"
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
 export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
+export const CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS = 8000
 export const claudeCodeModels = {
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],

@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "클로드 코드 경로",
 			"description": "Claude Code CLI의 선택적 경로입니다. 설정하지 않으면 'claude'가 기본값입니다.",
-			"placeholder": "기본값: claude"
+			"placeholder": "기본값: claude",
+			"maxTokensLabel": "최대 출력 토큰",
+			"maxTokensDescription": "Claude Code 응답의 최대 출력 토큰 수. 기본값은 8000입니다."
 		}
 	},
 	"browser": {

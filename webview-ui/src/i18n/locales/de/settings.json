@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude-Code-Pfad",
 			"description": "Optionaler Pfad zu Ihrer Claude Code CLI. Standard ist 'claude', wenn nicht festgelegt.",
-			"placeholder": "Standard: claude"
+			"placeholder": "Standard: claude",
+			"maxTokensLabel": "Maximale Ausgabe-Tokens",
+			"maxTokensDescription": "Maximale Anzahl an Ausgabe-Tokens für Claude Code-Antworten. Standard ist 8000."
 		}
 	},
 	"browser": {

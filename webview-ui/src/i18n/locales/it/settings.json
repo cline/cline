@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Percorso Claude Code",
 			"description": "Percorso facoltativo per la tua CLI Claude Code. Predefinito 'claude' se non impostato.",
-			"placeholder": "Predefinito: claude"
+			"placeholder": "Predefinito: claude",
+			"maxTokensLabel": "Token di output massimi",
+			"maxTokensDescription": "Numero massimo di token di output per le risposte di Claude Code. Il valore predefinito è 8000."
 		}
 	},
 	"browser": {

@@ -1,4 +1,9 @@
-import { type ModelInfo, type ProviderSettings, ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
+import {
+	type ModelInfo,
+	type ProviderSettings,
+	ANTHROPIC_DEFAULT_MAX_TOKENS,
+	CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS,
+} from "@roo-code/types"
 
 // ApiHandlerOptions
 
@@ -58,6 +63,12 @@ export const getModelMaxOutputTokens = ({
 	model: ModelInfo
 	settings?: ProviderSettings
 }): number | undefined => {
+	// Check for Claude Code specific max output tokens setting
+	if (settings?.apiProvider === "claude-code") {
+		// Return the configured value or default to CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS
+		return settings.claudeCodeMaxOutputTokens || CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS
+	}
+
 	if (shouldUseReasoningBudget({ model, settings })) {
 		return settings?.modelMaxTokens || DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS
 	}

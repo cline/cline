@@ -373,7 +373,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code Yolu",
 			"description": "Claude Code CLI'nize isteğe bağlı yol. Ayarlanmazsa varsayılan olarak 'claude' kullanılır.",
-			"placeholder": "Varsayılan: claude"
+			"placeholder": "Varsayılan: claude",
+			"maxTokensLabel": "Maksimum Çıktı Token sayısı",
+			"maxTokensDescription": "Claude Code yanıtları için maksimum çıktı token sayısı. Varsayılan 8000'dir."
 		}
 	},
 	"browser": {
