@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
@@ -36,6 +36,7 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
+import { useClineAuth } from "@/context/ClineAuthContext"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -184,6 +185,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
+		const { handleSignIn } = useClineAuth()
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -1004,6 +1006,17 @@ export const ChatRowContent = memo(
 																troubleshooting guide
 															</a>
 															.
+														</>
+													)}
+													{apiRequestFailedMessage?.includes(
+														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
+													) && (
+														<>
+															<br />
+															<br />
+															<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
+																Sign in to Cline
+															</VSCodeButton>
 														</>
 													)}
 												</p>
