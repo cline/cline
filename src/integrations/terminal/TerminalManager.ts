@@ -303,7 +303,7 @@ export class TerminalManager {
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
-		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
+		const newTerminalInfo = await TerminalRegistry.createTerminal(cwd, expectedShellPath)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
 	}

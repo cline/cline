@@ -75,6 +75,28 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
 	}
 }
 
+/**
+ * Writes content to a file, creating directories if they don't exist.
+ * @param filePath - The full path to the file.
+ * @param content - The content to write to the file.
+ * @returns A promise that resolves when the file has been written.
+ */
+export async function writeFile(filePath: string, content: string): Promise<void> {
+	try {
+		const normalizedFilePath = path.normalize(filePath)
+		const directoryPath = path.dirname(normalizedFilePath)
+
+		// Create directories if they don't exist
+		if (!(await fileExistsAtPath(directoryPath))) {
+			await fs.mkdir(directoryPath, { recursive: true })
+		}
+
+		await fs.writeFile(normalizedFilePath, content, "utf8")
+	} catch (error) {
+		throw new Error(`Error writing file at ${filePath}: ${error}`)
+	}
+}
+
 // Common OS-generated files that would appear in an otherwise clean directory
 const OS_GENERATED_FILES = [
 	".DS_Store", // macOS Finder

@@ -1,13 +1,14 @@
 import * as Sentry from "@sentry/browser"
 import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { ConfigurationService } from "@/services/configuration/ConfigurationService"
 import * as pkg from "../../../package.json"
 
-let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+let telemetryLevel = ConfigurationService.getConfigValue("telemetry", "telemetryLevel", "all")
 let isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 
 vscode.workspace.onDidChangeConfiguration(() => {
-	telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+	telemetryLevel = ConfigurationService.getConfigValue("telemetry", "telemetryLevel", "all")
 	isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 	ErrorService.toggleEnabled(isTelemetryEnabled)
 	if (isTelemetryEnabled) {

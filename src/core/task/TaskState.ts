@@ -42,6 +42,9 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
+	// File content caching to avoid race conditions
+	originalFileContent?: string
+
 	// Consecutive request tracking
 	consecutiveAutoApprovedRequestsCount: number = 0
 

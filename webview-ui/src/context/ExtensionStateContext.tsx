@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { useEvent } from "react-use"
 import {
 	StateServiceClient,
 	ModelsServiceClient,
@@ -7,6 +6,7 @@ import {
 	FileServiceClient,
 	McpServiceClient,
 } from "../services/grpc-client"
+
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { UpdateSettingsRequest } from "@shared/proto/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
@@ -54,8 +54,10 @@ interface ExtensionStateContextType extends ExtensionState {
 	showAnnouncement: boolean
 
 	// Setters
+	setState: React.Dispatch<React.SetStateAction<ExtensionState>>
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
+	setShowWelcome: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
@@ -95,6 +97,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
+	navigateToWelcome: () => void
 
 	// Hide functions
 	hideSettings: () => void
@@ -115,6 +118,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Get the current webview provider type
 	const currentProviderType =
 		window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
@@ -122,6 +126,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [showWelcome, setShowWelcome] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -150,9 +155,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	)
 
 	const navigateToSettings = useCallback(() => {
+		console.log("[ExtensionStateContext] navigateToSettings called")
 		setShowHistory(false)
 		closeMcpView()
 		setShowAccount(false)
+		console.log("[ExtensionStateContext] setting showSettings to true")
 		setShowSettings(true)
 	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
 
@@ -177,6 +184,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAccount(false)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
 
+	const navigateToWelcome = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWelcome(true)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWelcome])
+
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
 		clineMessages: [],
@@ -198,6 +213,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
+		apiConfiguration: { apiProvider: "gemini" },
 		terminalReuseEnabled: true,
 		terminalOutputLineLimit: 500,
 		defaultTerminalProfile: "default",
@@ -206,7 +222,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
-	const [showWelcome, setShowWelcome] = useState(false)
+
+	useEffect(() => {
+		setShowWelcome(!state.welcomeViewCompleted)
+	}, [state.welcomeViewCompleted])
+
 	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
@@ -264,7 +284,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
+
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -278,20 +298,41 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
+							// Debug telemetry setting changes
+							if (prevState.telemetrySetting !== newState.telemetrySetting) {
+								console.log("[TELEMETRY-DEBUG] State update - telemetry changed:", {
+									previous: prevState.telemetrySetting,
+									new: newState.telemetrySetting,
+								})
+							}
+
 							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
 							setDidHydrateState(true)
 
-							console.log("[DEBUG] returning new state in ESC")
+							if (!stateData.welcomeViewCompleted) {
+								stateData.clineMessages = []
+							}
 
-							return newState
+							// console.log("[DEBUG] returning new state in ESC") // Disabled to reduce console noise
+
+							// Debug chatSettings changes
+							// if (prevState.chatSettings?.mode !== stateData.chatSettings?.mode) {
+							// 	console.log('[STATE-DEBUG] ChatSettings mode changed:', {
+							// 		previous: prevState.chatSettings?.mode,
+							// 		new: stateData.chatSettings?.mode
+							// 	})
+							// }
+
+							return stateData
 						})
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
+						// console.log("[DEBUG] ERR getting state", error) // Disabled to reduce console noise
 					}
+				} else {
+					// No state JSON received in response
 				}
-				console.log('[DEBUG] ended "got subscribed state"')
+				// console.log('[DEBUG] ended "got subscribed state"') // Disabled to reduce console noise
 			},
 			onError: (error) => {
 				console.error("Error in state subscription:", error)
@@ -416,10 +457,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage) => {
 				try {
-					// Validate critical fields
-					if (!protoMessage.ts || protoMessage.ts <= 0) {
+					// Validate critical fields including NaN check
+					if (!protoMessage.ts || protoMessage.ts <= 0 || isNaN(protoMessage.ts)) {
 						console.error("Invalid timestamp in partial message:", protoMessage)
-						return
+						// Fix invalid timestamp with current time to prevent UI crashes
+						protoMessage.ts = Date.now()
+						console.log("Fixed timestamp to:", protoMessage.ts)
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
@@ -499,6 +542,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Initialize webview using gRPC
+
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
 			.then(() => {
 				console.log("[DEBUG] Webview initialization completed via gRPC")
@@ -671,6 +715,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToHistory,
 		navigateToAccount,
 		navigateToChat,
+		navigateToWelcome,
 
 		// Hide functions
 		hideSettings,
@@ -713,6 +758,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpResponsesCollapsed: value,
 			}))
 		},
+		setShowWelcome,
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
@@ -817,6 +863,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				browserSettings: value,
 			})),
+		setState,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

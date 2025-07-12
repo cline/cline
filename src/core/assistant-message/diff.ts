@@ -16,6 +16,11 @@ const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
 const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>?$/
 const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
 
+// Debug logging function - always active for troubleshooting
+function debugLog(message: string, ...args: any[]) {
+	console.log(`[DIFF-DEBUG] ${message}`, ...args)
+}
+
 // Helper functions to check if a line matches the flexible patterns
 function isSearchBlockStart(line: string): boolean {
 	return SEARCH_BLOCK_START_REGEX.test(line) || LEGACY_SEARCH_BLOCK_START_REGEX.test(line)
@@ -47,6 +52,11 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 		searchLines.pop()
 	}
 
+	debugLog(
+		"Line-trimmed fallback match:",
+		`searchLines: ${searchLines.length}, originalLines: ${originalLines.length}, startIndex: ${startIndex}`,
+	)
+
 	// Find the line number where startIndex falls
 	let startLineNum = 0
 	let currentIndex = 0
@@ -72,6 +82,7 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 
 		// If we found a match, calculate the exact character positions
 		if (matches) {
+			debugLog("✅ Line-trimmed match found at line:", i)
 			// Find start character index
 			let matchStartIndex = 0
 			for (let k = 0; k < i; k++) {
@@ -124,8 +135,14 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 
 	// Only use this approach for blocks of 3+ lines
 	if (searchLines.length < 3) {
+		debugLog("❌ Block anchor match skipped - need at least 3 lines, got:", searchLines.length)
 		return false
 	}
+
+	debugLog(
+		"Block anchor fallback match:",
+		`searchLines: ${searchLines.length}, originalLines: ${originalLines.length}, startIndex: ${startIndex}`,
+	)
 
 	// Trim trailing empty line if exists
 	if (searchLines[searchLines.length - 1] === "") {
@@ -157,6 +174,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 		}
 
 		// Calculate exact character positions
+		debugLog("✅ Block anchor match found at line:", i)
 		let matchStartIndex = 0
 		for (let k = 0; k < i; k++) {
 			matchStartIndex += originalLines[k].length + 1
@@ -289,6 +307,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 
 	for (const line of lines) {
 		if (isSearchBlockStart(line)) {
+			debugLog("🔍 Starting new SEARCH block")
 			inSearch = true
 			currentSearchContent = ""
 			currentReplaceContent = ""
@@ -296,6 +315,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		}
 
 		if (isSearchBlockEnd(line)) {
+			debugLog("🔄 SEARCH block ended, starting REPLACE block")
 			inSearch = false
 			inReplace = true
 
@@ -331,34 +351,90 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				// }
 
 				// Exact search match scenario
+				debugLog("Attempting exact match for search content:", {
+					searchLength: currentSearchContent.length,
+					lastProcessedIndex,
+					originalContentLength: originalContent.length,
+				})
+
 				const exactIndex = originalContent.indexOf(currentSearchContent, lastProcessedIndex)
 				if (exactIndex !== -1) {
+					debugLog("✅ Exact match found at index:", exactIndex)
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
 				} else {
+					debugLog("❌ Exact match failed, trying fallback methods")
 					// Attempt fallback line-trimmed matching
+					debugLog("Attempting line-trimmed fallback match")
 					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 					if (lineMatch) {
+						debugLog("✅ Line-trimmed match found:", lineMatch)
 						;[searchMatchIndex, searchEndIndex] = lineMatch
 					} else {
+						debugLog("❌ Line-trimmed match failed")
 						// Try block anchor fallback for larger blocks
+						debugLog("Attempting block anchor fallback match")
 						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
+							debugLog("✅ Block anchor match found:", blockMatch)
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {
+							debugLog("❌ Block anchor match failed")
 							// Last resort: search the entire file from the beginning
+							debugLog("Attempting full file search (last resort)")
 							const fullFileIndex = originalContent.indexOf(currentSearchContent, 0)
 							if (fullFileIndex !== -1) {
 								// Found in the file - could be out of order
+								debugLog("✅ Full file search found match at index:", fullFileIndex)
 								searchMatchIndex = fullFileIndex
 								searchEndIndex = fullFileIndex + currentSearchContent.length
 								if (searchMatchIndex < lastProcessedIndex) {
+									debugLog("⚠️  Out-of-order replacement detected")
 									pendingOutOfOrderReplacement = true
 								}
 							} else {
-								throw new Error(
-									`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
-								)
+								debugLog("❌ Full file search failed - no match found anywhere")
+								// Enhanced error with debugging information
+								const searchLines = currentSearchContent.split("\n").filter((line) => line.trim())
+								const originalLines = originalContent.split("\n")
+								const contextLines = Math.min(5, originalLines.length)
+
+								debugLog("SEARCH MISMATCH DETAILS:", {
+									searchContent: currentSearchContent,
+									searchLines,
+									lastProcessedIndex,
+									originalContentLength: originalContent.length,
+									contextStart: originalContent.slice(
+										Math.max(0, lastProcessedIndex - 200),
+										lastProcessedIndex + 200,
+									),
+								})
+
+								let errorMessage = `The SEARCH block does not match anything in the file.\n\n`
+								errorMessage += `SEARCH block content (${searchLines.length} lines):\n`
+								errorMessage += `${currentSearchContent.trimEnd()}\n\n`
+
+								if (originalContent.length > 0) {
+									errorMessage += `File context around position ${lastProcessedIndex}:\n`
+									const contextStart = Math.max(0, lastProcessedIndex - 300)
+									const contextEnd = Math.min(originalContent.length, lastProcessedIndex + 300)
+									errorMessage += `${originalContent.slice(contextStart, contextEnd)}\n\n`
+									errorMessage += `Attempted matching strategies:\n`
+									errorMessage += `- Exact match: Failed\n`
+									errorMessage += `- Line-trimmed match: Failed\n`
+									errorMessage += `- Block anchor match: Failed\n`
+									errorMessage += `- Full file search: Failed\n\n`
+									errorMessage += `Suggestions:\n`
+									errorMessage += `- Ensure the SEARCH content exactly matches the file content\n`
+									errorMessage += `- Check for whitespace differences\n`
+									errorMessage += `- Verify the file hasn't been modified since the search was created\n`
+									errorMessage += `- Try using smaller, more specific search blocks\n`
+								} else {
+									errorMessage += `The file appears to be empty, but a non-empty SEARCH block was provided.\n`
+									errorMessage += `For new files, use an empty SEARCH block.\n`
+								}
+
+								throw new Error(errorMessage)
 							}
 						}
 					}
@@ -378,10 +454,21 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		}
 
 		if (isReplaceBlockEnd(line)) {
+			debugLog("✅ REPLACE block completed")
 			// Finished one replace block
 
 			if (searchMatchIndex === -1) {
-				throw new Error(`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...is malformatted.`)
+				debugLog("❌ ERROR: SEARCH block was malformatted or no match found")
+				throw new Error(
+					`The SEARCH block is malformatted or no match was found:\n\n` +
+						`SEARCH content:\n${currentSearchContent.trimEnd()}\n\n` +
+						`This usually means:\n` +
+						`- The search content doesn't exist in the file\n` +
+						`- There are whitespace or formatting differences\n` +
+						`- The file has been modified since the search was created\n` +
+						`- The SEARCH markers are incorrectly formatted\n\n` +
+						`Enable debug logging with CLINE_DIFF_DEBUG=true for more details.`,
+				)
 			}
 
 			// Store this replacement

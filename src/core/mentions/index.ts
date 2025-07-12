@@ -12,6 +12,72 @@ import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { getCwd } from "@/utils/path"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { exec } from "child_process"
+import { promisify } from "util"
+import { showErrorMessage } from "@utils/dialog"
+import { executeCommand } from "@utils/commands"
+
+const execAsync = promisify(exec)
+
+/**
+ * Opens a file or folder in the system file manager (Finder on macOS)
+ */
+async function revealInExplorer(absolutePath: string): Promise<void> {
+	try {
+		const platform = process.platform
+		if (platform === "darwin") {
+			// macOS - use 'open' command with -R flag to reveal in Finder
+			await execAsync(`open -R "${absolutePath}"`)
+		} else if (platform === "win32") {
+			// Windows - use explorer
+			await execAsync(`explorer /select,"${absolutePath}"`)
+		} else {
+			// Linux - use xdg-open (most common)
+			await execAsync(`xdg-open "${path.dirname(absolutePath)}"`)
+		}
+	} catch (error) {
+		console.error("Error revealing file in explorer:", error)
+		// Fallback to VSCode command
+		await executeCommand("revealInExplorer", vscode.Uri.file(absolutePath))
+	}
+}
+
+/**
+ * Focuses the terminal using the host bridge or VSCode command as fallback
+ */
+async function focusTerminal(): Promise<void> {
+	try {
+		// Try to get active terminal via host bridge
+		const bridgeProvider = getHostBridgeProvider()
+		if (bridgeProvider && bridgeProvider.terminalClient) {
+			// Get the active terminal to potentially show it
+			const activeTerminal = await bridgeProvider.terminalClient.getActiveTerminal({})
+			if (activeTerminal && activeTerminal.id) {
+				// If there's an active terminal, we can assume it's focused
+				// The actual focus operation needs to be handled by the host
+				console.log("Active terminal found:", activeTerminal.name)
+				// For now, fall back to VSCode command for actual focus
+			}
+		}
+	} catch (error) {
+		console.error("Error getting active terminal via host bridge:", error)
+	}
+
+	// Use VSCode command for terminal focus
+	await executeCommand("workbench.action.terminal.focus")
+}
+
+/**
+ * Opens the problems view using VSCode command
+ */
+async function openProblemsView(): Promise<void> {
+	try {
+		await executeCommand("workbench.actions.view.problems")
+	} catch (error) {
+		console.error("Error opening problems view:", error)
+	}
+}
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -27,15 +93,20 @@ export async function openMention(mention?: string): Promise<void> {
 		const relPath = mention.slice(1)
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
+			// Use native file explorer reveal
+			await revealInExplorer(absPath)
 		} else {
+			// Use existing openFile implementation (already uses host bridge)
 			openFile(absPath)
 		}
 	} else if (mention === "problems") {
-		vscode.commands.executeCommand("workbench.actions.view.problems")
+		// Use native problems view opener
+		await openProblemsView()
 	} else if (mention === "terminal") {
-		vscode.commands.executeCommand("workbench.action.terminal.focus")
+		// Use native terminal focus with host bridge fallback
+		await focusTerminal()
 	} else if (mention.startsWith("http")) {
+		// Keep using vscode.env.openExternal as it's already the preferred method
 		vscode.env.openExternal(vscode.Uri.parse(mention))
 	}
 }
@@ -75,7 +146,7 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
+			await showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
 		}
 	}
 
@@ -92,7 +163,7 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
+					await showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
 					result = `Error fetching content: ${error.message}`
 				}
 			}
@@ -216,14 +287,25 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 function getWorkspaceProblems(cwd: string): string {
-	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(
-		diagnostics,
-		[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
-		cwd,
-	)
-	if (!result) {
-		return "No errors or warnings detected."
+	try {
+		// Try to get diagnostics from VSCode API if available
+		if (typeof vscode !== "undefined" && vscode.languages && vscode.languages.getDiagnostics) {
+			const diagnostics = vscode.languages.getDiagnostics()
+			const result = diagnosticsToProblemsString(
+				diagnostics,
+				[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
+				cwd,
+			)
+			if (!result) {
+				return "No errors or warnings detected."
+			}
+			return result
+		} else {
+			// Fallback for standalone mode - return a helpful message
+			return "Problems detection is not available in standalone mode. Try using a language server or linter for error detection."
+		}
+	} catch (error) {
+		console.error("Error getting workspace problems:", error)
+		return "Error occurred while trying to detect workspace problems."
 	}
-	return result
 }

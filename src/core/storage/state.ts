@@ -36,16 +36,30 @@ export async function updateGlobalStateBatch(context: vscode.ExtensionContext, u
 
 export async function updateSecretsBatch(context: vscode.ExtensionContext, updates: Record<string, string | undefined>) {
 	// Use Promise.all to batch the secret updates
-	await Promise.all(Object.entries(updates).map(([key, value]) => storeSecret(context, key as SecretKey, value)))
+	try {
+		await Promise.all(
+			Object.entries(updates).map(([key, value]) => {
+				return storeSecret(context, key as SecretKey, value)
+			}),
+		)
+	} catch (error) {
+		console.error("❌ [SECRETS] Error in secret batch update:", error)
+		throw error
+	}
 }
 
 // secrets
 
 export async function storeSecret(context: vscode.ExtensionContext, key: SecretKey, value?: string) {
-	if (value) {
-		await context.secrets.store(key, value)
-	} else {
-		await context.secrets.delete(key)
+	try {
+		if (value) {
+			await context.secrets.store(key, value)
+		} else {
+			await context.secrets.delete(key)
+		}
+	} catch (error) {
+		console.error(`❌ [SECRET] Error storing/deleting ${key}:`, error)
+		throw error
 	}
 }
 
@@ -593,7 +607,15 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	}
 
 	// Execute batched operations in parallel for maximum performance
-	await Promise.all([updateGlobalStateBatch(context, batchedGlobalUpdates), updateSecretsBatch(context, batchedSecretUpdates)])
+	try {
+		await Promise.all([
+			updateGlobalStateBatch(context, batchedGlobalUpdates),
+			updateSecretsBatch(context, batchedSecretUpdates),
+		])
+	} catch (error) {
+		console.error("❌ [STORAGE] Error in batched operations:", error)
+		throw error
+	}
 }
 
 export async function resetWorkspaceState(context: vscode.ExtensionContext) {

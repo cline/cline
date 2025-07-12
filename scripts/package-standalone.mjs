@@ -10,6 +10,16 @@ const SOURCE_DIR = "standalone/runtime-files"
 
 await cp(SOURCE_DIR, BUILD_DIR, { recursive: true })
 
+// Copy theme.json from src/standalone to dist-standalone
+const themeSourcePath = path.join("src", "standalone", "theme.json")
+const themeDestPath = path.join(BUILD_DIR, "theme.json")
+if (fs.existsSync(themeSourcePath)) {
+	await cp(themeSourcePath, themeDestPath)
+	console.log("Copied theme.json to build directory")
+} else {
+	console.warn("Warning: theme.json not found at", themeSourcePath)
+}
+
 // Run npm install in the distribution directory
 console.log("Running npm install in distribution directory...")
 const cwd = process.cwd()
@@ -33,51 +43,58 @@ if (nativeModules.length > 0) {
 	process.exit(1)
 }
 
-// Zip the build directory (excluding any pre-existing output zip).
-const zipPath = path.join(BUILD_DIR, "standalone.zip")
-const output = fs.createWriteStream(zipPath)
-const archive = archiver("zip", { zlib: { level: 3 } })
+// Skip zipping in development mode if --dev flag is passed
+const isDev = process.argv.includes("--dev")
 
-output.on("close", () => {
-	console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
-})
-archive.on("warning", (err) => {
-	console.warn(`Warning: ${err}`)
-})
-archive.on("error", (err) => {
-	throw err
-})
+if (!isDev) {
+	// Zip the build directory (excluding any pre-existing output zip).
+	const zipPath = path.join(BUILD_DIR, "standalone.zip")
+	const output = fs.createWriteStream(zipPath)
+	const archive = archiver("zip", { zlib: { level: 3 } })
 
-archive.pipe(output)
-archive.glob("**/*", {
-	cwd: BUILD_DIR,
-	ignore: ["standalone.zip"],
-})
+	output.on("close", () => {
+		console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
+	})
+	archive.on("warning", (err) => {
+		console.warn(`Warning: ${err}`)
+	})
+	archive.on("error", (err) => {
+		throw err
+	})
 
-// Add the whole cline directory under "extension"
-archive.directory(process.cwd(), "extension", (entry) => {
-	// Skip certain directories.
-	const exclude = [
-		BUILD_DIR + "/",
-		"node_modules/", // node_modules nearly 1GB.
-		"webview-ui/node_modules/", // node_modules nearly 1GB.
-	]
-	// These node modules are used at runtime as assets, they need to be included.
-	const include = ["node_modules/@vscode/", "webview-ui/node_modules/katex"]
-	const name = entry.name
+	archive.pipe(output)
+	archive.glob("**/*", {
+		cwd: BUILD_DIR,
+		ignore: ["standalone.zip"],
+	})
 
-	if (include.some((prefix) => name.startsWith(prefix))) {
+	// Add the whole cline directory under "extension"
+	archive.directory(process.cwd(), "extension", (entry) => {
+		// Skip certain directories.
+		const exclude = [
+			BUILD_DIR + "/",
+			"node_modules/", // node_modules nearly 1GB.
+			"webview-ui/node_modules/", // node_modules nearly 1GB.
+		]
+		// These node modules are used at runtime as assets, they need to be included.
+		const include = ["node_modules/@vscode/", "webview-ui/node_modules/katex"]
+		const name = entry.name
+
+		if (include.some((prefix) => name.startsWith(prefix))) {
+			return entry
+		}
+		if (exclude.some((prefix) => name.startsWith(prefix))) {
+			return false
+		}
+		if (name.match(/(^|\/)\./)) {
+			// exclude dot directories
+			return false
+		}
 		return entry
-	}
-	if (exclude.some((prefix) => name.startsWith(prefix))) {
-		return false
-	}
-	if (name.match(/(^|\/)\./)) {
-		// exclude dot directories
-		return false
-	}
-	return entry
-})
+	})
 
-console.log("Zipping package...")
-await archive.finalize()
+	console.log("Zipping package...")
+	await archive.finalize()
+} else {
+	console.log("Development mode: Skipping zip creation for faster builds")
+}

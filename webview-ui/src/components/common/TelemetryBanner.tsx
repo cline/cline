@@ -49,7 +49,6 @@ const TelemetryBanner = () => {
 	const { navigateToSettings } = useExtensionState()
 
 	const handleOpenSettings = () => {
-		handleClose()
 		navigateToSettings()
 	}
 

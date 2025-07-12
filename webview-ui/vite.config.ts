@@ -37,6 +37,7 @@ export default defineConfig({
 			reportOnFailure: true,
 		},
 	},
+	base: "./", // Use relative paths for file:// protocol in Electron
 	build: {
 		outDir: "build",
 		reportCompressedSize: false,

@@ -8,6 +8,7 @@ import * as path from "path"
 import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { showWarningMessage, showInformationMessage } from "@utils/dialog"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -42,7 +43,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	if (fileExists) {
-		vscode.window.showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
+		await showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
 		// Still open it for editing
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 	} else {
@@ -55,7 +56,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
-		vscode.window.showInformationMessage(
+		await showInformationMessage(
 			`Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`,
 		)
 	}

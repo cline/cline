@@ -2,6 +2,7 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { getActiveTextEditor } from "@/utils/editor"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -115,7 +116,8 @@ export function getDesktopDir() {
 // Returns the workspace path of the file in the current editor.
 // If there is no open file, it returns the top level workspace directory.
 export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
-	const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath
+	const editorInfo = await getActiveTextEditor()
+	const currentFilePath = editorInfo?.documentPath
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}

@@ -229,14 +229,41 @@ class StandaloneTerminal {
 		this._processId = null
 
 		// Mock shell integration for compatibility
+		const terminal = this
 		this.shellIntegration = {
 			cwd: { fsPath: this._cwd },
 			executeCommand: (command) => {
-				// Return a mock execution object that the TerminalProcess expects
+				// Create a real StandaloneTerminalProcess to execute the command
+				const process = new StandaloneTerminalProcess()
+
+				// Return an execution object that uses the real process
 				return {
 					read: async function* () {
-						// This will be handled by our StandaloneTerminalProcess
-						yield ""
+						// Start the command execution
+						process.run(terminal, command)
+
+						// Create a promise that resolves when the command completes
+						let outputBuffer = ""
+						let isCompleted = false
+
+						// Listen for output from the real process
+						process.on("line", (line) => {
+							outputBuffer += line + "\n"
+						})
+
+						process.on("completed", () => {
+							isCompleted = true
+						})
+
+						// Wait for completion and yield the output
+						await new Promise((resolve) => {
+							process.on("continue", resolve)
+						})
+
+						// Yield the accumulated output
+						if (outputBuffer) {
+							yield outputBuffer
+						}
 					},
 				}
 			},

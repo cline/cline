@@ -90,11 +90,9 @@ const openUrl = (url) => {
 				break
 			default:
 				console.log("\nPlease open this URL in your browser:")
-				console.log(url)
 		}
 	} catch (err) {
 		console.log("\nFailed to open URL automatically. Please open this URL in your browser:")
-		console.log(url)
 	}
 }
 

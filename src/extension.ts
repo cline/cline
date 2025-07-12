@@ -36,6 +36,22 @@ import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
+import {
+	getActiveTextEditor,
+	getActiveTextEditorVSCode,
+	getVisibleTextEditors,
+	getVisibleTextEditorsVSCode,
+} from "@/utils/editor"
+import { showErrorMessage, showInformationMessage } from "@/utils/dialog"
+import {
+	executeCommand,
+	setContext,
+	focusSidebar,
+	newGroupRight,
+	lockEditorGroup,
+	openWalkthrough,
+	reloadWindow,
+} from "@/utils/commands"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -78,7 +94,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
 	const previousVersion = context.globalState.get<string>("clineVersion")
+	console.log("[DEBUG] Creating sidebar webview provider")
 	const sidebarWebview = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
+	console.log("[DEBUG] Sidebar webview provider created:", !!sidebarWebview)
 
 	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
@@ -86,11 +104,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
-			webviewOptions: { retainContextWhenHidden: true },
-		}),
-	)
+	console.log("[DEBUG] Registering webview provider with sideBarId:", WebviewProvider.sideBarId)
+	const webviewRegistration = vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
+		webviewOptions: { retainContextWhenHidden: true },
+	})
+	console.log("[DEBUG] Webview provider registered:", !!webviewRegistration)
+	context.subscriptions.push(webviewRegistration)
 
 	// Perform post-update actions if necessary
 	try {
@@ -183,13 +202,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabWebview = hostProviders.createWebviewProvider(WebviewProviderType.TAB)
-		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+		// Get the active text editor info from host bridge
+		const editorInfo = await getActiveTextEditor()
+		const visibleEditors = await getVisibleTextEditors()
+		const lastCol = Math.max(...visibleEditors.map((editor) => editor.viewColumn || 0))
 
 		// Check if there are any visible text editors, otherwise open a new group to the right
-		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
+		const hasVisibleEditors = visibleEditors.length > 0
 		if (!hasVisibleEditors) {
-			await vscode.commands.executeCommand("workbench.action.newGroupRight")
+			await newGroupRight()
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
@@ -208,7 +229,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// Lock the editor group so clicking on files doesn't open them over the panel
 		await setTimeoutPromise(100)
-		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+		await lockEditorGroup()
 	}
 
 	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
@@ -305,7 +326,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Validate state parameter
 				if (!(await visibleWebview?.controller.validateAuthState(state))) {
-					vscode.window.showErrorMessage("Invalid auth state")
+					await showErrorMessage("Invalid auth state")
 					return
 				}
 
@@ -336,9 +357,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editorInfo = await getActiveTextEditor()
+			if (!editorInfo || !editorInfo.isActive || !editorInfo.documentPath) {
+				return
+			}
+
+			// Fallback to VSCode editor for range operations
+			const editor = getActiveTextEditorVSCode()
 			if (!editor) {
 				return
 			}
@@ -353,8 +380,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			// Get the file path and language ID
-			const filePath = editor.document.uri.fsPath
-			const languageId = editor.document.languageId
+			const filePath = editorInfo.documentPath
+			const languageId = editorInfo.languageId || editor.document.languageId
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.addSelectedCodeToChat(
@@ -369,6 +396,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addTerminalOutputToChat", async () => {
+			// Try to get active terminal via host bridge first
+			try {
+				const bridgeProvider = hostProviders.getHostBridgeProvider()
+				if (bridgeProvider && bridgeProvider.terminalClient) {
+					const activeTerminal = await bridgeProvider.terminalClient.getActiveTerminal({})
+					if (activeTerminal && activeTerminal.id) {
+						// For now, get the VSCode terminal and use existing clipboard method
+						// TODO: Implement getTerminalContents in host bridge
+						console.log(`Using host bridge active terminal: ${activeTerminal.name} (ID: ${activeTerminal.id})`)
+					}
+				}
+			} catch (error) {
+				console.error("Error getting active terminal via host bridge:", error)
+			}
+
+			// Fallback to VSCode terminal
 			const terminal = vscode.window.activeTerminal
 			if (!terminal) {
 				return
@@ -379,7 +422,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			try {
 				// Copy the *existing* terminal selection (without selecting all)
-				await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+				await executeCommand("workbench.action.terminal.copySelection")
 
 				// Get copied content
 				let terminalContents = (await readTextFromClipboard()).trim()
@@ -392,20 +435,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					return
 				}
 
-				// [Optional] Any additional logic to process multi-line content can remain here
-				// For example:
-				/*
-				const lines = terminalContents.split("\n")
-				const lastLine = lines.pop()?.trim()
-				if (lastLine) {
-					let i = lines.length - 1
-					while (i >= 0 && !lines[i].trim().startsWith(lastLine)) {
-						i--
-					}
-					terminalContents = lines.slice(Math.max(i, 0)).join("\n")
-				}
-				*/
-
 				// Send to sidebar provider
 				const visibleWebview = WebviewProvider.getVisibleInstance()
 				await visibleWebview?.controller.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
@@ -413,7 +442,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				vscode.window.showErrorMessage("Failed to get terminal contents")
+				await showErrorMessage("Failed to get terminal contents")
 			}
 		}),
 	)
@@ -435,7 +464,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					context: vscode.CodeActionContext,
 				): vscode.CodeAction[] {
 					const actions: vscode.CodeAction[] = []
-					const editor = vscode.window.activeTextEditor // Get active editor for selection check
+					const editor = getActiveTextEditorVSCode() // Get active editor for selection check
 
 					// Expand range to include surrounding 3 lines or use selection if broader
 					const selection = editor?.selection
@@ -520,17 +549,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
 			// Add this line to focus the chat input first
-			await vscode.commands.executeCommand("cline.focusChatInput")
+			await executeCommand("cline.focusChatInput")
 			// Wait for a webview instance to become visible after focusing
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editorInfo = await getActiveTextEditor()
+			if (!editorInfo || !editorInfo.isActive || !editorInfo.documentPath) {
+				return
+			}
+
+			// Fallback to VSCode editor for range operations
+			const editor = getActiveTextEditorVSCode()
 			if (!editor) {
 				return
 			}
 
 			const selectedText = editor.document.getText(range)
-			const filePath = editor.document.uri.fsPath
-			const languageId = editor.document.languageId
+			const filePath = editorInfo.documentPath
+			const languageId = editorInfo.languageId || editor.document.languageId
 
 			// Send to sidebar provider with diagnostics
 			const visibleWebview = WebviewProvider.getVisibleInstance()
@@ -541,21 +576,29 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.explainCode", async (range: vscode.Range) => {
-			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editorInfo = await getActiveTextEditor()
+			if (!editorInfo || !editorInfo.isActive || !editorInfo.documentPath) {
+				return
+			}
+
+			// Fallback to VSCode editor for range operations
+			const editor = getActiveTextEditorVSCode()
 			if (!editor) {
 				return
 			}
+
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to explain.")
+				await showInformationMessage("Please select some code to explain.")
 				return
 			}
-			const filePath = editor.document.uri.fsPath
+			const filePath = editorInfo.documentPath
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
-			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
+			const languageId = editorInfo.languageId || editor.document.languageId
+			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
 			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId, true)
 		}),
@@ -563,21 +606,29 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.improveCode", async (range: vscode.Range) => {
-			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editorInfo = await getActiveTextEditor()
+			if (!editorInfo || !editorInfo.isActive || !editorInfo.documentPath) {
+				return
+			}
+
+			// Fallback to VSCode editor for range operations
+			const editor = getActiveTextEditorVSCode()
 			if (!editor) {
 				return
 			}
+
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				vscode.window.showInformationMessage("Please select some code to improve.")
+				await showInformationMessage("Please select some code to improve.")
 				return
 			}
-			const filePath = editor.document.uri.fsPath
+			const filePath = editorInfo.documentPath
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
-			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
+			const languageId = editorInfo.languageId || editor.document.languageId
+			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
 			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId, true)
 		}),
@@ -614,7 +665,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				if (!activeWebviewProvider) {
 					// No existing Cline view found at all, open a new tab
-					await vscode.commands.executeCommand("cline.openInNewTab")
+					await executeCommand("cline.openInNewTab")
 					// After openInNewTab, a new webview is created. We need to get this new instance.
 					// It might take a moment for it to register.
 					await pWaitFor(
@@ -636,9 +687,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				vscode.window.showErrorMessage(
-					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
-				)
+				await showErrorMessage("Could not activate Cline view. Please try opening it manually from the Activity Bar.")
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
 		}),
@@ -647,7 +696,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
-			await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
+			await openWalkthrough("saoudrizwan.claude-dev#ClineWalkthrough")
 			telemetryService.captureButtonClick("command_openWalkthrough", undefined, true)
 		}),
 	)
@@ -676,12 +725,16 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 function maybeSetupHostProviders(context: ExtensionContext) {
+	console.log("[DEBUG] maybeSetupHostProviders called, isSetup:", hostProviders.isSetup)
 	if (!hostProviders.isSetup) {
 		console.log("Setting up vscode host providers...")
 		const createWebview = function (type: WebviewProviderType) {
 			return new VscodeWebviewProvider(context, outputChannel, type)
 		}
 		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient)
+		console.log("[DEBUG] Host providers initialized, isSetup:", hostProviders.isSetup)
+	} else {
+		console.log("[DEBUG] Host providers already setup, skipping")
 	}
 }
 
@@ -716,6 +769,6 @@ if (IS_DEV && IS_DEV !== "false") {
 	watcher.onDidChange(({ scheme, path }) => {
 		console.info(`${scheme} ${path} changed. Reloading VSCode...`)
 
-		vscode.commands.executeCommand("workbench.action.reloadWindow")
+		reloadWindow()
 	})
 }

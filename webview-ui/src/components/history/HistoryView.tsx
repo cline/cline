@@ -165,11 +165,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
-	}, [])
+	const handleShowTaskWithId = useCallback(
+		(id: string) => {
+			TaskServiceClient.showTaskWithId(StringRequest.create({ value: id }))
+				.then(() => {
+					// Successfully loaded the task, navigate back to chat view
+					onDone()
+				})
+				.catch((error) => {
+					console.error("Error showing task:", error)
+				})
+		},
+		[onDone],
+	)
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
 		setSelectedItems((prev) => {

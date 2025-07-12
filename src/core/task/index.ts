@@ -14,6 +14,7 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { ConfigurationService } from "@services/configuration/ConfigurationService"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -62,6 +63,8 @@ import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
 import { parseSlashCommands } from "@core/slash-commands"
+import { showErrorMessage, showInformationMessage } from "@/utils/dialog"
+import { executeCommand } from "@/utils/commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
@@ -155,6 +158,7 @@ export class Task {
 		files?: string[],
 		historyItem?: HistoryItem,
 	) {
+		console.log("📡 Task constructor called")
 		this.taskState = new TaskState()
 		this.context = context
 		this.mcpHub = mcpHub
@@ -194,6 +198,7 @@ export class Task {
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
+			console.log("📡 Generated new task ID:", this.taskId)
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -259,10 +264,30 @@ export class Task {
 		this.browserSession.setTaskId(this.taskId)
 
 		// Continue with task initialization
+		console.log(
+			"📡 Task initialization: historyItem =",
+			historyItem ? "exists" : "null",
+			"task =",
+			task,
+			"images =",
+			images,
+			"files =",
+			files,
+		)
 		if (historyItem) {
-			this.resumeTaskFromHistory()
+			console.log("📡 Taking resumeTaskFromHistory path")
+			// Start async task initialization (no await to prevent blocking constructor)
+			this.resumeTaskFromHistory().catch((error) => {
+				console.error("Error in resumeTaskFromHistory:", error)
+			})
 		} else if (task || images || files) {
-			this.startTask(task, images, files)
+			console.log("📡 Taking startTask path")
+			// Start async task initialization (no await to prevent blocking constructor)
+			this.startTask(task, images, files).catch((error) => {
+				console.error("Error in startTask:", error)
+			})
+		} else {
+			console.log("📡 No valid task initialization parameters")
 		}
 
 		// initialize telemetry
@@ -339,7 +364,7 @@ export class Task {
 			case "taskAndWorkspace":
 			case "workspace":
 				if (!this.enableCheckpoints) {
-					vscode.window.showErrorMessage("Checkpoints are disabled in settings.")
+					await showErrorMessage("Checkpoints are disabled in settings.")
 					didWorkspaceRestoreFail = true
 					break
 				}
@@ -357,7 +382,7 @@ export class Task {
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.taskState.checkpointTrackerErrorMessage = errorMessage
 						await this.postStateToWebview()
-						vscode.window.showErrorMessage(errorMessage)
+						await showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				}
@@ -366,7 +391,7 @@ export class Task {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						await showErrorMessage("Failed to restore checkpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -374,7 +399,7 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
+						await showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -384,11 +409,11 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						await showErrorMessage("Failed to restore checkpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				} else {
-					vscode.window.showErrorMessage("Failed to restore checkpoint")
+					await showErrorMessage("Failed to restore checkpoint")
 				}
 				break
 		}
@@ -445,13 +470,13 @@ export class Task {
 
 			switch (restoreType) {
 				case "task":
-					vscode.window.showInformationMessage("Task messages have been restored to the checkpoint")
+					await showInformationMessage("Task messages have been restored to the checkpoint")
 					break
 				case "workspace":
-					vscode.window.showInformationMessage("Workspace files have been restored to the checkpoint")
+					await showInformationMessage("Workspace files have been restored to the checkpoint")
 					break
 				case "taskAndWorkspace":
-					vscode.window.showInformationMessage("Task and workspace have been restored to the checkpoint")
+					await showInformationMessage("Task and workspace have been restored to the checkpoint")
 					break
 			}
 
@@ -482,7 +507,7 @@ export class Task {
 			sendRelinquishControlEvent()
 		}
 		if (!this.enableCheckpoints) {
-			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
+			await showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
 			relinquishButton()
 			return
 		}
@@ -517,7 +542,7 @@ export class Task {
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.taskState.checkpointTrackerErrorMessage = errorMessage
 				await this.postStateToWebview()
-				vscode.window.showErrorMessage(errorMessage)
+				await showErrorMessage(errorMessage)
 				relinquishButton()
 				return
 			}
@@ -552,7 +577,7 @@ export class Task {
 				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
 
 				if (!previousCheckpointHash) {
-					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
+					await showErrorMessage("Unexpected error: No checkpoint hash found")
 					relinquishButton()
 					return
 				}
@@ -560,7 +585,7 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					await showInformationMessage("No changes found")
 					relinquishButton()
 					return
 				}
@@ -568,14 +593,14 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					await showInformationMessage("No changes found")
 					relinquishButton()
 					return
 				}
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+			await showErrorMessage("Failed to retrieve diff set: " + errorMessage)
 			relinquishButton()
 			return
 		}
@@ -592,7 +617,7 @@ export class Task {
 		// 	return
 		// }
 		// Open multi-diff editor
-		await vscode.commands.executeCommand(
+		await executeCommand(
 			"vscode.changes",
 			seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
 			changedFiles.map((file) => [
@@ -707,13 +732,15 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						ts: Date.now(),
 						text,
 						partial,
 					})
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages()[lastMessageIndex]
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
@@ -722,6 +749,7 @@ export class Task {
 					// this.askResponseText = undefined
 					// this.askResponseImages = undefined
 					askTs = Date.now()
+					// Validate timestamp before using it
 					this.taskState.lastMessageTs = askTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
@@ -752,11 +780,13 @@ export class Task {
 					this.taskState.lastMessageTs = askTs
 					// lastMessage.ts = askTs
 					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						ts: Date.now(),
 						text,
 						partial: false,
 					})
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages()[lastMessageIndex]
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
@@ -765,6 +795,7 @@ export class Task {
 					this.taskState.askResponseImages = undefined
 					this.taskState.askResponseFiles = undefined
 					askTs = Date.now()
+					// Validate timestamp before using it
 					this.taskState.lastMessageTs = askTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
@@ -783,6 +814,10 @@ export class Task {
 			this.taskState.askResponseImages = undefined
 			this.taskState.askResponseFiles = undefined
 			askTs = Date.now()
+			// Validate timestamp before using it
+			if (!askTs || askTs <= 0 || isNaN(askTs)) {
+				throw new Error("Failed to generate valid timestamp")
+			}
 			this.taskState.lastMessageTs = askTs
 			await this.messageStateHandler.addToClineMessages({
 				ts: askTs,
@@ -835,11 +870,13 @@ export class Task {
 					lastMessage.images = images
 					lastMessage.files = files
 					lastMessage.partial = partial
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					lastMessage.ts = Date.now()
+					const protoMessage = convertClineMessageToProto(lastMessage) // lastMessage is already updated
 					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
+					// Validate timestamp before using it
 					this.taskState.lastMessageTs = sayTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: sayTs,
@@ -862,15 +899,17 @@ export class Task {
 					lastMessage.images = images
 					lastMessage.files = files // Ensure files is updated
 					lastMessage.partial = false
+					lastMessage.ts = Date.now()
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertClineMessageToProto(lastMessage) // lastMessage is already updated
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
+					// Validate timestamp before using it
 					this.taskState.lastMessageTs = sayTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: sayTs,
@@ -886,6 +925,10 @@ export class Task {
 		} else {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
+			// Validate timestamp before using it
+			if (!sayTs || sayTs <= 0 || isNaN(sayTs)) {
+				throw new Error("Failed to generate valid timestamp")
+			}
 			this.taskState.lastMessageTs = sayTs
 			await this.messageStateHandler.addToClineMessages({
 				ts: sayTs,
@@ -921,6 +964,7 @@ export class Task {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
+		console.log("📡 Starting new task:", task)
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -929,6 +973,7 @@ export class Task {
 		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
+		console.log("📡 Clearing message state for new task")
 		this.messageStateHandler.setClineMessages([])
 		this.messageStateHandler.setApiConversationHistory([])
 
@@ -937,6 +982,7 @@ export class Task {
 		await this.say("text", task, images, files)
 
 		this.taskState.isInitialized = true
+		console.log("📡 Controller ready - task initialized")
 
 		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
@@ -958,6 +1004,7 @@ export class Task {
 			}
 		}
 
+		console.log("📡 Initiating task loop for new task")
 		await this.initiateTaskLoop(userContent)
 	}
 
@@ -1004,6 +1051,23 @@ export class Task {
 		const context = this.getContext()
 		const savedApiConversationHistory = await getSavedApiConversationHistory(context, this.taskId)
 		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
+
+		// Initialize checkpoint tracker if checkpoints are enabled
+		if (this.enableCheckpoints && !this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
+			try {
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.context.globalStorageUri.fsPath,
+					this.enableCheckpoints,
+				)
+				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
+				console.log("📡 Checkpoint tracker initialized during task resumption")
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				console.error("Failed to initialize checkpoint tracker during resumption:", errorMessage)
+				this.taskState.checkpointTrackerErrorMessage = errorMessage
+			}
+		}
 
 		// load the context history state
 
@@ -1144,9 +1208,11 @@ export class Task {
 	}
 
 	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
+		console.log("📡 Initiating task loop with user content:", userContent)
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
+			console.log("📡 Making Cline request iteration...")
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1546,23 +1612,21 @@ export class Task {
 	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
 	 */
 	private async migrateDisableBrowserToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const disableBrowserTool = config.get<boolean>("disableBrowserTool")
+		const disableBrowserTool = ConfigurationService.getConfigValue<boolean>("cline", "disableBrowserTool", false)
 
 		if (disableBrowserTool !== undefined) {
 			this.browserSettings.disableToolUse = disableBrowserTool
 			// Remove from VSCode configuration
-			await config.update("disableBrowserTool", undefined, true)
+			await ConfigurationService.setConfigValue("cline", "disableBrowserTool", undefined)
 		}
 	}
 
 	private async migratePreferredLanguageToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const preferredLanguage = config.get<LanguageDisplay>("preferredLanguage")
+		const preferredLanguage = ConfigurationService.getConfigValue<LanguageDisplay>("cline", "preferredLanguage", "English")
 		if (preferredLanguage !== undefined) {
 			this.chatSettings.preferredLanguage = preferredLanguage
 			// Remove from VSCode configuration
-			await config.update("preferredLanguage", undefined, true)
+			await ConfigurationService.setConfigValue("cline", "preferredLanguage", undefined)
 		}
 	}
 
@@ -1867,6 +1931,7 @@ export class Task {
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
+		// console.log('📡 recursivelyMakeClineRequests called with userContent:', userContent) // Disabled to reduce console noise
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -2436,10 +2501,22 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFilePaths = vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		let visibleFilePaths: string[] = []
+		try {
+			const { getVisibleTextEditors } = await import("@/utils/editor")
+			const visibleEditors = await getVisibleTextEditors()
+			visibleFilePaths = visibleEditors
+				.map((editor) => editor.documentPath)
+				.filter(Boolean)
+				.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		} catch (error) {
+			console.warn("Failed to get visible editors via host bridge, falling back to VSCode API:", error)
+			visibleFilePaths =
+				vscode.window.visibleTextEditors
+					?.map((editor) => editor.document?.uri?.fsPath)
+					.filter(Boolean)
+					.map((absolutePath) => path.relative(this.cwd, absolutePath)) ?? []
+		}
 
 		// Filter paths through clineIgnoreController
 		const allowedVisibleFiles = this.clineIgnoreController

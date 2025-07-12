@@ -10,13 +10,18 @@ type HistoryPreviewProps = {
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { taskHistory, navigateToChat } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(true)
 
 	const handleHistorySelect = (id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id }))
+			.then(() => {
+				// Successfully loaded the task, navigate back to chat view
+				navigateToChat()
+			})
+			.catch((error) => {
+				console.error("Error showing task:", error)
+			})
 	}
 
 	const toggleExpanded = () => {

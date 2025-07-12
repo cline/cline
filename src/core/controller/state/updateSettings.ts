@@ -5,7 +5,6 @@ import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
 
 /**
  * Updates multiple extension settings in a single request
@@ -23,11 +22,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.api = buildApiHandler(apiConfiguration)
 			}
-		}
-
-		// Update telemetry setting
-		if (request.telemetrySetting) {
-			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)
 		}
 
 		// Update plan/act separate models setting

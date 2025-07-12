@@ -7,7 +7,7 @@ import { formatLargeNumber, formatSize } from "@/utils/format"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringArrayRequest, StringRequest } from "@shared/proto/common"
+import { EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
@@ -27,7 +27,6 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	lastApiReqTotalTokens?: number
-	onClose: () => void
 	onScrollToMessage?: (messageIndex: number) => void
 }
 
@@ -40,10 +39,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	lastApiReqTotalTokens,
-	onClose,
 	onScrollToMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings, setState } =
 		useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
@@ -288,7 +286,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					)}
 					<VSCodeButton
 						appearance="icon"
-						onClick={onClose}
+						onClick={async () => {
+							await TaskServiceClient.clearTask(EmptyRequest.create({}))
+							setState((prevState: any) => ({ ...prevState, clineMessages: [] }))
+						}}
 						style={{ marginLeft: 6, flexShrink: 0 }}
 						aria-label="Close task">
 						<span className="codicon codicon-close"></span>

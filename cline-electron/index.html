@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no" />
+		<meta name="theme-color" content="#000000" />
+		<style id="vscode-theme-styles">
+			/* Theme styles will be injected here */
+		</style>
+		<link rel="stylesheet" type="text/css" href="./assets/index.css" />
+		<link rel="stylesheet" href="./codicon.css" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none'; connect-src https://*.posthog.com https://*.cline.bot https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com ws://127.0.0.1:* http://127.0.0.1:*; font-src * data: file:; style-src * 'unsafe-inline' file:; img-src * https: data: file:; script-src * 'unsafe-eval' 'unsafe-inline' file:;" />
+		<title>Cline</title>
+		<script src="./webview-bridge.js"></script>
+		<script type="module" src="./toolkit.js"></script>
+	</head>
+	<body>
+		<noscript>You need to enable JavaScript to run this app.</noscript>
+		<div id="root"></div>
+		<script type="text/javascript">
+			// Inject the provider type
+			window.WEBVIEW_PROVIDER_TYPE = "sidebar"
+
+			// Inject the client ID
+			window.clineClientId = "electron-client-" + Date.now()
+		</script>
+		<script type="module" src="./assets/index.js"></script>
+	</body>
+</html>

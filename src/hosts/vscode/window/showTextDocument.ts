@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
+import { getActiveTextEditor } from "@/utils/editor"
 
 export async function showTextDocument(request: ShowTextDocumentRequest): Promise<TextEditorInfo> {
 	// Convert file path to URI
@@ -18,9 +19,13 @@ export async function showTextDocument(request: ShowTextDocumentRequest): Promis
 
 	const editor = await vscode.window.showTextDocument(uri, options)
 
+	// Use host bridge to check if this is the active editor
+	const activeEditorInfo = await getActiveTextEditor()
+	const isActive = activeEditorInfo?.documentPath === editor.document.uri.fsPath
+
 	return TextEditorInfo.create({
 		documentPath: editor.document.uri.fsPath,
 		viewColumn: editor.viewColumn,
-		isActive: vscode.window.activeTextEditor === editor,
+		isActive: isActive,
 	})
 }

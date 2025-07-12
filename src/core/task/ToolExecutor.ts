@@ -33,9 +33,10 @@ import {
 } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { fileExistsAtPath } from "@utils/fs"
+import { fileExistsAtPath, writeFile } from "@utils/fs"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import { isVSCodeExtension } from "@utils/environment"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
 import * as path from "path"
@@ -635,7 +636,7 @@ export class ToolExecutor {
 						await this.diffViewProvider.update(newContent, true)
 						await setTimeoutPromise(300) // wait for diff view to update
 						this.diffViewProvider.scrollToFirstDiff()
-						// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+						// showOmissionWarning(this.diffViewProvider.originalContent || "")
 
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
@@ -653,6 +654,13 @@ export class ToolExecutor {
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+
+							// For standalone, write the file now that it's auto-approved
+							if (!isVSCodeExtension()) {
+								const absolutePath = path.resolve(this.cwd, relPath)
+								await writeFile(absolutePath, newContent)
+								this.taskState.originalFileContent = undefined
+							}
 
 							// we need an artificial delay to let the diagnostics catch up to the changes
 							await setTimeoutPromise(3_500)
@@ -700,11 +708,22 @@ export class ToolExecutor {
 									await this.say("user_feedback", text, images, askFiles)
 									await this.saveCheckpoint()
 								}
+
+								// For standalone, write the file now that it's manually approved
+								if (!isVSCodeExtension()) {
+									const absolutePath = path.resolve(this.cwd, relPath)
+									await writeFile(absolutePath, newContent)
+									this.taskState.originalFileContent = undefined
+								}
+
 								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 							}
 
 							if (!didApprove) {
-								await this.diffViewProvider.revertChanges()
+								if (isVSCodeExtension()) {
+									await this.diffViewProvider.revertChanges()
+								}
+								// No need to revert in standalone since file hasn't been written yet
 								await this.saveCheckpoint()
 								break
 							}
@@ -713,8 +732,24 @@ export class ToolExecutor {
 						// Mark the file as edited by Cline to prevent false "recently modified" warnings
 						this.fileContextTracker.markFileAsEditedByCline(relPath)
 
-						const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
-							await this.diffViewProvider.saveChanges()
+						let newProblemsMessage: string
+						let userEdits: string | undefined
+						let autoFormattingEdits: string | undefined
+						let finalContent: string
+
+						if (isVSCodeExtension()) {
+							const saveResult = await this.diffViewProvider.saveChanges()
+							newProblemsMessage = saveResult.newProblemsMessage || ""
+							userEdits = saveResult.userEdits
+							autoFormattingEdits = saveResult.autoFormattingEdits
+							finalContent = saveResult.finalContent || newContent
+						} else {
+							// For standalone, the file was already written
+							newProblemsMessage = ""
+							userEdits = undefined
+							autoFormattingEdits = undefined
+							finalContent = newContent
+						}
 						this.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
 						// Track file edit operation
@@ -758,7 +793,9 @@ export class ToolExecutor {
 							this.workspaceTracker.populateFilePaths()
 						}
 
-						await this.diffViewProvider.reset()
+						if (isVSCodeExtension()) {
+							await this.diffViewProvider.reset()
+						}
 
 						await this.saveCheckpoint()
 
@@ -766,8 +803,10 @@ export class ToolExecutor {
 					}
 				} catch (error) {
 					await this.handleError("writing file", error, block)
-					await this.diffViewProvider.revertChanges()
-					await this.diffViewProvider.reset()
+					if (isVSCodeExtension()) {
+						await this.diffViewProvider.revertChanges()
+						await this.diffViewProvider.reset()
+					}
 					await this.saveCheckpoint()
 					break
 				}

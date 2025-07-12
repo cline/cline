@@ -90,6 +90,10 @@ export async function executeRipgrepForFiles(
 	})
 }
 
+/**
+ * Legacy implementation for workspace file search - prefer using utils/workspace.ts
+ * This function is kept for backward compatibility and fallback scenarios
+ */
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,

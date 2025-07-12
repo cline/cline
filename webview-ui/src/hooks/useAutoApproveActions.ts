@@ -10,16 +10,19 @@ export function useAutoApproveActions() {
 	// Check if action is enabled
 	const isChecked = useCallback(
 		(action: ActionMetadata): boolean => {
-			switch (action.id) {
-				case "enableAll":
-					return Object.values(autoApprovalSettings.actions).every(Boolean)
-				case "enableNotifications":
-					return autoApprovalSettings.enableNotifications
-				case "enableAutoApprove":
-					return autoApprovalSettings.enabled
-				default:
-					return autoApprovalSettings.actions[action.id] ?? false
-			}
+			const result = (() => {
+				switch (action.id) {
+					case "enableAll":
+						return Object.values(autoApprovalSettings.actions).every(Boolean)
+					case "enableNotifications":
+						return autoApprovalSettings.enableNotifications
+					case "enableAutoApprove":
+						return autoApprovalSettings.enabled
+					default:
+						return autoApprovalSettings.actions[action.id] ?? false
+				}
+			})()
+			return result
 		},
 		[autoApprovalSettings],
 	)

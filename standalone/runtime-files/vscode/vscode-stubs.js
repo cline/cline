@@ -1220,7 +1220,19 @@ vscode.extensions.getExtension = function (extensionId) {
 	console.log("Called stubbed function: vscode.extensions.getExtension")
 	return createStub("unknown")
 }
-vscode.extensions.all = createStub("vscode.extensions.all")
+// Create a proper array-like stub for vscode.extensions.all to fix theme loading
+vscode.extensions.all = new Proxy([], {
+	get: (target, prop) => {
+		if (prop === "length") {
+			return 0 // Return 0 to skip extension theme loading
+		}
+		if (typeof prop === "number" || (!isNaN(Number(prop)) && Number(prop) >= 0)) {
+			return undefined // Return undefined for array indices
+		}
+		const fullPath = `vscode.extensions.all.${String(prop)}`
+		return createStub(fullPath)
+	},
+})
 vscode.extensions.onDidChange = createStub("vscode.extensions.onDidChange")
 vscode.CommentThreadCollapsibleState = { Collapsed: 0, Expanded: 0 }
 vscode.CommentMode = { Editing: 0, Preview: 0 }

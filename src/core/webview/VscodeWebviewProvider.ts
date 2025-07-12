@@ -42,6 +42,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	}
 
 	override async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
+		console.log("[DEBUG] resolveWebviewView called with:", webviewView?.constructor?.name)
 		this.webview = webviewView
 
 		webviewView.webview.options = {
@@ -60,7 +61,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
-		//console.log("registering listener")
 
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840

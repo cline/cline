@@ -4,6 +4,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
+import { showErrorMessage, showSaveDialog } from "@utils/dialog"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -31,7 +32,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		.join("---\n\n")
 
 	// Prompt user for save location
-	const saveUri = await vscode.window.showSaveDialog({
+	const saveUri = await showSaveDialog({
 		filters: { Markdown: ["md"] },
 		defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
 	})
@@ -47,9 +48,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 				}),
 			)
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			await showErrorMessage(`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 }

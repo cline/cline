@@ -7,6 +7,8 @@ import type { FileMetadataEntry } from "./ContextTrackerTypes"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { getCwd } from "@/utils/path"
+import * as fs from "fs"
+import * as chokidar from "chokidar"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -27,7 +29,7 @@ export class FileContextTracker {
 	readonly taskId: string
 
 	// File tracking and watching
-	private fileWatchers = new Map<string, vscode.FileSystemWatcher>()
+	private fileWatchers = new Map<string, chokidar.FSWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByCline = new Set<string>()
 
@@ -51,20 +53,35 @@ export class FileContextTracker {
 			return
 		}
 
-		// Create a file system watcher for this specific file
-		const fileUri = vscode.Uri.file(path.resolve(cwd, filePath))
-		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(path.dirname(fileUri.fsPath), path.basename(fileUri.fsPath)),
-		)
+		// Create a native file watcher using chokidar
+		const absolutePath = path.resolve(cwd, filePath)
+
+		// Check if file exists before watching
+		if (!fs.existsSync(absolutePath)) {
+			console.info(`File ${absolutePath} does not exist, skipping watcher setup`)
+			return
+		}
+
+		const watcher = chokidar.watch(absolutePath, {
+			ignoreInitial: true,
+			persistent: true,
+			usePolling: false,
+			ignorePermissionErrors: true,
+		})
 
 		// Track file changes
-		watcher.onDidChange(() => {
+		watcher.on("change", () => {
 			if (this.recentlyEditedByCline.has(filePath)) {
 				this.recentlyEditedByCline.delete(filePath) // This was an edit by Cline, no need to inform Cline
 			} else {
 				this.recentlyModifiedFiles.add(filePath) // This was a user edit, we will inform Cline
 				this.trackFileContext(filePath, "user_edited") // Update the task metadata with file tracking
 			}
+		})
+
+		// Handle errors
+		watcher.on("error", (error) => {
+			console.error(`File watcher error for ${filePath}:`, error)
 		})
 
 		// Store the watcher so we can dispose it later
@@ -181,7 +198,7 @@ export class FileContextTracker {
 	 */
 	dispose(): void {
 		for (const watcher of this.fileWatchers.values()) {
-			watcher.dispose()
+			watcher.close()
 		}
 		this.fileWatchers.clear()
 	}

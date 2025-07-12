@@ -120,14 +120,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// If there's no input content, just approve the action
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						// Send as a regular message so it appears in the conversation
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
+						await handleSendMessage(trimmedInput || "", images || [], files || [])
 					} else {
 						// No input content, just approve the action
 						await TaskServiceClient.askResponse(
@@ -301,9 +294,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	)
 
 	// Handle task close button click
-	const handleTaskCloseButtonClick = useCallback(() => {
-		startNewTask()
-	}, [startNewTask])
+	const handleTaskCloseButtonClick = useCallback(startNewTask, [startNewTask])
 
 	return {
 		handleSendMessage,

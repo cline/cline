@@ -19,7 +19,7 @@ log("Using settings dir:", DATA_DIR)
 const EXTENSION_DIR = path.join(CLINE_DIR, "core", VERSION, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-const extension: Extension<void> = {
+const extension: Extension<void> & { theme: any } = {
 	id: "saoudrizwan.claude-dev",
 	isActive: true,
 	extensionPath: EXTENSION_DIR,
@@ -28,6 +28,7 @@ const extension: Extension<void> = {
 	exports: undefined, // There are no API exports in the standalone version.
 	activate: async () => {},
 	extensionKind: ExtensionKind.UI,
+	theme: readJson(path.join(__dirname, "theme.json")),
 }
 
 const extensionContext: ExtensionContext = {

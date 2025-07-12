@@ -9,6 +9,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
+import { isStandalone } from "@/utils/vscode"
 
 // Import utilities and hooks from the new structure
 import {
@@ -28,6 +29,7 @@ import {
 	ActionButtons,
 	InputSection,
 } from "./chat-view"
+import ChatHeader from "./ChatHeader"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -320,6 +322,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
+			{isStandalone() && <ChatHeader />}
 			{task ? (
 				<TaskSection
 					task={task}

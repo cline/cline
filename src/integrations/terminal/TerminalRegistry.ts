@@ -1,4 +1,7 @@
 import * as vscode from "vscode"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { CreateTerminalRequest, TerminalIcon } from "@shared/proto/host/terminal"
+import { Metadata } from "@shared/proto/common"
 
 export interface TerminalInfo {
 	terminal: vscode.Terminal
@@ -20,7 +23,7 @@ export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
 	private static nextTerminalId = 1
 
-	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
+	static async createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): Promise<TerminalInfo> {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
 			name: "Cline",
@@ -32,6 +35,41 @@ export class TerminalRegistry {
 			terminalOptions.shellPath = shellPath
 		}
 
+		// Try to create terminal via host bridge first
+		try {
+			const bridgeProvider = getHostBridgeProvider()
+			if (bridgeProvider && bridgeProvider.terminalClient) {
+				const terminalRequest = CreateTerminalRequest.create({
+					metadata: Metadata.create({}),
+					name: "Cline",
+					cwd: cwd?.toString(),
+					shellPath: shellPath,
+					icon: TerminalIcon.create({ themeIcon: "robot" }),
+				})
+
+				const hostTerminalInfo = await bridgeProvider.terminalClient.createTerminal(terminalRequest)
+
+				// Create VSCode terminal as backup for compatibility
+				const terminal = vscode.window.createTerminal(terminalOptions)
+
+				const newInfo: TerminalInfo = {
+					terminal,
+					busy: false,
+					lastCommand: "",
+					id: this.nextTerminalId++,
+					shellPath,
+					lastActive: Date.now(),
+				}
+				this.terminals.push(newInfo)
+
+				console.log(`Created terminal via host bridge: ${hostTerminalInfo.name} (ID: ${hostTerminalInfo.id})`)
+				return newInfo
+			}
+		} catch (error) {
+			console.error("Failed to create terminal via host bridge, falling back to VSCode:", error)
+		}
+
+		// Fallback to VSCode terminal creation
 		const terminal = vscode.window.createTerminal(terminalOptions)
 		const newInfo: TerminalInfo = {
 			terminal,
@@ -42,6 +80,7 @@ export class TerminalRegistry {
 			lastActive: Date.now(),
 		}
 		this.terminals.push(newInfo)
+
 		return newInfo
 	}
 

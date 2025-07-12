@@ -4,11 +4,15 @@ import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
+import { Metadata } from "@/shared/proto/common"
+import { getActiveTextEditor } from "@/utils/editor"
+import { showErrorMessage } from "@/utils/dialog"
+import { executeCommand } from "@/utils/commands"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
-		vscode.window.showErrorMessage("Invalid data URI format")
+		await showErrorMessage("Invalid data URI format")
 		return
 	}
 	const [, format, base64Data] = matches
@@ -16,9 +20,9 @@ export async function openImage(dataUri: string) {
 	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}.${format}`)
 	try {
 		await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), new Uint8Array(imageBuffer))
-		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
+		await executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
-		vscode.window.showErrorMessage(`Error opening image: ${error}`)
+		await showErrorMessage(`Error opening image: ${error}`)
 	}
 }
 
@@ -33,7 +37,8 @@ export async function openFile(absolutePath: string) {
 					(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, uri.fsPath),
 				)
 				if (existingTab) {
-					const activeColumn = vscode.window.activeTextEditor?.viewColumn
+					const editorInfo = await getActiveTextEditor()
+					const activeColumn = editorInfo?.viewColumn
 					const tabColumn = vscode.window.tabGroups.all.find((group) => group.tabs.includes(existingTab))?.viewColumn
 					if (activeColumn && activeColumn !== tabColumn && !existingTab.isDirty) {
 						await vscode.window.tabGroups.close(existingTab)
@@ -43,14 +48,17 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		const document = await vscode.workspace.openTextDocument(uri)
+		const response = await getHostBridgeProvider().workspaceClient.openTextDocument({
+			metadata: Metadata.create(),
+			path: uri.fsPath,
+		})
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				path: document.uri.fsPath,
+				path: response.path,
 				options: ShowTextDocumentOptions.create({ preview: false }),
 			}),
 		)
 	} catch (error) {
-		vscode.window.showErrorMessage(`Could not open file!`)
+		await showErrorMessage(`Could not open file!`)
 	}
 }

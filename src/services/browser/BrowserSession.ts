@@ -16,6 +16,7 @@ import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./Br
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { ConfigurationService } from "@/services/configuration/ConfigurationService"
 import os from "os"
 
 interface PCRStats {
@@ -72,13 +73,12 @@ export class BrowserSession {
 	 * Migrates the chromeExecutablePath setting from VSCode configuration to browserSettings
 	 */
 	private async migrateChromeExecutablePathSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
+		const configPath = ConfigurationService.getConfigValue<string>("cline", "chromeExecutablePath", "")
 
-		if (configPath !== undefined) {
+		if (configPath !== undefined && configPath !== "") {
 			this.browserSettings.chromeExecutablePath = configPath
 			// Remove from VSCode configuration
-			await config.update("chromeExecutablePath", undefined, true)
+			await ConfigurationService.setConfigValue("cline", "chromeExecutablePath", undefined)
 		}
 	}
 

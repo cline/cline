@@ -5,6 +5,7 @@ import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
 import vscode from "vscode"
+import { showErrorMessage, showWarningMessage } from "../../../utils/dialog"
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -21,9 +22,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		const taskHistory = ((await getGlobalState(controller.context, "taskHistory")) as any[]) || []
 		const totalTasks = taskHistory.length
 
-		const userChoice = await vscode.window.showWarningMessage(
+		const userChoice = await showWarningMessage(
 			"What would you like to delete?",
-			{ modal: true },
 			"Delete All Except Favorites",
 			"Delete Everything",
 		)
@@ -59,9 +59,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				})
 			} else {
 				// No favorited tasks found - show warning and ask user what to do
-				const answer = await vscode.window.showWarningMessage(
+				const answer = await showWarningMessage(
 					"No favorited tasks found. Would you like to delete all tasks anyway?",
-					{ modal: true },
 					"Delete All Tasks",
 				)
 
@@ -91,7 +90,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
 		} catch (error) {
-			vscode.window.showErrorMessage(
+			await showErrorMessage(
 				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}

@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import { updateGlobalState, getAllExtensionState, getGlobalState } from "./state"
 import { GlobalStateKey } from "./state-keys"
+import { ConfigurationService } from "@/services/configuration/ConfigurationService"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -65,11 +66,14 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 }
 
 export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
-	const mcpMarketplaceEnabled = config.get<boolean>("mcpMarketplace.enabled")
+	const mcpMarketplaceEnabled = ConfigurationService.getConfigValue(
+		"cline",
+		"mcpMarketplace.enabled",
+		undefined as boolean | undefined,
+	)
 	if (mcpMarketplaceEnabled !== undefined) {
 		// Remove from VSCode configuration
-		await config.update("mcpMarketplace.enabled", undefined, true)
+		await ConfigurationService.setConfigValue("cline", "mcpMarketplace.enabled", undefined)
 
 		return !mcpMarketplaceEnabled
 	}
@@ -77,11 +81,10 @@ export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRa
 }
 
 export async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
-	const enableCheckpoints = config.get<boolean>("enableCheckpoints")
+	const enableCheckpoints = ConfigurationService.getConfigValue("cline", "enableCheckpoints", undefined as boolean | undefined)
 	if (enableCheckpoints !== undefined) {
 		// Remove from VSCode configuration
-		await config.update("enableCheckpoints", undefined, true)
+		await ConfigurationService.setConfigValue("cline", "enableCheckpoints", undefined)
 		return enableCheckpoints
 	}
 	return enableCheckpointsSettingRaw ?? true

@@ -26,6 +26,8 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { showErrorMessage, showInformationMessage } from "@/utils/dialog"
+import { focusSidebar } from "@/utils/commands"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
@@ -89,7 +91,8 @@ export class Controller {
 	}
 
 	private async getCurrentMode(): Promise<"plan" | "act"> {
-		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
+		const mode = ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
+		return mode
 	}
 
 	/*
@@ -118,9 +121,9 @@ export class Controller {
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			await showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
-			vscode.window.showErrorMessage("Logout failed")
+			await showErrorMessage("Logout failed")
 		}
 	}
 
@@ -236,7 +239,14 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
+		// Get current value before update
+		const currentValue = await getGlobalState(this.context, "telemetrySetting")
+
 		await updateGlobalState(this.context, "telemetrySetting", telemetrySetting)
+
+		// Verify the value was actually saved
+		const savedValue = await getGlobalState(this.context, "telemetrySetting")
+
 		const isOptedIn = telemetrySetting !== "disabled"
 		telemetryService.updateTelemetryState(isOptedIn)
 		await this.postStateToWebview()
@@ -247,6 +257,8 @@ export class Controller {
 
 		// Store mode to global state
 		await updateGlobalState(this.context, "mode", chatSettings.mode)
+		// Verify the mode was saved
+		const savedMode = await getGlobalState(this.context, "mode")
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -494,10 +506,10 @@ export class Controller {
 			}
 
 			await this.postStateToWebview()
-			// vscode.window.showInformationMessage("Successfully logged in to Cline")
+			// await showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			vscode.window.showErrorMessage("Failed to log in to Cline")
+			await showErrorMessage("Failed to log in to Cline")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -533,7 +545,7 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				vscode.window.showErrorMessage(errorMessage)
+				await showErrorMessage(errorMessage)
 			}
 			return undefined
 		}
@@ -617,7 +629,7 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			vscode.window.showErrorMessage(errorMessage)
+			await showErrorMessage(errorMessage)
 		}
 	}
 
@@ -681,7 +693,7 @@ export class Controller {
 	// 'Add to Cline' context menu in editor and code action
 	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await focusSidebar("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected code
@@ -701,7 +713,7 @@ export class Controller {
 	// 'Add to Cline' context menu in Terminal
 	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await focusSidebar("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected terminal output
@@ -719,7 +731,7 @@ export class Controller {
 	// 'Fix with Cline' in code actions
 	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await focusSidebar("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		const fileMention = await this.getFileMentionFromPath(filePath)
@@ -981,14 +993,14 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				vscode.window.showErrorMessage("No workspace folder open")
+				await showErrorMessage("No workspace folder open")
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				vscode.window.showInformationMessage("No changes in workspace for commit message")
+				await showInformationMessage("No changes in workspace for commit message")
 				return
 			}
 
@@ -1055,25 +1067,25 @@ Commit message:`
 								if (api && api.repositories.length > 0) {
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
-									vscode.window.showInformationMessage("Commit message generated and applied")
+									await showInformationMessage("Commit message generated and applied")
 								} else {
-									vscode.window.showErrorMessage("No Git repositories found")
+									await showErrorMessage("No Git repositories found")
 								}
 							} else {
-								vscode.window.showErrorMessage("Git extension not found")
+								await showErrorMessage("Git extension not found")
 							}
 						} else {
-							vscode.window.showErrorMessage("Failed to generate commit message")
+							await showErrorMessage("Failed to generate commit message")
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+						await showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+			await showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
 

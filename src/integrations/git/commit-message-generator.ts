@@ -3,6 +3,8 @@ import { getWorkingState } from "@utils/git"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest } from "@/shared/proto/host/window"
+import { Metadata } from "@/shared/proto/common"
+import { showErrorMessage, showInformationMessage } from "@utils/dialog"
 
 /**
  * Formats the git diff into a prompt for the AI
@@ -61,7 +63,7 @@ export function extractCommitMessage(aiResponse: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	vscode.window.showInformationMessage("Commit message copied to clipboard")
+	await showInformationMessage("Commit message copied to clipboard")
 }
 
 /**
@@ -111,13 +113,13 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			vscode.window.showInformationMessage("Commit message applied to Git input")
+			await showInformationMessage("Commit message applied to Git input")
 		} else {
-			vscode.window.showErrorMessage("No Git repositories found")
+			await showErrorMessage("No Git repositories found")
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		vscode.window.showErrorMessage("Git extension not found")
+		await showErrorMessage("Git extension not found")
 		await copyCommitMessageToClipboard(message)
 	}
 }
@@ -127,15 +129,16 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
  * @param message The commit message to edit
  */
 async function editCommitMessage(message: string): Promise<void> {
-	const document = await vscode.workspace.openTextDocument({
+	const response = await getHostBridgeProvider().workspaceClient.openTextDocument({
+		metadata: Metadata.create(),
 		content: message,
 		language: "markdown",
 	})
 
 	await getHostBridgeProvider().windowClient.showTextDocument(
 		ShowTextDocumentRequest.create({
-			path: document.uri.fsPath,
+			path: response.path,
 		}),
 	)
-	vscode.window.showInformationMessage("Edit the commit message and copy when ready")
+	await showInformationMessage("Edit the commit message and copy when ready")
 }

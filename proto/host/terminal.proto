@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Provides methods for working with terminals in the IDE
+service TerminalService {
+  // Creates a new terminal instance
+  rpc createTerminal(CreateTerminalRequest) returns (TerminalInfo);
+  
+  // Gets information about the active terminal
+  rpc getActiveTerminal(cline.EmptyRequest) returns (TerminalInfo);
+  
+  // Gets all terminal instances
+  rpc getAllTerminals(cline.EmptyRequest) returns (TerminalInfoList);
+}
+
+message CreateTerminalRequest {
+  cline.Metadata metadata = 1;
+  optional string name = 2;
+  optional string cwd = 3;
+  optional string shell_path = 4;
+  optional TerminalIcon icon = 5;
+}
+
+message TerminalIcon {
+  optional string theme_icon = 1;
+  optional string file_path = 2;
+}
+
+message TerminalInfo {
+  string id = 1;
+  string name = 2;
+  bool is_active = 3;
+  optional int32 process_id = 4;
+  optional string creation_options_cwd = 5;
+  optional string shell_path = 6;
+  optional int32 exit_status = 7;
+}
+
+message TerminalInfoList {
+  repeated TerminalInfo terminals = 1;
+}

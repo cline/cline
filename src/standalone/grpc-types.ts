@@ -26,13 +26,15 @@ export type GrpcStreamingResponseHandler<TRequest, TResponse> = (
  * @template TResponse - The type of the response object
  */
 export type GrpcHandlerWrapper = <TRequest, TResponse>(
-	handler: GrpcHandler<TRequest, TResponse>,
-	controller: Controller,
+	handler: GrpcHandler<TRequest, TResponse> | ((req: TRequest) => Promise<TResponse>),
+	controller?: Controller,
 ) => grpc.handleUnaryCall<TRequest, TResponse>
 
 export type GrpcStreamingResponseHandlerWrapper = <TRequest, TResponse>(
-	handler: GrpcStreamingResponseHandler<TRequest, TResponse>,
-	controller: Controller,
+	handler:
+		| GrpcStreamingResponseHandler<TRequest, TResponse>
+		| ((req: TRequest, stream: any, requestId?: string) => Promise<void>),
+	controller?: Controller,
 ) => grpc.handleServerStreamingCall<TRequest, TResponse>
 
 export type StreamingResponseWriter<TResponse> = (response: TResponse, isLast?: boolean, sequenceNumber?: number) => Promise<void>

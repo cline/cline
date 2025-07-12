@@ -7,6 +7,7 @@ import * as vscode from "vscode"
 import * as fs from "fs"
 import * as path from "path"
 import { Logger } from "../logging/Logger"
+import { setContext } from "@/utils/commands"
 import { createTestServer, shutdownTestServer } from "./TestServer"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 
@@ -62,7 +63,7 @@ export async function initializeTestMode(webviewProvider?: any): Promise<vscode.
 	if (IS_TEST) {
 		Logger.log("Test mode detected: Setting test mode state to true")
 		setTestMode(true)
-		vscode.commands.executeCommand("setContext", "cline.isTestMode", true)
+		setContext("cline.isTestMode", true)
 
 		// Set up test server if in test mode
 		createTestServer(webviewProvider)
@@ -76,7 +77,7 @@ export async function initializeTestMode(webviewProvider?: any): Promise<vscode.
 		Logger.log(`evals.env file created at ${uri.fsPath}`)
 		if (!isInTestMode()) {
 			setTestMode(true)
-			vscode.commands.executeCommand("setContext", "cline.isTestMode", true)
+			setContext("cline.isTestMode", true)
 			createTestServer(webviewProvider)
 		}
 	})
@@ -87,7 +88,7 @@ export async function initializeTestMode(webviewProvider?: any): Promise<vscode.
 		// Only deactivate if this was the last evals.env file
 		if (!checkForTestMode()) {
 			setTestMode(false)
-			vscode.commands.executeCommand("setContext", "cline.isTestMode", false)
+			setContext("cline.isTestMode", false)
 			shutdownTestServer()
 		}
 	})

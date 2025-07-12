@@ -245,6 +245,7 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 
 // Convert proto ApiProvider to application ApiProvider
 function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
+	console.log("🔄 [PROTO-CONVERT] convertProtoToApiProvider called with:", provider, "type:", typeof provider)
 	switch (provider) {
 		case ProtoApiProvider.ANTHROPIC:
 			return "anthropic"
@@ -450,7 +451,20 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
-		apiProvider: protoConfig.apiProvider !== undefined ? convertProtoToApiProvider(protoConfig.apiProvider) : undefined,
+		apiProvider: (() => {
+			console.log(
+				"🔄 [PROTO-CONVERT] protoConfig.apiProvider:",
+				protoConfig.apiProvider,
+				"type:",
+				typeof protoConfig.apiProvider,
+			)
+			if (protoConfig.apiProvider !== undefined) {
+				const result = convertProtoToApiProvider(protoConfig.apiProvider)
+				console.log("🔄 [PROTO-CONVERT] conversion result:", result)
+				return result
+			}
+			return undefined
+		})(),
 		favoritedModelIds: protoConfig.favoritedModelIds.length > 0 ? protoConfig.favoritedModelIds : undefined,
 		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
 		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,

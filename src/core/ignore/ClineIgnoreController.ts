@@ -3,6 +3,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import * as vscode from "vscode"
+import * as chokidar from "chokidar"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 
@@ -14,7 +15,7 @@ export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 export class ClineIgnoreController {
 	private cwd: string
 	private ignoreInstance: Ignore
-	private disposables: vscode.Disposable[] = []
+	private fileWatcher: chokidar.FSWatcher | undefined
 	clineIgnoreContent: string | undefined
 
 	constructor(cwd: string) {
@@ -37,24 +38,32 @@ export class ClineIgnoreController {
 	 * Set up the file watcher for .clineignore changes
 	 */
 	private setupFileWatcher(): void {
-		const clineignorePattern = new vscode.RelativePattern(this.cwd, ".clineignore")
-		const fileWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
+		const clineignorePath = path.join(this.cwd, ".clineignore")
 
-		// Watch for changes and updates
-		this.disposables.push(
-			fileWatcher.onDidChange(() => {
-				this.loadClineIgnore()
-			}),
-			fileWatcher.onDidCreate(() => {
-				this.loadClineIgnore()
-			}),
-			fileWatcher.onDidDelete(() => {
-				this.loadClineIgnore()
-			}),
-		)
+		this.fileWatcher = chokidar.watch(clineignorePath, {
+			ignoreInitial: true,
+			persistent: true,
+			usePolling: false,
+			ignorePermissionErrors: true,
+		})
 
-		// Add fileWatcher itself to disposables
-		this.disposables.push(fileWatcher)
+		// Watch for changes, creation, and deletion
+		this.fileWatcher.on("change", () => {
+			this.loadClineIgnore()
+		})
+
+		this.fileWatcher.on("add", () => {
+			this.loadClineIgnore()
+		})
+
+		this.fileWatcher.on("unlink", () => {
+			this.loadClineIgnore()
+		})
+
+		// Handle errors
+		this.fileWatcher.on("error", (error) => {
+			console.error("Error watching .clineignore:", error)
+		})
 	}
 
 	/**
@@ -239,7 +248,9 @@ export class ClineIgnoreController {
 	 * Clean up resources when the controller is no longer needed
 	 */
 	dispose(): void {
-		this.disposables.forEach((d) => d.dispose())
-		this.disposables = []
+		if (this.fileWatcher) {
+			this.fileWatcher.close()
+			this.fileWatcher = undefined
+		}
 	}
 }

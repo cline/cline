@@ -16,14 +16,15 @@ export async function updateApiConfigurationProto(
 	request: UpdateApiConfigurationRequest,
 ): Promise<Empty> {
 	try {
-		if (!request.apiConfiguration) {
+		// Handle both camelCase and snake_case field names for compatibility
+		const apiConfig = request.apiConfiguration || (request as any).api_configuration
+		if (!apiConfig) {
 			console.log("[APICONFIG: updateApiConfigurationProto] API configuration is required")
 			throw new Error("API configuration is required")
 		}
 
 		// Convert proto ApiConfiguration to application ApiConfiguration
-		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
-
+		const appApiConfiguration = convertProtoToApiConfiguration(apiConfig)
 		// Update the API configuration in storage
 		await updateApiConfiguration(controller.context, appApiConfiguration)
 

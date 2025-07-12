@@ -43,7 +43,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 			cacheReads={apiMetrics.totalCacheReads}
 			totalCost={apiMetrics.totalCost}
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
-			onClose={messageHandlers.handleTaskCloseButtonClick}
 			onScrollToMessage={scrollBehavior.scrollToMessage}
 		/>
 	)

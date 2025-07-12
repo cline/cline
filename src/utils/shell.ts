@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { userInfo } from "os"
+import { ConfigurationService } from "@/services/configuration/ConfigurationService"
 
 const SHELL_PATHS = {
 	// Windows paths
@@ -45,9 +46,16 @@ type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
 
 function getWindowsTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
-		const defaultProfileName = config.get<string>("defaultProfile.windows")
-		const profiles = config.get<WindowsTerminalProfiles>("profiles.windows") || {}
+		const defaultProfileName = ConfigurationService.getConfigValue(
+			"terminal.integrated",
+			"defaultProfile.windows",
+			null as string | null,
+		)
+		const profiles = ConfigurationService.getConfigValue(
+			"terminal.integrated",
+			"profiles.windows",
+			{} as WindowsTerminalProfiles,
+		)
 		return { defaultProfileName, profiles }
 	} catch {
 		return { defaultProfileName: null, profiles: {} as WindowsTerminalProfiles }
@@ -56,9 +64,12 @@ function getWindowsTerminalConfig() {
 
 function getMacTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
-		const defaultProfileName = config.get<string>("defaultProfile.osx")
-		const profiles = config.get<MacTerminalProfiles>("profiles.osx") || {}
+		const defaultProfileName = ConfigurationService.getConfigValue(
+			"terminal.integrated",
+			"defaultProfile.osx",
+			null as string | null,
+		)
+		const profiles = ConfigurationService.getConfigValue("terminal.integrated", "profiles.osx", {} as MacTerminalProfiles)
 		return { defaultProfileName, profiles }
 	} catch {
 		return { defaultProfileName: null, profiles: {} as MacTerminalProfiles }
@@ -67,9 +78,12 @@ function getMacTerminalConfig() {
 
 function getLinuxTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
-		const defaultProfileName = config.get<string>("defaultProfile.linux")
-		const profiles = config.get<LinuxTerminalProfiles>("profiles.linux") || {}
+		const defaultProfileName = ConfigurationService.getConfigValue(
+			"terminal.integrated",
+			"defaultProfile.linux",
+			null as string | null,
+		)
+		const profiles = ConfigurationService.getConfigValue("terminal.integrated", "profiles.linux", {} as LinuxTerminalProfiles)
 		return { defaultProfileName, profiles }
 	} catch {
 		return { defaultProfileName: null, profiles: {} as LinuxTerminalProfiles }

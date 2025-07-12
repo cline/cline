@@ -1,6 +1,7 @@
 import { Controller } from ".."
 import { FileSearchRequest, FileSearchResults } from "@shared/proto/file"
 import { searchWorkspaceFiles } from "@services/search/file-search"
+import { searchWorkspaceFiles as searchWorkspaceFilesUtils } from "@utils/workspace"
 import { getWorkspacePath } from "@utils/path"
 import { FileMethodHandler } from "./index"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
@@ -27,12 +28,22 @@ export const searchFiles: FileMethodHandler = async (
 	}
 
 	try {
-		// Call file search service with query from request
-		const searchResults = await searchWorkspaceFiles(
-			request.query || "",
-			workspacePath,
-			request.limit || 20, // Use default limit of 20 if not specified
-		)
+		// Try host bridge first (for standalone mode), fall back to ripgrep
+		let searchResults: { path: string; type: "file" | "folder"; label?: string; score?: number }[]
+
+		try {
+			// Try using host bridge workspace utils first
+			searchResults = await searchWorkspaceFilesUtils(request.query || "", request.limit || 20, workspacePath)
+			console.log(`Host bridge search found ${searchResults.length} results`)
+		} catch (hostBridgeError) {
+			console.log(
+				"Host bridge search failed, falling back to ripgrep:",
+				hostBridgeError instanceof Error ? hostBridgeError.message : String(hostBridgeError),
+			)
+
+			// Fallback to ripgrep-based search
+			searchResults = await searchWorkspaceFiles(request.query || "", workspacePath, request.limit || 20)
+		}
 
 		// Convert search results to proto FileInfo objects using the conversion function
 		const protoResults = convertSearchResultsToProtoFileInfos(searchResults)

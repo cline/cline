@@ -8,7 +8,7 @@ import { AccountServiceClient, ModelsServiceClient, StateServiceClient } from "@
 import { EmptyRequest, BooleanRequest } from "@shared/proto/common"
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, navigateToChat, setShowWelcome } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
 
@@ -23,6 +23,8 @@ const WelcomeView = memo(() => {
 	const handleSubmit = async () => {
 		try {
 			await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true }))
+			setShowWelcome(false)
+			navigateToChat()
 		} catch (error) {
 			console.error("Failed to update API configuration or complete welcome view:", error)
 		}

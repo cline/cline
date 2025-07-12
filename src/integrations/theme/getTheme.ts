@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
 import { convertTheme } from "monaco-vscode-textmate-theme-converter/lib/cjs"
+import { ConfigurationService } from "@/services/configuration/ConfigurationService"
 
 const defaultThemes: Record<string, string> = {
 	"Default Dark Modern": "dark_modern",
@@ -32,7 +33,7 @@ function parseThemeString(themeString: string | undefined): any {
 
 export async function getTheme() {
 	let currentTheme = undefined
-	const colorTheme = vscode.workspace.getConfiguration("workbench").get<string>("colorTheme") || "Default Dark Modern"
+	const colorTheme = ConfigurationService.getConfigValue("workbench", "colorTheme", "Default Dark Modern")
 
 	try {
 		for (let i = vscode.extensions.all.length - 1; i >= 0; i--) {

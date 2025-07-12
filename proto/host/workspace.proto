@@ -4,10 +4,18 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
+import "common.proto";
+
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+  
+  // Searches for files in the workspace with fuzzy matching
+  rpc searchFiles(SearchFilesRequest) returns (SearchFilesResponse);
+  
+  // Opens a text document and returns document information
+  rpc openTextDocument(OpenTextDocumentRequest) returns (OpenTextDocumentResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -21,4 +29,64 @@ message GetWorkspacePathsResponse {
   // The unique ID for the workspace/project.
   optional string id = 1;
   repeated string paths = 2;
+}
+
+
+message SearchFilesRequest {
+  cline.Metadata metadata = 1;
+  // Query string for fuzzy file search
+  string query = 2;
+  // Maximum number of results to return
+  optional int32 limit = 3;
+  // Workspace path to search in (if not provided, uses current workspace)
+  optional string workspace_path = 4;
+}
+
+message SearchFilesResponse {
+  repeated WorkspaceFileSearchResult results = 1;
+}
+
+message WorkspaceFileInfo {
+  // Relative path from workspace root
+  string path = 1;
+  // File type
+  WorkspaceFileType type = 2;
+  // Display label (typically filename)
+  optional string label = 3;
+}
+
+message WorkspaceFileSearchResult {
+  // Relative path from workspace root
+  string path = 1;
+  // File type
+  WorkspaceFileType type = 2;
+  // Display label (typically filename)
+  optional string label = 3;
+  // Search relevance score
+  optional double score = 4;
+}
+
+enum WorkspaceFileType {
+  WORKSPACE_FILE_TYPE_UNSPECIFIED = 0;
+  WORKSPACE_FILE_TYPE_FILE = 1;
+  WORKSPACE_FILE_TYPE_FOLDER = 2;
+}
+
+message OpenTextDocumentRequest {
+  cline.Metadata metadata = 1;
+  // Path to the document to open
+  optional string path = 2;
+  // Content for new untitled document
+  optional string content = 3;
+  // Language identifier for untitled document
+  optional string language = 4;
+}
+
+message OpenTextDocumentResponse {
+  // Path to the opened document
+  string path = 1;
+  // Language identifier of the document
+  string language_id = 2;
+  // Whether the document is untitled
+  bool is_untitled = 3;
 }

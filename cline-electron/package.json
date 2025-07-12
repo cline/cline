@@ -1,0 +1,18 @@
+{
+	"name": "cline-electron",
+	"version": "1.0.0",
+	"description": "Cline Electron Desktop App",
+	"main": "main.js",
+	"scripts": {
+		"start": "electron .",
+		"dev": "electron . --dev"
+	},
+	"dependencies": {
+		"@grpc/grpc-js": "^1.9.15",
+		"@grpc/proto-loader": "^0.7.13",
+		"nice-grpc": "^2.1.12"
+	},
+	"devDependencies": {
+		"electron": "^28.3.3"
+	}
+}

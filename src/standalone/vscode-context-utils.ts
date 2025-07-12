@@ -1,4 +1,5 @@
 import * as fs from "fs"
+import * as path from "path"
 import * as vscode from "vscode"
 import type { EnvironmentVariableMutatorOptions, EnvironmentVariableMutator, EnvironmentVariableScope } from "vscode"
 export class SecretStore implements vscode.SecretStorage {
@@ -42,8 +43,18 @@ export class MementoStore implements vscode.Memento {
 		return this.data.get(key) as T
 	}
 	update(key: string, value: any): Thenable<void> {
-		this.data.put(key, value)
-		return Promise.resolve()
+		try {
+			if (value === undefined) {
+				// Remove the key if value is undefined (VSCode's behavior)
+				this.data.delete(key)
+			} else {
+				this.data.put(key, value)
+			}
+			return Promise.resolve()
+		} catch (error) {
+			console.error(`Failed to update key '${key}' in MementoStore:`, error)
+			return Promise.reject(error)
+		}
 	}
 	setKeysForSync(_keys: readonly string[]): void {
 		throw new Error("Method not implemented.")
@@ -87,11 +98,16 @@ export class JsonKeyValueStore<T> {
 	}
 
 	put(key: string, value: T): void {
+		// Disable verbose logging - only log for non-large data
+		if (key !== "taskHistory" && key !== "apiConversationHistory") {
+			console.log(`[JsonKeyValueStore] Setting key '${key}' to:`, typeof value === "object" ? JSON.stringify(value) : value)
+		}
 		this.data.set(key, value)
 		this.save()
 	}
 
 	delete(key: string): void {
+		console.log(`[JsonKeyValueStore] Deleting key '${key}'`)
 		this.data.delete(key)
 		this.save()
 	}
@@ -100,14 +116,91 @@ export class JsonKeyValueStore<T> {
 	}
 	private load(): void {
 		if (fs.existsSync(this.filePath)) {
-			const data = JSON.parse(fs.readFileSync(this.filePath, "utf-8"))
-			Object.entries(data).forEach(([k, v]) => {
-				this.data.set(k, v as T)
-			})
+			try {
+				const fileContent = fs.readFileSync(this.filePath, "utf-8")
+				if (fileContent.trim()) {
+					const data = JSON.parse(fileContent)
+					if (data && typeof data === "object") {
+						Object.entries(data).forEach(([k, v]) => {
+							this.data.set(k, v as T)
+						})
+						console.log(`Successfully loaded data from ${this.filePath}`)
+					} else {
+						console.warn(`Invalid data format in ${this.filePath}, starting with empty store`)
+					}
+				} else {
+					console.log(`Empty file ${this.filePath}, starting with empty store`)
+				}
+			} catch (error) {
+				console.error(`Failed to load data from ${this.filePath}:`, error)
+				// Try to load from backup
+				const backupPath = this.filePath + ".backup"
+				if (fs.existsSync(backupPath)) {
+					try {
+						const backupContent = fs.readFileSync(backupPath, "utf-8")
+						if (backupContent.trim()) {
+							const backupData = JSON.parse(backupContent)
+							if (backupData && typeof backupData === "object") {
+								Object.entries(backupData).forEach(([k, v]) => {
+									this.data.set(k, v as T)
+								})
+								console.log(`Successfully restored data from backup: ${backupPath}`)
+							}
+						}
+					} catch (backupError) {
+						console.error(`Failed to restore from backup:`, backupError)
+					}
+				}
+				// Continue with empty store if both main and backup fail
+				console.log(`Starting with empty store for ${this.filePath}`)
+			}
+		} else {
+			console.log(`File ${this.filePath} does not exist, starting with empty store`)
 		}
 	}
 	private save(): void {
-		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2))
+		try {
+			// Ensure directory exists
+			const dir = path.dirname(this.filePath)
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true })
+			}
+
+			// Create backup of existing file
+			const backupPath = this.filePath + ".backup"
+			if (fs.existsSync(this.filePath)) {
+				fs.copyFileSync(this.filePath, backupPath)
+			}
+
+			// Write new data
+			const dataToWrite = JSON.stringify(Object.fromEntries(this.data), null, 2)
+			fs.writeFileSync(this.filePath, dataToWrite, "utf-8")
+
+			// Remove backup on successful write
+			if (fs.existsSync(backupPath)) {
+				fs.unlinkSync(backupPath)
+			}
+
+			// Only log saves for non-large data files
+			if (!this.filePath.includes("globalState.json")) {
+				console.log(`Successfully saved data to ${this.filePath}`)
+			}
+		} catch (error) {
+			console.error(`Failed to save data to ${this.filePath}:`, error)
+
+			// Try to restore from backup
+			const backupPath = this.filePath + ".backup"
+			if (fs.existsSync(backupPath)) {
+				try {
+					fs.copyFileSync(backupPath, this.filePath)
+					console.log(`Restored data from backup: ${backupPath}`)
+				} catch (restoreError) {
+					console.error(`Failed to restore from backup:`, restoreError)
+				}
+			}
+
+			throw error
+		}
 	}
 }
 

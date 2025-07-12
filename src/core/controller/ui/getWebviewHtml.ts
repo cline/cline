@@ -12,5 +12,6 @@ import { WebviewProviderType } from "@/shared/webview/types"
 export async function getWebviewHtml(_controller: Controller, _: EmptyRequest): Promise<String> {
 	const webviewProvider = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
 
-	return Promise.resolve(String.create({ value: webviewProvider.getHtmlContent() }))
+	const htmlContent = webviewProvider.getHtmlContent()
+	return Promise.resolve(String.create({ value: htmlContent }))
 }

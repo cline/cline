@@ -94,6 +94,7 @@ async function main() {
 	await generateServiceConfig()
 	await generateHostServiceConfig()
 	await generateGrpcClientConfig()
+	await generateHostBridgeServerSetup()
 
 	console.log(chalk.bold.blue("Finished Protocol Buffer code generation."))
 }
@@ -161,6 +162,20 @@ export {
 	const filePath = path.join(ROOT_DIR, "webview-ui", "src", "services", "grpc-client.ts")
 	await writeFileWithMkdirs(filePath, content)
 	log_verbose(chalk.green(`Generated gRPC client at ${filePath}`))
+}
+
+/**
+ * Generate host bridge server setup by calling the standalone script
+ */
+async function generateHostBridgeServerSetup() {
+	log_verbose(chalk.cyan("Generating host bridge server setup..."))
+	try {
+		execSync(`node ${path.join(ROOT_DIR, "scripts", "generate-host-bridge-server.mjs")}`, { stdio: "inherit" })
+		log_verbose(chalk.green("Host bridge server setup generated successfully."))
+	} catch (error) {
+		console.error(chalk.red("Error generating host bridge server setup:"), error)
+		process.exit(1)
+	}
 }
 
 /**

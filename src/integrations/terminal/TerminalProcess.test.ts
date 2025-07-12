@@ -53,7 +53,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 		// This test works with or without shell integration
 		it("should create and run a command in a real terminal", async () => {
 			// Create a real VS Code terminal for testing
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
@@ -76,7 +76,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should execute and capture events from a simple command", async () => {
 			// Create a real VS Code terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
@@ -99,7 +99,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should execute a command that lists files", async () => {
 			// Create a real VS Code terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
@@ -122,7 +122,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should handle a longer running command", async () => {
 			// Create a real terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
@@ -144,7 +144,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should execute a command with arguments", async () => {
 			// Create a real VS Code terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
@@ -167,7 +167,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should execute a command with quotes", async () => {
 			// Create a real VS Code terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
@@ -227,7 +227,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 		// We'll mock the terminal run process and TerminalProcess for these tests
 		it("should emit completed and continue events when command finishes", async function () {
 			// Create a terminal to ensure proper interface, but we'll use mocking under the hood
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Create a mock implementation of executeCommand
@@ -262,7 +262,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 	describe("Controlled output tests", () => {
 		it("should emit line events for each line of output", async function () {
 			// Create a terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration with controlled output
@@ -287,7 +287,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should properly handle process hot state (e.g. compiling)", async function () {
 			// Create a terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
@@ -315,7 +315,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should handle standard commands with normal hot timeout", async function () {
 			// Create a terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
@@ -345,7 +345,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should correctly filter command echoes based on current implementation", async function () {
 			// Create a terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
@@ -376,7 +376,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		it("should handle npm run commands", async function () {
 			// Create a terminal
-			const terminal = TerminalRegistry.createTerminal().terminal
+			const terminal = (await TerminalRegistry.createTerminal()).terminal
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration

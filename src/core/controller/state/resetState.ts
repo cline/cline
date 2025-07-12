@@ -4,6 +4,7 @@ import { ResetStateRequest } from "../../../shared/proto/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { showErrorMessage, showInformationMessage } from "../../../utils/dialog"
 
 /**
  * Resets the extension state to its defaults
@@ -14,10 +15,10 @@ import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			vscode.window.showInformationMessage("Resetting global state...")
+			await showInformationMessage("Resetting global state...")
 			await resetGlobalState(controller.context)
 		} else {
-			vscode.window.showInformationMessage("Resetting workspace state...")
+			await showInformationMessage("Resetting workspace state...")
 			await resetWorkspaceState(controller.context)
 		}
 
@@ -26,7 +27,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		vscode.window.showInformationMessage("State reset")
+		await showInformationMessage("State reset")
 		await controller.postStateToWebview()
 
 		await sendChatButtonClickedEvent(controller.id)
@@ -34,7 +35,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		vscode.window.showErrorMessage(`Failed to reset state: ${error instanceof Error ? error.message : String(error)}`)
+		await showErrorMessage(`Failed to reset state: ${error instanceof Error ? error.message : String(error)}`)
 		throw error
 	}
 }

@@ -1,5 +1,11 @@
 import { WebviewMessage } from "@shared/WebviewMessage"
-import type { WebviewApi } from "vscode-webview"
+
+// VSCode webview API types
+interface WebviewApi<T = unknown> {
+	getState(): T | undefined
+	setState<U extends T | undefined>(state: U): U
+	postMessage(message: any): void
+}
 
 /**
  * A utility wrapper around the acquireVsCodeApi() function, which enables
@@ -11,6 +17,7 @@ import type { WebviewApi } from "vscode-webview"
  * enabled by acquireVsCodeApi.
  */
 declare global {
+	function acquireVsCodeApi<T = unknown>(): WebviewApi<T>
 	interface Window {
 		__is_standalone__?: boolean
 		standalonePostMessage?: (event: any) => void
@@ -88,6 +95,14 @@ class VSCodeAPIWrapper {
 			return newState
 		}
 	}
+}
+
+/**
+ * Check if the app is running in standalone mode (Electron)
+ * @returns true if running in standalone Electron app, false if in VSCode extension
+ */
+export const isStandalone = (): boolean => {
+	return window.__is_standalone__ === true
 }
 
 // Exports class singleton to prevent multiple invocations of acquireVsCodeApi.
