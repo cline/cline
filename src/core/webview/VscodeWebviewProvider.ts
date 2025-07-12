@@ -66,16 +66,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
-			// panel
-			webviewView.onDidChangeViewState(
-				async () => {
-					if (this.webview?.visible) {
-						await sendDidBecomeVisibleEvent(this.controller.id)
-					}
-				},
-				null,
-				this.disposables,
-			)
+			// NOTE: We intentionally do NOT send didBecomeVisible events for editor tabs
+			// to prevent focus stealing when switching between tabs.
+			// The chat input will still be focused when needed via keyboard shortcuts (Cmd/Ctrl+')
+			// which use the focusChatInput event instead.
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
 			webviewView.onDidChangeVisibility(
