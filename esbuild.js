@@ -5,6 +5,7 @@ const path = require("path")
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
 const standalone = process.argv.includes("--standalone")
+const e2eBuild = process.argv.includes("--e2e-build")
 const destDir = standalone ? "dist-standalone" : "dist"
 
 /**
@@ -160,8 +161,18 @@ const standaloneConfig = {
 	external: ["vscode", "@grpc/reflection", "grpc-health-check"],
 }
 
+// E2E build script configuration
+const e2eBuildConfig = {
+	...baseConfig,
+	entryPoints: ["src/test/e2e/utils/build.ts"],
+	outfile: `${destDir}/e2e-build.js`,
+	external: ["@vscode/test-electron", "execa"],
+	sourcemap: false,
+	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
+}
+
 async function main() {
-	const config = standalone ? standaloneConfig : extensionConfig
+	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()
