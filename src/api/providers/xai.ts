@@ -70,10 +70,13 @@ export class XAIHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					// @ts-ignore-next-line
-					reasoning: delta.reasoning_content,
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if (!modelId.includes("grok-4")) {
+					yield {
+						type: "reasoning",
+						// @ts-ignore-next-line
+						reasoning: delta.reasoning_content,
+					}
 				}
 			}
 

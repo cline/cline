@@ -127,7 +127,9 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				if ("reasoning" in delta && delta.reasoning) {
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				const shouldSkipGrok4 = this.options.openRouterModelId && this.options.openRouterModelId.includes("grok-4")
+				if ("reasoning" in delta && delta.reasoning && !shouldSkipGrok4) {
 					yield {
 						type: "reasoning",
 						// @ts-ignore-next-line

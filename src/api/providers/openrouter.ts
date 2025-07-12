@@ -111,8 +111,10 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			}
 
+			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+			const shouldSkipGrok4 = this.options.openRouterModelId && this.options.openRouterModelId.includes("grok-4")
 			// Reasoning tokens are returned separately from the content
-			if ("reasoning" in delta && delta.reasoning) {
+			if ("reasoning" in delta && delta.reasoning && !shouldSkipGrok4) {
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line
