@@ -40,5 +40,6 @@
 		"mostExpensive": "Самые дорогие",
 		"mostTokens": "Больше всего токенов",
 		"mostRelevant": "Наиболее релевантные"
-	}
+	},
+	"viewAllHistory": "Просмотреть всю историю"
 }

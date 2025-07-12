@@ -47,5 +47,6 @@
 		"mostExpensive": "Teuerste",
 		"mostTokens": "Meiste Tokens",
 		"mostRelevant": "Relevanteste"
-	}
+	},
+	"viewAllHistory": "Gesamten Verlauf anzeigen"
 }

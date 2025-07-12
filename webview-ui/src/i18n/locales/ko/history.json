@@ -40,5 +40,6 @@
 		"mostExpensive": "가장 비싼순",
 		"mostTokens": "토큰 많은순",
 		"mostRelevant": "관련성 높은순"
-	}
+	},
+	"viewAllHistory": "모든 기록 보기"
 }

@@ -40,5 +40,6 @@
 		"mostExpensive": "最も高価",
 		"mostTokens": "最多トークン",
 		"mostRelevant": "最も関連性の高い"
-	}
+	},
+	"viewAllHistory": "すべての履歴を表示"
 }

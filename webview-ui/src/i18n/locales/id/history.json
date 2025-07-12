@@ -49,5 +49,6 @@
 		"mostExpensive": "Termahal",
 		"mostTokens": "Token Terbanyak",
 		"mostRelevant": "Paling Relevan"
-	}
+	},
+	"viewAllHistory": "Lihat semua tugas"
 }

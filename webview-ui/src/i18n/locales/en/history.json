@@ -40,5 +40,6 @@
 		"mostExpensive": "Most Expensive",
 		"mostTokens": "Most Tokens",
 		"mostRelevant": "Most Relevant"
-	}
+	},
+	"viewAllHistory": "View all tasks"
 }
