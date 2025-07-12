@@ -1009,7 +1009,7 @@ export const ChatRowContent = memo(
 														</>
 													)}
 													{apiRequestFailedMessage?.includes(
-														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts
+														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
 													) && (
 														<>
 															<br />
