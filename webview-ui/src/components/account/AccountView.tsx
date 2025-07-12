@@ -146,13 +146,13 @@ export const ClineAccountView = () => {
 				<div className="flex flex-col pr-3 h-full">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
-							{user.photoUrl ? (
+							{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
-							) : (
-								<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
-									{user.displayName?.[0] || user.email?.[0] || "?"}
-								</div>
-							)}
+							) : ( */}
+							<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+								{user.displayName?.[0] || user.email?.[0] || "?"}
+							</div>
+							{/* )} */}
 
 							<div className="flex flex-col">
 								{user.displayName && (

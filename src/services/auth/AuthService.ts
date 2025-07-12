@@ -1,7 +1,7 @@
 import vscode from "vscode"
 import crypto from "crypto"
 import { EmptyRequest, String } from "../../shared/proto/common"
-import { AuthState } from "../../shared/proto/account"
+import { AuthState, UserInfo } from "../../shared/proto/account"
 import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
@@ -22,13 +22,34 @@ const availableAuthProviders = {
 	// Add other providers here as needed
 }
 
+export interface ClineAuthInfo {
+	idToken: string
+	userInfo: ClineAccountUserInfo
+}
+
+export interface ClineAccountUserInfo {
+	createdAt: string
+	displayName: string
+	email: string
+	id: string
+	organizations: ClineAccountOrganization[]
+}
+
+export interface ClineAccountOrganization {
+	active: boolean
+	memberId: string
+	name: string
+	organizationId: string
+	roles: string[]
+}
+
 // TODO: Add logic to handle multiple webviews getting auth updates.
 
 export class AuthService {
 	private static instance: AuthService | null = null
 	private _config: ServiceConfig
 	private _authenticated: boolean = false
-	private _user: any = null
+	private _clineAuthInfo: ClineAuthInfo | null = null
 	private _provider: any = null
 	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
@@ -142,13 +163,19 @@ export class AuthService {
 	}
 
 	async getAuthToken(): Promise<string | null> {
-		if (!this._user) {
+		if (!this._clineAuthInfo) {
 			return null
 		}
-
-		// TODO: This may need to be dependant on the auth provider
-		// Return the ID token from the user object
-		return this._provider.provider.getAuthToken(this._user)
+		const idToken = this._clineAuthInfo.idToken
+		const shouldRefreshIdToken = await this._provider.provider.shouldRefreshIdToken(idToken)
+		if (shouldRefreshIdToken) {
+			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
+			await this.restoreAuthToken()
+			if (!this._clineAuthInfo) {
+				return null
+			}
+		}
+		return this._clineAuthInfo.idToken
 	}
 
 	private _setProvider(providerName: string): void {
@@ -161,13 +188,20 @@ export class AuthService {
 	}
 
 	getInfo(): AuthState {
-		let user = null
-		if (this._user && this._authenticated) {
-			user = this._provider.provider.convertUserData(this._user)
+		let userInfo = null
+		if (this._clineAuthInfo && this._authenticated) {
+			userInfo = this._clineAuthInfo.userInfo
 		}
 
+		// TODO: create proto for new user info type
+
 		return AuthState.create({
-			user: user,
+			user: UserInfo.create({
+				uid: userInfo?.id,
+				displayName: userInfo?.displayName,
+				email: userInfo?.email,
+				photoUrl: undefined,
+			}),
 		})
 	}
 
@@ -201,7 +235,7 @@ export class AuthService {
 
 		try {
 			await this._provider.provider.signOut()
-			this._user = null
+			this._clineAuthInfo = null
 			this._authenticated = false
 			this.sendAuthStatusUpdate()
 		} catch (error) {
@@ -216,12 +250,11 @@ export class AuthService {
 		}
 
 		try {
-			this._user = await this._provider.provider.signIn(this._context, token, provider)
+			this._clineAuthInfo = await this._provider.provider.signIn(this._context, token, provider)
 			this._authenticated = true
 
 			await this.sendAuthStatusUpdate()
-			this.setupAutoRefreshAuth()
-			return this._user
+			// return this._clineAuthInfo
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
@@ -246,51 +279,21 @@ export class AuthService {
 		}
 
 		try {
-			this._user = await this._provider.provider.restoreAuthCredential(this._context)
-			if (this._user) {
+			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._context)
+			if (this._clineAuthInfo) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
-				this.setupAutoRefreshAuth()
-				// Setup auto-refresh for the auth token
 			} else {
 				console.warn("No user found after restoring auth token")
 				this._authenticated = false
-				this._user = null
+				this._clineAuthInfo = null
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this._authenticated = false
-			this._user = null
+			this._clineAuthInfo = null
 			return
 		}
-	}
-
-	/**
-	 * Refreshes the authentication status and sends an update to all subscribers.
-	 */
-	async refreshAuth(): Promise<void> {
-		if (!this._user) {
-			console.warn("No user is authenticated, skipping auth refresh")
-			return
-		}
-
-		await this._provider.provider.refreshAuthToken()
-		this.sendAuthStatusUpdate()
-	}
-
-	private setupAutoRefreshAuth(): void {
-		// Set timeoutDuration to refresh the auth token 5 minutes before it expires
-		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
-		setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
-	}
-
-	private async _autoRefreshAuth(): Promise<void> {
-		if (!this._user) {
-			console.warn("No user is authenticated, skipping auth refresh")
-			return
-		}
-		await this.refreshAuth()
-		this.setupAutoRefreshAuth() // Reschedule the next auto-refresh
 	}
 
 	/**
