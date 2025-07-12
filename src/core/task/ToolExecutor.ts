@@ -98,13 +98,13 @@ export class ToolExecutor {
 			images?: string[],
 			files?: string[],
 			partial?: boolean,
-		) => Promise<undefined>,
+		) => Promise<number | undefined>,
 		private ask: (
 			type: ClineAsk,
 			text?: string,
 			partial?: boolean,
 		) => Promise<{ response: ClineAskResponse; text?: string; images?: string[]; files?: string[] }>,
-		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
+		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
@@ -2248,14 +2248,14 @@ export class ToolExecutor {
 							} else {
 								// last message is completion_result
 								// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
-								await this.say(
+								const completionMessageTs = await this.say(
 									"completion_result",
 									this.removeClosingTag(block, "result", result),
 									undefined,
 									undefined,
 									false,
 								)
-								await this.saveCheckpoint(true)
+								await this.saveCheckpoint(true, completionMessageTs)
 								await addNewChangesFlagToLastCompletionResultMessage()
 								await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
 									() => {},
@@ -2263,13 +2263,14 @@ export class ToolExecutor {
 							}
 						} else {
 							// no command, still outputting partial result
-							await this.say(
+							const completionMessageTs = await this.say(
 								"completion_result",
 								this.removeClosingTag(block, "result", result),
 								undefined,
 								undefined,
 								block.partial,
 							)
+							await this.saveCheckpoint(true, completionMessageTs)
 						}
 						break
 					} else {
@@ -2291,8 +2292,14 @@ export class ToolExecutor {
 						if (command) {
 							if (lastMessage && lastMessage.ask !== "command") {
 								// haven't sent a command message yet so first send completion_result then command
-								await this.say("completion_result", result, undefined, undefined, false)
-								await this.saveCheckpoint(true)
+								const completionMessageTs = await this.say(
+									"completion_result",
+									result,
+									undefined,
+									undefined,
+									false,
+								)
+								await this.saveCheckpoint(true, completionMessageTs)
 								await addNewChangesFlagToLastCompletionResultMessage()
 								telemetryService.captureTaskCompleted(this.taskId)
 							} else {
@@ -2316,8 +2323,8 @@ export class ToolExecutor {
 							// user didn't reject, but the command may have output
 							commandResult = execCommandResult
 						} else {
-							await this.say("completion_result", result, undefined, undefined, false)
-							await this.saveCheckpoint(true)
+							const completionMessageTs = await this.say("completion_result", result, undefined, undefined, false)
+							await this.saveCheckpoint(true, completionMessageTs)
 							await addNewChangesFlagToLastCompletionResultMessage()
 							telemetryService.captureTaskCompleted(this.taskId)
 						}

@@ -43,7 +43,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 	onScrollToMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
+	const { apiConfiguration, currentTaskItem, checkpointManagerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
@@ -55,13 +55,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const contextWindow = selectedModelInfo?.contextWindow
 
 	// Open task header when checkpoint tracker error message is set
-	const prevErrorMessageRef = useRef(checkpointTrackerErrorMessage)
+	const prevErrorMessageRef = useRef(checkpointManagerErrorMessage)
 	useEffect(() => {
-		if (checkpointTrackerErrorMessage !== prevErrorMessageRef.current) {
+		if (checkpointManagerErrorMessage !== prevErrorMessageRef.current) {
 			setIsTaskExpanded(true)
-			prevErrorMessageRef.current = checkpointTrackerErrorMessage
+			prevErrorMessageRef.current = checkpointManagerErrorMessage
 		}
-	}, [checkpointTrackerErrorMessage])
+	}, [checkpointManagerErrorMessage])
 
 	// Reset isTextExpanded when task is collapsed
 	useEffect(() => {
@@ -490,7 +490,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 								{ContextWindowComponent}
 							</div>
-							{checkpointTrackerErrorMessage && (
+							{checkpointManagerErrorMessage && (
 								<div
 									style={{
 										display: "flex",
@@ -501,8 +501,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									}}>
 									<i className="codicon codicon-warning" />
 									<span>
-										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
-										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
+										{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
+										{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
 											<>
 												<button
 													onClick={() => {
@@ -525,7 +525,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 												</button>
 											</>
 										)}
-										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
+										{checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
 												{" "}
 												<a
