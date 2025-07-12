@@ -275,7 +275,6 @@ export class ClineAccountService {
 			throw error
 		} finally {
 			// Request a new authentication token
-			// await this._authService.refreshAuth()
 		}
 	}
 }
