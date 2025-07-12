@@ -6,6 +6,7 @@ import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
 import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
 import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
+import * as fs from "fs/promises"
 import Anthropic from "@anthropic-ai/sdk"
 import { ApiHandler } from "@api/index"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
@@ -49,7 +50,7 @@ import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
 import { ensureTaskDirectoryExists } from "../storage/disk"
-import { getGlobalState, getWorkspaceState } from "../storage/state"
+import { getAllExtensionState, getGlobalState, getWorkspaceState } from "../storage/state"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
@@ -160,6 +161,8 @@ export class ToolExecutor {
 				return `[${block.name} for '${block.params.path}']`
 			case "replace_in_file":
 				return `[${block.name} for '${block.params.path}']`
+			case "edit_file":
+				return `[${block.name} for '${block.params.target_file}']`
 			case "search_files":
 				return `[${block.name} for '${block.params.regex}'${
 					block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
@@ -437,6 +440,149 @@ export class ToolExecutor {
 		}
 
 		switch (block.name) {
+			case "edit_file": {
+				const targetFile: string | undefined = block.params.target_file
+				const instructions: string | undefined = block.params.instructions
+				const codeEdit: string | undefined = block.params.code_edit
+
+				if (!targetFile || !instructions || !codeEdit) {
+					// wait for complete parameters
+					break
+				}
+
+				const accessAllowed = this.clineIgnoreController.validateAccess(targetFile)
+				if (!accessAllowed) {
+					await this.say("clineignore_error", targetFile)
+					this.pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(targetFile)), block)
+					await this.saveCheckpoint()
+					break
+				}
+
+				try {
+					// Check if fast apply is enabled
+					const { fastApplySettings } = await getAllExtensionState(this.context)
+
+					if (!fastApplySettings?.enabled) {
+						this.taskState.consecutiveMistakeCount++
+						this.pushToolResult(
+							formatResponse.toolError(
+								"Fast Apply is not enabled. Please enable it in settings or use write_to_file or replace_in_file instead.",
+							),
+							block,
+						)
+						await this.saveCheckpoint()
+						break
+					}
+
+					if (!fastApplySettings.apiKey) {
+						this.taskState.consecutiveMistakeCount++
+						this.pushToolResult(
+							formatResponse.toolError(
+								"Fast Apply API key is not configured. Please set your Morph API key in settings.",
+							),
+							block,
+						)
+						await this.saveCheckpoint()
+						break
+					}
+
+					// Check if file exists
+					const absolutePath = path.resolve(this.cwd, targetFile)
+					const fileExists = await fileExistsAtPath(absolutePath)
+
+					// Read original file content (empty string for new files)
+					let originalContent = ""
+					if (fileExists) {
+						originalContent = await fs.readFile(absolutePath, "utf8")
+					}
+
+					// Import and use the Morph API
+					const { applyMorphEdit } = await import("@utils/morphApi")
+					const result = await applyMorphEdit(originalContent, codeEdit, fastApplySettings.apiKey)
+
+					if (!result.success) {
+						this.taskState.consecutiveMistakeCount++
+						this.pushToolResult(formatResponse.toolError(`Fast Apply failed: ${result.error}`), block)
+						await this.saveCheckpoint()
+						break
+					}
+
+					// Write the updated content to file
+					if (result.content) {
+						// Create directory if it doesn't exist
+						await fs.mkdir(path.dirname(absolutePath), { recursive: true })
+						await fs.writeFile(absolutePath, result.content, "utf8")
+					}
+
+					this.taskState.consecutiveMistakeCount = 0
+
+					// Track file edit operation
+					await this.fileContextTracker.trackFileContext(targetFile, "cline_edited")
+					this.fileContextTracker.markFileAsEditedByCline(targetFile)
+
+					const sharedMessageProps: ClineSayTool = {
+						tool: fileExists ? "editedExistingFile" : "newFileCreated",
+						path: getReadablePath(this.cwd, targetFile),
+						content: instructions,
+						operationIsLocatedInWorkspace: await isLocatedInWorkspace(targetFile),
+					}
+
+					if (block.partial) {
+						const partialMessage = JSON.stringify(sharedMessageProps)
+						if (await this.shouldAutoApproveToolWithPath(block.name, targetFile)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", partialMessage, undefined, undefined, block.partial)
+						} else {
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							await this.ask("tool", partialMessage, block.partial).catch(() => {})
+						}
+						break
+					} else {
+						const completeMessage = JSON.stringify(sharedMessageProps)
+						if (await this.shouldAutoApproveToolWithPath(block.name, targetFile)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", completeMessage, undefined, undefined, false)
+							this.taskState.consecutiveAutoApprovedRequestsCount++
+							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+						} else {
+							showNotificationForApprovalIfAutoApprovalEnabled(
+								`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(targetFile)} using Fast Apply`,
+								this.autoApprovalSettings.enabled,
+								this.autoApprovalSettings.enableNotifications,
+							)
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							const didApprove = await this.askApproval("tool", block, completeMessage)
+							if (!didApprove) {
+								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								await this.saveCheckpoint()
+								break
+							}
+							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+						}
+
+						this.pushToolResult(
+							formatResponse.fileEditWithoutUserChanges(
+								targetFile,
+								undefined, // no auto-formatting edits for Fast Apply
+								result.content || "",
+								undefined, // no problems message for Fast Apply
+							),
+							block,
+						)
+
+						if (!fileExists) {
+							this.workspaceTracker.populateFilePaths()
+						}
+
+						await this.saveCheckpoint()
+						break
+					}
+				} catch (error) {
+					await this.handleError("applying fast edit", error, block)
+					await this.saveCheckpoint()
+					break
+				}
+			}
 			case "new_rule":
 			case "write_to_file":
 			case "replace_in_file": {
