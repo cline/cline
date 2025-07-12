@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react"
-import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react" // Import ProgressRing
+import { VSCodeProgressRing, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { UrlMatch, processResponseUrls, DisplaySegment, buildDisplaySegments } from "./utils/mcpRichUtil"
+import { DropdownContainer } from "@/components/settings/ApiOptions"
 
 // Maximum number of URLs to process in total, per response
 export const MAX_URLS = 50
@@ -33,46 +35,6 @@ const ResponseHeader = styled.div`
 
 	.header-icon {
 		margin-right: 6px;
-	}
-`
-
-const ToggleSwitch = styled.div`
-	display: flex;
-	align-items: center;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-
-	.toggle-label {
-		margin-right: 8px;
-	}
-
-	.toggle-container {
-		position: relative;
-		width: 40px;
-		height: 20px;
-		background-color: var(--vscode-button-secondaryBackground);
-		border-radius: 10px;
-		cursor: pointer;
-		transition: background-color 0.3s;
-	}
-
-	.toggle-container.active {
-		background-color: var(--vscode-button-background);
-	}
-
-	.toggle-handle {
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 16px;
-		height: 16px;
-		background-color: var(--vscode-button-foreground);
-		border-radius: 50%;
-		transition: transform 0.3s;
-	}
-
-	.toggle-container.active .toggle-handle {
-		transform: translateX(20px);
 	}
 `
 
@@ -111,13 +73,14 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	const { mcpResponsesCollapsed, mcpRichDisplayEnabled } = useExtensionState() // Get setting from context
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
-	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(mcpRichDisplayEnabled ? "rich" : "plain")
+	const [displayMode, setDisplayMode] = useState<"rich" | "plain" | "markdown">(mcpRichDisplayEnabled ? "rich" : "plain")
 
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
 
-	const toggleDisplayMode = useCallback(() => {
-		setDisplayMode((prevMode) => (prevMode === "rich" ? "plain" : "rich"))
+	const handleDisplayModeChange = useCallback((e: any) => {
+		const newMode = e.target.value as "rich" | "plain" | "markdown"
+		setDisplayMode(newMode)
 	}, [])
 
 	const toggleExpand = useCallback(() => {
@@ -131,11 +94,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
-		// Skip all processing if in plain mode
-		if (!isExpanded || displayMode === "plain") {
+		// Skip all processing if in plain mode or markdown mode
+		if (!isExpanded || displayMode === "plain" || displayMode === "markdown") {
 			setIsLoading(false)
 			if (urlMatches.length > 0) {
-				setUrlMatches([]) // Clear any existing matches when in plain mode
+				setUrlMatches([]) // Clear any existing matches when not in rich mode
 			}
 			return
 		}
@@ -225,6 +188,10 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			return <UrlText>{responseText}</UrlText>
 		}
 
+		if (displayMode === "markdown") {
+			return <MarkdownBlock markdown={responseText} />
+		}
+
 		if (error) {
 			return (
 				<>
@@ -255,16 +222,18 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
 						Response
 					</div>
-					<div style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
-						<ToggleSwitch onClick={(e) => e.stopPropagation()}>
-							<span className="toggle-label">{displayMode === "rich" ? "Rich Display" : "Plain Text"}</span>
-							<div
-								className={`toggle-container ${displayMode === "rich" ? "active" : ""}`}
-								onClick={toggleDisplayMode}>
-								<div className="toggle-handle"></div>
-							</div>
-						</ToggleSwitch>
-					</div>
+					<DropdownContainer
+						style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
+						<VSCodeDropdown
+							value={displayMode}
+							onChange={handleDisplayModeChange}
+							onClick={(e) => e.stopPropagation()}
+							style={{ minWidth: "120px" }}>
+							<VSCodeOption value="plain">Plain Text</VSCodeOption>
+							<VSCodeOption value="rich">Rich Display</VSCodeOption>
+							<VSCodeOption value="markdown">Markdown</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
 				</ResponseHeader>
 
 				{isExpanded && <div className="response-content">{renderContent()}</div>}
