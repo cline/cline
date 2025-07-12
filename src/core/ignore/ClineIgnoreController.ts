@@ -26,6 +26,28 @@ export class ClineIgnoreController {
 	}
 
 	/**
+	 * Creates a ClineIgnoreController from pre-extracted ignore patterns
+	 * Used by host bridge implementations that receive patterns as strings
+	 * @param cwd The current working directory
+	 * @param patterns Array of ignore patterns (gitignore syntax)
+	 * @returns ClineIgnoreController instance configured with the patterns
+	 */
+	static fromPatterns(cwd: string, patterns: string[]): ClineIgnoreController {
+		const controller = new ClineIgnoreController(cwd)
+		// Don't set up file watcher since we're using pre-extracted patterns
+		controller.disposables.forEach((d) => d.dispose())
+		controller.disposables = []
+
+		// Configure ignore instance with provided patterns
+		if (patterns.length > 0) {
+			controller.ignoreInstance = ignore().add(patterns)
+			controller.clineIgnoreContent = patterns.join("\n")
+		}
+
+		return controller
+	}
+
+	/**
 	 * Initialize the controller by loading custom patterns
 	 * Must be called after construction and before using the controller
 	 */
@@ -233,6 +255,21 @@ export class ClineIgnoreController {
 			console.error("Error filtering paths:", error)
 			return [] // Fail closed for security
 		}
+	}
+
+	/**
+	 * Get the current ignore patterns as an array of strings
+	 * Used by host bridge implementations to pass patterns to search functions
+	 * @returns Array of ignore patterns (gitignore syntax)
+	 */
+	getIgnorePatterns(): string[] {
+		if (!this.clineIgnoreContent) {
+			return []
+		}
+		return this.clineIgnoreContent
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter((line) => line.length > 0 && !line.startsWith("#"))
 	}
 
 	/**

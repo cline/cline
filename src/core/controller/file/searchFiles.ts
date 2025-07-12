@@ -1,6 +1,6 @@
 import { Controller } from ".."
 import { FileSearchRequest, FileSearchResults } from "@shared/proto/file"
-import { searchWorkspaceFiles } from "@services/search/file-search"
+import { searchWorkspaceFiles } from "@utils/search"
 import { getWorkspacePath } from "@utils/path"
 import { FileMethodHandler } from "./index"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
