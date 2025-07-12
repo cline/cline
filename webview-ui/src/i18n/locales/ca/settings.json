@@ -175,8 +175,12 @@
 			"description": "Executar automàticament comandes de terminal permeses sense requerir aprovació",
 			"allowedCommands": "Comandes d'auto-execució permeses",
 			"allowedCommandsDescription": "Prefixos de comandes que poden ser executats automàticament quan \"Aprovar sempre operacions d'execució\" està habilitat. Afegeix * per permetre totes les comandes (usar amb precaució).",
+			"deniedCommands": "Comandes denegades",
+			"deniedCommandsDescription": "Prefixos de comandes que es rebutjaran automàticament sense requerir aprovació. En cas de conflicte amb comandes permeses, la coincidència de prefix més llarga té prioritat. Afegeix * per denegar totes les comandes.",
 			"commandPlaceholder": "Introduïu prefix de comanda (ex. 'git ')",
-			"addButton": "Afegir"
+			"deniedCommandPlaceholder": "Introduïu prefix de comanda a denegar (ex. 'rm -rf')",
+			"addButton": "Afegir",
+			"autoDenied": "El prefix de comanda `{{prefix}}` ha estat automàticament denegat. Intentar eludir aquesta restricció pot comprometre la seguretat del sistema."
 		},
 		"updateTodoList": {
 			"label": "Todo",

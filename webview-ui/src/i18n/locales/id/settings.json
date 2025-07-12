@@ -175,8 +175,12 @@
 			"description": "Secara otomatis mengeksekusi perintah terminal yang diizinkan tanpa memerlukan persetujuan",
 			"allowedCommands": "Perintah Auto-Execute yang Diizinkan",
 			"allowedCommandsDescription": "Prefix perintah yang dapat di-auto-execute ketika \"Selalu setujui operasi eksekusi\" diaktifkan. Tambahkan * untuk mengizinkan semua perintah (gunakan dengan hati-hati).",
+			"deniedCommands": "Perintah yang ditolak",
+			"deniedCommandsDescription": "Prefix perintah yang akan ditolak secara otomatis tanpa memerlukan persetujuan. Dalam kasus konflik dengan perintah yang diizinkan, pencocokan prefix terpanjang diprioritaskan. Tambahkan * untuk menolak semua perintah.",
 			"commandPlaceholder": "Masukkan prefix perintah (misalnya, 'git ')",
-			"addButton": "Tambah"
+			"deniedCommandPlaceholder": "Masukkan prefix perintah untuk ditolak (misalnya, 'rm -rf')",
+			"addButton": "Tambah",
+			"autoDenied": "Awalan perintah `{{prefix}}` telah ditolak secara otomatis. Mencoba menghindari pembatasan ini dapat membahayakan keamanan sistem."
 		},
 		"showMenu": {
 			"label": "Tampilkan menu auto-approve di tampilan chat",

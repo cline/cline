@@ -330,6 +330,14 @@
 					],
 					"description": "%commands.allowedCommands.description%"
 				},
+				"roo-cline.deniedCommands": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "%commands.deniedCommands.description%"
+				},
 				"roo-cline.vsCodeLmModelSelector": {
 					"type": "object",
 					"properties": {

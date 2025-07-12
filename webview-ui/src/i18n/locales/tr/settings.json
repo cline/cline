@@ -175,8 +175,12 @@
 			"description": "Onay gerektirmeden otomatik olarak izin verilen terminal komutlarını yürüt",
 			"allowedCommands": "İzin Verilen Otomatik Yürütme Komutları",
 			"allowedCommandsDescription": "\"Yürütme işlemlerini her zaman onayla\" etkinleştirildiğinde otomatik olarak yürütülebilen komut önekleri. Tüm komutlara izin vermek için * ekleyin (dikkatli kullanın).",
+			"deniedCommands": "Reddedilen komutlar",
+			"deniedCommandsDescription": "Onay istenmeden otomatik olarak reddedilecek komut önekleri. İzin verilen komutlarla çakışma durumunda, en uzun önek eşleşmesi öncelik alır. Tüm komutları reddetmek için * ekleyin.",
 			"commandPlaceholder": "Komut öneki girin (örn. 'git ')",
-			"addButton": "Ekle"
+			"deniedCommandPlaceholder": "Reddetmek için komut öneki girin (örn. 'rm -rf')",
+			"addButton": "Ekle",
+			"autoDenied": "Komut öneki `{{prefix}}` otomatik olarak reddedildi. Bu kısıtlamayı aşmaya çalışmak sistemi güvenlik risklerine maruz bırakabilir."
 		},
 		"updateTodoList": {
 			"label": "Todo",

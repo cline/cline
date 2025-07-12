@@ -27,6 +27,7 @@
 	"command.documentation.title": "文档",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "当启用'始终批准执行操作'时可以自动执行的命令",
+	"commands.deniedCommands.description": "将自动拒绝而无需请求批准的命令前缀。与允许命令冲突时，最长前缀匹配优先。添加 * 拒绝所有命令。",
 	"settings.vsCodeLmModelSelector.description": "VSCode 语言模型 API 的设置",
 	"settings.vsCodeLmModelSelector.vendor.description": "语言模型的供应商（例如：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "语言模型的系列（例如：gpt-4）",

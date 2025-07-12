@@ -175,8 +175,12 @@
 			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",
 			"allowedCommands": "Toegestane automatisch uit te voeren commando's",
 			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
+			"deniedCommands": "Geweigerde commando's",
+			"deniedCommandsDescription": "Commando-prefixen die automatisch worden geweigerd zonder om goedkeuring te vragen. Bij conflicten met toegestane commando's heeft de langste prefixovereenkomst voorrang. Voeg * toe om alle commando's te weigeren.",
 			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
-			"addButton": "Toevoegen"
+			"deniedCommandPlaceholder": "Voer te weigeren commando-prefix in (bijv. 'rm -rf')",
+			"addButton": "Toevoegen",
+			"autoDenied": "Het commando-prefix `{{prefix}}` is automatisch geweigerd. Pogingen om deze beperking te omzeilen kunnen de systeemveiligheid in gevaar brengen."
 		},
 		"updateTodoList": {
 			"label": "Todo",

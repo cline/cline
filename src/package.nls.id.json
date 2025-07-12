@@ -27,6 +27,7 @@
 	"command.acceptInput.title": "Terima Input/Saran",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Perintah yang dapat dijalankan secara otomatis ketika 'Selalu setujui operasi eksekusi' diaktifkan",
+	"commands.deniedCommands.description": "Awalan perintah yang akan otomatis ditolak tanpa meminta persetujuan. Jika terjadi konflik dengan perintah yang diizinkan, pencocokan awalan terpanjang akan diprioritaskan. Tambahkan * untuk menolak semua perintah.",
 	"settings.vsCodeLmModelSelector.description": "Pengaturan untuk API Model Bahasa VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Vendor dari model bahasa (misalnya copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Keluarga dari model bahasa (misalnya gpt-4)",

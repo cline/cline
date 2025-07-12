@@ -175,8 +175,12 @@
 			"description": "Erlaubte Terminal-Befehle automatisch ohne Genehmigung ausführen",
 			"allowedCommands": "Erlaubte Auto-Ausführungsbefehle",
 			"allowedCommandsDescription": "Befehlspräfixe, die automatisch ausgeführt werden können, wenn 'Ausführungsoperationen immer genehmigen' aktiviert ist. Fügen Sie * hinzu, um alle Befehle zu erlauben (mit Vorsicht verwenden).",
+			"deniedCommands": "Verweigerte Befehle",
+			"deniedCommandsDescription": "Befehlspräfixe, die automatisch verweigert werden, ohne nach Genehmigung zu fragen. Bei Konflikten mit erlaubten Befehlen hat die längste Präfix-Übereinstimmung Vorrang. Fügen Sie * hinzu, um alle Befehle zu verweigern.",
 			"commandPlaceholder": "Befehlspräfix eingeben (z.B. 'git ')",
-			"addButton": "Hinzufügen"
+			"deniedCommandPlaceholder": "Befehlspräfix zum Verweigern eingeben (z.B. 'rm -rf')",
+			"addButton": "Hinzufügen",
+			"autoDenied": "Das Befehlspräfix `{{prefix}}` wurde automatisch verweigert. Bitte versuchen Sie nicht, diese Beschränkung zu umgehen."
 		},
 		"updateTodoList": {
 			"label": "Todo",

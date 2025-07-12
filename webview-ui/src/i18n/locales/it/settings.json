@@ -175,8 +175,12 @@
 			"description": "Esegui automaticamente i comandi del terminale consentiti senza richiedere approvazione",
 			"allowedCommands": "Comandi di auto-esecuzione consentiti",
 			"allowedCommandsDescription": "Prefissi di comando che possono essere auto-eseguiti quando \"Approva sempre operazioni di esecuzione\" è abilitato. Aggiungi * per consentire tutti i comandi (usare con cautela).",
+			"deniedCommands": "Comandi negati",
+			"deniedCommandsDescription": "Prefissi di comandi che verranno automaticamente negati senza richiedere approvazione. In caso di conflitti con comandi consentiti, la corrispondenza del prefisso più lungo ha la precedenza. Aggiungi * per negare tutti i comandi.",
 			"commandPlaceholder": "Inserisci prefisso comando (es. 'git ')",
-			"addButton": "Aggiungi"
+			"deniedCommandPlaceholder": "Inserisci prefisso comando da negare (es. 'rm -rf')",
+			"addButton": "Aggiungi",
+			"autoDenied": "Il prefisso del comando `{{prefix}}` è stato automaticamente negato. Si prega di non tentare di aggirare questa restrizione."
 		},
 		"updateTodoList": {
 			"label": "Todo",

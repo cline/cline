@@ -175,8 +175,12 @@
 			"description": "승인 없이 자동으로 허용된 터미널 명령 실행",
 			"allowedCommands": "허용된 자동 실행 명령",
 			"allowedCommandsDescription": "\"실행 작업 항상 승인\"이 활성화되었을 때 자동 실행될 수 있는 명령 접두사. 모든 명령을 허용하려면 * 추가(주의해서 사용)",
+			"deniedCommands": "거부된 명령",
+			"deniedCommandsDescription": "승인을 요청하지 않고 자동으로 거부될 명령 접두사. 허용된 명령과 충돌하는 경우 가장 긴 접두사 일치가 우선됩니다. 모든 명령을 거부하려면 * 추가",
 			"commandPlaceholder": "명령 접두사 입력(예: 'git ')",
-			"addButton": "추가"
+			"deniedCommandPlaceholder": "거부할 명령 접두사 입력(예: 'rm -rf')",
+			"addButton": "추가",
+			"autoDenied": "명령어 접두사 `{{prefix}}`가 자동으로 거부되었습니다. 이 제한을 우회하려고 시도하면 시스템 보안이 위험해질 수 있습니다."
 		},
 		"updateTodoList": {
 			"label": "Todo",

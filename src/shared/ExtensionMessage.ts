@@ -183,6 +183,7 @@ export type ExtensionState = Pick<
 	| "alwaysAllowExecute"
 	| "alwaysAllowUpdateTodoList"
 	| "allowedCommands"
+	| "deniedCommands"
 	| "allowedMaxRequests"
 	| "browserToolEnabled"
 	| "browserViewportSize"

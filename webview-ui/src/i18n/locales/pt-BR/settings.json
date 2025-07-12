@@ -175,8 +175,12 @@
 			"description": "Executar automaticamente comandos de terminal permitidos sem exigir aprovação",
 			"allowedCommands": "Comandos de auto-execução permitidos",
 			"allowedCommandsDescription": "Prefixos de comando que podem ser auto-executados quando \"Aprovar sempre operações de execução\" está ativado. Adicione * para permitir todos os comandos (use com cautela).",
+			"deniedCommands": "Comandos negados",
+			"deniedCommandsDescription": "Prefixos de comandos que serão automaticamente negados sem pedir aprovação. Em caso de conflitos com comandos permitidos, a correspondência de prefixo mais longa tem precedência. Adicione * para negar todos os comandos.",
 			"commandPlaceholder": "Digite o prefixo do comando (ex. 'git ')",
-			"addButton": "Adicionar"
+			"deniedCommandPlaceholder": "Digite o prefixo do comando para negar (ex. 'rm -rf')",
+			"addButton": "Adicionar",
+			"autoDenied": "O prefixo do comando `{{prefix}}` foi automaticamente negado. Tentar contornar essa restrição pode expor o sistema a riscos de segurança."
 		},
 		"updateTodoList": {
 			"label": "Todo",

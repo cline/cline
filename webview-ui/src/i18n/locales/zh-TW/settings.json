@@ -175,8 +175,12 @@
 			"description": "自動執行允許的終端機命令而無需核准",
 			"allowedCommands": "允許自動執行的命令",
 			"allowedCommandsDescription": "當「始終核准執行操作」啟用時可以自動執行的命令前綴。新增 * 以允許所有命令（請謹慎使用）。",
+			"deniedCommands": "拒絕的命令",
+			"deniedCommandsDescription": "將自動拒絕的命令前綴，無需使用者核准。與允許命令衝突時，最長前綴匹配優先。新增 * 拒絕所有命令。",
 			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
-			"addButton": "新增"
+			"deniedCommandPlaceholder": "輸入要拒絕的命令前綴（例如 'rm -rf'）",
+			"addButton": "新增",
+			"autoDenied": "命令前綴 `{{prefix}}` 已被自動拒絕。嘗試繞過此限制可能會使系統面臨安全風險。"
 		},
 		"updateTodoList": {
 			"label": "待辦",
