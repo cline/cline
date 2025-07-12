@@ -40,6 +40,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
     ```bash
     git clone https://github.com/cline/cline.git
+    cd cline
     ```
 2. Open the project in VSCode:
     ```bash
