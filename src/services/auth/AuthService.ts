@@ -50,7 +50,7 @@ export class AuthService {
 	private _config: ServiceConfig
 	private _authenticated: boolean = false
 	private _clineAuthInfo: ClineAuthInfo | null = null
-	private _provider: any = null
+	private _provider: { provider: FirebaseAuthProvider } | null = null
 	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
@@ -167,7 +167,7 @@ export class AuthService {
 			return null
 		}
 		const idToken = this._clineAuthInfo.idToken
-		const shouldRefreshIdToken = await this._provider.provider.shouldRefreshIdToken(idToken)
+		const shouldRefreshIdToken = await this._provider?.provider.shouldRefreshIdToken(idToken)
 		if (shouldRefreshIdToken) {
 			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
 			await this.restoreAuthToken()
@@ -234,7 +234,6 @@ export class AuthService {
 		}
 
 		try {
-			await this._provider.provider.signOut()
 			this._clineAuthInfo = null
 			this._authenticated = false
 			this.sendAuthStatusUpdate()
