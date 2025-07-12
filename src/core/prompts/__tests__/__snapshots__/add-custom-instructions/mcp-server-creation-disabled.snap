@@ -607,7 +607,7 @@ Language Preference:
 You should always speak and think in the "en" language.
 
 Mode-specific Instructions:
-1. Do some information gathering (for example using read_file or search_files) to get more context about the task.
+1. Do some information gathering (using provided tools) to get more context about the task.
 
 2. You should also ask the user clarifying questions to get a better understanding of the task.
 
