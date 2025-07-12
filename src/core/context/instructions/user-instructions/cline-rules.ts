@@ -76,7 +76,7 @@ export async function refreshClineRulesToggles(
 }> {
 	// Global toggles
 	const globalClineRulesToggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
-	const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+	const globalClineRulesFilePath = await ensureRulesDirectoryExists(context)
 	const updatedGlobalToggles = await synchronizeRuleToggles(globalClineRulesFilePath, globalClineRulesToggles)
 	await updateGlobalState(context, "globalClineRulesToggles", updatedGlobalToggles)
 
