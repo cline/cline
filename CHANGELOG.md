@@ -40,7 +40,7 @@
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
--   Add organization organization accounts
+-   Add organization accounts
 
 ## [3.18.5]
 
