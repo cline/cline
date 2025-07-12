@@ -2,6 +2,8 @@ import { OpenAICompatibleEmbedder } from "./openai-compatible"
 import { IEmbedder, EmbeddingResponse, EmbedderInfo } from "../interfaces/embedder"
 import { GEMINI_MAX_ITEM_TOKENS } from "../constants"
 import { t } from "../../../i18n"
+import { TelemetryEventName } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 /**
  * Gemini embedder implementation that wraps the OpenAI Compatible embedder
@@ -43,8 +45,17 @@ export class GeminiEmbedder implements IEmbedder {
 	 * @returns Promise resolving to embedding response
 	 */
 	async createEmbeddings(texts: string[], model?: string): Promise<EmbeddingResponse> {
-		// Always use the fixed Gemini model, ignoring any passed model parameter
-		return this.openAICompatibleEmbedder.createEmbeddings(texts, GeminiEmbedder.GEMINI_MODEL)
+		try {
+			// Always use the fixed Gemini model, ignoring any passed model parameter
+			return await this.openAICompatibleEmbedder.createEmbeddings(texts, GeminiEmbedder.GEMINI_MODEL)
+		} catch (error) {
+			TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+				error: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+				location: "GeminiEmbedder:createEmbeddings",
+			})
+			throw error
+		}
 	}
 
 	/**
@@ -52,9 +63,18 @@ export class GeminiEmbedder implements IEmbedder {
 	 * @returns Promise resolving to validation result with success status and optional error message
 	 */
 	async validateConfiguration(): Promise<{ valid: boolean; error?: string }> {
-		// Delegate validation to the OpenAI-compatible embedder
-		// The error messages will be specific to Gemini since we're using Gemini's base URL
-		return this.openAICompatibleEmbedder.validateConfiguration()
+		try {
+			// Delegate validation to the OpenAI-compatible embedder
+			// The error messages will be specific to Gemini since we're using Gemini's base URL
+			return await this.openAICompatibleEmbedder.validateConfiguration()
+		} catch (error) {
+			TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+				error: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+				location: "GeminiEmbedder:validateConfiguration",
+			})
+			throw error
+		}
 	}
 
 	/**

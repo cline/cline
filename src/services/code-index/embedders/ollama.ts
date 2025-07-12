@@ -3,7 +3,9 @@ import { EmbedderInfo, EmbeddingResponse, IEmbedder } from "../interfaces"
 import { getModelQueryPrefix } from "../../../shared/embeddingModels"
 import { MAX_ITEM_TOKENS } from "../constants"
 import { t } from "../../../i18n"
-import { withValidationErrorHandling } from "../shared/validation-helpers"
+import { withValidationErrorHandling, sanitizeErrorMessage } from "../shared/validation-helpers"
+import { TelemetryService } from "@roo-code/telemetry"
+import { TelemetryEventName } from "@roo-code/types"
 
 /**
  * Implements the IEmbedder interface using a local Ollama instance.
@@ -102,6 +104,13 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 				embeddings: embeddings,
 			}
 		} catch (error: any) {
+			// Capture telemetry before reformatting the error
+			TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+				error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+				stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+				location: "OllamaEmbedder:createEmbeddings",
+			})
+
 			// Log the original error for debugging purposes
 			console.error("Ollama embedding failed:", error)
 
@@ -222,16 +231,34 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 						error?.code === "ECONNREFUSED" ||
 						error?.message?.includes("ECONNREFUSED")
 					) {
+						// Capture telemetry for connection failed error
+						TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+							error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+							stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+							location: "OllamaEmbedder:validateConfiguration:connectionFailed",
+						})
 						return {
 							valid: false,
 							error: t("embeddings:ollama.serviceNotRunning", { baseUrl: this.baseUrl }),
 						}
 					} else if (error?.code === "ENOTFOUND" || error?.message?.includes("ENOTFOUND")) {
+						// Capture telemetry for host not found error
+						TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+							error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+							stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+							location: "OllamaEmbedder:validateConfiguration:hostNotFound",
+						})
 						return {
 							valid: false,
 							error: t("embeddings:ollama.hostNotFound", { baseUrl: this.baseUrl }),
 						}
 					} else if (error?.name === "AbortError") {
+						// Capture telemetry for timeout error
+						TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+							error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+							stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+							location: "OllamaEmbedder:validateConfiguration:timeout",
+						})
 						// Handle timeout
 						return {
 							valid: false,

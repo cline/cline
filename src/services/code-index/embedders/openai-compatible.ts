@@ -9,6 +9,8 @@ import {
 import { getDefaultModelId, getModelQueryPrefix } from "../../../shared/embeddingModels"
 import { t } from "../../../i18n"
 import { withValidationErrorHandling, HttpError, formatEmbeddingError } from "../shared/validation-helpers"
+import { TelemetryEventName } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 interface EmbeddingItem {
 	embedding: string | number[]
@@ -284,6 +286,14 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 					},
 				}
 			} catch (error) {
+				// Capture telemetry before error is reformatted
+				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+					error: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : undefined,
+					location: "OpenAICompatibleEmbedder:_embedBatchWithRetries",
+					attempt: attempts + 1,
+				})
+
 				const hasMoreAttempts = attempts < MAX_RETRIES - 1
 
 				// Check if it's a rate limit error
@@ -318,33 +328,43 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	 */
 	async validateConfiguration(): Promise<{ valid: boolean; error?: string }> {
 		return withValidationErrorHandling(async () => {
-			// Test with a minimal embedding request
-			const testTexts = ["test"]
-			const modelToUse = this.defaultModelId
+			try {
+				// Test with a minimal embedding request
+				const testTexts = ["test"]
+				const modelToUse = this.defaultModelId
 
-			let response: OpenAIEmbeddingResponse
+				let response: OpenAIEmbeddingResponse
 
-			if (this.isFullUrl) {
-				// Test direct HTTP request for full endpoint URLs
-				response = await this.makeDirectEmbeddingRequest(this.baseUrl, testTexts, modelToUse)
-			} else {
-				// Test using OpenAI SDK for base URLs
-				response = (await this.embeddingsClient.embeddings.create({
-					input: testTexts,
-					model: modelToUse,
-					encoding_format: "base64",
-				})) as OpenAIEmbeddingResponse
-			}
-
-			// Check if we got a valid response
-			if (!response?.data || response.data.length === 0) {
-				return {
-					valid: false,
-					error: "embeddings:validation.invalidResponse",
+				if (this.isFullUrl) {
+					// Test direct HTTP request for full endpoint URLs
+					response = await this.makeDirectEmbeddingRequest(this.baseUrl, testTexts, modelToUse)
+				} else {
+					// Test using OpenAI SDK for base URLs
+					response = (await this.embeddingsClient.embeddings.create({
+						input: testTexts,
+						model: modelToUse,
+						encoding_format: "base64",
+					})) as OpenAIEmbeddingResponse
 				}
-			}
 
-			return { valid: true }
+				// Check if we got a valid response
+				if (!response?.data || response.data.length === 0) {
+					return {
+						valid: false,
+						error: "embeddings:validation.invalidResponse",
+					}
+				}
+
+				return { valid: true }
+			} catch (error) {
+				// Capture telemetry for validation errors
+				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+					error: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : undefined,
+					location: "OpenAICompatibleEmbedder:validateConfiguration",
+				})
+				throw error
+			}
 		}, "openai-compatible")
 	}
 

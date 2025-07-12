@@ -6,6 +6,15 @@ import { parseMarkdown } from "../../../tree-sitter/markdownParser"
 import { readFile } from "fs/promises"
 import { Node } from "web-tree-sitter"
 
+// Mock TelemetryService
+vi.mock("../../../../../packages/telemetry/src/TelemetryService", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vi.fn(),
+		},
+	},
+}))
+
 // Override Jest-based fs/promises mock with vitest-compatible version
 vi.mock("fs/promises", () => ({
 	default: {

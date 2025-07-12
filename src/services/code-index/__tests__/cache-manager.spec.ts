@@ -29,6 +29,15 @@ vitest.mock("vscode", () => ({
 // Mock debounce to execute immediately
 vitest.mock("lodash.debounce", () => ({ default: vitest.fn((fn) => fn) }))
 
+// Mock TelemetryService
+vitest.mock("@roo-code/telemetry", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vitest.fn(),
+		},
+	},
+}))
+
 describe("CacheManager", () => {
 	let mockContext: vscode.ExtensionContext
 	let mockWorkspacePath: string

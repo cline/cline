@@ -7,6 +7,9 @@ import { parseMarkdown } from "../../tree-sitter/markdownParser"
 import { ICodeParser, CodeBlock } from "../interfaces"
 import { scannerExtensions } from "../shared/supported-extensions"
 import { MAX_BLOCK_CHARS, MIN_BLOCK_CHARS, MIN_CHUNK_REMAINDER_CHARS, MAX_CHARS_TOLERANCE_FACTOR } from "../constants"
+import { TelemetryService } from "@roo-code/telemetry"
+import { TelemetryEventName } from "@roo-code/types"
+import { sanitizeErrorMessage } from "../shared/validation-helpers"
 
 /**
  * Implementation of the code parser interface
@@ -51,6 +54,11 @@ export class CodeParser implements ICodeParser {
 				fileHash = this.createFileHash(content)
 			} catch (error) {
 				console.error(`Error reading file ${filePath}:`, error)
+				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+					error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+					stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+					location: "parseFile",
+				})
 				return []
 			}
 		}
@@ -101,6 +109,11 @@ export class CodeParser implements ICodeParser {
 					await pendingLoad
 				} catch (error) {
 					console.error(`Error in pending parser load for ${filePath}:`, error)
+					TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+						error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+						stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+						location: "parseContent:loadParser",
+					})
 					return []
 				}
 			} else {
@@ -113,6 +126,11 @@ export class CodeParser implements ICodeParser {
 					}
 				} catch (error) {
 					console.error(`Error loading language parser for ${filePath}:`, error)
+					TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+						error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+						stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
+						location: "parseContent:loadParser",
+					})
 					return []
 				} finally {
 					this.pendingLoads.delete(ext)

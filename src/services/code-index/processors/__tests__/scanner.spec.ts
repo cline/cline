@@ -3,6 +3,15 @@
 import { DirectoryScanner } from "../scanner"
 import { stat } from "fs/promises"
 
+// Mock TelemetryService
+vi.mock("../../../../../packages/telemetry/src/TelemetryService", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vi.fn(),
+		},
+	},
+}))
+
 vi.mock("fs/promises", () => ({
 	default: {
 		readFile: vi.fn(),

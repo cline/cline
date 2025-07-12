@@ -4,10 +4,31 @@ import * as vscode from "vscode"
 
 import { FileWatcher } from "../file-watcher"
 
+// Mock TelemetryService
+vi.mock("../../../../../packages/telemetry/src/TelemetryService", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vi.fn(),
+		},
+	},
+}))
+
 // Mock dependencies
 vi.mock("../../cache-manager")
-vi.mock("../../../core/ignore/RooIgnoreController")
+vi.mock("../../../core/ignore/RooIgnoreController", () => ({
+	RooIgnoreController: vi.fn().mockImplementation(() => ({
+		validateAccess: vi.fn().mockReturnValue(true),
+	})),
+}))
 vi.mock("ignore")
+vi.mock("../parser", () => ({
+	codeParser: {
+		parseFile: vi.fn().mockResolvedValue([]),
+	},
+}))
+vi.mock("../../../glob/ignore-utils", () => ({
+	isPathInIgnoredDirectory: vi.fn().mockReturnValue(false),
+}))
 
 // Mock vscode module
 vi.mock("vscode", () => ({
@@ -20,6 +41,10 @@ vi.mock("vscode", () => ({
 				},
 			},
 		],
+		fs: {
+			stat: vi.fn().mockResolvedValue({ size: 1000 }),
+			readFile: vi.fn().mockResolvedValue(Buffer.from("test content")),
+		},
 	},
 	RelativePattern: vi.fn().mockImplementation((base, pattern) => ({ base, pattern })),
 	Uri: {
@@ -92,6 +117,7 @@ describe("FileWatcher", () => {
 		mockVectorStore = {
 			upsertPoints: vi.fn().mockResolvedValue(undefined),
 			deletePointsByFilePath: vi.fn().mockResolvedValue(undefined),
+			deletePointsByMultipleFilePaths: vi.fn().mockResolvedValue(undefined),
 		}
 
 		mockIgnoreInstance = {

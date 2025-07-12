@@ -4,6 +4,8 @@ import { IEmbedder } from "./interfaces/embedder"
 import { IVectorStore } from "./interfaces/vector-store"
 import { CodeIndexConfigManager } from "./config-manager"
 import { CodeIndexStateManager } from "./state-manager"
+import { TelemetryService } from "@roo-code/telemetry"
+import { TelemetryEventName } from "@roo-code/types"
 
 /**
  * Service responsible for searching the code index.
@@ -58,6 +60,14 @@ export class CodeIndexSearchService {
 		} catch (error) {
 			console.error("[CodeIndexSearchService] Error during search:", error)
 			this.stateManager.setSystemState("Error", `Search failed: ${(error as Error).message}`)
+
+			// Capture telemetry for the error
+			TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				location: "searchIndex",
+			})
+
 			throw error // Re-throw the error after setting state
 		}
 	}

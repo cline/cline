@@ -23,6 +23,9 @@ import { codeParser } from "./parser"
 import { CacheManager } from "../cache-manager"
 import { generateNormalizedAbsolutePath, generateRelativeFilePath } from "../shared/get-relative-path"
 import { isPathInIgnoredDirectory } from "../../glob/ignore-utils"
+import { TelemetryService } from "@roo-code/telemetry"
+import { TelemetryEventName } from "@roo-code/types"
+import { sanitizeErrorMessage } from "../shared/validation-helpers"
 
 /**
  * Implementation of the file watcher interface
@@ -203,6 +206,13 @@ export class FileWatcher implements IFileWatcher {
 				}
 			} catch (error) {
 				overallBatchError = error as Error
+				// Log telemetry for deletion error
+				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+					error: sanitizeErrorMessage(overallBatchError.message),
+					location: "deletePointsByMultipleFilePaths",
+					errorType: "deletion_error",
+				})
+
 				for (const path of pathsToExplicitlyDelete) {
 					batchResults.push({ path, status: "error", error: error as Error })
 					processedCountInBatch++
@@ -246,8 +256,9 @@ export class FileWatcher implements IFileWatcher {
 					const result = await this.processFile(fileDetail.path)
 					return { path: fileDetail.path, result: result, error: undefined }
 				} catch (e) {
+					const error = e as Error
 					console.error(`[FileWatcher] Unhandled exception processing file ${fileDetail.path}:`, e)
-					return { path: fileDetail.path, result: undefined, error: e as Error }
+					return { path: fileDetail.path, result: undefined, error: error }
 				}
 			})
 
@@ -289,11 +300,13 @@ export class FileWatcher implements IFileWatcher {
 						})
 					}
 				} else {
+					const error = settledResult.reason as Error
+					const rejectedPath = (settledResult.reason as any)?.path || "unknown"
 					console.error("[FileWatcher] A file processing promise was rejected:", settledResult.reason)
 					batchResults.push({
-						path: settledResult.reason?.path || "unknown",
+						path: rejectedPath,
 						status: "error",
-						error: settledResult.reason as Error,
+						error: error,
 					})
 				}
 
@@ -308,7 +321,11 @@ export class FileWatcher implements IFileWatcher {
 			}
 		}
 
-		return { pointsForBatchUpsert, successfullyProcessedForUpsert, processedCount: processedCountInBatch }
+		return {
+			pointsForBatchUpsert,
+			successfullyProcessedForUpsert,
+			processedCount: processedCountInBatch,
+		}
 	}
 
 	private async _executeBatchUpsertOperations(
@@ -332,6 +349,13 @@ export class FileWatcher implements IFileWatcher {
 							upsertError = error as Error
 							retryCount++
 							if (retryCount === MAX_BATCH_RETRIES) {
+								// Log telemetry for upsert failure
+								TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+									error: sanitizeErrorMessage(upsertError.message),
+									location: "upsertPoints",
+									errorType: "upsert_retry_exhausted",
+									retryCount: MAX_BATCH_RETRIES,
+								})
 								throw new Error(
 									`Failed to upsert batch after ${MAX_BATCH_RETRIES} retries: ${upsertError.message}`,
 								)
@@ -350,9 +374,17 @@ export class FileWatcher implements IFileWatcher {
 					batchResults.push({ path, status: "success" })
 				}
 			} catch (error) {
-				overallBatchError = overallBatchError || (error as Error)
+				const err = error as Error
+				overallBatchError = overallBatchError || err
+				// Log telemetry for batch upsert error
+				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+					error: sanitizeErrorMessage(err.message),
+					location: "executeBatchUpsertOperations",
+					errorType: "batch_upsert_error",
+					affectedFiles: successfullyProcessedForUpsert.length,
+				})
 				for (const { path } of successfullyProcessedForUpsert) {
-					batchResults.push({ path, status: "error", error: error as Error })
+					batchResults.push({ path, status: "error", error: err })
 				}
 			}
 		} else if (overallBatchError && pointsForBatchUpsert.length > 0) {

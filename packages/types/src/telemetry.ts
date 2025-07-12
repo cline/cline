@@ -65,6 +65,7 @@ export enum TelemetryEventName {
 	DIFF_APPLICATION_ERROR = "Diff Application Error",
 	SHELL_INTEGRATION_ERROR = "Shell Integration Error",
 	CONSECUTIVE_MISTAKE_ERROR = "Consecutive Mistake Error",
+	CODE_INDEX_ERROR = "Code Index Error",
 }
 
 /**
@@ -152,6 +153,7 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.DIFF_APPLICATION_ERROR,
 			TelemetryEventName.SHELL_INTEGRATION_ERROR,
 			TelemetryEventName.CONSECUTIVE_MISTAKE_ERROR,
+			TelemetryEventName.CODE_INDEX_ERROR,
 			TelemetryEventName.CONTEXT_CONDENSED,
 			TelemetryEventName.SLIDING_WINDOW_TRUNCATION,
 			TelemetryEventName.TAB_SHOWN,

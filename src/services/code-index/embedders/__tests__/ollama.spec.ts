@@ -5,6 +5,15 @@ import { CodeIndexOllamaEmbedder } from "../ollama"
 // Mock fetch
 global.fetch = vitest.fn() as MockedFunction<typeof fetch>
 
+// Mock TelemetryService
+vitest.mock("@roo-code/telemetry", () => ({
+	TelemetryService: {
+		instance: {
+			captureEvent: vitest.fn(),
+		},
+	},
+}))
+
 // Mock i18n
 vitest.mock("../../../../i18n", () => ({
 	t: (key: string, params?: Record<string, any>) => {
