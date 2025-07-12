@@ -220,7 +220,6 @@ export class AuthService {
 			this._authenticated = true
 
 			await this.sendAuthStatusUpdate()
-			this.setupAutoRefreshAuth()
 			return this._user
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
@@ -250,7 +249,6 @@ export class AuthService {
 			if (this._user) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
-				this.setupAutoRefreshAuth()
 				// Setup auto-refresh for the auth token
 			} else {
 				console.warn("No user found after restoring auth token")
@@ -263,34 +261,6 @@ export class AuthService {
 			this._user = null
 			return
 		}
-	}
-
-	/**
-	 * Refreshes the authentication status and sends an update to all subscribers.
-	 */
-	async refreshAuth(): Promise<void> {
-		if (!this._user) {
-			console.warn("No user is authenticated, skipping auth refresh")
-			return
-		}
-
-		await this._provider.provider.refreshAuthToken()
-		this.sendAuthStatusUpdate()
-	}
-
-	private setupAutoRefreshAuth(): void {
-		// Set timeoutDuration to refresh the auth token 5 minutes before it expires
-		const timeoutDuration = Math.floor(this._user.stsTokenManager.expirationTime - 5 * 60000 - Date.now()) // Milliseconds until 5 minutes before expiration
-		setTimeout(() => this._autoRefreshAuth(), timeoutDuration)
-	}
-
-	private async _autoRefreshAuth(): Promise<void> {
-		if (!this._user) {
-			console.warn("No user is authenticated, skipping auth refresh")
-			return
-		}
-		await this.refreshAuth()
-		this.setupAutoRefreshAuth() // Reschedule the next auto-refresh
 	}
 
 	/**

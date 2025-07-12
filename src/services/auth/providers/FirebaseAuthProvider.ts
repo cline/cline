@@ -39,16 +39,6 @@ export class FirebaseAuthProvider {
 	}
 
 	/**
-	 * Refreshes the authentication token of the current user.
-	 * @returns {Promise<string | null>} A promise that resolves to the refreshed authentication token of the current user, or null if no user is signed in.
-	 */
-	async refreshAuthToken(): Promise<string | null> {
-		const user = getAuth().currentUser
-		const idToken = user ? await user.getIdToken(true) : null
-		return idToken
-	}
-
-	/**
 	 * Converts Firebase User object to a generic user object.
 	 * @param user - The Firebase User object.
 	 * @returns {User} A generic user object.
@@ -111,11 +101,8 @@ export class FirebaseAuthProvider {
 
 			// Step 2: Exchange access token for custom token from our backend (backend has the admin key, which firebase requires to create a custom token)
 			const customTokenResponse = await axios.post(
-				"https://api.cline.bot/api/v1/users/getauthtoken",
-				{
-					user_id: "",
-					id_token: googleAccessIdToken,
-				},
+				"https://api.cline.bot/api/v1/custom-token",
+				{}, // Empty request body
 				{
 					headers: {
 						"Content-Type": "application/json",
@@ -124,7 +111,7 @@ export class FirebaseAuthProvider {
 				},
 			)
 
-			const customToken = customTokenResponse.data.token
+			const customToken = customTokenResponse.data.data.token
 
 			// Step 3: Use the custom token to sign in with Firebase and create a user object (we then use user.getIdToken() to refresh the access token periodically)
 			const firebaseConfig = Object.assign({}, this._config)
