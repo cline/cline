@@ -11,6 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { formatCreditsBalance } from "@/utils/format"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -44,7 +45,7 @@ export const ClineAccountView = () => {
 
 	let user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
 
-	const [balance, setBalance] = useState(0)
+	const [balance, setBalance] = useState<number | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
@@ -60,12 +61,12 @@ export const ClineAccountView = () => {
 		setIsLoading(true)
 		try {
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
-			setBalance(response.balance?.currentBalance || 0)
+			setBalance(response.balance?.currentBalance ?? null)
 			setUsageData(response.usageTransactions)
 			setPaymentsData(response.paymentTransactions)
 		} catch (error) {
 			console.error("Failed to fetch user credits data:", error)
-			setBalance(0)
+			setBalance(null)
 			setUsageData([])
 			setPaymentsData([])
 		} finally {
@@ -97,7 +98,7 @@ export const ClineAccountView = () => {
 				Promise.all([getUserCredits(), getUserOrganizations()])
 			} catch (error) {
 				console.error("Failed to fetch user data:", error)
-				setBalance(0)
+				setBalance(null)
 				setUsageData([])
 				setPaymentsData([])
 			} finally {
@@ -206,11 +207,14 @@ export const ClineAccountView = () => {
 									<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
 								) : (
 									<>
-										<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
-										{/* TODO: Do this in a more correct way.  We have to divide by 10000
-										 * because the balance is stored in microcredits in the backend.
-										 */}
-										<CountUp end={balance / 10000} duration={0.66} decimals={4} />
+										{balance === null ? (
+											<span>----</span>
+										) : (
+											<>
+												<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
+												<CountUp end={formatCreditsBalance(balance)} duration={0.66} decimals={4} />
+											</>
+										)}
 										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
 											<span className="codicon codicon-refresh"></span>
 										</VSCodeButton>
