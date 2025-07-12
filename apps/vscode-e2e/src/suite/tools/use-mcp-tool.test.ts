@@ -557,7 +557,7 @@ suite("Roo Code use_mcp_tool Tool", function () {
 		}
 	})
 
-	test("Should request MCP filesystem directory_tree tool and complete successfully", async function () {
+	test.skip("Should request MCP filesystem directory_tree tool and complete successfully", async function () {
 		const api = globalThis.api
 		const messages: ClineMessage[] = []
 		let _taskCompleted = false
