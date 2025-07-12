@@ -27,5 +27,6 @@ export const hostServiceNameMap = {
 	workspace: "host.WorkspaceService",
 	env: "host.EnvService",
 	window: "host.WindowService",
+	diff: "host.DiffService",
 	// Add new host services here
 }

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Provides methods for diff views.
+service DiffService {
+  // Open the diff view/editor.
+  rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
+}
+
+message OpenDiffRequest {
+  optional cline.Metadata metadata = 1;
+  // The absolute path of the document being edited.
+  optional string path = 2;
+  // The new content for the file.
+  optional string content = 3;
+}
+
+message OpenDiffResponse {
+  // TODO(sfortune) the host needs to return a unique id for the diff editor.
+}
