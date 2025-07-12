@@ -1723,7 +1723,7 @@ export class Task {
 					await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
 						text: JSON.stringify({
 							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-							cancelReason: "retries_exhausted", // Indicate that automatic retries failed
+							// cancelReason: "retries_exhausted", // Indicate that automatic retries failed
 							streamingFailedMessage: errorMessage,
 						} satisfies ClineApiReqInfo),
 					})
