@@ -1,15 +1,14 @@
 import { getSecret, storeSecret } from "@/core/storage/state"
 import { ErrorService } from "@/services/error/ErrorService"
+import axios from "axios"
 import { initializeApp } from "firebase/app"
 import {
-	AuthCredential,
-	GoogleAuthProvider,
 	GithubAuthProvider,
-	OAuthCredential,
+	GoogleAuthProvider,
 	User,
-	UserCredential,
 	getAuth,
 	signInWithCredential,
+	signInWithCustomToken,
 	signOut,
 } from "firebase/auth"
 import { ExtensionContext } from "vscode"
@@ -37,16 +36,6 @@ export class FirebaseAuthProvider {
 		const user = getAuth().currentUser
 		const idToken = user ? await user.getIdToken() : null
 		return idToken
-	}
-
-	/**
-	 * Gets the refresh token of the current user.
-	 * @returns {Promise<string | null>} A promise that resolves to the refresh token of the current user, or null if no user is signed in.
-	 */
-	async getRefreshToken(): Promise<string | null> {
-		const user = getAuth().currentUser
-		const refreshToken = user ? user.refreshToken : null
-		return refreshToken
 	}
 
 	/**
@@ -90,65 +79,70 @@ export class FirebaseAuthProvider {
 	}
 
 	/**
-	 * Stores the authentication token using a provided token.
-	 * @param token - The authentication token to store.
-	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
-	 * @throws {Error} Throws an error if the storage fails.
-	 */
-	private async _storeAuthCredential(context: ExtensionContext, credential: AuthCredential): Promise<void> {
-		try {
-			await storeSecret(context, "clineAccountId", JSON.stringify(credential.toJSON()))
-		} catch (error) {
-			ErrorService.logMessage("Firebase store token error", "error")
-			ErrorService.logException(error)
-			throw error
-		}
-	}
-
-	/**
 	 * Restores the authentication token using a provided token.
 	 * @param token - The authentication token to restore.
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
 	async restoreAuthCredential(context: ExtensionContext): Promise<User | null> {
-		const credentialJSON = await getSecret(context, "clineAccountId")
-		if (!credentialJSON) {
+		const userRefreshToken = await getSecret(context, "clineAccountId")
+		if (!userRefreshToken) {
 			console.error("No stored authentication credential found.")
 			return null
 		}
 		try {
-			const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
-			const userCredential = await this._signInWithCredential(credentialData)
-			return userCredential.user
+			// Step 1: Exchange refresh token for new access token using Firebase's secure token endpoint
+			// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
+			const firebaseApiKey = this._config.apiKey
+			const googleAccessTokenResponse = await axios.post(
+				`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
+				`grant_type=refresh_token&refresh_token=${userRefreshToken}`, // NOTE: we need to make sure to pass in the refreshToken and not the idToken JWT
+				{
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+					},
+				},
+			)
+
+			// console.log("googleAccessTokenResponse", googleAccessTokenResponse)
+
+			// This returns an object with access_token, expires_in (3600), id_token (can be used as bearer token to authenticate requests, we'll use this in the future instead of firebase but need to be aware of how we use firebase sdk for e.g. user info like the profile image), project_id, refresh_token, token_type (always Bearer), and user_id
+			const googleAccessIdToken = googleAccessTokenResponse.data.id_token
+
+			// Step 2: Exchange access token for custom token from our backend (backend has the admin key, which firebase requires to create a custom token)
+			const customTokenResponse = await axios.post(
+				"https://api.cline.bot/api/v1/users/getauthtoken",
+				{
+					user_id: "",
+					id_token: googleAccessIdToken,
+				},
+				{
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${googleAccessIdToken}`,
+					},
+				},
+			)
+
+			const customToken = customTokenResponse.data.token
+
+			// Step 3: Use the custom token to sign in with Firebase and create a user object (we then use user.getIdToken() to refresh the access token periodically)
+			const firebaseConfig = Object.assign({}, this._config)
+			const app = initializeApp(firebaseConfig)
+			const auth = getAuth(app)
+			// signs user into firebase sdk internally
+			const user = (await signInWithCustomToken(auth, customToken)).user
+			return user
+
+			// let userObject = JSON.parse(credentialJSON)
+			// let user = User.
+			// userObject = User.constructor._fromJSON(auth, user2);
+			// const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
+			// const userCredential = await this._signInWithCredential(context, credentialData)
+			// return userCredential.user
 		} catch (error) {
+			console.error("Firebase restore token error", error)
 			ErrorService.logMessage("Firebase restore token error", "error")
-			ErrorService.logException(error)
-			throw error
-		}
-	}
-
-	async _signInWithCredential(credential: AuthCredential): Promise<UserCredential> {
-		const firebaseConfig = Object.assign({}, this._config)
-		const app = initializeApp(firebaseConfig)
-		const auth = getAuth(app)
-
-		// check if the user's token needs refresh. This is a short-lived access token that the firebase sdk internally manages, that the long-lived refresh token stored in secret storage is used to refresh.
-		const user = auth.currentUser
-		if (user) {
-			try {
-				// this refreshes the token and updates the user object used by the firebase auth service (if needed within 5 minutes of expiry)
-				await user.getIdToken()
-			} catch (error) {
-				console.warn("Token refresh failed", error)
-			}
-		}
-
-		try {
-			// Now that we've ensured that the access token being managed by the firebase sdk is valid, we can call the sign in method.
-			return await signInWithCredential(auth, credential)
-		} catch (error) {
-			ErrorService.logMessage("Firebase sign-in with credential error", "error")
 			ErrorService.logException(error)
 			throw error
 		}
@@ -162,7 +156,6 @@ export class FirebaseAuthProvider {
 	async signIn(context: ExtensionContext, token: string, provider: string): Promise<User> {
 		try {
 			let credential
-			let userCredential
 			switch (provider) {
 				case "google":
 					credential = GoogleAuthProvider.credential(token)
@@ -173,10 +166,21 @@ export class FirebaseAuthProvider {
 				default:
 					throw new Error(`Unsupported provider: ${provider}`)
 			}
-			// After logging in, we get a long-lived refresh token. This refresh token stored in secret storage remains constant and is used to obtain short-lived access tokens using `user.getIdToken` that the firebase sdk manages internally. We only ever need to store the refresh token once, and use it to refresh the access token when it expires.
-			await this._storeAuthCredential(context, credential)
-			userCredential = await this._signInWithCredential(credential)
-			return userCredential.user
+			// we've received the short-lived tokens from google/github, now we need to sign in to firebase with them
+			const firebaseConfig = Object.assign({}, this._config)
+			const app = initializeApp(firebaseConfig)
+			const auth = getAuth(app)
+			// this signs the user into firebase sdk internally
+			const user = (await signInWithCredential(auth, credential)).user
+			// store the long-lived refresh token in secret storage. this will be used in the future to re-signin the user using restoreAuthCredential above.
+			try {
+				await storeSecret(context, "clineAccountId", user.refreshToken)
+			} catch (error) {
+				ErrorService.logMessage("Firebase store token error", "error")
+				ErrorService.logException(error)
+				throw error
+			}
+			return user
 		} catch (error) {
 			ErrorService.logMessage("Firebase sign-in error", "error")
 			ErrorService.logException(error)
