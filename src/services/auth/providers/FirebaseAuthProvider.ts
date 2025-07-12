@@ -52,7 +52,7 @@ export class FirebaseAuthProvider {
 			const firebaseApiKey = this._config.apiKey
 			const googleAccessTokenResponse = await axios.post(
 				`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
-				`grant_type=refresh_token&refresh_token=${userRefreshToken}`,
+				`grant_type=refresh_token&refresh_token=${encodeURIComponent(userRefreshToken)}`,
 				{
 					headers: {
 						"Content-Type": "application/x-www-form-urlencoded",
