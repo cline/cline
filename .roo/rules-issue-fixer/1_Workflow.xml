@@ -478,7 +478,7 @@
       3. Inform the user of the successful creation
       
       <execute_command>
-      <command>gh issue comment [original issue number] --repo [owner]/[repo] --body "PR #[new PR number] has been created to address this issue: [PR URL]"</command>
+      <command>gh issue comment [original issue number] --repo [owner]/[repo] --body "PR #[new PR number] has been created to address this issue"</command>
       </execute_command>
       
       Final message to user:

@@ -94,7 +94,7 @@
   <after_creation>
     1. Comment on original issue with PR link:
        <execute_command>
-       <command>gh issue comment [issue-number] --repo [owner]/[repo] --body "PR #[pr-number] has been created to address this issue: [PR URL]"</command>
+       <command>gh issue comment [issue-number] --repo [owner]/[repo] --body "PR #[pr-number] has been created to address this issue"</command>
        </execute_command>
     2. Inform user of successful creation
     3. Provide next steps and tracking info
