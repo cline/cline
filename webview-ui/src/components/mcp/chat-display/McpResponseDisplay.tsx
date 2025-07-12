@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react"
-import { VSCodeProgressRing, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
@@ -7,8 +7,11 @@ import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
+import McpDisplayModeDropdown from "./McpDisplayModeDropdown"
 import { UrlMatch, processResponseUrls, DisplaySegment, buildDisplaySegments } from "./utils/mcpRichUtil"
 import { DropdownContainer } from "@/components/settings/ApiOptions"
+import { updateSetting } from "@/components/settings/utils/settingsHandlers"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
 
 // Maximum number of URLs to process in total, per response
 export const MAX_URLS = 50
@@ -70,17 +73,15 @@ interface McpResponseDisplayProps {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
-	const { mcpResponsesCollapsed, mcpRichDisplayEnabled } = useExtensionState() // Get setting from context
+	const { mcpResponsesCollapsed, mcpDisplayMode } = useExtensionState() // Get setting from context
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
-	const [displayMode, setDisplayMode] = useState<"rich" | "plain" | "markdown">(mcpRichDisplayEnabled ? "rich" : "plain")
 
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
 
-	const handleDisplayModeChange = useCallback((e: any) => {
-		const newMode = e.target.value as "rich" | "plain" | "markdown"
-		setDisplayMode(newMode)
+	const handleDisplayModeChange = useCallback((newMode: McpDisplayMode) => {
+		updateSetting("mcpDisplayMode", newMode)
 	}, [])
 
 	const toggleExpand = useCallback(() => {
@@ -95,7 +96,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
 		// Skip all processing if in plain mode or markdown mode
-		if (!isExpanded || displayMode === "plain" || displayMode === "markdown") {
+		if (!isExpanded || mcpDisplayMode === "plain" || mcpDisplayMode === "markdown") {
 			setIsLoading(false)
 			if (urlMatches.length > 0) {
 				setUrlMatches([]) // Clear any existing matches when not in rich mode
@@ -125,7 +126,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		)
 
 		return cleanup
-	}, [responseText, displayMode, isExpanded])
+	}, [responseText, mcpDisplayMode, isExpanded])
 
 	// Helper function to render a display segment
 	const renderSegment = (segment: DisplaySegment): JSX.Element => {
@@ -176,7 +177,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			return null
 		}
 
-		if (isLoading && displayMode === "rich") {
+		if (isLoading && mcpDisplayMode === "rich") {
 			return (
 				<div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50px" }}>
 					<VSCodeProgressRing />
@@ -184,11 +185,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			)
 		}
 
-		if (displayMode === "plain") {
+		if (mcpDisplayMode === "plain") {
 			return <UrlText>{responseText}</UrlText>
 		}
 
-		if (displayMode === "markdown") {
+		if (mcpDisplayMode === "markdown") {
 			return <MarkdownBlock markdown={responseText} />
 		}
 
@@ -201,7 +202,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			)
 		}
 
-		if (displayMode === "rich") {
+		if (mcpDisplayMode === "rich") {
 			const segments = buildDisplaySegments(responseText, urlMatches)
 			return <>{segments.map(renderSegment)}</>
 		}
@@ -224,15 +225,12 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					</div>
 					<DropdownContainer
 						style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
-						<VSCodeDropdown
-							value={displayMode}
+						<McpDisplayModeDropdown
+							value={mcpDisplayMode}
 							onChange={handleDisplayModeChange}
 							onClick={(e) => e.stopPropagation()}
-							style={{ minWidth: "120px" }}>
-							<VSCodeOption value="plain">Plain Text</VSCodeOption>
-							<VSCodeOption value="rich">Rich Display</VSCodeOption>
-							<VSCodeOption value="markdown">Markdown</VSCodeOption>
-						</VSCodeDropdown>
+							style={{ minWidth: "120px" }}
+						/>
 					</DropdownContainer>
 				</ResponseHeader>
 
