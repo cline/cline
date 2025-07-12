@@ -1,5 +1,4 @@
 import vscode from "vscode"
-import crypto from "crypto"
 import { EmptyRequest, String } from "../../shared/proto/common"
 import { AuthState } from "../../shared/proto/account"
 import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
@@ -30,7 +29,6 @@ export class AuthService {
 	private _authenticated: boolean = false
 	private _user: any = null
 	private _provider: any = null
-	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
 
@@ -137,10 +135,6 @@ export class AuthService {
 		this._setProvider(providerName)
 	}
 
-	get authNonce(): string {
-		return this._authNonce
-	}
-
 	async getAuthToken(): Promise<string | null> {
 		if (!this._user) {
 			return null
@@ -185,7 +179,6 @@ export class AuthService {
 
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(this._config.URI)
-		authUrl.searchParams.set("state", this._authNonce)
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
 		const authUrlString = authUrl.toString()
