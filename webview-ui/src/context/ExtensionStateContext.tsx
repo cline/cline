@@ -14,13 +14,11 @@ import { TerminalProfile } from "@shared/proto/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
 import { findLastIndex } from "@shared/array"
 import {
-	ApiConfiguration,
 	ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -54,19 +52,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	showAnnouncement: boolean
 
 	// Setters
-	setApiConfiguration: (config: ApiConfiguration) => void
-	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
-	setPlanActSeparateModelsSetting: (value: boolean) => void
-	setEnableCheckpointsSetting: (value: boolean) => void
-	setMcpMarketplaceEnabled: (value: boolean) => void
-	setMcpRichDisplayEnabled: (value: boolean) => void
-	setMcpResponsesCollapsed: (value: boolean) => void
-	setShellIntegrationTimeout: (value: number) => void
-	setTerminalReuseEnabled: (value: boolean) => void
-	setTerminalOutputLineLimit: (value: number) => void
-	setDefaultTerminalProfile: (value: string) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
@@ -78,8 +65,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
-	setAvailableTerminalProfiles: (profiles: TerminalProfile[]) => void // Setter for profiles
-	setBrowserSettings: (value: BrowserSettings) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -676,72 +661,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		setApiConfiguration: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				apiConfiguration: value,
-			})),
-		setTelemetrySetting: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				telemetrySetting: value,
-			})),
-		setPlanActSeparateModelsSetting: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				planActSeparateModelsSetting: value,
-			})),
-		setEnableCheckpointsSetting: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				enableCheckpointsSetting: value,
-			})),
-		setMcpMarketplaceEnabled: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				mcpMarketplaceEnabled: value,
-			})),
-		setMcpRichDisplayEnabled: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				mcpRichDisplayEnabled: value,
-			})),
-		setMcpResponsesCollapsed: (value) => {
-			setState((prevState) => ({
-				...prevState,
-				mcpResponsesCollapsed: value,
-			}))
-		},
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
-		setShellIntegrationTimeout: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				shellIntegrationTimeout: value,
-			})),
-		setTerminalReuseEnabled: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				terminalReuseEnabled: value,
-			})),
-		setTerminalOutputLineLimit: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				terminalOutputLineLimit: value,
-			})),
-		setDefaultTerminalProfile: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				defaultTerminalProfile: value,
-			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
-		setAvailableTerminalProfiles,
 		setShowMcp,
 		closeMcpView,
 		setChatSettings: async (value) => {
@@ -811,11 +739,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
-		setBrowserSettings: (value: BrowserSettings) =>
-			setState((prevState) => ({
-				...prevState,
-				browserSettings: value,
-			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
