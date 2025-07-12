@@ -1,5 +1,3 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentOptions, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -38,23 +36,14 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME &&
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
+
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
-			const editorInfo = await getHostBridgeProvider().windowClient.showTextDocument(
-				ShowTextDocumentRequest.create({
-					path: diffTab.input.modified.fsPath,
-					options: ShowTextDocumentOptions.create({
-						preserveFocus: true,
-					}),
-				}),
-			)
-			// Find the editor that matches the returned path
-			const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === editorInfo.documentPath)
-			if (!editor) {
-				throw new Error("Failed to find opened text editor")
-			}
-			this.activeDiffEditor = editor
+			// Use already open diff editor.
+			this.activeDiffEditor = await vscode.window.showTextDocument(diffTab.input.modified, {
+				preserveFocus: true,
+			})
 		} else {
-			// Open new diff editor
+			// Open new diff editor.
 			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
 				const fileName = path.basename(uri.fsPath)
 				const fileExists = this.editType === "modify"

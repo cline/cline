@@ -33,7 +33,7 @@ export abstract class DiffViewProvider {
 
 	constructor() {}
 
-	async open(relPath: string): Promise<void> {
+	public async open(relPath: string): Promise<void> {
 		this.isEditing = true
 		this.relPath = relPath
 		this.absolutePath = path.resolve(await getCwd(), relPath)
@@ -66,6 +66,18 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 	}
 
+	/**
+	 * Opens a diff editor or viewer for the current file.
+	 *
+	 * This abstract method must be implemented by subclasses to create and display
+	 * a diff editor or viewer that shows the difference between the original and
+	 * modified content.
+	 *
+	 * Called automatically by the `open` method after ensuring the file exists and
+	 * creating any necessary directories.
+	 *
+	 * @returns A promise that resolves when the diff editor is open and ready
+	 */
 	protected abstract openDiffEditor(): Promise<void>
 
 	async update(
