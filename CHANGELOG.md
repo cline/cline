@@ -2,8 +2,6 @@
 
 ## 3.18.14
 
-### Patch Changes
-
 -   d868616: Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
 
 ## [3.18.13]
