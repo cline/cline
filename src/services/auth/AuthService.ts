@@ -193,6 +193,7 @@ export class AuthService {
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
 			user = UserInfo.create({
+				// TODO: create proto for new user info type
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
@@ -200,9 +201,6 @@ export class AuthService {
 			})
 		}
 
-		// TODO: create proto for new user info type
-
-		// If the user is logged out
 		return AuthState.create({
 			user: user,
 		})
