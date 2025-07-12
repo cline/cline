@@ -41,7 +41,7 @@
 		"description": "Konfiguriere Codebase-Indexierungseinstellungen, um semantische Suche in deinem Projekt zu aktivieren. <0>Mehr erfahren</0>",
 		"statusTitle": "Status",
 		"enableLabel": "Codebase-Indexierung aktivieren",
-		"enableDescription": "<0>Codebase-Indexierung</0> ist eine experimentelle Funktion, die einen semantischen Suchindex deines Projekts mit KI-Embeddings erstellt. Dies ermöglicht es Roo Code, große Codebasen besser zu verstehen und zu navigieren, indem relevanter Code basierend auf Bedeutung statt nur Schlüsselwörtern gefunden wird.",
+		"enableDescription": "Aktiviere die Code-Indizierung für eine verbesserte Suche und ein besseres Kontextverständnis",
 		"settingsTitle": "Indexierungseinstellungen",
 		"disabledMessage": "Codebase-Indexierung ist derzeit deaktiviert. Aktiviere sie in den globalen Einstellungen, um Indexierungsoptionen zu konfigurieren.",
 		"providerLabel": "Embeddings-Anbieter",

@@ -10,6 +10,7 @@ import { getDefaultModelId, getModelDimension, getModelScoreThreshold } from "..
  * Handles loading, validating, and providing access to configuration values.
  */
 export class CodeIndexConfigManager {
+	private codebaseIndexEnabled: boolean = true
 	private embedderProvider: EmbedderProvider = "openai"
 	private modelId?: string
 	private modelDimension?: number
@@ -68,7 +69,7 @@ export class CodeIndexConfigManager {
 		const geminiApiKey = this.contextProxy?.getSecret("codebaseIndexGeminiApiKey") ?? ""
 
 		// Update instance variables with configuration
-		// Note: codebaseIndexEnabled is no longer used as the feature is always enabled
+		this.codebaseIndexEnabled = codebaseIndexEnabled ?? true
 		this.qdrantUrl = codebaseIndexQdrantUrl
 		this.qdrantApiKey = qdrantApiKey ?? ""
 		this.searchMinScore = codebaseIndexSearchMinScore
@@ -142,7 +143,7 @@ export class CodeIndexConfigManager {
 	}> {
 		// Capture the ACTUAL previous state before loading new configuration
 		const previousConfigSnapshot: PreviousConfigSnapshot = {
-			enabled: true, // Feature is always enabled
+			enabled: this.codebaseIndexEnabled,
 			configured: this.isConfigured(),
 			embedderProvider: this.embedderProvider,
 			modelId: this.modelId,
@@ -243,19 +244,26 @@ export class CodeIndexConfigManager {
 		const prevQdrantUrl = prev?.qdrantUrl ?? ""
 		const prevQdrantApiKey = prev?.qdrantApiKey ?? ""
 
-		// 1. Transition from unconfigured to configured
-		// Since the feature is always enabled, we only check configuration status
-		if (!prevConfigured && nowConfigured) {
+		// 1. Transition from disabled/unconfigured to enabled/configured
+		if ((!prevEnabled || !prevConfigured) && this.codebaseIndexEnabled && nowConfigured) {
+			return true
+		}
+
+		// 2. Transition from enabled to disabled
+		if (prevEnabled && !this.codebaseIndexEnabled) {
 			return true
 		}
 
 		// 3. If wasn't ready before and isn't ready now, no restart needed
-		if (!prevConfigured && !nowConfigured) {
+		if ((!prevEnabled || !prevConfigured) && (!this.codebaseIndexEnabled || !nowConfigured)) {
 			return false
 		}
 
 		// 4. CRITICAL CHANGES - Always restart for these
-		// Since feature is always enabled, we always check for critical changes
+		// Only check for critical changes if feature is enabled
+		if (!this.codebaseIndexEnabled) {
+			return false
+		}
 
 		// Provider change
 		if (prevProvider !== this.embedderProvider) {
@@ -354,7 +362,7 @@ export class CodeIndexConfigManager {
 	 * Gets whether the code indexing feature is enabled
 	 */
 	public get isFeatureEnabled(): boolean {
-		return true
+		return this.codebaseIndexEnabled
 	}
 
 	/**

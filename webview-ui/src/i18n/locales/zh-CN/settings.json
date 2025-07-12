@@ -41,7 +41,7 @@
 		"description": "配置代码库索引设置以启用项目的语义搜索。<0>了解更多</0>",
 		"statusTitle": "状态",
 		"enableLabel": "启用代码库索引",
-		"enableDescription": "<0>代码库索引</0>是一个实验性功能，使用 AI 嵌入为您的项目创建语义搜索索引。这使 Roo Code 能够通过基于含义而非仅仅关键词来查找相关代码，从而更好地理解和导航大型代码库。",
+		"enableDescription": "启用代码索引以改进搜索和上下文理解",
 		"settingsTitle": "索引设置",
 		"disabledMessage": "代码库索引当前已禁用。在全局设置中启用它以配置索引选项。",
 		"providerLabel": "嵌入提供商",

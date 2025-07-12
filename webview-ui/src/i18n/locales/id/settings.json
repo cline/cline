@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "Pengindeksan Codebase",
 		"enableLabel": "Aktifkan Pengindeksan Codebase",
-		"enableDescription": "<0>Pengindeksan Codebase</0> adalah fitur eksperimental yang membuat indeks pencarian semantik dari proyek kamu menggunakan AI embeddings. Ini memungkinkan Roo Code untuk lebih memahami dan menavigasi codebase besar dengan menemukan kode yang relevan berdasarkan makna daripada hanya kata kunci.",
+		"enableDescription": "Aktifkan pengindeksan kode untuk pencarian dan pemahaman konteks yang lebih baik",
 		"providerLabel": "Provider Embeddings",
 		"selectProviderPlaceholder": "Pilih provider",
 		"openaiProvider": "OpenAI",

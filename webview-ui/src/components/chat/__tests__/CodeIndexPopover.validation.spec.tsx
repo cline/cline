@@ -103,6 +103,12 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</a>
 	),
+	VSCodeCheckbox: ({ checked, onChange, children, ...rest }: any) => (
+		<label>
+			<input type="checkbox" checked={checked || false} onChange={(e) => onChange && onChange(e)} {...rest} />
+			{children}
+		</label>
+	),
 }))
 
 // Helper function to simulate input on form elements

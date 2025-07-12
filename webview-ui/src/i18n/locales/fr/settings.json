@@ -41,7 +41,7 @@
 		"description": "Configurez les paramètres d'indexation de la base de code pour activer la recherche sémantique dans votre projet. <0>En savoir plus</0>",
 		"statusTitle": "Statut",
 		"enableLabel": "Activer l'indexation de la base de code",
-		"enableDescription": "<0>L'indexation de la base de code</0> est une fonctionnalité expérimentale qui crée un index de recherche sémantique de votre projet en utilisant des embeddings IA. Cela permet à Roo Code de mieux comprendre et naviguer dans de grandes bases de code en trouvant du code pertinent basé sur le sens plutôt que seulement sur des mots-clés.",
+		"enableDescription": "Activer l'indexation du code pour une recherche et une compréhension du contexte améliorées",
 		"settingsTitle": "Paramètres d'indexation",
 		"disabledMessage": "L'indexation de la base de code est actuellement désactivée. Activez-la dans les paramètres globaux pour configurer les options d'indexation.",
 		"providerLabel": "Fournisseur d'embeddings",

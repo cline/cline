@@ -41,7 +41,7 @@
 		"description": "Configura los ajustes de indexación de código para habilitar búsqueda semántica en tu proyecto. <0>Más información</0>",
 		"statusTitle": "Estado",
 		"enableLabel": "Habilitar indexación de código",
-		"enableDescription": "<0>La indexación de código</0> es una función experimental que crea un índice de búsqueda semántica de tu proyecto usando embeddings de IA. Esto permite a Roo Code entender mejor y navegar grandes bases de código encontrando código relevante basado en significado en lugar de solo palabras clave.",
+		"enableDescription": "Habilita la indexación de código para mejorar la búsqueda y la comprensión del contexto",
 		"settingsTitle": "Configuración de indexación",
 		"disabledMessage": "La indexación de código está actualmente deshabilitada. Habilítala en la configuración global para configurar las opciones de indexación.",
 		"providerLabel": "Proveedor de embeddings",
