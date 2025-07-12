@@ -10,29 +10,30 @@ import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions, TextEditorInfo } from "@/shared/proto/host/window"
+import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
-export class DiffViewProvider {
+export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
 	isEditing = false
 	originalContent: string | undefined
 	private createdDirs: string[] = []
-	private documentWasOpen = false
-	private relPath?: string
-	private absolutePath?: string
-	private newContent?: string
-	private activeDiffEditor?: vscode.TextEditor
-	private fadedOverlayController?: DecorationController
-	private activeLineController?: DecorationController
+	protected documentWasOpen = false
+	protected relPath?: string
+	protected absolutePath?: string
+	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
-	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
-	private fileEncoding: string = "utf8"
+	private newContent?: string
+
+	protected activeDiffEditor?: vscode.TextEditor
+	protected fadedOverlayController?: DecorationController
+	protected activeLineController?: DecorationController
+	protected preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	constructor() {}
 
-	async open(relPath: string): Promise<void> {
+	public async open(relPath: string): Promise<void> {
 		this.isEditing = true
 		this.relPath = relPath
 		this.absolutePath = path.resolve(await getCwd(), relPath)
@@ -64,6 +65,20 @@ export class DiffViewProvider {
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
 	}
+
+	/**
+	 * Opens a diff editor or viewer for the current file.
+	 *
+	 * This abstract method must be implemented by subclasses to create and display
+	 * a diff editor or viewer that shows the difference between the original and
+	 * modified content.
+	 *
+	 * Called automatically by the `open` method after ensuring the file exists and
+	 * creating any necessary directories.
+	 *
+	 * @returns A promise that resolves when the diff editor is open and ready
+	 */
+	protected abstract openDiffEditor(): Promise<void>
 
 	async update(
 		accumulatedContent: string,
@@ -325,88 +340,6 @@ export class DiffViewProvider {
 				await vscode.window.tabGroups.close(tab)
 			}
 		}
-	}
-
-	private async openDiffEditor(): Promise<void> {
-		if (!this.absolutePath) {
-			throw new Error("No file path set")
-		}
-		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
-		this.preDiagnostics = vscode.languages.getDiagnostics()
-
-		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
-		this.documentWasOpen = false
-		// close the tab if it's open (it's already been saved)
-		const tabs = vscode.window.tabGroups.all
-			.map((tg) => tg.tabs)
-			.flat()
-			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
-		for (const tab of tabs) {
-			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
-			}
-			this.documentWasOpen = true
-		}
-
-		const uri = vscode.Uri.file(this.absolutePath)
-		// If this diff editor is already open (ie if a previous write file was interrupted) then we should activate that instead of opening a new diff
-		const diffTab = vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
-			.find(
-				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff &&
-					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME &&
-					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
-			)
-		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
-			const editorInfo = await getHostBridgeProvider().windowClient.showTextDocument(
-				ShowTextDocumentRequest.create({
-					path: diffTab.input.modified.fsPath,
-					options: ShowTextDocumentOptions.create({
-						preserveFocus: true,
-					}),
-				}),
-			)
-			// Find the editor that matches the returned path
-			const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === editorInfo.documentPath)
-			if (!editor) {
-				throw new Error("Failed to find opened text editor")
-			}
-			this.activeDiffEditor = editor
-		} else {
-			// Open new diff editor
-			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
-				const fileName = path.basename(uri.fsPath)
-				const fileExists = this.editType === "modify"
-				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-					if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
-						disposable.dispose()
-						resolve(editor)
-					}
-				})
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
-						query: Buffer.from(this.originalContent ?? "").toString("base64"),
-					}),
-					uri,
-					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
-					{
-						preserveFocus: true,
-					},
-				)
-				// This may happen on very slow machines ie project idx
-				setTimeout(() => {
-					disposable.dispose()
-					reject(new Error("Failed to open diff editor, please try again..."))
-				}, 10_000)
-			})
-		}
-
-		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
-		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
-		// Apply faded overlay to all lines initially
-		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
 	}
 
 	private scrollEditorToLine(line: number) {

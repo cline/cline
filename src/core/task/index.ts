@@ -82,6 +82,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -174,7 +175,7 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = new DiffViewProvider()
+		this.diffViewProvider = createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
