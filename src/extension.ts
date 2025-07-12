@@ -294,32 +294,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				break
 			}
 			case "/auth": {
-				const authService = AuthService.getInstance()
 				console.log("Auth callback received:", uri.toString())
 
 				const token = query.get("idToken")
-				const state = query.get("state")
 				const provider = query.get("provider")
 
-				console.log("Auth callback received:", {
-					token: token,
-					state: state,
-					provider: provider,
-				})
-
-				// Ask user to confirm on state mismatch. This enables signins initiated from
-				// outside the extension (e.g. Cline web) to be handled correctly.
-				if (authService.authNonce !== state) {
-					const userConfirmation = await vscode.window.showWarningMessage(
-						`Store token returned from ${uri.path}`,
-						"Store",
-						"Cancel",
-					)
-					if (userConfirmation === "Cancel") {
-						console.log("User declined to continue with auth callback due to state mismatch")
-						return
-					}
-				}
+				console.log("Auth callback received:", { provider })
 
 				if (token) {
 					await visibleWebview?.controller.handleAuthCallback(token, provider)
