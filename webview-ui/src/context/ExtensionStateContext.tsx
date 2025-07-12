@@ -278,7 +278,36 @@ export const ExtensionStateContextProvider: React.FC<{
 							}
 
 							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
+							const config = stateData.apiConfiguration
+							const hasKey = config
+								? [
+										config.apiKey,
+										config.openRouterApiKey,
+										config.awsRegion,
+										config.vertexProjectId,
+										config.openAiApiKey,
+										config.ollamaModelId,
+										config.lmStudioModelId,
+										config.liteLlmApiKey,
+										config.geminiApiKey,
+										config.openAiNativeApiKey,
+										config.deepSeekApiKey,
+										config.requestyApiKey,
+										config.togetherApiKey,
+										config.qwenApiKey,
+										config.doubaoApiKey,
+										config.mistralApiKey,
+										config.vsCodeLmModelSelector,
+										config.clineApiKey,
+										config.awsBedrockApiKey,
+										config.asksageApiKey,
+										config.xaiApiKey,
+										config.sambanovaApiKey,
+										config.sapAiCoreClientId,
+									].some((key) => key !== undefined)
+								: false
+
+							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
 
 							console.log("[DEBUG] returning new state in ESC")

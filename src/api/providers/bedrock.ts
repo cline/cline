@@ -186,7 +186,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}> {
 		// Configure provider options
 		const providerOptions: ProviderChainOptions = {}
-		if (this.options.awsUseProfile) {
+		if (this.options.awsUseProfile || this.options.awsAuthentication === "profile") {
 			// For profile-based auth, always use ignoreCache to detect credential file changes
 			// This solves the AWS Identity Manager issue where credential files change externally
 			providerOptions.ignoreCache = true
@@ -200,7 +200,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
-				if (this.options.awsUseProfile) {
+				if (this.options.awsAuthentication === "profile" || this.options.awsUseProfile) {
 					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
 				} else {
 					delete process.env["AWS_PROFILE"]
@@ -224,15 +224,27 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Creates a BedrockRuntimeClient with the appropriate credentials
 	 */
 	private async getBedrockClient(): Promise<BedrockRuntimeClient> {
-		const credentials = await this.getAwsCredentials()
+		let auth: any
 
+		if (this.options.awsAuthentication === "apikey") {
+			auth = {
+				token: { token: this.options.awsBedrockApiKey },
+				authSchemePreference: ["httpBearerAuth"],
+			}
+		} else {
+			const credentials = await this.getAwsCredentials()
+			auth = {
+				credentials: {
+					accessKeyId: credentials.accessKeyId,
+					secretAccessKey: credentials.secretAccessKey,
+					sessionToken: credentials.sessionToken,
+				},
+			}
+		}
+		console.log({ auth })
 		return new BedrockRuntimeClient({
 			region: this.getRegion(),
-			credentials: {
-				accessKeyId: credentials.accessKeyId,
-				secretAccessKey: credentials.secretAccessKey,
-				sessionToken: credentials.sessionToken,
-			},
+			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
 		})
 	}
