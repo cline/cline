@@ -274,8 +274,8 @@ export class ClineAccountService {
 			console.error("Error switching account:", error)
 			throw error
 		} finally {
-			// Request a new authentication token
-			await this._authService.refreshAuth()
+			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
+			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
 		}
 	}
 }
