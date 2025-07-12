@@ -3,7 +3,7 @@ import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
+import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
@@ -48,8 +48,11 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 				}),
 			)
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
+				}),
 			)
 		}
 	}

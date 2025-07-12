@@ -4,6 +4,8 @@ import * as path from "path"
 import { Controller } from "@core/controller"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /**
  * Registers development-only commands for task manipulation.
@@ -96,7 +98,13 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					// Update the UI to show the new tasks
 					await controller.postStateToWebview()
 
-					vscode.window.showInformationMessage(`Created ${tasksCount} test tasks`)
+					const message = `Created ${tasksCount} test tasks`
+					getHostBridgeProvider().windowClient.showMessage(
+						ShowMessageRequest.create({
+							type: ShowMessageType.INFORMATION,
+							message,
+						}),
+					)
 				},
 			)
 		}),

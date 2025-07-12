@@ -11,6 +11,7 @@ service WindowService {
   // Opens a text document in the editor and returns editor information.
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
+  rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -45,4 +46,28 @@ message ShowOpenDialogueFilterOption {
 
 message SelectedResources {
   repeated string paths = 1;
+}
+
+enum ShowMessageType {
+  ERROR = 0;
+  INFORMATION = 1;
+  WARNING = 2;
+}
+
+message ShowMessageRequest {
+  cline.Metadata metadata = 1;
+  ShowMessageType type = 2;
+  string message = 3;
+  optional ShowMessageRequestOptions options = 4;
+}
+
+message ShowMessageRequestOptions {
+  repeated string items = 1;
+  optional bool modal = 2;
+  optional string detail = 3;
+
+}
+
+message SelectedResponse {
+  optional string selected_option = 1;
 }
