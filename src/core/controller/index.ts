@@ -461,11 +461,6 @@ export class Controller {
 		}
 	}
 
-	// Auth
-	public async validateAuthState(state: string | null): Promise<boolean> {
-		return state === this.authService.authNonce
-	}
-
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
