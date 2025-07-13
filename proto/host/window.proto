@@ -12,6 +12,12 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  // Gets the currently active text editor information.
+  rpc getActiveTextEditor(GetActiveTextEditorRequest) returns (ActiveTextEditorInfo);
+  // Gets information about all visible text editors.
+  rpc getVisibleTextEditors(GetVisibleTextEditorsRequest) returns (VisibleTextEditorsInfo);
+  // Shows a save dialog for file selection.
+  rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +76,58 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+message GetActiveTextEditorRequest {
+  cline.Metadata metadata = 1;
+}
+
+message ActiveTextEditorInfo {
+  optional string document_path = 1;
+  optional int32 view_column = 2;
+  optional string language_id = 3;
+  optional TextSelection selection = 4;
+  bool is_active = 5;
+}
+
+message TextSelection {
+  int32 start_line = 1;
+  int32 start_character = 2;
+  int32 end_line = 3;
+  int32 end_character = 4;
+}
+
+message GetVisibleTextEditorsRequest {
+  cline.Metadata metadata = 1;
+}
+
+message VisibleTextEditorsInfo {
+  repeated VisibleTextEditorInfo editors = 1;
+}
+
+message VisibleTextEditorInfo {
+  string document_path = 1;
+  optional int32 view_column = 2;
+  optional string language_id = 3;
+  optional TextSelection selection = 4;
+  bool is_active = 5;
+}
+
+message ShowSaveDialogRequest {
+  cline.Metadata metadata = 1;
+  optional string default_uri = 2;
+  optional ShowSaveDialogFilterOption filters = 3;
+  optional string save_label = 4;
+}
+
+message ShowSaveDialogFilterOption {
+  map<string, FileExtensionList> filter_map = 1;
+}
+
+message FileExtensionList {
+  repeated string extensions = 1;
+}
+
+message ShowSaveDialogResponse {
+  optional string path = 1;
 }
