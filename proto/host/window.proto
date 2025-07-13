@@ -13,9 +13,9 @@ service WindowService {
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
   // Gets the currently active text editor information.
-  rpc getActiveTextEditor(GetActiveTextEditorRequest) returns (ActiveTextEditorInfo);
+  rpc getActiveTextEditor(cline.EmptyRequest) returns (ActiveTextEditorInfo);
   // Gets information about all visible text editors.
-  rpc getVisibleTextEditors(GetVisibleTextEditorsRequest) returns (VisibleTextEditorsInfo);
+  rpc getVisibleTextEditors(cline.EmptyRequest) returns (VisibleTextEditorsInfo);
   // Shows a save dialog for file selection.
   rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
 }
@@ -78,10 +78,6 @@ message SelectedResponse {
   optional string selected_option = 1;
 }
 
-message GetActiveTextEditorRequest {
-  cline.Metadata metadata = 1;
-}
-
 message ActiveTextEditorInfo {
   optional string document_path = 1;
   optional int32 view_column = 2;
@@ -95,10 +91,6 @@ message TextSelection {
   int32 start_character = 2;
   int32 end_line = 3;
   int32 end_character = 4;
-}
-
-message GetVisibleTextEditorsRequest {
-  cline.Metadata metadata = 1;
 }
 
 message VisibleTextEditorsInfo {
@@ -115,7 +107,7 @@ message VisibleTextEditorInfo {
 
 message ShowSaveDialogRequest {
   cline.Metadata metadata = 1;
-  optional string default_uri = 2;
+  optional string default_path = 2;
   optional ShowSaveDialogFilterOption filters = 3;
   optional string save_label = 4;
 }

@@ -1,7 +1,8 @@
 import * as vscode from "vscode"
-import { GetActiveTextEditorRequest, ActiveTextEditorInfo, TextSelection } from "@/shared/proto/host/window"
+import { EmptyRequest } from "@/shared/proto/common"
+import { ActiveTextEditorInfo, TextSelection } from "@/shared/proto/host/window"
 
-export async function getActiveTextEditor(request: GetActiveTextEditorRequest): Promise<ActiveTextEditorInfo> {
+export async function getActiveTextEditor(request: EmptyRequest): Promise<ActiveTextEditorInfo> {
 	console.log("getActiveTextEditor called with request:", request)
 	const editor = vscode.window.activeTextEditor
 

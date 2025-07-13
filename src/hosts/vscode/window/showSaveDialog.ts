@@ -6,8 +6,8 @@ export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<Sh
 
 	const options: vscode.SaveDialogOptions = {}
 
-	if (request.defaultUri) {
-		options.defaultUri = vscode.Uri.file(request.defaultUri)
+	if (request.defaultPath) {
+		options.defaultUri = vscode.Uri.file(request.defaultPath)
 	}
 
 	if (request.saveLabel) {

@@ -1,6 +1,5 @@
 import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { Metadata } from "@/shared/proto/common"
 
 /**
  * Shows a save dialog to the user via host bridge
@@ -18,8 +17,7 @@ export async function showSaveDialog(options?: vscode.SaveDialogOptions): Promis
 		}
 
 		const response = await getHostBridgeProvider().windowClient.showSaveDialog({
-			metadata: Metadata.create(),
-			defaultUri: options?.defaultUri?.fsPath,
+			defaultPath: options?.defaultUri?.fsPath,
 			filters: { filterMap },
 			saveLabel: options?.saveLabel,
 		})

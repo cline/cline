@@ -1,12 +1,8 @@
 import * as vscode from "vscode"
-import {
-	GetVisibleTextEditorsRequest,
-	VisibleTextEditorsInfo,
-	VisibleTextEditorInfo,
-	TextSelection,
-} from "@/shared/proto/host/window"
+import { EmptyRequest } from "@/shared/proto/common"
+import { VisibleTextEditorsInfo, VisibleTextEditorInfo, TextSelection } from "@/shared/proto/host/window"
 
-export async function getVisibleTextEditors(request: GetVisibleTextEditorsRequest): Promise<VisibleTextEditorsInfo> {
+export async function getVisibleTextEditors(request: EmptyRequest): Promise<VisibleTextEditorsInfo> {
 	console.log("getVisibleTextEditors called with request:", request)
 	const visibleEditors = vscode.window.visibleTextEditors
 	const activeEditor = vscode.window.activeTextEditor
