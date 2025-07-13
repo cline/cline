@@ -123,7 +123,7 @@ export abstract class DiffViewProvider {
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
-			this.replaceText(contentToReplace, rangeToReplace, currentLine)
+			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
 			if (changeLocation) {
