@@ -45,33 +45,17 @@ export class UrlContentFetcher {
 		if (this.browser) {
 			return
 		}
-
-		// Read browser settings from globalState (custom storage)
+		const stats = await this.ensureChromiumExists()
+		// Read browser settings from globalState for custom args only
 		const browserSettings = this.context.globalState.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
-		const settingExecutablePath = browserSettings.chromeExecutablePath || ""
 		const customArgsStr = browserSettings.customArgs || ""
 		const customArgs = customArgsStr.trim() ? customArgsStr.split(/\s+/) : []
-
-		let executablePath: string
-		let puppeteerLaunch: typeof launch
-
-		if (settingExecutablePath) {
-			// Use user-provided executable path (e.g., system Chrome)
-			executablePath = settingExecutablePath
-			puppeteerLaunch = launch // From puppeteer-core
-		} else {
-			// Fall back to PCR for auto-detection/download
-			const stats = await this.ensureChromiumExists()
-			executablePath = stats.executablePath
-			puppeteerLaunch = stats.puppeteer.launch
-		}
-
-		this.browser = await puppeteerLaunch({
+		this.browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 				...customArgs, // Append user-provided custom arguments
 			],
-			executablePath,
+			executablePath: stats.executablePath,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
