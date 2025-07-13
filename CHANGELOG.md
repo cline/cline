@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.23.8] - 2025-07-13
+
+- Add enable/disable toggle for code indexing (thanks @daniel-lxs!)
+- Add a command auto-deny list to auto-approve settings
+- Add navigation link to history tab in HistoryPreview
+
 ## [3.23.7] - 2025-07-11
 
 - Fix Mermaid syntax warning (thanks @MuriloFP!)
