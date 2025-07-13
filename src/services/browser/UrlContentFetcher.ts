@@ -7,6 +7,7 @@ import TurndownService from "turndown"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import { fileExistsAtPath } from "@utils/fs"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -44,13 +45,35 @@ export class UrlContentFetcher {
 		if (this.browser) {
 			return
 		}
-		const stats = await this.ensureChromiumExists()
-		this.browser = await stats.puppeteer.launch({
+
+		// Read browser settings from globalState (custom storage)
+		const browserSettings = this.context.globalState.get<BrowserSettings>('browserSettings', DEFAULT_BROWSER_SETTINGS);
+		const settingExecutablePath = browserSettings.chromeExecutablePath || '';
+		const customArgsStr = browserSettings.customArgs || '';
+		const customArgs = customArgsStr.trim() ? customArgsStr.split(/\s+/) : [];
+
+		let executablePath: string;
+		let puppeteerLaunch: typeof launch;
+
+		if (settingExecutablePath) {
+			// Use user-provided executable path (e.g., system Chrome)
+			executablePath = settingExecutablePath;
+			puppeteerLaunch = launch; // From puppeteer-core
+		} else {
+			// Fall back to PCR for auto-detection/download
+			const stats = await this.ensureChromiumExists();
+			executablePath = stats.executablePath;
+			puppeteerLaunch = stats.puppeteer.launch;
+		}
+
+		this.browser = await puppeteerLaunch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				...customArgs // Append user-provided custom arguments
 			],
-			executablePath: stats.executablePath,
-		})
+			executablePath,
+			headless: true, // Explicitly set headless (implied but good to confirm)
+		});
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
 	}

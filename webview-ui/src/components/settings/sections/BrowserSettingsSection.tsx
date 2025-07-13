@@ -342,6 +342,29 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 									Leave blank to auto-detect.
 								</p>
 							</div>
+							{/* Custom Browser Arguments section */}
+							<div style={{ marginBottom: 8, marginTop: 8 }}>
+								<label
+									htmlFor="custom-browser-args"
+									style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+									Custom Browser Arguments (Optional)
+								</label>
+								<DebouncedTextField
+									id="custom-browser-args"
+									initialValue={browserSettings.customArgs || ""}
+									placeholder="e.g., --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-zygote"
+									style={{ width: "100%" }}
+									onChange={(value) => updateBrowserSetting("customArgs", value || undefined)}
+								/>
+								<p
+									style={{
+										fontSize: "12px",
+										color: "var(--vscode-descriptionForeground)",
+										margin: "4px 0 0 0",
+									}}>
+									Space-separated arguments to pass to the browser executable. These are appended to defaults during launch.
+								</p>
+							</div>
 						</div>
 					</CollapsibleContent>
 				</div>
