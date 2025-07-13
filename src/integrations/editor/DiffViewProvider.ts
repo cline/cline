@@ -180,6 +180,18 @@ export abstract class DiffViewProvider {
 		}
 	}
 
+	/**
+	 * Replaces text in the diff editor with the specified content.
+	 *
+	 * This abstract method must be implemented by subclasses to handle the actual
+	 * text replacement in their specific diff editor implementation. It's called
+	 * during the streaming update process to progressively show changes.
+	 *
+	 * @param content The new content to insert into the document
+	 * @param rangeToReplace An object specifying the line range to replace
+	 * @param currentLine The current line number being edited, used for scroll positioning
+	 * @returns A promise that resolves when the text replacement is complete
+	 */
 	abstract replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
