@@ -121,15 +121,9 @@ export abstract class DiffViewProvider {
 
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
-			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			edit.replace(document.uri, rangeToReplace, contentToReplace)
-			await vscode.workspace.applyEdit(edit)
-
-			// Update decorations for the entire changed section
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
+			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
+			this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
 			if (changeLocation) {
@@ -185,6 +179,12 @@ export abstract class DiffViewProvider {
 			this.activeLineController.clear()
 		}
 	}
+
+	abstract replaceText(
+		content: string,
+		rangeToReplace: { startLine: number; endLine: number },
+		currentLine: number,
+	): Promise<void>
 
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined

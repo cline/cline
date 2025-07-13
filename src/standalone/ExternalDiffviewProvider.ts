@@ -8,4 +8,11 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		}
 		getHostBridgeProvider().diffClient.openDiff({ path: this.absolutePath, content: this.originalContent ?? "" })
 	}
+	override replaceText(
+		content: string,
+		rangeToReplace: { startLine: number; endLine: number },
+		currentLine: number,
+	): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
 }
