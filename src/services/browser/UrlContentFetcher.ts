@@ -71,8 +71,7 @@ export class UrlContentFetcher {
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 				...customArgs, // Append user-provided custom arguments
 			],
-			executablePath,
-			headless: true, // Explicitly set headless (implied but good to confirm)
+			executablePath
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
