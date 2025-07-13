@@ -16,6 +16,7 @@ export const serviceNameMap = {
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
 	ui: "cline.UiService",
+	voice: "cline.VoiceService",
 	// Add new services here - no other code changes needed!
 }
 
@@ -27,6 +28,5 @@ export const hostServiceNameMap = {
 	workspace: "host.WorkspaceService",
 	env: "host.EnvService",
 	window: "host.WindowService",
-	diff: "host.DiffService",
 	// Add new host services here
 }

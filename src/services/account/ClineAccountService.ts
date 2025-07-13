@@ -274,8 +274,26 @@ export class ClineAccountService {
 			console.error("Error switching account:", error)
 			throw error
 		} finally {
-			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
-			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			// Request a new authentication token
+			await this._authService.refreshAuth()
 		}
+	}
+
+	/**
+	 * Transcribes audio using the Cline transcription service
+	 * @param audioBase64 - Base64 encoded audio data
+	 * @param language - Optional language hint for transcription
+	 * @returns Promise with transcribed text or error
+	 */
+	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text: string }> {
+		const response = await this.authenticatedRequest<{ text: string }>(`/api/v1/chat/transcriptions`, {
+			method: "POST",
+			data: {
+				audioData: audioBase64,
+				language: language || "en",
+			},
+		})
+
+		return response
 	}
 }

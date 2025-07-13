@@ -13,12 +13,11 @@ import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
 import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
-import { ExternalDiffViewProvider } from "./ExternalDiffviewProvider"
 
 async function main() {
 	log("Starting standalone service...")
 
-	hostProviders.initializeHostProviders(createWebview, createDiffView, new ExternalHostBridgeClientManager())
+	hostProviders.initializeHostProviders(createWebview, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	startProtobusService(controller)
@@ -61,11 +60,8 @@ function getProtobusServiceNames(packageDefinition: { [x: string]: any }): strin
 	return protobusServiceNames
 }
 
-function createWebview() {
+const createWebview = () => {
 	return new ExternalWebviewProvider(extensionContext, outputChannel, WebviewProviderType.SIDEBAR)
-}
-function createDiffView() {
-	return new ExternalDiffViewProvider()
 }
 
 /**

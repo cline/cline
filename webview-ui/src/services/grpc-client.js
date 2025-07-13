@@ -12,6 +12,8 @@ import { WebServiceDefinition } from "@shared/proto/web"
 import { ModelsServiceDefinition } from "@shared/proto/models"
 import { SlashServiceDefinition } from "@shared/proto/slash"
 import { UiServiceDefinition } from "@shared/proto/ui"
+import { VoiceServiceDefinition } from "@shared/proto/voice"
+
 const AccountServiceClient = createGrpcClient(AccountServiceDefinition)
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
@@ -23,6 +25,8 @@ const WebServiceClient = createGrpcClient(WebServiceDefinition)
 const ModelsServiceClient = createGrpcClient(ModelsServiceDefinition)
 const SlashServiceClient = createGrpcClient(SlashServiceDefinition)
 const UiServiceClient = createGrpcClient(UiServiceDefinition)
+const VoiceServiceClient = createGrpcClient(VoiceServiceDefinition)
+
 export {
 	AccountServiceClient,
 	BrowserServiceClient,
@@ -35,5 +39,6 @@ export {
 	ModelsServiceClient,
 	SlashServiceClient,
 	UiServiceClient,
+	VoiceServiceClient,
 }
 //# sourceMappingURL=grpc-client.js.map

@@ -74,7 +74,7 @@ export class Controller {
 		)
 		this.accountService = ClineAccountService.getInstance()
 		this.authService = AuthService.getInstance(context)
-		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+		this.authService.restoreAuthToken()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -847,6 +847,7 @@ export class Controller {
 			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			dictationSettings,
 		} = await getAllExtensionState(this.context)
 
 		// Get current mode using helper function
@@ -905,6 +906,7 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			dictationSettings,
 		}
 	}
 

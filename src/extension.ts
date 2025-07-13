@@ -37,7 +37,6 @@ import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
-import { VscodeDiffViewProvider } from "./integrations/editor/VscodeDiffViewProvider"
 import { getHostBridgeProvider } from "@hosts/host-providers"
 import { ShowMessageRequest, ShowMessageType } from "./shared/proto/host/window"
 /*
@@ -716,7 +715,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		context.secrets.onDidChange((event) => {
 			if (event.key === "clineAccountId") {
-				AuthService.getInstance(context)?.restoreRefreshTokenAndRetrieveAuthInfo()
+				AuthService.getInstance(context)?.restoreAuthToken()
 			}
 		}),
 	)
@@ -730,10 +729,7 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 		const createWebview = function (type: WebviewProviderType) {
 			return new VscodeWebviewProvider(context, outputChannel, type)
 		}
-		const createDiffView = function () {
-			return new VscodeDiffViewProvider()
-		}
-		hostProviders.initializeHostProviders(createWebview, createDiffView, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(createWebview, vscodeHostBridgeClient)
 	}
 }
 

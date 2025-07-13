@@ -3,7 +3,6 @@ import {
 	WorkspaceServiceClientInterface,
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
-	DiffServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 
 /**
@@ -14,7 +13,6 @@ export interface HostBridgeClientProvider {
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
-	diffClient: DiffServiceClientInterface
 }
 
 /**
