@@ -59,6 +59,24 @@ const mockTasks: HistoryItem[] = [
 		tokensOut: 150,
 		totalCost: 0.03,
 	},
+	{
+		id: "task-5",
+		number: 5,
+		task: "Fifth task",
+		ts: Date.now(),
+		tokensIn: 250,
+		tokensOut: 125,
+		totalCost: 0.025,
+	},
+	{
+		id: "task-6",
+		number: 6,
+		task: "Sixth task",
+		ts: Date.now(),
+		tokensIn: 400,
+		tokensOut: 200,
+		totalCost: 0.04,
+	},
 ]
 
 describe("HistoryPreview", () => {
@@ -86,7 +104,7 @@ describe("HistoryPreview", () => {
 		expect(screen.queryByTestId(/task-item-/)).not.toBeInTheDocument()
 	})
 
-	it("renders up to 2 tasks when tasks are available", () => {
+	it("renders up to 3 tasks when tasks are available", () => {
 		mockUseTaskSearch.mockReturnValue({
 			tasks: mockTasks,
 			searchQuery: "",
@@ -101,17 +119,19 @@ describe("HistoryPreview", () => {
 
 		render(<HistoryPreview />)
 
-		// Should render only the first 2 tasks
+		// Should render only the first 3 tasks
 		expect(screen.getByTestId("task-item-task-1")).toBeInTheDocument()
 		expect(screen.getByTestId("task-item-task-2")).toBeInTheDocument()
-		expect(screen.queryByTestId("task-item-task-3")).not.toBeInTheDocument()
+		expect(screen.getByTestId("task-item-task-3")).toBeInTheDocument()
 		expect(screen.queryByTestId("task-item-task-4")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("task-item-task-5")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("task-item-task-6")).not.toBeInTheDocument()
 	})
 
-	it("renders all tasks when there are 2 or fewer", () => {
-		const twoTasks = mockTasks.slice(0, 2)
+	it("renders all tasks when there are 3 or fewer", () => {
+		const threeTasks = mockTasks.slice(0, 3)
 		mockUseTaskSearch.mockReturnValue({
-			tasks: twoTasks,
+			tasks: threeTasks,
 			searchQuery: "",
 			setSearchQuery: vi.fn(),
 			sortOption: "newest",
@@ -126,7 +146,8 @@ describe("HistoryPreview", () => {
 
 		expect(screen.getByTestId("task-item-task-1")).toBeInTheDocument()
 		expect(screen.getByTestId("task-item-task-2")).toBeInTheDocument()
-		expect(screen.queryByTestId("task-item-task-3")).not.toBeInTheDocument()
+		expect(screen.getByTestId("task-item-task-3")).toBeInTheDocument()
+		expect(screen.queryByTestId("task-item-task-4")).not.toBeInTheDocument()
 	})
 
 	it("renders only 1 task when there is only 1 task", () => {
@@ -151,7 +172,7 @@ describe("HistoryPreview", () => {
 
 	it("passes correct props to TaskItem components", () => {
 		mockUseTaskSearch.mockReturnValue({
-			tasks: mockTasks.slice(0, 2),
+			tasks: mockTasks.slice(0, 3),
 			searchQuery: "",
 			setSearchQuery: vi.fn(),
 			sortOption: "newest",
@@ -164,7 +185,7 @@ describe("HistoryPreview", () => {
 
 		render(<HistoryPreview />)
 
-		// Verify TaskItem was called with correct props
+		// Verify TaskItem was called with correct props for first 3 tasks
 		expect(mockTaskItem).toHaveBeenCalledWith(
 			expect.objectContaining({
 				item: mockTasks[0],
@@ -175,6 +196,13 @@ describe("HistoryPreview", () => {
 		expect(mockTaskItem).toHaveBeenCalledWith(
 			expect.objectContaining({
 				item: mockTasks[1],
+				variant: "compact",
+			}),
+			expect.anything(),
+		)
+		expect(mockTaskItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				item: mockTasks[2],
 				variant: "compact",
 			}),
 			expect.anything(),

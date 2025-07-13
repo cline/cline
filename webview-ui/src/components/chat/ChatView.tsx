@@ -1663,9 +1663,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 						<RooHero />
 						{telemetrySetting === "unset" && <TelemetryBanner />}
-						{/* Show the task history preview if expanded and tasks exist */}
-						{taskHistory.length > 0 && isExpanded && <HistoryPreview />}
-						<p className="text-vscode-editor-foreground leading-tight font-vscode-font-family text-center text-balance max-w-[380px] mx-auto">
+						<p className="text-vscode-editor-foreground leading-tight font-vscode-font-family text-center text-balance max-w-[380px] mx-auto my-0">
 							<Trans
 								i18nKey="chat:about"
 								components={{
@@ -1677,7 +1675,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								}}
 							/>
 						</p>
-						<RooTips cycle={false} />
+						<div className="mb-2.5">
+							<RooTips cycle={false} />
+						</div>
+						{/* Show the task history preview if expanded and tasks exist */}
+						{taskHistory.length > 0 && isExpanded && <HistoryPreview />}
 					</div>
 				</div>
 			)}
