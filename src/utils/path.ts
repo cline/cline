@@ -120,7 +120,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 	if (!activeEditor) {
 		return await getCwd(defaultCwd)
 	}
-	const currentFilePath = activeEditor.document?.uri.fsPath
+	const currentFilePath = activeEditor.documentPath
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}
