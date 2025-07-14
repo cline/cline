@@ -6,6 +6,11 @@ import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import MarkdownBlock from "@/components/common/MarkdownBlock"
+import McpDisplayModeDropdown from "./McpDisplayModeDropdown"
+import { DropdownContainer } from "@/components/settings/ApiOptions"
+import { updateSetting } from "@/components/settings/utils/settingsHandlers"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { UrlMatch, processResponseUrls, DisplaySegment, buildDisplaySegments } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response
