@@ -61,7 +61,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
-	setMcpRichDisplayEnabled: (value: boolean) => void
 	setMcpResponsesCollapsed: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setTerminalReuseEnabled: (value: boolean) => void
@@ -700,11 +699,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				mcpMarketplaceEnabled: value,
-			})),
-		setMcpRichDisplayEnabled: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				mcpRichDisplayEnabled: value,
 			})),
 		setMcpResponsesCollapsed: (value) => {
 			setState((prevState) => ({
