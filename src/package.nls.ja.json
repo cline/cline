@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "'常に実行操作を承認する'が有効な場合に自動実行できるコマンド",
 	"commands.deniedCommands.description": "承認を求めずに自動的に拒否されるコマンドプレフィックス。許可されたコマンドとの競合がある場合、最長プレフィックスマッチが優先されます。すべてのコマンドを拒否するには * を追加してください。",
+	"commands.commandExecutionTimeout.description": "コマンド実行の完了を待つ最大時間（秒）、タイムアウトまで（0 = タイムアウトなし、1-600秒、デフォルト: 0秒）",
 	"settings.vsCodeLmModelSelector.description": "VSCode 言語モデル API の設定",
 	"settings.vsCodeLmModelSelector.vendor.description": "言語モデルのベンダー（例：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "言語モデルのファミリー（例：gpt-4）",

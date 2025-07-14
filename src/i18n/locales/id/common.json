@@ -67,6 +67,7 @@
 		"url_page_not_found": "Halaman tidak ditemukan. Silakan periksa apakah URL sudah benar.",
 		"url_fetch_failed": "Gagal mengambil konten URL: {{error}}",
 		"url_fetch_error_with_url": "Error mengambil konten untuk {{url}}: {{error}}",
+		"command_timeout": "Eksekusi perintah waktu habis setelah {{seconds}} detik",
 		"share_task_failed": "Gagal membagikan tugas. Silakan coba lagi.",
 		"share_no_active_task": "Tidak ada tugas aktif untuk dibagikan",
 		"share_auth_required": "Autentikasi diperlukan. Silakan masuk untuk berbagi tugas.",

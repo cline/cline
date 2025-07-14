@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "'항상 실행 작업 승인' 이 활성화되어 있을 때 자동으로 실행할 수 있는 명령어",
 	"commands.deniedCommands.description": "승인을 요청하지 않고 자동으로 거부될 명령어 접두사. 허용된 명령어와 충돌하는 경우 가장 긴 접두사 일치가 우선됩니다. 모든 명령어를 거부하려면 *를 추가하세요.",
+	"commands.commandExecutionTimeout.description": "명령어 실행이 완료되기를 기다리는 최대 시간(초), 타임아웃 전까지 (0 = 타임아웃 없음, 1-600초, 기본값: 0초)",
 	"settings.vsCodeLmModelSelector.description": "VSCode 언어 모델 API 설정",
 	"settings.vsCodeLmModelSelector.vendor.description": "언어 모델 공급자 (예: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "언어 모델 계열 (예: gpt-4)",

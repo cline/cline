@@ -67,6 +67,7 @@
 		"url_page_not_found": "ページが見つかりませんでした。URLが正しいか確認してください。",
 		"url_fetch_failed": "URLコンテンツの取得に失敗しました：{{error}}",
 		"url_fetch_error_with_url": "{{url}} のコンテンツ取得エラー：{{error}}",
+		"command_timeout": "コマンドの実行が{{seconds}}秒後にタイムアウトしました",
 		"share_task_failed": "タスクの共有に失敗しました",
 		"share_no_active_task": "共有するアクティブなタスクがありません",
 		"share_auth_required": "認証が必要です。タスクを共有するにはサインインしてください。",

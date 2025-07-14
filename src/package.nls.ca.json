@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Ordres que es poden executar automàticament quan 'Aprova sempre les operacions d'execució' està activat",
 	"commands.deniedCommands.description": "Prefixos d'ordres que seran automàticament denegats sense demanar aprovació. En cas de conflictes amb ordres permeses, la coincidència de prefix més llarga té prioritat. Afegeix * per denegar totes les ordres.",
+	"commands.commandExecutionTimeout.description": "Temps màxim en segons per esperar que l'execució de l'ordre es completi abans d'esgotar el temps (0 = sense temps límit, 1-600s, per defecte: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Configuració per a l'API del model de llenguatge VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "El proveïdor del model de llenguatge (p. ex. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "La família del model de llenguatge (p. ex. gpt-4)",

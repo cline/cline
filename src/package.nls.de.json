@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Befehle, die automatisch ausgeführt werden können, wenn 'Ausführungsoperationen immer genehmigen' aktiviert ist",
 	"commands.deniedCommands.description": "Befehlspräfixe, die automatisch abgelehnt werden, ohne nach Genehmigung zu fragen. Bei Konflikten mit erlaubten Befehlen hat die längste Präfix-Übereinstimmung Vorrang. Füge * hinzu, um alle Befehle abzulehnen.",
+	"commands.commandExecutionTimeout.description": "Maximale Zeit in Sekunden, die auf den Abschluss der Befehlsausführung gewartet wird, bevor ein Timeout auftritt (0 = kein Timeout, 1-600s, Standard: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Einstellungen für die VSCode-Sprachmodell-API",
 	"settings.vsCodeLmModelSelector.vendor.description": "Der Anbieter des Sprachmodells (z.B. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Die Familie des Sprachmodells (z.B. gpt-4)",

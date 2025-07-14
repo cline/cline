@@ -67,6 +67,7 @@
 		"url_page_not_found": "La pagina non è stata trovata. Verifica se l'URL è corretto.",
 		"url_fetch_failed": "Errore nel recupero del contenuto URL: {{error}}",
 		"url_fetch_error_with_url": "Errore nel recupero del contenuto per {{url}}: {{error}}",
+		"command_timeout": "Esecuzione del comando scaduta dopo {{seconds}} secondi",
 		"share_task_failed": "Condivisione dell'attività fallita. Riprova.",
 		"share_no_active_task": "Nessuna attività attiva da condividere",
 		"share_auth_required": "Autenticazione richiesta. Accedi per condividere le attività.",

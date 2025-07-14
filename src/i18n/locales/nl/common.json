@@ -67,6 +67,7 @@
 		"url_page_not_found": "De pagina werd niet gevonden. Controleer of de URL correct is.",
 		"url_fetch_failed": "Fout bij ophalen van URL-inhoud: {{error}}",
 		"url_fetch_error_with_url": "Fout bij ophalen van inhoud voor {{url}}: {{error}}",
+		"command_timeout": "Time-out bij uitvoeren van commando na {{seconds}} seconden",
 		"share_task_failed": "Delen van taak mislukt",
 		"share_no_active_task": "Geen actieve taak om te delen",
 		"share_auth_required": "Authenticatie vereist. Log in om taken te delen.",

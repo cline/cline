@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Commando's die automatisch kunnen worden uitgevoerd wanneer 'Altijd goedkeuren uitvoerbewerkingen' is ingeschakeld",
 	"commands.deniedCommands.description": "Commando-prefixen die automatisch worden geweigerd zonder om goedkeuring te vragen. Bij conflicten met toegestane commando's heeft de langste prefix-match voorrang. Voeg * toe om alle commando's te weigeren.",
+	"commands.commandExecutionTimeout.description": "Maximale tijd in seconden om te wachten tot commando-uitvoering voltooid is voordat er een timeout optreedt (0 = geen timeout, 1-600s, standaard: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Instellingen voor VSCode Language Model API",
 	"settings.vsCodeLmModelSelector.vendor.description": "De leverancier van het taalmodel (bijv. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "De familie van het taalmodel (bijv. gpt-4)",

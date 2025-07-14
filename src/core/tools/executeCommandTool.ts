@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
+import * as vscode from "vscode"
 
 import delay from "delay"
 
@@ -14,6 +15,8 @@ import { unescapeHtmlEntities } from "../../utils/text-normalization"
 import { ExitCodeDetails, RooTerminalCallbacks, RooTerminalProcess } from "../../integrations/terminal/types"
 import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../integrations/terminal/Terminal"
+import { Package } from "../../shared/package"
+import { t } from "../../i18n"
 
 class ShellIntegrationError extends Error {}
 
@@ -62,12 +65,21 @@ export async function executeCommandTool(
 			const clineProviderState = await clineProvider?.getState()
 			const { terminalOutputLineLimit = 500, terminalShellIntegrationDisabled = false } = clineProviderState ?? {}
 
+			// Get command execution timeout from VSCode configuration (in seconds)
+			const commandExecutionTimeoutSeconds = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<number>("commandExecutionTimeout", 0)
+
+			// Convert seconds to milliseconds for internal use
+			const commandExecutionTimeout = commandExecutionTimeoutSeconds * 1000
+
 			const options: ExecuteCommandOptions = {
 				executionId,
 				command,
 				customCwd,
 				terminalShellIntegrationDisabled,
 				terminalOutputLineLimit,
+				commandExecutionTimeout,
 			}
 
 			try {
@@ -113,6 +125,7 @@ export type ExecuteCommandOptions = {
 	customCwd?: string
 	terminalShellIntegrationDisabled?: boolean
 	terminalOutputLineLimit?: number
+	commandExecutionTimeout?: number
 }
 
 export async function executeCommand(
@@ -123,8 +136,11 @@ export async function executeCommand(
 		customCwd,
 		terminalShellIntegrationDisabled = false,
 		terminalOutputLineLimit = 500,
+		commandExecutionTimeout = 0,
 	}: ExecuteCommandOptions,
 ): Promise<[boolean, ToolResponse]> {
+	// Convert milliseconds back to seconds for display purposes
+	const commandExecutionTimeoutSeconds = commandExecutionTimeout / 1000
 	let workingDir: string
 
 	if (!customCwd) {
@@ -211,8 +227,55 @@ export async function executeCommand(
 	const process = terminal.runCommand(command, callbacks)
 	cline.terminalProcess = process
 
-	await process
-	cline.terminalProcess = undefined
+	// Implement command execution timeout (skip if timeout is 0)
+	if (commandExecutionTimeout > 0) {
+		let timeoutId: NodeJS.Timeout | undefined
+		let isTimedOut = false
+
+		const timeoutPromise = new Promise<void>((_, reject) => {
+			timeoutId = setTimeout(() => {
+				isTimedOut = true
+				// Try to abort the process
+				if (cline.terminalProcess) {
+					cline.terminalProcess.abort()
+				}
+				reject(new Error(`Command execution timed out after ${commandExecutionTimeout}ms`))
+			}, commandExecutionTimeout)
+		})
+
+		try {
+			await Promise.race([process, timeoutPromise])
+		} catch (error) {
+			if (isTimedOut) {
+				// Handle timeout case
+				const status: CommandExecutionStatus = { executionId, status: "timeout" }
+				clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
+
+				// Add visual feedback for timeout
+				await cline.say("text", t("common:command_timeout", { seconds: commandExecutionTimeoutSeconds }))
+
+				cline.terminalProcess = undefined
+
+				return [
+					false,
+					`The command was terminated after exceeding a user-configured ${commandExecutionTimeoutSeconds}s timeout. Do not try to re-run the command.`,
+				]
+			}
+			throw error
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
+			cline.terminalProcess = undefined
+		}
+	} else {
+		// No timeout - just wait for the process to complete
+		try {
+			await process
+		} finally {
+			cline.terminalProcess = undefined
+		}
+	}
 
 	if (shellIntegrationError) {
 		throw new ShellIntegrationError(shellIntegrationError)

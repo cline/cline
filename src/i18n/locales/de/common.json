@@ -67,6 +67,7 @@
 		"url_page_not_found": "Die Seite wurde nicht gefunden. Bitte prüfe, ob die URL korrekt ist.",
 		"url_fetch_failed": "Fehler beim Abrufen des URL-Inhalts: {{error}}",
 		"url_fetch_error_with_url": "Fehler beim Abrufen des Inhalts für {{url}}: {{error}}",
+		"command_timeout": "Zeitüberschreitung bei der Befehlsausführung nach {{seconds}} Sekunden",
 		"share_task_failed": "Teilen der Aufgabe fehlgeschlagen. Bitte versuche es erneut.",
 		"share_no_active_task": "Keine aktive Aufgabe zum Teilen",
 		"share_auth_required": "Authentifizierung erforderlich. Bitte melde dich an, um Aufgaben zu teilen.",

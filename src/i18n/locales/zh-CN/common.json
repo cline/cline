@@ -72,6 +72,7 @@
 		"url_page_not_found": "页面未找到。请检查 URL 是否正确。",
 		"url_fetch_failed": "获取 URL 内容失败：{{error}}",
 		"url_fetch_error_with_url": "获取 {{url}} 内容时出错：{{error}}",
+		"command_timeout": "命令执行超时，{{seconds}} 秒后",
 		"share_task_failed": "分享任务失败。请重试。",
 		"share_no_active_task": "没有活跃任务可分享",
 		"share_auth_required": "需要身份验证。请登录以分享任务。",

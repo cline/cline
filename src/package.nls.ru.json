@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Команды, которые могут быть автоматически выполнены, когда включена опция 'Всегда подтверждать операции выполнения'",
 	"commands.deniedCommands.description": "Префиксы команд, которые будут автоматически отклонены без запроса подтверждения. В случае конфликтов с разрешенными командами приоритет имеет самое длинное совпадение префикса. Добавьте * чтобы отклонить все команды.",
+	"commands.commandExecutionTimeout.description": "Максимальное время в секундах для ожидания завершения выполнения команды до истечения времени ожидания (0 = без тайм-аута, 1-600с, по умолчанию: 0с)",
 	"settings.vsCodeLmModelSelector.description": "Настройки для VSCode Language Model API",
 	"settings.vsCodeLmModelSelector.vendor.description": "Поставщик языковой модели (например, copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Семейство языковой модели (например, gpt-4)",

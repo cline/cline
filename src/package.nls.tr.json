@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "'Her zaman yürütme işlemlerini onayla' etkinleştirildiğinde otomatik olarak yürütülebilen komutlar",
 	"commands.deniedCommands.description": "Onay istenmeden otomatik olarak reddedilecek komut önekleri. İzin verilen komutlarla çakışma durumunda en uzun önek eşleşmesi öncelik alır. Tüm komutları reddetmek için * ekleyin.",
+	"commands.commandExecutionTimeout.description": "Komut yürütmesinin tamamlanmasını beklemek için maksimum süre (saniye), zaman aşımından önce (0 = zaman aşımı yok, 1-600s, varsayılan: 0s)",
 	"settings.vsCodeLmModelSelector.description": "VSCode dil modeli API'si için ayarlar",
 	"settings.vsCodeLmModelSelector.vendor.description": "Dil modelinin sağlayıcısı (örn: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Dil modelinin ailesi (örn: gpt-4)",

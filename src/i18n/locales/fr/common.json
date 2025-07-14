@@ -67,6 +67,7 @@
 		"url_page_not_found": "La page n'a pas été trouvée. Vérifie si l'URL est correcte.",
 		"url_fetch_failed": "Échec de récupération du contenu de l'URL : {{error}}",
 		"url_fetch_error_with_url": "Erreur lors de la récupération du contenu pour {{url}} : {{error}}",
+		"command_timeout": "L'exécution de la commande a expiré après {{seconds}} secondes",
 		"share_task_failed": "Échec du partage de la tâche. Veuillez réessayer.",
 		"share_no_active_task": "Aucune tâche active à partager",
 		"share_auth_required": "Authentification requise. Veuillez vous connecter pour partager des tâches.",

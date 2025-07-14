@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Polecenia, które mogą być wykonywane automatycznie, gdy włączona jest opcja 'Zawsze zatwierdzaj operacje wykonania'",
 	"commands.deniedCommands.description": "Prefiksy poleceń, które będą automatycznie odrzucane bez pytania o zatwierdzenie. W przypadku konfliktów z dozwolonymi poleceniami, najdłuższe dopasowanie prefiksu ma pierwszeństwo. Dodaj * aby odrzucić wszystkie polecenia.",
+	"commands.commandExecutionTimeout.description": "Maksymalny czas w sekundach oczekiwania na zakończenie wykonania polecenia przed przekroczeniem limitu czasu (0 = brak limitu czasu, 1-600s, domyślnie: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Ustawienia dla API modelu językowego VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Dostawca modelu językowego (np. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Rodzina modelu językowego (np. gpt-4)",

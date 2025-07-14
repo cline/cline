@@ -67,6 +67,7 @@
 		"url_page_not_found": "找不到頁面。請檢查 URL 是否正確。",
 		"url_fetch_failed": "取得 URL 內容失敗：{{error}}",
 		"url_fetch_error_with_url": "取得 {{url}} 內容時發生錯誤：{{error}}",
+		"command_timeout": "命令執行超時，{{seconds}} 秒後",
 		"share_task_failed": "分享工作失敗。請重試。",
 		"share_no_active_task": "沒有活躍的工作可分享",
 		"share_auth_required": "需要身份驗證。請登入以分享工作。",

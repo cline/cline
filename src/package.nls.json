@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled",
 	"commands.deniedCommands.description": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+	"commands.commandExecutionTimeout.description": "Maximum time in seconds to wait for command execution to complete before timing out (0 = no timeout, 1-600s, default: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Settings for VSCode Language Model API",
 	"settings.vsCodeLmModelSelector.vendor.description": "The vendor of the language model (e.g. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "The family of the language model (e.g. gpt-4)",

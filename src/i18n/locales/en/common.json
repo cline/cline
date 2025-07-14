@@ -67,6 +67,7 @@
 		"url_page_not_found": "The page was not found. Please check if the URL is correct.",
 		"url_fetch_failed": "Failed to fetch URL content: {{error}}",
 		"url_fetch_error_with_url": "Error fetching content for {{url}}: {{error}}",
+		"command_timeout": "Command execution timed out after {{seconds}} seconds",
 		"share_task_failed": "Failed to share task. Please try again.",
 		"share_no_active_task": "No active task to share",
 		"share_auth_required": "Authentication required. Please sign in to share tasks.",

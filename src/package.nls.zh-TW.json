@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "當啟用'始終批准執行操作'時可以自動執行的命令",
 	"commands.deniedCommands.description": "將自動拒絕而無需請求批准的命令前綴。與允許命令衝突時，最長前綴匹配優先。新增 * 拒絕所有命令。",
+	"commands.commandExecutionTimeout.description": "等待命令執行完成的最大時間（秒），逾時前（0 = 無逾時，1-600秒，預設：0秒）",
 	"settings.vsCodeLmModelSelector.description": "VSCode 語言模型 API 的設定",
 	"settings.vsCodeLmModelSelector.vendor.description": "語言模型供應商（例如：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "語言模型系列（例如：gpt-4）",

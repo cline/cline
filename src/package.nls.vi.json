@@ -28,6 +28,7 @@
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Các lệnh có thể được thực thi tự động khi 'Luôn phê duyệt các thao tác thực thi' được bật",
 	"commands.deniedCommands.description": "Các tiền tố lệnh sẽ được tự động từ chối mà không yêu cầu phê duyệt. Trong trường hợp xung đột với các lệnh được phép, việc khớp tiền tố dài nhất sẽ được ưu tiên. Thêm * để từ chối tất cả các lệnh.",
+	"commands.commandExecutionTimeout.description": "Thời gian tối đa tính bằng giây để chờ việc thực thi lệnh hoàn thành trước khi hết thời gian chờ (0 = không có thời gian chờ, 1-600s, mặc định: 0s)",
 	"settings.vsCodeLmModelSelector.description": "Cài đặt cho API mô hình ngôn ngữ VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Nhà cung cấp mô hình ngôn ngữ (ví dụ: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Họ mô hình ngôn ngữ (ví dụ: gpt-4)",

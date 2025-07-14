@@ -71,6 +71,7 @@
 		"url_page_not_found": "A página não foi encontrada. Verifique se a URL está correta.",
 		"url_fetch_failed": "Falha ao buscar conteúdo da URL: {{error}}",
 		"url_fetch_error_with_url": "Erro ao buscar conteúdo para {{url}}: {{error}}",
+		"command_timeout": "A execução do comando excedeu o tempo limite após {{seconds}} segundos",
 		"share_task_failed": "Falha ao compartilhar tarefa",
 		"share_no_active_task": "Nenhuma tarefa ativa para compartilhar",
 		"share_auth_required": "Autenticação necessária. Faça login para compartilhar tarefas.",

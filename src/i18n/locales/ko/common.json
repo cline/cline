@@ -67,6 +67,7 @@
 		"url_page_not_found": "페이지를 찾을 수 없습니다. URL이 올바른지 확인해 주세요.",
 		"url_fetch_failed": "URL 콘텐츠 가져오기 실패: {{error}}",
 		"url_fetch_error_with_url": "{{url}} 콘텐츠 가져오기 오류: {{error}}",
+		"command_timeout": "명령 실행 시간이 {{seconds}}초 후 초과되었습니다",
 		"share_task_failed": "작업 공유에 실패했습니다",
 		"share_no_active_task": "공유할 활성 작업이 없습니다",
 		"share_auth_required": "인증이 필요합니다. 작업을 공유하려면 로그인하세요.",

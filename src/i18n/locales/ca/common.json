@@ -71,6 +71,7 @@
 		"url_page_not_found": "No s'ha trobat la pàgina. Comprova si la URL és correcta.",
 		"url_fetch_failed": "Error en obtenir el contingut de la URL: {{error}}",
 		"url_fetch_error_with_url": "Error en obtenir contingut per {{url}}: {{error}}",
+		"command_timeout": "L'execució de la comanda ha superat el temps d'espera de {{seconds}} segons",
 		"share_task_failed": "Ha fallat compartir la tasca. Si us plau, torna-ho a provar.",
 		"share_no_active_task": "No hi ha cap tasca activa per compartir",
 		"share_auth_required": "Es requereix autenticació. Si us plau, inicia sessió per compartir tasques.",
