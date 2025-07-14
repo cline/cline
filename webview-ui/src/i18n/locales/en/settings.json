@@ -426,6 +426,10 @@
 			"label": "Enable text-to-speech",
 			"description": "When enabled, Roo will read aloud its responses using text-to-speech.",
 			"speedLabel": "Speed"
+		},
+		"desktop": {
+			"label": "Enable desktop notifications",
+			"description": "When enabled, Roo will show OS-level desktop notifications for important events like approval requests and task completion."
 		}
 	},
 	"contextManagement": {

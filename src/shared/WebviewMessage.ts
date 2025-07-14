@@ -92,6 +92,7 @@ export interface WebviewMessage {
 		| "ttsEnabled"
 		| "ttsSpeed"
 		| "soundVolume"
+		| "desktopNotificationsEnabled"
 		| "diffEnabled"
 		| "enableCheckpoints"
 		| "browserViewportSize"

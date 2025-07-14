@@ -153,6 +153,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		ttsEnabled,
 		ttsSpeed,
 		soundVolume,
+		desktopNotificationsEnabled,
 		telemetrySetting,
 		terminalOutputLineLimit,
 		terminalShellIntegrationTimeout,
@@ -284,6 +285,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "ttsEnabled", bool: ttsEnabled })
 			vscode.postMessage({ type: "ttsSpeed", value: ttsSpeed })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
+			vscode.postMessage({ type: "desktopNotificationsEnabled", bool: desktopNotificationsEnabled })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })
 			vscode.postMessage({ type: "browserViewportSize", text: browserViewportSize })
@@ -640,6 +642,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							ttsSpeed={ttsSpeed}
 							soundEnabled={soundEnabled}
 							soundVolume={soundVolume}
+							desktopNotificationsEnabled={desktopNotificationsEnabled}
 							setCachedStateField={setCachedStateField}
 						/>
 					)}

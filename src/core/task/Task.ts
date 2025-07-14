@@ -9,6 +9,12 @@ import pWaitFor from "p-wait-for"
 import { serializeError } from "serialize-error"
 
 import {
+	showApprovalNotification,
+	showTaskCompletionNotification,
+	showErrorNotification,
+} from "../../utils/desktopNotifications"
+
+import {
 	type ProviderSettings,
 	type TokenUsage,
 	type ToolUsage,
@@ -301,6 +307,29 @@ export class Task extends EventEmitter<ClineEvents> {
 				throw new Error("Either historyItem or task/images must be provided")
 			}
 		}
+
+		// Set up desktop notification event listeners
+		this.setupDesktopNotificationListeners()
+	}
+
+	private setupDesktopNotificationListeners() {
+		// Listen for task completion
+		this.on("taskCompleted", async (taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage) => {
+			try {
+				await showTaskCompletionNotification(true, `Task ${taskId} completed successfully`)
+			} catch (error) {
+				console.warn("Failed to show task completion notification:", error)
+			}
+		})
+
+		// Listen for task tool failures (which can indicate errors)
+		this.on("taskToolFailed", async (taskId: string, tool: ToolName, error: string) => {
+			try {
+				await showErrorNotification(`Tool ${tool} failed: ${error}`)
+			} catch (error) {
+				console.warn("Failed to show error notification:", error)
+			}
+		})
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -513,6 +542,15 @@ export class Task extends EventEmitter<ClineEvents> {
 			askTs = Date.now()
 			this.lastMessageTs = askTs
 			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, isProtected })
+		}
+
+		// Show desktop notification for approval requests
+		try {
+			const toolName = type === "tool" ? "tool" : type
+			await showApprovalNotification(toolName, text)
+		} catch (error) {
+			// Desktop notifications are non-critical, so we don't want to break the task
+			console.warn("Failed to show desktop notification:", error)
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })

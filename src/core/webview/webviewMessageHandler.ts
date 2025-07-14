@@ -947,6 +947,11 @@ export const webviewMessageHandler = async (
 			setTtsEnabled(ttsEnabled) // Add this line to update the tts utility
 			await provider.postStateToWebview()
 			break
+		case "desktopNotificationsEnabled":
+			const desktopNotificationsEnabled = message.bool ?? true
+			await updateGlobalState("desktopNotificationsEnabled", desktopNotificationsEnabled)
+			await provider.postStateToWebview()
+			break
 		case "ttsSpeed":
 			const ttsSpeed = message.value ?? 1.0
 			await updateGlobalState("ttsSpeed", ttsSpeed)

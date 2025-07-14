@@ -71,6 +71,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAllowedMaxRequests: (value: number | undefined) => void
 	setSoundEnabled: (value: boolean) => void
 	setSoundVolume: (value: number) => void
+	desktopNotificationsEnabled?: boolean
+	setDesktopNotificationsEnabled: (value: boolean) => void
 	terminalShellIntegrationTimeout?: number
 	setTerminalShellIntegrationTimeout: (value: number) => void
 	terminalShellIntegrationDisabled?: boolean
@@ -399,6 +401,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAllowedMaxRequests: (value) => setState((prevState) => ({ ...prevState, allowedMaxRequests: value })),
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setSoundVolume: (value) => setState((prevState) => ({ ...prevState, soundVolume: value })),
+		setDesktopNotificationsEnabled: (value) =>
+			setState((prevState) => ({ ...prevState, desktopNotificationsEnabled: value })),
 		setTtsEnabled: (value) => setState((prevState) => ({ ...prevState, ttsEnabled: value })),
 		setTtsSpeed: (value) => setState((prevState) => ({ ...prevState, ttsSpeed: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),

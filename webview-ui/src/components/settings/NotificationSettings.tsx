@@ -13,7 +13,10 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsSpeed?: number
 	soundEnabled?: boolean
 	soundVolume?: number
-	setCachedStateField: SetCachedStateField<"ttsEnabled" | "ttsSpeed" | "soundEnabled" | "soundVolume">
+	desktopNotificationsEnabled?: boolean
+	setCachedStateField: SetCachedStateField<
+		"ttsEnabled" | "ttsSpeed" | "soundEnabled" | "soundVolume" | "desktopNotificationsEnabled"
+	>
 }
 
 export const NotificationSettings = ({
@@ -21,6 +24,7 @@ export const NotificationSettings = ({
 	ttsSpeed,
 	soundEnabled,
 	soundVolume,
+	desktopNotificationsEnabled,
 	setCachedStateField,
 	...props
 }: NotificationSettingsProps) => {
@@ -100,6 +104,18 @@ export const NotificationSettings = ({
 						</div>
 					</div>
 				)}
+
+				<div>
+					<VSCodeCheckbox
+						checked={desktopNotificationsEnabled}
+						onChange={(e: any) => setCachedStateField("desktopNotificationsEnabled", e.target.checked)}
+						data-testid="desktop-notifications-enabled-checkbox">
+						<span className="font-medium">{t("settings:notifications.desktop.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:notifications.desktop.description")}
+					</div>
+				</div>
 			</Section>
 		</div>
 	)
