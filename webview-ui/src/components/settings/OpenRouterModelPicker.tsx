@@ -49,8 +49,8 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "moonshotai/kimi-k2",
+		description: "State of the art open source model, trained for agentic tool calling.",
 		label: "Trending",
 	},
 	{
