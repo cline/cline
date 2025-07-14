@@ -232,4 +232,8 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+
+  // Extension fields for Bedrock Api Keys
+  optional string aws_authentication = 78;
+  optional string aws_bedrock_api_key = 79;
 }
