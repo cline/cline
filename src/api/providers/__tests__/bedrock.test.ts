@@ -182,6 +182,24 @@ describe("AwsBedrockHandler", () => {
 
 			process.env["AWS_PROFILE"]!.should.equal(preAWSProfile)
 		})
+
+		it("should work with AWS_BEARER_TOKEN_BEDROCK", async () => {
+			process.env["AWS_BEARER_TOKEN_BEDROCK"] = "test-key"
+
+			const preAWSProfile = process.env["AWS_BEARER_TOKEN_BEDROCK"]
+
+			await AwsBedrockHandler["withTempEnv"](
+				() => {
+					delete process.env["AWS_BEARER_TOKEN_BEDROCK"]
+				},
+				async () => {
+					should.not.exist(process.env["AWS_BEARER_TOKEN_BEDROCK"])
+					return "test"
+				},
+			)
+
+			process.env["AWS_BEARER_TOKEN_BEDROCK"]!.should.equal(preAWSProfile)
+		})
 	})
 
 	const mockOptions: ApiHandlerOptions = {
@@ -192,6 +210,7 @@ describe("AwsBedrockHandler", () => {
 		awsSessionToken: "",
 		awsUseProfile: false,
 		awsProfile: "",
+		awsBedrockApiKey: "",
 		awsBedrockUsePromptCache: false,
 		awsUseCrossRegionInference: false,
 		awsBedrockEndpoint: "",

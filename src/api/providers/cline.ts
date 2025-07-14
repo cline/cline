@@ -9,6 +9,8 @@ import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
+import { version as extensionVersion } from "../../../package.json"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -51,6 +53,7 @@ export class ClineHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 						"X-Task-ID": this.options.taskId || "",
+						"X-Cline-Version": extensionVersion,
 					},
 				})
 			} catch (error: any) {
@@ -125,7 +128,8 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				if ("reasoning" in delta && delta.reasoning) {
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
 						// @ts-ignore-next-line
@@ -180,7 +184,7 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+				throw new Error("Unauthorized: Please sign in to Cline before trying again.") // match with webview-ui/src/components/chat/ChatRow.tsx
 			} else if (error.code === "insufficient_credits" || error.status === 402) {
 				throw new Error(error.error ? JSON.stringify(error.error) : "Insufficient credits or unknown error.")
 			}
