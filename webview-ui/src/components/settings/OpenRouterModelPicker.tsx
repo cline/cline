@@ -50,7 +50,7 @@ const featuredModels = [
 	},
 	{
 		id: "moonshotai/kimi-k2",
-		description: "State of the art open source model, trained for agentic tool calling.",
+		description: "Latest open source model, trained for agentic tool calling.",
 		label: "Trending",
 	},
 	{
