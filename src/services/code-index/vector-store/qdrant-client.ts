@@ -160,58 +160,32 @@ export class QdrantVectorStore implements IVectorStore {
 				created = true
 			} else {
 				// Collection exists, check vector size
-				const existingVectorSize = collectionInfo.config?.params?.vectors?.size
+				const vectorsConfig = collectionInfo.config?.params?.vectors
+				let existingVectorSize: number
+
+				if (typeof vectorsConfig === "number") {
+					existingVectorSize = vectorsConfig
+				} else if (
+					vectorsConfig &&
+					typeof vectorsConfig === "object" &&
+					"size" in vectorsConfig &&
+					typeof vectorsConfig.size === "number"
+				) {
+					existingVectorSize = vectorsConfig.size
+				} else {
+					existingVectorSize = 0 // Fallback for unknown configuration
+				}
+
 				if (existingVectorSize === this.vectorSize) {
 					created = false // Exists and correct
 				} else {
-					// Exists but wrong vector size, recreate
-					try {
-						console.warn(
-							`[QdrantVectorStore] Collection ${this.collectionName} exists with vector size ${existingVectorSize}, but expected ${this.vectorSize}. Recreating collection.`,
-						)
-						await this.client.deleteCollection(this.collectionName)
-						await this.client.createCollection(this.collectionName, {
-							vectors: {
-								size: this.vectorSize,
-								distance: this.DISTANCE_METRIC,
-							},
-						})
-						created = true
-					} catch (recreationError) {
-						const errorMessage =
-							recreationError instanceof Error ? recreationError.message : String(recreationError)
-						console.error(
-							`[QdrantVectorStore] CRITICAL: Failed to recreate collection ${this.collectionName} for new vector size. Error: ${errorMessage}`,
-						)
-						const dimensionMismatchError = new Error(
-							t("embeddings:vectorStore.vectorDimensionMismatch", {
-								errorMessage,
-							}),
-						)
-						// Use error.cause to preserve the original error context
-						dimensionMismatchError.cause = recreationError
-						throw dimensionMismatchError
-					}
+					// Exists but wrong vector size, recreate with enhanced error handling
+					created = await this._recreateCollectionWithNewDimension(existingVectorSize)
 				}
 			}
 
 			// Create payload indexes
-			for (let i = 0; i <= 4; i++) {
-				try {
-					await this.client.createPayloadIndex(this.collectionName, {
-						field_name: `pathSegments.${i}`,
-						field_schema: "keyword",
-					})
-				} catch (indexError: any) {
-					const errorMessage = (indexError?.message || "").toLowerCase()
-					if (!errorMessage.includes("already exists")) {
-						console.warn(
-							`[QdrantVectorStore] Could not create payload index for pathSegments.${i} on ${this.collectionName}. Details:`,
-							indexError?.message || indexError,
-						)
-					}
-				}
-			}
+			await this._createPayloadIndexes()
 			return created
 		} catch (error: any) {
 			const errorMessage = error?.message || error
@@ -229,6 +203,100 @@ export class QdrantVectorStore implements IVectorStore {
 			throw new Error(
 				t("embeddings:vectorStore.qdrantConnectionFailed", { qdrantUrl: this.qdrantUrl, errorMessage }),
 			)
+		}
+	}
+
+	/**
+	 * Recreates the collection with a new vector dimension, handling failures gracefully.
+	 * @param existingVectorSize The current vector size of the existing collection
+	 * @returns Promise resolving to boolean indicating if a new collection was created
+	 */
+	private async _recreateCollectionWithNewDimension(existingVectorSize: number): Promise<boolean> {
+		console.warn(
+			`[QdrantVectorStore] Collection ${this.collectionName} exists with vector size ${existingVectorSize}, but expected ${this.vectorSize}. Recreating collection.`,
+		)
+
+		let deletionSucceeded = false
+		let recreationAttempted = false
+
+		try {
+			// Step 1: Attempt to delete the existing collection
+			console.log(`[QdrantVectorStore] Deleting existing collection ${this.collectionName}...`)
+			await this.client.deleteCollection(this.collectionName)
+			deletionSucceeded = true
+			console.log(`[QdrantVectorStore] Successfully deleted collection ${this.collectionName}`)
+
+			// Step 2: Wait a brief moment to ensure deletion is processed
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Step 3: Verify the collection is actually deleted
+			const verificationInfo = await this.getCollectionInfo()
+			if (verificationInfo !== null) {
+				throw new Error("Collection still exists after deletion attempt")
+			}
+
+			// Step 4: Create the new collection with correct dimensions
+			console.log(
+				`[QdrantVectorStore] Creating new collection ${this.collectionName} with vector size ${this.vectorSize}...`,
+			)
+			recreationAttempted = true
+			await this.client.createCollection(this.collectionName, {
+				vectors: {
+					size: this.vectorSize,
+					distance: this.DISTANCE_METRIC,
+				},
+			})
+			console.log(`[QdrantVectorStore] Successfully created new collection ${this.collectionName}`)
+			return true
+		} catch (recreationError) {
+			const errorMessage = recreationError instanceof Error ? recreationError.message : String(recreationError)
+
+			// Provide detailed error context based on what stage failed
+			let contextualErrorMessage: string
+			if (!deletionSucceeded) {
+				contextualErrorMessage = `Failed to delete existing collection with vector size ${existingVectorSize}. ${errorMessage}`
+			} else if (!recreationAttempted) {
+				contextualErrorMessage = `Deleted existing collection but failed verification step. ${errorMessage}`
+			} else {
+				contextualErrorMessage = `Deleted existing collection but failed to create new collection with vector size ${this.vectorSize}. ${errorMessage}`
+			}
+
+			console.error(
+				`[QdrantVectorStore] CRITICAL: Failed to recreate collection ${this.collectionName} for dimension change (${existingVectorSize} -> ${this.vectorSize}). ${contextualErrorMessage}`,
+			)
+
+			// Create a comprehensive error message for the user
+			const dimensionMismatchError = new Error(
+				t("embeddings:vectorStore.vectorDimensionMismatch", {
+					errorMessage: contextualErrorMessage,
+				}),
+			)
+
+			// Preserve the original error context
+			dimensionMismatchError.cause = recreationError
+			throw dimensionMismatchError
+		}
+	}
+
+	/**
+	 * Creates payload indexes for the collection, handling errors gracefully.
+	 */
+	private async _createPayloadIndexes(): Promise<void> {
+		for (let i = 0; i <= 4; i++) {
+			try {
+				await this.client.createPayloadIndex(this.collectionName, {
+					field_name: `pathSegments.${i}`,
+					field_schema: "keyword",
+				})
+			} catch (indexError: any) {
+				const errorMessage = (indexError?.message || "").toLowerCase()
+				if (!errorMessage.includes("already exists")) {
+					console.warn(
+						`[QdrantVectorStore] Could not create payload index for pathSegments.${i} on ${this.collectionName}. Details:`,
+						indexError?.message || indexError,
+					)
+				}
+			}
 		}
 	}
 

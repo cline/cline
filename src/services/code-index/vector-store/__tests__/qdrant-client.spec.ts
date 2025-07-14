@@ -10,7 +10,16 @@ vitest.mock("@qdrant/js-client-rest")
 vitest.mock("crypto")
 vitest.mock("../../../../utils/path")
 vitest.mock("../../../../i18n", () => ({
-	t: (key: string) => key, // Just return the key for testing
+	t: (key: string, params?: any) => {
+		// Mock translation function that includes parameters for testing
+		if (key === "embeddings:vectorStore.vectorDimensionMismatch" && params?.errorMessage) {
+			return `Failed to update vector index for new model. Please try clearing the index and starting again. Details: ${params.errorMessage}`
+		}
+		if (key === "embeddings:vectorStore.qdrantConnectionFailed" && params?.qdrantUrl && params?.errorMessage) {
+			return `Failed to connect to Qdrant vector database. Please ensure Qdrant is running and accessible at ${params.qdrantUrl}. Error: ${params.errorMessage}`
+		}
+		return key // Just return the key for other cases
+	},
 }))
 vitest.mock("path", () => ({
 	...vitest.importActual("path"),
@@ -564,16 +573,22 @@ describe("QdrantVectorStore", () => {
 		})
 		it("should recreate collection if it exists but vectorSize mismatches and return true", async () => {
 			const differentVectorSize = 768
-			// Mock getCollection to return existing collection info with different vector size
-			mockQdrantClientInstance.getCollection.mockResolvedValue({
-				config: {
-					params: {
-						vectors: {
-							size: differentVectorSize, // Mismatching vector size
+			// Mock getCollection to return existing collection info with different vector size first,
+			// then return 404 to confirm deletion
+			mockQdrantClientInstance.getCollection
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: differentVectorSize, // Mismatching vector size
+							},
 						},
 					},
-				},
-			} as any)
+				} as any)
+				.mockRejectedValueOnce({
+					response: { status: 404 },
+					message: "Not found",
+				})
 			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
 			mockQdrantClientInstance.createCollection.mockResolvedValue(true as any)
 			mockQdrantClientInstance.createPayloadIndex.mockResolvedValue({} as any)
@@ -582,7 +597,7 @@ describe("QdrantVectorStore", () => {
 			const result = await vectorStore.initialize()
 
 			expect(result).toBe(true)
-			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(2) // Once to check, once to verify deletion
 			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledWith(expectedCollectionName)
 			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledWith(expectedCollectionName)
@@ -703,7 +718,7 @@ describe("QdrantVectorStore", () => {
 			}
 
 			expect(caughtError).toBeDefined()
-			expect(caughtError.message).toContain("embeddings:vectorStore.vectorDimensionMismatch")
+			expect(caughtError.message).toContain("Failed to update vector index for new model")
 			expect(caughtError.cause).toBe(deleteError)
 
 			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
@@ -719,15 +734,21 @@ describe("QdrantVectorStore", () => {
 
 		it("should throw vectorDimensionMismatch error when createCollection fails during recreation", async () => {
 			const differentVectorSize = 768
-			mockQdrantClientInstance.getCollection.mockResolvedValue({
-				config: {
-					params: {
-						vectors: {
-							size: differentVectorSize,
+			mockQdrantClientInstance.getCollection
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: differentVectorSize,
+							},
 						},
 					},
-				},
-			} as any)
+				} as any)
+				// Second call should return 404 to confirm deletion
+				.mockRejectedValueOnce({
+					response: { status: 404 },
+					message: "Not found",
+				})
 
 			// Delete succeeds but create fails
 			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
@@ -745,16 +766,176 @@ describe("QdrantVectorStore", () => {
 			}
 
 			expect(caughtError).toBeDefined()
-			expect(caughtError.message).toContain("embeddings:vectorStore.vectorDimensionMismatch")
+			expect(caughtError.message).toContain("Failed to update vector index for new model")
 			expect(caughtError.cause).toBe(createError)
 
-			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(2)
 			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.createCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.createPayloadIndex).not.toHaveBeenCalled()
 			// Should log warning, critical error, and outer error
 			expect(console.warn).toHaveBeenCalledTimes(1)
 			expect(console.error).toHaveBeenCalledTimes(2)
+			;(console.error as any).mockRestore()
+			;(console.warn as any).mockRestore()
+		})
+
+		it("should verify collection deletion before proceeding with recreation", async () => {
+			const differentVectorSize = 768
+			mockQdrantClientInstance.getCollection
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: differentVectorSize,
+							},
+						},
+					},
+				} as any)
+				// Second call should return 404 to confirm deletion
+				.mockRejectedValueOnce({
+					response: { status: 404 },
+					message: "Not found",
+				})
+
+			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
+			mockQdrantClientInstance.createCollection.mockResolvedValue(true as any)
+			mockQdrantClientInstance.createPayloadIndex.mockResolvedValue({} as any)
+			vitest.spyOn(console, "warn").mockImplementation(() => {})
+
+			const result = await vectorStore.initialize()
+
+			expect(result).toBe(true)
+			// Should call getCollection twice: once to check existing, once to verify deletion
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(2)
+			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createPayloadIndex).toHaveBeenCalledTimes(5)
+			;(console.warn as any).mockRestore()
+		})
+
+		it("should throw error if collection still exists after deletion attempt", async () => {
+			const differentVectorSize = 768
+			mockQdrantClientInstance.getCollection
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: differentVectorSize,
+							},
+						},
+					},
+				} as any)
+				// Second call should still return the collection (deletion failed)
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: differentVectorSize,
+							},
+						},
+					},
+				} as any)
+
+			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
+			vitest.spyOn(console, "error").mockImplementation(() => {})
+			vitest.spyOn(console, "warn").mockImplementation(() => {})
+
+			let caughtError: any
+			try {
+				await vectorStore.initialize()
+			} catch (error: any) {
+				caughtError = error
+			}
+
+			expect(caughtError).toBeDefined()
+			expect(caughtError.message).toContain("Failed to update vector index for new model")
+			// The error message should contain the contextual error details
+			expect(caughtError.message).toContain("Deleted existing collection but failed verification step")
+
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(2)
+			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createCollection).not.toHaveBeenCalled()
+			expect(mockQdrantClientInstance.createPayloadIndex).not.toHaveBeenCalled()
+			;(console.error as any).mockRestore()
+			;(console.warn as any).mockRestore()
+		})
+
+		it("should handle dimension mismatch scenario from 2048 to 768 dimensions", async () => {
+			// Simulate the exact scenario from the issue: switching from 2048 to 768 dimensions
+			const oldVectorSize = 2048
+			const newVectorSize = 768
+
+			// Create a new vector store with the new dimension
+			const newVectorStore = new QdrantVectorStore(mockWorkspacePath, mockQdrantUrl, newVectorSize, mockApiKey)
+
+			mockQdrantClientInstance.getCollection
+				.mockResolvedValueOnce({
+					config: {
+						params: {
+							vectors: {
+								size: oldVectorSize, // Existing collection has 2048 dimensions
+							},
+						},
+					},
+				} as any)
+				// Second call should return 404 to confirm deletion
+				.mockRejectedValueOnce({
+					response: { status: 404 },
+					message: "Not found",
+				})
+
+			mockQdrantClientInstance.deleteCollection.mockResolvedValue(true as any)
+			mockQdrantClientInstance.createCollection.mockResolvedValue(true as any)
+			mockQdrantClientInstance.createPayloadIndex.mockResolvedValue({} as any)
+			vitest.spyOn(console, "warn").mockImplementation(() => {})
+
+			const result = await newVectorStore.initialize()
+
+			expect(result).toBe(true)
+			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(2)
+			expect(mockQdrantClientInstance.deleteCollection).toHaveBeenCalledTimes(1)
+			expect(mockQdrantClientInstance.createCollection).toHaveBeenCalledWith(expectedCollectionName, {
+				vectors: {
+					size: newVectorSize, // Should create with new 768 dimensions
+					distance: "Cosine",
+				},
+			})
+			expect(mockQdrantClientInstance.createPayloadIndex).toHaveBeenCalledTimes(5)
+			;(console.warn as any).mockRestore()
+		})
+
+		it("should provide detailed error context for different failure scenarios", async () => {
+			const differentVectorSize = 768
+			mockQdrantClientInstance.getCollection.mockResolvedValue({
+				config: {
+					params: {
+						vectors: {
+							size: differentVectorSize,
+						},
+					},
+				},
+			} as any)
+
+			// Test deletion failure with specific error message
+			const deleteError = new Error("Qdrant server unavailable")
+			mockQdrantClientInstance.deleteCollection.mockRejectedValue(deleteError)
+			vitest.spyOn(console, "error").mockImplementation(() => {})
+			vitest.spyOn(console, "warn").mockImplementation(() => {})
+
+			let caughtError: any
+			try {
+				await vectorStore.initialize()
+			} catch (error: any) {
+				caughtError = error
+			}
+
+			expect(caughtError).toBeDefined()
+			expect(caughtError.message).toContain("Failed to update vector index for new model")
+			// The error message should contain the contextual error details
+			expect(caughtError.message).toContain("Failed to delete existing collection with vector size")
+			expect(caughtError.message).toContain("Qdrant server unavailable")
+			expect(caughtError.cause).toBe(deleteError)
 			;(console.error as any).mockRestore()
 			;(console.warn as any).mockRestore()
 		})
