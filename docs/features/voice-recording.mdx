@@ -40,13 +40,13 @@ You can configure an OpenAI key in any of these ways:
 
 ### Audio Recording Tools
 
-Cline uses common system audio recording tools to capture your voice:
+Cline uses FFmpeg to capture your voice across all platforms:
 
--   **macOS**: SoX
--   **Linux**: ALSA
--   **Windows**: SoX (via winget)
+-   **macOS**: FFmpeg (via Homebrew: `brew install ffmpeg`)
+-   **Linux**: FFmpeg (via apt: `sudo apt-get install ffmpeg`)
+-   **Windows**: FFmpeg (via winget: `winget install Gyan.FFmpeg`)
 
-If you don't have the required tools installed, Cline will automatically detect them and prompt you to install them with a single click.
+If you don't have FFmpeg installed, Cline will automatically detect this and prompt you to install it with a single click.
 
 ## Technical Details
 
@@ -60,9 +60,10 @@ The voice transcription feature is completely independent from your chat provide
 
 ### Audio Format
 
--   Records in WAV format at system default sample rate
+-   Records in WebM format with Opus codec for optimal compression
 -   Mono channel for optimal speech recognition
--   16-bit encoding for quality
+-   16kHz sample rate optimized for voice
+-   32kbps bitrate for efficient file sizes
 
 ### Privacy & Security
 
