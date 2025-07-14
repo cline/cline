@@ -63,6 +63,8 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 				awsSecretKey: options.awsSecretKey,
 				awsSessionToken: options.awsSessionToken,
 				awsRegion: options.awsRegion,
+				awsAuthentication: options.awsAuthentication,
+				awsBedrockApiKey: options.awsBedrockApiKey,
 				awsUseCrossRegionInference: options.awsUseCrossRegionInference,
 				awsBedrockUsePromptCache: options.awsBedrockUsePromptCache,
 				awsUseProfile: options.awsUseProfile,

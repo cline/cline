@@ -50,8 +50,10 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
+	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: BedrockModelId
