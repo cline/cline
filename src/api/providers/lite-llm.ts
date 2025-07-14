@@ -24,7 +24,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		super({
 			options,
 			name: "litellm",
-			baseURL: `${options.litellmBaseUrl || "http://localhost:4000"}`,
+			baseURL: `${options.litellmBaseUrl || "http://localhost:4000"}/v1`,
 			apiKey: options.litellmApiKey || "dummy-key",
 			modelId: options.litellmModelId,
 			defaultModelId: litellmDefaultModelId,

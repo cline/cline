@@ -5,6 +5,20 @@ import { LITELLM_COMPUTER_USE_MODELS } from "@roo-code/types"
 import type { ModelRecord } from "../../../shared/api"
 
 import { DEFAULT_HEADERS } from "../constants"
+
+/**
+ * Properly joins a base URL with a path, preserving any existing path in the base URL
+ * @param baseUrl The base URL (may include a path)
+ * @param path The path to append
+ * @returns The properly joined URL
+ */
+function joinUrl(baseUrl: string, path: string): string {
+	// Remove trailing slash from baseUrl and leading slash from path
+	const cleanBaseUrl = baseUrl.replace(/\/$/, "")
+	const cleanPath = path.replace(/^\//, "")
+	return `${cleanBaseUrl}/${cleanPath}`
+}
+
 /**
  * Fetches available models from a LiteLLM server
  *
@@ -23,8 +37,8 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		if (apiKey) {
 			headers["Authorization"] = `Bearer ${apiKey}`
 		}
-		// Use URL constructor to properly join base URL and path
-		const url = new URL("/v1/model/info", baseUrl).href
+		// Use helper function to properly join base URL and path, preserving any existing path
+		const url = joinUrl(baseUrl, "model/info")
 		// Added timeout to prevent indefinite hanging
 		const response = await axios.get(url, { headers, timeout: 5000 })
 		const models: ModelRecord = {}

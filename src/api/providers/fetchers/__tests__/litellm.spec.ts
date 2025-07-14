@@ -29,7 +29,28 @@ describe("getLiteLLMModels", () => {
 
 		await getLiteLLMModels("test-api-key", "http://localhost:4000/")
 
-		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with paths correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/model/info", {
 			headers: {
 				Authorization: "Bearer test-api-key",
 				"Content-Type": "application/json",
@@ -81,7 +102,7 @@ describe("getLiteLLMModels", () => {
 
 		const result = await getLiteLLMModels("test-api-key", "http://localhost:4000")
 
-		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/model/info", {
 			headers: {
 				Authorization: "Bearer test-api-key",
 				"Content-Type": "application/json",
@@ -125,7 +146,7 @@ describe("getLiteLLMModels", () => {
 
 		await getLiteLLMModels("", "http://localhost:4000")
 
-		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/model/info", {
 			headers: {
 				"Content-Type": "application/json",
 				...DEFAULT_HEADERS,
@@ -257,7 +278,7 @@ describe("getLiteLLMModels", () => {
 		await getLiteLLMModels("test-api-key", "http://localhost:4000")
 
 		expect(mockedAxios.get).toHaveBeenCalledWith(
-			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/model/info",
 			expect.objectContaining({
 				timeout: 5000,
 			}),
