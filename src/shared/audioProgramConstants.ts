@@ -26,7 +26,7 @@ export const AUDIO_PROGRAM_CONFIG = {
 		fallbackPaths: ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"],
 		getArgs: (outputFile: string) => [
 			"-f",
-			"pulse",
+			"alsa",
 			"-i",
 			"default",
 			"-c:a",
@@ -48,7 +48,7 @@ export const AUDIO_PROGRAM_CONFIG = {
 		fallbackPaths: ["C:\\ffmpeg\\bin\\ffmpeg.exe", "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"],
 		getArgs: (outputFile: string) => [
 			"-f",
-			"dshow",
+			"wasapi",
 			"-i",
 			"audio=default",
 			"-c:a",
