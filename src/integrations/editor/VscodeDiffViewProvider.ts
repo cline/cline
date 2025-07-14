@@ -45,7 +45,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			})
 		} else {
 			// Open new diff editor.
-			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
+			this.activeDiffEditor = await new Promise<vscode.TextEditor>(async (resolve, reject) => {
 				const fileName = path.basename(uri.fsPath)
 				const fileExists = this.editType === "modify"
 				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {

@@ -4,6 +4,7 @@ import {
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
 	DiffServiceClientInterface,
+	CommandServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 
 /**
@@ -15,6 +16,7 @@ export interface HostBridgeClientProvider {
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
 	diffClient: DiffServiceClientInterface
+	commandClient: CommandServiceClientInterface
 }
 
 /**

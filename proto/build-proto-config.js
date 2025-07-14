@@ -28,5 +28,6 @@ export const hostServiceNameMap = {
 	env: "host.EnvService",
 	window: "host.WindowService",
 	diff: "host.DiffService",
+	commands: "host.CommandService",
 	// Add new host services here
 }
