@@ -1,3 +1,4 @@
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { showSystemNotification } from "@/integrations/notifications"
 import { listFiles } from "@/services/glob/list-files"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
@@ -1914,9 +1915,9 @@ export class ToolExecutor {
 
 						// Derive system information values algorithmically
 						const operatingSystem = os.platform() + " " + os.release()
-						const clineVersion =
-							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+						const clineVersion = (await getGlobalState(this.context, "clineVersion")) || "Unknown"
+						const hostVersion = await getHostBridgeProvider().envClient.getVersion({})
+						const systemInfo = `Host: ${hostVersion.value}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const providerAndModel = `${await getGlobalState(this.context, "apiProvider")} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation

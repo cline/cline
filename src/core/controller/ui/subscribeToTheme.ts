@@ -33,7 +33,7 @@ export async function subscribeToTheme(
 	}
 
 	// Send the current theme immediately upon subscription
-	const theme = await getTheme()
+	const theme = await getTheme(controller.context)
 	if (theme) {
 		try {
 			const themeEvent = String.create({

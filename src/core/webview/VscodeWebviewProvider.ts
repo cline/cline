@@ -107,7 +107,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				async (e) => {
 					if (e && e.affectsConfiguration("workbench.colorTheme")) {
 						// Send theme update via gRPC subscription
-						const theme = await getTheme()
+						const theme = await getTheme(this.context)
 						if (theme) {
 							await sendThemeEvent(JSON.stringify(theme))
 						}
