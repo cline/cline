@@ -954,8 +954,12 @@ export const ChatRowContent = memo(
 										{(() => {
 											// First check if we have a structured error object
 											if (error) {
+												console.log("Structured error received:", error)
+												const newErrorFormat = error.errorDetails?.details?.error as any
+												const oldErrorFormat = parseErrorText(error.errorDetails?.message)
+												const errorDetails = newErrorFormat || oldErrorFormat
+
 												// Check for credit limit errors
-												const errorDetails = error.errorDetails?.details?.error as any
 												if (
 													errorDetails?.code === "insufficient_credits" &&
 													typeof errorDetails?.current_balance === "number"
@@ -973,11 +977,11 @@ export const ChatRowContent = memo(
 
 												// Check for rate limit errors
 												const isRateLimitError =
-													error.errorDetails?.status === 429 ||
-													error.message?.toLowerCase().includes("rate limit") ||
-													error.message?.toLowerCase().includes("too many requests") ||
-													error.message?.toLowerCase().includes("quota exceeded") ||
-													error.message?.toLowerCase().includes("resource exhausted")
+													errorDetails?.status === 429 ||
+													errorDetails.message?.toLowerCase().includes("rate limit") ||
+													errorDetails.message?.toLowerCase().includes("too many requests") ||
+													errorDetails.message?.toLowerCase().includes("quota exceeded") ||
+													errorDetails.message?.toLowerCase().includes("resource exhausted")
 
 												if (isRateLimitError) {
 													return (
@@ -998,8 +1002,8 @@ export const ChatRowContent = memo(
 															...pStyle,
 															color: "var(--vscode-errorForeground)",
 														}}>
-														{error.message}
-														{error.message?.toLowerCase().includes("powershell") && (
+														{errorDetails.message}
+														{errorDetails.message?.toLowerCase().includes("powershell") && (
 															<>
 																<br />
 																<br />
