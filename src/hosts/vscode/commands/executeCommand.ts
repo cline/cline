@@ -7,7 +7,18 @@ export async function executeCommand(request: ExecuteCommandRequest): Promise<Ex
 		const args = request.args.map((arg) => {
 			// Try to parse as JSON first, fallback to string
 			try {
-				return JSON.parse(arg)
+				const parsed = JSON.parse(arg)
+				// Check if this looks like a VSCode URI object and reconstruct it
+				if (parsed && typeof parsed === "object" && parsed.$mid === 1) {
+					// This is a VSCode URI object, reconstruct it
+					return vscode.Uri.parse(parsed.path || parsed.fsPath || "").with({
+						scheme: parsed.scheme || "file",
+						path: parsed.path || parsed.fsPath || "",
+						query: parsed.query || "",
+						fragment: parsed.fragment || "",
+					})
+				}
+				return parsed
 			} catch {
 				return arg
 			}
