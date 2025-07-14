@@ -10,6 +10,8 @@ import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
 import { ClineError } from "@/services/error/ClineError"
+import { version as extensionVersion } from "../../../package.json"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -52,6 +54,7 @@ export class ClineHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 						"X-Task-ID": this.options.taskId || "",
+						"X-Cline-Version": extensionVersion,
 					},
 				})
 			} catch (error: any) {
@@ -126,7 +129,8 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				if ("reasoning" in delta && delta.reasoning) {
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
 						// @ts-ignore-next-line

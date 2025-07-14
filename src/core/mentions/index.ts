@@ -13,6 +13,8 @@ import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -76,7 +78,12 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: `Error fetching content for ${urlMention}: ${error.message}`,
+				}),
+			)
 		}
 	}
 
@@ -93,7 +100,12 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
+					getHostBridgeProvider().windowClient.showMessage(
+						ShowMessageRequest.create({
+							type: ShowMessageType.ERROR,
+							message: `Error fetching content for ${mention}: ${error.message}`,
+						}),
+					)
 					result = `Error fetching content: ${error.message}`
 				}
 			}
