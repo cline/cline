@@ -1,9 +1,8 @@
 syntax = "proto3";
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
@@ -14,9 +13,11 @@ service StateService {
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
-  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
+  rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
 }
 
 message State {
@@ -88,6 +89,17 @@ message AutoApprovalSettingsRequest {
   repeated string favorites = 7;
 }
 
+enum TelemetrySettingEnum {
+  UNSET = 0;
+  ENABLED = 1;
+  DISABLED = 2;
+}
+
+message TelemetrySettingRequest {
+  Metadata metadata = 1;
+  TelemetrySettingEnum setting = 2;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -113,7 +125,7 @@ message ApiConfiguration {
   optional string api_base_url = 4;
   
   // Provider-specific API keys
-  optional string cline_api_key = 5;
+  optional string cline_account_id = 5;
   optional string openrouter_api_key = 6;
   optional string anthropic_base_url = 7;
   optional string openai_api_key = 8;
@@ -220,4 +232,8 @@ message ApiConfiguration {
 
   // Claude Code specific
   optional string claude_code_path = 77;
+
+  // Extension fields for Bedrock Api Keys
+  optional string aws_authentication = 78;
+  optional string aws_bedrock_api_key = 79;
 }

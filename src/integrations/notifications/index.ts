@@ -74,7 +74,7 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 		const escapedOptions = {
 			...options,
 			title: title.replace(/"/g, '\\"'),
-			message: message.replace(/\\/g, "\\\\").replace(/"/g, '\\"'),
+			message: message.replace(/"/g, '\\"'),
 			subtitle: options.subtitle?.replace(/"/g, '\\"') || "",
 		}
 

@@ -2,9 +2,18 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
+import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+
+interface SapAiCoreHandlerOptions {
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	sapAiCoreTokenUrl?: string
+	sapAiResourceGroup?: string
+	sapAiCoreBaseUrl?: string
+	apiModelId?: string
+}
 
 interface Deployment {
 	id: string
@@ -19,11 +28,11 @@ interface Token {
 	expires_at: number
 }
 export class SapAiCoreHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
 	}
 
@@ -60,6 +69,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
+			"AI-Client-Type": "Cline",
 		}
 
 		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
@@ -116,12 +126,15 @@ export class SapAiCoreHandler implements ApiHandler {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
+			"AI-Client-Type": "Cline",
 		}
 
 		const model = this.getModel()
 		const deploymentId = await this.getDeploymentForModel(model.id)
 
 		const anthropicModels = [
+			"anthropic--claude-4-sonnet",
+			"anthropic--claude-4-opus",
 			"anthropic--claude-3.7-sonnet",
 			"anthropic--claude-3.5-sonnet",
 			"anthropic--claude-3-sonnet",
@@ -131,12 +144,18 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const openAIModels = ["gpt-4o", "gpt-4", "gpt-4o-mini", "o1", "gpt-4.1", "gpt-4.1-nano", "o3-mini", "o3", "o4-mini"]
 
+		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
+
 		let url: string
 		let payload: any
 		if (anthropicModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
-			if (model.id === "anthropic--claude-3.7-sonnet") {
+			if (
+				model.id === "anthropic--claude-4-sonnet" ||
+				model.id === "anthropic--claude-4-opus" ||
+				model.id === "anthropic--claude-3.7-sonnet"
+			) {
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
 				payload = {
 					inferenceConfig: {
@@ -181,6 +200,9 @@ export class SapAiCoreHandler implements ApiHandler {
 				delete payload.stream
 				delete payload.stream_options
 			}
+		} else if (geminiModels.includes(model.id)) {
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
+			payload = this.convertToGeminiFormat(systemPrompt, messages)
 		} else {
 			throw new Error(`Unsupported model: ${model.id}`)
 		}
@@ -221,8 +243,14 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			} else if (openAIModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
-			} else if (model.id === "anthropic--claude-3.7-sonnet") {
+			} else if (
+				model.id === "anthropic--claude-4-sonnet" ||
+				model.id === "anthropic--claude-4-opus" ||
+				model.id === "anthropic--claude-3.7-sonnet"
+			) {
 				yield* this.streamCompletionSonnet37(response.data, model)
+			} else if (geminiModels.includes(model.id)) {
+				yield* this.streamCompletionGemini(response.data, model)
 			} else {
 				yield* this.streamCompletion(response.data, model)
 			}
@@ -266,7 +294,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received data:", data)
 							if (data.type === "message_start") {
 								usage.input_tokens = data.message.usage.input_tokens
 								yield {
@@ -329,7 +356,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						try {
 							// Parse the incoming JSON data from the stream
 							const data = JSON.parse(toStrictJson(jsonData))
-							console.log("Received data:", data)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
@@ -405,7 +431,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received GPT data:", data)
 
 							if (data.choices && data.choices.length > 0) {
 								const choice = data.choices[0]
@@ -429,7 +454,7 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 
-							if (data.choices && data.choices[0].finish_reason === "stop") {
+							if (data.choices?.[0]?.finish_reason === "stop") {
 								// Final usage yield, if not already provided
 								if (!data.usage) {
 									yield {
@@ -447,6 +472,88 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Error streaming GPT completion:", error)
+			throw error
+		}
+	}
+
+	private async *streamCompletionGemini(
+		stream: any,
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let promptTokens = 0
+		let outputTokens = 0
+		let cacheReadTokens = 0
+		let thoughtsTokenCount = 0
+
+		try {
+			for await (const chunk of stream) {
+				const lines = chunk.toString().split("\n").filter(Boolean)
+				for (const line of lines) {
+					if (line.startsWith("data: ")) {
+						const jsonData = line.slice(6)
+						try {
+							const data = JSON.parse(jsonData)
+							const candidateForThoughts = data?.candidates?.[0]
+							const partsForThoughts = candidateForThoughts?.content?.parts
+							let thoughts = ""
+
+							if (partsForThoughts) {
+								for (const part of partsForThoughts) {
+									const { thought, text } = part
+									if (thought && text) {
+										thoughts += text + "\n"
+									}
+								}
+							}
+
+							if (thoughts.trim() !== "") {
+								yield {
+									type: "reasoning",
+									reasoning: thoughts.trim(),
+								}
+							}
+
+							if (data.text) {
+								yield {
+									type: "text",
+									text: data.text,
+								}
+							}
+
+							if (data.candidates && data.candidates[0]?.content?.parts) {
+								for (const part of data.candidates[0].content.parts) {
+									if (part.text && !part.thought) {
+										// Only non-thought text
+										yield {
+											type: "text",
+											text: part.text,
+										}
+									}
+								}
+							}
+
+							if (data.usageMetadata) {
+								promptTokens = data.usageMetadata.promptTokenCount ?? promptTokens
+								outputTokens = data.usageMetadata.candidatesTokenCount ?? outputTokens
+								thoughtsTokenCount = data.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount
+								cacheReadTokens = data.usageMetadata.cachedContentTokenCount ?? cacheReadTokens
+
+								yield {
+									type: "usage",
+									inputTokens: promptTokens - cacheReadTokens,
+									outputTokens,
+									thoughtsTokenCount,
+									cacheReadTokens,
+								}
+							}
+						} catch (error) {
+							console.error("Failed to parse Gemini JSON data:", error)
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error streaming Gemini completion:", error)
 			throw error
 		}
 	}
@@ -485,6 +592,50 @@ export class SapAiCoreHandler implements ApiHandler {
 		throw new Error(`Unsupported image format: ${format}`)
 	}
 
+	private convertToGeminiFormat(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]) {
+		const contents = messages.map(this.convertAnthropicMessageToGemini)
+
+		const payload = {
+			contents,
+			systemInstruction: {
+				parts: [
+					{
+						text: systemPrompt,
+					},
+				],
+			},
+			generationConfig: {
+				maxOutputTokens: this.getModel().info.maxTokens,
+				temperature: 0.0,
+			},
+		}
+
+		return payload
+	}
+
+	private convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam) {
+		const role = message.role === "assistant" ? "model" : "user"
+		const parts = []
+
+		if (typeof message.content === "string") {
+			parts.push({ text: message.content })
+		} else if (Array.isArray(message.content)) {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					parts.push({ text: block.text })
+				} else if (block.type === "image") {
+					parts.push({
+						inlineData: {
+							mimeType: block.source.media_type,
+							data: block.source.data,
+						},
+					})
+				}
+			}
+		}
+
+		return { role, parts }
+	}
 	private formatAnthropicMessages(messages: Anthropic.Messages.MessageParam[]): any[] {
 		return messages.map((m) => {
 			const contentBlocks: any[] = []

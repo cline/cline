@@ -1,20 +1,30 @@
 import * as grpc from "@grpc/grpc-js"
 import { ReflectionService } from "@grpc/reflection"
 import * as health from "grpc-health-check"
-
+import * as hostProviders from "@hosts/host-providers"
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
-import { addProtobusServices } from "@/generated/standalone/server-setup"
+import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { ExternalHostBridgeClientManager } from "./host-bridge-client-manager"
+import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
+import { WebviewProviderType } from "@/shared/webview/types"
+import { v4 as uuidv4 } from "uuid"
+import { ExternalDiffViewProvider } from "./ExternalDiffviewProvider"
 
 async function main() {
-	log("Starting service...")
+	log("Starting standalone service...")
 
+	hostProviders.initializeHostProviders(createWebview, createDiffView, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
-	const controller = new Controller(extensionContext, outputChannel, postMessage)
+	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
+	startProtobusService(controller)
+}
+
+function startProtobusService(controller: Controller) {
 	const server = new grpc.Server()
 
 	// Set up health check.
@@ -24,12 +34,15 @@ async function main() {
 	// Add all the handlers for the ProtoBus services to the server.
 	addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
 
-	// Set up reflection.
-	const reflection = new ReflectionService(getPackageDefinition())
+	// Create reflection service with protobus service names
+	const packageDefinition = getPackageDefinition()
+	const reflection = new ReflectionService(packageDefinition, {
+		services: getProtobusServiceNames(packageDefinition),
+	})
 	reflection.addToServer(server)
 
 	// Start the server.
-	const host = "127.0.0.1:50051"
+	const host = process.env.PROTOBUS_ADDRESS || "127.0.0.1:50051"
 	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
 		if (err) {
 			log(`Error: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
@@ -38,6 +51,21 @@ async function main() {
 		server.start()
 		log(`gRPC server listening on ${host}`)
 	})
+}
+
+function getProtobusServiceNames(packageDefinition: { [x: string]: any }): string[] {
+	// Filter service names to only include cline services
+	const protobusServiceNames = Object.keys(packageDefinition).filter(
+		(name) => name.startsWith("cline.") || name.startsWith("grpc.health"),
+	)
+	return protobusServiceNames
+}
+
+function createWebview() {
+	return new ExternalWebviewProvider(extensionContext, outputChannel, WebviewProviderType.SIDEBAR)
+}
+function createDiffView() {
+	return new ExternalDiffViewProvider()
 }
 
 /**

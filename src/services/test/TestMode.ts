@@ -8,6 +8,7 @@ import * as fs from "fs"
 import * as path from "path"
 import { Logger } from "../logging/Logger"
 import { createTestServer, shutdownTestServer } from "./TestServer"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 // State variable
 let isTestMode = false
@@ -31,13 +32,13 @@ export function isInTestMode(): boolean {
 /**
  * Check if we're in test mode by looking for evals.env file in workspace folders
  */
-function checkForTestMode(): boolean {
+async function checkForTestMode(): Promise<boolean> {
 	// Get all workspace folders
-	const workspaceFolders = vscode.workspace.workspaceFolders || []
+	const workspaceFolders = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
 
 	// Check each workspace folder for an evals.env file
-	for (const folder of workspaceFolders) {
-		const evalsEnvPath = path.join(folder.uri.fsPath, "evals.env")
+	for (const folder of workspaceFolders.paths) {
+		const evalsEnvPath = path.join(folder, "evals.env")
 		if (fs.existsSync(evalsEnvPath)) {
 			Logger.log(`Found evals.env file at ${evalsEnvPath}, activating test mode`)
 			return true
@@ -49,14 +50,13 @@ function checkForTestMode(): boolean {
 
 /**
  * Initialize test mode detection and setup file watchers
- * @param context VSCode extension context
  * @param webviewProvider The webview provider instance
  */
-export function initializeTestMode(context: vscode.ExtensionContext, webviewProvider?: any): vscode.Disposable[] {
+export async function initializeTestMode(webviewProvider?: any): Promise<vscode.Disposable[]> {
 	const disposables: vscode.Disposable[] = []
 
 	// Check if we're in test mode
-	const IS_TEST = checkForTestMode()
+	const IS_TEST = await checkForTestMode()
 
 	// Set test mode state for other parts of the code
 	if (IS_TEST) {

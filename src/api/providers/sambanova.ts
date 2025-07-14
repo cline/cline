@@ -1,26 +1,45 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
+import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@/api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { convertToR1Format } from "@api/transform/r1-format"
 
-export class SambanovaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface SambanovaHandlerOptions {
+	sambanovaApiKey?: string
+	apiModelId?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class SambanovaHandler implements ApiHandler {
+	private options: SambanovaHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: SambanovaHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.sambanova.ai/v1",
-			apiKey: this.options.sambanovaApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.sambanovaApiKey) {
+				throw new Error("SambaNova API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.sambanova.ai/v1",
+					apiKey: this.options.sambanovaApiKey,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating SambaNova client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -34,7 +53,7 @@ export class SambanovaHandler implements ApiHandler {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: this.getModel().id,
 			messages: openAiMessages,
 			temperature: 0,
