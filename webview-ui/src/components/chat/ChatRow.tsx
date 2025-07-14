@@ -193,12 +193,12 @@ export const ChatRowContent = memo(
 			selectedText: "",
 		})
 		const contentRef = useRef<HTMLDivElement>(null)
-		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
+		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus, error] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
+				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus, info.error]
 			}
-			return [undefined, undefined, undefined, undefined]
+			return [undefined, undefined, undefined, undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
@@ -411,20 +411,27 @@ export const ChatRowContent = memo(
 							<ProgressIndicator />
 						),
 						(() => {
+							const requestId = error?.request_id ? ` - ${error.request_id}` : ""
 							if (apiReqCancelReason != null) {
 								return apiReqCancelReason === "user_cancelled" ? (
-									<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+									<span style={{ color: normalColor, fontWeight: "bold" }}>
+										API Request Cancelled {requestId}
+									</span>
 								) : (
-									<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+									<span style={{ color: errorColor, fontWeight: "bold" }}>
+										API Streaming Failed {requestId}
+									</span>
 								)
 							}
 
 							if (cost != null) {
-								return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+								return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request {requestId}</span>
 							}
 
-							if (apiRequestFailedMessage) {
-								return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+							if (apiRequestFailedMessage || error) {
+								return (
+									<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed {requestId}</span>
+								)
 							}
 							// New: Check for retryStatus to modify the title
 							if (retryStatus && cost == null && !apiReqCancelReason) {
@@ -941,7 +948,75 @@ export const ChatRowContent = memo(
 								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 									<>
 										{(() => {
-											// Try to parse the error message as JSON for credit limit error
+											// First check if we have a structured error object
+											if (error) {
+												// Check for credit limit errors
+												const errorDetails = error.errorDetails as any
+												if (
+													errorDetails?.code === "insufficient_credits" &&
+													typeof errorDetails?.current_balance === "number"
+												) {
+													return (
+														<CreditLimitError
+															currentBalance={errorDetails.current_balance}
+															totalSpent={errorDetails.total_spent}
+															totalPromotions={errorDetails.total_promotions}
+															message={errorDetails.message}
+															buyCreditsUrl={errorDetails.buy_credits_url}
+														/>
+													)
+												}
+
+												// Check for rate limit errors
+												const isRateLimitError =
+													error.errorDetails?.status === 429 ||
+													error.message?.toLowerCase().includes("rate limit") ||
+													error.message?.toLowerCase().includes("too many requests") ||
+													error.message?.toLowerCase().includes("quota exceeded") ||
+													error.message?.toLowerCase().includes("resource exhausted")
+
+												if (isRateLimitError) {
+													return (
+														<p
+															style={{
+																...pStyle,
+																color: "var(--vscode-errorForeground)",
+															}}>
+															{error.message}
+														</p>
+													)
+												}
+
+												// Default error display for structured errors
+												return (
+													<p
+														style={{
+															...pStyle,
+															color: "var(--vscode-errorForeground)",
+														}}>
+														{error.message}
+														{error.message?.toLowerCase().includes("powershell") && (
+															<>
+																<br />
+																<br />
+																It seems like you're having Windows PowerShell issues, please see
+																this{" "}
+																<a
+																	href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+																	style={{
+																		color: "inherit",
+																		textDecoration: "underline",
+																	}}>
+																	troubleshooting guide
+																</a>
+																.
+															</>
+														)}
+													</p>
+												)
+											}
+
+											// Fallback to parsing text for legacy error messages
 											const errorData = parseErrorText(
 												apiRequestFailedMessage || apiReqStreamingFailedMessage,
 											)

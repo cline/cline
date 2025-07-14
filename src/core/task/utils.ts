@@ -4,10 +4,12 @@ import { serializeError } from "serialize-error"
 import { MessageStateHandler } from "./message-state"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { ApiHandler } from "@/api"
+import { ClineError } from "@/services/error/ClineError"
 
 export function formatErrorWithStatusCode(error: any): string {
 	const statusCode = error.status || error.statusCode || (error.response && error.response.status)
-	const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
+	const requestId = error.request_id ? ` - ${error.request_id}` : ""
+	const message = (error.message ?? JSON.stringify(serializeError(error), null, 2)) + requestId
 
 	// Only prepend the statusCode if it's not already part of the message
 	return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
@@ -37,6 +39,7 @@ type UpdateApiReqMsgParams = {
 	api: ApiHandler
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
+	error?: ClineError
 }
 
 // update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
@@ -66,5 +69,6 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 			cancelReason: params.cancelReason,
 			streamingFailedMessage: params.streamingFailedMessage,
 		} satisfies ClineApiReqInfo),
+		error: params.error,
 	})
 }

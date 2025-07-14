@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/browser"
 import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import * as pkg from "../../../package.json"
+import { ClineError } from "./ClineError"
 
 let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 let isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
@@ -65,7 +66,7 @@ export class ErrorService {
 		}
 	}
 
-	static logException(error: Error): void {
+	static logException(error: Error | ClineError): void {
 		// Don't log if telemetry is off
 		const isUserManuallyOptedIn = telemetryService.isTelemetryEnabled()
 		if (!isUserManuallyOptedIn || !ErrorService.isEnabled()) {

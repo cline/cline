@@ -82,6 +82,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { ClineError } from "@/services/error/ClineError"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -1693,6 +1694,7 @@ export class Task {
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+				const requestId = error.request_id
 
 				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
@@ -1703,7 +1705,10 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						error = new Error("Context window exceeded. Click retry to truncate the conversation and try again.")
+						error = new ClineError(
+							"Context window exceeded. Click retry to truncate the conversation and try again.",
+							requestId,
+						)
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
@@ -1726,6 +1731,7 @@ export class Task {
 							cancelReason: "retries_exhausted", // Indicate that automatic retries failed
 							streamingFailedMessage: errorMessage,
 						} satisfies ClineApiReqInfo),
+						error: new ClineError(error, requestId),
 					})
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
@@ -1734,7 +1740,7 @@ export class Task {
 
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-					throw new Error("API request failed")
+					throw new ClineError("API request failed", requestId)
 				}
 
 				await this.say("api_req_retried")
@@ -2230,7 +2236,7 @@ export class Task {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 					const errorMessage = formatErrorWithStatusCode(error)
 
-					await abortStream("streaming_failed", errorMessage)
+					await abortStream("streaming_failed", errorMessage + ` (${error.requestId})`)
 					await this.reinitExistingTaskFromId(this.taskId)
 				}
 			} finally {

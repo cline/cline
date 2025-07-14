@@ -7,6 +7,7 @@ import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
 import { UserInfo } from "./UserInfo"
+import { ClineError } from "../services/error/ClineError"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -76,6 +77,7 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	error?: ClineError
 }
 
 export type ClineAsk =
@@ -199,6 +201,7 @@ export interface ClineApiReqInfo {
 		delaySec: number
 		errorSnippet?: string
 	}
+	error?: ClineError
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"

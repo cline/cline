@@ -177,6 +177,15 @@ message ApiReqRetryStatus {
   string error_snippet = 4;
 }
 
+// Message for ClineError
+message ClineError {
+  string message = 1;
+  string title = 2;
+  string request_id = 3;
+  string error_details = 4; // JSON string of error details
+  string stack = 5;
+}
+
 // Message for ClineApiReqInfo
 message ClineApiReqInfo {
   string request = 1;
@@ -188,6 +197,7 @@ message ClineApiReqInfo {
   ClineApiReqCancelReason cancel_reason = 7;
   string streaming_failed_message = 8;
   ApiReqRetryStatus retry_status = 9;
+  ClineError error = 10;
 }
 
 // Main ClineMessage type
@@ -216,6 +226,7 @@ message ClineMessage {
   ClineAskQuestion ask_question = 20;
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
+  ClineError error = 23;
 }
 
 // UiService provides methods for managing UI interactions

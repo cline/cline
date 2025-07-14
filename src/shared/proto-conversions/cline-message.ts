@@ -184,6 +184,15 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 					endIndex: message.conversationHistoryDeletedRange[1],
 				}
 			: undefined,
+		error: message.error
+			? {
+					message: message.error.message,
+					title: message.error.title,
+					requestId: message.error.request_id ?? "",
+					errorDetails: JSON.stringify(message.error.errorDetails),
+					stack: message.error.stack ?? "",
+				}
+			: undefined,
 	}
 
 	return protoMessage
@@ -249,6 +258,30 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	// Convert error field
+	if (protoMessage.error) {
+		try {
+			const errorDetails = JSON.parse(protoMessage.error.errorDetails)
+			message.error = {
+				message: protoMessage.error.message,
+				title: protoMessage.error.title,
+				request_id: protoMessage.error.requestId,
+				errorDetails,
+				stack: protoMessage.error.stack,
+			} as any // Cast to any since we're creating a ClineError-like object
+		} catch (e) {
+			console.error("Failed to parse error details:", e)
+			// Fallback to basic error info
+			message.error = {
+				message: protoMessage.error.message,
+				title: protoMessage.error.title,
+				request_id: protoMessage.error.requestId,
+				errorDetails: { message: protoMessage.error.message },
+				stack: protoMessage.error.stack,
+			} as any
+		}
 	}
 
 	return message

@@ -9,6 +9,7 @@ import { OpenRouterErrorResponse } from "./types"
 import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
+import { ClineError } from "@/services/error/ClineError"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -180,14 +181,7 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Cline API Error", error)
-			let message = error.error ? JSON.stringify(error.error) : String(error)
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				message = "Unauthorized: Please sign in to Cline before trying again."
-			} else if (error?.error?.code === "insufficient_credits" && error.status === 402) {
-				error.error.request_id = error.request_id
-				message = JSON.stringify(error.error)
-			}
-			throw new Error(message + ` (${error?.request_id})`)
+			throw new ClineError(error, (error as any).request_id)
 		}
 	}
 
@@ -228,7 +222,7 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 			} catch (error) {
-				// ignore if fails
+				// Log the error but don't throw - this is a fallback method
 				console.error("Error fetching cline generation details:", error)
 			}
 		}
