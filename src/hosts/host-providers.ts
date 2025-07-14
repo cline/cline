@@ -13,6 +13,7 @@ export type DiffViewProviderCreator = () => DiffViewProvider
 let _webviewProviderCreator: WebviewProviderCreator | undefined
 let _diffViewProviderCreator: DiffViewProviderCreator | undefined
 let _hostBridgeProvider: HostBridgeClientProvider | undefined
+let _binaryInstallPath: string
 
 export var isSetup: boolean = false
 
@@ -20,11 +21,17 @@ export function initializeHostProviders(
 	webviewProviderCreator: WebviewProviderCreator,
 	diffViewProviderCreator: DiffViewProviderCreator,
 	hostBridgeProvider: HostBridgeClientProvider,
+	binaryInstallPath: string = "",
 ) {
 	_webviewProviderCreator = webviewProviderCreator
 	_diffViewProviderCreator = diffViewProviderCreator
 	_hostBridgeProvider = hostBridgeProvider
+	_binaryInstallPath = binaryInstallPath
 	isSetup = true
+}
+
+export function getBinaryInstallPath(): string {
+	return _binaryInstallPath
 }
 
 export function createWebviewProvider(providerType: WebviewProviderType): WebviewProvider {

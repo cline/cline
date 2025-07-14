@@ -4,6 +4,8 @@ import * as path from "path"
 import * as readline from "readline"
 import { fileExistsAtPath } from "@utils/fs"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { getRipgrepBinaryPath } from "@utils/platform"
+import { getBinaryInstallPath, isSetup } from "@hosts/host-providers"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -61,18 +63,38 @@ interface SearchResult {
 
 const MAX_RESULTS = 300
 
-export async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
-	const checkPath = async (pkgFolder: string) => {
-		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
-		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
+export async function getBinPath(vscodeAppRoot?: string): Promise<string | undefined> {
+	// If running in non VS Code environment, use bundled binary
+	if (isSetup) {
+		try {
+			const binaryPath = getBinaryInstallPath()
+			if (binaryPath) {
+				const bundledPath = getRipgrepBinaryPath(binaryPath)
+				if (await fileExistsAtPath(bundledPath)) {
+					return bundledPath
+				}
+			}
+		} catch (error) {
+			console.warn("Failed to get bundled ripgrep binary:", error)
+		}
 	}
 
-	return (
-		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
-		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
-		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
-		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
-	)
+	// VS Code flow
+	if (vscodeAppRoot) {
+		const checkPath = async (pkgFolder: string) => {
+			const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
+			return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
+		}
+
+		return (
+			(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
+			(await checkPath("node_modules/vscode-ripgrep/bin")) ||
+			(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
+			(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
+		)
+	}
+
+	return undefined
 }
 
 async function execRipgrep(bin: string, args: string[]): Promise<string> {
