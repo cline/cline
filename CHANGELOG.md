@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.23.10] - 2025-07-14
+
+- Prioritize built-in model dimensions over custom dimensions (thanks @daniel-lxs!)
+- Add padding to the index model options
+
 ## [3.23.9] - 2025-07-14
 
 - Enable Claude Code provider to run natively on Windows (thanks @SannidhyaSah!)
