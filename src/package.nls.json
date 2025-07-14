@@ -34,5 +34,13 @@
 	"settings.vsCodeLmModelSelector.family.description": "The family of the language model (e.g. gpt-4)",
 	"settings.customStoragePath.description": "Custom storage path. Leave empty to use the default location. Supports absolute paths (e.g. 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Enable Roo Code quick fixes",
-	"settings.autoImportSettingsPath.description": "Path to a RooCode configuration file to automatically import on extension startup. Supports absolute paths and paths relative to the home directory (e.g. '~/Documents/roo-code-settings.json'). Leave empty to disable auto-import."
+	"settings.autoImportSettingsPath.description": "Path to a RooCode configuration file to automatically import on extension startup. Supports absolute paths and paths relative to the home directory (e.g. '~/Documents/roo-code-settings.json'). Leave empty to disable auto-import.",
+	"settings.notifications.enabled.description": "Enable desktop notifications for Roo Code events",
+	"settings.notifications.showApprovalRequests.description": "Show desktop notifications when approval is required for tool operations",
+	"settings.notifications.showErrors.description": "Show desktop notifications for errors and failures",
+	"settings.notifications.showTaskCompletion.description": "Show desktop notifications when tasks are completed",
+	"settings.notifications.showUserInputRequired.description": "Show desktop notifications when user input is required",
+	"settings.notifications.showSessionTimeouts.description": "Show desktop notifications for session timeouts",
+	"settings.notifications.timeout.description": "Notification timeout in milliseconds (0 = no timeout, max 60 seconds)",
+	"settings.notifications.sound.description": "Play sound with desktop notifications"
 }

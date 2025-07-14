@@ -6,6 +6,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 
 import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
 import type { ToolParamName, ToolResponse } from "../../shared/tools"
+import { NotificationService, NotificationType } from "../../services/notification"
 
 import { fetchInstructionsTool } from "../tools/fetchInstructionsTool"
 import { listFilesTool } from "../tools/listFilesTool"
@@ -266,6 +267,47 @@ export async function presentAssistantMessage(cline: Task) {
 				progressStatus?: ToolProgressStatus,
 				isProtected?: boolean,
 			) => {
+				// Initialize notification service and send desktop notification for approval requests
+				const provider = cline.providerRef.deref()
+				if (provider) {
+					try {
+						const notificationService = new NotificationService(provider.context)
+
+						// Determine the tool name from the current block for better notification context
+						let toolName = block.name
+						let notificationMessage = partialMessage || `Approval required for ${toolName}`
+
+						// Customize notification message based on tool type
+						switch (toolName) {
+							case "execute_command":
+								notificationMessage = `Execute command: ${block.params.command}`
+								break
+							case "write_to_file":
+								notificationMessage = `Write to file: ${block.params.path}`
+								break
+							case "read_file":
+								// Handle both old and new read_file parameter formats
+								const filePath =
+									typeof block.params.args === "string"
+										? "multiple files"
+										: block.params.path || "unknown"
+								notificationMessage = `Read file: ${filePath}`
+								break
+							case "browser_action":
+								notificationMessage = `Browser action: ${block.params.action}`
+								break
+							default:
+								notificationMessage = `${toolName} - Approval required`
+								break
+						}
+
+						await notificationService.sendApprovalRequest(notificationMessage, toolName)
+					} catch (error) {
+						// Don't let notification errors break the approval flow
+						console.error("Failed to send desktop notification:", error)
+					}
+				}
+
 				const { response, text, images } = await cline.ask(
 					type,
 					partialMessage,
@@ -306,6 +348,18 @@ export async function presentAssistantMessage(cline: Task) {
 
 			const handleError = async (action: string, error: Error) => {
 				const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
+
+				// Send desktop notification for errors
+				const provider = cline.providerRef.deref()
+				if (provider) {
+					try {
+						const notificationService = new NotificationService(provider.context)
+						await notificationService.sendError(`Error ${action}`, error)
+					} catch (notificationError) {
+						// Don't let notification errors break the error handling flow
+						console.error("Failed to send error notification:", notificationError)
+					}
+				}
 
 				await cline.say(
 					"error",
