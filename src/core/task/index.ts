@@ -2237,7 +2237,7 @@ export class Task {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 					const errorMessage = formatErrorWithStatusCode(error)
 
-					await abortStream("streaming_failed", errorMessage + ` (${error.requestId})`)
+					await abortStream("streaming_failed", errorMessage)
 					await this.reinitExistingTaskFromId(this.taskId)
 				}
 			} finally {

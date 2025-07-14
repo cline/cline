@@ -22,7 +22,8 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	// We have to divide because the balance is stored in microcredits
 	return (
 		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
-			<div className="mb-2">{message?.replace("$", "")}</div>
+			{/* Remove dollar sign from error message sent back from server */}
+			<div className="mb-2">{message?.replace(/^\$/, "")}</div>
 			<div className="mb-3">
 				<div className="text-[var(--vscode-foreground)]">
 					Current Balance: <span className="font-bold">${(currentBalance / 1000000).toFixed(4)}</span>

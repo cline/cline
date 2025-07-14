@@ -954,7 +954,6 @@ export const ChatRowContent = memo(
 										{(() => {
 											// First check if we have a structured error object
 											if (error) {
-												console.log("Structured error received:", error)
 												const newErrorFormat = error.errorDetails?.details?.error as any
 												const oldErrorFormat = parseErrorText(error.errorDetails?.message)
 												const errorDetails = newErrorFormat || oldErrorFormat
