@@ -643,7 +643,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 													className={cn("w-full", {
 														"border-red-500": formErrors.codebaseIndexEmbedderModelId,
 													})}>
-													<VSCodeOption value="">
+													<VSCodeOption value="" className="p-2">
 														{t("settings:codeIndex.selectModel")}
 													</VSCodeOption>
 													{getAvailableModels().map((modelId) => {
@@ -652,7 +652,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 																currentSettings.codebaseIndexEmbedderProvider
 															]?.[modelId]
 														return (
-															<VSCodeOption key={modelId} value={modelId}>
+															<VSCodeOption key={modelId} value={modelId} className="p-2">
 																{modelId}{" "}
 																{model
 																	? t("settings:codeIndex.modelDimensions", {
@@ -717,7 +717,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 													className={cn("w-full", {
 														"border-red-500": formErrors.codebaseIndexEmbedderModelId,
 													})}>
-													<VSCodeOption value="">
+													<VSCodeOption value="" className="p-2">
 														{t("settings:codeIndex.selectModel")}
 													</VSCodeOption>
 													{getAvailableModels().map((modelId) => {
@@ -726,7 +726,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 																currentSettings.codebaseIndexEmbedderProvider
 															]?.[modelId]
 														return (
-															<VSCodeOption key={modelId} value={modelId}>
+															<VSCodeOption key={modelId} value={modelId} className="p-2">
 																{modelId}{" "}
 																{model
 																	? t("settings:codeIndex.modelDimensions", {
@@ -890,7 +890,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 													className={cn("w-full", {
 														"border-red-500": formErrors.codebaseIndexEmbedderModelId,
 													})}>
-													<VSCodeOption value="">
+													<VSCodeOption value="" className="p-2">
 														{t("settings:codeIndex.selectModel")}
 													</VSCodeOption>
 													{getAvailableModels().map((modelId) => {
@@ -899,7 +899,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 																currentSettings.codebaseIndexEmbedderProvider
 															]?.[modelId]
 														return (
-															<VSCodeOption key={modelId} value={modelId}>
+															<VSCodeOption key={modelId} value={modelId} className="p-2">
 																{modelId}{" "}
 																{model
 																	? t("settings:codeIndex.modelDimensions", {
