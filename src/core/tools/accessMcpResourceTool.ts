@@ -60,9 +60,36 @@ export async function accessMcpResourceTool(
 			const resourceResultPretty =
 				resourceResult?.contents
 					.map((item) => {
+						// First check if text content is available
 						if (item.text) {
 							return item.text
 						}
+
+						// If no text but blob exists, check if it's text-based content
+						if (item.blob && item.mimeType) {
+							// Handle text-based MIME types
+							if (
+								item.mimeType.startsWith("text/") ||
+								item.mimeType === "application/json" ||
+								item.mimeType === "application/xml" ||
+								item.mimeType === "application/javascript" ||
+								item.mimeType === "application/typescript"
+							) {
+								try {
+									// Try to decode as base64 first
+									if (item.blob.match(/^[A-Za-z0-9+/]*={0,2}$/)) {
+										return Buffer.from(item.blob, "base64").toString("utf-8")
+									} else {
+										// If not base64, treat as raw text
+										return item.blob
+									}
+								} catch (error) {
+									// If base64 decoding fails, treat as raw text
+									return item.blob
+								}
+							}
+						}
+
 						return ""
 					})
 					.filter(Boolean)
