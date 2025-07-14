@@ -430,6 +430,10 @@
 			"label": "Aktifkan text-to-speech",
 			"description": "Ketika diaktifkan, Roo akan membacakan responnya menggunakan text-to-speech.",
 			"speedLabel": "Kecepatan"
+		},
+		"desktop": {
+			"label": "Aktifkan notifikasi desktop",
+			"description": "Ketika diaktifkan, Roo akan menampilkan notifikasi desktop sistem operasi untuk peringatan penting dan permintaan persetujuan."
 		}
 	},
 	"contextManagement": {

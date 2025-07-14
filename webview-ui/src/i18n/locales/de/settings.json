@@ -426,6 +426,10 @@
 			"label": "Text-zu-Sprache aktivieren",
 			"description": "Wenn aktiviert, liest Roo seine Antworten mit Text-zu-Sprache laut vor.",
 			"speedLabel": "Geschwindigkeit"
+		},
+		"desktop": {
+			"label": "Desktop-Benachrichtigungen aktivieren",
+			"description": "Wenn aktiviert, zeigt Roo Desktop-Benachrichtigungen auf Betriebssystemebene für wichtige Ereignisse wie Genehmigungsanfragen und Aufgabenabschluss an."
 		}
 	},
 	"contextManagement": {

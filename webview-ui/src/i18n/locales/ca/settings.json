@@ -426,6 +426,10 @@
 			"label": "Habilitar text a veu",
 			"description": "Quan està habilitat, Roo llegirà en veu alta les seves respostes utilitzant text a veu.",
 			"speedLabel": "Velocitat"
+		},
+		"desktop": {
+			"label": "Habilitar notificacions d'escriptori",
+			"description": "Quan està habilitat, Roo mostrarà notificacions d'escriptori a nivell del sistema operatiu per a esdeveniments importants com sol·licituds d'aprovació i finalització de tasques."
 		}
 	},
 	"contextManagement": {

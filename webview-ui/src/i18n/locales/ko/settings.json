@@ -426,6 +426,10 @@
 			"label": "음성 합성 활성화",
 			"description": "활성화되면 Roo는 음성 합성을 사용하여 응답을 소리내어 읽습니다.",
 			"speedLabel": "속도"
+		},
+		"desktop": {
+			"label": "데스크톱 알림 활성화",
+			"description": "활성화되면 Roo는 중요한 경고 및 승인 요청에 대해 운영 체제 데스크톱 알림을 표시합니다."
 		}
 	},
 	"contextManagement": {

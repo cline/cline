@@ -426,6 +426,10 @@
 			"label": "Abilita sintesi vocale",
 			"description": "Quando abilitato, Roo leggerà ad alta voce le sue risposte utilizzando la sintesi vocale.",
 			"speedLabel": "Velocità"
+		},
+		"desktop": {
+			"label": "Abilita notifiche desktop",
+			"description": "Quando abilitato, Roo mostrerà notifiche desktop del sistema operativo per avvisi importanti e richieste di approvazione."
 		}
 	},
 	"contextManagement": {

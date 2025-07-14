@@ -426,6 +426,10 @@
 			"label": "Tekst-naar-spraak inschakelen",
 			"description": "Indien ingeschakeld, leest Roo zijn antwoorden hardop voor via tekst-naar-spraak.",
 			"speedLabel": "Snelheid"
+		},
+		"desktop": {
+			"label": "Desktopmeldingen inschakelen",
+			"description": "Indien ingeschakeld, toont Roo besturingssysteem desktopmeldingen voor belangrijke waarschuwingen en goedkeuringsverzoeken."
 		}
 	},
 	"contextManagement": {

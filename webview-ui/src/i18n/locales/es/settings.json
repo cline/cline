@@ -426,6 +426,10 @@
 			"label": "Habilitar texto a voz",
 			"description": "Cuando está habilitado, Roo leerá en voz alta sus respuestas usando texto a voz.",
 			"speedLabel": "Velocidad"
+		},
+		"desktop": {
+			"label": "Habilitar notificaciones de escritorio",
+			"description": "Cuando está habilitado, Roo mostrará notificaciones de escritorio del sistema operativo para alertas importantes y solicitudes de aprobación."
 		}
 	},
 	"contextManagement": {

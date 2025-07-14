@@ -426,6 +426,10 @@
 			"label": "Metinden sese özelliğini etkinleştir",
 			"description": "Etkinleştirildiğinde, Roo yanıtlarını metinden sese teknolojisi kullanarak sesli okuyacaktır.",
 			"speedLabel": "Hız"
+		},
+		"desktop": {
+			"label": "Masaüstü bildirimlerini etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo önemli uyarılar ve onay istekleri için işletim sistemi masaüstü bildirimleri gösterecektir."
 		}
 	},
 	"contextManagement": {

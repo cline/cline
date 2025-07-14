@@ -426,6 +426,10 @@
 			"label": "Ativar texto para fala",
 			"description": "Quando ativado, o Roo lerá em voz alta suas respostas usando texto para fala.",
 			"speedLabel": "Velocidade"
+		},
+		"desktop": {
+			"label": "Ativar notificações da área de trabalho",
+			"description": "Quando ativado, o Roo exibirá notificações da área de trabalho do sistema operacional para alertas importantes e solicitações de aprovação."
 		}
 	},
 	"contextManagement": {

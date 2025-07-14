@@ -426,6 +426,10 @@
 			"label": "Włącz syntezę mowy",
 			"description": "Gdy włączone, Roo będzie czytać na głos swoje odpowiedzi za pomocą syntezy mowy.",
 			"speedLabel": "Szybkość"
+		},
+		"desktop": {
+			"label": "Włącz powiadomienia pulpitu",
+			"description": "Gdy włączone, Roo będzie wyświetlać powiadomienia pulpitu systemu operacyjnego dla ważnych alertów i żądań zatwierdzenia."
 		}
 	},
 	"contextManagement": {

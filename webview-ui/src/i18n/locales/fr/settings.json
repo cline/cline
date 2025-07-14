@@ -426,6 +426,10 @@
 			"label": "Activer la synthèse vocale",
 			"description": "Lorsque cette option est activée, Roo lira ses réponses à haute voix en utilisant la synthèse vocale.",
 			"speedLabel": "Vitesse"
+		},
+		"desktop": {
+			"label": "Activer les notifications de bureau",
+			"description": "Lorsque cette option est activée, Roo affichera des notifications de bureau du système d'exploitation pour les alertes importantes et les demandes d'approbation."
 		}
 	},
 	"contextManagement": {

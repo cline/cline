@@ -426,6 +426,10 @@
 			"label": "启用文本转语音",
 			"description": "启用后，Roo 将使用文本转语音功能朗读其响应。",
 			"speedLabel": "速度"
+		},
+		"desktop": {
+			"label": "启用桌面通知",
+			"description": "启用后，Roo 将为重要警报和批准请求显示操作系统桌面通知。"
 		}
 	},
 	"contextManagement": {

@@ -426,6 +426,10 @@
 			"label": "Bật chuyển văn bản thành giọng nói",
 			"description": "Khi được bật, Roo sẽ đọc to các phản hồi của nó bằng chức năng chuyển văn bản thành giọng nói.",
 			"speedLabel": "Tốc độ"
+		},
+		"desktop": {
+			"label": "Bật thông báo desktop",
+			"description": "Khi được bật, Roo sẽ hiển thị thông báo desktop của hệ điều hành cho các cảnh báo quan trọng và yêu cầu phê duyệt."
 		}
 	},
 	"contextManagement": {
