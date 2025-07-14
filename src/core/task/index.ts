@@ -83,6 +83,7 @@ import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
 import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
+import { getVisibleTextEditors } from "@/utils/editor"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -2437,8 +2438,9 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFilePaths = vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
+		const visibleEditors = await getVisibleTextEditors()
+		const visibleFilePaths = visibleEditors
+			.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(this.cwd, absolutePath))
 

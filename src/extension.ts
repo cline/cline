@@ -370,7 +370,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// For now, we'll need to get the VSCode editor to access document and selection
 			// This is a transitional approach - in the future, we'd want to move this logic to the host bridge
-			const editor = vscode.window.activeTextEditor
+			const editor = vscode.window.activeTextEditor // TODO: Replace with host bridge call once document access is available
 			if (!editor) {
 				return
 			}
@@ -472,7 +472,8 @@ export async function activate(context: vscode.ExtensionContext) {
 					context: vscode.CodeActionContext,
 				): vscode.CodeAction[] {
 					const actions: vscode.CodeAction[] = []
-					const editor = vscode.window.activeTextEditor // Get active editor for selection check
+					// Get active editor for selection check via host bridge
+					const editor = vscode.window.activeTextEditor // TODO: Replace with host bridge call
 
 					// Expand range to include surrounding 3 lines or use selection if broader
 					const selection = editor?.selection
@@ -560,7 +561,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			await vscode.commands.executeCommand("cline.focusChatInput")
 			// Wait for a webview instance to become visible after focusing
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editor = vscode.window.activeTextEditor // TODO: Replace with host bridge call once document access is available
 			if (!editor) {
 				return
 			}
@@ -580,7 +581,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("cline.explainCode", async (range: vscode.Range) => {
 			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editor = vscode.window.activeTextEditor // TODO: Replace with host bridge call once document access is available
 			if (!editor) {
 				return
 			}
@@ -607,7 +608,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("cline.improveCode", async (range: vscode.Range) => {
 			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editor = vscode.window.activeTextEditor
+			const editor = vscode.window.activeTextEditor // TODO: Replace with host bridge call once document access is available
 			if (!editor) {
 				return
 			}
