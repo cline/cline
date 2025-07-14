@@ -74,7 +74,7 @@ export class Controller {
 		)
 		this.accountService = ClineAccountService.getInstance()
 		this.authService = AuthService.getInstance(context)
-		this.authService.restoreAuthToken()
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
