@@ -165,7 +165,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	}, [responseText, displayMode, isExpanded])
 
 	// Helper function to render a display segment
-	const renderSegment = (segment: DisplaySegment): JSX.Element => {
+	const renderSegment = useCallback((segment: DisplaySegment): JSX.Element => {
 		switch (segment.type) {
 			case "text":
 			case "url":
@@ -205,7 +205,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			default:
 				return <React.Fragment key={segment.key} />
 		}
-	}
+	}, [])
 
 	// Function to render content based on display mode
 	const renderContent = () => {
