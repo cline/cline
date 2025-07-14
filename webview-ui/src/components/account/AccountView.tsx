@@ -11,6 +11,49 @@ import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
 
+const usePeriodicRefresh = (refreshFn: () => Promise<void>, interval: number) => {
+	const [isRefreshing, setIsRefreshing] = useState(false)
+	const refreshFnRef = useRef(refreshFn)
+	const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+	useEffect(() => {
+		refreshFnRef.current = refreshFn
+	}, [refreshFn])
+
+	// Extract refresh logic into reusable callback
+	const runPeriodicRefresh = useCallback(async () => {
+		setIsRefreshing(true)
+		try {
+			await refreshFnRef.current()
+		} catch (error) {
+			console.error("Periodic refresh failed:", error)
+		} finally {
+			setIsRefreshing(false)
+		}
+	}, [])
+
+	useEffect(() => {
+		if (!refreshFnRef.current || interval <= 0) return
+
+		intervalRef.current = setInterval(runPeriodicRefresh, interval)
+
+		return () => {
+			if (intervalRef.current) clearInterval(intervalRef.current)
+		}
+	}, [interval, runPeriodicRefresh])
+
+	const resetTimer = useCallback(() => {
+		if (intervalRef.current) {
+			clearInterval(intervalRef.current)
+			intervalRef.current = setInterval(runPeriodicRefresh, interval)
+		}
+	}, [interval, runPeriodicRefresh])
+
+	return { isRefreshing, resetTimer }
+}
+
+const REFRESH_INTERVAL = 30_000
+
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
 	const [currentValue, setCurrentValue] = useState(0)
@@ -165,6 +208,17 @@ export const ClineAccountView = () => {
 		fetchUserData()
 	}, [user])
 
+	// Periodic refresh while component is mounted
+	const { resetTimer } = usePeriodicRefresh(async () => {
+		if (!user) return
+		await getUserCredits()
+	}, REFRESH_INTERVAL)
+
+	const handleManualRefresh = async () => {
+		await getUserCredits()
+		resetTimer()
+	}
+
 	const handleLogin = () => {
 		handleSignIn()
 	}
@@ -272,7 +326,7 @@ export const ClineAccountView = () => {
 												<StyledCreditDisplay balance={balance} />
 											</>
 										)}
-										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
+										<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
 											<span className="codicon codicon-refresh"></span>
 										</VSCodeButton>
 									</>
