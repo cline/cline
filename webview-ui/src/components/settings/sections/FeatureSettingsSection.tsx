@@ -133,7 +133,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 								Enables voice recording with automatic transcription. Requires a Cline Account for the
-								transcription model.
+								transcription model. $0.006 per minute of audio processed.
 							</p>
 						</div>
 
