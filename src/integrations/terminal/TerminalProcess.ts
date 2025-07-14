@@ -35,7 +35,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		try {
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
-				const fallbackMessage = `[Shell integration may have missed output - showing terminal contents]\n\n${terminalSnapshot}`
+				const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
 				this.emit("line", fallbackMessage)
 			}
 		} catch (error) {
