@@ -398,10 +398,19 @@ export class CodeIndexConfigManager {
 
 	/**
 	 * Gets the current model dimension being used for embeddings.
-	 * Returns the explicitly configured dimension or undefined if not set.
+	 * Returns the model's built-in dimension if available, otherwise falls back to custom dimension.
 	 */
 	public get currentModelDimension(): number | undefined {
-		return this.modelDimension
+		// First try to get the model-specific dimension
+		const modelId = this.modelId ?? getDefaultModelId(this.embedderProvider)
+		const modelDimension = getModelDimension(this.embedderProvider, modelId)
+
+		// Only use custom dimension if model doesn't have a built-in dimension
+		if (!modelDimension && this.modelDimension && this.modelDimension > 0) {
+			return this.modelDimension
+		}
+
+		return modelDimension
 	}
 
 	/**

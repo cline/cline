@@ -420,9 +420,41 @@ describe("CodeIndexServiceFactory", () => {
 			)
 		})
 
-		it("should prioritize manual modelDimension over getModelDimension for OpenAI Compatible provider", () => {
+		it("should prioritize getModelDimension over manual modelDimension for OpenAI Compatible provider", () => {
 			// Arrange
 			const testModelId = "custom-model"
+			const manualDimension = 1024
+			const modelDimension = 768
+			const testConfig = {
+				embedderProvider: "openai-compatible",
+				modelId: testModelId,
+				modelDimension: manualDimension, // This should be ignored when model has built-in dimension
+				openAiCompatibleOptions: {
+					baseUrl: "https://api.example.com/v1",
+					apiKey: "test-api-key",
+				},
+				qdrantUrl: "http://localhost:6333",
+				qdrantApiKey: "test-key",
+			}
+			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
+			mockGetModelDimension.mockReturnValue(modelDimension) // This should be used
+
+			// Act
+			factory.createVectorStore()
+
+			// Assert
+			expect(mockGetModelDimension).toHaveBeenCalledWith("openai-compatible", testModelId)
+			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
+				"/test/workspace",
+				"http://localhost:6333",
+				modelDimension, // Should use model's built-in dimension, not manual
+				"test-key",
+			)
+		})
+
+		it("should use manual modelDimension only when model has no built-in dimension", () => {
+			// Arrange
+			const testModelId = "unknown-model"
 			const manualDimension = 1024
 			const testConfig = {
 				embedderProvider: "openai-compatible",
@@ -436,17 +468,17 @@ describe("CodeIndexServiceFactory", () => {
 				qdrantApiKey: "test-key",
 			}
 			mockConfigManager.getConfig.mockReturnValue(testConfig as any)
-			mockGetModelDimension.mockReturnValue(768) // This should be ignored
+			mockGetModelDimension.mockReturnValue(undefined) // Model has no built-in dimension
 
 			// Act
 			factory.createVectorStore()
 
 			// Assert
-			expect(mockGetModelDimension).not.toHaveBeenCalled()
+			expect(mockGetModelDimension).toHaveBeenCalledWith("openai-compatible", testModelId)
 			expect(MockedQdrantVectorStore).toHaveBeenCalledWith(
 				"/test/workspace",
 				"http://localhost:6333",
-				manualDimension,
+				manualDimension, // Should use manual dimension as fallback
 				"test-key",
 			)
 		})
