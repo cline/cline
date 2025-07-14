@@ -5,6 +5,7 @@ import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
+import { executeCommand } from "@utils/commands"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -22,7 +23,7 @@ export async function openImage(dataUri: string) {
 	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}.${format}`)
 	try {
 		await writeFile(tempFilePath, new Uint8Array(imageBuffer))
-		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
+		await executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
 		getHostBridgeProvider().windowClient.showMessage(
 			ShowMessageRequest.create({
@@ -54,10 +55,12 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		const document = await vscode.workspace.openTextDocument(uri)
+		const document = await getHostBridgeProvider().workspaceClient.openTextDocument({
+			path: uri.fsPath,
+		})
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				path: document.uri.fsPath,
+				path: document.path,
 				options: ShowTextDocumentOptions.create({ preview: false }),
 			}),
 		)

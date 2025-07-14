@@ -35,6 +35,7 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { executeCommand } from "@utils/commands"
 
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
@@ -593,7 +594,7 @@ export class Task {
 		// 	return
 		// }
 		// Open multi-diff editor
-		await vscode.commands.executeCommand(
+		await executeCommand(
 			"vscode.changes",
 			seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
 			changedFiles.map((file) => [

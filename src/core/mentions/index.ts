@@ -15,6 +15,7 @@ import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { executeCommand } from "@/utils/commands"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -30,14 +31,14 @@ export async function openMention(mention?: string): Promise<void> {
 		const relPath = mention.slice(1)
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
+			await executeCommand("revealInExplorer", vscode.Uri.file(absPath))
 		} else {
 			openFile(absPath)
 		}
 	} else if (mention === "problems") {
-		vscode.commands.executeCommand("workbench.actions.view.problems")
+		await executeCommand("workbench.actions.view.problems")
 	} else if (mention === "terminal") {
-		vscode.commands.executeCommand("workbench.action.terminal.focus")
+		await executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}

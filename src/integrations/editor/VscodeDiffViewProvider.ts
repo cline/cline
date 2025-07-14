@@ -3,6 +3,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "./DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "./DiffViewProvider"
+import { executeCommand } from "@/utils/commands"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	override async openDiffEditor(): Promise<void> {
@@ -53,7 +54,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 						resolve(editor)
 					}
 				})
-				vscode.commands.executeCommand(
+				await executeCommand(
 					"vscode.diff",
 					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
 						query: Buffer.from(this.originalContent ?? "").toString("base64"),

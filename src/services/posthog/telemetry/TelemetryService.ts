@@ -5,6 +5,7 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
+import { executeCommand } from "@/utils/commands"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -147,7 +148,7 @@ class TelemetryService {
 					)
 					.then((selection) => {
 						if (selection === "Open Settings") {
-							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+							void executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
 						}
 					})
 			}
