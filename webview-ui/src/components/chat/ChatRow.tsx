@@ -196,10 +196,10 @@ export const ChatRowContent = memo(
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus, error] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus, info.error]
+				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus, message.error]
 			}
-			return [undefined, undefined, undefined, undefined, undefined]
-		}, [message.text, message.say])
+			return [undefined, undefined, undefined, undefined, message.error]
+		}, [message.text, message.say, message.error])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 		const apiRequestFailedMessage =
@@ -414,23 +414,25 @@ export const ChatRowContent = memo(
 							const requestId = error?.request_id ? ` - ${error.request_id}` : ""
 							if (apiReqCancelReason != null) {
 								return apiReqCancelReason === "user_cancelled" ? (
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<span className="text-[var(--vscode-foreground)] font-bold">
 										API Request Cancelled {requestId}
 									</span>
 								) : (
-									<span style={{ color: errorColor, fontWeight: "bold" }}>
+									<span className="text-[var(--vscode-errorForeground)] font-bold">
 										API Streaming Failed {requestId}
 									</span>
 								)
 							}
 
 							if (cost != null) {
-								return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request {requestId}</span>
+								return <span className="text-[var(--vscode-foreground)] font-bold">API Request {requestId}</span>
 							}
 
 							if (apiRequestFailedMessage || error) {
 								return (
-									<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed {requestId}</span>
+									<span className="text-[var(--vscode-errorForeground)] font-bold">
+										API Request Failed {requestId}
+									</span>
 								)
 							}
 							// New: Check for retryStatus to modify the title
@@ -445,7 +447,7 @@ export const ChatRowContent = memo(
 								)
 							}
 
-							return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
+							return <span className="text-[var(--vscode-foreground)] font-bold">API Request...</span>
 						})(),
 					]
 				case "followup":
@@ -951,7 +953,7 @@ export const ChatRowContent = memo(
 											// First check if we have a structured error object
 											if (error) {
 												// Check for credit limit errors
-												const errorDetails = error.errorDetails as any
+												const errorDetails = error.errorDetails?.details?.error as any
 												if (
 													errorDetails?.code === "insufficient_credits" &&
 													typeof errorDetails?.current_balance === "number"
