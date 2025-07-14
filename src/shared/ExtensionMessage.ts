@@ -6,6 +6,7 @@ import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
+import { FastApplySettings } from "./FastApplySettings"
 import { UserInfo } from "./UserInfo"
 
 // webview will hold state
@@ -59,6 +60,7 @@ export interface ExtensionState {
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
+	fastApplySettings?: FastApplySettings
 }
 
 export interface ClineMessage {

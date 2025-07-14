@@ -27,6 +27,7 @@ export class AutoApprove {
 				case "new_rule":
 				case "write_to_file":
 				case "replace_in_file":
+				case "edit_file":
 					return [
 						this.autoApprovalSettings.actions.editFiles,
 						this.autoApprovalSettings.actions.editFilesExternally ?? false,
