@@ -54,10 +54,12 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		const document = await vscode.workspace.openTextDocument(uri)
+		const document = await getHostBridgeProvider().workspaceClient.openTextDocument({
+			path: uri.fsPath,
+		})
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
-				path: document.uri.fsPath,
+				path: document.path,
 				options: ShowTextDocumentOptions.create({ preview: false }),
 			}),
 		)

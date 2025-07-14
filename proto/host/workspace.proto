@@ -4,10 +4,15 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
+import "common.proto";
+
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+  
+  // Opens a text document and returns document information
+  rpc openTextDocument(OpenTextDocumentRequest) returns (OpenTextDocumentResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -21,4 +26,23 @@ message GetWorkspacePathsResponse {
   // The unique ID for the workspace/project.
   optional string id = 1;
   repeated string paths = 2;
+}
+
+message OpenTextDocumentRequest {
+  cline.Metadata metadata = 1;
+  // Path to the document to open
+  optional string path = 2;
+  // Content for new untitled document
+  optional string content = 3;
+  // Language identifier for untitled document
+  optional string language = 4;
+}
+
+message OpenTextDocumentResponse {
+  // Path to the opened document
+  string path = 1;
+  // Language identifier of the document
+  string language_id = 2;
+  // Whether the document is untitled
+  bool is_untitled = 3;
 }
