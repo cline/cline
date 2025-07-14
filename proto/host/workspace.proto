@@ -29,7 +29,15 @@ message GetWorkspacePathsResponse {
 
 message OpenTextDocumentRequest {
   cline.Metadata metadata = 1;
-  string path = 2;
+  oneof source {
+    string path = 2;           // For existing files
+    DocumentContent content = 3; // For new untitled documents
+  }
+}
+
+message DocumentContent {
+  string text = 1;
+  optional string language = 2;
 }
 
 message TextDocumentInfo {
