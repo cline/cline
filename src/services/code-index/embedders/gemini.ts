@@ -7,33 +7,36 @@ import { TelemetryService } from "@roo-code/telemetry"
 
 /**
  * Gemini embedder implementation that wraps the OpenAI Compatible embedder
- * with fixed configuration for Google's Gemini embedding API.
+ * with configuration for Google's Gemini embedding API.
  *
- * Fixed values:
- * - Base URL: https://generativelanguage.googleapis.com/v1beta/openai/
- * - Model: text-embedding-004
- * - Dimension: 768
+ * Supported models:
+ * - text-embedding-004 (dimension: 768)
+ * - gemini-embedding-001 (dimension: 2048)
  */
 export class GeminiEmbedder implements IEmbedder {
 	private readonly openAICompatibleEmbedder: OpenAICompatibleEmbedder
 	private static readonly GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-	private static readonly GEMINI_MODEL = "text-embedding-004"
-	private static readonly GEMINI_DIMENSION = 768
+	private static readonly DEFAULT_MODEL = "gemini-embedding-001"
+	private readonly modelId: string
 
 	/**
 	 * Creates a new Gemini embedder
 	 * @param apiKey The Gemini API key for authentication
+	 * @param modelId The model ID to use (defaults to gemini-embedding-001)
 	 */
-	constructor(apiKey: string) {
+	constructor(apiKey: string, modelId?: string) {
 		if (!apiKey) {
 			throw new Error(t("embeddings:validation.apiKeyRequired"))
 		}
 
-		// Create an OpenAI Compatible embedder with Gemini's fixed configuration
+		// Use provided model or default
+		this.modelId = modelId || GeminiEmbedder.DEFAULT_MODEL
+
+		// Create an OpenAI Compatible embedder with Gemini's configuration
 		this.openAICompatibleEmbedder = new OpenAICompatibleEmbedder(
 			GeminiEmbedder.GEMINI_BASE_URL,
 			apiKey,
-			GeminiEmbedder.GEMINI_MODEL,
+			this.modelId,
 			GEMINI_MAX_ITEM_TOKENS,
 		)
 	}
@@ -41,13 +44,14 @@ export class GeminiEmbedder implements IEmbedder {
 	/**
 	 * Creates embeddings for the given texts using Gemini's embedding API
 	 * @param texts Array of text strings to embed
-	 * @param model Optional model identifier (ignored - always uses text-embedding-004)
+	 * @param model Optional model identifier (uses constructor model if not provided)
 	 * @returns Promise resolving to embedding response
 	 */
 	async createEmbeddings(texts: string[], model?: string): Promise<EmbeddingResponse> {
 		try {
-			// Always use the fixed Gemini model, ignoring any passed model parameter
-			return await this.openAICompatibleEmbedder.createEmbeddings(texts, GeminiEmbedder.GEMINI_MODEL)
+			// Use the provided model or fall back to the instance's model
+			const modelToUse = model || this.modelId
+			return await this.openAICompatibleEmbedder.createEmbeddings(texts, modelToUse)
 		} catch (error) {
 			TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
 				error: error instanceof Error ? error.message : String(error),
@@ -84,12 +88,5 @@ export class GeminiEmbedder implements IEmbedder {
 		return {
 			name: "gemini",
 		}
-	}
-
-	/**
-	 * Gets the fixed dimension for Gemini embeddings
-	 */
-	static get dimension(): number {
-		return GeminiEmbedder.GEMINI_DIMENSION
 	}
 }

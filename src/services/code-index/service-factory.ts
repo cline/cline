@@ -63,7 +63,7 @@ export class CodeIndexServiceFactory {
 			if (!config.geminiOptions?.apiKey) {
 				throw new Error(t("embeddings:serviceFactory.geminiConfigMissing"))
 			}
-			return new GeminiEmbedder(config.geminiOptions.apiKey)
+			return new GeminiEmbedder(config.geminiOptions.apiKey, config.modelId)
 		}
 
 		throw new Error(
@@ -111,9 +111,6 @@ export class CodeIndexServiceFactory {
 		// First check if a manual dimension is provided (works for all providers)
 		if (config.modelDimension && config.modelDimension > 0) {
 			vectorSize = config.modelDimension
-		} else if (provider === "gemini") {
-			// Gemini's text-embedding-004 has a fixed dimension of 768
-			vectorSize = 768
 		} else {
 			// Fall back to model-specific dimension from profiles
 			vectorSize = getModelDimension(provider, modelId)

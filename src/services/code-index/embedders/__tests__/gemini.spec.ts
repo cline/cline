@@ -25,12 +25,29 @@ describe("GeminiEmbedder", () => {
 	})
 
 	describe("constructor", () => {
-		it("should create an instance with correct fixed values passed to OpenAICompatibleEmbedder", () => {
+		it("should create an instance with default model when no model specified", () => {
 			// Arrange
 			const apiKey = "test-gemini-api-key"
 
 			// Act
 			embedder = new GeminiEmbedder(apiKey)
+
+			// Assert
+			expect(MockedOpenAICompatibleEmbedder).toHaveBeenCalledWith(
+				"https://generativelanguage.googleapis.com/v1beta/openai/",
+				apiKey,
+				"gemini-embedding-001",
+				2048,
+			)
+		})
+
+		it("should create an instance with specified model", () => {
+			// Arrange
+			const apiKey = "test-gemini-api-key"
+			const modelId = "text-embedding-004"
+
+			// Act
+			embedder = new GeminiEmbedder(apiKey, modelId)
 
 			// Assert
 			expect(MockedOpenAICompatibleEmbedder).toHaveBeenCalledWith(
@@ -50,7 +67,7 @@ describe("GeminiEmbedder", () => {
 	})
 
 	describe("embedderInfo", () => {
-		it("should return correct embedder info with dimension 768", () => {
+		it("should return correct embedder info", () => {
 			// Arrange
 			embedder = new GeminiEmbedder("test-api-key")
 
@@ -61,7 +78,66 @@ describe("GeminiEmbedder", () => {
 			expect(info).toEqual({
 				name: "gemini",
 			})
-			expect(GeminiEmbedder.dimension).toBe(768)
+		})
+
+		describe("createEmbeddings", () => {
+			let mockCreateEmbeddings: any
+
+			beforeEach(() => {
+				mockCreateEmbeddings = vitest.fn()
+				MockedOpenAICompatibleEmbedder.prototype.createEmbeddings = mockCreateEmbeddings
+			})
+
+			it("should use instance model when no model parameter provided", async () => {
+				// Arrange
+				embedder = new GeminiEmbedder("test-api-key")
+				const texts = ["test text 1", "test text 2"]
+				const mockResponse = {
+					embeddings: [
+						[0.1, 0.2],
+						[0.3, 0.4],
+					],
+				}
+				mockCreateEmbeddings.mockResolvedValue(mockResponse)
+
+				// Act
+				const result = await embedder.createEmbeddings(texts)
+
+				// Assert
+				expect(mockCreateEmbeddings).toHaveBeenCalledWith(texts, "gemini-embedding-001")
+				expect(result).toEqual(mockResponse)
+			})
+
+			it("should use provided model parameter when specified", async () => {
+				// Arrange
+				embedder = new GeminiEmbedder("test-api-key", "text-embedding-004")
+				const texts = ["test text 1", "test text 2"]
+				const mockResponse = {
+					embeddings: [
+						[0.1, 0.2],
+						[0.3, 0.4],
+					],
+				}
+				mockCreateEmbeddings.mockResolvedValue(mockResponse)
+
+				// Act
+				const result = await embedder.createEmbeddings(texts, "gemini-embedding-001")
+
+				// Assert
+				expect(mockCreateEmbeddings).toHaveBeenCalledWith(texts, "gemini-embedding-001")
+				expect(result).toEqual(mockResponse)
+			})
+
+			it("should handle errors from OpenAICompatibleEmbedder", async () => {
+				// Arrange
+				embedder = new GeminiEmbedder("test-api-key")
+				const texts = ["test text"]
+				const error = new Error("Embedding failed")
+				mockCreateEmbeddings.mockRejectedValue(error)
+
+				// Act & Assert
+				await expect(embedder.createEmbeddings(texts)).rejects.toThrow("Embedding failed")
+			})
 		})
 	})
 
