@@ -4,6 +4,7 @@ import { execa } from "execa"
 import { ClaudeCodeMessage } from "./types"
 import readline from "readline"
 import { CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS } from "@roo-code/types"
+import * as os from "os"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
@@ -118,11 +119,17 @@ function runProcess({
 	maxOutputTokens,
 }: ClaudeCodeOptions & { maxOutputTokens?: number }) {
 	const claudePath = path || "claude"
+	const isWindows = os.platform() === "win32"
 
-	const args = [
-		"-p",
-		"--system-prompt",
-		systemPrompt,
+	// Build args based on platform
+	const args = ["-p"]
+
+	// Pass system prompt as flag on non-Windows, via stdin on Windows (avoids cmd length limits)
+	if (!isWindows) {
+		args.push("--system-prompt", systemPrompt)
+	}
+
+	args.push(
 		"--verbose",
 		"--output-format",
 		"stream-json",
@@ -131,7 +138,7 @@ function runProcess({
 		// Roo Code will handle recursive calls
 		"--max-turns",
 		"1",
-	]
+	)
 
 	if (modelId) {
 		args.push("--model", modelId)
@@ -154,16 +161,22 @@ function runProcess({
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 
-	// Write messages to stdin after process is spawned
-	// This avoids the E2BIG error on Linux when passing large messages as command line arguments
-	// Linux has a per-argument limit of ~128KiB for execve() system calls
-	const messagesJson = JSON.stringify(messages)
+	// Prepare stdin data: Windows gets both system prompt & messages (avoids 8191 char limit),
+	// other platforms get messages only (avoids Linux E2BIG error from ~128KiB execve limit)
+	let stdinData: string
+	if (isWindows) {
+		stdinData = JSON.stringify({
+			systemPrompt,
+			messages,
+		})
+	} else {
+		stdinData = JSON.stringify(messages)
+	}
 
-	// Use setImmediate to ensure the process has been spawned before writing to stdin
-	// This prevents potential race conditions where stdin might not be ready
+	// Use setImmediate to ensure process is spawned before writing (prevents stdin race conditions)
 	setImmediate(() => {
 		try {
-			child.stdin.write(messagesJson, "utf8", (error) => {
+			child.stdin.write(stdinData, "utf8", (error: Error | null | undefined) => {
 				if (error) {
 					console.error("Error writing to Claude Code stdin:", error)
 					child.kill()

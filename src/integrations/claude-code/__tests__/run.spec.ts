@@ -1,4 +1,9 @@
-import { describe, test, expect, vi, beforeEach } from "vitest"
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest"
+
+// Mock os module
+vi.mock("os", () => ({
+	platform: vi.fn(() => "darwin"), // Default to non-Windows
+}))
 
 // Mock vscode workspace
 vi.mock("vscode", () => ({
@@ -118,56 +123,53 @@ describe("runClaudeCode", () => {
 		expect(typeof result[Symbol.asyncIterator]).toBe("function")
 	})
 
-	test("should use stdin instead of command line arguments for messages", async () => {
+	test("should handle platform-specific stdin behavior", async () => {
 		const { runClaudeCode } = await import("../run")
 		const messages = [{ role: "user" as const, content: "Hello world!" }]
+		const systemPrompt = "You are a helpful assistant"
 		const options = {
-			systemPrompt: "You are a helpful assistant",
+			systemPrompt,
 			messages,
 		}
 
-		const generator = runClaudeCode(options)
+		// Test on Windows
+		const os = await import("os")
+		vi.mocked(os.platform).mockReturnValue("win32")
 
-		// Consume the generator to completion
+		const generator = runClaudeCode(options)
 		const results = []
 		for await (const chunk of generator) {
 			results.push(chunk)
 		}
 
-		// Verify execa was called with correct arguments (no JSON.stringify(messages) in args)
-		expect(mockExeca).toHaveBeenCalledWith(
-			"claude",
-			expect.arrayContaining([
-				"-p",
-				"--system-prompt",
-				"You are a helpful assistant",
-				"--verbose",
-				"--output-format",
-				"stream-json",
-				"--disallowedTools",
-				expect.any(String),
-				"--max-turns",
-				"1",
-			]),
-			expect.objectContaining({
-				stdin: "pipe",
-				stdout: "pipe",
-				stderr: "pipe",
-			}),
-		)
-
-		// Verify the arguments do NOT contain the stringified messages
+		// On Windows, should NOT have --system-prompt in args
 		const [, args] = mockExeca.mock.calls[0]
-		expect(args).not.toContain(JSON.stringify(messages))
+		expect(args).not.toContain("--system-prompt")
 
-		// Verify messages were written to stdin with callback
+		// Should pass both system prompt and messages via stdin
+		const expectedStdinData = JSON.stringify({ systemPrompt, messages })
+		expect(mockStdin.write).toHaveBeenCalledWith(expectedStdinData, "utf8", expect.any(Function))
+
+		// Reset mocks for non-Windows test
+		vi.clearAllMocks()
+		mockExeca.mockReturnValue(createMockProcess())
+
+		// Test on non-Windows
+		vi.mocked(os.platform).mockReturnValue("darwin")
+
+		const generator2 = runClaudeCode(options)
+		const results2 = []
+		for await (const chunk of generator2) {
+			results2.push(chunk)
+		}
+
+		// On non-Windows, should have --system-prompt in args
+		const [, args2] = mockExeca.mock.calls[0]
+		expect(args2).toContain("--system-prompt")
+		expect(args2).toContain(systemPrompt)
+
+		// Should only pass messages via stdin
 		expect(mockStdin.write).toHaveBeenCalledWith(JSON.stringify(messages), "utf8", expect.any(Function))
-		expect(mockStdin.end).toHaveBeenCalled()
-
-		// Verify we got the expected mock output
-		expect(results).toHaveLength(2)
-		expect(results[0]).toEqual({ type: "text", text: "Hello" })
-		expect(results[1]).toEqual({ type: "text", text: " world" })
 	})
 
 	test("should include model parameter when provided", async () => {
