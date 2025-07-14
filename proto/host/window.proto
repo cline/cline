@@ -113,6 +113,10 @@ message ShowSaveDialogRequest {
 }
 
 message ShowSaveDialogFilterOption {
+  // A set of file filters used by the dialog. Each entry is a human-readable
+  // label (the key) and a list of file extensions (the value).
+  // For example, in JavaScript, this would be represented as:
+  // { 'Images': ['png', 'jpg'], 'TypeScript': ['ts', 'tsx'] }
   map<string, FileExtensionList> filter_map = 1;
 }
 
