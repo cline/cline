@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.19.2
+## [3.19.2]
 
--   575cfd4: Includes request ID in error returned by Cline API
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
 
 ## [3.19.1]
 
