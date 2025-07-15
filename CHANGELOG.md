@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.19.2]
+
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
+
 ## [3.19.1]
 
 -   Fix documentation
