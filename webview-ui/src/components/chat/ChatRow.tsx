@@ -37,6 +37,7 @@ import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
 import { useClineAuth } from "@/context/ClineAuthContext"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -1008,9 +1009,7 @@ export const ChatRowContent = memo(
 															.
 														</>
 													)}
-													{apiRequestFailedMessage?.includes(
-														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
-													) && (
+													{apiRequestFailedMessage?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) && (
 														<>
 															<br />
 															<br />
