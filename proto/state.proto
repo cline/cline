@@ -236,4 +236,7 @@ message ApiConfiguration {
   // Extension fields for Bedrock Api Keys
   optional string aws_authentication = 78;
   optional string aws_bedrock_api_key = 79;
+
+  // Moonshot
+  optional string moonshot_api_key = 80;
 }
