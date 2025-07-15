@@ -45,7 +45,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				console.error("Failed to start recording:", response.error)
 				setIsRecording(false)
 				setError(response.error || "Failed to start recording")
-				onProcessingStateChange?.(true, response.error || "Failed to start recording")
 				return
 			}
 
@@ -55,7 +54,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			setIsRecording(false)
 			const errorMessage = error instanceof Error ? error.message : "Failed to start recording"
 			setError(errorMessage)
-			onProcessingStateChange?.(true, errorMessage)
 		}
 	}, [onProcessingStateChange])
 
@@ -73,7 +71,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				setIsProcessing(false)
 				const errorMessage = response.error || "Failed to stop recording"
 				setError(errorMessage)
-				onProcessingStateChange?.(true, errorMessage)
 				return
 			}
 
@@ -82,7 +79,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				setIsProcessing(false)
 				const errorMessage = "No audio data received"
 				setError(errorMessage)
-				onProcessingStateChange?.(true, errorMessage)
 				return
 			}
 
@@ -100,8 +96,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			if (transcriptionResponse.error) {
 				console.error("Transcription error:", transcriptionResponse.error)
 				setError(transcriptionResponse.error)
-				// Show the error message in the UI
-				onProcessingStateChange?.(true, transcriptionResponse.error)
 				// Clear the error after a delay
 				setTimeout(() => {
 					setError(null)
@@ -116,7 +110,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			console.error("Error stopping recording:", error)
 			const errorMessage = error instanceof Error ? error.message : "An error occurred"
 			setError(errorMessage)
-			onProcessingStateChange?.(true, errorMessage)
 		} finally {
 			setIsProcessing(false)
 		}
