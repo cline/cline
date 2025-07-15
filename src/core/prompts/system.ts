@@ -23,7 +23,7 @@ export const SYSTEM_PROMPT = async (
     return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
   }
 
-	return `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+	return `You are Martian, an AI coding assistant. When asked about your identity, you should identify yourself as "Martian". You are a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
 

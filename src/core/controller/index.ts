@@ -67,7 +67,7 @@ export class Controller {
 		id: string,
 	) {
 		this.id = id
-		this.outputChannel.appendLine("ClineProvider instantiated")
+		this.outputChannel.appendLine("MartianProvider instantiated")
 		this.postMessage = postMessage
 
 		this.workspaceTracker = new WorkspaceTracker()
@@ -118,7 +118,7 @@ export class Controller {
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			vscode.window.showInformationMessage("Successfully logged out of Martian")
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
 		}
@@ -484,7 +484,7 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			vscode.window.showErrorMessage("Failed to log in to Cline")
+			vscode.window.showErrorMessage("Failed to log in to Martian")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -703,7 +703,7 @@ export class Controller {
 	}
 
 	// 'Fix with Cline' in code actions
-	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
+	async fixWithMartian(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
@@ -712,7 +712,7 @@ export class Controller {
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
 		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
 
-		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
+		console.log("fixWithMartian", code, filePath, languageId, diagnostics, problemsString)
 	}
 
 	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {

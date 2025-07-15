@@ -1,7 +1,7 @@
 {
 	"$schema": "https://mintlify.com/docs.json",
 	"theme": "linden",
-	"name": "Cline",
+	"name": "Martian",
 	"description": "AI-powered coding assistant for VSCode",
 	"colors": {
 		"primary": "#9D4EDD",
@@ -48,7 +48,7 @@
 		],
 		"primary": {
 			"type": "button",
-			"label": "Install Cline",
+			"label": "Install Martian",
 			"href": "https://cline.bot/install?utm_source=website&utm_medium=header"
 		}
 	},
@@ -188,7 +188,7 @@
 		}
 	},
 	"search": {
-		"prompt": "Search Cline documentation..."
+		"prompt": "Search Martian documentation..."
 	},
 	"contextual": {
 		"options": ["copy"]

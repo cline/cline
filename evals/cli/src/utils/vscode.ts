@@ -236,7 +236,7 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		const packageJsonPath = path.join(extensionDir, "package.json")
 		const packageJson = {
 			name: "cline-activator",
-			displayName: "Cline Activator",
+			displayName: "Martian Activator",
 			description: "Activates Cline and starts the test server",
 			version: "0.0.1",
 			engines: {

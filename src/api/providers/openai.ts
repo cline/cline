@@ -4,7 +4,7 @@ import { withRetry } from "../retry"
 import { azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiCompatibleModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
@@ -101,6 +101,7 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 		})
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {

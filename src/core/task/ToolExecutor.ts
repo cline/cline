@@ -659,7 +659,7 @@ export class ToolExecutor {
 						} else {
 							// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
+								`Martian wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -823,7 +823,7 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to read ${path.basename(absolutePath)}`,
+								`Martian wants to read ${path.basename(absolutePath)}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -906,7 +906,7 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to view directory ${path.basename(absolutePath)}/`,
+								`Martian wants to view directory ${path.basename(absolutePath)}/`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -978,7 +978,7 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
+								`Martian wants to view source code definitions in ${path.basename(absolutePath)}/`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -1062,7 +1062,7 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to search files in ${path.basename(absolutePath)}/`,
+								`Martian wants to search files in ${path.basename(absolutePath)}/`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -1154,7 +1154,7 @@ export class ToolExecutor {
 								this.taskState.consecutiveAutoApprovedRequestsCount++
 							} else {
 								showNotificationForApprovalIfAutoApprovalEnabled(
-									`Cline wants to use a browser and launch ${url}`,
+									`Martian wants to use a browser and launch ${url}`,
 									this.autoApprovalSettings.enabled,
 									this.autoApprovalSettings.enableNotifications,
 								)
@@ -1345,7 +1345,7 @@ export class ToolExecutor {
 							didAutoApprove = true
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to execute a command: ${command}`,
+								`Martian wants to execute a command: ${command}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -1473,7 +1473,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveAutoApprovedRequestsCount++
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to use ${tool_name} on ${server_name}`,
+								`Martian wants to use ${tool_name} on ${server_name}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -1598,7 +1598,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveAutoApprovedRequestsCount++
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to access ${uri} on ${server_name}`,
+								`Martian wants to access ${uri} on ${server_name}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -1659,7 +1659,7 @@ export class ToolExecutor {
 
 						if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 							showSystemNotification({
-								subtitle: "Cline has a question...",
+								subtitle: "Martian has a question...",
 								message: question.replace(/\n/g, " "),
 							})
 						}
@@ -1731,8 +1731,8 @@ export class ToolExecutor {
 
 						if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 							showSystemNotification({
-								subtitle: "Cline wants to start a new task...",
-								message: `Cline is suggesting to start a new task with: ${context}`,
+								subtitle: "Martian wants to start a new task...",
+								message: `Martian is suggesting to start a new task with: ${context}`,
 							})
 						}
 
@@ -1789,8 +1789,8 @@ export class ToolExecutor {
 
 						if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 							showSystemNotification({
-								subtitle: "Cline wants to condense the conversation...",
-								message: `Cline is suggesting to condense your conversation with: ${context}`,
+								subtitle: "Martian wants to condense the conversation...",
+								message: `Martian is suggesting to condense your conversation with: ${context}`,
 							})
 						}
 
@@ -1907,8 +1907,8 @@ export class ToolExecutor {
 
 						if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 							showSystemNotification({
-								subtitle: "Cline wants to create a github issue...",
-								message: `Cline is suggesting to create a github issue with the title: ${title}`,
+								subtitle: "Martian wants to create a github issue...",
+								message: `Martian is suggesting to create a github issue with the title: ${title}`,
 							})
 						}
 
@@ -2041,7 +2041,7 @@ export class ToolExecutor {
 							)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to fetch content from ${url}`,
+								`Martian wants to fetch content from ${url}`,
 								this.autoApprovalSettings.enabled,
 								this.autoApprovalSettings.enableNotifications,
 							)
@@ -2111,7 +2111,7 @@ export class ToolExecutor {
 
 						// if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 						// 	showSystemNotification({
-						// 		subtitle: "Cline has a response...",
+						// 		subtitle: "Martian has a response...",
 						// 		message: response.replace(/\n/g, " "),
 						// 	})
 						// }

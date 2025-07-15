@@ -23,7 +23,7 @@ export function asObjectSafe(value: any): object {
 
 		return {}
 	} catch (error) {
-		console.warn("Cline <Language Model API>: Failed to parse object:", error)
+		console.warn("Martian <Language Model API>: Failed to parse object:", error)
 		return {}
 	}
 }
@@ -161,7 +161,7 @@ export function convertToAnthropicRole(
 export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelChatMessage): Anthropic.Messages.Message {
 	const anthropicRole = convertToAnthropicRole(vsCodeLmMessage.role)
 	if (anthropicRole !== "assistant") {
-		throw new Error("Cline <Language Model API>: Only assistant messages are supported.")
+		throw new Error("Martian <Language Model API>: Only assistant messages are supported.")
 	}
 
 	return {

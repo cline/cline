@@ -23,7 +23,7 @@ export class TerminalRegistry {
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
-			name: "Cline",
+			name: "Martian",
 			iconPath: new vscode.ThemeIcon("robot"),
 		}
 

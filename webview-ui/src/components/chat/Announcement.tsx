@@ -44,19 +44,20 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Optimized for Claude 4:</b> Cline is now optimized to work with the Claude 4 family of models, resulting in
-					improved performance, reliability, and new capabilities.
+					<b>Optimized for Claude 4:</b> Martian is now optimized to work with the Claude 4 family of models, resulting
+					in improved performance, reliability, and new capabilities.
 				</li>
 				<li>
 					<b>Gemini CLI Provider:</b> Added a new Gemini CLI provider that allows you to use your local Gemini CLI
 					authentication to access Gemini models for free.
 				</li>
 				<li>
-					<b>WebFetch Tool:</b> Gemini 2.5 Pro and Claude 4 models now support the WebFetch tool, allowing Cline to
+					<b>WebFetch Tool:</b> Gemini 2.5 Pro and Claude 4 models now support the WebFetch tool, allowing Martian to
 					retrieve and summarize web content directly in conversations.
 				</li>
 				<li>
-					<b>Self Knowledge:</b> When using frontier models, Cline is self-aware about his capabilities and featureset.
+					<b>Self Knowledge:</b> When using frontier models, Martian is self-aware about its capabilities and
+					featureset.
 				</li>
 				<li>
 					<b>Improved Diff Editing:</b> Improved diff editing to achieve record lows in diff edit failures for frontier
@@ -104,15 +105,15 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
-				<VSCodeLink style={linkStyle} href="https://x.com/cline">
+				<VSCodeLink style={linkStyle} href="https://x.com/martian">
 					X,
 				</VSCodeLink>{" "}
-				<VSCodeLink style={linkStyle} href="https://discord.gg/cline">
+				<VSCodeLink style={linkStyle} href="https://discord.gg/martian">
 					discord,
 				</VSCodeLink>{" "}
 				or{" "}
-				<VSCodeLink style={linkStyle} href="https://www.reddit.com/r/cline/">
-					r/cline
+				<VSCodeLink style={linkStyle} href="https://www.reddit.com/r/martian/">
+					r/martian
 				</VSCodeLink>
 				for more updates!
 			</p>

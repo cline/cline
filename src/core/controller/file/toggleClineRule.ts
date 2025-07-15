@@ -5,10 +5,10 @@ import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceSt
 import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
- * Toggles a Cline rule (enable or disable)
+ * Toggles a Martian rule (enable or disable)
  * @param controller The controller instance
  * @param request The toggle request
- * @returns The updated Cline rule toggles
+ * @returns The updated Martian rule toggles
  */
 export async function toggleClineRule(controller: Controller, request: ToggleClineRuleRequest): Promise<ToggleClineRules> {
 	const { isGlobal, rulePath, enabled } = request
@@ -19,7 +19,7 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 			isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 			enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
 		})
-		throw new Error("Missing or invalid parameters for toggleClineRule")
+		throw new Error("Missing or invalid parameters for toggleMartianRule")
 	}
 
 	// This is the same core logic as in the original handler

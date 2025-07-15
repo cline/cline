@@ -9,7 +9,6 @@ import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 
-import { ClineProvider } from "./providers/ClineProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { MistralProvider } from "./providers/MistralProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
@@ -126,7 +125,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
-					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
@@ -154,10 +152,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
-
-			{apiConfiguration && selectedProvider === "cline" && (
-				<ClineProvider showModelOptions={showModelOptions} isPopup={isPopup} />
-			)}
 
 			{apiConfiguration && selectedProvider === "asksage" && (
 				<AskSageProvider showModelOptions={showModelOptions} isPopup={isPopup} />

@@ -329,6 +329,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const processingStart = performance.now()
 	let apiProvider: ApiProvider
+	let defaultOpenAiBaseUrl: string | undefined
+	let defaultOpenAiModelId: string | undefined
+
 	if (storedApiProvider) {
 		apiProvider = storedApiProvider
 	} else {
@@ -337,8 +340,15 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		if (apiKey) {
 			apiProvider = "anthropic"
 		} else {
-			// New users should default to openrouter, since they've opted to use an API key instead of signing in
-			apiProvider = "openrouter"
+			// New users should default to Martian platform configuration
+			apiProvider = "openai"
+			// Set Martian defaults only for new users without existing configuration
+			if (!openAiBaseUrl) {
+				defaultOpenAiBaseUrl = "https://withmartian.com/api/openai/v1"
+			}
+			if (!openAiModelId) {
+				defaultOpenAiModelId = "claude-opus-4-0"
+			}
 		}
 	}
 
@@ -385,9 +395,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			awsBedrockCustomModelBaseId,
 			vertexProjectId,
 			vertexRegion,
-			openAiBaseUrl,
+			openAiBaseUrl: openAiBaseUrl || defaultOpenAiBaseUrl,
 			openAiApiKey,
-			openAiModelId,
+			openAiModelId: openAiModelId || defaultOpenAiModelId,
 			openAiModelInfo,
 			openAiHeaders: openAiHeaders || {},
 			ollamaModelId,
@@ -441,7 +451,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreModelId,
 		},
 		isNewUser: isNewUser ?? true,
-		welcomeViewCompleted,
+		welcomeViewCompleted: welcomeViewCompleted ?? true, // Default to true to skip welcome screen
 		lastShownAnnouncementId,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
@@ -466,7 +476,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
-		telemetrySetting: telemetrySetting || "unset",
+		telemetrySetting: telemetrySetting || "disabled",
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSetting,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,

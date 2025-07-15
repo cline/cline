@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useState } from "react"
 import { BadgeCent } from "lucide-react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import MartianLogo from "../../assets/MartianLogo"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
@@ -53,8 +53,8 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
 	const dashboardAddCreditsURL = activeOrganization
-		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
-		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		? "https://app.withmartian.com/dashboard/organization?tab=credits&redirect=true"
+		: "https://app.withmartian.com/dashboard/account?tab=credits&redirect=true"
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -185,7 +185,10 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink href="https://app.cline.bot/dashboard" appearance="primary" className="w-full">
+							<VSCodeButtonLink
+								href="https://app.withmartian.com/dashboard"
+								appearance="primary"
+								className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -239,7 +242,7 @@ export const ClineAccountView = () => {
 				</div>
 			) : (
 				<div className="flex flex-col items-center pr-3">
-					<ClineLogoWhite className="size-16 mb-4" />
+					<MartianLogo className="size-16 mb-4" />
 
 					<p style={{}}>
 						Sign up for an account to get access to the latest models, billing dashboard to view usage and credits,
@@ -247,12 +250,13 @@ export const ClineAccountView = () => {
 					</p>
 
 					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
-						Sign up with Cline
+						Sign up with Martian
 					</VSCodeButton>
 
 					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
-						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
-						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
+						By continuing, you agree to the{" "}
+						<VSCodeLink href="https://withmartian.com/tos">Terms of Service</VSCodeLink> and{" "}
+						<VSCodeLink href="https://withmartian.com/privacy">Privacy Policy.</VSCodeLink>
 					</p>
 				</div>
 			)}

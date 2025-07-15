@@ -95,7 +95,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							))}
 						</VSCodeDropdown>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+							Select the default terminal Martian will use. 'Default' uses your VSCode global setting.
 						</p>
 					</div>
 
@@ -128,8 +128,8 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							</VSCodeCheckbox>
 						</div>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							When enabled, Cline will reuse existing terminal windows that aren't in the current working directory.
-							Disable this if you experience issues with task lockout after a terminal command.
+							When enabled, Martian will reuse existing terminal windows that aren't in the current working
+							directory. Disable this if you experience issues with task lockout after a terminal command.
 						</p>
 					</div>
 					<TerminalOutputLineLimitSlider />
@@ -137,7 +137,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 						<p className="text-[13px] m-0">
 							<strong>Having terminal issues?</strong> Check our{" "}
 							<a
-								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
+								href="https://withmartian.com/docs/troubleshooting/terminal-quick-fixes"
 								className="text-[var(--vscode-textLink-foreground)] underline hover:no-underline"
 								target="_blank"
 								rel="noopener noreferrer">
@@ -145,7 +145,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							</a>{" "}
 							or the{" "}
 							<a
-								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
+								href="https://withmartian.com/docs/troubleshooting/terminal-integration-guide"
 								className="text-[var(--vscode-textLink-foreground)] underline hover:no-underline"
 								target="_blank"
 								rel="noopener noreferrer">

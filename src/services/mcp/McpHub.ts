@@ -196,7 +196,7 @@ export class McpHub {
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
-					name: "Cline",
+					name: "Martian",
 					version: this.clientVersion,
 				},
 				{

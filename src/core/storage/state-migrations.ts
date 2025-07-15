@@ -92,7 +92,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
 
 		if (customInstructions?.trim()) {
-			console.log("Migrating custom instructions to global Cline rules...")
+			console.log("Migrating custom instructions to global Martian rules...")
 
 			// Create global .clinerules directory if it doesn't exist
 			const globalRulesDir = await ensureRulesDirectoryExists()
@@ -124,7 +124,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 
 			// Remove customInstructions from global state only after successful file creation
 			await context.globalState.update("customInstructions", undefined)
-			console.log("Successfully migrated custom instructions to global Cline rules")
+			console.log("Successfully migrated custom instructions to global Martian rules")
 		}
 	} catch (error) {
 		console.error("Failed to migrate custom instructions to global rules:", error)

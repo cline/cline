@@ -113,7 +113,7 @@ export class ClineAccountService {
 				)
 			}
 		} catch (error) {
-			console.error("Invalid Cline API request:", error)
+			console.error("Invalid Martian API request:", error)
 			throw error instanceof Error ? error : new Error(`Invalid Request: ${error}`)
 		}
 	}

@@ -78,7 +78,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 export const useClineAuth = () => {
 	const context = useContext(ClineAuthContext)
 	if (context === undefined) {
-		throw new Error("useClineAuth must be used within a ClineAuthProvider")
+		throw new Error("useClineAuth must be used within a MartianAuthProvider")
 	}
 	return context
 }

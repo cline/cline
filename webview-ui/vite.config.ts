@@ -28,6 +28,7 @@ const writePortToFile = (): Plugin => {
 
 export default defineConfig({
 	plugins: [react(), tailwindcss(), writePortToFile()],
+	base: "./",
 	test: {
 		environment: "jsdom",
 		globals: true,
@@ -45,7 +46,17 @@ export default defineConfig({
 				inlineDynamicImports: true,
 				entryFileNames: `assets/[name].js`,
 				chunkFileNames: `assets/[name].js`,
-				assetFileNames: `assets/[name].[ext]`,
+				assetFileNames: (assetInfo) => {
+					// Keep font files in a fonts directory for better organization
+					if (
+						assetInfo.name?.endsWith(".ttf") ||
+						assetInfo.name?.endsWith(".woff") ||
+						assetInfo.name?.endsWith(".woff2")
+					) {
+						return "assets/fonts/[name].[ext]"
+					}
+					return "assets/[name].[ext]"
+				},
 			},
 		},
 		chunkSizeWarningLimit: 100000,

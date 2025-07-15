@@ -7,7 +7,7 @@ import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
 
-const DefaultClineAccountURI = "https://app.cline.bot/auth"
+const DefaultClineAccountURI = "https://withmartian.com/auth"
 // const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
 // const DefaultClineAccountURI = "http://localhost:3000/auth"
 let authProviders: any[] = []

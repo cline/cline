@@ -197,10 +197,10 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage Cline Rules & Workflows" visible={isVisible ? false : undefined}>
+				<Tooltip tipText="Manage Martian Rules & Workflows" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="Cline Rules"
+						aria-label="Martian Rules"
 						onClick={() => setIsVisible(!isVisible)}
 						style={{ padding: "0px 0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
@@ -260,7 +260,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
 								include context and preferences for your projects or globally for every conversation.{" "}
 								<VSCodeLink
-									href="https://docs.cline.bot/features/cline-rules"
+									href="https://withmartian.com/docs/features/martian-rules"
 									style={{ display: "inline" }}
 									className="text-xs">
 									Docs
@@ -277,7 +277,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</span>{" "}
 								in the chat.{" "}
 								<VSCodeLink
-									href="https://docs.cline.bot/features/slash-commands/workflows"
+									href="https://withmartian.com/docs/features/slash-commands/workflows"
 									style={{ display: "inline" }}
 									className="text-xs">
 									Docs

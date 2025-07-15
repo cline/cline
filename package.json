@@ -1,22 +1,22 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "martian",
+	"displayName": "Martian",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.18.12",
-	"icon": "assets/icons/icon.png",
+	"version": "1.0.0",
+	"icon": "assets/icons/Icon_Dark_Primary.png",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Martian Technologies Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "withmartian",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/withmartian/martian-coding-assistant"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://withmartian.com",
 	"categories": [
 		"AI",
 		"Chat",
@@ -26,7 +26,7 @@
 		"Testing"
 	],
 	"keywords": [
-		"cline",
+		"martian",
 		"claude",
 		"dev",
 		"mcp",
@@ -48,9 +48,9 @@
 	"contributes": {
 		"walkthroughs": [
 			{
-				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
-				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"id": "MartianWalkthrough",
+				"title": "Meet Martian, your new coding partner",
+				"description": "Martian codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
@@ -62,8 +62,8 @@
 					},
 					{
 						"id": "learn",
-						"title": "Let Cline Learn Your Codebase",
-						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"title": "Let Martian Learn Your Codebase",
+						"description": "Point Martian to your project. It builds understanding to make smart, context-aware changes.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						}
@@ -71,7 +71,7 @@
 					{
 						"id": "advanced-features",
 						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"description": "Martian empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
@@ -87,7 +87,7 @@
 					{
 						"id": "getting-started",
 						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"description": "Review Martian's plans and diffs. Approve changes before they happen. No surprises.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						},
@@ -102,14 +102,14 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
-					"icon": "assets/icons/icon.svg",
+					"title": "Martian (⌘+')",
+					"icon": "assets/icons/Icon_OrangeBG_Primary.svg",
 					"when": "isMac"
 				},
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
-					"icon": "assets/icons/icon.svg",
+					"title": "Martian (Ctrl+')",
+					"icon": "assets/icons/Icon_OrangeBG_Primary.svg",
 					"when": "!isMac"
 				}
 			]
@@ -125,86 +125,81 @@
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "martian.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "martian.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "martian.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
+				"command": "martian.popoutButtonClicked",
 				"title": "Open in Editor",
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
-				"title": "Account",
-				"icon": "$(account)"
-			},
-			{
-				"command": "cline.settingsButtonClicked",
+				"command": "martian.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.openInNewTab",
+				"command": "martian.openInNewTab",
 				"title": "Open In New Tab",
-				"category": "Cline"
+				"category": "Martian"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "martian.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "Martian",
+				"when": "martian.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "martian.addToChat",
+				"title": "Add to Martian",
+				"category": "Martian"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "martian.addTerminalOutputToChat",
+				"title": "Add to Martian",
+				"category": "Martian"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "martian.focusChatInput",
 				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"category": "Martian"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
+				"command": "martian.generateGitCommitMessage",
+				"title": "Generate Commit Message with Martian",
+				"category": "Martian",
 				"icon": "$(robot)"
 			},
 			{
-				"command": "cline.explainCode",
-				"title": "Explain with Cline",
-				"category": "Cline"
+				"command": "martian.explainCode",
+				"title": "Explain with Martian",
+				"category": "Martian"
 			},
 			{
-				"command": "cline.improveCode",
-				"title": "Improve with Cline",
-				"category": "Cline"
+				"command": "martian.improveCode",
+				"title": "Improve with Martian",
+				"category": "Martian"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "martian.openWalkthrough",
 				"title": "Open Walkthrough",
-				"category": "Cline"
+				"category": "Martian"
 			}
 		],
 		"keybindings": [
 			{
-				"command": "cline.addToChat",
+				"command": "martian.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -212,11 +207,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "martian.generateGitCommitMessage",
 				"when": "scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "martian.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -227,97 +222,87 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "martian.plusButtonClicked",
 					"group": "navigation@1",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "martian.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "martian.historyButtonClicked",
 					"group": "navigation@3",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "martian.popoutButtonClicked",
 					"group": "navigation@4",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "martian.settingsButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
-					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "martian.plusButtonClicked",
 					"group": "navigation@1",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "martian.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "martian.historyButtonClicked",
 					"group": "navigation@3",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "martian.popoutButtonClicked",
 					"group": "navigation@4",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "martian.settingsButtonClicked",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
-					"group": "navigation@6",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "martian.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "martian.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "martian.generateGitCommitMessage",
 					"group": "navigation",
 					"when": "scmProvider == git"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "martian.generateGitCommitMessage",
 					"when": "scmProvider == git"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Martian",
 			"properties": {}
 		}
 	},

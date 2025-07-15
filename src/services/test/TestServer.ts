@@ -135,7 +135,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
  */
 export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
 	// Try to show the Cline sidebar
-	Logger.log("[createTestServer] Opening Cline in sidebar...")
+	Logger.log("[createTestServer] Opening Martian in sidebar...")
 	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
 
 	// Then ensure the webview is focused/loaded
@@ -201,7 +201,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 				const visibleWebview = WebviewProvider.getVisibleInstance()
 				if (!visibleWebview || !visibleWebview.controller) {
 					res.writeHead(500)
-					res.end(JSON.stringify({ error: "No active Cline instance found" }))
+					res.end(JSON.stringify({ error: "No active Martian instance found" }))
 					return
 				}
 
@@ -353,7 +353,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 								messages = await getSavedClineMessages(visibleWebview.controller.context, taskId)
 							}
 						} catch (error) {
-							Logger.log(`Error getting saved Cline messages: ${error}`)
+							Logger.log(`Error getting saved Martian messages: ${error}`)
 						}
 
 						try {
@@ -502,7 +502,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
  * @returns A disposable that can be used to clean up the message catcher
  */
 export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.Disposable {
-	Logger.log("Cline message catcher registered")
+	Logger.log("Martian message catcher registered")
 
 	if (webviewProvider && webviewProvider.controller) {
 		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
@@ -537,7 +537,7 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 
 	return new vscode.Disposable(() => {
 		// Cleanup function if needed
-		Logger.log("Cline message catcher disposed")
+		Logger.log("Martian message catcher disposed")
 	})
 }
 

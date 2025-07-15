@@ -17,7 +17,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	totalSpent = 0,
 	totalPromotions = 0,
 	message = "You have run out of credit.",
-	buyCreditsUrl = "https://app.cline.bot/dashboard",
+	buyCreditsUrl = "https://app.withmartian.com/dashboard",
 }) => {
 	// We have to divide because the balance is stored in microcredits
 	return (

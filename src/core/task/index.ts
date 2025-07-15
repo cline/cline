@@ -694,7 +694,7 @@ export class Task {
 	}> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Martian instance aborted")
 		}
 		let askTs: number
 		if (partial !== undefined) {
@@ -821,7 +821,7 @@ export class Task {
 
 	async say(type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean): Promise<undefined> {
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Martian instance aborted")
 		}
 
 		if (partial !== undefined) {
@@ -1752,7 +1752,7 @@ export class Task {
 
 	async presentAssistantMessage() {
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Martian instance aborted")
 		}
 
 		if (this.taskState.presentAssistantMessageLocked) {
@@ -1868,7 +1868,7 @@ export class Task {
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Martian instance aborted")
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
@@ -1883,14 +1883,14 @@ export class Task {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
 					subtitle: "Error",
-					message: "Cline is having trouble. Would you like to continue the task?",
+					message: "Martian is having trouble. Would you like to continue the task?",
 				})
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
+					: "Martian uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				// This userContent is for the *next* API call.
@@ -1927,12 +1927,12 @@ export class Task {
 			if (this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
 					subtitle: "Max Requests Reached",
-					message: `Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests.`,
+					message: `Martian has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests.`,
 				})
 			}
 			const { response, text, images, files } = await this.ask(
 				"auto_approval_max_req_reached",
-				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
+				`Martian has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
 			)
 			// if we get past the promise it means the user approved and did not start a new task
 			this.taskState.consecutiveAutoApprovedRequestsCount = 0
@@ -2265,7 +2265,7 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				throw new Error("Cline instance aborted")
+				throw new Error("Martian instance aborted")
 			}
 
 			this.taskState.didCompleteReadingStream = true

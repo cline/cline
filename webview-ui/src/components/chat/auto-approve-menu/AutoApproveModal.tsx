@@ -162,7 +162,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				/>
 
 				<HeroTooltip
-					content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
+					content="Martian will automatically make this many API requests before asking for approval to proceed with the task."
 					placement="top">
 					<div className="flex items-center pl-1.5 my-2">
 						<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />

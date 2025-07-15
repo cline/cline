@@ -142,7 +142,7 @@ class TelemetryService {
 			if (didUserOptIn) {
 				void vscode.window
 					.showWarningMessage(
-						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						"Anonymous Martian error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
 						"Open Settings",
 					)
 					.then((selection) => {
