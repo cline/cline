@@ -1,8 +1,8 @@
 import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
-import { DecorationController } from "./DecorationController"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "./DiffViewProvider"
+import { DecorationController } from "@integrations/editor/DecorationController"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	override async openDiffEditor(): Promise<void> {
