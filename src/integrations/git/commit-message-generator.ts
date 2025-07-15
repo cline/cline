@@ -151,14 +151,16 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
  * @param message The commit message to edit
  */
 async function editCommitMessage(message: string): Promise<void> {
-	const document = await vscode.workspace.openTextDocument({
-		content: message,
-		language: "markdown",
+	const document = await getHostBridgeProvider().workspaceClient.openTextDocument({
+		content: {
+			text: message,
+			language: "markdown",
+		},
 	})
 
 	await getHostBridgeProvider().windowClient.showTextDocument(
 		ShowTextDocumentRequest.create({
-			path: document.uri.fsPath,
+			path: document.path,
 		}),
 	)
 	getHostBridgeProvider().windowClient.showMessage(

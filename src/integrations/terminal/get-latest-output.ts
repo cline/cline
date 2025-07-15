@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
+import { executeCommand } from "@/utils/commands"
 
 /**
  * Gets the contents of the active terminal
@@ -11,13 +12,13 @@ export async function getLatestTerminalOutput(): Promise<string> {
 
 	try {
 		// Select terminal content
-		await vscode.commands.executeCommand("workbench.action.terminal.selectAll")
+		await executeCommand("workbench.action.terminal.selectAll")
 
 		// Copy selection to clipboard
-		await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+		await executeCommand("workbench.action.terminal.copySelection")
 
 		// Clear the selection
-		await vscode.commands.executeCommand("workbench.action.terminal.clearSelection")
+		await executeCommand("workbench.action.terminal.clearSelection")
 
 		// Get terminal contents from clipboard
 		let terminalContents = (await readTextFromClipboard()).trim()

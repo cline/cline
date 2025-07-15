@@ -5,6 +5,7 @@ import {
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 	DiffServiceClientImpl,
+	CommandServiceClientImpl,
 } from "@generated/standalone/host-bridge-clients"
 import {
 	WatchServiceClientInterface,
@@ -12,6 +13,7 @@ import {
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
 	DiffServiceClientInterface,
+	CommandServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 
@@ -26,6 +28,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
 	diffClient: DiffServiceClientInterface
+	commandClient: CommandServiceClientInterface
 
 	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
@@ -36,6 +39,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 		this.envClient = new EnvServiceClientImpl(this.channel)
 		this.windowClient = new WindowServiceClientImpl(this.channel)
 		this.diffClient = new DiffServiceClientImpl(this.channel)
+		this.commandClient = new CommandServiceClientImpl(this.channel)
 	}
 
 	public close(): void {

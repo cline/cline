@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Provides methods for executing IDE commands.
+service CommandService {
+  // Executes a command with optional arguments.
+  rpc executeCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+  // Sets a context value for conditional command availability.
+  rpc setContext(SetContextRequest) returns (SetContextResponse);
+  // Focuses the sidebar view.
+  rpc focusSidebar(FocusSidebarRequest) returns (FocusSidebarResponse);
+  // Creates a new editor group to the right.
+  rpc newGroupRight(NewGroupRightRequest) returns (NewGroupRightResponse);
+  // Locks the current editor group.
+  rpc lockEditorGroup(LockEditorGroupRequest) returns (LockEditorGroupResponse);
+  // Opens a walkthrough.
+  rpc openWalkthrough(OpenWalkthroughRequest) returns (OpenWalkthroughResponse);
+  // Reloads the IDE window.
+  rpc reloadWindow(ReloadWindowRequest) returns (ReloadWindowResponse);
+}
+
+message ExecuteCommandRequest {
+  cline.Metadata metadata = 1;
+  string command = 2;
+  repeated string args = 3;
+}
+
+message ExecuteCommandResponse {
+  optional string result = 1;
+}
+
+message SetContextRequest {
+  cline.Metadata metadata = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message SetContextResponse {
+  bool success = 1;
+}
+
+message FocusSidebarRequest {
+  cline.Metadata metadata = 1;
+  string provider_id = 2;
+}
+
+message FocusSidebarResponse {
+  bool success = 1;
+}
+
+message NewGroupRightRequest {
+  cline.Metadata metadata = 1;
+}
+
+message NewGroupRightResponse {
+  bool success = 1;
+}
+
+message LockEditorGroupRequest {
+  cline.Metadata metadata = 1;
+}
+
+message LockEditorGroupResponse {
+  bool success = 1;
+}
+
+message OpenWalkthroughRequest {
+  cline.Metadata metadata = 1;
+  string walkthrough_id = 2;
+}
+
+message OpenWalkthroughResponse {
+  bool success = 1;
+}
+
+message ReloadWindowRequest {
+  cline.Metadata metadata = 1;
+}
+
+message ReloadWindowResponse {
+  bool success = 1;
+}
