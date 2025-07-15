@@ -1,10 +1,9 @@
-import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useSize } from "react-use"
 
-import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
@@ -37,6 +36,7 @@ import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
 import { useClineAuth } from "@/context/ClineAuthContext"
+import { ErrorRow } from "./ErrorRow"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -950,191 +950,14 @@ export const ChatRowContent = memo(
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 								</div>
 								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
-									<>
-										{(() => {
-											// First check if we have a structured error object
-											if (error) {
-												console.log("Structured error object found:", error)
-												const errorDetails =
-													(error.errorDetails?.details?.error as any) ||
-													parseErrorText(error.errorDetails?.details?.message || error.message) ||
-													error
-												const errorMessage =
-													errorDetails?.message || error.message || "An unknown error occurred."
-
-												// Check for credit limit errors
-												if (
-													errorDetails?.code === "insufficient_credits" &&
-													typeof errorDetails?.current_balance === "number"
-												) {
-													return (
-														<CreditLimitError
-															currentBalance={errorDetails.current_balance}
-															totalSpent={errorDetails.total_spent}
-															totalPromotions={errorDetails.total_promotions}
-															message={errorDetails.message}
-															buyCreditsUrl={errorDetails.buy_credits_url}
-														/>
-													)
-												}
-
-												// Check for rate limit errors
-												const knownRateLimitErrors = [
-													"rate limit",
-													"too many requests",
-													"quota exceeded",
-													"resource exhausted",
-												]
-												if (
-													errorDetails?.status === 429 ||
-													knownRateLimitErrors.some((error) =>
-														errorMessage?.toLowerCase().includes(error),
-													)
-												) {
-													return (
-														<p
-															style={{
-																...pStyle,
-																color: "var(--vscode-errorForeground)",
-															}}>
-															{errorMessage}
-														</p>
-													)
-												}
-
-												// Default error display for structured errors
-												return (
-													<p
-														style={{
-															...pStyle,
-															color: "var(--vscode-errorForeground)",
-														}}>
-														{errorMessage}
-														{errorMessage?.includes(
-															"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
-														) && (
-															<>
-																<br />
-																<br />
-																{clineUser ? (
-																	<span
-																		style={{ color: "var(--vscode-descriptionForeground)" }}>
-																		(Click "Retry" below)
-																	</span>
-																) : (
-																	<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
-																		Sign in to Cline
-																	</VSCodeButton>
-																)}
-															</>
-														)}
-														{errorMessage?.toLowerCase().includes("powershell") && (
-															<>
-																<br />
-																<br />
-																It seems like you're having Windows PowerShell issues, please see
-																this{" "}
-																<a
-																	href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-																	style={{
-																		color: "inherit",
-																		textDecoration: "underline",
-																	}}>
-																	troubleshooting guide
-																</a>
-																.
-															</>
-														)}
-													</p>
-												)
-											}
-
-											// Fallback to parsing text for legacy error messages
-											const errorData = parseErrorText(
-												apiRequestFailedMessage || apiReqStreamingFailedMessage,
-											)
-											if (errorData) {
-												if (
-													errorData.code === "insufficient_credits" &&
-													typeof errorData.current_balance === "number"
-												) {
-													return (
-														<CreditLimitError
-															currentBalance={errorData.current_balance}
-															totalSpent={errorData.total_spent}
-															totalPromotions={errorData.total_promotions}
-															message={errorData.message}
-															buyCreditsUrl={errorData.buy_credits_url}
-														/>
-													)
-												}
-											}
-
-											// Check for rate limit errors (status code 429)
-											const isRateLimitError =
-												apiRequestFailedMessage?.includes("status code 429") ||
-												apiRequestFailedMessage?.toLowerCase().includes("rate limit") ||
-												apiRequestFailedMessage?.toLowerCase().includes("too many requests") ||
-												apiRequestFailedMessage?.toLowerCase().includes("quota exceeded") ||
-												apiRequestFailedMessage?.toLowerCase().includes("resource exhausted")
-
-											if (isRateLimitError) {
-												return (
-													<p
-														style={{
-															...pStyle,
-															color: "var(--vscode-errorForeground)",
-														}}>
-														{apiRequestFailedMessage || apiReqStreamingFailedMessage}
-													</p>
-												)
-											}
-
-											// Default error display
-											return (
-												<p
-													style={{
-														...pStyle,
-														color: "var(--vscode-errorForeground)",
-													}}>
-													{apiRequestFailedMessage || apiReqStreamingFailedMessage}
-													{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
-														<>
-															<br />
-															<br />
-															It seems like you're having Windows PowerShell issues, please see this{" "}
-															<a
-																href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-																style={{
-																	color: "inherit",
-																	textDecoration: "underline",
-																}}>
-																troubleshooting guide
-															</a>
-															.
-														</>
-													)}
-													{apiRequestFailedMessage?.includes(
-														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
-													) && (
-														<>
-															<br />
-															<br />
-															{clineUser ? (
-																<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-																	(Click "Retry" below)
-																</span>
-															) : (
-																<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
-																	Sign in to Cline
-																</VSCodeButton>
-															)}
-														</>
-													)}
-												</p>
-											)
-										})()}
-									</>
+									<ErrorRow
+										error={error}
+										apiRequestFailedMessage={apiRequestFailedMessage}
+										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
+										clineUser={clineUser}
+										handleSignIn={handleSignIn}
+										pStyle={pStyle}
+									/>
 								)}
 
 								{isExpanded && (
