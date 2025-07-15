@@ -35,6 +35,7 @@ import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { GroqProvider } from "./providers/GroqProvider"
 
 interface ApiOptionsProps {
 	showSubmitButton?: boolean
@@ -129,7 +130,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<VSCodeDropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={(e: any) => handleFieldChange("apiProvider", e.target.value)}
+					onChange={(e: any) => {
+						handleFieldChange("apiProvider", e.target.value)
+					}}
 					style={{
 						minWidth: 130,
 						position: "relative",
@@ -139,12 +142,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
 					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+					<VSCodeOption value="groq">Groq</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
+					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
-					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
@@ -238,6 +242,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider />}
 
+			{apiConfiguration && selectedProvider === "groq" && (
+				<GroqProvider showModelOptions={showModelOptions} isPopup={isPopup} />
+			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
 				<LiteLlmProvider showModelOptions={showModelOptions} isPopup={isPopup} />
 			)}
