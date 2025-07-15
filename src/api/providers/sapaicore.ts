@@ -33,7 +33,12 @@ export class SapAiCoreHandler implements ApiHandler {
 	private deployments?: Deployment[]
 
 	constructor(options: SapAiCoreHandlerOptions) {
-		this.options = options
+		// Normalize URLs by stripping trailing slashes to prevent request failures
+		this.options = {
+			...options,
+			sapAiCoreTokenUrl: options.sapAiCoreTokenUrl?.replace(/\/+$/, ""),
+			sapAiCoreBaseUrl: options.sapAiCoreBaseUrl?.replace(/\/+$/, ""),
+		}
 	}
 
 	private async authenticate(): Promise<Token> {
@@ -43,7 +48,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret || "",
 		}
 
-		const tokenUrl = (this.options.sapAiCoreTokenUrl || "").replace(/\/+$/, "") + "/oauth/token"
+		const tokenUrl = (this.options.sapAiCoreTokenUrl || "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
