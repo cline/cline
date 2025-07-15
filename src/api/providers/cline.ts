@@ -11,6 +11,7 @@ import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
 import { version as extensionVersion } from "../../../package.json"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -42,7 +43,7 @@ export class ClineHandler implements ApiHandler {
 	private async ensureClient(): Promise<OpenAI> {
 		const clineAccountAuthToken = await this._authService.getAuthToken()
 		if (!clineAccountAuthToken) {
-			throw new Error("Unauthorized: Please sign in to Cline before trying again.")
+			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}
 		if (!this.client) {
 			try {
@@ -68,6 +69,12 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
+			// Only continue the request if the user:
+			// 1. Has signed in to Cline with a token
+			// 2. Has more than 0 credits
+			// Or an error is thrown.
+			await this.clineAccountService.validateRequest()
+
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
@@ -180,7 +187,7 @@ export class ClineHandler implements ApiHandler {
 			console.error("Cline API Error:", error)
 			const requestId = error?.request_id ? ` (Request ID: ${error.request_id})` : ""
 			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again." + requestId) // match with webview-ui/src/components/chat/ChatRow.tsx
+				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE + requestId)
 			} else if (error.code === "insufficient_credits" || error.status === 402) {
 				if (error.error) {
 					error.error.message = error.error.message + requestId
