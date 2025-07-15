@@ -83,42 +83,6 @@ export class ClineAccountService {
 	}
 
 	/**
-	 * Validates if the user has sufficient credits to make API requests.
-	 * This checks the user's balance and throws an error if the balance is insufficient or if the request fails.
-	 * @throws Error if the user has insufficient credits or if the request fails
-	 * @returns {Promise<void>} A promise that resolves if the user has sufficient credits.
-	 */
-	async validateRequest(): Promise<void> {
-		try {
-			const { organizations, id } = await this.authenticatedRequest<UserResponse>(`/api/v1/users/me`)
-			const activeOrganization = organizations.find((org) => org.active)
-			console.log("SwitchAuthToken: Active Organization", activeOrganization?.name || "No active organization")
-
-			// Skip balance check for active organizations
-			if (activeOrganization) {
-				return
-			}
-
-			const balance = await this.authenticatedRequest<BalanceResponse>(`/api/v1/users/${id}/balance`)
-			const currentBalance = Number(balance?.balance) || 0
-
-			// Throw error if insufficient credits (balance <= 0)
-			if (currentBalance <= 0) {
-				throw new Error(
-					JSON.stringify({
-						code: "insufficient_credits",
-						current_balance: currentBalance,
-						message: "Not enough credits available",
-					}),
-				)
-			}
-		} catch (error) {
-			console.error("Invalid Cline API request:", error)
-			throw error instanceof Error ? error : new Error(`Invalid Request: ${error}`)
-		}
-	}
-
-	/**
 	 * RPC variant that fetches the user's current credit balance without posting to webview
 	 * @returns Balance data or undefined if failed
 	 */
