@@ -2,11 +2,11 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
+import { fileURLToPath } from "url"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
 import os from "os"
-import { fileURLToPath } from "url"
 
 import { createRequire } from "module"
 import { serviceNameMap, hostServiceNameMap } from "./build-proto-config.mjs"
