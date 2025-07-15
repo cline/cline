@@ -32,15 +32,105 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	// Get ripgrep path
 	const rgPath = await getRipgrepPath()
 
-	// Get files using ripgrep
-	const files = await listFilesWithRipgrep(rgPath, dirPath, recursive, limit)
+	if (!recursive) {
+		// For non-recursive, use the existing approach
+		const files = await listFilesWithRipgrep(rgPath, dirPath, false, limit)
+		const ignoreInstance = await createIgnoreInstance(dirPath)
+		const directories = await listFilteredDirectories(dirPath, false, ignoreInstance)
+		return formatAndCombineResults(files, directories, limit)
+	}
 
-	// Get directories with proper filtering using ignore library
+	// For recursive mode, use the original approach but ensure first-level directories are included
+	const files = await listFilesWithRipgrep(rgPath, dirPath, true, limit)
 	const ignoreInstance = await createIgnoreInstance(dirPath)
-	const directories = await listFilteredDirectories(dirPath, recursive, ignoreInstance)
+	const directories = await listFilteredDirectories(dirPath, true, ignoreInstance)
 
-	// Combine and format the results
-	return formatAndCombineResults(files, directories, limit)
+	// Combine and check if we hit the limit
+	const [results, limitReached] = formatAndCombineResults(files, directories, limit)
+
+	// If we hit the limit, ensure all first-level directories are included
+	if (limitReached) {
+		const firstLevelDirs = await getFirstLevelDirectories(dirPath, ignoreInstance)
+		return ensureFirstLevelDirectoriesIncluded(results, firstLevelDirs, limit)
+	}
+
+	return [results, limitReached]
+}
+
+/**
+ * Get only the first-level directories in a path
+ */
+async function getFirstLevelDirectories(dirPath: string, ignoreInstance: ReturnType<typeof ignore>): Promise<string[]> {
+	const absolutePath = path.resolve(dirPath)
+	const directories: string[] = []
+
+	try {
+		const entries = await fs.promises.readdir(absolutePath, { withFileTypes: true })
+
+		for (const entry of entries) {
+			if (entry.isDirectory() && !entry.isSymbolicLink()) {
+				const fullDirPath = path.join(absolutePath, entry.name)
+				if (shouldIncludeDirectory(entry.name, fullDirPath, dirPath, ignoreInstance)) {
+					const formattedPath = fullDirPath.endsWith("/") ? fullDirPath : `${fullDirPath}/`
+					directories.push(formattedPath)
+				}
+			}
+		}
+	} catch (err) {
+		console.warn(`Could not read directory ${absolutePath}: ${err}`)
+	}
+
+	return directories
+}
+
+/**
+ * Ensure all first-level directories are included in the results
+ */
+function ensureFirstLevelDirectoriesIncluded(
+	results: string[],
+	firstLevelDirs: string[],
+	limit: number,
+): [string[], boolean] {
+	// Create a set of existing paths for quick lookup
+	const existingPaths = new Set(results)
+
+	// Find missing first-level directories
+	const missingDirs = firstLevelDirs.filter((dir) => !existingPaths.has(dir))
+
+	if (missingDirs.length === 0) {
+		// All first-level directories are already included
+		return [results, true]
+	}
+
+	// We need to make room for the missing directories
+	// Remove items from the end (which are likely deeper in the tree)
+	const itemsToRemove = Math.min(missingDirs.length, results.length)
+	const adjustedResults = results.slice(0, results.length - itemsToRemove)
+
+	// Add the missing directories at the beginning (after any existing first-level dirs)
+	// First, separate existing results into first-level and others
+	const resultPaths = adjustedResults.map((r) => path.resolve(r))
+	const basePath = path.resolve(firstLevelDirs[0]).split(path.sep).slice(0, -1).join(path.sep)
+
+	const firstLevelResults: string[] = []
+	const otherResults: string[] = []
+
+	for (let i = 0; i < adjustedResults.length; i++) {
+		const resolvedPath = resultPaths[i]
+		const relativePath = path.relative(basePath, resolvedPath)
+		const depth = relativePath.split(path.sep).length
+
+		if (depth === 1) {
+			firstLevelResults.push(adjustedResults[i])
+		} else {
+			otherResults.push(adjustedResults[i])
+		}
+	}
+
+	// Combine: existing first-level dirs + missing first-level dirs + other results
+	const finalResults = [...firstLevelResults, ...missingDirs, ...otherResults].slice(0, limit)
+
+	return [finalResults, true]
 }
 
 /**
@@ -311,7 +401,6 @@ function isDirectoryExplicitlyIgnored(dirName: string): boolean {
 
 	return false
 }
-
 
 /**
  * Combine file and directory results and format them properly
