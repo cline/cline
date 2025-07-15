@@ -42,7 +42,7 @@ export class ClineHandler implements ApiHandler {
 	private async ensureClient(): Promise<OpenAI> {
 		const clineAccountAuthToken = await this._authService.getAuthToken()
 		if (!clineAccountAuthToken) {
-			throw new Error("Cline account authentication token is required")
+			throw new Error("Unauthorized: Please sign in to Cline before trying again.")
 		}
 		if (!this.client) {
 			try {
@@ -68,12 +68,6 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			// Only continue the request if the user:
-			// 1. Has signed in to Cline with a token
-			// 2. Has more than 0 credits
-			// Or an error is thrown.
-			await this.clineAccountService.validateRequest()
-
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
@@ -183,13 +177,19 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.") // match with webview-ui/src/components/chat/ChatRow.tsx
-			} else if (error.code === "insufficient_credits" || error.status === 402) {
-				throw new Error(error.error ? JSON.stringify(error.error) : "Insufficient credits or unknown error.")
-			}
 			console.error("Cline API Error:", error)
-			throw error instanceof Error ? error : new Error(String(error))
+			const requestId = error?.request_id ? ` (Request ID: ${error.request_id})` : ""
+			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
+				throw new Error("Unauthorized: Please sign in to Cline before trying again." + requestId) // match with webview-ui/src/components/chat/ChatRow.tsx
+			} else if (error.code === "insufficient_credits" || error.status === 402) {
+				if (error.error) {
+					error.error.message = error.error.message + requestId
+					throw new Error(JSON.stringify(error.error))
+				}
+			}
+			const _error = error instanceof Error ? error : new Error(String(error))
+			_error.message = _error.message + requestId
+			throw _error
 		}
 	}
 
