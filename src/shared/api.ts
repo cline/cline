@@ -2569,7 +2569,7 @@ export const moonshotModels = {
 	"moonshot-v1-128k-vision-preview": {
 		maxTokens: 131_072,
 		contextWindow: 131_072,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 2,
 		outputPrice: 5,
