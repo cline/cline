@@ -158,7 +158,7 @@ export async function createOpenRouterStream(
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 		// limit providers to only those that support the 131k context window
-		...(isKimiK2 ? { provider: { order: ["together"], allow_fallbacks: false } } : {}),
+		...(isKimiK2 ? { provider: { order: ["groq", "together"], allow_fallbacks: false } } : {}),
 	})
 
 	return stream
