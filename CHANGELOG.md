@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.19.3
+## [3.19.3]
 
--   4ecbecb: Add Moonshot AI provider
+-   Add Moonshot AI provider
 
 ## [3.19.2]
 
