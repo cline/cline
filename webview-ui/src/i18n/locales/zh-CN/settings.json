@@ -367,6 +367,12 @@
 			"label": "API 请求频率限制",
 			"description": "设置API请求的最小间隔时间"
 		},
+		"consecutiveMistakeLimit": {
+			"label": "错误和重复限制",
+			"description": "在显示“Roo遇到问题”对话框前允许的连续错误或重复操作次数",
+			"unlimitedDescription": "已启用无限重试（自动继续）。对话框将永远不会出现。",
+			"warning": "⚠️ 设置为 0 允许无限重试，这可能会消耗大量 API 使用量"
+		},
 		"reasoningEffort": {
 			"label": "模型推理强度",
 			"high": "高",

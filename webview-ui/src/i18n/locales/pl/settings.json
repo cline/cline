@@ -367,6 +367,12 @@
 			"label": "Limit szybkości",
 			"description": "Minimalny czas między żądaniami API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Limit błędów i powtórzeń",
+			"description": "Liczba kolejnych błędów lub powtórzonych akcji przed wyświetleniem okna dialogowego 'Roo ma problemy'",
+			"unlimitedDescription": "Włączono nieograniczone próby (automatyczne kontynuowanie). Okno dialogowe nigdy się nie pojawi.",
+			"warning": "⚠️ Ustawienie na 0 pozwala na nieograniczone próby, co może zużyć znaczną ilość API"
+		},
 		"reasoningEffort": {
 			"label": "Wysiłek rozumowania modelu",
 			"high": "Wysoki",

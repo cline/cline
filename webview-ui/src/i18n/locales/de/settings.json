@@ -367,6 +367,12 @@
 			"label": "Ratenbegrenzung",
 			"description": "Minimale Zeit zwischen API-Anfragen."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Fehler- & Wiederholungslimit",
+			"description": "Anzahl aufeinanderfolgender Fehler oder wiederholter Aktionen, bevor der Dialog 'Roo hat Probleme' angezeigt wird",
+			"unlimitedDescription": "Unbegrenzte Wiederholungen aktiviert (automatisches Fortfahren). Der Dialog wird niemals angezeigt.",
+			"warning": "⚠️ Das Setzen auf 0 erlaubt unbegrenzte Wiederholungen, was zu erheblichem API-Verbrauch führen kann"
+		},
 		"reasoningEffort": {
 			"label": "Modell-Denkaufwand",
 			"high": "Hoch",

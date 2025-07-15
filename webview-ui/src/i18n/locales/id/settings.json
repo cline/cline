@@ -371,6 +371,12 @@
 			"label": "Rate limit",
 			"description": "Waktu minimum antara permintaan API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Batas Kesalahan & Pengulangan",
+			"description": "Jumlah kesalahan berturut-turut atau tindakan berulang sebelum menampilkan dialog 'Roo mengalami masalah'",
+			"unlimitedDescription": "Percobaan ulang tak terbatas diaktifkan (lanjut otomatis). Dialog tidak akan pernah muncul.",
+			"warning": "⚠️ Mengatur ke 0 memungkinkan percobaan ulang tak terbatas yang dapat menghabiskan penggunaan API yang signifikan"
+		},
 		"reasoningEffort": {
 			"label": "Upaya Reasoning Model",
 			"high": "Tinggi",

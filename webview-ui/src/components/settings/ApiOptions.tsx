@@ -6,6 +6,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import {
 	type ProviderName,
 	type ProviderSettings,
+	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	openRouterDefaultModelId,
 	requestyDefaultModelId,
 	glamaDefaultModelId,
@@ -64,6 +65,7 @@ import { ThinkingBudget } from "./ThinkingBudget"
 import { DiffSettingsControl } from "./DiffSettingsControl"
 import { TemperatureControl } from "./TemperatureControl"
 import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
+import { ConsecutiveMistakeLimitControl } from "./ConsecutiveMistakeLimitControl"
 import { BedrockCustomArn } from "./providers/BedrockCustomArn"
 import { buildDocLink } from "@src/utils/docLinks"
 
@@ -546,6 +548,14 @@ const ApiOptions = ({
 					<RateLimitSecondsControl
 						value={apiConfiguration.rateLimitSeconds || 0}
 						onChange={(value) => setApiConfigurationField("rateLimitSeconds", value)}
+					/>
+					<ConsecutiveMistakeLimitControl
+						value={
+							apiConfiguration.consecutiveMistakeLimit !== undefined
+								? apiConfiguration.consecutiveMistakeLimit
+								: DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
+						}
+						onChange={(value) => setApiConfigurationField("consecutiveMistakeLimit", value)}
 					/>
 				</>
 			)}

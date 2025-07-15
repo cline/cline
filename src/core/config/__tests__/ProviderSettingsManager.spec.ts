@@ -66,6 +66,7 @@ describe("ProviderSettingsManager", () => {
 						rateLimitSecondsMigrated: true,
 						diffSettingsMigrated: true,
 						openAiHeadersMigrated: true,
+						consecutiveMistakeLimitMigrated: true,
 					},
 				}),
 			)
@@ -142,6 +143,47 @@ describe("ProviderSettingsManager", () => {
 			expect(storedConfig.apiConfigs.default.rateLimitSeconds).toEqual(42)
 			expect(storedConfig.apiConfigs.test.rateLimitSeconds).toEqual(42)
 			expect(storedConfig.apiConfigs.existing.rateLimitSeconds).toEqual(43)
+		})
+
+		it("should call migrateConsecutiveMistakeLimit if it has not done so already", async () => {
+			mockSecrets.get.mockResolvedValue(
+				JSON.stringify({
+					currentApiConfigName: "default",
+					apiConfigs: {
+						default: {
+							config: {},
+							id: "default",
+							consecutiveMistakeLimit: undefined,
+						},
+						test: {
+							apiProvider: "anthropic",
+							consecutiveMistakeLimit: undefined,
+						},
+						existing: {
+							apiProvider: "anthropic",
+							// this should not really be possible, unless someone has loaded a hand edited config,
+							// but we don't overwrite so we'll check that
+							consecutiveMistakeLimit: 5,
+						},
+					},
+					migrations: {
+						rateLimitSecondsMigrated: true,
+						diffSettingsMigrated: true,
+						openAiHeadersMigrated: true,
+						consecutiveMistakeLimitMigrated: false,
+					},
+				}),
+			)
+
+			await providerSettingsManager.initialize()
+
+			// Get the last call to store, which should contain the migrated config
+			const calls = mockSecrets.store.mock.calls
+			const storedConfig = JSON.parse(calls[calls.length - 1][1])
+			expect(storedConfig.apiConfigs.default.consecutiveMistakeLimit).toEqual(3)
+			expect(storedConfig.apiConfigs.test.consecutiveMistakeLimit).toEqual(3)
+			expect(storedConfig.apiConfigs.existing.consecutiveMistakeLimit).toEqual(5)
+			expect(storedConfig.migrations.consecutiveMistakeLimitMigrated).toEqual(true)
 		})
 
 		it("should throw error if secrets storage fails", async () => {

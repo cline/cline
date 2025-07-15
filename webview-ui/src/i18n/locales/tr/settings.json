@@ -367,6 +367,12 @@
 			"label": "Hız sınırı",
 			"description": "API istekleri arasındaki minimum süre."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Hata ve Tekrar Limiti",
+			"description": "'Roo sorun yaşıyor' iletişim kutusunu göstermeden önceki ardışık hata veya tekrarlanan eylem sayısı",
+			"unlimitedDescription": "Sınırsız yeniden deneme etkin (otomatik devam et). Diyalog asla görünmeyecek.",
+			"warning": "⚠️ 0'a ayarlamak, önemli API kullanımına neden olabilecek sınırsız yeniden denemeye izin verir"
+		},
 		"reasoningEffort": {
 			"label": "Model Akıl Yürütme Çabası",
 			"high": "Yüksek",

@@ -320,6 +320,70 @@ describe("Cline", () => {
 			expect(cline.diffStrategy).toBeDefined()
 		})
 
+		it("should use default consecutiveMistakeLimit when not provided", () => {
+			const cline = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			expect(cline.consecutiveMistakeLimit).toBe(3)
+		})
+
+		it("should respect provided consecutiveMistakeLimit", () => {
+			const cline = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				consecutiveMistakeLimit: 5,
+				task: "test task",
+				startTask: false,
+			})
+
+			expect(cline.consecutiveMistakeLimit).toBe(5)
+		})
+
+		it("should keep consecutiveMistakeLimit of 0 as 0 for unlimited", () => {
+			const cline = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				consecutiveMistakeLimit: 0,
+				task: "test task",
+				startTask: false,
+			})
+
+			expect(cline.consecutiveMistakeLimit).toBe(0)
+		})
+
+		it("should pass 0 to ToolRepetitionDetector for unlimited mode", () => {
+			const cline = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				consecutiveMistakeLimit: 0,
+				task: "test task",
+				startTask: false,
+			})
+
+			// The toolRepetitionDetector should be initialized with 0 for unlimited mode
+			expect(cline.toolRepetitionDetector).toBeDefined()
+			// Verify the limit remains as 0
+			expect(cline.consecutiveMistakeLimit).toBe(0)
+		})
+
+		it("should pass consecutiveMistakeLimit to ToolRepetitionDetector", () => {
+			const cline = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				consecutiveMistakeLimit: 5,
+				task: "test task",
+				startTask: false,
+			})
+
+			// The toolRepetitionDetector should be initialized with the same limit
+			expect(cline.toolRepetitionDetector).toBeDefined()
+			expect(cline.consecutiveMistakeLimit).toBe(5)
+		})
+
 		it("should require either task or historyItem", () => {
 			expect(() => {
 				new Task({ provider: mockProvider, apiConfiguration: mockApiConfig })

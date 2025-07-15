@@ -367,6 +367,12 @@
 			"label": "속도 제한",
 			"description": "API 요청 간 최소 시간."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "오류 및 반복 제한",
+			"description": "'Roo에 문제가 발생했습니다' 대화 상자를 표시하기 전의 연속 오류 또는 반복 작업 수",
+			"unlimitedDescription": "무제한 재시도 활성화 (자동 진행). 대화 상자가 나타나지 않습니다.",
+			"warning": "⚠️ 0으로 설정하면 무제한 재시도가 허용되어 상당한 API 사용량이 발생할 수 있습니다"
+		},
 		"reasoningEffort": {
 			"label": "모델 추론 노력",
 			"high": "높음",

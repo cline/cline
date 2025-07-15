@@ -367,6 +367,12 @@
 			"label": "Limite di frequenza",
 			"description": "Tempo minimo tra le richieste API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Limite di errori e ripetizioni",
+			"description": "Numero di errori consecutivi o azioni ripetute prima di mostrare la finestra di dialogo 'Roo sta riscontrando problemi'",
+			"unlimitedDescription": "Tentativi illimitati abilitati (procedi automaticamente). La finestra di dialogo non verrà mai visualizzata.",
+			"warning": "⚠️ L'impostazione a 0 consente tentativi illimitati che possono consumare un notevole utilizzo dell'API"
+		},
 		"reasoningEffort": {
 			"label": "Sforzo di ragionamento del modello",
 			"high": "Alto",

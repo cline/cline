@@ -301,5 +301,61 @@ describe("ToolRepetitionDetector", () => {
 			expect(result3.allowExecution).toBe(false)
 			expect(result3.askUser).toBeDefined()
 		})
+
+		it("should never block when limit is 0 (unlimited)", () => {
+			const detector = new ToolRepetitionDetector(0)
+
+			// Try many identical calls
+			for (let i = 0; i < 10; i++) {
+				const result = detector.check(createToolUse("tool", "tool-name"))
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+		})
+
+		it("should handle different limits correctly", () => {
+			// Test with limit of 5
+			const detector5 = new ToolRepetitionDetector(5)
+			const tool = createToolUse("tool", "tool-name")
+
+			// First 4 calls should be allowed
+			for (let i = 0; i < 4; i++) {
+				const result = detector5.check(tool)
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+
+			// 5th call should be blocked
+			const result5 = detector5.check(tool)
+			expect(result5.allowExecution).toBe(false)
+			expect(result5.askUser).toBeDefined()
+			expect(result5.askUser?.messageKey).toBe("mistake_limit_reached")
+		})
+
+		it("should reset counter after blocking and allow new attempts", () => {
+			const detector = new ToolRepetitionDetector(2)
+			const tool = createToolUse("tool", "tool-name")
+
+			// First call allowed
+			expect(detector.check(tool).allowExecution).toBe(true)
+
+			// Second call should block (limit is 2)
+			const blocked = detector.check(tool)
+			expect(blocked.allowExecution).toBe(false)
+
+			// After blocking, counter should reset and allow new attempts
+			expect(detector.check(tool).allowExecution).toBe(true)
+		})
+
+		it("should handle negative limits as 0 (unlimited)", () => {
+			const detector = new ToolRepetitionDetector(-1)
+
+			// Should behave like unlimited
+			for (let i = 0; i < 5; i++) {
+				const result = detector.check(createToolUse("tool", "tool-name"))
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+		})
 	})
 })

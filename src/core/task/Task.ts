@@ -18,6 +18,7 @@ import {
 	type ClineMessage,
 	type ClineSay,
 	type ToolProgressStatus,
+	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	type HistoryItem,
 	TelemetryEventName,
 	TodoItem,
@@ -216,7 +217,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		enableDiff = false,
 		enableCheckpoints = true,
 		fuzzyMatchThreshold = 1.0,
-		consecutiveMistakeLimit = 3,
+		consecutiveMistakeLimit = DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 		task,
 		images,
 		historyItem,
@@ -255,7 +256,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffEnabled = enableDiff
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold
-		this.consecutiveMistakeLimit = consecutiveMistakeLimit
+		this.consecutiveMistakeLimit = consecutiveMistakeLimit ?? DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
 		this.providerRef = new WeakRef(provider)
 		this.globalStoragePath = provider.context.globalStorageUri.fsPath
 		this.diffViewProvider = new DiffViewProvider(this.cwd)
@@ -1159,7 +1160,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			throw new Error(`[RooCode#recursivelyMakeRooRequests] task ${this.taskId}.${this.instanceId} aborted`)
 		}
 
-		if (this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
+		if (this.consecutiveMistakeLimit > 0 && this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				t("common:errors.mistake_limit_guidance"),

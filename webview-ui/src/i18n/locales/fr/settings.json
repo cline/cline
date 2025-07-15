@@ -367,6 +367,12 @@
 			"label": "Limite de débit",
 			"description": "Temps minimum entre les requêtes API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Limite d'erreurs et de répétitions",
+			"description": "Nombre d'erreurs consécutives ou d'actions répétées avant d'afficher la boîte de dialogue 'Roo a des difficultés'",
+			"unlimitedDescription": "Réessais illimités activés (poursuite automatique). La boîte de dialogue n'apparaîtra jamais.",
+			"warning": "⚠️ Mettre à 0 autorise des réessais illimités, ce qui peut consommer une utilisation importante de l'API"
+		},
 		"reasoningEffort": {
 			"label": "Effort de raisonnement du modèle",
 			"high": "Élevé",

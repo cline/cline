@@ -367,6 +367,12 @@
 			"label": "Rate limit",
 			"description": "Minimum time between API requests."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Roo is having trouble' dialog",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
+		},
 		"reasoningEffort": {
 			"label": "Model Reasoning Effort",
 			"high": "High",

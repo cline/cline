@@ -367,6 +367,12 @@
 			"label": "Límite de tasa",
 			"description": "Tiempo mínimo entre solicitudes de API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Límite de errores y repeticiones",
+			"description": "Número de errores consecutivos o acciones repetidas antes de mostrar el diálogo 'Roo está teniendo problemas'",
+			"unlimitedDescription": "Reintentos ilimitados habilitados (proceder automáticamente). El diálogo nunca aparecerá.",
+			"warning": "⚠️ Establecer en 0 permite reintentos ilimitados que pueden consumir un uso significativo de la API"
+		},
 		"reasoningEffort": {
 			"label": "Esfuerzo de razonamiento del modelo",
 			"high": "Alto",

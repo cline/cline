@@ -367,6 +367,12 @@
 			"label": "レート制限",
 			"description": "APIリクエスト間の最小時間。"
 		},
+		"consecutiveMistakeLimit": {
+			"label": "エラーと繰り返しの制限",
+			"description": "「Rooが問題を抱えています」ダイアログを表示するまでの連続エラーまたは繰り返しアクションの数",
+			"unlimitedDescription": "無制限のリトライが有効です（自動進行）。ダイアログは表示されません。",
+			"warning": "⚠️ 0に設定すると無制限のリトライが可能になり、API使用量が大幅に増加する可能性があります"
+		},
 		"reasoningEffort": {
 			"label": "モデル推論の労力",
 			"high": "高",

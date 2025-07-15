@@ -367,6 +367,12 @@
 			"label": "Límit de freqüència",
 			"description": "Temps mínim entre sol·licituds d'API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Límit d'errors i repeticions",
+			"description": "Nombre d'errors consecutius o accions repetides abans de mostrar el diàleg 'En Roo està tenint problemes'",
+			"unlimitedDescription": "Reintents il·limitats habilitats (procediment automàtic). El diàleg no apareixerà mai.",
+			"warning": "⚠️ Establir a 0 permet reintents il·limitats que poden consumir un ús significatiu de l'API"
+		},
 		"reasoningEffort": {
 			"label": "Esforç de raonament del model",
 			"high": "Alt",

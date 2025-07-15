@@ -367,6 +367,12 @@
 			"label": "Giới hạn tốc độ",
 			"description": "Thời gian tối thiểu giữa các yêu cầu API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Giới hạn lỗi và lặp lại",
+			"description": "Số lỗi liên tiếp hoặc hành động lặp lại trước khi hiển thị hộp thoại 'Roo đang gặp sự cố'",
+			"unlimitedDescription": "Đã bật thử lại không giới hạn (tự động tiếp tục). Hộp thoại sẽ không bao giờ xuất hiện.",
+			"warning": "⚠️ Đặt thành 0 cho phép thử lại không giới hạn, điều này có thể tiêu tốn mức sử dụng API đáng kể"
+		},
 		"reasoningEffort": {
 			"label": "Nỗ lực suy luận của mô hình",
 			"high": "Cao",
