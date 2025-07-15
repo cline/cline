@@ -523,7 +523,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.doubaoApiKey,
 						config.mistralApiKey,
 						config.planModeVsCodeLmModelSelector,
-						config.clineApiKey,
+						config.clineAccountId,
 						config.asksageApiKey,
 						config.xaiApiKey,
 						config.sambanovaApiKey,

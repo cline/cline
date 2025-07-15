@@ -1,5 +1,58 @@
 # Changelog
 
+## [3.18.14]
+
+-   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
+
+## [3.18.13]
+
+-   Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+
+## [3.18.12]
+
+-   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
+-   Fix insufficient credits error display to properly show error messages when account balance is too low
+-   Improve credit balance validation and error handling for Cline provider requests
+
+## [3.18.11]
+
+-   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
+
+## [3.18.10]
+
+-   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
+-   Fix Gemini 2.5 Pro thinking budget slider and add support for Gemini 2.5 Flash Lite Preview model (Thanks @arafatkatze!)
+
+## [3.18.9]
+
+-   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
+-   Fix authentication error handling for Cline provider to show clearer error messages when not signed in and prevent recursive failed requests
+-   Remove incorrect pricing display for SAP AI Core provider since it uses non-USD "Capacity Units" that cannot be directly converted (Thanks @ncryptedV1!)
+
+## [3.18.8]
+
+-   Update pricing for Grok 3 model because the promotion ended
+
+## [3.18.7]
+
+-   Remove promotional "free" messaging for Grok 3 model in UI
+
+## [3.18.6]
+
+-   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
+-   Add organization organization accounts
+
+## [3.18.5]
+
+-   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
+-   Improve provider switching performance by 18x (from 550ms to 30ms) with batched storage operations
+-   Improve SAP AI Core provider model organization and fix exception handling (Thanks @schardosin!)
+
+## [3.18.4]
+
+-   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
+-   Fix logging in with Cline account not getting past welcome screen
+
 ## [3.18.3]
 
 -   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)

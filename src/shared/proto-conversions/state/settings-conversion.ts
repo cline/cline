@@ -13,7 +13,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 	return ProtoApiConfiguration.create({
 		// Global configuration fields (not mode-specific)
 		apiKey: config.apiKey,
-		clineApiKey: config.clineApiKey,
+		clineAccountId: config.clineAccountId,
 		taskId: config.taskId,
 		liteLlmBaseUrl: config.liteLlmBaseUrl,
 		liteLlmApiKey: config.liteLlmApiKey,
@@ -29,7 +29,9 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		awsUseCrossRegionInference: config.awsUseCrossRegionInference,
 		awsBedrockUsePromptCache: config.awsBedrockUsePromptCache,
 		awsUseProfile: config.awsUseProfile,
+		awsAuthentication: config.awsAuthentication,
 		awsProfile: config.awsProfile,
+		awsBedrockApiKey: config.awsBedrockApiKey,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
 		claudeCodePath: config.claudeCodePath,
 		vertexProjectId: config.vertexProjectId,
@@ -137,7 +139,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 	const config: ApiConfiguration = {
 		// Global configuration fields (not mode-specific)
 		apiKey: protoConfig.apiKey,
-		clineApiKey: protoConfig.clineApiKey,
+		clineAccountId: protoConfig.clineAccountId,
 		taskId: protoConfig.taskId,
 		liteLlmBaseUrl: protoConfig.liteLlmBaseUrl,
 		liteLlmApiKey: protoConfig.liteLlmApiKey,
@@ -153,6 +155,8 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		awsBedrockUsePromptCache: protoConfig.awsBedrockUsePromptCache,
 		awsUseProfile: protoConfig.awsUseProfile,
 		awsProfile: protoConfig.awsProfile,
+		awsAuthentication: protoConfig.awsAuthentication,
+		awsBedrockApiKey: protoConfig.awsBedrockApiKey,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
 		claudeCodePath: protoConfig.claudeCodePath,
 		vertexProjectId: protoConfig.vertexProjectId,

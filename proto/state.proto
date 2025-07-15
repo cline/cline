@@ -1,9 +1,8 @@
 syntax = "proto3";
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
@@ -113,7 +112,7 @@ message UpdateSettingsRequest {
   optional int64 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
-  optional bool mcp_rich_display_enabled = 11;
+  optional string mcp_display_mode = 11;
   optional int64 terminal_output_line_limit = 12;
 }
 
@@ -220,4 +219,10 @@ message ApiConfiguration {
   
   // Favorited model IDs
   repeated string favorited_model_ids = 300;
+
+  // Extension fields for Bedrock Api Keys
+  optional string aws_authentication = 301;
+  optional string aws_bedrock_api_key = 302;
+
+  optional string cline_account_id = 303;
 }

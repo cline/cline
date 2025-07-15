@@ -2,7 +2,7 @@ import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-u
 import deepEqual from "fast-deep-equal"
 import React, { memo, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
-import { useEvent, useSize } from "react-use"
+import { useSize } from "react-use"
 
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
@@ -12,14 +12,12 @@ import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import SuccessButton from "@/components/common/SuccessButton"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
-import { vscode } from "@/utils/vscode"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -28,7 +26,6 @@ import {
 	ClinePlanModeResponse,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
-	ExtensionMessage,
 } from "@shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { Int64Request, StringRequest } from "@shared/proto/common"
@@ -39,6 +36,7 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
+import { useClineAuth } from "@/context/ClineAuthContext"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -187,6 +185,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
+		const { handleSignIn, clineUser } = useClineAuth()
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -945,14 +944,13 @@ export const ChatRowContent = memo(
 									<>
 										{(() => {
 											// Try to parse the error message as JSON for credit limit error
-											const errorData = parseErrorText(apiRequestFailedMessage)
+											const errorData = parseErrorText(
+												apiRequestFailedMessage || apiReqStreamingFailedMessage,
+											)
 											if (errorData) {
 												if (
 													errorData.code === "insufficient_credits" &&
-													typeof errorData.current_balance === "number" &&
-													typeof errorData.total_spent === "number" &&
-													typeof errorData.total_promotions === "number" &&
-													typeof errorData.message === "string"
+													typeof errorData.current_balance === "number"
 												) {
 													return (
 														<CreditLimitError
@@ -960,6 +958,7 @@ export const ChatRowContent = memo(
 															totalSpent={errorData.total_spent}
 															totalPromotions={errorData.total_promotions}
 															message={errorData.message}
+															buyCreditsUrl={errorData.buy_credits_url}
 														/>
 													)
 												}
@@ -1007,6 +1006,23 @@ export const ChatRowContent = memo(
 																troubleshooting guide
 															</a>
 															.
+														</>
+													)}
+													{apiRequestFailedMessage?.includes(
+														"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
+													) && (
+														<>
+															<br />
+															<br />
+															{clineUser ? (
+																<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+																	(Click "Retry" below)
+																</span>
+															) : (
+																<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
+																	Sign in to Cline
+																</VSCodeButton>
+															)}
 														</>
 													)}
 												</p>

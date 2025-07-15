@@ -812,21 +812,11 @@ vscode.TextDocumentSaveReason = { Manual: 0, AfterDelay: 0, FocusOut: 0 }
 vscode.workspace = {}
 vscode.workspace.fs = createStub("vscode.workspace.fs")
 vscode.workspace.rootPath = createStub("vscode.workspace.rootPath")
-vscode.workspace.workspaceFolders = []
 vscode.workspace.name = createStub("vscode.workspace.name")
 vscode.workspace.workspaceFile = createStub("vscode.workspace.workspaceFile")
-vscode.workspace.onDidChangeWorkspaceFolders = createStub("vscode.workspace.onDidChangeWorkspaceFolders")
-vscode.workspace.getWorkspaceFolder = function (uri) {
-	console.log("Called stubbed function: vscode.workspace.getWorkspaceFolder")
-	return createStub("unknown")
-}
 vscode.workspace.asRelativePath = function (pathOrUri, includeWorkspaceFolder) {
 	console.log("Called stubbed function: vscode.workspace.asRelativePath")
 	return ""
-}
-vscode.workspace.updateWorkspaceFolders = function (start, deleteCount, workspaceFoldersToAdd) {
-	console.log("Called stubbed function: vscode.workspace.updateWorkspaceFolders")
-	return false
 }
 vscode.workspace.createFileSystemWatcher = function (globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents) {
 	console.log("Called stubbed function: vscode.workspace.createFileSystemWatcher")

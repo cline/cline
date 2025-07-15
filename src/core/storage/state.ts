@@ -11,6 +11,7 @@ import { StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
 /*
 	Storage
@@ -18,19 +19,66 @@ import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } f
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
-// global
+const isTemporaryProfile = process.env.TEMP_PROFILE === "true"
 
+// In-memory storage for temporary profiles
+const inMemoryGlobalState = new Map<string, any>()
+const inMemoryWorkspaceState = new Map<string, any>()
+const inMemorySecrets = new Map<string, string>()
+
+// global
 export async function updateGlobalState(context: vscode.ExtensionContext, key: GlobalStateKey, value: any) {
+	if (isTemporaryProfile) {
+		inMemoryGlobalState.set(key, value)
+		return
+	}
 	await context.globalState.update(key, value)
 }
 
 export async function getGlobalState(context: vscode.ExtensionContext, key: GlobalStateKey) {
+	if (isTemporaryProfile) {
+		return inMemoryGlobalState.get(key)
+	}
 	return await context.globalState.get(key)
 }
 
-// secrets
+// Batched operations for performance optimization
+export async function updateGlobalStateBatch(context: vscode.ExtensionContext, updates: Record<string, any>) {
+	if (isTemporaryProfile) {
+		Object.entries(updates).forEach(([key, value]) => {
+			inMemoryGlobalState.set(key, value)
+		})
+		return
+	}
+	// Use Promise.all to batch the updates
+	await Promise.all(Object.entries(updates).map(([key, value]) => context.globalState.update(key as GlobalStateKey, value)))
+}
 
+export async function updateSecretsBatch(context: vscode.ExtensionContext, updates: Record<string, string | undefined>) {
+	if (isTemporaryProfile) {
+		Object.entries(updates).forEach(([key, value]) => {
+			if (value) {
+				inMemorySecrets.set(key, value)
+			} else {
+				inMemorySecrets.delete(key)
+			}
+		})
+		return
+	}
+	// Use Promise.all to batch the secret updates
+	await Promise.all(Object.entries(updates).map(([key, value]) => storeSecret(context, key as SecretKey, value)))
+}
+
+// secrets
 export async function storeSecret(context: vscode.ExtensionContext, key: SecretKey, value?: string) {
+	if (isTemporaryProfile) {
+		if (value) {
+			inMemorySecrets.set(key, value)
+		} else {
+			inMemorySecrets.delete(key)
+		}
+		return
+	}
 	if (value) {
 		await context.secrets.store(key, value)
 	} else {
@@ -39,26 +87,36 @@ export async function storeSecret(context: vscode.ExtensionContext, key: SecretK
 }
 
 export async function getSecret(context: vscode.ExtensionContext, key: SecretKey) {
+	if (isTemporaryProfile) {
+		return inMemorySecrets.get(key)
+	}
 	return await context.secrets.get(key)
 }
 
 // workspace
-
 export async function updateWorkspaceState(context: vscode.ExtensionContext, key: LocalStateKey, value: any) {
+	if (isTemporaryProfile) {
+		inMemoryWorkspaceState.set(key, value)
+		return
+	}
 	await context.workspaceState.update(key, value)
 }
 
 export async function getWorkspaceState(context: vscode.ExtensionContext, key: LocalStateKey) {
+	if (isTemporaryProfile) {
+		return inMemoryWorkspaceState.get(key)
+	}
 	return await context.workspaceState.get(key)
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
+	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
 		welcomeViewCompleted,
 		apiKey,
 		openRouterApiKey,
-		clineApiKey,
+		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
@@ -67,7 +125,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
 		awsProfile,
+		awsBedrockApiKey,
 		awsUseProfile,
+		awsAuthentication,
 		vertexProjectId,
 		vertexRegion,
 		openAiBaseUrl,
@@ -114,7 +174,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		shellIntegrationTimeout,
 		enableCheckpointsSettingRaw,
 		mcpMarketplaceEnabledRaw,
-		mcpRichDisplayEnabled,
+		mcpDisplayMode,
 		mcpResponsesCollapsedRaw,
 		globalWorkflowToggles,
 		terminalReuseEnabled,
@@ -131,7 +191,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
 		getSecret(context, "openRouterApiKey") as Promise<string | undefined>,
-		getSecret(context, "clineApiKey") as Promise<string | undefined>,
+		getSecret(context, "clineAccountId") as Promise<string | undefined>,
 		getSecret(context, "awsAccessKey") as Promise<string | undefined>,
 		getSecret(context, "awsSecretKey") as Promise<string | undefined>,
 		getSecret(context, "awsSessionToken") as Promise<string | undefined>,
@@ -140,7 +200,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "awsBedrockUsePromptCache") as Promise<boolean | undefined>,
 		getGlobalState(context, "awsBedrockEndpoint") as Promise<string | undefined>,
 		getGlobalState(context, "awsProfile") as Promise<string | undefined>,
+		getSecret(context, "awsBedrockApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "awsUseProfile") as Promise<boolean | undefined>,
+		getGlobalState(context, "awsAuthentication") as Promise<string | undefined>,
 		getGlobalState(context, "vertexProjectId") as Promise<string | undefined>,
 		getGlobalState(context, "vertexRegion") as Promise<string | undefined>,
 		getGlobalState(context, "openAiBaseUrl") as Promise<string | undefined>,
@@ -187,7 +249,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
-		getGlobalState(context, "mcpRichDisplayEnabled") as Promise<boolean | undefined>,
+		getGlobalState(context, "mcpDisplayMode") as Promise<McpDisplayMode | undefined>,
 		getGlobalState(context, "mcpResponsesCollapsed") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "terminalReuseEnabled") as Promise<boolean | undefined>,
@@ -203,8 +265,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
+	const secondBatchStart = performance.now()
 	const [
 		chatSettings,
+		currentMode,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -249,6 +313,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeSapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "mode") as Promise<"plan" | "act" | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,
@@ -293,6 +358,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
+	const processingStart = performance.now()
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
 		apiProvider = planModeApiProvider
@@ -333,7 +399,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		apiConfiguration: {
 			apiKey,
 			openRouterApiKey,
-			clineApiKey,
+			clineAccountId,
 			claudeCodePath,
 			awsAccessKey,
 			awsSecretKey,
@@ -343,7 +409,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
+			awsBedrockApiKey,
 			awsUseProfile,
+			awsAuthentication,
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -437,11 +505,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: {
 			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+			mode: currentMode || "act", // Merge mode from global state
 		},
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
-		mcpRichDisplayEnabled: mcpRichDisplayEnabled ?? true,
+		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
@@ -465,8 +534,10 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		awsUseCrossRegionInference,
 		awsBedrockUsePromptCache,
 		awsBedrockEndpoint,
+		awsBedrockApiKey,
 		awsProfile,
 		awsUseProfile,
+		awsAuthentication,
 		vertexProjectId,
 		vertexRegion,
 		openAiBaseUrl,
@@ -494,7 +565,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		asksageApiKey,
 		asksageApiUrl,
 		xaiApiKey,
-		clineApiKey,
+		clineAccountId,
 		sambanovaApiKey,
 		cerebrasApiKey,
 		nebiusApiKey,
@@ -552,106 +623,116 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeSapAiCoreModelId,
 	} = apiConfiguration
 
-	// Plan mode configuration updates
-	await updateGlobalState(context, "planModeApiProvider", planModeApiProvider)
-	await updateGlobalState(context, "planModeApiModelId", planModeApiModelId)
-	await updateGlobalState(context, "planModeThinkingBudgetTokens", planModeThinkingBudgetTokens)
-	await updateGlobalState(context, "planModeReasoningEffort", planModeReasoningEffort)
-	await updateGlobalState(context, "planModeVsCodeLmModelSelector", planModeVsCodeLmModelSelector)
-	await updateGlobalState(context, "planModeAwsBedrockCustomSelected", planModeAwsBedrockCustomSelected)
-	await updateGlobalState(context, "planModeAwsBedrockCustomModelBaseId", planModeAwsBedrockCustomModelBaseId)
-	await updateGlobalState(context, "planModeOpenRouterModelId", planModeOpenRouterModelId)
-	await updateGlobalState(context, "planModeOpenRouterModelInfo", planModeOpenRouterModelInfo)
-	await updateGlobalState(context, "planModeOpenAiModelId", planModeOpenAiModelId)
-	await updateGlobalState(context, "planModeOpenAiModelInfo", planModeOpenAiModelInfo)
-	await updateGlobalState(context, "planModeOllamaModelId", planModeOllamaModelId)
-	await updateGlobalState(context, "planModeLmStudioModelId", planModeLmStudioModelId)
-	await updateGlobalState(context, "planModeLiteLlmModelId", planModeLiteLlmModelId)
-	await updateGlobalState(context, "planModeLiteLlmModelInfo", planModeLiteLlmModelInfo)
-	await updateGlobalState(context, "planModeRequestyModelId", planModeRequestyModelId)
-	await updateGlobalState(context, "planModeRequestyModelInfo", planModeRequestyModelInfo)
-	await updateGlobalState(context, "planModeTogetherModelId", planModeTogetherModelId)
-	await updateGlobalState(context, "planModeFireworksModelId", planModeFireworksModelId)
-	await updateGlobalState(context, "planModeSapAiCoreModelId", planModeSapAiCoreModelId)
+	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
+	const batchedGlobalUpdates = {
+		// Plan mode configuration updates
+		planModeApiProvider,
+		planModeApiModelId,
+		planModeThinkingBudgetTokens,
+		planModeReasoningEffort,
+		planModeVsCodeLmModelSelector,
+		planModeAwsBedrockCustomSelected,
+		planModeAwsBedrockCustomModelBaseId,
+		planModeOpenRouterModelId,
+		planModeOpenRouterModelInfo,
+		planModeOpenAiModelId,
+		planModeOpenAiModelInfo,
+		planModeOllamaModelId,
+		planModeLmStudioModelId,
+		planModeLiteLlmModelId,
+		planModeLiteLlmModelInfo,
+		planModeRequestyModelId,
+		planModeRequestyModelInfo,
+		planModeTogetherModelId,
+		planModeFireworksModelId,
+		planModeSapAiCoreModelId,
 
-	// Act mode configuration updates
-	await updateGlobalState(context, "actModeApiProvider", actModeApiProvider)
-	await updateGlobalState(context, "actModeApiModelId", actModeApiModelId)
-	await updateGlobalState(context, "actModeThinkingBudgetTokens", actModeThinkingBudgetTokens)
-	await updateGlobalState(context, "actModeReasoningEffort", actModeReasoningEffort)
-	await updateGlobalState(context, "actModeVsCodeLmModelSelector", actModeVsCodeLmModelSelector)
-	await updateGlobalState(context, "actModeAwsBedrockCustomSelected", actModeAwsBedrockCustomSelected)
-	await updateGlobalState(context, "actModeAwsBedrockCustomModelBaseId", actModeAwsBedrockCustomModelBaseId)
-	await updateGlobalState(context, "actModeOpenRouterModelId", actModeOpenRouterModelId)
-	await updateGlobalState(context, "actModeOpenRouterModelInfo", actModeOpenRouterModelInfo)
-	await updateGlobalState(context, "actModeOpenAiModelId", actModeOpenAiModelId)
-	await updateGlobalState(context, "actModeOpenAiModelInfo", actModeOpenAiModelInfo)
-	await updateGlobalState(context, "actModeOllamaModelId", actModeOllamaModelId)
-	await updateGlobalState(context, "actModeLmStudioModelId", actModeLmStudioModelId)
-	await updateGlobalState(context, "actModeLiteLlmModelId", actModeLiteLlmModelId)
-	await updateGlobalState(context, "actModeLiteLlmModelInfo", actModeLiteLlmModelInfo)
-	await updateGlobalState(context, "actModeRequestyModelId", actModeRequestyModelId)
-	await updateGlobalState(context, "actModeRequestyModelInfo", actModeRequestyModelInfo)
-	await updateGlobalState(context, "actModeTogetherModelId", actModeTogetherModelId)
-	await updateGlobalState(context, "actModeFireworksModelId", actModeFireworksModelId)
-	await updateGlobalState(context, "actModeSapAiCoreModelId", actModeSapAiCoreModelId)
+		// Act mode configuration updates
+		actModeApiProvider,
+		actModeApiModelId,
+		actModeThinkingBudgetTokens,
+		actModeReasoningEffort,
+		actModeVsCodeLmModelSelector,
+		actModeAwsBedrockCustomSelected,
+		actModeAwsBedrockCustomModelBaseId,
+		actModeOpenRouterModelId,
+		actModeOpenRouterModelInfo,
+		actModeOpenAiModelId,
+		actModeOpenAiModelInfo,
+		actModeOllamaModelId,
+		actModeLmStudioModelId,
+		actModeLiteLlmModelId,
+		actModeLiteLlmModelInfo,
+		actModeRequestyModelId,
+		actModeRequestyModelInfo,
+		actModeTogetherModelId,
+		actModeFireworksModelId,
+		actModeSapAiCoreModelId,
 
-	// Global state updates
-	await updateGlobalState(context, "awsRegion", awsRegion)
-	await updateGlobalState(context, "awsUseCrossRegionInference", awsUseCrossRegionInference)
-	await updateGlobalState(context, "awsBedrockUsePromptCache", awsBedrockUsePromptCache)
-	await updateGlobalState(context, "awsBedrockEndpoint", awsBedrockEndpoint)
-	await updateGlobalState(context, "awsProfile", awsProfile)
-	await updateGlobalState(context, "awsUseProfile", awsUseProfile)
-	await updateGlobalState(context, "vertexProjectId", vertexProjectId)
-	await updateGlobalState(context, "vertexRegion", vertexRegion)
-	await updateGlobalState(context, "openAiBaseUrl", openAiBaseUrl)
-	await updateGlobalState(context, "openAiHeaders", openAiHeaders || {})
-	await updateGlobalState(context, "ollamaBaseUrl", ollamaBaseUrl)
-	await updateGlobalState(context, "ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
-	await updateGlobalState(context, "lmStudioBaseUrl", lmStudioBaseUrl)
-	await updateGlobalState(context, "anthropicBaseUrl", anthropicBaseUrl)
-	await updateGlobalState(context, "geminiBaseUrl", geminiBaseUrl)
-	await updateGlobalState(context, "azureApiVersion", azureApiVersion)
-	await updateGlobalState(context, "openRouterProviderSorting", openRouterProviderSorting)
-	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
-	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
-	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
-	await updateGlobalState(context, "asksageApiUrl", asksageApiUrl)
-	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
-	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
-	await updateGlobalState(context, "fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
-	await updateGlobalState(context, "fireworksModelMaxTokens", fireworksModelMaxTokens)
-	await updateGlobalState(context, "sapAiCoreBaseUrl", sapAiCoreBaseUrl)
-	await updateGlobalState(context, "sapAiCoreTokenUrl", sapAiCoreTokenUrl)
-	await updateGlobalState(context, "sapAiResourceGroup", sapAiResourceGroup)
-	await updateGlobalState(context, "claudeCodePath", claudeCodePath)
+		// Global state updates (27 keys)
+		awsRegion,
+		awsUseCrossRegionInference,
+		awsBedrockUsePromptCache,
+		awsBedrockEndpoint,
+		awsProfile,
+		awsUseProfile,
+		awsAuthentication,
+		vertexProjectId,
+		vertexRegion,
+		openAiBaseUrl,
+		openAiHeaders: openAiHeaders || {},
+		ollamaBaseUrl,
+		ollamaApiOptionsCtxNum,
+		lmStudioBaseUrl,
+		anthropicBaseUrl,
+		geminiBaseUrl,
+		azureApiVersion,
+		openRouterProviderSorting,
+		liteLlmBaseUrl,
+		liteLlmUsePromptCache,
+		qwenApiLine,
+		asksageApiUrl,
+		favoritedModelIds,
+		requestTimeoutMs: apiConfiguration.requestTimeoutMs,
+		fireworksModelMaxCompletionTokens,
+		fireworksModelMaxTokens,
+		sapAiCoreBaseUrl,
+		sapAiCoreTokenUrl,
+		sapAiResourceGroup,
+		claudeCodePath,
+	}
 
-	// Secret updates
-	await storeSecret(context, "apiKey", apiKey)
-	await storeSecret(context, "openRouterApiKey", openRouterApiKey)
-	await storeSecret(context, "clineApiKey", clineApiKey)
-	await storeSecret(context, "awsAccessKey", awsAccessKey)
-	await storeSecret(context, "awsSecretKey", awsSecretKey)
-	await storeSecret(context, "awsSessionToken", awsSessionToken)
-	await storeSecret(context, "openAiApiKey", openAiApiKey)
-	await storeSecret(context, "geminiApiKey", geminiApiKey)
-	await storeSecret(context, "openAiNativeApiKey", openAiNativeApiKey)
-	await storeSecret(context, "deepSeekApiKey", deepSeekApiKey)
-	await storeSecret(context, "requestyApiKey", requestyApiKey)
-	await storeSecret(context, "togetherApiKey", togetherApiKey)
-	await storeSecret(context, "qwenApiKey", qwenApiKey)
-	await storeSecret(context, "doubaoApiKey", doubaoApiKey)
-	await storeSecret(context, "mistralApiKey", mistralApiKey)
-	await storeSecret(context, "liteLlmApiKey", liteLlmApiKey)
-	await storeSecret(context, "fireworksApiKey", fireworksApiKey)
-	await storeSecret(context, "asksageApiKey", asksageApiKey)
-	await storeSecret(context, "xaiApiKey", xaiApiKey)
-	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
-	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
-	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
-	await storeSecret(context, "sapAiCoreClientId", sapAiCoreClientId)
-	await storeSecret(context, "sapAiCoreClientSecret", sapAiCoreClientSecret)
+	// OPTIMIZED: Batch all secret updates into 1 operation instead of 23
+	const batchedSecretUpdates = {
+		apiKey,
+		openRouterApiKey,
+		clineAccountId,
+		awsAccessKey,
+		awsSecretKey,
+		awsSessionToken,
+		awsBedrockApiKey,
+		openAiApiKey,
+		geminiApiKey,
+		openAiNativeApiKey,
+		deepSeekApiKey,
+		requestyApiKey,
+		togetherApiKey,
+		qwenApiKey,
+		doubaoApiKey,
+		mistralApiKey,
+		liteLlmApiKey,
+		fireworksApiKey,
+		asksageApiKey,
+		xaiApiKey,
+		sambanovaApiKey,
+		cerebrasApiKey,
+		nebiusApiKey,
+		sapAiCoreClientId,
+		sapAiCoreClientSecret,
+	}
+
+	// Execute batched operations in parallel for maximum performance
+	await Promise.all([updateGlobalStateBatch(context, batchedGlobalUpdates), updateSecretsBatch(context, batchedSecretUpdates)])
 }
 
 export async function resetWorkspaceState(context: vscode.ExtensionContext) {
@@ -671,6 +752,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"awsAccessKey",
 		"awsSecretKey",
 		"awsSessionToken",
+		"awsBedrockApiKey",
 		"openAiApiKey",
 		"geminiApiKey",
 		"openAiNativeApiKey",
@@ -680,7 +762,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"qwenApiKey",
 		"doubaoApiKey",
 		"mistralApiKey",
-		"clineApiKey",
+		"clineAccountId",
 		"liteLlmApiKey",
 		"fireworksApiKey",
 		"asksageApiKey",

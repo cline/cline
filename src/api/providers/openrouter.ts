@@ -8,6 +8,16 @@ import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+
+interface OpenRouterHandlerOptions {
+	openRouterApiKey?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
+}
 
 interface OpenRouterHandlerOptions {
 	openRouterApiKey?: string
@@ -112,7 +122,8 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			// Reasoning tokens are returned separately from the content
-			if ("reasoning" in delta && delta.reasoning) {
+			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line
@@ -213,9 +224,6 @@ export class OpenRouterHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		let modelId = this.options.openRouterModelId
-		if (modelId === "x-ai/grok-3") {
-			modelId = "x-ai/grok-3-beta"
-		}
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

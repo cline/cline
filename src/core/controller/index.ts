@@ -27,21 +27,15 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import {
-	getAllExtensionState,
-	getGlobalState,
-	getSecret,
-	getWorkspaceState,
-	storeSecret,
-	updateGlobalState,
-	updateWorkspaceState,
-} from "../storage/state"
+import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
-import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
-import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -54,7 +48,6 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private mode: "plan" | "act" = "plan" // In-memory plan/act mode state
 	task?: Task
 
 	get currentMode(): "plan" | "act" {
@@ -63,6 +56,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
+	authService: AuthService
 	latestAnnouncementId = "june-25-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
@@ -82,15 +76,18 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = new ClineAccountService(async () => {
-			const { apiConfiguration } = await this.getStateToPostToWebview()
-			return apiConfiguration?.clineApiKey
-		})
+		this.accountService = ClineAccountService.getInstance()
+		this.authService = AuthService.getInstance(context)
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	private async getCurrentMode(): Promise<"plan" | "act"> {
+		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 
 	/*
@@ -115,16 +112,27 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			await storeSecret(this.context, "clineApiKey", undefined)
+			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
+			await storeSecret(this.context, "clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
 			await Promise.all([
 				updateGlobalState(this.context, "planModeApiProvider", "openrouter"),
 				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
 			])
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Successfully logged out of Cline",
+				}),
+			)
 		} catch (error) {
-			vscode.window.showErrorMessage("Logout failed")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Logout failed",
+				}),
+			)
 		}
 	}
 
@@ -148,10 +156,13 @@ export class Controller {
 			taskHistory,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -246,8 +257,8 @@ export class Controller {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
-		// Store mode in-memory only
-		this.mode = chatSettings.mode
+		// Store mode to global state
+		await updateGlobalState(this.context, "mode", chatSettings.mode)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
@@ -258,7 +269,7 @@ export class Controller {
 			this.task.api = buildApiHandler(apiConfiguration, chatSettings.mode)
 		}
 
-		// Save only non-mode properties to workspace storage
+		// Save only non-mode properties to global storage
 		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
 		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
@@ -315,23 +326,13 @@ export class Controller {
 	}
 
 	// Auth
-
 	public async validateAuthState(state: string | null): Promise<boolean> {
-		const storedNonce = await getSecret(this.context, "authNonce")
-		if (!state || state !== storedNonce) {
-			return false
-		}
-		await storeSecret(this.context, "authNonce", undefined) // Clear after use
-		return true
+		return state === this.authService.authNonce
 	}
 
-	async handleAuthCallback(customToken: string, apiKey: string) {
+	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			// Store API key for API calls
-			await storeSecret(this.context, "clineApiKey", apiKey)
-
-			// Send custom token to webview for Firebase auth
-			await sendAuthCallbackEvent(customToken)
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -357,25 +358,31 @@ export class Controller {
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 			const updatedConfig = {
 				...apiConfiguration,
-				clineApiKey: apiKey,
+				apiProvider: clineProvider,
 			}
+
+			// Mark welcome view as completed since user has successfully logged in
+			await updateGlobalState(this.context, "welcomeViewCompleted", true)
 
 			if (this.task) {
 				this.task.api = buildApiHandler(updatedConfig, this.mode)
 			}
 
 			await this.postStateToWebview()
-			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			vscode.window.showErrorMessage("Failed to log in to Cline")
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: "Failed to log in to Cline",
+				}),
+			)
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
 	}
 
 	// MCP Marketplace
-
 	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
 		try {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
@@ -404,7 +411,12 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				vscode.window.showErrorMessage(errorMessage)
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: errorMessage,
+					}),
+				)
 			}
 			return undefined
 		}
@@ -488,7 +500,12 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			vscode.window.showErrorMessage(errorMessage)
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: errorMessage,
+				}),
+			)
 		}
 	}
 
@@ -705,7 +722,7 @@ export class Controller {
 			chatSettings: storedChatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
-			mcpRichDisplayEnabled,
+			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -720,10 +737,13 @@ export class Controller {
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
 
-		// Reconstruct ChatSettings with in-memory mode and stored preferences
+		// Get current mode using helper function
+		const currentMode = await this.getCurrentMode()
+
+		// Reconstruct ChatSettings with mode from global state and stored preferences
 		const chatSettings: ChatSettings = {
 			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: this.mode, // Use in-memory mode (override any stored mode)
+			mode: currentMode, // Use mode from global state
 		}
 
 		const localClineRulesToggles =
@@ -755,7 +775,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
-			mcpRichDisplayEnabled,
+			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
@@ -855,14 +875,24 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				vscode.window.showErrorMessage("No workspace folder open")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "No workspace folder open",
+					}),
+				)
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				vscode.window.showInformationMessage("No changes in workspace for commit message")
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes in workspace for commit message",
+					}),
+				)
 				return
 			}
 
@@ -929,27 +959,59 @@ Commit message:`
 								if (api && api.repositories.length > 0) {
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
-									vscode.window.showInformationMessage("Commit message generated and applied")
+									const message = "Commit message generated and applied"
+									getHostBridgeProvider().windowClient.showMessage(
+										ShowMessageRequest.create({
+											type: ShowMessageType.INFORMATION,
+											message,
+										}),
+									)
 								} else {
-									vscode.window.showErrorMessage("No Git repositories found")
+									const message = "No Git repositories found"
+									getHostBridgeProvider().windowClient.showMessage(
+										ShowMessageRequest.create({
+											type: ShowMessageType.ERROR,
+											message,
+										}),
+									)
 								}
 							} else {
-								vscode.window.showErrorMessage("Git extension not found")
+								const message = "Git extension not found"
+								getHostBridgeProvider().windowClient.showMessage(
+									ShowMessageRequest.create({
+										type: ShowMessageType.ERROR,
+										message,
+									}),
+								)
 							}
 						} else {
-							vscode.window.showErrorMessage("Failed to generate commit message")
+							const message = "Failed to generate commit message"
+							getHostBridgeProvider().windowClient.showMessage(
+								ShowMessageRequest.create({
+									type: ShowMessageType.ERROR,
+									message,
+								}),
+							)
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+						getHostBridgeProvider().windowClient.showMessage(
+							ShowMessageRequest.create({
+								type: ShowMessageType.ERROR,
+								message: `Failed to generate commit message: ${innerErrorMessage}`,
+							}),
+						)
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: `Failed to generate commit message: ${errorMessage}`,
+				}),
+			)
 		}
 	}
-
-	// dev
 }

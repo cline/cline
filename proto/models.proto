@@ -1,10 +1,9 @@
 syntax = "proto3";
 
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 // Service for model-related operations
 service ModelsService {
@@ -261,6 +260,8 @@ message ModelsApiConfiguration {
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
 
-  // Favorited model IDs
   repeated string favorited_model_ids = 300;
+  optional string cline_account_id = 301;
+  optional string aws_authentication = 302;
+  optional string aws_bedrock_api_key = 303;
 }

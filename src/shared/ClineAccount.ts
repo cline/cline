@@ -1,16 +1,45 @@
+export interface UserResponse {
+	id: string
+	email: string
+	displayName: string
+	photoUrl: string
+	createdAt: string
+	updatedAt: string
+	organizations: [
+		{
+			active: boolean
+			memberId: string
+			name: string
+			organizationId: string
+			roles: ["admin" | "member" | "owner"]
+		},
+	]
+}
+
 export interface BalanceResponse {
-	currentBalance: number
+	balance: number
+	userId: string
 }
 
 export interface UsageTransaction {
-	spentAt: string
-	creatorId: string
-	credits: number
-	modelProvider: string
-	model: string
-	promptTokens: number
+	aiInferenceProviderName: string
+	aiModelName: string
+	aiModelTypeName: string
 	completionTokens: number
+	costUsd: number
+	createdAt: string
+	creditsUsed: number
+	generationId: string
+	id: string
+	metadata: {
+		additionalProp1: string
+		additionalProp2: string
+		additionalProp3: string
+	}
+	organizationId: string
+	promptTokens: number
 	totalTokens: number
+	userId: string
 }
 
 export interface PaymentTransaction {
@@ -18,4 +47,32 @@ export interface PaymentTransaction {
 	creatorId: string
 	amountCents: number
 	credits: number
+}
+
+export interface OrganizationBalanceResponse {
+	balance: number
+	organizationId: string
+}
+
+export interface OrganizationUsageTransaction {
+	aiInferenceProviderName: string
+	aiModelName: string
+	aiModelTypeName: string
+	completionTokens: number
+	costUsd: number
+	createdAt: string
+	creditsUsed: number
+	generationId: string
+	id: string
+	memberDisplayName: string
+	memberEmail: string
+	metadata: {
+		additionalProp1: string
+		additionalProp2: string
+		additionalProp3: string
+	}
+	organizationId: string
+	promptTokens: number
+	totalTokens: number
+	userId: string
 }

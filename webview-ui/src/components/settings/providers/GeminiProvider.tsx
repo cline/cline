@@ -9,7 +9,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 // Gemini models that support thinking/reasoning mode
-const SUPPORTED_THINKING_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"]
+const SUPPORTED_THINKING_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite-preview-06-17"]
 
 /**
  * Props for the GeminiProvider component

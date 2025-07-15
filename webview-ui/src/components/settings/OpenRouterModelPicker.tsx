@@ -50,14 +50,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "moonshotai/kimi-k2",
+		description: "Latest open source model, trained for agentic tool calling.",
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-3",
-		description: "Latest flagship model from xAI, free for now!",
-		label: "Free",
+		id: "x-ai/grok-4",
+		description: "Latest flagship model from xAI",
+		label: "Fast & Cheap",
 	},
 ]
 
@@ -66,6 +66,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const { apiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
+	const [isSearchInputDirty, setIsSearchInputDirty] = useState(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -95,6 +96,23 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [apiConfiguration, currentMode])
 
 	useMount(refreshOpenRouterModels)
+
+	// Sync external changes only when user isn't actively typing
+	useEffect(() => {
+		if (!isSearchInputDirty) {
+			const currentModelId = apiConfiguration?.openRouterModelId || openRouterDefaultModelId
+			setSearchTerm(currentModelId)
+		}
+	}, [apiConfiguration?.openRouterModelId, isSearchInputDirty])
+
+	// Reset dirty flag after user stops typing (1 second timeout)
+	useEffect(() => {
+		if (!isSearchInputDirty) return
+		const timeout = setTimeout(() => {
+			setIsSearchInputDirty(false)
+		}, 1000)
+		return () => clearTimeout(timeout)
+	}, [searchTerm, isSearchInputDirty])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -250,6 +268,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						placeholder="Search and select a model..."
 						value={searchTerm}
 						onInput={(e) => {
+							setIsSearchInputDirty(true)
 							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
 							setIsDropdownVisible(true)
 						}}

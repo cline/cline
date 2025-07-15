@@ -308,7 +308,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 	return {
 		// Global configuration fields
 		apiKey: config.apiKey,
-		clineApiKey: config.clineApiKey,
+		clineAccountId: config.clineAccountId,
 		taskId: config.taskId,
 		liteLlmBaseUrl: config.liteLlmBaseUrl,
 		liteLlmApiKey: config.liteLlmApiKey,
@@ -324,7 +324,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		awsUseCrossRegionInference: config.awsUseCrossRegionInference,
 		awsBedrockUsePromptCache: config.awsBedrockUsePromptCache,
 		awsUseProfile: config.awsUseProfile,
+		awsAuthentication: config.awsAuthentication,
 		awsProfile: config.awsProfile,
+		awsBedrockApiKey: config.awsBedrockApiKey,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
 		claudeCodePath: config.claudeCodePath,
 		vertexProjectId: config.vertexProjectId,
@@ -415,7 +417,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 	return {
 		// Global configuration fields
 		apiKey: protoConfig.apiKey,
-		clineApiKey: protoConfig.clineApiKey,
+		clineAccountId: protoConfig.clineAccountId,
 		taskId: protoConfig.taskId,
 		liteLlmBaseUrl: protoConfig.liteLlmBaseUrl,
 		liteLlmApiKey: protoConfig.liteLlmApiKey,
@@ -431,7 +433,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		awsUseCrossRegionInference: protoConfig.awsUseCrossRegionInference,
 		awsBedrockUsePromptCache: protoConfig.awsBedrockUsePromptCache,
 		awsUseProfile: protoConfig.awsUseProfile,
+		awsAuthentication: protoConfig.awsAuthentication,
 		awsProfile: protoConfig.awsProfile,
+		awsBedrockApiKey: protoConfig.awsBedrockApiKey,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
 		claudeCodePath: protoConfig.claudeCodePath,
 		vertexProjectId: protoConfig.vertexProjectId,
