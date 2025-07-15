@@ -12,6 +12,7 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  rpc showInputBox(ShowInputBoxRequest) returns (SelectedResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +71,14 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+message ShowInputBoxRequest {
+  cline.Metadata metadata = 1;
+  string title = 2;
+  optional string prompt = 3;
+  optional string value = 4;
+  optional string place_holder = 5;
+  optional bool password = 6;
+  optional bool ignore_focus_out = 7;
 }

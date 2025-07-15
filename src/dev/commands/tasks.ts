@@ -4,7 +4,7 @@ import * as path from "path"
 import { Controller } from "@core/controller"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowInputBoxRequest, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /**
@@ -14,11 +14,15 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
-			const count = await vscode.window.showInputBox({
-				title: "Test Tasks",
-				prompt: "How many test tasks to create?",
-				value: "10",
-			})
+			const count = (
+				await getHostBridgeProvider().windowClient.showInputBox(
+					ShowInputBoxRequest.create({
+						title: "Test Tasks",
+						prompt: "How many test tasks to create?",
+						value: "10",
+					}),
+				)
+			)?.selectedOption
 
 			if (!count) {
 				return
