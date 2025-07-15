@@ -256,7 +256,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "moonshot" && (
-				<MoonshotProvider showModelOptions={showModelOptions} isPopup={isPopup} />
+				<MoonshotProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiConfiguration && selectedProvider === "nebius" && (

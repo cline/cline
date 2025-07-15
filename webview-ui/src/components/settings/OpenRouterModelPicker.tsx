@@ -100,10 +100,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	// Sync external changes only when user isn't actively typing
 	useEffect(() => {
 		if (!isSearchInputDirty) {
-			const currentModelId = apiConfiguration?.openRouterModelId || openRouterDefaultModelId
+			const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
 			setSearchTerm(currentModelId)
 		}
-	}, [apiConfiguration?.openRouterModelId, isSearchInputDirty])
+	}, [modeFields.openRouterModelId, isSearchInputDirty])
 
 	// Reset dirty flag after user stops typing (1 second timeout)
 	useEffect(() => {

@@ -148,11 +148,13 @@ export function normalizeApiConfiguration(
 			}
 		case "cline":
 			const clineOpenRouterModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
+				(currentMode === "plan"
+					? apiConfiguration?.planModeOpenRouterModelId
+					: apiConfiguration?.actModeOpenRouterModelId) || openRouterDefaultModelId
 			const clineOpenRouterModelInfo =
-				currentMode === "plan"
+				(currentMode === "plan"
 					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo
+					: apiConfiguration?.actModeOpenRouterModelInfo) || openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: clineOpenRouterModelId,
