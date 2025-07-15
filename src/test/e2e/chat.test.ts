@@ -17,7 +17,7 @@ e2e("Chat", async ({ page, sidebar }) => {
 	await expect(sidebar.getByText("API Request...")).toBeVisible()
 
 	// The request should eventually fail
-	await expect(sidebar.getByText("API Streaming Failed")).toBeVisible()
+	await expect(sidebar.getByText("API Request Failed")).toBeVisible()
 
 	await expect(inputbox).toBeVisible()
 
@@ -26,7 +26,7 @@ e2e("Chat", async ({ page, sidebar }) => {
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "Start New Task" }).click()
-	await expect(sidebar.getByText("API Streaming Failed")).not.toBeVisible()
+	await expect(sidebar.getByText("API Request Failed")).not.toBeVisible()
 	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 })
