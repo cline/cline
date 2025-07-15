@@ -20,7 +20,6 @@ jobs:
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
         with:
-          skip-checkout: 'true'
           install-args: '--frozen-lockfile'
       - name: Forge numeric Nightly version
         id: version

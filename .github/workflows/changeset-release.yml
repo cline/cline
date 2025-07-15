@@ -31,8 +31,6 @@ jobs:
           ref: ${{ env.GIT_REF }}
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
-        with:
-          skip-checkout: 'true'
 
       # Check if there are any new changesets to process
       - name: Check for changesets

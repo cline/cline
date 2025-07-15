@@ -25,8 +25,6 @@ jobs:
           ref: ${{ env.GIT_REF }}
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
-        with:
-          skip-checkout: 'true'
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
