@@ -8,6 +8,7 @@ import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
 import { UserInfo } from "./UserInfo"
 import { ClineError } from "../services/error/ClineError"
+import { McpDisplayMode } from "./McpDisplayMode"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -38,7 +39,7 @@ export interface ExtensionState {
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	mcpMarketplaceEnabled?: boolean
-	mcpRichDisplayEnabled: boolean
+	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
