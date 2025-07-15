@@ -172,6 +172,8 @@ message ApiConfiguration {
   optional string sap_ai_resource_group = 51;
   optional string sap_ai_core_token_url = 52;
   optional string sap_ai_core_base_url = 53;
+  optional string moonshot_api_key = 54;
+  optional string moonshot_api_line = 55;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;

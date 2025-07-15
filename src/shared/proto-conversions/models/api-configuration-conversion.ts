@@ -222,6 +222,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLINE
 		case "litellm":
 			return ProtoApiProvider.LITELLM
+		case "moonshot":
+			return ProtoApiProvider.MOONSHOT
 		case "nebius":
 			return ProtoApiProvider.NEBIUS
 		case "fireworks":
@@ -282,6 +284,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "cline"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
+		case ProtoApiProvider.MOONSHOT:
+			return "moonshot"
 		case ProtoApiProvider.NEBIUS:
 			return "nebius"
 		case ProtoApiProvider.FIREWORKS:
@@ -350,6 +354,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		mistralApiKey: config.mistralApiKey,
 		azureApiVersion: config.azureApiVersion,
 		qwenApiLine: config.qwenApiLine,
+		moonshotApiLine: config.moonshotApiLine,
+		moonshotApiKey: config.moonshotApiKey,
 		nebiusApiKey: config.nebiusApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
@@ -459,6 +465,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		mistralApiKey: protoConfig.mistralApiKey,
 		azureApiVersion: protoConfig.azureApiVersion,
 		qwenApiLine: protoConfig.qwenApiLine,
+		moonshotApiLine: protoConfig.moonshotApiLine,
+		moonshotApiKey: protoConfig.moonshotApiKey,
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,

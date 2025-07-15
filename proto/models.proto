@@ -122,6 +122,7 @@ enum ApiProvider {
   CEREBRAS = 23;
   SAPAICORE = 24;
   CLAUDE_CODE = 25;
+  MOONSHOT = 26;
 }
 
 // Model info for OpenAI-compatible models
@@ -215,6 +216,11 @@ message ModelsApiConfiguration {
   optional string sap_ai_resource_group = 51;
   optional string sap_ai_core_token_url = 52;
   optional string sap_ai_core_base_url = 53;
+  optional string moonshot_api_key = 54;
+  optional string moonshot_api_line = 55;
+  optional string aws_authentication = 56;
+  optional string aws_bedrock_api_key = 57;
+  optional string cline_account_id = 58;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -261,7 +267,4 @@ message ModelsApiConfiguration {
   optional string act_mode_sap_ai_core_model_id = 219;
 
   repeated string favorited_model_ids = 300;
-  optional string cline_account_id = 301;
-  optional string aws_authentication = 302;
-  optional string aws_bedrock_api_key = 303;
 }

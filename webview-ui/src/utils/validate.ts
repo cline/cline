@@ -110,6 +110,11 @@ export function validateApiConfiguration(currentMode: "plan" | "act", apiConfigu
 					return "You must provide a valid model selector."
 				}
 				break
+			case "moonshot":
+				if (!apiConfiguration.moonshotApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "nebius":
 				if (!apiConfiguration.nebiusApiKey) {
 					return "You must provide a valid API key or choose a different provider."

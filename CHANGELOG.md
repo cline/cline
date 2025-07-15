@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.19.4]
+
+-   Add ability to choose Chinese endpoint for Moonshot provider
+
+## [3.19.3]
+
+-   Add Moonshot AI provider
+
+## [3.19.2]
+
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
+
+## [3.19.1]
+
+-   Fix documentation
+
+## [3.19.0]
+
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
+
 ## [3.18.14]
 
 -   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
@@ -40,7 +61,7 @@
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
--   Add organization organization accounts
+-   Add organization accounts
 
 ## [3.18.5]
 

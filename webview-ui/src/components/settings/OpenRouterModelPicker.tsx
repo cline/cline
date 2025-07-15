@@ -50,14 +50,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "moonshotai/kimi-k2",
-		description: "Latest open source model, trained for agentic tool calling.",
+		id: "google/gemini-2.5-pro",
+		description: "Large 1M context window, great value",
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-4",
-		description: "Latest flagship model from xAI",
-		label: "Fast & Cheap",
+		id: "moonshotai/kimi-k2",
+		description: "Open source model topping coding benchmarks",
+		label: "New",
 	},
 ]
 

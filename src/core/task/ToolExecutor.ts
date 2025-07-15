@@ -41,7 +41,6 @@ import os from "os"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
 import { constructNewFileContent } from "../assistant-message/diff"
@@ -842,28 +841,10 @@ export class ToolExecutor {
 						// now execute the tool like normal
 						const content = await extractTextFromFile(absolutePath)
 
-						// Get diagnostics for this specific file only
-						const fileUri = vscode.Uri.file(absolutePath)
-						const fileDiagnostics = vscode.languages.getDiagnostics(fileUri)
-
-						// Format diagnostics if any exist
-						let diagnosticsMessage = ""
-						if (fileDiagnostics.length > 0) {
-							const problemsString = await diagnosticsToProblemsString(
-								[[fileUri, fileDiagnostics]],
-								[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
-							)
-
-							diagnosticsMessage = `\n\n---\nNOTE: This file has linter issues. Only address these if they're relevant to your current task:\n${problemsString}\n---`
-						}
-
-						// Combine content with diagnostics
-						const finalContent = content + diagnosticsMessage
-
 						// Track file read operation
 						await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-						this.pushToolResult(finalContent, block)
+						this.pushToolResult(content, block)
 						await this.saveCheckpoint()
 						break
 					}

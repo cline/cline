@@ -34,6 +34,8 @@ import {
 	doubaoModels,
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
+	moonshotModels,
+	moonshotDefaultModelId,
 	nebiusModels,
 	nebiusDefaultModelId,
 	cerebrasModels,
@@ -207,6 +209,8 @@ export function normalizeApiConfiguration(
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "moonshot":
+			return getProviderData(moonshotModels, moonshotDefaultModelId)
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
