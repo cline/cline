@@ -115,8 +115,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const message = event.data
 
 				if (message.type === "enhancedPrompt") {
-					if (message.text) {
-						setInputValue(message.text)
+					if (message.text && textAreaRef.current) {
+						try {
+							// Use execCommand to replace text while preserving undo history
+							if (document.execCommand) {
+								// Use native browser methods to preserve undo stack
+								const textarea = textAreaRef.current
+
+								// Focus the textarea to ensure it's the active element
+								textarea.focus()
+
+								// Select all text first
+								textarea.select()
+								document.execCommand("insertText", false, message.text)
+							} else {
+								setInputValue(message.text)
+							}
+						} catch {
+							setInputValue(message.text)
+						}
 					}
 
 					setIsEnhancingPrompt(false)
