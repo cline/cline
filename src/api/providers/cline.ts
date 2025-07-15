@@ -68,12 +68,6 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			// Only continue the request if the user:
-			// 1. Has signed in to Cline with a token
-			// 2. Has more than 0 credits
-			// Or an error is thrown.
-			await this.clineAccountService.validateRequest()
-
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
