@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.19.3
+
+### Patch Changes
+
+-   4ecbecb: Add Moonshot AI provider
+
 ## [3.19.2]
 
 -   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
