@@ -122,6 +122,7 @@ enum ApiProvider {
   CEREBRAS = 23;
   SAPAICORE = 24;
   CLAUDE_CODE = 25;
+  MOONSHOT = 26;
 }
 
 // Model info for OpenAI-compatible models
@@ -237,4 +238,6 @@ message ModelsApiConfiguration {
   optional string claude_code_path = 73;
   optional string aws_authentication = 74;
   optional string aws_bedrock_api_key = 75;
+  optional string moonshot_api_key = 76;
+  optional string moonshot_api_line = 77;
 }

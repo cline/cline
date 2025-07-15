@@ -27,6 +27,7 @@ import { SambanovaHandler } from "./providers/sambanova"
 import { CerebrasHandler } from "./providers/cerebras"
 import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
+import { MoonshotHandler } from "./providers/moonshot"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -186,6 +187,12 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 				thinkingBudgetTokens: options.thinkingBudgetTokens,
 				liteLlmUsePromptCache: options.liteLlmUsePromptCache,
 				taskId: options.taskId,
+			})
+		case "moonshot":
+			return new MoonshotHandler({
+				moonshotApiKey: options.moonshotApiKey,
+				moonshotApiLine: options.moonshotApiLine,
+				apiModelId: options.apiModelId,
 			})
 		case "nebius":
 			return new NebiusHandler({

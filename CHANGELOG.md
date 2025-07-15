@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.19.4]
+
+-   Add ability to choose Chinese endpoint for Moonshot provider
+
+## [3.19.3]
+
+-   Add Moonshot AI provider
+
 ## [3.19.2]
 
 -   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
