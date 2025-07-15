@@ -3,11 +3,14 @@ syntax = "proto3";
 package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
+import "common.proto";
 
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+  // Returns the path to the ripgrep binary for file searching.
+  rpc getRipgrepBinaryPath(cline.EmptyRequest) returns (cline.String);
 }
 
 message GetWorkspacePathsRequest {

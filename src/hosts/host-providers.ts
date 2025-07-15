@@ -21,7 +21,7 @@ export function initializeHostProviders(
 	webviewProviderCreator: WebviewProviderCreator,
 	diffViewProviderCreator: DiffViewProviderCreator,
 	hostBridgeProvider: HostBridgeClientProvider,
-	binaryInstallPath: string = "",
+	binaryInstallPath: string,
 ) {
 	_webviewProviderCreator = webviewProviderCreator
 	_diffViewProviderCreator = diffViewProviderCreator
