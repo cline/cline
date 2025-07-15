@@ -25,7 +25,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			<div className="mb-2">{message}</div>
 			<div className="mb-3">
 				<div className="text-[var(--vscode-foreground)]">
-					Current Balance: <span className="font-bold">${(currentBalance / 1000000).toFixed(4)}</span>
+					Current Balance: <span className="font-bold">${currentBalance.toFixed(4)}</span>
 				</div>
 			</div>
 

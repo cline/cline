@@ -30,8 +30,12 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
 			onResponse: async (response: any) => {
 				console.log("Extension: ClineAuthContext: Received auth status update:", response)
-				if (response && response.user) {
-					setUser(response.user)
+				if (response) {
+					if (response.user) {
+						setUser(response.user)
+					} else {
+						setUser(null)
+					}
 				}
 			},
 			onError: (error: Error) => {
