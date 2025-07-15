@@ -50,9 +50,6 @@ export class Controller {
 	private disposables: vscode.Disposable[] = []
 	task?: Task
 
-	get currentMode(): "plan" | "act" {
-		return this.mode
-	}
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
@@ -338,10 +335,11 @@ export class Controller {
 
 			// Get current settings to determine how to update providers
 			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
+			const currentMode = await this.getCurrentMode()
 
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
-				if (this.mode === "plan") {
+				if (currentMode === "plan") {
 					await updateGlobalState(this.context, "planModeApiProvider", clineProvider)
 				} else {
 					await updateGlobalState(this.context, "actModeApiProvider", clineProvider)
@@ -365,7 +363,7 @@ export class Controller {
 			await updateGlobalState(this.context, "welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig, this.mode)
+				this.task.api = buildApiHandler(updatedConfig, currentMode)
 			}
 
 			await this.postStateToWebview()
@@ -526,6 +524,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
+		const currentMode = await this.getCurrentMode()
 		await Promise.all([
 			updateGlobalState(this.context, "planModeApiProvider", openrouter),
 			updateGlobalState(this.context, "actModeApiProvider", openrouter),
@@ -539,7 +538,7 @@ export class Controller {
 				...apiConfiguration,
 				openRouterApiKey: apiKey,
 			}
-			this.task.api = buildApiHandler(updatedConfig, this.mode)
+			this.task.api = buildApiHandler(updatedConfig, currentMode)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -920,9 +919,10 @@ Commit message:`
 
 						// Get the current API configuration
 						const { apiConfiguration } = await getAllExtensionState(this.context)
+						const currentMode = await this.getCurrentMode()
 
 						// Build the API handler
-						const apiHandler = buildApiHandler(apiConfiguration, this.mode)
+						const apiHandler = buildApiHandler(apiConfiguration, currentMode)
 
 						// Create a system prompt
 						const systemPrompt =

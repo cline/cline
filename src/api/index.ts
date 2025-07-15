@@ -69,6 +69,8 @@ function createHandlerForProvider(
 				awsSecretKey: options.awsSecretKey,
 				awsSessionToken: options.awsSessionToken,
 				awsRegion: options.awsRegion,
+				awsAuthentication: options.awsAuthentication,
+				awsBedrockApiKey: options.awsBedrockApiKey,
 				awsUseCrossRegionInference: options.awsUseCrossRegionInference,
 				awsBedrockUsePromptCache: options.awsBedrockUsePromptCache,
 				awsUseProfile: options.awsUseProfile,
@@ -182,7 +184,7 @@ function createHandlerForProvider(
 			})
 		case "cline":
 			return new ClineHandler({
-				clineApiKey: options.clineApiKey,
+				clineAccountId: options.clineAccountId,
 				taskId: options.taskId,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
