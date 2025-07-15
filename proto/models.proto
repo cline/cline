@@ -239,4 +239,5 @@ message ModelsApiConfiguration {
   optional string aws_authentication = 74;
   optional string aws_bedrock_api_key = 75;
   optional string moonshot_api_key = 76;
+  optional string moonshot_api_line = 77;
 }
