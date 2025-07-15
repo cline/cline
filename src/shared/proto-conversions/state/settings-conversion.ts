@@ -102,6 +102,9 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		// Qwen specific
 		qwenApiLine: config.qwenApiLine,
 
+		// Moonshot specific
+		moonshotApiLine: config.moonshotApiLine,
+
 		// OpenRouter specific
 		openrouterProviderSorting: config.openRouterProviderSorting,
 
@@ -220,6 +223,9 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// Qwen specific
 		qwenApiLine: protoConfig.qwenApiLine,
+
+		// Moonshot specific
+		moonshotApiLine: protoConfig.moonshotApiLine,
 
 		// OpenRouter specific
 		openRouterProviderSorting: protoConfig.openrouterProviderSorting,

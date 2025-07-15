@@ -191,6 +191,7 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 		case "moonshot":
 			return new MoonshotHandler({
 				moonshotApiKey: options.moonshotApiKey,
+				moonshotApiLine: options.moonshotApiLine,
 				apiModelId: options.apiModelId,
 			})
 		case "nebius":

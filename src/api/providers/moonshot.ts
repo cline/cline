@@ -8,6 +8,7 @@ import { ModelInfo, MoonshotModelId, moonshotModels, moonshotDefaultModelId } fr
 
 interface MoonshotHandlerOptions {
 	moonshotApiKey?: string
+	moonshotApiLine?: string
 	apiModelId?: string
 }
 
@@ -23,7 +24,8 @@ export class MoonshotHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.moonshot.ai/v1",
+					baseURL:
+						this.options.moonshotApiLine === "china" ? "https://api.moonshot.cn/v1" : "https://api.moonshot.ai/v1",
 					apiKey: this.options.moonshotApiKey,
 				})
 			} catch (error) {
