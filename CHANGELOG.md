@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.23.11] - 2025-07-14
+
+- Add Kimi K2 model to Groq along with fixes to context condensing math
+- Add Cmd+Shift+. keyboard shortcut for previous mode switching
+
 ## [3.23.10] - 2025-07-14
 
 - Prioritize built-in model dimensions over custom dimensions (thanks @daniel-lxs!)
