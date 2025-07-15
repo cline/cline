@@ -29,6 +29,11 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
+/**
+ * Maximum length for error messages to prevent excessive data
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 500
+
 class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
@@ -83,6 +88,8 @@ class TelemetryService {
 			BROWSER_ERROR: "task.browser_error",
 			// Tracks Gemini API specific performance metrics
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
+			// Tracks when API providers return errors
+			PROVIDER_API_ERROR: "task.provider_api_error",
 			// Collection of all task events
 			TASK_COLLECTION: "task.collection",
 		},
@@ -714,6 +721,38 @@ class TelemetryService {
 				properties: {
 					button,
 					taskId,
+				},
+			},
+			collect,
+		)
+	}
+
+	/**
+	 * Records telemetry when an API provider returns an error
+	 * @param taskId Unique identifier for the task
+	 * @param model Identifier of the model used
+	 * @param requestId Unique identifier for the specific API request
+	 * @param errorMessage Detailed error message from the API provider
+	 * @param errorStatus HTTP status code of the error response, if available
+	 * @param collect Optional flag to determine if the event should be collected for batch sending
+	 */
+	public captureProviderApiError(
+		args: {
+			taskId: string
+			model: string
+			errorMessage: string
+			errorStatus?: number | undefined
+			requestId?: string | undefined
+		},
+		collect: boolean = true,
+	) {
+		this.capture(
+			{
+				event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
+				properties: {
+					...args,
+					errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
+					timestamp: new Date().toISOString(),
 				},
 			},
 			collect,
