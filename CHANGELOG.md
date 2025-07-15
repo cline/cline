@@ -2,13 +2,8 @@
 
 ## 3.19.0
 
-### Minor Changes
-
 -   5b68ee5: Add Kimi-K2 as the trending model in the Cline Provider
 -   260e0d5: Added API Key support for Bedrock integration
-
-### Patch Changes
-
 -   3069e27: Add groq to kimi providers
 
 ## [3.18.14]
