@@ -83,7 +83,7 @@ export class Controller {
 		})
 	}
 
-	private async getCurrentMode(): Promise<"plan" | "act"> {
+	async getCurrentMode(): Promise<"plan" | "act"> {
 		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 

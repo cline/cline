@@ -209,7 +209,7 @@ function createHandlerForProvider(
 			return new MoonshotHandler({
 				moonshotApiKey: options.moonshotApiKey,
 				moonshotApiLine: options.moonshotApiLine,
-				apiModelId: options.apiModelId,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "nebius":
 			return new NebiusHandler({

@@ -31,7 +31,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
-				const currentMode = controller.currentMode
+				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
 					// Separate models: update only current mode
