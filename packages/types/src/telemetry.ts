@@ -89,6 +89,14 @@ export const taskPropertiesSchema = z.object({
 	modelId: z.string().optional(),
 	diffStrategy: z.string().optional(),
 	isSubtask: z.boolean().optional(),
+	todos: z
+		.object({
+			total: z.number(),
+			completed: z.number(),
+			inProgress: z.number(),
+			pending: z.number(),
+		})
+		.optional(),
 })
 
 export const gitPropertiesSchema = z.object({
