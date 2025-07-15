@@ -50,9 +50,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
-		// Update MCP responses collapsed setting
-		if (request.mcpRichDisplayEnabled !== undefined) {
-			await controller.context.globalState.update("mcpRichDisplayEnabled", request.mcpRichDisplayEnabled)
+		// Update MCP display mode setting
+		if (request.mcpDisplayMode !== undefined) {
+			await controller.context.globalState.update("mcpDisplayMode", request.mcpDisplayMode)
 		}
 
 		// Update chat settings

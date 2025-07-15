@@ -31,6 +31,7 @@ import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/share
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 import { UserInfo } from "@shared/proto/account"
+import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -189,7 +190,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
-		mcpRichDisplayEnabled: true,
+		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
@@ -762,7 +763,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 						enableCheckpointsSetting: state.enableCheckpointsSetting,
 						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-						mcpRichDisplayEnabled: state.mcpRichDisplayEnabled,
+						mcpDisplayMode: state.mcpDisplayMode,
 						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 					}),
 				)

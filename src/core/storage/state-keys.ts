@@ -76,7 +76,7 @@ export type GlobalStateKey =
 	| "isNewUser"
 	| "welcomeViewCompleted"
 	| "terminalOutputLineLimit"
-	| "mcpRichDisplayEnabled"
+	| "mcpDisplayMode"
 	| "sapAiCoreTokenUrl"
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
