@@ -39,6 +39,132 @@ describe("getLiteLLMModels", () => {
 		})
 	})
 
+	it("handles base URLs with a path correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/v1/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with a path and trailing slash correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm/")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/v1/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with double slashes correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm//")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/v1/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with query parameters correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm?key=value")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/v1/model/info?key=value", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with fragments correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000/litellm#section")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/litellm/v1/model/info#section", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
+	it("handles base URLs with port and no path correctly", async () => {
+		const mockResponse = {
+			data: {
+				data: [],
+			},
+		}
+
+		mockedAxios.get.mockResolvedValue(mockResponse)
+
+		await getLiteLLMModels("test-api-key", "http://localhost:4000")
+
+		expect(mockedAxios.get).toHaveBeenCalledWith("http://localhost:4000/v1/model/info", {
+			headers: {
+				Authorization: "Bearer test-api-key",
+				"Content-Type": "application/json",
+				...DEFAULT_HEADERS,
+			},
+			timeout: 5000,
+		})
+	})
+
 	it("successfully fetches and formats LiteLLM models", async () => {
 		const mockResponse = {
 			data: {
