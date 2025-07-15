@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.19.4
+## [3.19.4]
 
--   cb9a339: Add ability to choose chinese endpoint for Moonshot provider
+-   Add ability to choose Chinese endpoint for Moonshot provider
 
 ## [3.19.3]
 
