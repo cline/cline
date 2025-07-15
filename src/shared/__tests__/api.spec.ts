@@ -76,7 +76,7 @@ describe("getModelMaxOutputTokens", () => {
 		expect(result).toBe(32000)
 	})
 
-	test("should return 20% of context window when maxTokens is undefined", () => {
+	test("should return default of 8192 when maxTokens is undefined", () => {
 		const modelWithoutMaxTokens: ModelInfo = {
 			contextWindow: 100000,
 			supportsPromptCache: true,
@@ -88,7 +88,7 @@ describe("getModelMaxOutputTokens", () => {
 			settings: {},
 		})
 
-		expect(result).toBe(20000) // 20% of 100000
+		expect(result).toBe(8192)
 	})
 
 	test("should return ANTHROPIC_DEFAULT_MAX_TOKENS for Anthropic models that support reasoning budget but aren't using it", () => {

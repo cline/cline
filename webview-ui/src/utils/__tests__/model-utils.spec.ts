@@ -17,33 +17,33 @@ describe("calculateTokenDistribution", () => {
 		expect(Math.round(result.currentPercent + result.reservedPercent + result.availablePercent)).toBe(100)
 	})
 
-	it("should default to 20% of context window when maxTokens not provided", () => {
-		const contextWindow = 10000
+	it("should default to 8192 when maxTokens not provided", () => {
+		const contextWindow = 20000
 		const contextTokens = 5000
 
 		const result = calculateTokenDistribution(contextWindow, contextTokens)
 
-		expect(result.reservedForOutput).toBe(2000) // 20% of 10000
-		expect(result.availableSize).toBe(3000) // 10000 - 5000 - 2000
+		expect(result.reservedForOutput).toBe(8192)
+		expect(result.availableSize).toBe(6808) // 20000 - 5000 - 8192
 	})
 
 	it("should handle negative or zero inputs by using positive fallbacks", () => {
 		const result = calculateTokenDistribution(-1000, -500)
 
 		expect(result.currentPercent).toBe(0)
-		expect(result.reservedPercent).toBe(0)
+		expect(result.reservedPercent).toBe(100) // 8192 / 8192 = 100%
 		expect(result.availablePercent).toBe(0)
-		expect(result.reservedForOutput).toBe(0) // With negative inputs, both context window and tokens become 0, so 20% of 0 is 0
-		expect(result.availableSize).toBe(0)
+		expect(result.reservedForOutput).toBe(8192) // Uses ANTHROPIC_DEFAULT_MAX_TOKENS
+		expect(result.availableSize).toBe(0) // max(0, 0 - 0 - 8192) = 0
 	})
 
-	it("should handle zero total tokens without division by zero errors", () => {
-		const result = calculateTokenDistribution(0, 0, 0)
+	it("should handle zero context window without division by zero errors", () => {
+		const result = calculateTokenDistribution(0, 0)
 
 		expect(result.currentPercent).toBe(0)
-		expect(result.reservedPercent).toBe(0)
+		expect(result.reservedPercent).toBe(100) // When contextWindow is 0, reserved gets 100%
 		expect(result.availablePercent).toBe(0)
-		expect(result.reservedForOutput).toBe(0)
+		expect(result.reservedForOutput).toBe(8192) // Uses ANTHROPIC_DEFAULT_MAX_TOKENS when no maxTokens provided
 		expect(result.availableSize).toBe(0)
 	})
 })
