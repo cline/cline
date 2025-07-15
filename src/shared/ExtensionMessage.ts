@@ -3,6 +3,7 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { DictationSettings } from "./DictationSettings"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
@@ -31,6 +32,7 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	dictationSettings: DictationSettings
 	remoteBrowserHost?: string
 	chatSettings: ChatSettings
 	checkpointTrackerErrorMessage?: string
