@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.19.2
+
+### Patch Changes
+
+-   575cfd4: Includes request ID in error returned by Cline API
+
 ## [3.19.1]
 
 -   Fix documentation
