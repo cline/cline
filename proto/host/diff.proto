@@ -10,6 +10,7 @@ import "common.proto";
 service DiffService {
   // Open the diff view/editor.
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
+  rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
 }
 
 message OpenDiffRequest {
@@ -21,5 +22,18 @@ message OpenDiffRequest {
 }
 
 message OpenDiffResponse {
-  // TODO(sfortune) the host needs to return a unique id for the diff editor.
+  // A unique identifier for the diff view that was opened.
+  optional string diff_id = 1;
+}
+
+message ReplaceTextRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+  optional string content = 3;
+  optional int32 start_line = 4;
+  optional int32 end_line = 5;
+}
+
+message ReplaceTextResponse {
+  // TBD
 }
