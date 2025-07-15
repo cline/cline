@@ -1,10 +1,8 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useState } from "react"
-import { BadgeCent } from "lucide-react"
+import { memo, useCallback, useEffect, useState, useRef } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
-import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -12,6 +10,64 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
+
+// Custom hook for animated credit display with styled decimals
+const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
+	const [currentValue, setCurrentValue] = useState(0)
+	const animationRef = useRef<number>()
+	const startTimeRef = useRef<number>()
+
+	useEffect(() => {
+		const animate = (timestamp: number) => {
+			if (!startTimeRef.current) {
+				startTimeRef.current = timestamp
+			}
+
+			const elapsed = timestamp - startTimeRef.current
+			const progress = Math.min(elapsed / duration, 1)
+
+			// Easing function (ease-out)
+			const easedProgress = 1 - Math.pow(1 - progress, 3)
+			const newValue = easedProgress * targetValue
+
+			setCurrentValue(newValue)
+
+			if (progress < 1) {
+				animationRef.current = requestAnimationFrame(animate)
+			}
+		}
+
+		// Reset and start animation
+		startTimeRef.current = undefined
+		animationRef.current = requestAnimationFrame(animate)
+
+		return () => {
+			if (animationRef.current) {
+				cancelAnimationFrame(animationRef.current)
+			}
+		}
+	}, [targetValue, duration])
+
+	return currentValue
+}
+
+// Custom component to handle styled credit display
+const StyledCreditDisplay = ({ balance }: { balance: number }) => {
+	const animatedValue = useAnimatedCredits(formatCreditsBalance(balance))
+	const formatted = animatedValue.toFixed(4)
+	const parts = formatted.split(".")
+	const wholePart = parts[0]
+	const decimalPart = parts[1] || "0000"
+	const firstTwoDecimals = decimalPart.slice(0, 2)
+	const lastTwoDecimals = decimalPart.slice(2)
+
+	return (
+		<span className="font-azeret-mono font-light tabular-nums">
+			{wholePart}.{firstTwoDecimals}
+			<span className="text-[var(--vscode-descriptionForeground)]">{lastTwoDecimals}</span>
+		</span>
+	)
+}
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -146,13 +202,13 @@ export const ClineAccountView = () => {
 				<div className="flex flex-col pr-3 h-full">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
-							{user.photoUrl ? (
+							{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
-							) : (
-								<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
-									{user.displayName?.[0] || user.email?.[0] || "?"}
-								</div>
-							)}
+							) : ( */}
+							<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+								{user.displayName?.[0] || user.email?.[0] || "?"}
+							</div>
+							{/* )} */}
 
 							<div className="flex flex-col">
 								{user.displayName && (
@@ -200,7 +256,9 @@ export const ClineAccountView = () => {
 
 					{activeOrganization === null && (
 						<div className="w-full flex flex-col items-center">
-							<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
+							<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3 font-azeret-mono font-light">
+								CURRENT BALANCE
+							</div>
 
 							<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
 								{isLoading ? (
@@ -211,8 +269,7 @@ export const ClineAccountView = () => {
 											<span>----</span>
 										) : (
 											<>
-												<BadgeCent className="size-6 text-[var(--vscode-foreground)]" />
-												<CountUp end={formatCreditsBalance(balance)} duration={0.66} decimals={4} />
+												<StyledCreditDisplay balance={balance} />
 											</>
 										)}
 										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>

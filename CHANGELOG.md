@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.18.15]
+
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
+
+## [3.18.14]
+
+-   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
+
+## [3.18.13]
+
+-   Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+
 ## [3.18.12]
 
 -   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
