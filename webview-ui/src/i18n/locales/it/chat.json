@@ -123,6 +123,7 @@
 	"separator": "Separatore",
 	"edit": "Modifica...",
 	"forNextMode": "per la prossima modalità",
+	"forPreviousMode": "per la modalità precedente",
 	"instructions": {
 		"wantsToFetch": "Roo vuole recuperare istruzioni dettagliate per aiutare con l'attività corrente"
 	},

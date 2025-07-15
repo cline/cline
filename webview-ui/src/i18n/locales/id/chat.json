@@ -137,6 +137,7 @@
 	"separator": "Pemisah",
 	"edit": "Edit...",
 	"forNextMode": "untuk mode selanjutnya",
+	"forPreviousMode": "untuk mode sebelumnya",
 	"apiRequest": {
 		"title": "Permintaan API",
 		"failed": "Permintaan API Gagal",

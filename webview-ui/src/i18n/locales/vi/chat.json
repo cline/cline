@@ -123,6 +123,7 @@
 	"separator": "Dấu phân cách",
 	"edit": "Chỉnh sửa...",
 	"forNextMode": "cho chế độ tiếp theo",
+	"forPreviousMode": "cho chế độ trước đó",
 	"error": "Lỗi",
 	"diffError": {
 		"title": "Chỉnh sửa không thành công"

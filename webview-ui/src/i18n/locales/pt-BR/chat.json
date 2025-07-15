@@ -123,6 +123,7 @@
 	"separator": "Separador",
 	"edit": "Editar...",
 	"forNextMode": "para o próximo modo",
+	"forPreviousMode": "para o modo anterior",
 	"error": "Erro",
 	"diffError": {
 		"title": "Edição mal-sucedida"

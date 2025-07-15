@@ -123,6 +123,7 @@
 	"separator": "विभाजक",
 	"edit": "संपादित करें...",
 	"forNextMode": "अगले मोड के लिए",
+	"forPreviousMode": "पिछले मोड के लिए",
 	"error": "त्रुटि",
 	"diffError": {
 		"title": "संपादन असफल"

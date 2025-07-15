@@ -123,6 +123,7 @@
 	"separator": "Ayırıcı",
 	"edit": "Düzenle...",
 	"forNextMode": "sonraki mod için",
+	"forPreviousMode": "önceki mod için",
 	"error": "Hata",
 	"diffError": {
 		"title": "Düzenleme Başarısız"

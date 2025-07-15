@@ -123,6 +123,7 @@
 	"separator": "分隔符號",
 	"edit": "編輯...",
 	"forNextMode": "用於下一個模式",
+	"forPreviousMode": "用於上一個模式",
 	"error": "錯誤",
 	"diffError": {
 		"title": "編輯失敗"

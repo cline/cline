@@ -123,6 +123,7 @@
 	"separator": "Scheidingsteken",
 	"edit": "Bewerken...",
 	"forNextMode": "voor volgende modus",
+	"forPreviousMode": "voor vorige modus",
 	"apiRequest": {
 		"title": "API-verzoek",
 		"failed": "API-verzoek mislukt",

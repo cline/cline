@@ -123,6 +123,7 @@
 	"separator": "Разделитель",
 	"edit": "Редактировать...",
 	"forNextMode": "для следующего режима",
+	"forPreviousMode": "для предыдущего режима",
 	"apiRequest": {
 		"title": "API-запрос",
 		"failed": "API-запрос не выполнен",

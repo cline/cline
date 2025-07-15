@@ -131,6 +131,7 @@
 	"separator": "Separator",
 	"edit": "Edit...",
 	"forNextMode": "for next mode",
+	"forPreviousMode": "for previous mode",
 	"apiRequest": {
 		"title": "API Request",
 		"failed": "API Request Failed",

@@ -123,6 +123,7 @@
 	"separator": "分隔符",
 	"edit": "编辑...",
 	"forNextMode": "用于下一个模式",
+	"forPreviousMode": "用于上一个模式",
 	"error": "错误",
 	"diffError": {
 		"title": "编辑失败"

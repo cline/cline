@@ -123,6 +123,7 @@
 	"separator": "Trennlinie",
 	"edit": "Bearbeiten...",
 	"forNextMode": "für nächsten Modus",
+	"forPreviousMode": "für vorherigen Modus",
 	"error": "Fehler",
 	"diffError": {
 		"title": "Bearbeitung fehlgeschlagen"

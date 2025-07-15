@@ -123,6 +123,7 @@
 	"separator": "区切り",
 	"edit": "編集...",
 	"forNextMode": "次のモード用",
+	"forPreviousMode": "前のモード用",
 	"error": "エラー",
 	"diffError": {
 		"title": "編集に失敗しました"

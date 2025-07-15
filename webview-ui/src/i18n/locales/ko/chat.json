@@ -123,6 +123,7 @@
 	"separator": "구분자",
 	"edit": "편집...",
 	"forNextMode": "다음 모드용",
+	"forPreviousMode": "이전 모드용",
 	"error": "오류",
 	"diffError": {
 		"title": "편집 실패"
