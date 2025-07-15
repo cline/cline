@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.19.2]
+
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
+
+## [3.19.1]
+
+-   Fix documentation
+
+## [3.19.0]
+
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
+
+## [3.18.14]
+
+-   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
+
+## [3.18.13]
+
+-   Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+
+## [3.18.12]
+
+-   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
+-   Fix insufficient credits error display to properly show error messages when account balance is too low
+-   Improve credit balance validation and error handling for Cline provider requests
+
 ## [3.18.11]
 
 -   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
@@ -26,7 +53,7 @@
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
--   Add organization organization accounts
+-   Add organization accounts
 
 ## [3.18.5]
 

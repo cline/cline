@@ -50,8 +50,10 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
+	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: BedrockModelId
@@ -2094,7 +2096,8 @@ export const xaiModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // will have different pricing for long context vs short context
-		outputPrice: 6.0,
+		cacheReadsPrice: 0.75,
+		outputPrice: 15.0,
 	},
 	"grok-3-beta": {
 		maxTokens: 8192,
