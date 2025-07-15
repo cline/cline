@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.19.0
+## [3.18.15]
 
--   5b68ee5: Add Kimi-K2 as the trending model in the Cline Provider
--   260e0d5: Added API Key support for Bedrock integration
--   3069e27: Add groq to kimi providers
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
 
 ## [3.18.14]
 
