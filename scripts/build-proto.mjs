@@ -426,9 +426,7 @@ service ${serviceClassName} {
 async function generateHostBridgeMethodRegistrations() {
 	log_verbose(chalk.cyan("Generating host method registration files..."))
 	// Host service directories derived from imported hostServiceNameMap
-	const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) =>
-		path.join("src/hosts/vscode/hostbridge", serviceKey),
-	)
+	const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join("src/hosts/vscode", serviceKey))
 
 	// Parse proto files for streaming methods
 	const hostProtoFiles = await globby("*.proto", { cwd: path.join(PROTO_DIR, "host") })
@@ -458,7 +456,7 @@ import { registerMethod } from "./index"\n`
 		// Import implementations directly
 		for (const file of implementationFiles) {
 			const baseName = path.basename(file, ".ts")
-			methodsContent += `import { ${baseName} } from "./${baseName}"\n`
+			methodsContent += `import { ${baseName} } from "@hosts/vscode/${serviceName}/${baseName}"\n`
 		}
 
 		// Add streaming methods information
