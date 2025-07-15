@@ -89,7 +89,7 @@ export const groqModels = {
 		description: "DeepSeek R1 Distill Llama 70B model, 128K context.",
 	},
 	"moonshotai/kimi-k2-instruct": {
-		maxTokens: 8192,
+		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
