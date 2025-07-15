@@ -1,4 +1,11 @@
-import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeDivider,
+	VSCodeLink,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeTag,
+} from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState, useRef } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -93,6 +100,15 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 			</div>
 		</div>
 	)
+}
+
+const getMainRole = (roles?: string[]) => {
+	if (!roles) return undefined
+
+	if (roles.includes("owner")) return "Owner"
+	if (roles.includes("admin")) return "Admin"
+
+	return "Member"
 }
 
 export const ClineAccountView = () => {
@@ -221,21 +237,28 @@ export const ClineAccountView = () => {
 									<div className="text-sm text-[var(--vscode-descriptionForeground)]">{user.email}</div>
 								)}
 
-								{userOrganizations && (
-									<VSCodeDropdown
-										key={activeOrganization?.organizationId || "personal"}
-										currentValue={activeOrganization?.organizationId || ""}
-										onChange={handleOrganizationChange}
-										disabled={isSwitchingOrg || isLoading}
-										style={{ width: "100%", marginTop: "4px" }}>
-										<VSCodeOption value="">Personal</VSCodeOption>
-										{userOrganizations.map((org: UserOrganization) => (
-											<VSCodeOption key={org.organizationId} value={org.organizationId}>
-												{org.name}
-											</VSCodeOption>
-										))}
-									</VSCodeDropdown>
-								)}
+								<div className="flex gap-2 items-center mt-1">
+									{userOrganizations && (
+										<VSCodeDropdown
+											key={activeOrganization?.organizationId || "personal"}
+											currentValue={activeOrganization?.organizationId || ""}
+											onChange={handleOrganizationChange}
+											disabled={isSwitchingOrg || isLoading}
+											className="w-full">
+											<VSCodeOption value="">Personal</VSCodeOption>
+											{userOrganizations.map((org: UserOrganization) => (
+												<VSCodeOption key={org.organizationId} value={org.organizationId}>
+													{org.name}
+												</VSCodeOption>
+											))}
+										</VSCodeDropdown>
+									)}
+									{activeOrganization?.roles && (
+										<VSCodeTag className="text-xs p-2" title="Role">
+											{getMainRole(activeOrganization.roles)}
+										</VSCodeTag>
+									)}
+								</div>
 							</div>
 						</div>
 					</div>
