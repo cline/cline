@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.19.4]
+
+-   Add ability to choose Chinese endpoint for Moonshot provider
+
 ## [3.19.3]
 
 -   Add Moonshot AI provider
