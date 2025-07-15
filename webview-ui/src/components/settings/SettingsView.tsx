@@ -101,7 +101,9 @@ type SettingsViewProps = {
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Track active tab
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[1].id)
+	const [activeTab, setActiveTab] = useState<string>(
+		targetSection || (SETTINGS_TABS.find((tab) => tab.id === "general")?.id ?? SETTINGS_TABS[0].id),
+	)
 	// Track if we're currently switching modes
 	const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 
