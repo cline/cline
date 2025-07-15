@@ -82,7 +82,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { extractErrorDetails, formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
-import { createDiffViewProvider } from "@/hosts/host-providers"
+import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 

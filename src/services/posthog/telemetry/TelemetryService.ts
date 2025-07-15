@@ -29,6 +29,11 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
+/**
+ * Maximum length for error messages to prevent excessive data
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 500
+
 class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
@@ -728,7 +733,7 @@ class TelemetryService {
 	 * @param model Identifier of the model used
 	 * @param requestId Unique identifier for the specific API request
 	 * @param errorMessage Detailed error message from the API provider
-	 * @param status HTTP status code of the error response, if available
+	 * @param errorStatus HTTP status code of the error response, if available
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
 	public captureProviderApiError(
@@ -746,7 +751,7 @@ class TelemetryService {
 				event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
 				properties: {
 					...args,
-					errorMessage: args.errorMessage.substring(0, 500), // Truncate long error messages
+					errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
 					timestamp: new Date().toISOString(),
 				},
 			},

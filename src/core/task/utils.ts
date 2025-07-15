@@ -13,9 +13,9 @@ export function formatErrorWithStatusCode(error: any): string {
 }
 
 export function extractErrorDetails(error: any): { message: string; statusCode?: number; requestId?: string } {
-	const statusCode = error.status || error.statusCode || (error.response && error.response.status)
+	const statusCode = error.status || error.statusCode || (error.response && error.response?.status)
 	const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
-	const requestId = error.request_id || error.requestId
+	const requestId = error.request_id || error.response?.request_id || undefined
 
 	return { message, statusCode, requestId }
 }
