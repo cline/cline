@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import { fileExistsAtPath } from "@utils/fs"
-import { getRipgrepBinaryPath as getPlatformBinaryPath } from "@utils/platform"
+import { getRipgrepBinaryPathForPlatform as getPlatformBinaryPath } from "@utils/platform"
 import { getBinaryInstallPath, isSetup } from "@hosts/host-providers"
 import { EmptyRequest, String } from "@shared/proto/common"
 

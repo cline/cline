@@ -54,7 +54,7 @@ export function getPlatformInfo(): PlatformInfo {
 /**
  * Gets the path to the ripgrep binary based on platform and binary install path
  */
-export function getRipgrepBinaryPath(binaryInstallPath: string): string {
+export function getRipgrepBinaryPathForPlatform(binaryInstallPath: string): string {
 	const platformInfo = getPlatformInfo()
 	return path.join(binaryInstallPath, platformInfo.binaryName)
 }
