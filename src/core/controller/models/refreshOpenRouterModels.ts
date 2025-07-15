@@ -104,6 +104,12 @@ export async function refreshOpenRouterModels(
 						modelInfo.cacheWritesPrice = 0.75
 						modelInfo.cacheReadsPrice = 0
 						break
+					case "moonshotai/kimi-k2":
+						// forcing kimi-k2 to use the together provider for full context and best throughput
+						modelInfo.inputPrice = 1
+						modelInfo.outputPrice = 3
+						modelInfo.contextWindow = 131_000
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
