@@ -89,6 +89,7 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
+	moonshotApiLine?: string
 	moonshotApiKey?: string
 	nebiusApiKey?: string
 	asksageApiUrl?: string

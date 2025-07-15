@@ -239,4 +239,5 @@ message ApiConfiguration {
 
   // Moonshot
   optional string moonshot_api_key = 80;
+  optional string moonshot_api_line = 81;
 }
