@@ -1,6 +1,10 @@
 # Changelog
 
-## [3.18.15]
+## [3.19.1]
+
+-   Fix documentation
+
+## [3.19.0]
 
 -   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
 -   Added API Key support for Bedrock integration
