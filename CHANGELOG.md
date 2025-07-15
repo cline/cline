@@ -2,8 +2,6 @@
 
 ## 3.19.4
 
-### Patch Changes
-
 -   cb9a339: Add ability to choose chinese endpoint for Moonshot provider
 
 ## [3.19.3]
