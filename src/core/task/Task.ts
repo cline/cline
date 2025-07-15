@@ -41,6 +41,7 @@ import { ClineAskResponse } from "../../shared/WebviewMessage"
 import { defaultModeSlug } from "../../shared/modes"
 import { DiffStrategy } from "../../shared/tools"
 import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
+import { getModelMaxOutputTokens } from "../../shared/api"
 
 // services
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
@@ -1716,15 +1717,13 @@ export class Task extends EventEmitter<ClineEvents> {
 		const { contextTokens } = this.getTokenUsage()
 
 		if (contextTokens) {
-			// Default max tokens value for thinking models when no specific
-			// value is set.
-			const DEFAULT_THINKING_MODEL_MAX_TOKENS = 16_384
-
 			const modelInfo = this.api.getModel().info
 
-			const maxTokens = modelInfo.supportsReasoningBudget
-				? this.apiConfiguration.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
-				: modelInfo.maxTokens
+			const maxTokens = getModelMaxOutputTokens({
+				modelId: this.api.getModel().id,
+				model: modelInfo,
+				settings: this.apiConfiguration,
+			})
 
 			const contextWindow = modelInfo.contextWindow
 

@@ -10,6 +10,7 @@ export type GroqModelId =
 	| "qwen-qwq-32b"
 	| "qwen/qwen3-32b"
 	| "deepseek-r1-distill-llama-70b"
+	| "moonshotai/kimi-k2-instruct"
 
 export const groqDefaultModelId: GroqModelId = "llama-3.3-70b-versatile" // Defaulting to Llama3 70B Versatile
 
@@ -86,5 +87,14 @@ export const groqModels = {
 		inputPrice: 0.75,
 		outputPrice: 0.99,
 		description: "DeepSeek R1 Distill Llama 70B model, 128K context.",
+	},
+	"moonshotai/kimi-k2-instruct": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 3.0,
+		description: "Moonshot AI Kimi K2 Instruct 1T model, 128K context.",
 	},
 } as const satisfies Record<string, ModelInfo>
