@@ -954,9 +954,13 @@ export const ChatRowContent = memo(
 										{(() => {
 											// First check if we have a structured error object
 											if (error) {
-												const newErrorFormat = error.errorDetails?.details?.error as any
-												const oldErrorFormat = parseErrorText(error.errorDetails?.message)
-												const errorDetails = newErrorFormat || oldErrorFormat
+												console.log("Structured error object found:", error)
+												const errorDetails =
+													(error.errorDetails?.details?.error as any) ||
+													parseErrorText(error.errorDetails?.details?.message || error.message) ||
+													error
+												const errorMessage =
+													errorDetails?.message || error.message || "An unknown error occurred."
 
 												// Check for credit limit errors
 												if (
@@ -975,21 +979,25 @@ export const ChatRowContent = memo(
 												}
 
 												// Check for rate limit errors
-												const isRateLimitError =
+												const knownRateLimitErrors = [
+													"rate limit",
+													"too many requests",
+													"quota exceeded",
+													"resource exhausted",
+												]
+												if (
 													errorDetails?.status === 429 ||
-													errorDetails.message?.toLowerCase().includes("rate limit") ||
-													errorDetails.message?.toLowerCase().includes("too many requests") ||
-													errorDetails.message?.toLowerCase().includes("quota exceeded") ||
-													errorDetails.message?.toLowerCase().includes("resource exhausted")
-
-												if (isRateLimitError) {
+													knownRateLimitErrors.some((error) =>
+														errorMessage?.toLowerCase().includes(error),
+													)
+												) {
 													return (
 														<p
 															style={{
 																...pStyle,
 																color: "var(--vscode-errorForeground)",
 															}}>
-															{error.message}
+															{errorMessage}
 														</p>
 													)
 												}
@@ -1001,8 +1009,26 @@ export const ChatRowContent = memo(
 															...pStyle,
 															color: "var(--vscode-errorForeground)",
 														}}>
-														{errorDetails.message}
-														{errorDetails.message?.toLowerCase().includes("powershell") && (
+														{errorMessage}
+														{errorMessage?.includes(
+															"Unauthorized: Please sign in to Cline before trying again.", // match with cline.ts (TODO: remove after some time)
+														) && (
+															<>
+																<br />
+																<br />
+																{clineUser ? (
+																	<span
+																		style={{ color: "var(--vscode-descriptionForeground)" }}>
+																		(Click "Retry" below)
+																	</span>
+																) : (
+																	<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
+																		Sign in to Cline
+																	</VSCodeButton>
+																)}
+															</>
+														)}
+														{errorMessage?.toLowerCase().includes("powershell") && (
 															<>
 																<br />
 																<br />

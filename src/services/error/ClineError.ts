@@ -33,6 +33,8 @@ export class ClineError extends Error {
 				}
 			})
 		}
+
+		this.errorDetails.message = createSafeErrorMessage(_error) || serializedError.message
 	}
 
 	/**
