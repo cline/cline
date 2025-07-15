@@ -542,6 +542,9 @@
 			"description": "Khi được bật, terminal sẽ kế thừa các biến môi trường từ tiến trình cha của VSCode, như các cài đặt tích hợp shell được định nghĩa trong hồ sơ người dùng. Điều này trực tiếp chuyển đổi cài đặt toàn cục của VSCode `terminal.integrated.inheritEnv`. <0>Tìm hiểu thêm</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Cài đặt nâng cao"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Bật chỉnh sửa qua diff",

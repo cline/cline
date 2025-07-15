@@ -100,6 +100,20 @@ vi.mock("@/components/ui", () => ({
 			</select>
 		</div>
 	),
+	// Add Collapsible components
+	Collapsible: ({ children, open }: any) => (
+		<div className="collapsible-mock" data-open={open}>
+			{children}
+		</div>
+	),
+	CollapsibleTrigger: ({ children, className, onClick }: any) => (
+		<div className={`collapsible-trigger-mock ${className || ""}`} onClick={onClick}>
+			{children}
+		</div>
+	),
+	CollapsibleContent: ({ children, className }: any) => (
+		<div className={`collapsible-content-mock ${className || ""}`}>{children}</div>
+	),
 }))
 
 vi.mock("../TemperatureControl", () => ({

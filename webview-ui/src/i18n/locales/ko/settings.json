@@ -542,6 +542,9 @@
 			"description": "활성화하면 터미널이 VSCode 부모 프로세스로부터 환경 변수를 상속받습니다. 사용자 프로필에 정의된 셸 통합 설정 등이 포함됩니다. 이는 VSCode 전역 설정 `terminal.integrated.inheritEnv`를 직접 전환합니다. <0>더 알아보기</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "고급 설정"
+	},
 	"advanced": {
 		"diff": {
 			"label": "diff를 통한 편집 활성화",

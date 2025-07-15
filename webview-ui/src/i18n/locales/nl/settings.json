@@ -542,6 +542,9 @@
 			"description": "Indien ingeschakeld, neemt de terminal omgevingsvariabelen over van het bovenliggende VSCode-proces, zoals shell-integratie-instellingen uit het gebruikersprofiel. Dit schakelt direct de VSCode-instelling `terminal.integrated.inheritEnv` om. <0>Meer informatie</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Geavanceerde instellingen"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Bewerken via diffs inschakelen",

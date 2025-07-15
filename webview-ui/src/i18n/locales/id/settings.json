@@ -546,6 +546,9 @@
 			"description": "Ketika diaktifkan, terminal akan mewarisi variabel environment dari proses parent VSCode, seperti pengaturan integrasi shell yang didefinisikan user-profile. Ini secara langsung mengalihkan pengaturan global VSCode `terminal.integrated.inheritEnv`. <0>Pelajari lebih lanjut</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Pengaturan lanjutan"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Aktifkan editing melalui diff",

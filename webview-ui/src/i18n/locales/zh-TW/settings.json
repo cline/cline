@@ -542,6 +542,9 @@
 			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`。 <0>瞭解更多</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "進階設定"
+	},
 	"advanced": {
 		"diff": {
 			"label": "透過差異比對編輯",

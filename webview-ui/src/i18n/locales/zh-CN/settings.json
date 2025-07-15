@@ -542,6 +542,9 @@
 			"description": "启用后，终端将从 VSCode 父进程继承环境变量，如用户配置文件中定义的 shell 集成设置。这直接切换 VSCode 全局设置 `terminal.integrated.inheritEnv`。 <0>了解更多</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "高级设置"
+	},
 	"advanced": {
 		"diff": {
 			"label": "启用diff更新",

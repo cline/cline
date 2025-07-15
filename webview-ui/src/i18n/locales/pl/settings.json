@@ -542,6 +542,9 @@
 			"description": "Po włączeniu terminal dziedziczy zmienne środowiskowe z procesu nadrzędnego VSCode, takie jak ustawienia integracji powłoki zdefiniowane w profilu użytkownika. Przełącza to bezpośrednio globalne ustawienie VSCode `terminal.integrated.inheritEnv`. <0>Dowiedz się więcej</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Ustawienia zaawansowane"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Włącz edycję przez różnice",

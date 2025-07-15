@@ -542,6 +542,9 @@
 			"description": "When enabled, the terminal will inherit environment variables from VSCode's parent process, such as user-profile-defined shell integration settings. This directly toggles VSCode global setting `terminal.integrated.inheritEnv`. <0>Learn more</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Advanced settings"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Enable editing through diffs",

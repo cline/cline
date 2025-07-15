@@ -542,6 +542,9 @@
 			"description": "Etkinleştirildiğinde, terminal VSCode üst işleminden ortam değişkenlerini devralır, örneğin kullanıcı profilinde tanımlanan kabuk entegrasyon ayarları gibi. Bu, VSCode'un global ayarı olan `terminal.integrated.inheritEnv` değerini doğrudan değiştirir. <0>Daha fazla bilgi</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Gelişmiş ayarlar"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Diff'ler aracılığıyla düzenlemeyi etkinleştir",

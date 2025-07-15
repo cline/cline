@@ -542,6 +542,9 @@
 			"description": "Quan està habilitat, el terminal hereta les variables d'entorn del procés pare de VSCode, com ara la configuració d'integració del shell definida al perfil d'usuari. Això commuta directament la configuració global de VSCode `terminal.integrated.inheritEnv`. <0>Més informació</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Configuració avançada"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Habilitar edició mitjançant diffs",

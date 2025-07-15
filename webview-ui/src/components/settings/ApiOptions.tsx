@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { convertHeadersToObject } from "./utils/headers"
 import { useDebounce } from "react-use"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { ExternalLinkIcon } from "@radix-ui/react-icons"
 
 import {
 	type ProviderName,
@@ -31,8 +32,22 @@ import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
 import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
+import {
+	useOpenRouterModelProviders,
+	OPENROUTER_DEFAULT_PROVIDER_NAME,
+} from "@src/components/ui/hooks/useOpenRouterModelProviders"
 import { filterProviders, filterModels } from "./utils/organizationFilters"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SearchableSelect } from "@src/components/ui"
+import {
+	Select,
+	SelectTrigger,
+	SelectValue,
+	SelectContent,
+	SelectItem,
+	SearchableSelect,
+	Collapsible,
+	CollapsibleTrigger,
+	CollapsibleContent,
+} from "@src/components/ui"
 
 import {
 	Anthropic,
@@ -121,6 +136,7 @@ const ApiOptions = ({
 	)
 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false)
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
@@ -140,6 +156,14 @@ const ApiOptions = ({
 	} = useSelectedModel(apiConfiguration)
 
 	const { data: routerModels, refetch: refetchRouterModels } = useRouterModels()
+
+	const { data: openRouterModelProviders } = useOpenRouterModelProviders(apiConfiguration?.openRouterModelId, {
+		enabled:
+			!!apiConfiguration?.openRouterModelId &&
+			routerModels?.openrouter &&
+			Object.keys(routerModels.openrouter).length > 1 &&
+			apiConfiguration.openRouterModelId in routerModels.openrouter,
+	})
 
 	// Update `apiModelId` whenever `selectedModelId` changes.
 	useEffect(() => {
@@ -534,30 +558,78 @@ const ApiOptions = ({
 			/>
 
 			{!fromWelcomeView && (
-				<>
-					<DiffSettingsControl
-						diffEnabled={apiConfiguration.diffEnabled}
-						fuzzyMatchThreshold={apiConfiguration.fuzzyMatchThreshold}
-						onChange={(field, value) => setApiConfigurationField(field, value)}
-					/>
-					<TemperatureControl
-						value={apiConfiguration.modelTemperature}
-						onChange={handleInputChange("modelTemperature", noTransform)}
-						maxValue={2}
-					/>
-					<RateLimitSecondsControl
-						value={apiConfiguration.rateLimitSeconds || 0}
-						onChange={(value) => setApiConfigurationField("rateLimitSeconds", value)}
-					/>
-					<ConsecutiveMistakeLimitControl
-						value={
-							apiConfiguration.consecutiveMistakeLimit !== undefined
-								? apiConfiguration.consecutiveMistakeLimit
-								: DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
-						}
-						onChange={(value) => setApiConfigurationField("consecutiveMistakeLimit", value)}
-					/>
-				</>
+				<Collapsible open={isAdvancedSettingsOpen} onOpenChange={setIsAdvancedSettingsOpen}>
+					<CollapsibleTrigger className="flex items-center gap-1 w-full cursor-pointer hover:opacity-80 mb-2">
+						<span className={`codicon codicon-chevron-${isAdvancedSettingsOpen ? "down" : "right"}`}></span>
+						<span className="font-medium">{t("settings:advancedSettings.title")}</span>
+					</CollapsibleTrigger>
+					<CollapsibleContent className="space-y-3">
+						<DiffSettingsControl
+							diffEnabled={apiConfiguration.diffEnabled}
+							fuzzyMatchThreshold={apiConfiguration.fuzzyMatchThreshold}
+							onChange={(field, value) => setApiConfigurationField(field, value)}
+						/>
+						<TemperatureControl
+							value={apiConfiguration.modelTemperature}
+							onChange={handleInputChange("modelTemperature", noTransform)}
+							maxValue={2}
+						/>
+						<RateLimitSecondsControl
+							value={apiConfiguration.rateLimitSeconds || 0}
+							onChange={(value) => setApiConfigurationField("rateLimitSeconds", value)}
+						/>
+						<ConsecutiveMistakeLimitControl
+							value={
+								apiConfiguration.consecutiveMistakeLimit !== undefined
+									? apiConfiguration.consecutiveMistakeLimit
+									: DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
+							}
+							onChange={(value) => setApiConfigurationField("consecutiveMistakeLimit", value)}
+						/>
+						{selectedProvider === "openrouter" &&
+							openRouterModelProviders &&
+							Object.keys(openRouterModelProviders).length > 0 && (
+								<div>
+									<div className="flex items-center gap-1">
+										<label className="block font-medium mb-1">
+											{t("settings:providers.openRouter.providerRouting.title")}
+										</label>
+										<a href={`https://openrouter.ai/${selectedModelId}/providers`}>
+											<ExternalLinkIcon className="w-4 h-4" />
+										</a>
+									</div>
+									<Select
+										value={
+											apiConfiguration?.openRouterSpecificProvider ||
+											OPENROUTER_DEFAULT_PROVIDER_NAME
+										}
+										onValueChange={(value) =>
+											setApiConfigurationField("openRouterSpecificProvider", value)
+										}>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder={t("settings:common.select")} />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={OPENROUTER_DEFAULT_PROVIDER_NAME}>
+												{OPENROUTER_DEFAULT_PROVIDER_NAME}
+											</SelectItem>
+											{Object.entries(openRouterModelProviders).map(([value, { label }]) => (
+												<SelectItem key={value} value={value}>
+													{label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									<div className="text-sm text-vscode-descriptionForeground mt-1">
+										{t("settings:providers.openRouter.providerRouting.description")}{" "}
+										<a href="https://openrouter.ai/docs/features/provider-routing">
+											{t("settings:providers.openRouter.providerRouting.learnMore")}.
+										</a>
+									</div>
+								</div>
+							)}
+					</CollapsibleContent>
+				</Collapsible>
 			)}
 		</div>
 	)

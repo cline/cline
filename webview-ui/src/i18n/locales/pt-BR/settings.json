@@ -542,6 +542,9 @@
 			"description": "Quando ativado, o terminal herda variáveis de ambiente do processo pai do VSCode, como configurações de integração do shell definidas no perfil do usuário. Isso alterna diretamente a configuração global do VSCode `terminal.integrated.inheritEnv`. <0>Saiba mais</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Configurações avançadas"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Ativar edição através de diffs",

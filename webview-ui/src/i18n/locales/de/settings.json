@@ -542,6 +542,9 @@
 			"description": "Wenn aktiviert, erbt das Terminal Umgebungsvariablen aus dem übergeordneten Prozess von VSCode, wie z.B. benutzerdefinierte Shell-Integrationseinstellungen. Dies schaltet direkt die globale VSCode-Einstellung `terminal.integrated.inheritEnv` um. <0>Mehr erfahren</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "Erweiterte Einstellungen"
+	},
 	"advanced": {
 		"diff": {
 			"label": "Bearbeitung durch Diffs aktivieren",

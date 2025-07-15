@@ -542,6 +542,9 @@
 			"description": "有効にすると、ターミナルは VSCode の親プロセスから環境変数を継承します。ユーザープロファイルで定義されたシェル統合設定などが含まれます。これは VSCode のグローバル設定 `terminal.integrated.inheritEnv` を直接切り替えます。 <0>詳細情報</0>"
 		}
 	},
+	"advancedSettings": {
+		"title": "詳細設定"
+	},
 	"advanced": {
 		"diff": {
 			"label": "diff経由の編集を有効化",
