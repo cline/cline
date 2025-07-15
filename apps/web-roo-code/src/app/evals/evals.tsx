@@ -61,7 +61,7 @@ export function Evals({
 			<div className="flex flex-col gap-4">
 				<div>
 					Roo Code tests each frontier model against{" "}
-					<a href="https://github.com/cte/evals/" className="underline">
+					<a href="https://github.com/RooCodeInc/Roo-Code-Evals" className="underline">
 						a suite of hundreds of exercises
 					</a>{" "}
 					across 5 programming languages with varying difficulty. These results can help you find the right
