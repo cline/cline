@@ -16,7 +16,7 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
 import {
@@ -821,4 +821,110 @@ export const useExtensionState = () => {
 		throw new Error("useExtensionState must be used within an ExtensionStateContextProvider")
 	}
 	return context
+}
+
+export const ExtensionStateMock = {
+	// Core state
+	version: "1.0.0",
+	clineMessages: [],
+	taskHistory: [],
+	shouldShowAnnouncement: false,
+	autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
+	browserSettings: DEFAULT_BROWSER_SETTINGS,
+	chatSettings: DEFAULT_CHAT_SETTINGS,
+	platform: DEFAULT_PLATFORM,
+	telemetrySetting: "unset" as const,
+	distinctId: "mock-distinct-id",
+	planActSeparateModelsSetting: true,
+	enableCheckpointsSetting: true,
+	mcpRichDisplayEnabled: true,
+	mcpResponsesCollapsed: false,
+	globalClineRulesToggles: {},
+	localClineRulesToggles: {},
+	localCursorRulesToggles: {},
+	localWindsurfRulesToggles: {},
+	localWorkflowToggles: {},
+	globalWorkflowToggles: {},
+	shellIntegrationTimeout: 4000,
+	terminalReuseEnabled: true,
+	terminalOutputLineLimit: 500,
+	defaultTerminalProfile: "default",
+	isNewUser: false,
+	welcomeViewCompleted: true,
+
+	// Additional state
+	didHydrateState: true,
+	showWelcome: false,
+	theme: {
+		".hljs": "#d4d4d4",
+		".hljs-keyword": "#569cd6",
+		".hljs-string": "#ce9178",
+		".hljs-comment": "#6a9955",
+	},
+	openRouterModels: {},
+	openAiModels: [],
+	requestyModels: {},
+	mcpServers: [],
+	mcpMarketplaceCatalog: { items: [] },
+	filePaths: [],
+	totalTasksSize: null,
+	availableTerminalProfiles: [],
+
+	// View state
+	showMcp: false,
+	mcpTab: undefined,
+	showSettings: false,
+	showHistory: false,
+	showAccount: false,
+	showAnnouncement: false,
+
+	// Mock functions
+	setApiConfiguration: () => {},
+	setTelemetrySetting: () => {},
+	setShowAnnouncement: () => {},
+	setShouldShowAnnouncement: () => {},
+	setPlanActSeparateModelsSetting: () => {},
+	setEnableCheckpointsSetting: () => {},
+	setMcpMarketplaceEnabled: () => {},
+	setMcpResponsesCollapsed: () => {},
+	setShellIntegrationTimeout: () => {},
+	setTerminalReuseEnabled: () => {},
+	setTerminalOutputLineLimit: () => {},
+	setDefaultTerminalProfile: () => {},
+	setChatSettings: () => {},
+	setMcpServers: () => {},
+	setRequestyModels: () => {},
+	setGlobalClineRulesToggles: () => {},
+	setLocalClineRulesToggles: () => {},
+	setLocalCursorRulesToggles: () => {},
+	setLocalWindsurfRulesToggles: () => {},
+	setLocalWorkflowToggles: () => {},
+	setGlobalWorkflowToggles: () => {},
+	setMcpMarketplaceCatalog: () => {},
+	setTotalTasksSize: () => {},
+	setAvailableTerminalProfiles: () => {},
+	setBrowserSettings: () => {},
+	refreshOpenRouterModels: () => {},
+	setUserInfo: () => {},
+	setShowMcp: () => {},
+	setMcpTab: () => {},
+	navigateToMcp: () => {},
+	navigateToSettings: () => {},
+	navigateToHistory: () => {},
+	navigateToAccount: () => {},
+	navigateToChat: () => {},
+	hideSettings: () => {},
+	hideHistory: () => {},
+	hideAccount: () => {},
+	hideAnnouncement: () => {},
+	closeMcpView: () => {},
+	onRelinquishControl: () => () => {},
+} satisfies ExtensionStateContextType
+
+// Mock provider that uses the same context as the real provider
+export const ExtensionStateProviderMock: React.FC<{
+	children: React.ReactNode
+	value: ExtensionStateContextType
+}> = ({ children, value }) => {
+	return <ExtensionStateContext.Provider value={value}>{children}</ExtensionStateContext.Provider>
 }
