@@ -2,94 +2,128 @@ import { memo, useMemo } from "react"
 import CreditLimitError from "./CreditLimitError"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
-export const ErrorRow = memo(
-	({
-		error,
-		apiRequestFailedMessage,
-		apiReqStreamingFailedMessage,
-		clineUser,
-		handleSignIn,
-		pStyle,
-	}: {
-		error: any
-		apiRequestFailedMessage: string | undefined
-		apiReqStreamingFailedMessage: string | undefined
-		clineUser: any
-		handleSignIn: () => void
-		pStyle: React.CSSProperties
-	}) => {
+interface ErrorInfo {
+	details: any
+	message: string
+	isStructured: boolean
+}
+
+interface ErrorRowProps {
+	error: any
+	apiRequestFailedMessage: string | undefined
+	apiReqStreamingFailedMessage: string | undefined
+	clineUser: any
+	handleSignIn: () => void
+	pStyle: React.CSSProperties
+}
+
+const parseErrorText = (text: string | undefined): any => {
+	if (!text) return undefined
+
+	const startIndex = text.indexOf("{")
+	const endIndex = text.lastIndexOf("}")
+
+	if (startIndex === -1 || endIndex === -1) return undefined
+
+	try {
+		return JSON.parse(text.substring(startIndex, endIndex + 1))
+	} catch {
+		return undefined
+	}
+}
+
+const getErrorInfo = (
+	error: any,
+	apiRequestFailedMessage: string | undefined,
+	apiReqStreamingFailedMessage: string | undefined,
+): ErrorInfo => {
+	// Handle structured error first
+	if (error) {
+		const errorDetails =
+			error.errorDetails?.details?.error || parseErrorText(error.errorDetails?.details?.message || error.message) || error
+
+		return {
+			details: errorDetails,
+			message: errorDetails?.message || error.message || "An unknown error occurred.",
+			isStructured: true,
+		}
+	}
+
+	// Handle text-based errors
+	const errorMessage = apiRequestFailedMessage || apiReqStreamingFailedMessage || ""
+	const errorData = parseErrorText(errorMessage)
+
+	return {
+		details: errorData,
+		message: errorMessage,
+		isStructured: false,
+	}
+}
+
+const checkErrorType = (errorInfo: ErrorInfo) => {
+	const message = errorInfo.message.toLowerCase()
+	const details = errorInfo.details
+	const errorDetails = details?.errorDetails
+
+	return {
+		isRateLimit:
+			details?.status === 429 ||
+			message.includes("rate limit") ||
+			message.includes("too many requests") ||
+			message.includes("quota exceeded") ||
+			message.includes("resource exhausted"),
+
+		isCreditLimit:
+			details?.code === "insufficient_credits" ||
+			(errorDetails?.code === "insufficient_credits" && typeof errorDetails?.current_balance === "number"),
+
+		isAuth:
+			details?.status === 401 ||
+			(errorDetails?.status === 401 &&
+				errorDetails?.message?.includes("Unauthorized: Please sign in to Cline before trying again.")),
+
+		isPowerShell: message.includes("powershell") || errorDetails?.message?.toLowerCase().includes("powershell"),
+	}
+}
+
+export const ErrorRow = memo<ErrorRowProps>(
+	({ error, apiRequestFailedMessage, apiReqStreamingFailedMessage, clineUser, handleSignIn, pStyle }) => {
 		console.error("ErrorRow", { error, apiRequestFailedMessage, apiReqStreamingFailedMessage })
-		const errorInfo = useMemo(() => {
-			// Parse structured error first
-			if (error) {
-				console.log("Structured error object found:", error)
-				const errorDetails =
-					(error.errorDetails?.details?.error as any) ||
-					parseErrorText(error.errorDetails?.details?.message || error.message) ||
-					error
-				const errorMessage = errorDetails?.message || error.message || "An unknown error occurred."
 
-				return {
-					details: errorDetails,
-					message: errorMessage,
-					isStructured: true,
-				}
-			}
+		const errorInfo = useMemo(
+			() => getErrorInfo(error, apiRequestFailedMessage, apiReqStreamingFailedMessage),
+			[error, apiRequestFailedMessage, apiReqStreamingFailedMessage],
+		)
 
-			// Fallback to text parsing
-			const errorData = parseErrorText(apiRequestFailedMessage || apiReqStreamingFailedMessage)
-			const errorMessage = apiRequestFailedMessage || apiReqStreamingFailedMessage || ""
+		const errorTypes = useMemo(() => checkErrorType(errorInfo), [errorInfo])
 
-			return {
-				details: errorData,
-				message: errorMessage,
-				isStructured: false,
-			}
-		}, [error, apiRequestFailedMessage, apiReqStreamingFailedMessage])
+		// Handle credit limit error with dedicated component
+		if (errorTypes.isCreditLimit) {
+			const details = errorInfo.details
+			// Use details directly if available, otherwise fall back to errorDetails
+			const creditDetails = details?.code === "insufficient_credits" ? details : details?.errorDetails
 
-		const isRateLimitError = useMemo(() => {
-			const message = errorInfo.message.toLowerCase()
-			return (
-				errorInfo.details?.status === 429 ||
-				message.includes("rate limit") ||
-				message.includes("too many requests") ||
-				message.includes("quota exceeded") ||
-				message.includes("resource exhausted")
-			)
-		}, [errorInfo])
-
-		const isCreditLimitError = useMemo(() => {
-			return errorInfo.details?.code === "insufficient_credits" && typeof errorInfo.details?.current_balance === "number"
-		}, [errorInfo.details])
-
-		const isAuthError = useMemo(() => {
-			return errorInfo.message.includes("Unauthorized: Please sign in to Cline before trying again.")
-		}, [errorInfo.message])
-
-		const isPowerShellError = useMemo(() => {
-			return errorInfo.message.toLowerCase().includes("powershell")
-		}, [errorInfo.message])
-
-		if (isCreditLimitError) {
 			return (
 				<CreditLimitError
-					currentBalance={errorInfo.details.current_balance}
-					totalSpent={errorInfo.details.total_spent}
-					totalPromotions={errorInfo.details.total_promotions}
-					message={errorInfo.details.message}
-					buyCreditsUrl={errorInfo.details.buy_credits_url}
+					currentBalance={creditDetails?.current_balance}
+					totalSpent={creditDetails?.total_spent}
+					totalPromotions={creditDetails?.total_promotions}
+					message={creditDetails?.message || "Not enough credits available"}
+					buyCreditsUrl={creditDetails?.buy_credits_url}
 				/>
 			)
 		}
+		console.log(clineUser, "clineUser")
+		const displayMessage = errorInfo.details?.errorDetails?.message || errorInfo.message
 
 		return (
 			<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
-				{errorInfo.message}
-				{isAuthError && (
+				{displayMessage}
+				{errorTypes.isAuth && (
 					<>
 						<br />
 						<br />
-						{clineUser ? (
+						{clineUser && !displayMessage?.includes("Unauthorized: Please sign in to Cline before trying again.") ? (
 							<span style={{ color: "var(--vscode-descriptionForeground)" }}>(Click "Retry" below)</span>
 						) : (
 							<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
@@ -98,7 +132,8 @@ export const ErrorRow = memo(
 						)}
 					</>
 				)}
-				{isPowerShellError && (
+
+				{errorTypes.isPowerShell && (
 					<>
 						<br />
 						<br />
@@ -115,20 +150,3 @@ export const ErrorRow = memo(
 		)
 	},
 )
-
-function parseErrorText(text: string | undefined) {
-	if (!text) {
-		return undefined
-	}
-	try {
-		const startIndex = text.indexOf("{")
-		const endIndex = text.lastIndexOf("}")
-		if (startIndex !== -1 && endIndex !== -1) {
-			const jsonStr = text.substring(startIndex, endIndex + 1)
-			const errorObject = JSON.parse(jsonStr)
-			return errorObject
-		}
-	} catch (e) {
-		// Not JSON or missing required fields
-	}
-}

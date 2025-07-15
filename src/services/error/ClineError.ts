@@ -66,12 +66,13 @@ function serializeError(error: unknown): {
 	details?: any
 } {
 	if (error instanceof Error) {
+		const errorDetails = (error as any).details?.error || extractSafeErrorDetails(error)
 		return {
 			message: error.message,
 			code: (error as any).code,
 			status: (error as any).status,
 			request_id: (error as any).request_id,
-			details: extractSafeErrorDetails(error),
+			details: errorDetails,
 		}
 	}
 
@@ -125,6 +126,10 @@ function extractSafeErrorDetails(error: any): any {
 		"request_id",
 		"error",
 		"metadata",
+		"current_balance", // Add this for insufficient credits errors
+		"total_spent", // Add this for insufficient credits errors
+		"total_promotions", // Add this for insufficient credits errors
+		"buy_credits_url", // Add this for insufficient credits errors
 	]
 
 	for (const prop of safeProperties) {
@@ -152,27 +157,28 @@ export function createSafeErrorMessage(error: unknown): string {
 	const serialized = serializeError(error)
 
 	// Handle specific error types
-	if (serialized.code === "ERR_BAD_REQUEST" || serialized.status === 401) {
+	if (serialized?.details?.code === "ERR_BAD_REQUEST" || serialized?.details?.status === 401) {
 		return "Unauthorized: Please sign in to Cline before trying again."
 	}
 
-	if (serialized.details?.error?.code === "insufficient_credits" && serialized.status === 402) {
+	if (serialized?.details?.code === "insufficient_credits" && serialized?.details?.status === 402) {
 		try {
-			return JSON.stringify(serialized.details.error)
+			// Return the serialized details directly for insufficient credits
+			return JSON.stringify(serialized.details)
 		} catch {
 			return "Insufficient credits. Please add more credits to continue."
 		}
 	}
 
 	// Handle network errors
-	if (serialized.code === "ECONNREFUSED" || serialized.code === "ENOTFOUND") {
+	if (serialized?.details?.code === "ECONNREFUSED" || serialized?.details?.code === "ENOTFOUND") {
 		return "Network connection failed. Please check your internet connection and try again."
 	}
 
-	if (serialized.code === "ETIMEDOUT") {
+	if (serialized?.details?.code === "ETIMEDOUT") {
 		return "Request timed out. Please try again."
 	}
 
 	// Return the main error message
-	return serialized.message || "An unexpected error occurred."
+	return serialized?.details?.message || "An unexpected error occurred."
 }

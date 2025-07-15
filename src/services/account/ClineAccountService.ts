@@ -104,13 +104,14 @@ export class ClineAccountService {
 
 			// Throw error if insufficient credits (balance <= 0)
 			if (currentBalance <= 0) {
-				throw new Error(
-					JSON.stringify({
-						code: "insufficient_credits",
-						current_balance: currentBalance,
-						message: "Not enough credits available",
-					}),
-				)
+				const insufficientCreditsError = new Error("Not enough credits available")
+				// Add properties that will be extracted by ClineError's extractSafeErrorDetails
+				;(insufficientCreditsError as any).error = {
+					code: "insufficient_credits",
+					current_balance: currentBalance,
+					message: "Not enough credits available",
+				}
+				throw insufficientCreditsError
 			}
 		} catch (error) {
 			console.error("Invalid Cline API request:", error)
