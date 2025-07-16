@@ -316,7 +316,17 @@ export class Task {
 	 * Updates the auto approval settings for this task
 	 */
 	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		// Check if maxRequests changed
+		const maxRequestsChanged = this.autoApprovalSettings.maxRequests !== settings.maxRequests
+
+		// Update the settings
+		this.autoApprovalSettings = settings
 		this.toolExecutor.updateAutoApprovalSettings(settings)
+
+		// Reset counter if max requests limit changed
+		if (maxRequestsChanged) {
+			this.taskState.consecutiveAutoApprovedRequestsCount = 0
+		}
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
