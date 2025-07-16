@@ -2,8 +2,6 @@
 
 ## 3.19.5
 
-### Patch Changes
-
 -   dcb39a7: Display user role in organization UI
 -   5dddbef: Groq provider support
 -   e607d02: Fix missing options from window messages.
