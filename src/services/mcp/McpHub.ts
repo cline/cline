@@ -174,7 +174,7 @@ export class McpHub {
 					console.error("Error watching MCP settings file:", error)
 				},
 				onComplete: () => {
-					console.log("[DEBUG] MCP settings file watch completed")
+					//console.log("[DEBUG] MCP settings file watch completed")
 				},
 			},
 		)
