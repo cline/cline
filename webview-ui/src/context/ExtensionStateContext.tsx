@@ -96,7 +96,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
 
-	updateExtensionState: (partialState: Partial<ExtensionState>) => void
+	// Set initial state for testing purposes only
+	setExtensionStateForTest: (partialState: Partial<ExtensionState>) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -234,11 +235,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
-	const updateExtensionState = useCallback((partialState: Partial<ExtensionState>) => {
-		setState((prevState) => ({
-			...prevState,
-			...partialState,
-		}))
+	// Set extension state for testing purposes
+	const setExtensionStateForTest = useCallback((partialState: Partial<ExtensionState>) => {
+		if (process.env.IS_DEV === "true") {
+			setState((prevState) => ({
+				...prevState,
+				...partialState,
+			}))
+		}
 	}, [])
 
 	// Add ref for callbacks
@@ -757,7 +761,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
-		updateExtensionState,
+		setExtensionStateForTest,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

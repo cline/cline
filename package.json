@@ -359,7 +359,8 @@
 		"docs": "cd docs && mintlify dev",
 		"docs:check-links": "cd docs && mintlify broken-links",
 		"docs:rename-file": "cd docs && mintlify rename",
-		"report-issue": "node scripts/report-issue.js"
+		"report-issue": "node scripts/report-issue.js",
+		"storybook": "npm run -C webview-ui storybook"
 	},
 	"lint-staged": {
 		"*": [
@@ -478,5 +479,9 @@
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
-	}
+	},
+	"workspaces": [
+		"webview-ui",
+		"evals"
+	]
 }

@@ -3,55 +3,64 @@ import { ClineAuthProvider } from "@/context/ClineAuthContext"
 import { ExtensionStateContextProvider, useExtensionState } from "@/context/ExtensionStateContext"
 import { ExtensionState } from "@shared/ExtensionMessage"
 import { Decorator } from "@storybook/react-vite"
-import { CustomPostHogProvider } from "@/CustomPostHogProvider"
+import { StorybookThemes } from "../../../.storybook/themes"
 
 // Inner component that uses the context
 const StorybookStateUpdater: React.FC<{
 	children: React.ReactNode
 	mockState?: Partial<ExtensionState>
 }> = ({ mockState, children }) => {
-	const { updateExtensionState } = useExtensionState()
+	const { setExtensionStateForTest } = useExtensionState()
 
 	React.useEffect(() => {
 		if (mockState) {
-			updateExtensionState(mockState)
+			setExtensionStateForTest(mockState)
 		}
-	}, [mockState, updateExtensionState])
+	}, [mockState, setExtensionStateForTest])
 
-	return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>
+	return <div className="container">{children}</div>
 }
 
 export const StorybookProvider: React.FC<{
 	children: React.ReactNode
 	mockState?: Partial<ExtensionState>
 }> = ({ mockState, children }) => {
-	return (
-		<ExtensionStateContextProvider>
-			<CustomPostHogProvider>
-				<ClineAuthProvider>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "16px" }}>
-						<StorybookStateUpdater mockState={mockState}>{children}</StorybookStateUpdater>
-					</div>
-				</ClineAuthProvider>
-			</CustomPostHogProvider>
-		</ExtensionStateContextProvider>
-	)
+	return <StorybookStateUpdater mockState={mockState}>{children}</StorybookStateUpdater>
 }
 
-export function VSCodeDecorator(className: string | undefined): Decorator {
+function VSCodeDecorator(className: string | undefined): Decorator {
 	return (story, parameters) => {
+		React.useEffect(() => {
+			const { theme } = parameters.globals
+			const styles = theme?.includes("light") ? StorybookThemes.light : StorybookThemes.dark
+
+			// Apply CSS variables to the document root
+			const root = document.documentElement
+			Object.entries(styles).forEach(([property, value]) => {
+				root.style.setProperty(property, value)
+			})
+
+			document.body.style.backgroundColor = styles["--vscode-editor-background"]
+			document.body.style.color = styles["--vscode-editor-foreground"]
+			document.body.style.fontFamily = styles["--vscode-font-family"]
+			document.body.style.fontSize = styles["--vscode-font-size"]
+
+			return () => {
+				// Cleanup on unmount
+				Object.keys(styles).forEach((property) => {
+					root.style.removeProperty(property)
+				})
+			}
+		}, [parameters?.globals?.theme])
+
 		return (
-			<ExtensionStateContextProvider>
-				<CustomPostHogProvider>
-					<ClineAuthProvider>
-						<div className={className} style={{ maxWidth: "600px", margin: "0 auto", padding: "16px" }}>
-							{React.createElement(story)}
-						</div>
-					</ClineAuthProvider>
-				</CustomPostHogProvider>
-			</ExtensionStateContextProvider>
+			<div className={className}>
+				<ExtensionStateContextProvider>
+					<ClineAuthProvider>{React.createElement(story)}</ClineAuthProvider>
+				</ExtensionStateContextProvider>
+			</div>
 		)
 	}
 }
 
-export const VSCodeWebview = VSCodeDecorator("w-1/2")
+export const VSCodeWebview = VSCodeDecorator("relative")

@@ -585,35 +585,6 @@ export const PlanMode: Story = {
 	},
 }
 
-// Empty state (first time user)
-export const EmptyState: Story = {
-	decorators: [
-		(Story) => {
-			const mockState = {
-				welcomeViewCompleted: true,
-				showWelcome: false,
-				clineMessages: [],
-				taskHistory: [],
-				apiConfiguration: mockApiConfiguration,
-				isNewUser: true,
-			}
-
-			return (
-				<StorybookProvider mockState={mockState}>
-					<Story />
-				</StorybookProvider>
-			)
-		},
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
-			},
-		},
-	},
-}
-
 // Browser automation
 export const BrowserAutomation: Story = {
 	decorators: [

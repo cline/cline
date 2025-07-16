@@ -1,8 +1,6 @@
-const { heroui } = require("@heroui/react")
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-	content: ["./src/**/*.{js,ts,jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}"],
+	content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
 	theme: {
 		extend: {
 			fontFamily: {
@@ -10,17 +8,6 @@ module.exports = {
 			},
 		},
 	},
-	darkMode: "class",
-	plugins: [
-		heroui({
-			defaultTheme: "vscode",
-			themes: {
-				vscode: {
-					colors: {
-						background: "",
-					},
-				},
-			},
-		}),
-	],
+	// Toggle dark-mode based on .dark class or data-mode="dark"
+	darkMode: ["class", '[data-mode="dark"]', '[class="vs-dark"]'],
 }
