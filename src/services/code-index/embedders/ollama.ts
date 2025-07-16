@@ -7,6 +7,10 @@ import { withValidationErrorHandling, sanitizeErrorMessage } from "../shared/val
 import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName } from "@roo-code/types"
 
+// Timeout constants for Ollama API requests
+const OLLAMA_EMBEDDING_TIMEOUT_MS = 60000 // 60 seconds for embedding requests
+const OLLAMA_VALIDATION_TIMEOUT_MS = 30000 // 30 seconds for validation requests
+
 /**
  * Implements the IEmbedder interface using a local Ollama instance.
  */
@@ -61,7 +65,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 
 			// Add timeout to prevent indefinite hanging
 			const controller = new AbortController()
-			const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+			const timeoutId = setTimeout(() => controller.abort(), OLLAMA_EMBEDDING_TIMEOUT_MS)
 
 			const response = await fetch(url, {
 				method: "POST",
@@ -140,7 +144,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 
 				// Add timeout to prevent indefinite hanging
 				const controller = new AbortController()
-				const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+				const timeoutId = setTimeout(() => controller.abort(), OLLAMA_VALIDATION_TIMEOUT_MS)
 
 				const modelsResponse = await fetch(modelsUrl, {
 					method: "GET",
@@ -197,7 +201,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 
 				// Add timeout for test request too
 				const testController = new AbortController()
-				const testTimeoutId = setTimeout(() => testController.abort(), 5000)
+				const testTimeoutId = setTimeout(() => testController.abort(), OLLAMA_VALIDATION_TIMEOUT_MS)
 
 				const testResponse = await fetch(testUrl, {
 					method: "POST",
