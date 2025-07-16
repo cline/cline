@@ -5,7 +5,7 @@ import {
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 	DiffServiceClientImpl,
-} from "@generated/standalone/host-bridge-clients"
+} from "@generated/hosts/standalone/host-bridge-clients"
 import {
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
