@@ -26,16 +26,15 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { arePathsEqual } from "@utils/path"
+import { getGitRemoteUrls } from "@utils/git"
+import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { getGitRemoteUrls } from "@utils/git"
 
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
@@ -70,7 +69,7 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import { getGlobalState, getWorkspaceState } from "@core/storage/state"
+import { getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -82,12 +81,10 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { extractErrorDetails, formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
-
-export const cwd =
-	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -96,6 +93,7 @@ export class Task {
 	// Core task variables
 	readonly taskId: string
 	private taskIsFavorited?: boolean
+	private cwd: string
 
 	taskState: TaskState
 
@@ -152,6 +150,7 @@ export class Task {
 		terminalOutputLineLimit: number,
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
+		cwd: string,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -176,11 +175,12 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.diffViewProvider = createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+		this.cwd = cwd
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
@@ -1097,7 +1097,7 @@ export class Task {
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
 			this.chatSettings?.mode === "plan" ? "plan" : "act",
 			agoText,
-			cwd,
+			this.cwd,
 			wasRecent,
 			responseText,
 			hasPendingFileContextWarnings,
@@ -1328,7 +1328,7 @@ export class Task {
 			// Create a child process
 			const childProcess = execa(command, {
 				shell: true,
-				cwd,
+				cwd: this.cwd,
 				reject: false,
 				all: true, // Merge stdout and stderr
 			})
@@ -1405,7 +1405,7 @@ export class Task {
 		}
 		Logger.info("Executing command in VS code terminal: " + command)
 
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
 
@@ -1575,13 +1575,14 @@ export class Task {
 
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
+		const modelInfo = this.api.getModel()
 		// cline browser tool uses image recognition for navigation (requires model image support).
-		const modelSupportsBrowserUse = this.api.getModel().info.supportsImages ?? false
+		const modelSupportsBrowserUse = modelInfo.info.supportsImages ?? false
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		await this.migratePreferredLanguageToolSetting()
 		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
@@ -1590,18 +1591,18 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), cwd)
+		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), this.cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), this.cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
-		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
+		const localClineRulesFileInstructions = await getLocalClineRules(this.cwd, localToggles)
 		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
-			cwd,
+			this.cwd,
 			cursorLocalToggles,
 		)
-		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(cwd, windsurfLocalToggles)
+		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(this.cwd, windsurfLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1660,6 +1661,17 @@ export class Task {
 			const isAnthropic = this.api instanceof AnthropicHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
+
+			const { statusCode, message, requestId } = extractErrorDetails(error)
+
+			// Capture provider failure telemetry
+			telemetryService.captureProviderApiError({
+				taskId: this.taskId,
+				model: modelInfo.id,
+				errorMessage: message,
+				errorStatus: statusCode,
+				requestId,
+			})
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
@@ -1724,7 +1736,7 @@ export class Task {
 					await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
 						text: JSON.stringify({
 							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-							cancelReason: "retries_exhausted", // Indicate that automatic retries failed
+							// cancelReason: "retries_exhausted", // Indicate that automatic retries failed
 							streamingFailedMessage: errorMessage,
 						} satisfies ClineApiReqInfo),
 					})
@@ -2125,6 +2137,13 @@ export class Task {
 					this.api.getModel().id,
 					"assistant",
 					true,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
 				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -2298,6 +2317,13 @@ export class Task {
 					this.api.getModel().id,
 					"assistant",
 					true,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
 				)
 
 				await this.messageStateHandler.addToApiConversationHistory({
@@ -2357,7 +2383,7 @@ export class Task {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.getContext(), cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.getContext(), this.cwd)
 
 		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
@@ -2375,7 +2401,7 @@ export class Task {
 						) {
 							const parsedText = await parseMentions(
 								block.text,
-								cwd,
+								this.cwd,
 								this.urlContentFetcher,
 								this.fileContextTracker,
 							)
@@ -2411,7 +2437,7 @@ export class Task {
 		// After processing content, check clinerulesData if needed
 		let clinerulesError = false
 		if (needsClinerulesFileCheck) {
-			clinerulesError = await ensureLocalClineDirExists(cwd, GlobalFileNames.clineRules)
+			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
 		}
 
 		// Return all results
@@ -2426,7 +2452,7 @@ export class Task {
 		const visibleFilePaths = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath))
+			.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
 		const allowedVisibleFiles = this.clineIgnoreController
@@ -2445,7 +2471,7 @@ export class Task {
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
 			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath))
+			.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
 		const allowedOpenTabs = this.clineIgnoreController
@@ -2571,19 +2597,19 @@ export class Task {
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
-			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
+			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+			const isDesktop = arePathsEqual(this.cwd, getDesktopDir())
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
-				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.clineIgnoreController)
+				const [files, didHitLimit] = await listFiles(this.cwd, true, 200)
+				const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.clineIgnoreController)
 				details += result
 			}
 
 			// Add git remote URLs section
-			const gitRemotes = await getGitRemoteUrls(cwd)
+			const gitRemotes = await getGitRemoteUrls(this.cwd)
 			if (gitRemotes.length > 0) {
 				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
 			}

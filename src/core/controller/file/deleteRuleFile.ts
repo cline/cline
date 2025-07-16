@@ -1,9 +1,10 @@
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
-import * as vscode from "vscode"
 import { Controller } from ".."
 import { FileMethodHandler } from "./index"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Deletes a rule file from either global or workspace rules directory
@@ -44,7 +45,13 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
-	vscode.window.showInformationMessage(`${fileTypeName} file "${fileName}" deleted successfully`)
+	const message = `${fileTypeName} file "${fileName}" deleted successfully`
+	getHostBridgeProvider().windowClient.showMessage(
+		ShowMessageRequest.create({
+			type: ShowMessageType.INFORMATION,
+			message,
+		}),
+	)
 
 	return RuleFile.create({
 		filePath: request.rulePath,

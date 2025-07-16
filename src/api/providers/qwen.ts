@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import {
-	ApiHandlerOptions,
 	ModelInfo,
 	mainlandQwenModels,
 	internationalQwenModels,
@@ -16,19 +15,39 @@ import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { withRetry } from "../retry"
 
-export class QwenHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface QwenHandlerOptions {
+	qwenApiKey?: string
+	qwenApiLine?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class QwenHandler implements ApiHandler {
+	private options: QwenHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: QwenHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL:
-				this.options.qwenApiLine === "china"
-					? "https://dashscope.aliyuncs.com/compatible-mode/v1"
-					: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-			apiKey: this.options.qwenApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.qwenApiKey) {
+				throw new Error("Alibaba API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL:
+						this.options.qwenApiLine === "china"
+							? "https://dashscope.aliyuncs.com/compatible-mode/v1"
+							: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+					apiKey: this.options.qwenApiKey,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating Alibaba client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
@@ -51,6 +70,7 @@ export class QwenHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const model = this.getModel()
 		const isDeepseekReasoner = model.id.includes("deepseek-r1")
 		const isReasoningModelFamily = model.id.includes("qwen3") || ["qwen-plus-latest", "qwen-turbo-latest"].includes(model.id)
@@ -76,7 +96,7 @@ export class QwenHandler implements ApiHandler {
 			temperature = undefined
 		}
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
 			messages: openAiMessages,

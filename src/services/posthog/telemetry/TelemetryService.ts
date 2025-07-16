@@ -29,6 +29,11 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
+/**
+ * Maximum length for error messages to prevent excessive data
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 500
+
 class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
@@ -83,6 +88,8 @@ class TelemetryService {
 			BROWSER_ERROR: "task.browser_error",
 			// Tracks Gemini API specific performance metrics
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
+			// Tracks when API providers return errors
+			PROVIDER_API_ERROR: "task.provider_api_error",
 			// Collection of all task events
 			TASK_COLLECTION: "task.collection",
 		},
@@ -202,26 +209,23 @@ class TelemetryService {
 
 		const propertiesWithVersion = this.addProperties(event.properties)
 
+		const capturedEvent = {
+			event: event.event,
+			properties: propertiesWithVersion,
+		}
+
 		if (collect && taskId) {
 			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
 			if (existingTask) {
-				existingTask.collection.push({
-					event: event.event,
-					properties: propertiesWithVersion,
-				})
+				existingTask.collection.push(capturedEvent)
 			} else {
 				this.collectedTasks.push({
 					taskId,
-					collection: [
-						{
-							event: event.event,
-							properties: propertiesWithVersion,
-						},
-					],
+					collection: [capturedEvent],
 				})
 			}
 		} else {
-			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
+			this.client.capture({ ...capturedEvent, distinctId: this.distinctId })
 		}
 	}
 
@@ -288,6 +292,8 @@ class TelemetryService {
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param collect If true, collect event instead of sending
+	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
 		taskId: string,
@@ -295,6 +301,13 @@ class TelemetryService {
 		model: string = "unknown",
 		source: "user" | "assistant",
 		collect: boolean = false,
+		tokenUsage: {
+			tokensIn?: number
+			tokensOut?: number
+			cacheWriteTokens?: number
+			cacheReadTokens?: number
+			totalCost?: number
+		} = {},
 	) {
 		// Ensure required parameters are provided
 		if (!taskId || !provider || !model || !source) {
@@ -308,6 +321,7 @@ class TelemetryService {
 			model,
 			source,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
+			...tokenUsage,
 		}
 
 		this.capture(
@@ -707,6 +721,38 @@ class TelemetryService {
 				properties: {
 					button,
 					taskId,
+				},
+			},
+			collect,
+		)
+	}
+
+	/**
+	 * Records telemetry when an API provider returns an error
+	 * @param taskId Unique identifier for the task
+	 * @param model Identifier of the model used
+	 * @param requestId Unique identifier for the specific API request
+	 * @param errorMessage Detailed error message from the API provider
+	 * @param errorStatus HTTP status code of the error response, if available
+	 * @param collect Optional flag to determine if the event should be collected for batch sending
+	 */
+	public captureProviderApiError(
+		args: {
+			taskId: string
+			model: string
+			errorMessage: string
+			errorStatus?: number | undefined
+			requestId?: string | undefined
+		},
+		collect: boolean = true,
+	) {
+		this.capture(
+			{
+				event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
+				properties: {
+					...args,
+					errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
+					timestamp: new Date().toISOString(),
 				},
 			},
 			collect,

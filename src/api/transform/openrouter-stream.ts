@@ -139,6 +139,10 @@ export async function createOpenRouterStream(
 		shouldApplyMiddleOutTransform = true
 	}
 
+	// hardcoded provider sorting for kimi-k2
+	const isKimiK2 = model.id.startsWith("moonshotai/kimi-k2")
+	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -153,6 +157,8 @@ export async function createOpenRouterStream(
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
+		// limit providers to only those that support the 131k context window
+		...(isKimiK2 ? { provider: { order: ["groq", "together"], allow_fallbacks: false } } : {}),
 	})
 
 	return stream

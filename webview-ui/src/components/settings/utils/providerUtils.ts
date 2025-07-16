@@ -34,6 +34,8 @@ import {
 	doubaoModels,
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
+	moonshotModels,
+	moonshotDefaultModelId,
 	nebiusModels,
 	nebiusDefaultModelId,
 	cerebrasModels,
@@ -42,6 +44,8 @@ import {
 	sapAiCoreDefaultModelId,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	groqModels,
+	groqDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -129,12 +133,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: openRouterModelId,
-				// TODO: remove this once we have a better way to handle free models on Cline
-				// Free grok 3 promotion
-				selectedModelInfo:
-					openRouterModelId === "x-ai/grok-3"
-						? { ...openRouterModelInfo, inputPrice: 0, outputPrice: 0 }
-						: openRouterModelInfo,
+				selectedModelInfo: openRouterModelInfo,
 			}
 		case "openai":
 			return {
@@ -173,12 +172,22 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "moonshot":
+			return getProviderData(moonshotModels, moonshotDefaultModelId)
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "groq":
+			const result = {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.groqModelId || groqDefaultModelId,
+				selectedModelInfo: apiConfiguration?.groqModelInfo || groqModels[groqDefaultModelId],
+			}
+
+			return result
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		default:

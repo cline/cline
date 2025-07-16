@@ -1,83 +1,175 @@
-import fs from "fs"
-import path from "path"
-import { glob } from "glob"
+#!/usr/bin/env node
+
 import archiver from "archiver"
-import { cp } from "fs/promises"
 import { execSync } from "child_process"
-
+import fs from "fs"
+import { cp } from "fs/promises"
+import { glob } from "glob"
+import minimatch from "minimatch"
+import path from "path"
 const BUILD_DIR = "dist-standalone"
-const SOURCE_DIR = "standalone/runtime-files"
+const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 
-await cp(SOURCE_DIR, BUILD_DIR, { recursive: true })
-
-// Run npm install in the distribution directory
-console.log("Running npm install in distribution directory...")
-const cwd = process.cwd()
-process.chdir(BUILD_DIR)
-try {
-	execSync("npm install", { stdio: "inherit" })
-	// Move the vscode directory into node_modules.
-	// It can't be installed using npm because it will create a symlink which is not portable.
-	fs.renameSync("vscode", path.join("node_modules", "vscode"))
-} catch (error) {
-	console.error("Error during setup:", error)
-	process.exit(1)
-} finally {
-	process.chdir(cwd)
+async function main() {
+	await installNodeDependencies()
+	await zipDistribution()
 }
 
-// Check for native .node modules.
-const nativeModules = await glob("**/*.node", { cwd: BUILD_DIR, nodir: true })
-if (nativeModules.length > 0) {
-	console.error("Native node modules cannot be included in the standalone distribution:\n", nativeModules.join("\n"))
-	process.exit(1)
+async function installNodeDependencies() {
+	await cpr(RUNTIME_DEPS_DIR, BUILD_DIR)
+
+	console.log("Running npm install in distribution directory...")
+	const cwd = process.cwd()
+	process.chdir(BUILD_DIR)
+
+	try {
+		execSync("npm install", { stdio: "inherit" })
+		// Move the vscode directory into node_modules.
+		// It can't be installed using npm because it will create a symlink which cannot be unzipped correctly on windows.
+		fs.renameSync("vscode", path.join("node_modules", "vscode"))
+	} catch (error) {
+		console.error("Error during setup:", error)
+		process.exit(1)
+	} finally {
+		process.chdir(cwd)
+	}
+
+	// Check for native .node modules.
+	const nativeModules = await glob("**/*.node", { cwd: BUILD_DIR, nodir: true })
+	if (nativeModules.length > 0) {
+		console.error("Native node modules cannot be included in the standalone distribution:\n", nativeModules.join("\n"))
+		process.exit(1)
+	}
 }
 
-// Zip the build directory (excluding any pre-existing output zip).
-const zipPath = path.join(BUILD_DIR, "standalone.zip")
-const output = fs.createWriteStream(zipPath)
-const archive = archiver("zip", { zlib: { level: 3 } })
+async function zipDistribution() {
+	// Zip the build directory (excluding any pre-existing output zip).
+	const zipPath = path.join(BUILD_DIR, "standalone.zip")
+	const output = fs.createWriteStream(zipPath)
+	const archive = archiver("zip", { zlib: { level: 3 } })
 
-output.on("close", () => {
-	console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
-})
-archive.on("warning", (err) => {
-	console.warn(`Warning: ${err}`)
-})
-archive.on("error", (err) => {
-	throw err
-})
+	output.on("close", () => {
+		console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
+	})
+	archive.on("warning", (err) => {
+		console.warn(`Warning: ${err}`)
+	})
+	archive.on("error", (err) => {
+		throw err
+	})
 
-archive.pipe(output)
-archive.glob("**/*", {
-	cwd: BUILD_DIR,
-	ignore: ["standalone.zip"],
-})
+	archive.pipe(output)
+	// Add all the files from the standalone build dir.
+	archive.glob("**/*", {
+		cwd: BUILD_DIR,
+		ignore: ["standalone.zip"],
+	})
 
-// Add the whole cline directory under "extension"
-archive.directory(process.cwd(), "extension", (entry) => {
-	// Skip certain directories.
-	const exclude = [
-		BUILD_DIR + "/",
-		"node_modules/", // node_modules nearly 1GB.
-		"webview-ui/node_modules/", // node_modules nearly 1GB.
-	]
-	// These node modules are used at runtime as assets, they need to be included.
-	const include = ["node_modules/@vscode/", "webview-ui/node_modules/katex"]
-	const name = entry.name
+	// Exclude the same files as the VCE vscode extension packager.
+	// Also ignore the dist directory, the build directory for the extension.
+	const isIgnored = createIsIgnored(["dist/**"])
 
-	if (include.some((prefix) => name.startsWith(prefix))) {
+	// Add the whole cline directory under "extension", except the for the ignored files.
+	archive.directory(process.cwd(), "extension", (entry) => {
+		if (isIgnored(entry.name)) {
+			log_verbose("Ignoring", entry.name)
+			return false
+		}
 		return entry
-	}
-	if (exclude.some((prefix) => name.startsWith(prefix))) {
-		return false
-	}
-	if (name.match(/(^|\/)\./)) {
-		// exclude dot directories
-		return false
-	}
-	return entry
-})
+	})
 
-console.log("Zipping package...")
-await archive.finalize()
+	console.log("Zipping package...")
+	await archive.finalize()
+}
+
+/**
+ * This is based on https://github.com/microsoft/vscode-vsce/blob/fafad8a63e9cf31179f918eb7a4eeb376834c904/src/package.ts#L1695
+ * because the .vscodeignore format is not compatible with the `ignore` npm module.
+ */
+function createIsIgnored(standaloneIgnores) {
+	const MinimatchOptions = { dot: true }
+	const defaultIgnore = [
+		".vscodeignore",
+		"package-lock.json",
+		"npm-debug.log",
+		"yarn.lock",
+		"yarn-error.log",
+		"npm-shrinkwrap.json",
+		".editorconfig",
+		".npmrc",
+		".yarnrc",
+		".gitattributes",
+		"*.todo",
+		"tslint.yaml",
+		".eslintrc*",
+		".babelrc*",
+		".prettierrc*",
+		".cz-config.js",
+		".commitlintrc*",
+		"webpack.config.js",
+		"ISSUE_TEMPLATE.md",
+		"CONTRIBUTING.md",
+		"PULL_REQUEST_TEMPLATE.md",
+		"CODE_OF_CONDUCT.md",
+		".github",
+		".travis.yml",
+		"appveyor.yml",
+		"**/.git",
+		"**/.git/**",
+		"**/*.vsix",
+		"**/.DS_Store",
+		"**/*.vsixmanifest",
+		"**/.vscode-test/**",
+		"**/.vscode-test-web/**",
+	]
+
+	const rawIgnore = fs.readFileSync(".vscodeignore", "utf8")
+
+	// Parse raw ignore by splitting output into lines and filtering out empty lines and comments
+	const parsedIgnore = rawIgnore
+		.split(/[\n\r]/)
+		.map((s) => s.trim())
+		.filter((s) => !!s)
+		.filter((i) => !/^\s*#/.test(i))
+
+	// Add '/**' to possible folder names
+	const expandedIgnore = [
+		...parsedIgnore,
+		...parsedIgnore.filter((i) => !/(^|\/)[^/]*\*[^/]*$/.test(i)).map((i) => (/\/$/.test(i) ? `${i}**` : `${i}/**`)),
+	]
+
+	// Combine with default ignore list
+	// Also ignore the dist directory- the build directory for the extension.
+	const allIgnore = [...defaultIgnore, ...expandedIgnore, ...standaloneIgnores]
+
+	// Split into ignore and negate list
+	const [ignore, negate] = allIgnore.reduce(
+		(r, e) => (!/^\s*!/.test(e) ? [[...r[0], e], r[1]] : [r[0], [...r[1], e]]),
+		[[], []],
+	)
+
+	function isIgnored(f) {
+		return (
+			ignore.some((i) => minimatch(f, i, MinimatchOptions)) &&
+			!negate.some((i) => minimatch(f, i.substr(1), MinimatchOptions))
+		)
+	}
+	return isIgnored
+}
+
+/* cp -r */
+async function cpr(source, dest) {
+	await cp(source, dest, {
+		recursive: true,
+		preserveTimestamps: true,
+		dereference: false, // preserve symlinks instead of following them
+	})
+}
+
+function log_verbose(...args) {
+	if (process.argv.includes("-v") || process.argv.includes("--verbose")) {
+		console.log(...args)
+	}
+}
+
+await main()

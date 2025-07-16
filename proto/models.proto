@@ -1,10 +1,9 @@
 syntax = "proto3";
 
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 // Service for model-related operations
 service ModelsService {
@@ -24,6 +23,8 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
+   // Refreshes and returns Groq models
+  rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -121,8 +122,10 @@ enum ApiProvider {
   XAI = 21;
   SAMBANOVA = 22;
   CEREBRAS = 23;
-  SAPAICORE = 24;
-  CLAUDE_CODE = 25;
+  GROQ = 24;
+  SAPAICORE = 25;
+  CLAUDE_CODE = 26;
+  MOONSHOT = 27;
 }
 
 // Model info for OpenAI-compatible models
@@ -165,7 +168,7 @@ message ModelsApiConfiguration {
   // From ApiHandlerOptions (excluding onRetryAttempt function)
   optional string api_model_id = 1;
   optional string api_key = 2;
-  optional string cline_api_key = 3;
+  optional string cline_account_id = 3;
   optional string task_id = 4;
   optional string lite_llm_base_url = 5;
   optional string lite_llm_model_id = 6;
@@ -236,4 +239,11 @@ message ModelsApiConfiguration {
   optional string sap_ai_core_token_url = 71;
   optional string sap_ai_core_base_url = 72;
   optional string claude_code_path = 73;
+  optional string aws_authentication = 74;
+  optional string aws_bedrock_api_key = 75;
+  optional string moonshot_api_key = 76;
+  optional string moonshot_api_line = 77;
+  optional string groq_api_key = 78;
+  optional string groq_model_id = 79;
+  optional OpenRouterModelInfo groq_model_info = 80;
 }

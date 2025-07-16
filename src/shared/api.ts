@@ -20,6 +20,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "moonshot"
 	| "nebius"
 	| "fireworks"
 	| "asksage"
@@ -27,11 +28,12 @@ export type ApiProvider =
 	| "sambanova"
 	| "cerebras"
 	| "sapaicore"
+	| "groq"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
-	clineApiKey?: string
+	clineAccountId?: string
 	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
@@ -50,8 +52,10 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
+	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: BedrockModelId
@@ -86,6 +90,8 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
+	moonshotApiLine?: string
+	moonshotApiKey?: string
 	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
@@ -94,6 +100,9 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	groqApiKey?: string
+	groqModelId?: string
+	groqModelInfo?: ModelInfo
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
@@ -600,6 +609,9 @@ export const vertexModels = {
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		tiers: [
 			{
 				contextWindow: 200000,
@@ -626,6 +638,21 @@ export const vertexModels = {
 		thinkingConfig: {
 			maxBudget: 24576,
 			outputPrice: 3.5,
+		},
+	},
+
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
 		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
@@ -731,6 +758,9 @@ export const geminiModels = {
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		tiers: [
 			{
 				contextWindow: 200000,
@@ -745,6 +775,20 @@ export const geminiModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
+	},
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
 	},
 	"gemini-2.5-flash": {
 		maxTokens: 65536,
@@ -2051,8 +2095,17 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-3"
+export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4": {
+		maxTokens: 8192,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // will have different pricing for long context vs short context
+		cacheReadsPrice: 0.75,
+		outputPrice: 15.0,
+	},
 	"grok-3-beta": {
 		maxTokens: 8192,
 		contextWindow: 131072,
@@ -2354,6 +2407,95 @@ export const cerebrasModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Groq
+// https://console.groq.com/docs/models
+// https://groq.com/pricing/
+export type GroqModelId = keyof typeof groqModels
+export const groqDefaultModelId: GroqModelId = "moonshotai/kimi-k2-instruct"
+export const groqModels = {
+	// Compound Beta Models - Hybrid architectures optimized for tool use
+	"compound-beta": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description:
+			"Compound model using Llama 4 Scout for core reasoning with Llama 3.3 70B for routing and tool use. Excellent for plan/act workflows.",
+	},
+	"compound-beta-mini": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description: "Lightweight compound model for faster inference while maintaining tool use capabilities.",
+	},
+	// DeepSeek Models - Reasoning-optimized
+	"deepseek-r1-distill-llama-70b": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 0.99,
+		description:
+			"DeepSeek R1 reasoning capabilities distilled into Llama 70B architecture. Excellent for complex problem-solving and planning.",
+	},
+	// Llama 4 Models
+	"meta-llama/llama-4-maverick-17b-128e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+		description: "Meta's Llama 4 Maverick 17B model with 128 experts, supports vision and multimodal tasks.",
+	},
+	"meta-llama/llama-4-scout-17b-16e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.34,
+		description: "Meta's Llama 4 Scout 17B model with 16 experts, optimized for fast inference and general tasks.",
+	},
+	// Llama 3.3 Models
+	"llama-3.3-70b-versatile": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.59,
+		outputPrice: 0.79,
+		description: "Meta's latest Llama 3.3 70B model optimized for versatile use cases with excellent performance and speed.",
+	},
+	// Llama 3.1 Models - Fast inference
+	"llama-3.1-8b-instant": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution.",
+	},
+	// Mistral Models
+	"moonshotai/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 3.0,
+		description:
+			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Requesty
 // https://requesty.ai/models
 export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
@@ -2373,137 +2515,167 @@ export const requestyDefaultModelInfo: ModelInfo = {
 // SAP AI Core
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels
 export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
+// Pricing is calculated using Capacity Units, not directly in USD
+const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.7-sonnet": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-sonnet": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-haiku": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3-opus": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
-	"gpt-4o": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
 	},
-	"gpt-4o-mini": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
-	o1: {
+	"gpt-4o": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
-	"o3-mini": {
+	"gpt-4o-mini": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 2,
-		outputPrice: 8,
-		cacheReadsPrice: 0.5,
+		description: sapAiCoreModelDescription,
 	},
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 0.1,
-		outputPrice: 0.4,
-		cacheReadsPrice: 0.025,
+		description: sapAiCoreModelDescription,
+	},
+	o1: {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 10.0,
-		outputPrice: 40.0,
-		cacheReadsPrice: 2.5,
+		description: sapAiCoreModelDescription,
+	},
+	"o3-mini": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 1.1,
-		outputPrice: 4.4,
-		cacheReadsPrice: 0.275,
+		description: sapAiCoreModelDescription,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Moonshot AI Studio
+// https://platform.moonshot.ai/docs/pricing/chat
+export const moonshotModels = {
+	"kimi-k2-0711-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+	},
+	"moonshot-v1-128k-vision-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 5,
+	},
+	"kimi-thinking-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 30,
+		outputPrice: 30,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type MoonshotModelId = keyof typeof moonshotModels
+export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
