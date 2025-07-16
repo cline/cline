@@ -10,45 +10,42 @@ const vscode = require("./vscode-stubs.js")
 // Create global terminal manager instance
 const globalTerminalManager = new StandaloneTerminalManager()
 
-vscode.windowcreateTerminal = (...args) => {
-	console.log("Enhanced createTerminal:", ...args)
-	// Extract options from arguments
-	let options = {}
-	if (args.length > 0) {
-		if (typeof args[0] === "string") {
-			// Called with (name, shellPath, shellArgs)
-			options = {
-				name: args[0],
-				shellPath: args[1],
-				shellArgs: args[2],
+Object.assign(vscode.window, {
+	createTerminal: (...args) => {
+		console.log("Enhanced createTerminal:", ...args)
+		// Extract options from arguments
+		let options = {}
+		if (args.length > 0) {
+			if (typeof args[0] === "string") {
+				// Called with (name, shellPath, shellArgs)
+				options = {
+					name: args[0],
+					shellPath: args[1],
+					shellArgs: args[2],
+				}
+			} else if (typeof args[0] === "object") {
+				// Called with options object
+				options = args[0]
 			}
-		} else if (typeof args[0] === "object") {
-			// Called with options object
-			options = args[0]
 		}
-	}
 
-	// Use our enhanced terminal manager to create a terminal
-	const terminalInfo = globalTerminalManager.registry.createTerminal({
-		name: options.name || `Terminal ${Date.now()}`,
-		cwd: options.cwd || process.cwd(),
-		shellPath: options.shellPath,
-	})
+		// Use our enhanced terminal manager to create a terminal
+		const terminalInfo = globalTerminalManager.registry.createTerminal({
+			name: options.name || `Terminal ${Date.now()}`,
+			cwd: options.cwd || process.cwd(),
+			shellPath: options.shellPath,
+		})
 
-	// Store reference for tracking
-	vscode.window.terminals.push(terminalInfo.terminal)
-	if (!vscode.window.activeTerminal) {
-		vscode.window.activeTerminal = terminalInfo.terminal
-	}
+		// Store reference for tracking
+		vscode.window.terminals.push(terminalInfo.terminal)
+		if (!vscode.window.activeTerminal) {
+			vscode.window.activeTerminal = terminalInfo.terminal
+		}
 
-	console.log(`Enhanced terminal created: ${terminalInfo.id}`)
-	return terminalInfo.terminal
-}
-
-// Initialize env object if it doesn't exist, then extend it
-if (!vscode.env) {
-	vscode.env = {}
-}
+		console.log(`Enhanced terminal created: ${terminalInfo.id}`)
+		return terminalInfo.terminal
+	},
+})
 
 Object.assign(vscode.env, {
 	uriScheme: "vscode",
