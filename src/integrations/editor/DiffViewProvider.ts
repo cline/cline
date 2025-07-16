@@ -254,7 +254,7 @@ export abstract class DiffViewProvider {
 		const fileExists = this.editType === "modify"
 
 		if (!fileExists) {
-			this.saveDocument()
+			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
