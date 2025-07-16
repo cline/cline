@@ -427,6 +427,10 @@ export const ChatRowContent = memo(
 							}
 
 							if (apiRequestFailedMessage) {
+								const errorData = parseErrorText(apiRequestFailedMessage)
+								if (errorData?.code === "insufficient_credits") {
+									return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
+								}
 								return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 							}
 							// New: Check for retryStatus to modify the title
