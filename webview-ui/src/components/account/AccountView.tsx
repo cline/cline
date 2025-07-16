@@ -172,7 +172,7 @@ export const ClineAccountView = () => {
 
 		intervalRef.current = setInterval(() => {
 			getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
-		}, 30_000)
+		}, 10_000)
 
 		return () => {
 			if (intervalRef.current) clearInterval(intervalRef.current)
@@ -186,7 +186,7 @@ export const ClineAccountView = () => {
 			clearInterval(intervalRef.current)
 			intervalRef.current = setInterval(() => {
 				getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
-			}, 30_000)
+			}, 10_000)
 		}
 	}
 
