@@ -215,7 +215,11 @@ class TelemetryService {
 
 		if (this.telemetryEnabled) {
 			this.client.identify({ distinctId: this.distinctId })
-			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
+			this.client.capture({
+				distinctId: this.distinctId,
+				event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+				properties: this.addProperties({}),
+			})
 		}
 	}
 
