@@ -2,17 +2,16 @@ console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
 const open = require("open").default
-const { StandaloneTerminalManager } = require("./enhanced-terminal")
 
-// Import the base vscode object from stubs
-const vscode = require("./vscode-stubs.js")
+const { StandaloneTerminalManager } = require("./enhanced-terminal")
 
 // Create global terminal manager instance
 const globalTerminalManager = new StandaloneTerminalManager()
 
-Object.assign(vscode.window, {
+vscode.window = {
 	createTerminal: (...args) => {
 		console.log("Enhanced createTerminal:", ...args)
+
 		// Extract options from arguments
 		let options = {}
 		if (args.length > 0) {
@@ -45,9 +44,65 @@ Object.assign(vscode.window, {
 		console.log(`Enhanced terminal created: ${terminalInfo.id}`)
 		return terminalInfo.terminal
 	},
-})
 
-Object.assign(vscode.env, {
+	showInformationMessage: (...args) => {
+		console.log("Stubbed showInformationMessage:", ...args)
+		return Promise.resolve(undefined)
+	},
+	showWarningMessage: (...args) => {
+		console.log("Stubbed showWarningMessage:", ...args)
+		return Promise.resolve(undefined)
+	},
+	showErrorMessage: (...args) => {
+		console.log("Stubbed showErrorMessage:", ...args)
+		return Promise.resolve(undefined)
+	},
+	showInputBox: async (options) => {
+		console.log("Stubbed showInputBox:", options)
+		return ""
+	},
+	showOpenDialog: async (options) => {
+		console.log("Stubbed showOpenDialog:", options)
+		return []
+	},
+	showSaveDialog: async (options) => {
+		console.log("Stubbed showSaveDialog:", options)
+		return undefined
+	},
+	showTextDocument: async (...args) => {
+		console.log("Stubbed showTextDocument:", ...args)
+		return {}
+	},
+	createOutputChannel: (name) => {
+		console.log("Stubbed createOutputChannel:", name)
+		return {
+			appendLine: console.log,
+			show: () => {},
+			dispose: () => {},
+		}
+	},
+	activeTextEditor: undefined,
+	visibleTextEditors: [],
+	tabGroups: {
+		all: [],
+		close: async () => {},
+		onDidChangeTabs: createStub("vscode.env.tabGroups.onDidChangeTabs"),
+		activeTabGroup: { tabs: [] },
+	},
+	withProgress: async (_options, task) => {
+		console.log("Stubbed withProgress")
+		return task({ report: () => {} })
+	},
+	registerUriHandler: () => ({ dispose: () => {} }),
+	registerWebviewViewProvider: () => ({ dispose: () => {} }),
+	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
+	createTextEditorDecorationType: () => ({ dispose: () => {} }),
+	createWebviewPanel: (..._args) => {
+		throw new Error("WebviewPanel is not supported in standalone app.")
+	},
+}
+
+vscode.env = {
 	uriScheme: "vscode",
 	appName: "Visual Studio Code",
 	appRoot: "/tmp/vscode/appRoot",
@@ -57,26 +112,17 @@ Object.assign(vscode.env, {
 	sessionId: "stub-session-id",
 	shell: "/bin/bash",
 
-	// Add the stub functions that were missing
 	clipboard: createStub("vscode.env.clipboard"),
+	openExternal: createStub("vscode.env.openExternal"),
 	getQueryParameter: createStub("vscode.env.getQueryParameter"),
 	onDidChangeTelemetryEnabled: createStub("vscode.env.onDidChangeTelemetryEnabled"),
 	isTelemetryEnabled: createStub("vscode.env.isTelemetryEnabled"),
 	telemetryConfiguration: createStub("vscode.env.telemetryConfiguration"),
 	onDidChangeTelemetryConfiguration: createStub("vscode.env.onDidChangeTelemetryConfiguration"),
 	createTelemetryLogger: createStub("vscode.env.createTelemetryLogger"),
-})
-
-// Override the openExternal function with actual implementation
-vscode.env.openExternal = async (uri) => {
-	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
-	console.log("Opening browser:", url)
-	await open(url)
-	return true
 }
 
-// Extend Uri object with improved implementations
-Object.assign(vscode.Uri, {
+vscode.Uri = {
 	parse: (uriString) => {
 		const url = new URL(uriString)
 		return {
@@ -121,7 +167,14 @@ Object.assign(vscode.Uri, {
 		const joined = segments.map((s) => (typeof s === "string" ? s : s.path)).join("/")
 		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
 	},
-})
+}
+
+vscode.env.openExternal = async (uri) => {
+	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
+	console.log("Opening browser:", url)
+	await open(url)
+	return true
+}
 
 // Export the terminal manager globally for Cline core to use
 global.standaloneTerminalManager = globalTerminalManager
@@ -131,7 +184,5 @@ if (typeof global !== "undefined") {
 	// Replace the TerminalManager class with our standalone implementation
 	global.StandaloneTerminalManagerClass = require("./enhanced-terminal").StandaloneTerminalManager
 }
-
-module.exports = vscode
 
 console.log("Finished loading stub impls...")
