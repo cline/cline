@@ -2,7 +2,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { BooleanRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
@@ -73,7 +73,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	// Use full context state for immediate save payload
 	const { apiConfiguration, uriScheme } = useExtensionState()
 
-	const selectedProvider = apiConfiguration?.apiProvider
+	const selectedProvider = useMemo(() => apiConfiguration?.apiProvider || "cline", [apiConfiguration?.apiProvider])
 
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -130,9 +130,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<VSCodeDropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={(e: any) => {
-						handleFieldChange("apiProvider", e.target.value)
-					}}
+					onChange={(e: any) => handleFieldChange("apiProvider", e.target.value)}
 					style={{
 						minWidth: 130,
 						position: "relative",

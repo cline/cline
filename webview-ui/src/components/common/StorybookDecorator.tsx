@@ -12,8 +12,10 @@ const StorybookStateUpdater: React.FC<{
 }> = ({ mockState, children }) => {
 	const { setExtensionStateForTest } = useExtensionState()
 
+	// Set state when mockState changes
 	React.useEffect(() => {
 		if (mockState) {
+			console.log("[DEBUG] StorybookStateUpdater setting mock state:", mockState)
 			setExtensionStateForTest(mockState)
 		}
 	}, [mockState, setExtensionStateForTest])

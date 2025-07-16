@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import McpResponseDisplay from "./McpResponseDisplay"
-import { StorybookProvider } from "@/components/common/StorybookDecorator"
+import { StorybookProvider, VSCodeWebview } from "@/components/common/StorybookDecorator"
+import { ExtensionState } from "@shared/ExtensionMessage"
 
 const meta: Meta<typeof McpResponseDisplay> = {
 	title: "Component/McpResponseDisplay",
 	component: McpResponseDisplay,
 	parameters: {
-		layout: "padded",
 		docs: {
 			description: {
 				component: `
@@ -32,20 +32,7 @@ The component will demonstrate the basic text display and UI structure.
 			},
 		},
 	},
-	decorators: [
-		(Story) => {
-			const mockState = {
-				mcpResponsesCollapsed: false, // Default to expanded for better demo
-				mcpRichDisplayEnabled: true, // Default to rich display enabled
-			}
-
-			return (
-				<StorybookProvider mockState={mockState}>
-					<Story />
-				</StorybookProvider>
-			)
-		},
-	],
+	decorators: [VSCodeWebview],
 	argTypes: {
 		responseText: {
 			control: "text",
@@ -54,11 +41,17 @@ The component will demonstrate the basic text display and UI structure.
 	},
 }
 
+const defaultSettings = {
+	mcpDisplayMode: "plain",
+	mcpResponsesCollapsed: false,
+} satisfies Partial<ExtensionState>
+
 export default meta
+
 type Story = StoryObj<typeof McpResponseDisplay>
 
 // Basic text response
-export const BasicText: Story = {
+export const Default: Story = {
 	args: {
 		responseText: `Here's a simple text response from an MCP server.
 
@@ -69,14 +62,14 @@ The text is displayed in a monospace font with proper line breaks and formatting
 	parameters: {
 		docs: {
 			description: {
-				story: "A basic text response without any URLs or rich content.",
+				story: "A basic text response without any URLs or rich content in plain mode.",
 			},
 		},
 	},
 }
 
 // Response with URLs (will show as plain text in Storybook)
-export const WithUrls: Story = {
+export const LinksPreview: Story = {
 	args: {
 		responseText: `Here's a response that contains URLs:
 
@@ -93,6 +86,20 @@ In the actual application, these URLs would be processed for rich display when r
 			},
 		},
 	},
+	decorators: [
+		(Story) => {
+			const mockState = {
+				...defaultSettings,
+				mcpDisplayMode: "rich",
+			} satisfies Partial<ExtensionState>
+
+			return (
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
+			)
+		},
+	],
 }
 
 // Mixed content response
@@ -112,7 +119,18 @@ And a diagram: https://via.placeholder.com/400x400/6f42c1/ffffff?text=Diagram
 - Tutorial: https://tutorial.example.com
 - Examples: https://examples.example.com
 
-This demonstrates how the component handles a mix of text, links, and images.`,
+This demonstrates how the component handles a mix of text, links, and images.
+
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+More content here to demonstrate scrolling and layout behavior with longer text content that might wrap across multiple lines and require proper text handling.
+
+Sample images:
+- https://via.placeholder.com/300x200/007bff/ffffff?text=Logo
+- https://via.placeholder.com/400x300/28a745/ffffff?text=Feature+1
+- https://via.placeholder.com/400x300/dc3545/ffffff?text=Feature+2
+
+This tests the component's ability to handle longer content efficiently while maintaining good performance and user experience.`,
 	},
 	parameters: {
 		docs: {
@@ -121,24 +139,12 @@ This demonstrates how the component handles a mix of text, links, and images.`,
 			},
 		},
 	},
-}
-
-// Collapsed by default
-export const CollapsedByDefault: Story = {
-	args: {
-		responseText: `This response starts in a collapsed state.
-
-Click the header to expand and see the full content.
-
-https://example.com/hidden-until-expanded
-https://via.placeholder.com/400x300/ffc107/000000?text=Hidden+Image`,
-	},
 	decorators: [
 		(Story) => {
 			const mockState = {
-				mcpResponsesCollapsed: true, // Start collapsed
-				mcpRichDisplayEnabled: true,
-			}
+				...defaultSettings,
+				mcpDisplayMode: "rich",
+			} satisfies Partial<ExtensionState>
 
 			return (
 				<StorybookProvider mockState={mockState}>
@@ -147,46 +153,6 @@ https://via.placeholder.com/400x300/ffc107/000000?text=Hidden+Image`,
 			)
 		},
 	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Response that starts in a collapsed state, useful for long responses or when screen space is limited.",
-			},
-		},
-	},
-}
-
-// Plain text mode
-export const PlainTextMode: Story = {
-	args: {
-		responseText: `This response is displayed in plain text mode.
-
-Even though it contains URLs like:
-- https://example.com/link
-- https://via.placeholder.com/400x300/17a2b8/ffffff?text=Image
-
-They won't be processed for rich display when in plain text mode.`,
-	},
-	decorators: [
-		(Story) => {
-			const mockState = {
-				mcpResponsesCollapsed: false,
-				mcpRichDisplayEnabled: false, // Disable rich display
-			}
-			return (
-				<StorybookProvider mockState={mockState}>
-					<Story />
-				</StorybookProvider>
-			)
-		},
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Response displayed in plain text mode where URLs are not processed for rich content.",
-			},
-		},
-	},
 }
 
 // Code-like response
@@ -226,39 +192,6 @@ export const EmptyResponse: Story = {
 		docs: {
 			description: {
 				story: "Handles empty response text gracefully.",
-			},
-		},
-	},
-}
-
-// Very long response
-export const LongResponse: Story = {
-	args: {
-		responseText: `This is a very long response that demonstrates how the component handles extensive content.
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-Here are some resources:
-- Documentation: https://docs.example.com/getting-started
-- API reference: https://docs.example.com/api-reference
-- Tutorials: https://docs.example.com/tutorials
-- Examples: https://docs.example.com/examples
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-More content here to demonstrate scrolling and layout behavior with longer text content that might wrap across multiple lines and require proper text handling.
-
-Sample images:
-- https://via.placeholder.com/300x200/007bff/ffffff?text=Logo
-- https://via.placeholder.com/400x300/28a745/ffffff?text=Feature+1
-- https://via.placeholder.com/400x300/dc3545/ffffff?text=Feature+2
-
-This tests the component's ability to handle longer content efficiently while maintaining good performance and user experience.`,
-	},
-	parameters: {
-		docs: {
-			description: {
-				story: "Tests the component with longer content to demonstrate layout and performance.",
 			},
 		},
 	},

@@ -5,6 +5,7 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { StorybookProvider, VSCodeWebview } from "../common/StorybookDecorator"
+import { ExtensionState } from "@shared/ExtensionMessage"
 
 const meta: Meta<typeof SettingsView> = {
 	title: "Views/SettingsView",
@@ -112,19 +113,20 @@ export const FeaturesTab: Story = {
 	},
 	decorators: [
 		(Story) => {
-			const mockState = {
+			const defaultStates = {
 				autoApprovalSettings: {
 					...DEFAULT_AUTO_APPROVAL_SETTINGS,
-					alwaysApproveReadFile: true,
-					alwaysApproveWriteFile: false,
+				},
+				apiConfiguration: {
+					apiProvider: "cline",
 				},
 				enableCheckpointsSetting: true,
 				mcpMarketplaceEnabled: true,
-				mcpRichDisplayEnabled: true,
-			}
+				mcpDisplayMode: "rich",
+			} satisfies Partial<ExtensionState>
 
 			return (
-				<StorybookProvider mockState={mockState}>
+				<StorybookProvider mockState={defaultStates}>
 					<Story />
 				</StorybookProvider>
 			)

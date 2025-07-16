@@ -6,42 +6,6 @@ import { StorybookProvider } from "../common/StorybookDecorator"
 const meta: Meta<typeof CreditLimitError> = {
 	title: "Component/CreditLimitError",
 	component: CreditLimitError,
-	parameters: {
-		layout: "padded",
-		docs: {
-			description: {
-				component: `
-The CreditLimitError component displays credit limit information and provides actions for users who have exhausted their credits.
-
-**Features:**
-- **Balance Display**: Shows current balance converted from microcredits to dollars with 4 decimal precision
-- **Credit Purchase**: Direct link to buy more credits via external URL
-- **Retry Functionality**: Allows users to retry their request after potentially purchasing credits
-- **Customizable Messaging**: Supports custom error messages for different scenarios
-- **gRPC Integration**: Uses TaskServiceClient to handle retry requests through the extension backend
-
-**Use Cases:**
-- Displaying credit exhaustion errors during API requests
-- Providing clear path to credit purchase
-- Allowing immediate retry after credit purchase
-- Showing current balance for user awareness
-
-**Technical Details:**
-- Balance is stored in microcredits (1 credit = 1,000,000 microcredits)
-- Integrates with Cline's task system via gRPC for retry handling
-- Uses VSCode UI toolkit components for consistent styling
-- Supports external link navigation for credit purchases
-
-**Props:**
-- \`currentBalance\`: Current balance in microcredits
-- \`totalSpent\`: Total amount spent (optional, for future use)
-- \`totalPromotions\`: Total promotional credits (optional, for future use)
-- \`message\`: Custom error message to display
-- \`buyCreditsUrl\`: URL for credit purchase page
-        `,
-			},
-		},
-	},
 	decorators: [
 		(Story) => {
 			return (
@@ -112,28 +76,14 @@ export const WithUsageStats: Story = {
 	},
 }
 
-// Fractional balance
-export const FractionalBalance: Story = {
-	args: {
-		currentBalance: 123456, // $0.1235 (rounded to 4 decimals)
-		message: "You have a small amount of credit remaining.",
-		buyCreditsUrl: "https://app.cline.bot/dashboard",
-	},
-	parameters: {
-		docs: {
-			description: {
-				story: "Component with fractional balance demonstrating precise decimal formatting.",
-			},
-		},
-	},
-}
-
 // Interactive demo
 export const InteractiveDemo: Story = {
 	args: {
 		currentBalance: 0,
+		totalSpent: 15000000, // $15.0000
+		totalPromotions: 0,
 		message: "You have run out of credit.",
-		buyCreditsUrl: "https://app.cline.bot/dashboard",
+		buyCreditsUrl: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 	},
 	decorators: [
 		(Story) => {

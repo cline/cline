@@ -15,6 +15,7 @@ const config: StorybookConfig = {
 				NODE_ENV: JSON.stringify("development"),
 				IS_DEV: JSON.stringify(true),
 				IS_TEST: JSON.stringify(false),
+				TEMP_PROFILE: JSON.stringify(true),
 			},
 		}
 
