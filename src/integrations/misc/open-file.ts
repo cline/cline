@@ -54,19 +54,14 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		const document = await vscode.workspace.openTextDocument(uri)
-		await getHostBridgeProvider().windowClient.showTextDocument(
-			ShowTextDocumentRequest.create({
-				path: document.uri.fsPath,
-				options: ShowTextDocumentOptions.create({ preview: false }),
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showTextDocument({
+			path: uri.fsPath,
+			options: { preview: false },
+		})
 	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: `Could not open file!`,
-			}),
-		)
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Could not open file!`,
+		})
 	}
 }
