@@ -30,6 +30,7 @@ export abstract class DiffViewProvider {
 	constructor() {}
 
 	async open(relPath: string): Promise<void> {
+		console.log("sjfsjf open diff ", relPath)
 		this.relPath = relPath
 		const cwd = await getCwd()
 		this.absolutePath = path.resolve(cwd, relPath)
@@ -89,6 +90,8 @@ export abstract class DiffViewProvider {
 		isFinal: boolean,
 		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
 	) {
+		console.log("sjfsjf  diff update ", JSON.stringify(accumulatedContent).substring(0, 100))
+
 		if (!this.relPath) {
 			throw new Error("Required values not set")
 		}
@@ -166,8 +169,11 @@ export abstract class DiffViewProvider {
 		autoFormattingEdits: string | undefined
 		finalContent: string | undefined
 	}> {
-		// get the contents before save operation which may do auto-formatting
 		const preSaveContent = await this.getDocumentText()
+
+		console.log("sjfsjf  diff save ", JSON.stringify(preSaveContent).substring(0, 100))
+
+		// get the contents before save operation which may do auto-formatting
 		if (!this.relPath || !this.newContent || !preSaveContent) {
 			return {
 				newProblemsMessage: undefined,
@@ -248,6 +254,8 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
+		console.log("sjfsjf diff revert ", this.relPath)
+
 		if (!this.relPath || !this.absolutePath) {
 			return
 		}
@@ -286,6 +294,8 @@ export abstract class DiffViewProvider {
 	}
 
 	async scrollToFirstDiff() {
+		console.log("sjfsjf diff scrollToFirstDiff ")
+
 		const currentContent = await this.getDocumentText()
 		if (!currentContent) {
 			return
@@ -306,6 +316,8 @@ export abstract class DiffViewProvider {
 
 	// close editor if open?
 	async reset() {
+		console.log("sjfsjf diff reset ")
+
 		this.editType = undefined
 		this.isEditing = false
 		this.originalContent = undefined
