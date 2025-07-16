@@ -68,7 +68,7 @@ export async function sendStateUpdate(controllerId: string, state: any): Promise
 			},
 			false, // Not the last message
 		)
-		console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
+		//console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
 	} catch (error) {
 		console.error(`Error sending state update to controller ${controllerId}:`, error)
 		// Remove the subscription if there was an error

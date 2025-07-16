@@ -341,9 +341,9 @@ export class McpHub {
 			connection.server.error = ""
 
 			// Register notification handler for real-time messages
-			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
-			console.log(`[MCP Debug] Client instance:`, connection.client)
-			console.log(`[MCP Debug] Transport type:`, config.type)
+			//console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			//console.log(`[MCP Debug] Client instance:`, connection.client)
+			//console.log(`[MCP Debug] Transport type:`, config.type)
 
 			// Try to set notification handler using the client's method
 			try {
@@ -379,11 +379,11 @@ export class McpHub {
 
 					// Send notification directly to active task if callback is set
 					if (this.notificationCallback) {
-						console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						//console.log(`[MCP Debug] Sending notification to active task: ${message}`)
 						this.notificationCallback(name, level, message)
 					} else {
 						// Fallback: store for later retrieval
-						console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						//console.log(`[MCP Debug] No active task, storing notification: ${message}`)
 						this.pendingNotifications.push({
 							serverName: name,
 							level,
@@ -406,7 +406,7 @@ export class McpHub {
 						} as any)
 					}
 				})
-				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+				//console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
 
 				// Also set a fallback handler for any other notification types
 				connection.client.fallbackNotificationHandler = async (notification: any) => {
@@ -420,9 +420,9 @@ export class McpHub {
 						}),
 					)
 				}
-				console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+				//console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
 			} catch (error) {
-				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+				//console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
 			// Initial fetch of tools and resources
@@ -1100,7 +1100,7 @@ export class McpHub {
 	 */
 	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
 		this.notificationCallback = callback
-		console.log("[MCP Debug] Notification callback set")
+		//console.log("[MCP Debug] Notification callback set")
 	}
 
 	/**
@@ -1108,7 +1108,7 @@ export class McpHub {
 	 */
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
-		console.log("[MCP Debug] Notification callback cleared")
+		//console.log("[MCP Debug] Notification callback cleared")
 	}
 
 	async dispose(): Promise<void> {
