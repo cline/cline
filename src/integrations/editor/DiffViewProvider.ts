@@ -11,6 +11,7 @@ import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
+import { TextDocumentsResponse } from "@/shared/proto/index.host"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -41,11 +42,11 @@ export abstract class DiffViewProvider {
 
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, this.absolutePath),
-			)
-			if (existingDocument && existingDocument.isDirty) {
-				await existingDocument.save()
+			const textDocuments = await getHostBridgeProvider().workspaceClient.textDocuments(TextDocumentsResponse.create({}))
+			const existingEditor = textDocuments?.editors?.find((editor) => arePathsEqual(editor.documentPath, this.absolutePath))
+			const existingDoc = existingEditor ? await vscode.workspace.openTextDocument(existingEditor.documentPath) : undefined
+			if (existingDoc?.isDirty) {
+				await existingDoc.save()
 			}
 
 			const fileBuffer = await fs.readFile(this.absolutePath)
