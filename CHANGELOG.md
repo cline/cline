@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.19.6
+
+### Patch Changes
+
+-   0c5832b: Add additional Kimi K2 providers
+
 ## [3.19.5]
 
 -   Add Groq as a new API provider with support for all Groq models including Kimi-K2
