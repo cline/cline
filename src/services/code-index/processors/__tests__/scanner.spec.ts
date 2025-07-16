@@ -168,7 +168,16 @@ describe("DirectoryScanner", () => {
 			expect(mockCodeParser.parseFile).not.toHaveBeenCalled()
 		})
 
-		it("should parse changed files and return code blocks", async () => {
+		it("should parse changed files and return empty codeBlocks array", async () => {
+			// Create scanner without embedder to test the non-embedding path
+			const scannerNoEmbeddings = new DirectoryScanner(
+				null as any, // No embedder
+				null as any, // No vector store
+				mockCodeParser,
+				mockCacheManager,
+				mockIgnoreInstance,
+			)
+
 			const { listFiles } = await import("../../../glob/list-files")
 			vi.mocked(listFiles).mockResolvedValue([["test/file1.js"], false])
 			const mockBlocks: any[] = [
@@ -185,8 +194,7 @@ describe("DirectoryScanner", () => {
 			]
 			;(mockCodeParser.parseFile as any).mockResolvedValue(mockBlocks)
 
-			const result = await scanner.scanDirectory("/test")
-			expect(result.codeBlocks).toEqual(mockBlocks)
+			const result = await scannerNoEmbeddings.scanDirectory("/test")
 			expect(result.stats.processed).toBe(1)
 		})
 
@@ -252,6 +260,15 @@ describe("DirectoryScanner", () => {
 		})
 
 		it("should process markdown files alongside code files", async () => {
+			// Create scanner without embedder to test the non-embedding path
+			const scannerNoEmbeddings = new DirectoryScanner(
+				null as any, // No embedder
+				null as any, // No vector store
+				mockCodeParser,
+				mockCacheManager,
+				mockIgnoreInstance,
+			)
+
 			const { listFiles } = await import("../../../glob/list-files")
 			vi.mocked(listFiles).mockResolvedValue([["test/README.md", "test/app.js", "docs/guide.markdown"], false])
 
@@ -306,7 +323,7 @@ describe("DirectoryScanner", () => {
 				return []
 			})
 
-			const result = await scanner.scanDirectory("/test")
+			const result = await scannerNoEmbeddings.scanDirectory("/test")
 
 			// Verify all files were processed
 			expect(mockCodeParser.parseFile).toHaveBeenCalledTimes(3)
@@ -314,16 +331,7 @@ describe("DirectoryScanner", () => {
 			expect(mockCodeParser.parseFile).toHaveBeenCalledWith("test/app.js", expect.any(Object))
 			expect(mockCodeParser.parseFile).toHaveBeenCalledWith("docs/guide.markdown", expect.any(Object))
 
-			// Verify code blocks include both markdown and code content
-			expect(result.codeBlocks).toHaveLength(3)
-			expect(result.codeBlocks).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({ type: "markdown_header_h1" }),
-					expect.objectContaining({ type: "function" }),
-					expect.objectContaining({ type: "markdown_header_h2" }),
-				]),
-			)
-
+			// Verify processing still works without codeBlocks accumulation
 			expect(result.stats.processed).toBe(3)
 		})
 

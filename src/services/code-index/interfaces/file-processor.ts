@@ -38,7 +38,6 @@ export interface IDirectoryScanner {
 		onBlocksIndexed?: (indexedCount: number) => void,
 		onFileParsed?: (fileBlockCount: number) => void,
 	): Promise<{
-		codeBlocks: CodeBlock[]
 		stats: {
 			processed: number
 			skipped: number
