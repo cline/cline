@@ -44,5 +44,6 @@ e2e("Chat - can send messages and switch between modes", async ({ page, sidebar 
 
 	await sidebar.getByTestId("chat-input").fill("Plan mode submission")
 	await sidebar.getByTestId("send-button").click()
-	await sidebar.getByText("OpenRouter API key is required").click()
+
+	await expect(sidebar.getByText("API Request Failed")).toBeVisible()
 })
