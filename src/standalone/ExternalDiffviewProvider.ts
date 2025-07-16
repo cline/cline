@@ -2,17 +2,27 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
+	private activeDiffEditorId: string | undefined
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			return
 		}
-		getHostBridgeProvider().diffClient.openDiff({ path: this.absolutePath, content: this.originalContent ?? "" })
+		const response = await getHostBridgeProvider().diffClient.openDiff({
+			path: this.absolutePath,
+			content: this.originalContent ?? "",
+		})
+		this.activeDiffEditorId = response.diffId
 	}
-	override replaceText(
+	override async replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
-		currentLine: number,
+		_currentLine: number,
 	): Promise<void> {
-		throw new Error("Method not implemented.")
+		await getHostBridgeProvider().diffClient.replaceText({
+			diffId: this.activeDiffEditorId,
+			content: content,
+			startLine: rangeToReplace.startLine,
+			endLine: rangeToReplace.endLine,
+		})
 	}
 }
