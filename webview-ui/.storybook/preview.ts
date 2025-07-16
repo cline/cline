@@ -5,13 +5,13 @@ import { VSCodeWebview } from "../src/components/common/StorybookDecorator"
 const preview: Preview = {
 	parameters: {
 		viewport: {
-			viewports: [
-				{
+			viewports: {
+				"Editor Sidebar": {
 					name: "Editor Sidebar",
 					styles: { width: "700px", height: "800px" },
 					type: "desktop",
 				},
-			],
+			},
 			defaultViewport: "Editor Sidebar",
 		},
 		controls: {

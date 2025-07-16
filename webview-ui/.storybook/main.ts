@@ -5,9 +5,6 @@ const config: StorybookConfig = {
 	addons: [],
 	framework: "@storybook/react-vite",
 	viteFinal: async (config) => {
-		// Merge with the existing Vite config
-		config.resolve = config.resolve
-
 		// Define environment variables for Storybook
 		config.define = {
 			...config.define,
