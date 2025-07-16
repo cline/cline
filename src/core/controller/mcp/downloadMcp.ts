@@ -5,6 +5,7 @@ import { McpServer } from "@shared/mcp"
 import axios from "axios"
 import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { config } from "@/config"
 
 /**
  * Download an MCP server from the marketplace
@@ -31,7 +32,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 
 		// Fetch server details from marketplace
 		const response = await axios.post<McpDownloadResponse>(
-			"https://api.cline.bot/v1/mcp/download",
+			`${config.apiBaseUrl}/v1/mcp/download`,
 			{ mcpId },
 			{
 				headers: { "Content-Type": "application/json" },
