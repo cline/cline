@@ -1,13 +1,11 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { BooleanRequest, StringRequest } from "@shared/proto/common"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-
-import { normalizeApiConfiguration } from "./utils/providerUtils"
 
 import { ClineProvider } from "./providers/ClineProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
@@ -39,6 +37,7 @@ import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
+	showSubmitButton?: boolean
 	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
@@ -69,7 +68,7 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
+const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, showSubmitButton }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, uriScheme } = useExtensionState()
 
@@ -78,6 +77,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+
+	const handleSubmit = async () => {
+		try {
+			await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true }))
+		} catch (error) {
+			console.error("Failed to update API configuration or complete welcome view:", error)
+		}
+	}
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -282,6 +289,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					}}>
 					{modelIdErrorMessage}
 				</p>
+			)}
+
+			{showSubmitButton && (
+				<VSCodeButton onClick={handleSubmit} disabled={apiErrorMessage != null} className="mt-0.75" title="Submit">
+					Let's go!
+				</VSCodeButton>
 			)}
 		</div>
 	)

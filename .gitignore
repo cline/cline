@@ -35,3 +35,7 @@ src/shared/proto/host/*.ts
 webview-ui/src/services/grpc-client.ts
 # Host bridge
 src/hosts/vscode/client/host-grpc-client.ts
+src/standalone/server-setup.ts
+
+# E2E Tests
+test-results
