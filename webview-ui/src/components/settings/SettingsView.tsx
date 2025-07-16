@@ -17,7 +17,7 @@ import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import AboutSection from "./sections/AboutSection"
 
-const IS_DEV = process.env.IS_DEV
+const IS_DEV = true
 
 // Styles for the tab system
 const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
