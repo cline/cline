@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import React from "react"
 import SettingsView from "./SettingsView"
-import { ExtensionStateProviderMock, ExtensionStateMock } from "@/context/ExtensionStateContext"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { StorybookProvider, VSCodeWebview } from "../common/StorybookDecorator"
 
 const meta: Meta<typeof SettingsView> = {
 	title: "Views/SettingsView",
@@ -43,17 +43,7 @@ The SettingsView component provides a comprehensive settings interface for Cline
 			},
 		},
 	},
-	decorators: [
-		(Story) => {
-			return (
-				<ExtensionStateProviderMock value={ExtensionStateMock}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
-			)
-		},
-	],
+	decorators: [VSCodeWebview],
 	argTypes: {
 		onDone: {
 			action: "done clicked",
@@ -123,7 +113,6 @@ export const FeaturesTab: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				autoApprovalSettings: {
 					...DEFAULT_AUTO_APPROVAL_SETTINGS,
 					alwaysApproveReadFile: true,
@@ -135,11 +124,9 @@ export const FeaturesTab: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -161,7 +148,6 @@ export const BrowserSettings: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				browserSettings: {
 					...DEFAULT_BROWSER_SETTINGS,
 					viewport: { width: 1200, height: 800 },
@@ -170,11 +156,9 @@ export const BrowserSettings: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -196,7 +180,6 @@ export const TerminalSettings: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				shellIntegrationTimeout: 6000,
 				terminalReuseEnabled: false,
 				terminalOutputLineLimit: 1000,
@@ -209,11 +192,9 @@ export const TerminalSettings: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -249,17 +230,10 @@ export const AboutTab: Story = {
 	},
 	decorators: [
 		(Story) => {
-			const mockState = {
-				...ExtensionStateMock,
-				version: "2.1.0",
-			}
-
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -281,7 +255,6 @@ export const PlanModeConfiguration: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				chatSettings: {
 					...DEFAULT_CHAT_SETTINGS,
 					mode: "plan" as const,
@@ -290,11 +263,9 @@ export const PlanModeConfiguration: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -316,7 +287,6 @@ export const ActModeConfiguration: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				chatSettings: {
 					...DEFAULT_CHAT_SETTINGS,
 					mode: "act" as const,
@@ -325,11 +295,9 @@ export const ActModeConfiguration: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -350,11 +318,9 @@ export const CompactMode: Story = {
 	decorators: [
 		(Story) => {
 			return (
-				<ExtensionStateProviderMock value={ExtensionStateMock}>
-					<div className="h-screen w-[400px] flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -376,7 +342,6 @@ export const WithFeatureToggles: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				globalClineRulesToggles: {
 					"use-typescript": true,
 					"prefer-react": false,
@@ -396,11 +361,9 @@ export const WithFeatureToggles: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -430,7 +393,6 @@ export const ModeSwitching: Story = {
 			}, [])
 
 			const mockState = {
-				...ExtensionStateMock,
 				chatSettings: {
 					...DEFAULT_CHAT_SETTINGS,
 					mode: "plan" as const,
@@ -438,11 +400,9 @@ export const ModeSwitching: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className="h-screen flex flex-col">
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],

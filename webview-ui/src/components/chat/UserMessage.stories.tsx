@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import React from "react"
 import UserMessage from "./UserMessage"
-import { ExtensionStateProviderMock, ExtensionStateMock } from "@/context/ExtensionStateContext"
+import { StorybookProvider } from "../common/StorybookDecorator"
 
 const meta: Meta<typeof UserMessage> = {
-	title: "Chat/UserMessage",
+	title: "Component/UserMessage",
 	component: UserMessage,
 	parameters: {
 		layout: "padded",
@@ -47,11 +47,9 @@ The UserMessage component displays user messages in the chat interface with edit
 	decorators: [
 		(Story) => {
 			return (
-				<ExtensionStateProviderMock value={ExtensionStateMock}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "16px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -243,16 +241,13 @@ export const WithCheckpointError: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				checkpointTrackerErrorMessage: "Git repository not found. Checkpoint functionality is disabled.",
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "16px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],

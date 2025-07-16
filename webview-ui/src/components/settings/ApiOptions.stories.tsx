@@ -1,24 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import React from "react"
 import ApiOptions from "./ApiOptions"
-import { ExtensionStateProviderMock, ExtensionStateMock } from "@/context/ExtensionStateContext"
 import { ApiConfiguration } from "@shared/api"
+import { StorybookProvider } from "../common/StorybookDecorator"
 
 // Create a mock API configuration for stories
 const mockApiConfiguration: ApiConfiguration = {
-	apiProvider: "anthropic",
-	apiKey: "",
-	apiModelId: "claude-3-5-sonnet-20241022",
+	apiProvider: undefined,
+	apiKey: undefined,
+	apiModelId: undefined,
 }
 
 // Enhanced mock state with API configuration
 const ExtensionStateMockWithApi = {
-	...ExtensionStateMock,
 	apiConfiguration: mockApiConfiguration,
 }
 
 const meta: Meta<typeof ApiOptions> = {
-	title: "Settings/ApiOptions",
+	title: "Component/ApiOptions",
 	component: ApiOptions,
 	parameters: {
 		layout: "padded",
@@ -58,11 +57,9 @@ The ApiOptions component provides a comprehensive interface for configuring AI A
 	decorators: [
 		(Story) => {
 			return (
-				<ExtensionStateProviderMock value={ExtensionStateMockWithApi}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={{ ...ExtensionStateMockWithApi }}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -89,16 +86,33 @@ The ApiOptions component provides a comprehensive interface for configuring AI A
 export default meta
 type Story = StoryObj<typeof ApiOptions>
 
-// Default configuration with Anthropic
-export const Default: Story = {
+// Cline provider (default/free option)
+export const ClineProvider: Story = {
 	args: {
 		showModelOptions: true,
 		isPopup: false,
 	},
+	decorators: [
+		(Story) => {
+			const mockState = {
+				...ExtensionStateMockWithApi,
+				apiConfiguration: {
+					...ExtensionStateMockWithApi.apiConfiguration,
+					apiProvider: "cline",
+				} as ApiConfiguration,
+			}
+
+			return (
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
+			)
+		},
+	],
 	parameters: {
 		docs: {
 			description: {
-				story: "Default API options configuration showing the Anthropic provider with model selection.",
+				story: "Cline provider configuration (free tier option with built-in models).",
 			},
 		},
 	},
@@ -123,11 +137,9 @@ export const OpenRouterProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -159,11 +171,9 @@ export const OpenAIProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -195,11 +205,9 @@ export const OllamaProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -233,11 +241,9 @@ export const BedrockProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -269,11 +275,9 @@ export const GeminiProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -305,11 +309,9 @@ export const DeepSeekProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -339,11 +341,9 @@ export const VSCodeLMProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -420,40 +420,6 @@ export const WithoutModelOptions: Story = {
 	},
 }
 
-// Popup mode
-export const PopupMode: Story = {
-	args: {
-		showModelOptions: true,
-		isPopup: true,
-	},
-	decorators: [
-		(Story) => {
-			return (
-				<ExtensionStateProviderMock value={ExtensionStateMock}>
-					<div
-						style={{
-							width: "400px",
-							margin: "0 auto",
-							padding: "16px",
-							border: "1px solid var(--vscode-widget-border)",
-							borderRadius: "4px",
-							backgroundColor: "var(--vscode-editor-background)",
-						}}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
-			)
-		},
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "API options in popup mode with compact layout optimized for modal contexts.",
-			},
-		},
-	},
-}
-
 // OpenAI Compatible provider with custom endpoint
 export const OpenAICompatibleProvider: Story = {
 	args: {
@@ -474,11 +440,9 @@ export const OpenAICompatibleProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -510,11 +474,9 @@ export const LMStudioProvider: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -567,31 +529,29 @@ export const ProviderComparison: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<div style={{ marginBottom: "20px" }}>
-							<label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>Switch Provider:</label>
-							<select
-								value={selectedProvider}
-								onChange={(e) => setSelectedProvider(e.target.value)}
-								aria-label="Switch Provider"
-								style={{
-									padding: "4px 8px",
-									borderRadius: "4px",
-									border: "1px solid var(--vscode-widget-border)",
-									backgroundColor: "var(--vscode-input-background)",
-									color: "var(--vscode-input-foreground)",
-								}}>
-								{providers.map((provider) => (
-									<option key={provider.id} value={provider.id}>
-										{provider.name}
-									</option>
-								))}
-							</select>
-						</div>
-						<Story />
+				<StorybookProvider mockState={mockState}>
+					<div style={{ marginBottom: "20px" }}>
+						<label style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}>Switch Provider:</label>
+						<select
+							value={selectedProvider}
+							onChange={(e) => setSelectedProvider(e.target.value)}
+							aria-label="Switch Provider"
+							style={{
+								padding: "4px 8px",
+								borderRadius: "4px",
+								border: "1px solid var(--vscode-widget-border)",
+								backgroundColor: "var(--vscode-input-background)",
+								color: "var(--vscode-input-foreground)",
+							}}>
+							{providers.map((provider) => (
+								<option key={provider.id} value={provider.id}>
+									{provider.name}
+								</option>
+							))}
+						</select>
 					</div>
-				</ExtensionStateProviderMock>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -599,40 +559,6 @@ export const ProviderComparison: Story = {
 		docs: {
 			description: {
 				story: "Interactive comparison of different API providers with a provider switcher.",
-			},
-		},
-	},
-}
-
-// Cline provider (default/free option)
-export const ClineProvider: Story = {
-	args: {
-		showModelOptions: true,
-		isPopup: false,
-	},
-	decorators: [
-		(Story) => {
-			const mockState = {
-				...ExtensionStateMockWithApi,
-				apiConfiguration: {
-					...ExtensionStateMockWithApi.apiConfiguration,
-					apiProvider: "cline",
-				} as ApiConfiguration,
-			}
-
-			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
-			)
-		},
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Cline provider configuration (free tier option with built-in models).",
 			},
 		},
 	},

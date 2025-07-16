@@ -1,6 +1,5 @@
 import type { Preview } from "@storybook/react-vite"
 import React from "react"
-import { ThemeProvider } from "styled-components"
 
 // Mock VSCode theme variables for Storybook
 const mockVSCodeTheme = {
@@ -55,7 +54,7 @@ const withVSCodeTheme = (Story) => {
 				color: mockVSCodeTheme["--vscode-editor-foreground"],
 				fontFamily: mockVSCodeTheme["--vscode-font-family"],
 				fontSize: mockVSCodeTheme["--vscode-font-size"],
-				minHeight: "100vh",
+				maxWidth: "80%",
 				padding: "20px",
 			},
 		},
@@ -65,6 +64,16 @@ const withVSCodeTheme = (Story) => {
 
 const preview: Preview = {
 	parameters: {
+		viewport: {
+			viewports: [
+				{
+					name: "Editor Sidebar",
+					styles: { width: "700px", height: "800px" },
+					type: "desktop",
+				},
+			],
+			defaultViewport: "Editor Sidebar",
+		},
 		controls: {
 			matchers: {
 				color: /(background|color)$/i,

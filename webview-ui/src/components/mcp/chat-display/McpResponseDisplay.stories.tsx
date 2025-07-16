@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import McpResponseDisplay from "./McpResponseDisplay"
-import { ExtensionStateProviderMock, ExtensionStateMock } from "@/context/ExtensionStateContext"
+import { StorybookProvider } from "@/components/common/StorybookDecorator"
 
 const meta: Meta<typeof McpResponseDisplay> = {
-	title: "Chat/McpResponseDisplay",
+	title: "Component/McpResponseDisplay",
 	component: McpResponseDisplay,
 	parameters: {
 		layout: "padded",
@@ -40,11 +40,9 @@ The component will demonstrate the basic text display and UI structure.
 			}
 
 			return (
-				<ExtensionStateProviderMock value={{ ...ExtensionStateMock, ...mockState }}>
-					<div style={{ maxWidth: "800px", margin: "0 auto" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -143,11 +141,9 @@ https://via.placeholder.com/400x300/ffc107/000000?text=Hidden+Image`,
 			}
 
 			return (
-				<ExtensionStateProviderMock value={{ ...ExtensionStateMock, ...mockState }}>
-					<div style={{ maxWidth: "800px", margin: "0 auto" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -178,11 +174,9 @@ They won't be processed for rich display when in plain text mode.`,
 				mcpRichDisplayEnabled: false, // Disable rich display
 			}
 			return (
-				<ExtensionStateProviderMock value={{ ...ExtensionStateMock, ...mockState }}>
-					<div style={{ maxWidth: "800px", margin: "0 auto" }}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],

@@ -95,6 +95,8 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
+
+	updateExtensionState: (partialState: Partial<ExtensionState>) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -231,6 +233,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
+
+	const updateExtensionState = useCallback((partialState: Partial<ExtensionState>) => {
+		setState((prevState) => ({
+			...prevState,
+			...partialState,
+		}))
+	}, [])
 
 	// Add ref for callbacks
 	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
@@ -748,6 +757,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		updateExtensionState,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
@@ -759,14 +769,4 @@ export const useExtensionState = () => {
 		throw new Error("useExtensionState must be used within an ExtensionStateContextProvider")
 	}
 	return context
-}
-
-export const ExtensionStateMock = ExtensionStateContext || {}
-
-// Mock provider that uses the same context as the real provider
-export const ExtensionStateProviderMock: React.FC<{
-	children: React.ReactNode
-	value: ExtensionStateContextType
-}> = ({ children, value }) => {
-	return <ExtensionStateContext.Provider value={value}>{children}</ExtensionStateContext.Provider>
 }

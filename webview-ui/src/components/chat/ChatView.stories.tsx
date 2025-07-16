@@ -1,81 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
-import { ExtensionStateProviderMock, ExtensionStateMock } from "@/context/ExtensionStateContext"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { ApiConfiguration } from "@shared/api"
-import ChatView from "./components/chat/ChatView"
-import WelcomeView from "./components/welcome/WelcomeView"
-import { HeroUIProvider } from "@heroui/react"
-import { useExtensionState } from "./context/ExtensionStateContext"
+import ChatView from "./ChatView"
+import { StorybookProvider, VSCodeWebview } from "../common/StorybookDecorator"
 
-// Mock component that mimics App behavior but works in Storybook
-const MockApp = () => {
-	const { showWelcome } = useExtensionState()
+const sidebarViewClassNames = "w-[80px]"
 
-	return (
-		<HeroUIProvider>
-			{showWelcome ? (
-				<WelcomeView />
-			) : (
-				<ChatView showHistoryView={() => {}} isHidden={false} showAnnouncement={false} hideAnnouncement={() => {}} />
-			)}
-		</HeroUIProvider>
-	)
-}
-
-// Tailwind CSS class names for sidebar view. Full height with half width view.
-const sidebarViewClassNames =
-	"flex flex-col h-full w-1/2 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 overflow-hidden"
-
-const meta: Meta<typeof MockApp> = {
+const meta: Meta<typeof ChatView> = {
 	title: "Views/ChatView",
-	component: MockApp,
-	parameters: {
-		layout: "fullscreen",
-		docs: {
-			description: {
-				component: `
-The ChatView component is the main interface for interacting with Cline. It provides a comprehensive chat experience with AI assistance, task management, and various tools.
-
-**Key Features:**
-- **Task Management**: Create, resume, and manage AI-assisted tasks
-- **Message History**: View conversation history with rich formatting
-- **File & Image Support**: Attach files and images to messages
-- **Tool Integration**: Execute commands, browse files, and use various tools
-- **Auto-approval**: Configure automatic approval for certain actions
-- **Streaming Responses**: Real-time AI response streaming
-- **Context Management**: Intelligent conversation context handling
-- **Plan/Act Modes**: Separate planning and execution phases
-- **MCP Integration**: Model Context Protocol server support
-- **Browser Automation**: Automated browser interactions
-- **Checkpoint System**: Save and restore conversation states
-
-**Use Cases:**
-- Software development assistance
-- Code review and refactoring
-- File system operations
-- Web browsing and research
-- Task automation
-- Learning and exploration
-
-**Note**: In Storybook, some features like file operations, command execution, and API calls are mocked for demonstration purposes.
-        `,
-			},
-		},
-	},
-	decorators: [
-		(Story) => (
-			<div className={sidebarViewClassNames}>
-				<Story />
-			</div>
-		),
-	],
+	component: ChatView,
+	decorators: [VSCodeWebview],
 }
 
 export default meta
-type Story = StoryObj<typeof MockApp>
+
+type Story = StoryObj<typeof ChatView>
+
+export const Default: StoryObj<typeof meta> = {}
 
 // Mock API configuration
 const mockApiConfiguration: ApiConfiguration = {
@@ -216,12 +160,10 @@ const mockStreamingMessages: ClineMessage[] = [
 	},
 ]
 
-// Welcome screen (no active task)
 export const WelcomeScreen: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: false,
 				showWelcome: true,
 				clineMessages: [],
@@ -230,52 +172,28 @@ export const WelcomeScreen: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
-	parameters: {
-		docs: {
-			description: {
-				story: "The welcome screen shown to new users or when no task is active. Displays quick start options and recent task history.",
-			},
-		},
-	},
 }
 
-// Active conversation
 export const ActiveConversation: Story = {
 	decorators: [
-		(Story) => {
-			const mockState = {
-				...ExtensionStateMock,
-				welcomeViewCompleted: true,
-				showWelcome: false,
-				clineMessages: mockActiveMessages,
-				taskHistory: mockTaskHistory,
-				apiConfiguration: mockApiConfiguration,
-			}
-
-			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
-			)
-		},
+		(Story) => (
+			<StorybookProvider
+				mockState={{
+					welcomeViewCompleted: true,
+					clineMessages: mockActiveMessages,
+					taskHistory: mockTaskHistory,
+					apiConfiguration: mockApiConfiguration,
+				}}>
+				<Story />
+			</StorybookProvider>
+		),
 	],
-	parameters: {
-		docs: {
-			description: {
-				story: "An active conversation showing a typical interaction with Cline, including task creation, tool usage, and AI responses.",
-			},
-		},
-	},
 }
 
 // Streaming response
@@ -283,7 +201,6 @@ export const StreamingResponse: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: mockStreamingMessages,
@@ -292,11 +209,9 @@ export const StreamingResponse: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -475,7 +390,6 @@ module.exports = mongoose.model('Product', productSchema)`,
 			]
 
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: longMessages,
@@ -484,11 +398,11 @@ module.exports = mongoose.model('Product', productSchema)`,
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
+				<StorybookProvider mockState={mockState}>
 					<div className={sidebarViewClassNames}>
 						<Story />
 					</div>
-				</ExtensionStateProviderMock>
+				</StorybookProvider>
 			)
 		},
 	],
@@ -554,7 +468,6 @@ export const ErrorState: Story = {
 			]
 
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: errorMessages,
@@ -563,11 +476,11 @@ export const ErrorState: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
+				<StorybookProvider mockState={mockState}>
 					<div className={sidebarViewClassNames}>
 						<Story />
 					</div>
-				</ExtensionStateProviderMock>
+				</StorybookProvider>
 			)
 		},
 	],
@@ -585,7 +498,6 @@ export const AutoApprovalEnabled: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: mockActiveMessages,
@@ -600,11 +512,11 @@ export const AutoApprovalEnabled: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
+				<StorybookProvider mockState={mockState}>
 					<div className={sidebarViewClassNames}>
 						<Story />
 					</div>
-				</ExtensionStateProviderMock>
+				</StorybookProvider>
 			)
 		},
 	],
@@ -646,7 +558,6 @@ export const PlanMode: Story = {
 			]
 
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: planModeMessages,
@@ -659,11 +570,9 @@ export const PlanMode: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -681,7 +590,6 @@ export const EmptyState: Story = {
 	decorators: [
 		(Story) => {
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: [],
@@ -691,11 +599,9 @@ export const EmptyState: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
@@ -772,7 +678,6 @@ export const BrowserAutomation: Story = {
 			]
 
 			const mockState = {
-				...ExtensionStateMock,
 				welcomeViewCompleted: true,
 				showWelcome: false,
 				clineMessages: browserMessages,
@@ -781,11 +686,9 @@ export const BrowserAutomation: Story = {
 			}
 
 			return (
-				<ExtensionStateProviderMock value={mockState}>
-					<div className={sidebarViewClassNames}>
-						<Story />
-					</div>
-				</ExtensionStateProviderMock>
+				<StorybookProvider mockState={mockState}>
+					<Story />
+				</StorybookProvider>
 			)
 		},
 	],
