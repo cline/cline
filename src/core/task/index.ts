@@ -2160,8 +2160,8 @@ export class Task {
 			this.taskState.presentAssistantMessageLocked = false
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
-			await this.diffViewProvider.reset()
-
+			this.diffViewProvider.reset()
+			console.log("streaming state reset")
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
 			let reasoningMessage = ""

@@ -253,6 +253,7 @@ export class ToolExecutor {
 			console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 			return
 		}
+		console.log("sjfsjf tool executor error", action, error)
 		const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 		await this.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 
@@ -496,6 +497,7 @@ export class ToolExecutor {
 								this.pushToolResult(formatResponse.toolError(streamingResult.error), block)
 								await this.diffViewProvider.revertChanges()
 								await this.diffViewProvider.reset()
+								console.log(" sjfsjf streamingResult.error", streamingResult.error)
 								await this.saveCheckpoint()
 								break
 							}
@@ -537,6 +539,7 @@ export class ToolExecutor {
 								)
 								await this.diffViewProvider.revertChanges()
 								await this.diffViewProvider.reset()
+								console.log(" sjfsjf reset f")
 								await this.saveCheckpoint()
 								break
 							}
@@ -596,6 +599,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveMistakeCount++
 							this.pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"), block)
 							await this.diffViewProvider.reset()
+							console.log(" sjfsjf reset e")
 							await this.saveCheckpoint()
 							break
 						}
@@ -603,6 +607,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveMistakeCount++
 							this.pushToolResult(await this.sayAndCreateMissingParamError("replace_in_file", "diff"), block)
 							await this.diffViewProvider.reset()
+							console.log(" sjfsjf reset d")
 							await this.saveCheckpoint()
 							break
 						}
@@ -610,6 +615,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveMistakeCount++
 							this.pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"), block)
 							await this.diffViewProvider.reset()
+							console.log(" sjfsjf reset c")
 							await this.saveCheckpoint()
 							break
 						}
@@ -617,6 +623,7 @@ export class ToolExecutor {
 							this.taskState.consecutiveMistakeCount++
 							this.pushToolResult(await this.sayAndCreateMissingParamError("new_rule", "content"), block)
 							await this.diffViewProvider.reset()
+							console.log(" sjfsjf reset b")
 							await this.saveCheckpoint()
 							break
 						}
@@ -759,7 +766,7 @@ export class ToolExecutor {
 						}
 
 						await this.diffViewProvider.reset()
-
+						console.log(" sjfsjf reset A")
 						await this.saveCheckpoint()
 
 						break
@@ -768,6 +775,7 @@ export class ToolExecutor {
 					await this.handleError("writing file", error, block)
 					await this.diffViewProvider.revertChanges()
 					await this.diffViewProvider.reset()
+					console.log(" sjfsjf tool errror")
 					await this.saveCheckpoint()
 					break
 				}

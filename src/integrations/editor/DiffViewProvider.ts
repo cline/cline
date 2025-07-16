@@ -316,7 +316,7 @@ export abstract class DiffViewProvider {
 	}
 
 	// close editor if open?
-	async reset() {
+	async reset(): Promise<void> {
 		console.log("sjfsjf diff reset ")
 
 		this.editType = undefined
