@@ -25,34 +25,18 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 			endLine: rangeToReplace.endLine,
 		})
 	}
-	override setCursor(line: number, character: number): void {
-		throw new Error("Method not implemented.")
+	override setCursor(line: number, character: number): void {}
+	override scrollToLine(line: number): void {}
+	override async saveDocument(): Promise<void> {}
+	override async getDocumentText(): Promise<string | undefined> {
+		return ""
 	}
-	override scrollToLine(line: number): void {
-		throw new Error("Method not implemented.")
-	}
-	override saveDocument(): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override getDocumentText(): Promise<string | undefined> {
-		throw new Error("Method not implemented.")
-	}
-	override truncateDocument(lineNumber: number): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override revertDocument(): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override scrollAnimation(startLine: number, endLine: number): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override closeAllDiffViews(): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override resetDiffView(): Promise<void> {
-		throw new Error("Method not implemented.")
-	}
-	override getNewDiagnosticProblems(): Promise<string> {
-		throw new Error("Method not implemented.")
+	override async truncateDocument(lineNumber: number): Promise<void> {}
+	override async revertDocument(): Promise<void> {}
+	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {}
+	override async closeAllDiffViews(): Promise<void> {}
+	override async resetDiffView(): Promise<void> {}
+	override async getNewDiagnosticProblems(): Promise<string> {
+		return ""
 	}
 }
