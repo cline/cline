@@ -78,7 +78,8 @@ message ShowInputBoxRequest {
   string title = 2;
   optional string prompt = 3;
   optional string value = 4;
-  optional string place_holder = 5;
-  optional bool password = 6;
-  optional bool ignore_focus_out = 7;
+}
+
+message ShowInputBoxResponse {
+  optional string response = 1;
 }
