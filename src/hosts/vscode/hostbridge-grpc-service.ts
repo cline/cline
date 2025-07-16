@@ -1,4 +1,3 @@
-import { Controller } from "@/core/controller"
 import { StreamingResponseHandler } from "./hostbridge-grpc-handler"
 
 /**
@@ -16,19 +15,6 @@ export type StreamingMethodHandler = (message: any, responseStream: StreamingRes
  */
 export interface MethodMetadata {
 	isStreaming: boolean
-}
-
-/**
- * Configuration for a host service handler
- */
-export interface HostServiceHandlerConfig {
-	requestHandler: (method: string, message: any) => Promise<any>
-	streamingHandler: (
-		method: string,
-		message: any,
-		responseStream: StreamingResponseHandler,
-		requestId?: string,
-	) => Promise<void>
 }
 
 /**

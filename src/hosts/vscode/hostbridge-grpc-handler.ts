@@ -163,6 +163,19 @@ export class GrpcHandler {
 }
 
 /**
+ * Configuration for a host service handler
+ */
+export interface HostServiceHandlerConfig {
+	requestHandler: (method: string, message: any) => Promise<any>
+	streamingHandler: (
+		method: string,
+		message: any,
+		responseStream: StreamingResponseHandler,
+		requestId?: string,
+	) => Promise<void>
+}
+
+/**
  * Get the request registry instance
  * This allows other parts of the code to access the registry
  */
