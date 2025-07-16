@@ -140,7 +140,7 @@ export async function createOpenRouterStream(
 	}
 
 	// hardcoded provider sorting for kimi-k2
-	const isKimiK2 = model.id.startsWith("moonshotai/kimi-k2")
+	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
 
 	// @ts-ignore-next-line
