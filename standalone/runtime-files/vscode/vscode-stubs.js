@@ -1220,7 +1220,7 @@ vscode.extensions.getExtension = function (extensionId) {
 	console.log("Called stubbed function: vscode.extensions.getExtension")
 	return createStub("unknown")
 }
-vscode.extensions.all = createStub("vscode.extensions.all")
+vscode.extensions.all = []
 vscode.extensions.onDidChange = createStub("vscode.extensions.onDidChange")
 vscode.CommentThreadCollapsibleState = { Collapsed: 0, Expanded: 0 }
 vscode.CommentMode = { Editing: 0, Preview: 0 }
