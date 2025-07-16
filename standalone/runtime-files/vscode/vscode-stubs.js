@@ -563,7 +563,7 @@ vscode.commands.getCommands = function (filterInternal) {
 vscode.window = {}
 vscode.window.tabGroups = createStub("vscode.window.tabGroups")
 vscode.window.activeTextEditor = createStub("vscode.window.activeTextEditor")
-vscode.window.visibleTextEditors = createStub("vscode.window.visibleTextEditors")
+vscode.window.visibleTextEditors = []
 vscode.window.onDidChangeActiveTextEditor = createStub("vscode.window.onDidChangeActiveTextEditor")
 vscode.window.onDidChangeVisibleTextEditors = createStub("vscode.window.onDidChangeVisibleTextEditors")
 vscode.window.onDidChangeTextEditorSelection = createStub("vscode.window.onDidChangeTextEditorSelection")
@@ -1220,7 +1220,7 @@ vscode.extensions.getExtension = function (extensionId) {
 	console.log("Called stubbed function: vscode.extensions.getExtension")
 	return createStub("unknown")
 }
-vscode.extensions.all = createStub("vscode.extensions.all")
+vscode.extensions.all = []
 vscode.extensions.onDidChange = createStub("vscode.extensions.onDidChange")
 vscode.CommentThreadCollapsibleState = { Collapsed: 0, Expanded: 0 }
 vscode.CommentMode = { Editing: 0, Preview: 0 }
