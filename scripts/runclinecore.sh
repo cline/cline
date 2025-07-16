@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -eu #x
+# This compiles the cline-core app, installs it to the user's home directory,
+# and runs the service.
 
 CORE_DIR=~/.cline/core
 INSTALL_DIR=$CORE_DIR/0.0.1
