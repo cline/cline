@@ -1,37 +1,62 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
+import { ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "@api/transform/stream"
 
+interface CerebrasHandlerOptions {
+	cerebrasApiKey?: string
+	apiModelId?: string
+}
+
 export class CerebrasHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: Cerebras
+	private options: CerebrasHandlerOptions
+	private client: Cerebras | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: CerebrasHandlerOptions) {
 		this.options = options
+	}
 
-		// Clean and validate the API key
-		const cleanApiKey = this.options.cerebrasApiKey?.trim()
+	private ensureClient(): Cerebras {
+		if (!this.client) {
+			// Clean and validate the API key
+			const cleanApiKey = this.options.cerebrasApiKey?.trim()
 
-		if (!cleanApiKey) {
-			throw new Error("Cerebras API key is required")
+			if (!cleanApiKey) {
+				throw new Error("Cerebras API key is required")
+			}
+
+			try {
+				this.client = new Cerebras({
+					apiKey: cleanApiKey,
+					timeout: 30000, // 30 second timeout
+				})
+			} catch (error) {
+				throw new Error(`Error creating Cerebras client: ${error.message}`)
+			}
 		}
-
-		this.client = new Cerebras({
-			apiKey: cleanApiKey,
-			timeout: 30000, // 30 second timeout
-		})
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
+
 		// Convert Anthropic messages to Cerebras format
 		const cerebrasMessages: Array<{
 			role: "system" | "user" | "assistant"
 			content: string
 		}> = [{ role: "system", content: systemPrompt }]
+
+		// Helper function to strip thinking tags from content
+		const stripThinkingTags = (content: string): string => {
+			return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+		}
+
+		// Check if this is a reasoning model that uses thinking tags
+		const modelId = this.getModel().id
+		const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
 
 		// Convert Anthropic messages to Cerebras format
 		for (const message of messages) {
@@ -50,7 +75,7 @@ export class CerebrasHandler implements ApiHandler {
 					: message.content
 				cerebrasMessages.push({ role: "user", content })
 			} else if (message.role === "assistant") {
-				const content = Array.isArray(message.content)
+				let content = Array.isArray(message.content)
 					? message.content
 							.map((block) => {
 								if (block.type === "text") {
@@ -60,12 +85,19 @@ export class CerebrasHandler implements ApiHandler {
 							})
 							.join("\n")
 					: message.content || ""
+
+				// Strip thinking tags from assistant messages for reasoning models
+				// so the model doesn't see its own thinking in the conversation history
+				if (isReasoningModel) {
+					content = stripThinkingTags(content)
+				}
+
 				cerebrasMessages.push({ role: "assistant", content })
 			}
 		}
 
 		try {
-			const stream = await this.client.chat.completions.create({
+			const stream = await client.chat.completions.create({
 				model: this.getModel().id,
 				messages: cerebrasMessages,
 				temperature: 0,
@@ -74,8 +106,6 @@ export class CerebrasHandler implements ApiHandler {
 
 			// Handle streaming response
 			let reasoning: string | null = null // Track reasoning content for models that support thinking
-			const modelId = this.getModel().id
-			const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
 
 			for await (const chunk of stream as any) {
 				// Type assertion for the streaming chunk

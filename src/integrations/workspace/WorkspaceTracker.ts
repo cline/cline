@@ -2,13 +2,23 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "@services/glob/list-files"
 import { sendWorkspaceUpdateEvent } from "@core/controller/file/subscribeToWorkspaceUpdates"
-
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+import { getCwd } from "@/utils/path"
+import { isDirectory } from "@/utils/fs"
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
+	private cwd: string = ""
+
+	constructor() {
+		this.initializeCwd()
+		this.registerListeners()
+	}
+
+	private async initializeCwd() {
+		this.cwd = await getCwd()
+	}
 
 	private get activeFiles() {
 		return new Set(
@@ -18,16 +28,12 @@ class WorkspaceTracker {
 		)
 	}
 
-	constructor() {
-		this.registerListeners()
-	}
-
 	async populateFilePaths() {
 		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
-		if (!cwd) {
+		if (!this.cwd) {
 			return
 		}
-		const [files, _] = await listFiles(cwd, true, 1_000)
+		const [files, _] = await listFiles(this.cwd, true, 1_000)
 		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
 		this.workspaceDidUpdate()
 	}
@@ -91,27 +97,26 @@ class WorkspaceTracker {
 	}
 
 	private async workspaceDidUpdate() {
-		if (!cwd) {
+		if (!this.cwd) {
 			return
 		}
 		const filePaths = Array.from(new Set([...this.activeFiles, ...this.filePaths])).map((file) => {
-			const relativePath = path.relative(cwd, file).toPosix()
+			const relativePath = path.relative(this.cwd, file).toPosix()
 			return file.endsWith("/") ? relativePath + "/" : relativePath
 		})
 		await sendWorkspaceUpdateEvent(filePaths)
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
+		const resolvedPath = this.cwd ? path.resolve(this.cwd, filePath) : path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 
 	private async addFilePath(filePath: string): Promise<string> {
 		const normalizedPath = this.normalizeFilePath(filePath)
 		try {
-			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
-			const isDirectory = (stat.type & vscode.FileType.Directory) !== 0
-			const pathWithSlash = isDirectory && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
+			const isDir = await isDirectory(normalizedPath)
+			const pathWithSlash = isDir && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
 			this.filePaths.add(pathWithSlash)
 			return pathWithSlash
 		} catch {

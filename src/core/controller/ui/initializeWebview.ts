@@ -1,7 +1,7 @@
 import type { Controller } from "../index"
 import { EmptyRequest, Empty } from "@shared/proto/common"
 import { handleModelsServiceRequest } from "../models"
-import { getAllExtensionState, getGlobalState, updateWorkspaceState } from "../../storage/state"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
@@ -32,11 +32,22 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const { apiConfiguration } = await getAllExtensionState(controller.context)
 				if (apiConfiguration.openRouterModelId && response.models[apiConfiguration.openRouterModelId]) {
-					await updateWorkspaceState(
+					await updateGlobalState(
 						controller.context,
 						"openRouterModelInfo",
 						response.models[apiConfiguration.openRouterModelId],
 					)
+					await controller.postStateToWebview()
+				}
+			}
+		})
+
+		handleModelsServiceRequest(controller, "refreshGroqModels", EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// update model info in state for Groq
+				const { apiConfiguration } = await getAllExtensionState(controller.context)
+				if (apiConfiguration.groqModelId && response.models[apiConfiguration.groqModelId]) {
+					await updateGlobalState(controller.context, "groqModelInfo", response.models[apiConfiguration.groqModelId])
 					await controller.postStateToWebview()
 				}
 			}

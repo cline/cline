@@ -29,6 +29,7 @@ export interface TestConfig {
 	model_id: string
 	system_prompt_name: string
 	number_of_runs: number
+	max_attempts_per_case: number
 	parsing_function: string
 	diff_edit_function: string
 	thinking_tokens_budget: number
@@ -81,6 +82,7 @@ export interface TestResult {
 	diffEdit?: string
 	toolCalls?: ExtractedToolCall[]
 	diffEditSuccess?: boolean
+	replacementData?: any
 	error?: string
 	errorString?: string
 }
@@ -102,4 +104,5 @@ export interface TestInput {
 	thinkingBudgetTokens: number
 	originalDiffEditToolCallMessage?: string
 	diffApplyFile?: string
+	isVerbose: boolean
 }

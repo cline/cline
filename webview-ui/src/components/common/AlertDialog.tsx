@@ -35,7 +35,7 @@ export function AlertDialogContent({ className, children, ...props }: React.HTML
 			className={`fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] ${className}`}
 			onClick={(e) => e.stopPropagation()}
 			{...props}>
-			<div className="bg-[var(--vscode-editor-background)] rounded-sm  gap-3 border border-[var(--vscode-panel-border)] p-4 shadow-lg sm:max-w-md">
+			<div className="bg-[var(--vscode-editor-background)] rounded-sm gap-3 border border-[var(--vscode-panel-border)] p-6 shadow-lg sm:max-w-lg">
 				{children}
 			</div>
 		</div>
@@ -47,7 +47,7 @@ export function AlertDialogHeader({ className, ...props }: React.HTMLAttributes<
 }
 
 export function AlertDialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-	return <div className={`flex flex-row justify-end gap-2 mt-4 ${className}`} {...props} />
+	return <div className={`flex flex-row justify-end gap-3 mt-6 ${className}`} {...props} />
 }
 
 export function AlertDialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
@@ -76,11 +76,23 @@ export function UnsavedChangesDialog({
 	onOpenChange,
 	onConfirm,
 	onCancel,
+	onSave,
+	title = "Unsaved Changes",
+	description = "You have unsaved changes. Are you sure you want to discard them?",
+	confirmText = "Discard Changes",
+	saveText = "Save & Continue",
+	showSaveOption = false,
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	onConfirm: () => void
 	onCancel: () => void
+	onSave?: () => void
+	title?: string
+	description?: string
+	confirmText?: string
+	saveText?: string
+	showSaveOption?: boolean
 }) {
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -88,15 +100,16 @@ export function UnsavedChangesDialog({
 				<AlertDialogHeader>
 					<AlertDialogTitle>
 						<AlertTriangle className="w-5 h-5 text-[var(--vscode-errorForeground)]" />
-						Unsaved Changes
+						{title}
 					</AlertDialogTitle>
-					<AlertDialogDescription>
-						You have unsaved changes. Are you sure you want to discard them?
-					</AlertDialogDescription>
+					<AlertDialogDescription>{description}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-					<AlertDialogAction onClick={onConfirm}>Discard Changes</AlertDialogAction>
+					{showSaveOption && onSave && <AlertDialogAction onClick={onSave}>{saveText}</AlertDialogAction>}
+					<AlertDialogAction onClick={onConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
+						{confirmText}
+					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>

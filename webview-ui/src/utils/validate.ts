@@ -59,7 +59,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "cline":
-				if (!apiConfiguration.clineApiKey) {
+				if (!apiConfiguration.clineAccountId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
@@ -96,6 +96,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 			case "vscode-lm":
 				if (!apiConfiguration.vsCodeLmModelSelector) {
 					return "You must provide a valid model selector."
+				}
+				break
+			case "moonshot":
+				if (!apiConfiguration.moonshotApiKey) {
+					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "nebius":

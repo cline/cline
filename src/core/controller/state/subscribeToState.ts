@@ -25,7 +25,7 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
-	console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)
+	//console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)
 
 	await responseStream({
 		stateJson: initialStateJson,
@@ -37,7 +37,7 @@ export async function subscribeToState(
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeStateSubscriptions.delete(controllerId)
-		console.log(`[DEBUG] Cleaned up state subscription for controller ${controllerId}`)
+		//console.log(`[DEBUG] Cleaned up state subscription for controller ${controllerId}`)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -68,7 +68,7 @@ export async function sendStateUpdate(controllerId: string, state: any): Promise
 			},
 			false, // Not the last message
 		)
-		console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
+		//console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
 	} catch (error) {
 		console.error(`Error sending state update to controller ${controllerId}:`, error)
 		// Remove the subscription if there was an error

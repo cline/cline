@@ -74,8 +74,25 @@ This approach ensures that all terminal output, including colors and formatting,
 
 -   **Select specific output when needed**: By default, the integration captures all terminal content, but you can also select specific lines before right-clicking to focus on just the relevant output.
 
--   **Combine with file mentions**: After sending terminal output to Cline, you can enhance your question by mentioning relevant files using the @ mentions feature.
+-   **Combine terminal outputs with file mentions**: After sending terminal output to Cline, you can enhance your question by mentioning relevant files using the @ mentions feature.
 
--   **Use for build and test output**: Terminal integration is particularly useful for understanding complex build errors or test failures that span multiple lines.
+-   **Contextualize build & test outputs with the terminal**: Terminal integration is particularly useful for understanding complex build errors or test failures that span multiple lines.
 
 Next time you're staring at a cryptic error message in your terminal, try using Cline's terminal integration instead of copying and pasting. You'll get more accurate help because Cline can see the complete terminal context with proper formatting.
+
+## Troubleshooting Terminal Issues
+
+If you're experiencing issues with terminal integration, such as "Shell Integration Unavailable" or commands not showing output, please refer to our comprehensive [Terminal Integration Troubleshooting Guide](/troubleshooting/terminal-integration-guide).
+
+The troubleshooting guide covers:
+
+-   Common terminal integration issues and quick fixes
+-   Platform-specific solutions for Windows, macOS, and Linux
+-   Shell-specific configurations for zsh, bash, PowerShell, and more
+-   Advanced debugging techniques
+-   Terminal settings optimization
+
+<Tip>
+	**Quick Fix**: Most terminal issues can be resolved by switching to bash in the Cline settings and increasing the shell
+	integration timeout to 10 seconds.
+</Tip>

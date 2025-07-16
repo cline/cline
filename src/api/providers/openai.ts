@@ -1,44 +1,68 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiCompatibleModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
-export class OpenAiHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface OpenAiHandlerOptions {
+	openAiApiKey?: string
+	openAiBaseUrl?: string
+	azureApiVersion?: string
+	openAiHeaders?: Record<string, string>
+	openAiModelId?: string
+	openAiModelInfo?: OpenAiCompatibleModelInfo
+	reasoningEffort?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class OpenAiHandler implements ApiHandler {
+	private options: OpenAiHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
-		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
-		if (
-			this.options.azureApiVersion ||
-			((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
-				this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
-				!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
-		) {
-			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-				defaultHeaders: this.options.openAiHeaders,
-			})
-		} else {
-			this.client = new OpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				defaultHeaders: this.options.openAiHeaders,
-			})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.openAiApiKey) {
+				throw new Error("OpenAI API key is required")
+			}
+			try {
+				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
+				// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
+				if (
+					this.options.azureApiVersion ||
+					((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
+						this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
+						!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
+				) {
+					this.client = new AzureOpenAI({
+						baseURL: this.options.openAiBaseUrl,
+						apiKey: this.options.openAiApiKey,
+						apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+						defaultHeaders: this.options.openAiHeaders,
+					})
+				} else {
+					this.client = new OpenAI({
+						baseURL: this.options.openAiBaseUrl,
+						apiKey: this.options.openAiApiKey,
+						defaultHeaders: this.options.openAiHeaders,
+					})
+				}
+			} catch (error: any) {
+				throw new Error(`Error creating OpenAI client: ${error.message}`)
+			}
 		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
@@ -68,7 +92,7 @@ export class OpenAiHandler implements ApiHandler {
 			reasoningEffort = (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
 		}
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
 			temperature,

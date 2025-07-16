@@ -1,10 +1,9 @@
 syntax = "proto3";
 
 package cline;
+import "common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
-
-import "common.proto";
 
 // Service for file-related operations
 service FileService {
@@ -28,9 +27,6 @@ service FileService {
   
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
-
-  // Select images from the file system and return as data URLs
-  rpc selectImages(EmptyRequest) returns (StringArray);
 
   // Select images and other files from the file system and returns as data URLs & paths respectively
   rpc selectFiles(BooleanRequest) returns (StringArrays);

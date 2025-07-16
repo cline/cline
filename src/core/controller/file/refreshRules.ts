@@ -4,7 +4,7 @@ import type { Controller } from "../index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
-import { cwd } from "@core/task"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
  * Refreshes all rule toggles (Cline, External, and Workflows)
@@ -14,6 +14,7 @@ import { cwd } from "@core/task"
  */
 export async function refreshRules(controller: Controller, _request: EmptyRequest): Promise<RefreshedRules> {
 	try {
+		const cwd = await getCwd(getDesktopDir())
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(controller.context, cwd)
 		const { cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(controller.context, cwd)
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller.context, cwd)
