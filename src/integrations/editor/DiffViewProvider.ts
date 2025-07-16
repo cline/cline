@@ -254,11 +254,12 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		console.log("sjfsjf diff revert ", this.relPath)
-
 		if (!this.relPath || !this.absolutePath) {
 			return
 		}
+
+		console.log("sjfsjf diff revert ", this.relPath)
+
 		const fileExists = this.editType === "modify"
 
 		if (!fileExists) {

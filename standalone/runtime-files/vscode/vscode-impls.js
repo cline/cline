@@ -3,48 +3,7 @@ console.log("Loading stub impls...")
 const { createStub } = require("./stub-utils")
 const open = require("open").default
 
-const { StandaloneTerminalManager } = require("./enhanced-terminal")
-
-// Create global terminal manager instance
-const globalTerminalManager = new StandaloneTerminalManager()
-
 vscode.window = {
-	createTerminal: (...args) => {
-		console.log("Enhanced createTerminal:", ...args)
-
-		// Extract options from arguments
-		let options = {}
-		if (args.length > 0) {
-			if (typeof args[0] === "string") {
-				// Called with (name, shellPath, shellArgs)
-				options = {
-					name: args[0],
-					shellPath: args[1],
-					shellArgs: args[2],
-				}
-			} else if (typeof args[0] === "object") {
-				// Called with options object
-				options = args[0]
-			}
-		}
-
-		// Use our enhanced terminal manager to create a terminal
-		const terminalInfo = globalTerminalManager.registry.createTerminal({
-			name: options.name || `Terminal ${Date.now()}`,
-			cwd: options.cwd || process.cwd(),
-			shellPath: options.shellPath,
-		})
-
-		// Store reference for tracking
-		vscode.window.terminals.push(terminalInfo.terminal)
-		if (!vscode.window.activeTerminal) {
-			vscode.window.activeTerminal = terminalInfo.terminal
-		}
-
-		console.log(`Enhanced terminal created: ${terminalInfo.id}`)
-		return terminalInfo.terminal
-	},
-
 	showInformationMessage: (...args) => {
 		console.log("Stubbed showInformationMessage:", ...args)
 		return Promise.resolve(undefined)
@@ -81,6 +40,14 @@ vscode.window = {
 			dispose: () => {},
 		}
 	},
+	createTerminal: (...args) => {
+		console.log("Stubbed createTerminal:", ...args)
+		return {
+			sendText: console.log,
+			show: () => {},
+			dispose: () => {},
+		}
+	},
 	activeTextEditor: undefined,
 	visibleTextEditors: [],
 	tabGroups: {
@@ -96,9 +63,6 @@ vscode.window = {
 	registerUriHandler: () => ({ dispose: () => {} }),
 	registerWebviewViewProvider: () => ({ dispose: () => {} }),
 	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
-	onDidChangeTerminalState: (_) => ({ dispose: () => {} }),
-	onDidChangeTextEditorVisibleRanges: (_) => ({ dispose: () => {} }),
-
 	createTextEditorDecorationType: () => ({ dispose: () => {} }),
 	createWebviewPanel: (..._args) => {
 		throw new Error("WebviewPanel is not supported in standalone app.")
@@ -177,15 +141,6 @@ vscode.env.openExternal = async (uri) => {
 	console.log("Opening browser:", url)
 	await open(url)
 	return true
-}
-
-// Export the terminal manager globally for Cline core to use
-global.standaloneTerminalManager = globalTerminalManager
-
-// Override the TerminalManager to use our standalone implementation
-if (typeof global !== "undefined") {
-	// Replace the TerminalManager class with our standalone implementation
-	global.StandaloneTerminalManagerClass = require("./enhanced-terminal").StandaloneTerminalManager
 }
 
 console.log("Finished loading stub impls...")
