@@ -167,10 +167,10 @@ const ApiOptions = ({
 
 	// Update `apiModelId` whenever `selectedModelId` changes.
 	useEffect(() => {
-		if (selectedModelId) {
+		if (selectedModelId && apiConfiguration.apiModelId !== selectedModelId) {
 			setApiConfigurationField("apiModelId", selectedModelId)
 		}
-	}, [selectedModelId, setApiConfigurationField])
+	}, [selectedModelId, setApiConfigurationField, apiConfiguration.apiModelId])
 
 	// Debounced refresh model updates, only executed 250ms after the user
 	// stops typing.
