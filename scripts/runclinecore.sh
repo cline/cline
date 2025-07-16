@@ -6,7 +6,7 @@ set -eu #x
 CORE_DIR=~/.cline/core
 INSTALL_DIR=$CORE_DIR/0.0.1
 
-# Build standalone app
+# Build cline core
 npm run compile-standalone
 
 # Remove old unpacked versions to force reinstall
