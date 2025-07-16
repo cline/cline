@@ -14,7 +14,7 @@ rm -rf "$CORE_DIR"/* || true
 
 mkdir -p $INSTALL_DIR
 cp dist-standalone/standalone.zip "$INSTALL_DIR"
-cd $INSTALL_DIR
+cd "$INSTALL_DIR"
 unp standalone.zip > /dev/null
 
 pkill -f cline-core.js || true
