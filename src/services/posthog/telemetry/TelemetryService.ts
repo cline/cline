@@ -154,9 +154,9 @@ class TelemetryService {
 			this.client.capture({
 				distinctId: this.distinctId,
 				event: "$set",
-				properties: {
+				properties: this.addProperties({
 					$set: { telemetry_enabled: true },
-				},
+				}),
 			})
 		} else {
 			this.client.capture({
