@@ -1,11 +1,11 @@
 # Changelog
 
-## 3.19.5
+## [3.19.5]
 
--   dcb39a7: Display user role in organization UI
--   5dddbef: Groq provider support
--   e607d02: Fix missing options from window messages.
--   a36c11e: Remove state parameter from auth callback link that allows redirect to work when multiple windows are opened
+-   Add Groq as a new API provider with support for all Groq models including Kimi-K2
+-   Add user role display in organization UI for Cline account users
+-   Fix message dialogs not showing option buttons properly
+-   Fix authentication issues when using multiple VSCode windows
 
 ## [3.19.4]
 
