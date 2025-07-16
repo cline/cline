@@ -401,6 +401,14 @@ export class CustomModesManager {
 
 	public async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
+			// Validate the mode configuration before saving
+			const validationResult = modeConfigSchema.safeParse(config)
+			if (!validationResult.success) {
+				const errors = validationResult.error.errors.map((e) => e.message).join(", ")
+				logger.error(`Invalid mode configuration for ${slug}`, { errors: validationResult.error.errors })
+				throw new Error(`Invalid mode configuration: ${errors}`)
+			}
+
 			const isProjectMode = config.source === "project"
 			let targetPath: string
 

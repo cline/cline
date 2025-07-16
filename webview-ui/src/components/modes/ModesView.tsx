@@ -110,6 +110,10 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 	const [searchValue, setSearchValue] = useState("")
 	const searchInputRef = useRef<HTMLInputElement>(null)
 
+	// Local state for mode name input to allow visual emptying
+	const [localModeName, setLocalModeName] = useState<string>("")
+	const [currentEditingModeSlug, setCurrentEditingModeSlug] = useState<string | null>(null)
+
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
 		(mode: Mode, promptData: PromptComponent) => {
@@ -217,6 +221,14 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 			checkRulesDirectory(currentMode.slug)
 		}
 	}, [getCurrentMode, checkRulesDirectory, hasRulesToExport])
+
+	// Reset local name state when mode changes
+	useEffect(() => {
+		if (currentEditingModeSlug && currentEditingModeSlug !== visualMode) {
+			setCurrentEditingModeSlug(null)
+			setLocalModeName("")
+		}
+	}, [visualMode, currentEditingModeSlug])
 
 	// Helper function to safely access mode properties
 	const getModeProperty = <T extends keyof ModeConfig>(
@@ -725,16 +737,34 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 								<div className="flex gap-2">
 									<Input
 										type="text"
-										value={getModeProperty(findModeBySlug(visualMode, customModes), "name") ?? ""}
-										onChange={(e) => {
+										value={
+											currentEditingModeSlug === visualMode
+												? localModeName
+												: (getModeProperty(findModeBySlug(visualMode, customModes), "name") ??
+													"")
+										}
+										onFocus={() => {
 											const customMode = findModeBySlug(visualMode, customModes)
 											if (customMode) {
+												setCurrentEditingModeSlug(visualMode)
+												setLocalModeName(customMode.name)
+											}
+										}}
+										onChange={(e) => {
+											setLocalModeName(e.target.value)
+										}}
+										onBlur={() => {
+											const customMode = findModeBySlug(visualMode, customModes)
+											if (customMode && localModeName.trim()) {
+												// Only update if the name is not empty
 												updateCustomMode(visualMode, {
 													...customMode,
-													name: e.target.value,
+													name: localModeName,
 													source: customMode.source || "global",
 												})
 											}
+											// Clear the editing state
+											setCurrentEditingModeSlug(null)
 										}}
 										className="w-full"
 									/>
