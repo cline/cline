@@ -10,7 +10,7 @@ INSTALL_DIR=$CORE_DIR/0.0.1
 npm run compile-standalone
 
 # Remove old unpacked versions to force reinstall
-rm -rf $CORE_DIR/* || true
+rm -rf "$CORE_DIR"/* || true
 
 mkdir -p $INSTALL_DIR
 cp dist-standalone/standalone.zip $INSTALL_DIR
