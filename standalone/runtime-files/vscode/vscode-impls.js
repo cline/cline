@@ -96,6 +96,9 @@ vscode.window = {
 	registerUriHandler: () => ({ dispose: () => {} }),
 	registerWebviewViewProvider: () => ({ dispose: () => {} }),
 	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
+	onDidChangeTerminalState: (_) => ({ dispose: () => {} }),
+	onDidChangeTextEditorVisibleRanges: (_) => ({ dispose: () => {} }),
+
 	createTextEditorDecorationType: () => ({ dispose: () => {} }),
 	createWebviewPanel: (..._args) => {
 		throw new Error("WebviewPanel is not supported in standalone app.")
