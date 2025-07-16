@@ -79,6 +79,8 @@ vscode.window = {
 		console.log(`Enhanced terminal created: ${terminalInfo.id}`)
 		return terminalInfo.terminal
 	},
+	terminals: [],
+	activeTerminal: undefined,
 	activeTextEditor: undefined,
 	visibleTextEditors: [],
 	tabGroups: {
