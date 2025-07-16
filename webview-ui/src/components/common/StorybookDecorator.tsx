@@ -28,35 +28,41 @@ export const StorybookProvider: React.FC<{
 	return <StorybookStateUpdater mockState={mockState}>{children}</StorybookStateUpdater>
 }
 
+// Component that handles theme switching
+const ThemeHandler: React.FC<{ children: React.ReactNode; theme?: string }> = ({ children, theme }) => {
+	React.useEffect(() => {
+		const styles = theme?.includes("light") ? StorybookThemes.light : StorybookThemes.dark
+
+		// Apply CSS variables to the document root
+		const root = document.documentElement
+		Object.entries(styles).forEach(([property, value]) => {
+			root.style.setProperty(property, value)
+		})
+
+		document.body.style.backgroundColor = styles["--vscode-editor-background"]
+		document.body.style.color = styles["--vscode-editor-foreground"]
+		document.body.style.fontFamily = styles["--vscode-font-family"]
+		document.body.style.fontSize = styles["--vscode-font-size"]
+
+		return () => {
+			// Cleanup on unmount
+			Object.keys(styles).forEach((property) => {
+				root.style.removeProperty(property)
+			})
+		}
+	}, [theme])
+
+	return <>{children}</>
+}
+
 function VSCodeDecorator(className: string | undefined): Decorator {
 	return (story, parameters) => {
-		React.useEffect(() => {
-			const { theme } = parameters.globals
-			const styles = theme?.includes("light") ? StorybookThemes.light : StorybookThemes.dark
-
-			// Apply CSS variables to the document root
-			const root = document.documentElement
-			Object.entries(styles).forEach(([property, value]) => {
-				root.style.setProperty(property, value)
-			})
-
-			document.body.style.backgroundColor = styles["--vscode-editor-background"]
-			document.body.style.color = styles["--vscode-editor-foreground"]
-			document.body.style.fontFamily = styles["--vscode-font-family"]
-			document.body.style.fontSize = styles["--vscode-font-size"]
-
-			return () => {
-				// Cleanup on unmount
-				Object.keys(styles).forEach((property) => {
-					root.style.removeProperty(property)
-				})
-			}
-		}, [parameters?.globals?.theme])
-
 		return (
 			<div className={className}>
 				<ExtensionStateContextProvider>
-					<ClineAuthProvider>{React.createElement(story)}</ClineAuthProvider>
+					<ClineAuthProvider>
+						<ThemeHandler theme={parameters?.globals?.theme}>{React.createElement(story)}</ThemeHandler>
+					</ClineAuthProvider>
 				</ExtensionStateContextProvider>
 			</div>
 		)
