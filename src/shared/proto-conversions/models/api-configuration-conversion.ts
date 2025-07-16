@@ -222,6 +222,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLINE
 		case "litellm":
 			return ProtoApiProvider.LITELLM
+		case "moonshot":
+			return ProtoApiProvider.MOONSHOT
 		case "nebius":
 			return ProtoApiProvider.NEBIUS
 		case "fireworks":
@@ -234,6 +236,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.SAMBANOVA
 		case "cerebras":
 			return ProtoApiProvider.CEREBRAS
+		case "groq":
+			return ProtoApiProvider.GROQ
 		case "sapaicore":
 			return ProtoApiProvider.SAPAICORE
 		case "claude-code":
@@ -282,6 +286,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "cline"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
+		case ProtoApiProvider.MOONSHOT:
+			return "moonshot"
 		case ProtoApiProvider.NEBIUS:
 			return "nebius"
 		case ProtoApiProvider.FIREWORKS:
@@ -294,6 +300,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "sambanova"
 		case ProtoApiProvider.CEREBRAS:
 			return "cerebras"
+		case ProtoApiProvider.GROQ:
+			return "groq"
 		case ProtoApiProvider.SAPAICORE:
 			return "sapaicore"
 		case ProtoApiProvider.CLAUDE_CODE:
@@ -364,6 +372,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		azureApiVersion: config.azureApiVersion,
 		vsCodeLmModelSelector: config.vsCodeLmModelSelector,
 		qwenApiLine: config.qwenApiLine,
+		moonshotApiLine: config.moonshotApiLine,
+		moonshotApiKey: config.moonshotApiKey,
 		nebiusApiKey: config.nebiusApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
@@ -372,6 +382,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		reasoningEffort: config.reasoningEffort,
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
+		groqApiKey: config.groqApiKey,
+		groqModelId: config.groqModelId,
+		groqModelInfo: convertModelInfoToProtoOpenRouter(config.groqModelInfo),
 		requestTimeoutMs: config.requestTimeoutMs,
 		apiProvider: config.apiProvider ? convertApiProviderToProto(config.apiProvider) : undefined,
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -445,6 +458,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		azureApiVersion: protoConfig.azureApiVersion,
 		vsCodeLmModelSelector: protoConfig.vsCodeLmModelSelector,
 		qwenApiLine: protoConfig.qwenApiLine,
+		moonshotApiLine: protoConfig.moonshotApiLine,
+		moonshotApiKey: protoConfig.moonshotApiKey,
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,
@@ -453,6 +468,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		reasoningEffort: protoConfig.reasoningEffort,
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
+		groqApiKey: protoConfig.groqApiKey,
+		groqModelId: protoConfig.groqModelId,
+		groqModelInfo: convertProtoToModelInfo(protoConfig.groqModelInfo),
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
 		apiProvider: protoConfig.apiProvider !== undefined ? convertProtoToApiProvider(protoConfig.apiProvider) : undefined,
 		favoritedModelIds: protoConfig.favoritedModelIds.length > 0 ? protoConfig.favoritedModelIds : undefined,

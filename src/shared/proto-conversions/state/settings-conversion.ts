@@ -30,6 +30,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		qwenApiKey: config.qwenApiKey,
 		doubaoApiKey: config.doubaoApiKey,
 		mistralApiKey: config.mistralApiKey,
+		moonshotApiKey: config.moonshotApiKey,
 		nebiusApiKey: config.nebiusApiKey,
 		asksageApiKey: config.asksageApiKey,
 		xaiApiKey: config.xaiApiKey,
@@ -101,6 +102,9 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		// Qwen specific
 		qwenApiLine: config.qwenApiLine,
 
+		// Moonshot specific
+		moonshotApiLine: config.moonshotApiLine,
+
 		// OpenRouter specific
 		openrouterProviderSorting: config.openRouterProviderSorting,
 
@@ -152,6 +156,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		qwenApiKey: protoConfig.qwenApiKey,
 		doubaoApiKey: protoConfig.doubaoApiKey,
 		mistralApiKey: protoConfig.mistralApiKey,
+		moonshotApiKey: protoConfig.moonshotApiKey,
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		asksageApiKey: protoConfig.asksageApiKey,
 		xaiApiKey: protoConfig.xaiApiKey,
@@ -218,6 +223,9 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// Qwen specific
 		qwenApiLine: protoConfig.qwenApiLine,
+
+		// Moonshot specific
+		moonshotApiLine: protoConfig.moonshotApiLine,
 
 		// OpenRouter specific
 		openRouterProviderSorting: protoConfig.openrouterProviderSorting,

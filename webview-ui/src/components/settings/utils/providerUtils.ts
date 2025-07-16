@@ -34,6 +34,8 @@ import {
 	doubaoModels,
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
+	moonshotModels,
+	moonshotDefaultModelId,
 	nebiusModels,
 	nebiusDefaultModelId,
 	cerebrasModels,
@@ -42,6 +44,8 @@ import {
 	sapAiCoreDefaultModelId,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	groqModels,
+	groqDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -168,12 +172,22 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "moonshot":
+			return getProviderData(moonshotModels, moonshotDefaultModelId)
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "groq":
+			const result = {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.groqModelId || groqDefaultModelId,
+				selectedModelInfo: apiConfiguration?.groqModelInfo || groqModels[groqDefaultModelId],
+			}
+
+			return result
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		default:

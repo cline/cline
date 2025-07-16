@@ -3,10 +3,10 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { useCallback } from "react"
 
 export const useApiConfigurationHandlers = () => {
-	const { apiConfiguration } = useExtensionState()
-
+	const { apiConfiguration, uriScheme } = useExtensionState()
 	/**
 	 * Updates a single field in the API configuration.
 	 *
@@ -17,21 +17,24 @@ export const useApiConfigurationHandlers = () => {
 	 * @param field - The field key to update
 	 * @param value - The new value for the field
 	 */
-	const handleFieldChange = <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => {
-		const updatedConfig = {
-			...apiConfiguration,
-			[field]: value,
-		}
+	const handleFieldChange = useCallback(
+		<K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => {
+			const updatedConfig = {
+				...apiConfiguration,
+				[field]: value,
+			}
 
-		const protoConfig = convertApiConfigurationToProto(updatedConfig)
-		ModelsServiceClient.updateApiConfigurationProto(
-			UpdateApiConfigurationRequest.create({
-				apiConfiguration: protoConfig,
-			}),
-		).catch((error) => {
-			console.error(`Failed to update API configuration field ${field}:`, error)
-		})
-	}
+			const protoConfig = convertApiConfigurationToProto(updatedConfig)
+			ModelsServiceClient.updateApiConfigurationProto(
+				UpdateApiConfigurationRequest.create({
+					apiConfiguration: protoConfig,
+				}),
+			).catch((error) => {
+				console.error(`Failed to update API configuration field ${field}:`, error)
+			})
+		},
+		[apiConfiguration],
+	)
 
 	/**
 	 * Updates multiple fields in the API configuration at once.
@@ -42,21 +45,24 @@ export const useApiConfigurationHandlers = () => {
 	 *
 	 * @param updates - An object containing the fields to update and their new values
 	 */
-	const handleFieldsChange = (updates: Partial<ApiConfiguration>) => {
-		const updatedConfig = {
-			...apiConfiguration,
-			...updates,
-		}
+	const handleFieldsChange = useCallback(
+		(updates: Partial<ApiConfiguration>) => {
+			const updatedConfig = {
+				...apiConfiguration,
+				...updates,
+			}
 
-		const protoConfig = convertApiConfigurationToProto(updatedConfig)
-		ModelsServiceClient.updateApiConfigurationProto(
-			UpdateApiConfigurationRequest.create({
-				apiConfiguration: protoConfig,
-			}),
-		).catch((error) => {
-			console.error("Failed to update API configuration fields:", error)
-		})
-	}
+			const protoConfig = convertApiConfigurationToProto(updatedConfig)
+			ModelsServiceClient.updateApiConfigurationProto(
+				UpdateApiConfigurationRequest.create({
+					apiConfiguration: protoConfig,
+				}),
+			).catch((error) => {
+				console.error("Failed to update API configuration fields:", error)
+			})
+		},
+		[apiConfiguration],
+	)
 
-	return { handleFieldChange, handleFieldsChange }
+	return { handleFieldChange, handleFieldsChange, uriScheme, apiConfiguration }
 }

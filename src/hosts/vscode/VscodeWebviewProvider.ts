@@ -4,8 +4,8 @@ import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 import { getTheme } from "@integrations/theme/getTheme"
 import * as vscode from "vscode"
 import { Uri } from "vscode"
-import { WebviewProvider } from "."
-import { sendDidBecomeVisibleEvent } from "../controller/ui/subscribeToDidBecomeVisible"
+import { WebviewProvider } from "@core/webview"
+import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

@@ -27,6 +27,8 @@ import { SambanovaHandler } from "./providers/sambanova"
 import { CerebrasHandler } from "./providers/cerebras"
 import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
+import { MoonshotHandler } from "./providers/moonshot"
+import { GroqHandler } from "./providers/groq"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -187,6 +189,12 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 				liteLlmUsePromptCache: options.liteLlmUsePromptCache,
 				taskId: options.taskId,
 			})
+		case "moonshot":
+			return new MoonshotHandler({
+				moonshotApiKey: options.moonshotApiKey,
+				moonshotApiLine: options.moonshotApiLine,
+				apiModelId: options.apiModelId,
+			})
 		case "nebius":
 			return new NebiusHandler({
 				nebiusApiKey: options.nebiusApiKey,
@@ -212,6 +220,13 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 		case "cerebras":
 			return new CerebrasHandler({
 				cerebrasApiKey: options.cerebrasApiKey,
+				apiModelId: options.apiModelId,
+			})
+		case "groq":
+			return new GroqHandler({
+				groqApiKey: options.groqApiKey,
+				groqModelId: options.groqModelId,
+				groqModelInfo: options.groqModelInfo,
 				apiModelId: options.apiModelId,
 			})
 		case "sapaicore":

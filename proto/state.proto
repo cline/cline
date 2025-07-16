@@ -112,7 +112,7 @@ message UpdateSettingsRequest {
   optional int64 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
-  optional bool mcp_rich_display_enabled = 11;
+  optional string mcp_display_mode = 11;
   optional int64 terminal_output_line_limit = 12;
 }
 
@@ -236,4 +236,8 @@ message ApiConfiguration {
   // Extension fields for Bedrock Api Keys
   optional string aws_authentication = 78;
   optional string aws_bedrock_api_key = 79;
+
+  // Moonshot
+  optional string moonshot_api_key = 80;
+  optional string moonshot_api_line = 81;
 }

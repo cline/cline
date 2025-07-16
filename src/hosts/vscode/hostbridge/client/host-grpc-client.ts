@@ -1,4 +1,4 @@
-import { createGrpcClient } from "@hosts/vscode/client/host-grpc-client-base"
+import { createGrpcClient } from "@hosts/vscode/hostbridge/client/host-grpc-client-base"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import * as host from "@shared/proto/index.host"
 
