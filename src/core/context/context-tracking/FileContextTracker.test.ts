@@ -6,7 +6,7 @@ import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "@core/storage/disk"
 import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { WebviewProviderCreator } from "@/hosts/host-providers"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
 import * as hostProviders from "@hosts/host-providers"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
@@ -55,7 +55,7 @@ describe("FileContextTracker", () => {
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 		hostProviders.initializeHostProviders(
 			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as hostProviders.DiffViewProviderCreator,
+			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
 		)
 
