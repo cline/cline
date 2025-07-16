@@ -151,11 +151,20 @@ class TelemetryService {
 		if (this.telemetryEnabled) {
 			this.client.optIn()
 			this.client.identify({ distinctId: this.distinctId })
+			this.client.capture({
+				distinctId: this.distinctId,
+				event: "$set",
+				properties: {
+					$set: { telemetry_enabled: true },
+				},
+			})
 		} else {
 			this.client.capture({
 				distinctId: this.distinctId,
 				event: TelemetryService.EVENTS.USER.OPT_OUT,
-				properties: this.addProperties({}),
+				properties: this.addProperties({
+					$set: { telemetry_enabled: false },
+				}),
 			})
 
 			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
