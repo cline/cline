@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
-e2e("Auth", async ({ page, sidebar }) => {
+e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	// Verify initial state
 	await expect(sidebar.getByRole("button", { name: "Get Started for Free" })).toBeVisible()
 	await expect(sidebar.getByRole("button", { name: "Use your own API key" })).toBeVisible()

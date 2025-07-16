@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import { e2e, signin } from "./utils/helpers"
 
-e2e("Chat", async ({ page, sidebar }) => {
+e2e("Chat - can send messages and switch between modes", async ({ page, sidebar }) => {
 	// Sign in
 	await signin(sidebar)
 
@@ -29,4 +29,20 @@ e2e("Chat", async ({ page, sidebar }) => {
 	await expect(sidebar.getByText("API Request Failed")).not.toBeVisible()
 	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
+
+	// Makes sure the act and plan switches are working correctly
+	// Aria-checked state should be true for Act and false for Plan
+	const actButton = sidebar.getByRole("switch", { name: "Act" })
+	const planButton = sidebar.getByRole("switch", { name: "Plan" })
+
+	await expect(actButton).toBeChecked()
+	await expect(planButton).not.toBeChecked()
+
+	await actButton.click()
+	await expect(actButton).not.toBeChecked()
+	await expect(planButton).toBeChecked()
+
+	await sidebar.getByTestId("chat-input").fill("Plan mode submission")
+	await sidebar.getByTestId("send-button").click()
+	await sidebar.getByText("OpenRouter API key is required").click()
 })
