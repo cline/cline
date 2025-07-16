@@ -1,15 +1,16 @@
 # Default
 .vscode/**
 .vscode-test/**
-out/**
-dist-standalone/**
-node_modules/**
+out/
+dist-standalone/
+node_modules/
 src/**
 standalone/**
 .gitignore
 .yarnrc
 esbuild.js
-**/tsconfig.json
+vsc-extension-quickstart.md
+tsconfig*.json
 **/.eslintrc.json
 **/*.map
 **/*.ts
@@ -23,6 +24,17 @@ eslint-rules/**
 .nvmrc
 .gitattributes
 .prettierignore
+.husky/
+.github/
+eslint-rules/
+old_docs/
+evals/
+.changie.yaml
+.codespellrc
+.mocharc.json
+buf.yaml
+.changeset/
+.clinerules/
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**
@@ -47,3 +59,8 @@ old_docs/**
 
 # Include icons
 !assets/icons/**
+
+# Ignore E2E build files
+e2e-build.js
+e2e.vsix
+test-results/

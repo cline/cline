@@ -1722,12 +1722,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										style={{
 											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 										}}>
-										<ApiOptions
-											showModelOptions={true}
-											apiErrorMessage={undefined}
-											modelIdErrorMessage={undefined}
-											isPopup={true}
-										/>
+										<ApiOptions showModelOptions={true} modelIdErrorMessage={undefined} isPopup={true} />
 									</ModelSelectorTooltip>
 								)}
 							</ModelContainer>
