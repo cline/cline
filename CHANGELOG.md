@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.19.6
+## [3.19.6]
 
--   0c5832b: Add additional Kimi K2 providers
+-   Improve Kimi K2 model provider routing with additional provider options for better availability and performance
 
 ## [3.19.5]
 
