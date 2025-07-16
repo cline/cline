@@ -42,6 +42,17 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			}
 		})
 
+		handleModelsServiceRequest(controller, "refreshGroqModels", EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// update model info in state for Groq
+				const { apiConfiguration } = await getAllExtensionState(controller.context)
+				if (apiConfiguration.groqModelId && response.models[apiConfiguration.groqModelId]) {
+					await updateGlobalState(controller.context, "groqModelInfo", response.models[apiConfiguration.groqModelId])
+					await controller.postStateToWebview()
+				}
+			}
+		})
+
 		// GUI relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 		// We do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 		// (see normalizeApiConfiguration > openrouter)

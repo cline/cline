@@ -23,6 +23,8 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
+   // Refreshes and returns Groq models
+  rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -120,9 +122,10 @@ enum ApiProvider {
   XAI = 21;
   SAMBANOVA = 22;
   CEREBRAS = 23;
-  SAPAICORE = 24;
-  CLAUDE_CODE = 25;
-  MOONSHOT = 26;
+  GROQ = 24;
+  SAPAICORE = 25;
+  CLAUDE_CODE = 26;
+  MOONSHOT = 27;
 }
 
 // Model info for OpenAI-compatible models
@@ -240,4 +243,7 @@ message ModelsApiConfiguration {
   optional string aws_bedrock_api_key = 75;
   optional string moonshot_api_key = 76;
   optional string moonshot_api_line = 77;
+  optional string groq_api_key = 78;
+  optional string groq_model_id = 79;
+  optional OpenRouterModelInfo groq_model_info = 80;
 }

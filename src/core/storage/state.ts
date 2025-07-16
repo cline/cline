@@ -167,6 +167,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		xaiApiKey,
 		sambanovaApiKey,
 		cerebrasApiKey,
+		groqApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
 		planActSeparateModelsSettingRaw,
@@ -188,6 +189,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		groqModelId,
+		groqModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -244,6 +247,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "xaiApiKey") as Promise<string | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
+		getSecret(context, "groqApiKey") as Promise<string | undefined>,
 		getSecret(context, "moonshotApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
@@ -265,6 +269,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
+		getGlobalState(context, "groqModelId") as Promise<string | undefined>,
+		getGlobalState(context, "groqModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -339,6 +345,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const processingStart = performance.now()
 	let apiProvider: ApiProvider
 	if (storedApiProvider) {
+		// Use the explicitly stored provider - this respects user's selection
 		apiProvider = storedApiProvider
 	} else {
 		// Either new user or legacy user that doesn't have the apiProvider stored in state
@@ -442,6 +449,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			xaiApiKey,
 			sambanovaApiKey,
 			cerebrasApiKey,
+			groqApiKey,
+			groqModelId,
+			groqModelInfo,
 			moonshotApiKey,
 			nebiusApiKey,
 			favoritedModelIds,
@@ -554,6 +564,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineAccountId,
 		sambanovaApiKey,
 		cerebrasApiKey,
+		groqApiKey,
+		groqModelId,
+		groqModelInfo,
 		moonshotApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
@@ -592,6 +605,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		requestyModelInfo,
 		togetherModelId,
 		fireworksModelId,
+		groqModelId,
+		groqModelInfo,
 		sapAiCoreModelId,
 
 		// Global state updates (27 keys)
@@ -652,6 +667,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		xaiApiKey,
 		sambanovaApiKey,
 		cerebrasApiKey,
+		groqApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
 		sapAiCoreClientId,
@@ -696,6 +712,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"xaiApiKey",
 		"sambanovaApiKey",
 		"cerebrasApiKey",
+		"groqApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
 	]

@@ -26,6 +26,7 @@ export type SecretKey =
 	| "cerebrasApiKey"
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
+	| "groqApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -117,5 +118,7 @@ export type GlobalStateKey =
 	| "previousModeAwsBedrockCustomSelected"
 	| "previousModeAwsBedrockCustomModelBaseId"
 	| "previousModeSapAiCoreModelId"
+	| "groqModelId"
+	| "groqModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
