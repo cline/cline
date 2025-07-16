@@ -17,6 +17,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
+import { config } from "@/config"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -126,8 +127,8 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
 	const dashboardAddCreditsURL = activeOrganization
-		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
-		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		? `${config.appBaseUrl}/dashboard/organization?tab=credits&redirect=true`
+		: `${config.appBaseUrl}/dashboard/account?tab=credits&redirect=true`
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -265,7 +266,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink href="https://app.cline.bot/dashboard" appearance="primary" className="w-full">
+							<VSCodeButtonLink href={`${config.appBaseUrl}/dashboard`} appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
