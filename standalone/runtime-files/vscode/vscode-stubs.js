@@ -561,7 +561,7 @@ vscode.commands.getCommands = function (filterInternal) {
 	return ""
 }
 vscode.window = {}
-vscode.window.tabGroups = createStub("vscode.window.tabGroups")
+vscode.window.tabGroups = []
 vscode.window.activeTextEditor = createStub("vscode.window.activeTextEditor")
 vscode.window.visibleTextEditors = []
 vscode.window.onDidChangeActiveTextEditor = createStub("vscode.window.onDidChangeActiveTextEditor")

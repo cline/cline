@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+scripts/runstandalone.sh#!/usr/bin/env bash
 set -eu #x
 
 CORE_DIR=~/.cline/core
