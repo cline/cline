@@ -115,13 +115,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
             */
 	override async getNewDiagnosticProblems(): Promise<string> {
 		const postDiagnostics = vscode.languages.getDiagnostics()
-		return diagnosticsToProblemsString(
-			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
-			[
-				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
-			],
-			await getCwd(),
-		) // will be empty string if no errors
+		return diagnosticsToProblemsString(getNewDiagnostics(this.preDiagnostics, postDiagnostics), [
+			vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+		]) // will be empty string if no errors
 	}
 
 	override setCursor(line: number, character: number): void {

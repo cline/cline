@@ -25,4 +25,34 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 			endLine: rangeToReplace.endLine,
 		})
 	}
+	override setCursor(line: number, character: number): void {
+		throw new Error("Method not implemented.")
+	}
+	override scrollToLine(line: number): void {
+		throw new Error("Method not implemented.")
+	}
+	override saveDocument(): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override getDocumentText(): Promise<string | undefined> {
+		throw new Error("Method not implemented.")
+	}
+	override truncateDocument(lineNumber: number): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override revertDocument(): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override scrollAnimation(startLine: number, endLine: number): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override closeAllDiffViews(): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override resetDiffView(): Promise<void> {
+		throw new Error("Method not implemented.")
+	}
+	override getNewDiagnosticProblems(): Promise<string> {
+		throw new Error("Method not implemented.")
+	}
 }

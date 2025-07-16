@@ -4,9 +4,8 @@ import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
 import { arePathsEqual, getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
-import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
@@ -22,32 +21,33 @@ export abstract class DiffViewProvider {
 	protected documentWasOpen = false
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
-	private streamedLines: string[] = []
 	private newContent?: string
+	private streamedLines: string[] = []
 
-	protected activeDiffEditor?: vscode.TextEditor
-	protected fadedOverlayController?: DecorationController
-	protected activeLineController?: DecorationController
-	protected preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	protected fileEncoding: string = "utf8"
+	private scrollListener?: vscode.Disposable
 
 	constructor() {}
 
-	public async open(relPath: string): Promise<void> {
-		this.isEditing = true
+	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
-		this.absolutePath = path.resolve(await getCwd(), relPath)
-		const fileExists = this.editType === "modify"
+		const cwd = await getCwd()
+		this.absolutePath = path.resolve(cwd, relPath)
 
+		const fileExists = this.editType === "modify"
+		this.isEditing = true
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
+			// TODO(fortunes) Switch this to host bridge WorkspaceService.saveDocument(absolutePath)
 			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
 				arePathsEqual(doc.uri.fsPath, this.absolutePath),
 			)
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
 			}
+		}
 
+		if (fileExists) {
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
@@ -62,30 +62,34 @@ export abstract class DiffViewProvider {
 			await fs.writeFile(this.absolutePath, "")
 		}
 		await this.openDiffEditor()
-		this.scrollEditorToLine(0) // will this crash for new files?
+
+		this.scrollToLine(0) // will this crash for new files?
 		this.streamedLines = []
 	}
 
-	/**
-	 * Opens a diff editor or viewer for the current file.
-	 *
-	 * This abstract method must be implemented by subclasses to create and display
-	 * a diff editor or viewer that shows the difference between the original and
-	 * modified content.
-	 *
-	 * Called automatically by the `open` method after ensuring the file exists and
-	 * creating any necessary directories.
-	 *
-	 * @returns A promise that resolves when the diff editor is open and ready
-	 */
-	protected abstract openDiffEditor(): Promise<void>
+	abstract openDiffEditor(): Promise<void>
+	abstract setCursor(line: number, character: number): void
+	abstract scrollToLine(line: number): void
+	abstract saveDocument(): Promise<void>
+	abstract getDocumentText(): Promise<string | undefined>
+	abstract replaceText(
+		content: string,
+		rangeToReplace: { startLine: number; endLine: number },
+		currentLine: number,
+	): Promise<void>
+	abstract truncateDocument(lineNumber: number): Promise<void>
+	abstract revertDocument(): Promise<void>
+	abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
+	abstract closeAllDiffViews(): Promise<void>
+	abstract resetDiffView(): Promise<void>
+	abstract getNewDiagnosticProblems(): Promise<string>
 
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
 		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
 	) {
-		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
+		if (!this.relPath) {
 			throw new Error("Required values not set")
 		}
 
@@ -104,15 +108,8 @@ export abstract class DiffViewProvider {
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
-		const diffEditor = this.activeDiffEditor
-		const document = diffEditor?.document
-		if (!diffEditor || !document) {
-			throw new Error("User closed text editor, unable to edit file...")
-		}
-
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
-		const beginningOfDocument = new vscode.Position(0, 0)
-		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
+		this.setCursor(0, 0)
 
 		// Instead of animating each line, we'll update in larger chunks
 		const currentLine = this.streamedLines.length + diffLines.length - 1
@@ -121,38 +118,28 @@ export abstract class DiffViewProvider {
 
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+			const rangeToReplace = { startLine: 0, startChar: 0, endLine: currentLine + 1, endChar: 0 }
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
-			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
+			this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
 			if (changeLocation) {
 				// We have the actual location of the change, scroll to it
 				const targetLine = changeLocation.startLine
-				this.scrollEditorToLine(targetLine)
+				this.scrollToLine(targetLine)
 			} else {
 				// Fallback to the old logic for non-replacement updates
 				if (diffLines.length <= 5) {
 					// For small changes, just jump directly to the line
-					this.scrollEditorToLine(currentLine)
+					this.scrollToLine(currentLine)
 				} else {
 					// For larger changes, create a quick scrolling animation
+					// Create and await the smooth scrolling animation
 					const startLine = this.streamedLines.length
 					const endLine = currentLine
-					const totalLines = endLine - startLine
-					const numSteps = 10 // Adjust this number to control animation speed
-					const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
-
-					// Create and await the smooth scrolling animation
-					for (let line = startLine; line <= endLine; line += stepSize) {
-						this.activeDiffEditor?.revealRange(
-							new vscode.Range(line, 0, line, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-						await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
-					}
+					this.scrollAnimation(startLine, endLine)
 					// Ensure we end at the final line
-					this.scrollEditorToLine(currentLine)
+					this.scrollToLine(currentLine)
 				}
 			}
 		}
@@ -161,11 +148,7 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			if (this.streamedLines.length < document.lineCount) {
-				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
-				await vscode.workspace.applyEdit(edit)
-			}
+			this.truncateDocument(this.streamedLines.length)
 			// Add empty last line if original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
 			if (hasEmptyLastLine) {
@@ -174,29 +157,8 @@ export abstract class DiffViewProvider {
 					accumulatedContent += "\n"
 				}
 			}
-			// Clear all decorations at the end (before applying final edit)
-			this.fadedOverlayController.clear()
-			this.activeLineController.clear()
 		}
 	}
-
-	/**
-	 * Replaces text in the diff editor with the specified content.
-	 *
-	 * This abstract method must be implemented by subclasses to handle the actual
-	 * text replacement in their specific diff editor implementation. It's called
-	 * during the streaming update process to progressively show changes.
-	 *
-	 * @param content The new content to insert into the document
-	 * @param rangeToReplace An object specifying the line range to replace
-	 * @param currentLine The current line number being edited, used for scroll positioning
-	 * @returns A promise that resolves when the text replacement is complete
-	 */
-	abstract replaceText(
-		content: string,
-		rangeToReplace: { startLine: number; endLine: number },
-		currentLine: number,
-	): Promise<void>
 
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
@@ -204,7 +166,9 @@ export abstract class DiffViewProvider {
 		autoFormattingEdits: string | undefined
 		finalContent: string | undefined
 	}> {
-		if (!this.relPath || !this.newContent || !this.activeDiffEditor) {
+		// get the contents before save operation which may do auto-formatting
+		const preSaveContent = await this.getDocumentText()
+		if (!this.relPath || !this.newContent || !preSaveContent) {
 			return {
 				newProblemsMessage: undefined,
 				userEdits: undefined,
@@ -212,18 +176,10 @@ export abstract class DiffViewProvider {
 				finalContent: undefined,
 			}
 		}
-		const updatedDocument = this.activeDiffEditor.document
-
-		// get the contents before save operation which may do auto-formatting
-		const preSaveContent = updatedDocument.getText()
-
-		if (updatedDocument.isDirty) {
-			await updatedDocument.save()
-		}
+		this.saveDocument()
 
 		// get text after save in case there is any auto-formatting done by the editor
-		const postSaveContent = updatedDocument.getText()
-
+		const postSaveContent = (await this.getDocumentText()) || ""
 		await getHostBridgeProvider().windowClient.showTextDocument(
 			ShowTextDocumentRequest.create({
 				path: this.absolutePath,
@@ -252,10 +208,7 @@ export abstract class DiffViewProvider {
 		applying a fix, Cline won't be notified, which is generally fine since the
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
-		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = await diagnosticsToProblemsString(getNewDiagnostics(this.preDiagnostics, postDiagnostics), [
-			vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
-		]) // will be empty string if no errors
+		const newProblems = await this.getNewDiagnosticProblems()
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
@@ -295,15 +248,13 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		if (!this.absolutePath || !this.activeDiffEditor) {
+		if (!this.relPath || !this.absolutePath) {
 			return
 		}
 		const fileExists = this.editType === "modify"
-		const updatedDocument = this.activeDiffEditor.document
+
 		if (!fileExists) {
-			if (updatedDocument.isDirty) {
-				await updatedDocument.save()
-			}
+			this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
@@ -314,15 +265,7 @@ export abstract class DiffViewProvider {
 			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
-			const edit = new vscode.WorkspaceEdit()
-			const fullRange = new vscode.Range(
-				updatedDocument.positionAt(0),
-				updatedDocument.positionAt(updatedDocument.getText().length),
-			)
-			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
-			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
-			await vscode.workspace.applyEdit(edit)
-			await updatedDocument.save()
+			await this.revertDocument()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				await getHostBridgeProvider().windowClient.showTextDocument(
@@ -342,42 +285,17 @@ export abstract class DiffViewProvider {
 		await this.reset()
 	}
 
-	private async closeAllDiffViews() {
-		const tabs = vscode.window.tabGroups.all
-			.flatMap((tg) => tg.tabs)
-			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
-		for (const tab of tabs) {
-			// trying to close dirty views results in save popup
-			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
-			}
-		}
-	}
-
-	private scrollEditorToLine(line: number) {
-		if (this.activeDiffEditor) {
-			const scrollLine = line + 4
-			this.activeDiffEditor.revealRange(
-				new vscode.Range(scrollLine, 0, scrollLine, 0),
-				vscode.TextEditorRevealType.InCenter,
-			)
-		}
-	}
-
-	scrollToFirstDiff() {
-		if (!this.activeDiffEditor) {
+	async scrollToFirstDiff() {
+		const currentContent = await this.getDocumentText()
+		if (!currentContent) {
 			return
 		}
-		const currentContent = this.activeDiffEditor.document.getText()
 		const diffs = diff.diffLines(this.originalContent || "", currentContent)
 		let lineCount = 0
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.activeDiffEditor.revealRange(
-					new vscode.Range(lineCount, 0, lineCount, 0),
-					vscode.TextEditorRevealType.InCenter,
-				)
+				this.scrollToLine(lineCount)
 				return
 			}
 			if (!part.removed) {
@@ -393,10 +311,13 @@ export abstract class DiffViewProvider {
 		this.originalContent = undefined
 		this.createdDirs = []
 		this.documentWasOpen = false
-		this.activeDiffEditor = undefined
-		this.fadedOverlayController = undefined
-		this.activeLineController = undefined
+		this.resetDiffView()
 		this.streamedLines = []
-		this.preDiagnostics = []
+
+		// Clean up the scroll listener
+		if (this.scrollListener) {
+			this.scrollListener.dispose()
+			this.scrollListener = undefined
+		}
 	}
 }
