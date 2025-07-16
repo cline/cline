@@ -137,7 +137,7 @@ export abstract class DiffViewProvider {
 					// Create and await the smooth scrolling animation
 					const startLine = this.streamedLines.length
 					const endLine = currentLine
-					this.scrollAnimation(startLine, endLine)
+					await this.scrollAnimation(startLine, endLine)
 					// Ensure we end at the final line
 					this.scrollToLine(currentLine)
 				}
