@@ -9,7 +9,7 @@ import chalk from "chalk"
 import os from "os"
 
 import { createRequire } from "module"
-import { serviceNameMap, hostServiceNameMap } from "./build-proto-config.mjs"
+import { serviceNameMap } from "./build-proto-config.mjs"
 
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
