@@ -149,7 +149,7 @@ class TelemetryService {
 
 		// Update PostHog client state based on telemetry preference
 		if (this.telemetryEnabled) {
-			this.client.optIn()
+			await this.client.optIn()
 			this.client.identify({ distinctId: this.distinctId })
 			this.client.capture({
 				distinctId: this.distinctId,
@@ -168,7 +168,7 @@ class TelemetryService {
 			})
 
 			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
-			this.client.optOut()
+			await this.client.optOut()
 		}
 	}
 
