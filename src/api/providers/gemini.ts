@@ -256,18 +256,23 @@ export class GeminiHandler implements ApiHandler {
 				totalDurationSdkMs > 0 && outputTokens > 0 ? outputTokens / (totalDurationSdkMs / 1000) : undefined
 
 			if (this.options.taskId) {
-				telemetryService.captureGeminiApiPerformance(this.options.taskId, modelId, {
-					ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
-					totalDurationSec: totalDurationSdkMs / 1000,
-					promptTokens,
-					outputTokens,
-					cacheReadTokens,
-					cacheHit,
-					cacheHitPercentage,
-					apiSuccess,
-					apiError,
-					throughputTokensPerSec: throughputTokensPerSecSdk,
-				})
+				telemetryService.captureGeminiApiPerformance(
+					this.options.taskId,
+					modelId,
+					{
+						ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
+						totalDurationSec: totalDurationSdkMs / 1000,
+						promptTokens,
+						outputTokens,
+						cacheReadTokens,
+						cacheHit,
+						cacheHitPercentage,
+						apiSuccess,
+						apiError,
+						throughputTokensPerSec: throughputTokensPerSecSdk,
+					},
+					true,
+				)
 			} else {
 				console.warn("GeminiHandler: taskId not available for telemetry in createMessage.")
 			}

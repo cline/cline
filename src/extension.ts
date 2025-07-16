@@ -363,7 +363,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
-			telemetryService.captureButtonClick("codeAction_addToChat", visibleWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_addToChat", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -540,7 +540,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send to sidebar provider with diagnostics
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
-			telemetryService.captureButtonClick("codeAction_fixWithCline", visibleWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_fixWithCline", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -567,7 +567,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -594,7 +594,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -658,7 +658,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					}),
 				)
 			}
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -666,7 +666,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
 			await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
-			telemetryService.captureButtonClick("command_openWalkthrough")
+			telemetryService.captureButtonClick("command_openWalkthrough", undefined, true)
 		}),
 	)
 
@@ -727,6 +727,8 @@ const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 export async function deactivate() {
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
+
+	await telemetryService.sendCollectedEvents()
 
 	// Clean up test mode
 	cleanupTestMode()

@@ -905,6 +905,7 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
+			await telemetryService.sendCollectedEvents(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
