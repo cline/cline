@@ -5,6 +5,7 @@ import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
+import { getActiveTextEditor } from "@/utils/editor"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -44,7 +45,8 @@ export async function openFile(absolutePath: string) {
 					(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, uri.fsPath),
 				)
 				if (existingTab) {
-					const activeColumn = vscode.window.activeTextEditor?.viewColumn
+					const activeEditor = await getActiveTextEditor()
+					const activeColumn = activeEditor?.viewColumn
 					const tabColumn = vscode.window.tabGroups.all.find((group) => group.tabs.includes(existingTab))?.viewColumn
 					if (activeColumn && activeColumn !== tabColumn && !existingTab.isDirty) {
 						await vscode.window.tabGroups.close(existingTab)
