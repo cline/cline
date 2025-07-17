@@ -9,7 +9,7 @@ const config: StorybookConfig = {
 		config.define = {
 			...config.define,
 			"process.env": {
-				NODE_ENV: JSON.stringify("development"),
+				...process.env,
 				IS_DEV: JSON.stringify(true),
 				IS_TEST: JSON.stringify(false),
 				TEMP_PROFILE: JSON.stringify(true),
