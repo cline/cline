@@ -7,7 +7,7 @@ import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
 import { UserInfo } from "./UserInfo"
-import { McpDisplayMode, DEFAULT_MCP_DISPLAY_MODE } from "./McpDisplayMode"
+import { McpDisplayMode } from "./McpDisplayMode"
 
 // webview will hold state
 export interface ExtensionMessage {
