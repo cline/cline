@@ -111,7 +111,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		switch (message.type) {
 			// Handle tab navigation through targetSection prop instead
 			case "grpc_response":
-				if (message.grpc_response?.message?.action === "scrollToSettings") {
+				if (message.grpc_response?.message?.key === "scrollToSettings") {
 					const tabId = message.grpc_response?.message?.value
 					if (tabId) {
 						console.log("Opening settings tab from GRPC response:", tabId)

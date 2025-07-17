@@ -1221,8 +1221,8 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (!this.enableCheckpoints) {
-			// If checkpoints are disabled, do nothing.
+		if (!this.enableCheckpoints || this.taskState.checkpointTrackerErrorMessage === "Checkpoints timeout error") {
+			// If checkpoints are disabled or previously encountered a timeout error, do nothing.
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
@@ -1277,7 +1277,7 @@ export class Task {
 		} else {
 			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
 			// Check if checkpoint tracker exists, if not, create it
-			if (!this.checkpointTracker) {
+			if (!this.checkpointTracker && this.taskState.checkpointTrackerErrorMessage !== "Checkpoints timeout error") {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
@@ -1292,7 +1292,7 @@ export class Task {
 				}
 			}
 
-			if (this.checkpointTracker) {
+			if (this.checkpointTracker && this.taskState.checkpointTrackerErrorMessage !== "Checkpoints timeout error") {
 				const commitHash = await this.checkpointTracker.commit()
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
@@ -2060,7 +2060,13 @@ export class Task {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+
+				// If the error was a timeout, we disabled all checkpoint ops for the rest of the task
+				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
+					this.taskState.checkpointTrackerErrorMessage = "Checkpoints timeout error"
+				} else {
+					this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				}
 			}
 		}
 
