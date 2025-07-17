@@ -66,8 +66,6 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 							try {
 								// If unchecking the toggle, wait a bit for state to update, then sync configurations
 								if (!checked) {
-									// Wait for React state to update after the protocol call
-									await new Promise((resolve) => setTimeout(resolve, 100))
 									await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
 								}
 								await StateServiceClient.updateSettings(
