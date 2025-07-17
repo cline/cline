@@ -8,7 +8,7 @@ import { downloadTask } from "@integrations/misc/export-markdown"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
-import { ApiProvider, ModelInfo } from "@shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -656,7 +656,7 @@ export class Controller {
 		if (this.task) {
 			// Preserve the current taskId when rebuilding the API handler
 			this.rebuildApiHandler({
-				apiProvider: "openrouter",
+				apiProvider: openrouter,
 				openRouterApiKey: apiKey,
 			})
 		}
