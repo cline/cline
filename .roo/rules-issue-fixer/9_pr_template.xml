@@ -1,0 +1,205 @@
+<pr_template_instructions>
+  <overview>
+    This file contains the official Roo Code PR template that must be used when creating pull requests.
+    All PRs must follow this exact format to ensure consistency and proper documentation.
+  </overview>
+
+  <pr_body_template>
+    <description>
+      The PR body must follow this exact Roo Code PR template with all required sections.
+      Replace placeholder content in square brackets with actual information.
+    </description>
+    <template><![CDATA[
+<!--
+Thank you for contributing to Roo Code!
+
+Before submitting your PR, please ensure:
+- It's linked to an approved GitHub Issue.
+- You've reviewed our [Contributing Guidelines](../CONTRIBUTING.md).
+-->
+
+### Related GitHub Issue
+
+<!-- Every PR MUST be linked to an approved issue. -->
+
+Closes: #[ISSUE_NUMBER] <!-- Replace with the issue number, e.g., Closes: #123 -->
+
+### Roo Code Task Context (Optional)
+
+<!--
+If you used Roo Code to help create this PR, you can share public task links here.
+This helps reviewers understand your development process and provides additional context.
+Example: https://app.roocode.com/share/task-id
+-->
+
+[TASK_CONTEXT]
+
+### Description
+
+<!--
+Briefly summarize the changes in this PR and how they address the linked issue.
+The issue should cover the "what" and "why"; this section should focus on:
+- The "how": key implementation details, design choices, or trade-offs made.
+- Anything specific reviewers should pay attention to in this PR.
+-->
+
+[DESCRIPTION_CONTENT]
+
+### Test Procedure
+
+<!--
+Detail the steps to test your changes. This helps reviewers verify your work.
+- How did you test this specific implementation? (e.g., unit tests, manual testing steps)
+- How can reviewers reproduce your tests or verify the fix/feature?
+- Include relevant testing environment details if applicable.
+-->
+
+[TEST_PROCEDURE_CONTENT]
+
+### Pre-Submission Checklist
+
+<!-- Go through this checklist before marking your PR as ready for review. -->
+
+- [x] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
+- [x] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
+- [x] **Self-Review**: I have performed a thorough self-review of my code.
+- [x] **Testing**: New and/or updated tests have been added to cover my changes (if applicable).
+- [x] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
+- [x] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
+
+### Screenshots / Videos
+
+<!--
+For UI changes, please provide before-and-after screenshots or a short video of the *actual results*.
+This greatly helps in understanding the visual impact of your changes.
+-->
+
+[SCREENSHOTS_CONTENT]
+
+### Documentation Updates
+
+<!--
+Does this PR necessitate updates to user-facing documentation?
+- [ ] No documentation updates are required.
+- [ ] Yes, documentation updates are required. (Please describe what needs to be updated or link to a PR in the docs repository).
+-->
+
+[DOCUMENTATION_UPDATES_CONTENT]
+
+### Additional Notes
+
+<!-- Add any other context, questions, or information for reviewers here. -->
+
+[ADDITIONAL_NOTES_CONTENT]
+
+### Get in Touch
+
+<!--
+Please provide your Discord username for reviewers or maintainers to reach you if they have questions about your PR
+-->
+
+[DISCORD_USERNAME]
+    ]]></template>
+  </pr_body_template>
+
+  <github_cli_commands>
+    <description>
+      Valid GitHub CLI commands for creating PRs with the proper template
+    </description>
+    
+    <create_pr_command>
+      <description>Create a PR using the filled template</description>
+      <command><![CDATA[
+gh pr create \
+  --repo [owner]/[repo] \
+  --base main \
+  --title "[Type]: [Brief description] (#[issue-number])" \
+  --body-file pr-body.md \
+  --maintainer-can-modify
+      ]]></command>
+      <note>The PR body should be saved to a temporary file first, then referenced with --body-file</note>
+    </create_pr_command>
+
+    <create_pr_inline>
+      <description>Alternative: Create PR with inline body (for shorter content)</description>
+      <command><![CDATA[
+gh pr create \
+  --repo [owner]/[repo] \
+  --base main \
+  --title "[Type]: [Brief description] (#[issue-number])" \
+  --body "[Complete PR body content]" \
+  --maintainer-can-modify
+      ]]></command>
+      <note>Use this only if the body content doesn't contain special characters that need escaping</note>
+    </create_pr_inline>
+
+    <fork_if_needed>
+      <description>Fork repository if user doesn't have push access</description>
+      <command><![CDATA[
+gh repo fork [owner]/[repo] --clone=false
+      ]]></command>
+      <note>The --clone=false flag prevents cloning since we're already in the repo</note>
+    </fork_if_needed>
+  </github_cli_commands>
+
+  <pr_title_format>
+    <description>PR titles should follow conventional commit format</description>
+    <formats>
+      <format type="bug_fix">fix: [brief description] (#[issue-number])</format>
+      <format type="feature">feat: [brief description] (#[issue-number])</format>
+      <format type="docs">docs: [brief description] (#[issue-number])</format>
+      <format type="refactor">refactor: [brief description] (#[issue-number])</format>
+      <format type="test">test: [brief description] (#[issue-number])</format>
+      <format type="chore">chore: [brief description] (#[issue-number])</format>
+    </formats>
+  </pr_title_format>
+
+  <placeholder_guidance>
+    <description>How to fill in the template placeholders</description>
+    <placeholders>
+      <placeholder name="ISSUE_NUMBER">
+        <description>The GitHub issue number being addressed</description>
+        <example>123</example>
+      </placeholder>
+      <placeholder name="TASK_CONTEXT">
+        <description>Optional Roo Code task links if used during development</description>
+        <example>https://app.roocode.com/share/task-abc123</example>
+        <default>_No Roo Code task context for this PR_</default>
+      </placeholder>
+      <placeholder name="DESCRIPTION_CONTENT">
+        <description>Detailed explanation of implementation approach</description>
+        <guidance>
+          - Focus on HOW you solved the problem
+          - Mention key design decisions
+          - Highlight any trade-offs made
+          - Point out areas needing special review attention
+        </guidance>
+      </placeholder>
+      <placeholder name="TEST_PROCEDURE_CONTENT">
+        <description>Steps to verify the changes work correctly</description>
+        <guidance>
+          - List specific test commands run
+          - Describe manual testing performed
+          - Include steps for reviewers to reproduce tests
+          - Mention test environment details if relevant
+        </guidance>
+      </placeholder>
+      <placeholder name="SCREENSHOTS_CONTENT">
+        <description>Visual evidence of changes for UI modifications</description>
+        <default>_No UI changes in this PR_</default>
+      </placeholder>
+      <placeholder name="DOCUMENTATION_UPDATES_CONTENT">
+        <description>Documentation impact assessment</description>
+        <default>- [x] No documentation updates are required.</default>
+      </placeholder>
+      <placeholder name="ADDITIONAL_NOTES_CONTENT">
+        <description>Any extra context for reviewers</description>
+        <default>_No additional notes_</default>
+      </placeholder>
+      <placeholder name="DISCORD_USERNAME">
+        <description>Discord username for communication</description>
+        <example>@username</example>
+      </placeholder>
+    </placeholders>
+  </placeholder_guidance>
+</pr_template_instructions>
