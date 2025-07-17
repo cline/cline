@@ -165,29 +165,23 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
-		
-		// TODO(andrei) this is a hack to replace the terminal manager for standalone,
+
+		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
 		// standaloneTerminalManager is defined in the vscode-impls and injected
 		// during compilation of the standalone manager only, so this variable only
 		// exists in that case
-		//if ((global as any).standaloneTerminalManager) {
-		if (true) {
-			console.log("[Task] Using standalone terminal manager")
+		if ((global as any).standaloneTerminalManager) {
+			console.log("[DEBUG] Using vscode-impls.js terminal manager")
 			this.terminalManager = (global as any).standaloneTerminalManager
-			// Apply configuration to the standalone manager
-			this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
-			this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
-			this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-			this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 		} else {
-			// Use the regular VSCode terminal manager
+			console.log("[DEBUG] Using built in terminal manager")
 			this.terminalManager = new TerminalManager()
-			this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
-			this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
-			this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-			this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 		}
+		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
+		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
+		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
