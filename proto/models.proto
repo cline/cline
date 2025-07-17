@@ -23,6 +23,8 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
+   // Refreshes and returns Groq models
+  rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -120,9 +122,10 @@ enum ApiProvider {
   XAI = 21;
   SAMBANOVA = 22;
   CEREBRAS = 23;
-  SAPAICORE = 24;
-  CLAUDE_CODE = 25;
-  MOONSHOT = 26;
+  GROQ = 24;
+  SAPAICORE = 25;
+  CLAUDE_CODE = 26;
+  MOONSHOT = 27;
 }
 
 // Model info for OpenAI-compatible models
@@ -267,4 +270,7 @@ message ModelsApiConfiguration {
   optional string act_mode_sap_ai_core_model_id = 219;
 
   repeated string favorited_model_ids = 300;
+  optional string groq_api_key = 301;
+  optional string groq_model_id = 302;
+  optional OpenRouterModelInfo groq_model_info = 303;
 }

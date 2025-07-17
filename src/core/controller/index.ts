@@ -322,11 +322,6 @@ export class Controller {
 		}
 	}
 
-	// Auth
-	public async validateAuthState(state: string | null): Promise<boolean> {
-		return state === this.authService.authNonce
-	}
-
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
@@ -797,7 +792,6 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
-			await telemetryService.sendCollectedEvents(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected

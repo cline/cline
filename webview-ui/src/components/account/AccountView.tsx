@@ -1,4 +1,11 @@
-import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeDivider,
+	VSCodeLink,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeTag,
+} from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState, useRef } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -95,6 +102,15 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 	)
 }
 
+const getMainRole = (roles?: string[]) => {
+	if (!roles) return undefined
+
+	if (roles.includes("owner")) return "Owner"
+	if (roles.includes("admin")) return "Admin"
+
+	return "Member"
+}
+
 export const ClineAccountView = () => {
 	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
 	const { userInfo, apiConfiguration } = useExtensionState()
@@ -108,6 +124,7 @@ export const ClineAccountView = () => {
 	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
+	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	const dashboardAddCreditsURL = activeOrganization
 		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
@@ -165,6 +182,30 @@ export const ClineAccountView = () => {
 		fetchUserData()
 	}, [user])
 
+	// Periodic refresh while component is mounted
+	useEffect(() => {
+		if (!user) return
+
+		intervalRef.current = setInterval(() => {
+			getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
+		}, 10_000)
+
+		return () => {
+			if (intervalRef.current) clearInterval(intervalRef.current)
+		}
+	}, [user])
+
+	const handleManualRefresh = async () => {
+		await getUserCredits()
+
+		if (intervalRef.current) {
+			clearInterval(intervalRef.current)
+			intervalRef.current = setInterval(() => {
+				getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
+			}, 10_000)
+		}
+	}
+
 	const handleLogin = () => {
 		handleSignIn()
 	}
@@ -221,21 +262,28 @@ export const ClineAccountView = () => {
 									<div className="text-sm text-[var(--vscode-descriptionForeground)]">{user.email}</div>
 								)}
 
-								{userOrganizations && (
-									<VSCodeDropdown
-										key={activeOrganization?.organizationId || "personal"}
-										currentValue={activeOrganization?.organizationId || ""}
-										onChange={handleOrganizationChange}
-										disabled={isSwitchingOrg || isLoading}
-										style={{ width: "100%", marginTop: "4px" }}>
-										<VSCodeOption value="">Personal</VSCodeOption>
-										{userOrganizations.map((org: UserOrganization) => (
-											<VSCodeOption key={org.organizationId} value={org.organizationId}>
-												{org.name}
-											</VSCodeOption>
-										))}
-									</VSCodeDropdown>
-								)}
+								<div className="flex gap-2 items-center mt-1">
+									{userOrganizations && (
+										<VSCodeDropdown
+											key={activeOrganization?.organizationId || "personal"}
+											currentValue={activeOrganization?.organizationId || ""}
+											onChange={handleOrganizationChange}
+											disabled={isSwitchingOrg || isLoading}
+											className="w-full">
+											<VSCodeOption value="">Personal</VSCodeOption>
+											{userOrganizations.map((org: UserOrganization) => (
+												<VSCodeOption key={org.organizationId} value={org.organizationId}>
+													{org.name}
+												</VSCodeOption>
+											))}
+										</VSCodeDropdown>
+									)}
+									{activeOrganization?.roles && (
+										<VSCodeTag className="text-xs p-2" title="Role">
+											{getMainRole(activeOrganization.roles)}
+										</VSCodeTag>
+									)}
+								</div>
 							</div>
 						</div>
 					</div>
@@ -272,7 +320,7 @@ export const ClineAccountView = () => {
 												<StyledCreditDisplay balance={balance} />
 											</>
 										)}
-										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
+										<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
 											<span className="codicon codicon-refresh"></span>
 										</VSCodeButton>
 									</>

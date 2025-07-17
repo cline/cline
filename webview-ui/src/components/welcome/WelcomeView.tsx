@@ -1,7 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, memo } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { validateApiConfiguration } from "@/utils/validate"
+import { useState, memo } from "react"
 import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -11,8 +9,6 @@ const WelcomeView = memo(() => {
 	const { apiConfiguration, chatSettings } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
-
-	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>

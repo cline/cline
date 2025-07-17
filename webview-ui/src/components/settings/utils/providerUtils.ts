@@ -44,6 +44,8 @@ import {
 	sapAiCoreDefaultModelId,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	groqModels,
+	groqDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -219,6 +221,14 @@ export function normalizeApiConfiguration(
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "groq":
+			const result = {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.groqModelId || groqDefaultModelId,
+				selectedModelInfo: apiConfiguration?.groqModelInfo || groqModels[groqDefaultModelId],
+			}
+
+			return result
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		default:

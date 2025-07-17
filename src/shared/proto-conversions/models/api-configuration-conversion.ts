@@ -236,6 +236,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.SAMBANOVA
 		case "cerebras":
 			return ProtoApiProvider.CEREBRAS
+		case "groq":
+			return ProtoApiProvider.GROQ
 		case "sapaicore":
 			return ProtoApiProvider.SAPAICORE
 		case "claude-code":
@@ -298,6 +300,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "sambanova"
 		case ProtoApiProvider.CEREBRAS:
 			return "cerebras"
+		case ProtoApiProvider.GROQ:
+			return "groq"
 		case ProtoApiProvider.SAPAICORE:
 			return "sapaicore"
 		case ProtoApiProvider.CLAUDE_CODE:
@@ -362,6 +366,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		xaiApiKey: config.xaiApiKey,
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
+		groqApiKey: config.groqApiKey,
+		groqModelId: config.groqModelId,
+		groqModelInfo: convertModelInfoToProtoOpenRouter(config.groqModelInfo),
 		requestTimeoutMs: config.requestTimeoutMs,
 		sapAiCoreClientId: config.sapAiCoreClientId,
 		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
@@ -473,6 +480,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		xaiApiKey: protoConfig.xaiApiKey,
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
+		groqApiKey: protoConfig.groqApiKey,
+		groqModelId: protoConfig.groqModelId,
+		groqModelInfo: convertProtoToModelInfo(protoConfig.groqModelInfo),
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
 		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
 		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,

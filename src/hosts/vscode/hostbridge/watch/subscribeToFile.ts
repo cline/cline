@@ -1,7 +1,7 @@
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
-import { SubscribeToFileRequest, FileChangeEvent, FileChangeEvent_ChangeType } from "@shared/proto/host/watch"
-import { StreamingResponseHandler, getRequestRegistry } from "../host-grpc-handler"
+import { SubscribeToFileRequest, FileChangeEvent_ChangeType } from "@shared/proto/host/watch"
+import { StreamingResponseHandler, getRequestRegistry } from "@/hosts/vscode/hostbridge-grpc-handler"
 
 // Debounce configuration
 const DEBOUNCE_DELAY = 100 // ms

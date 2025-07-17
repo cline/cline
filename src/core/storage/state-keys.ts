@@ -26,6 +26,7 @@ export type SecretKey =
 	| "cerebrasApiKey"
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
+	| "groqApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -125,5 +126,7 @@ export type GlobalStateKey =
 	| "actModeTogetherModelId"
 	| "actModeFireworksModelId"
 	| "actModeSapAiCoreModelId"
+	| "groqModelId"
+	| "groqModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
