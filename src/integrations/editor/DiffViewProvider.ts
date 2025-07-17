@@ -188,7 +188,7 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			this.truncateDocument(this.streamedLines.length)
+			await this.truncateDocument(this.streamedLines.length)
 
 			// Add empty last line if original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
