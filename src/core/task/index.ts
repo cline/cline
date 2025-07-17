@@ -165,8 +165,19 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
-		// Initialization moved to startTask/resumeTaskFromHistory
-		this.terminalManager = new TerminalManager()
+
+		// TODO(ae) this is a hack to replace the terminal manager for standalone,
+		// until we have proper host bridge support for terminal execution. The
+		// standaloneTerminalManager is defined in the vscode-impls and injected
+		// during compilation of the standalone manager only, so this variable only
+		// exists in that case
+		if ((global as any).standaloneTerminalManager) {
+			console.log("[DEBUG] Using vscode-impls.js terminal manager")
+			this.terminalManager = (global as any).standaloneTerminalManager
+		} else {
+			console.log("[DEBUG] Using built in terminal manager")
+			this.terminalManager = new TerminalManager()
+		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
