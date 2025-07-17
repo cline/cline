@@ -117,4 +117,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
 		}
 	}
+
+	protected override async resetDiffView(): Promise<void> {
+		this.activeDiffEditor = undefined
+		this.fadedOverlayController = undefined
+		this.activeLineController = undefined
+		this.preDiagnostics = []
+	}
 }
