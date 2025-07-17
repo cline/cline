@@ -10,7 +10,10 @@ import "common.proto";
 service DiffService {
   // Open the diff view/editor.
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
+  // Replace a text selection in the diff.option
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
+  
+  rpc truncateDocument(TruncateDocumenttRequest) returns (TruncateDocumentResponse);
 }
 
 message OpenDiffRequest {
@@ -34,6 +37,12 @@ message ReplaceTextRequest {
   optional int32 end_line = 5;
 }
 
-message ReplaceTextResponse {
-  // TBD
+message ReplaceTextResponse {}
+
+message TruncateDocumenttRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+  optional int32 end_line = 5;
 }
+
+message TruncateDocumentResponse {}
