@@ -1657,12 +1657,13 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
+			const isCline = this.api instanceof ClineHandler
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
 			const isAnthropic = this.api instanceof AnthropicHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 
-			const clineError = ErrorService.toClineError(error, modelInfo.id)
+			const clineError = ErrorService.toClineError(error, isCline ? "cline" : modelInfo.id)
 
 			// Capture provider failure telemetry using clineError
 			telemetryService.captureProviderApiError({

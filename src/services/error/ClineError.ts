@@ -25,7 +25,11 @@ export class ClineError extends Error {
 	readonly title = "ClineError"
 	readonly _error: ErrorDetails
 
-	constructor(raw: any, modelId?: string) {
+	constructor(
+		raw: any,
+		public readonly modelId?: string,
+		public readonly providerId?: string,
+	) {
 		const error = serializeError(raw)
 
 		const message = error.message || String(error)
@@ -69,10 +73,14 @@ export class ClineError extends Error {
 		if (!errorStr || typeof errorStr !== "string") {
 			return undefined
 		}
+		return ClineError.transform(errorStr, modelId)
+	}
+
+	static transform(error: any, modelId?: string, providerId?: string): ClineError {
 		try {
-			return new ClineError(JSON.parse(errorStr), modelId)
+			return new ClineError(JSON.parse(error), modelId, providerId)
 		} catch {
-			return new ClineError(errorStr, modelId)
+			return new ClineError(error, modelId, providerId)
 		}
 	}
 

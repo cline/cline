@@ -97,8 +97,7 @@ export class ErrorService {
 		return ErrorService.serviceEnabled
 	}
 
-	static toClineError(rawError: any, modelId?: string): ClineError {
-		const clineError = ClineError.parse(rawError, modelId)
-		return clineError || new ClineError("Unknown error occurred", modelId)
+	static toClineError(rawError: any, modelId?: string, providerId?: string): ClineError {
+		return ClineError.transform(rawError, modelId, providerId)
 	}
 }

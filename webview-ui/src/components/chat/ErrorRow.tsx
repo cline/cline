@@ -27,6 +27,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					const clineError = ClineError.parse(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 					const clineErrorMessage = clineError?.message
 					const requestId = clineError?._error?.request_id
+					const isClineProvider = clineError?.providerId === "cline"
 
 					if (clineError) {
 						if (clineError.isErrorType(ClineErrorType.Balance)) {
@@ -74,7 +75,8 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								<>
 									<br />
 									<br />
-									{clineUser ? (
+									{/* The user is signed in or not using cline provider */}
+									{clineUser && !isClineProvider ? (
 										<span className="mb-4 text-[var(--vscode-descriptionForeground)]">
 											(Click "Retry" below)
 										</span>
