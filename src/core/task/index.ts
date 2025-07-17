@@ -81,9 +81,9 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { extractErrorDetails, formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
-import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
-
+import { updateApiReqMsg } from "./utils"
+import { createDiffViewProvider } from "@/hosts/host-providers"
+import { ErrorService } from "@services/error/ErrorService"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -1662,15 +1662,15 @@ export class Task {
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 
-			const { statusCode, message, requestId } = extractErrorDetails(error)
+			const clineError = ErrorService.toClineError(error, modelInfo.id)
 
-			// Capture provider failure telemetry
+			// Capture provider failure telemetry using clineError
 			telemetryService.captureProviderApiError({
 				taskId: this.taskId,
 				model: modelInfo.id,
-				errorMessage: message,
-				errorStatus: statusCode,
-				requestId,
+				errorMessage: clineError.message,
+				errorStatus: clineError._error?.status,
+				requestId: clineError._error?.request_id,
 			})
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
@@ -1716,12 +1716,12 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						error = new Error("Context window exceeded. Click retry to truncate the conversation and try again.")
+						clineError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
 
-				const errorMessage = formatErrorWithStatusCode(error)
+				const streamingFailedMessage = clineError.serialize()
 
 				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
 				const lastApiReqStartedIndex = findLastIndex(
@@ -1737,13 +1737,13 @@ export class Task {
 						text: JSON.stringify({
 							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
 							// cancelReason: "retries_exhausted", // Indicate that automatic retries failed
-							streamingFailedMessage: errorMessage,
+							streamingFailedMessage,
 						} satisfies ClineApiReqInfo),
 					})
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
-				const { response } = await this.ask("api_req_failed", errorMessage)
+				const { response } = await this.ask("api_req_failed", streamingFailedMessage)
 
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
@@ -2240,7 +2240,8 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const errorMessage = formatErrorWithStatusCode(error)
+					const clineError = ErrorService.toClineError(error, this.api.getModel().id)
+					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)
 					await this.reinitExistingTaskFromId(this.taskId)
@@ -2277,7 +2278,7 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				throw new Error("Cline instance aborted")
+				throw ErrorService.toClineError("Cline instance aborted", this.api.getModel().id)
 			}
 
 			this.taskState.didCompleteReadingStream = true
