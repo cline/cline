@@ -28,7 +28,10 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async truncateDocument(lineNumber: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.truncateDocument(${lineNumber}) stub`)
+		await getHostBridgeProvider().diffClient.truncateDocument({
+			diffId: this.activeDiffEditorId,
+			endLine: lineNumber,
+		})
 	}
 
 	protected override async scrollEditorToLine(line: number): Promise<void> {
