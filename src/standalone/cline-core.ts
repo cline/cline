@@ -15,6 +15,9 @@ import { WebviewProviderType } from "@/shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 import { ExternalDiffViewProvider } from "./ExternalDiffviewProvider"
 
+export const PROTOBUS_PORT = 26040
+export const HOSTBRIDGE_PORT = 26041
+
 async function main() {
 	log("Starting standalone service...")
 
@@ -42,7 +45,7 @@ function startProtobusService(controller: Controller) {
 	reflection.addToServer(server)
 
 	// Start the server.
-	const host = process.env.PROTOBUS_ADDRESS || "127.0.0.1:50051"
+	const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
 	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
 		if (err) {
 			log(`Error: Failed to bind to ${host}, port may be unavailable. ${err.message}`)

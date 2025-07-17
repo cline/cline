@@ -1,5 +1,5 @@
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
-import { HostServiceHandlerConfig, hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
+import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 
 /**
@@ -159,6 +159,19 @@ export class GrpcHandler {
 		}
 		return hostServiceHandlers[serviceName]
 	}
+}
+
+/**
+ * Configuration for a host service handler
+ */
+export interface HostServiceHandlerConfig {
+	requestHandler: (method: string, message: any) => Promise<any>
+	streamingHandler: (
+		method: string,
+		message: any,
+		responseStream: StreamingResponseHandler,
+		requestId?: string,
+	) => Promise<void>
 }
 
 /**

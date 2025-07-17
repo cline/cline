@@ -316,7 +316,17 @@ export class Task {
 	 * Updates the auto approval settings for this task
 	 */
 	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		// Check if maxRequests changed
+		const maxRequestsChanged = this.autoApprovalSettings.maxRequests !== settings.maxRequests
+
+		// Update the settings
+		this.autoApprovalSettings = settings
 		this.toolExecutor.updateAutoApprovalSettings(settings)
+
+		// Reset counter if max requests limit changed
+		if (maxRequestsChanged) {
+			this.taskState.consecutiveAutoApprovedRequestsCount = 0
+		}
 	}
 
 	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
@@ -2066,7 +2076,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user", true)
+		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2136,7 +2146,6 @@ export class Task {
 					currentProviderId,
 					this.api.getModel().id,
 					"assistant",
-					true,
 					{
 						tokensIn: inputTokens,
 						tokensOut: outputTokens,
@@ -2316,7 +2325,6 @@ export class Task {
 					currentProviderId,
 					this.api.getModel().id,
 					"assistant",
-					true,
 					{
 						tokensIn: inputTokens,
 						tokensOut: outputTokens,
