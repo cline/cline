@@ -303,41 +303,38 @@ export const ClineAccountView = () => {
 						</VSCodeButton>
 					</div>
 
-					{/* Credit balance is not available for organization account */}
-					{activeOrganization === null && <VSCodeDivider className="w-full my-6" />}
+					<VSCodeDivider className="w-full my-6" />
 
-					{activeOrganization === null && (
-						<div className="w-full flex flex-col items-center">
-							<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3 font-azeret-mono font-light">
-								CURRENT BALANCE
-							</div>
-
-							<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
-								{isLoading ? (
-									<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
-								) : (
-									<>
-										{balance === null ? (
-											<span>----</span>
-										) : (
-											<>
-												<StyledCreditDisplay balance={balance} />
-											</>
-										)}
-										<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
-											<span className="codicon codicon-refresh"></span>
-										</VSCodeButton>
-									</>
-								)}
-							</div>
-
-							<div className="w-full">
-								<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
-									Add Credits
-								</VSCodeButtonLink>
-							</div>
+					<div className="w-full flex flex-col items-center">
+						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3 font-azeret-mono font-light">
+							CURRENT BALANCE
 						</div>
-					)}
+
+						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
+							{isLoading ? (
+								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+							) : (
+								<>
+									{balance === null ? (
+										<span>----</span>
+									) : (
+										<>
+											<StyledCreditDisplay balance={balance} />
+										</>
+									)}
+									<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
+										<span className="codicon codicon-refresh"></span>
+									</VSCodeButton>
+								</>
+							)}
+						</div>
+
+						<div className="w-full">
+							<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
+								Add Credits
+							</VSCodeButtonLink>
+						</div>
+					</div>
 
 					<VSCodeDivider className="mt-6 mb-3 w-full" />
 
