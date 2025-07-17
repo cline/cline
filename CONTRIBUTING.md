@@ -51,8 +51,35 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     ```
 4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
+#### Configuring API Instance for Internal Development
 
+By default, Cline connects to the production API instance. For internal development purposes, you may want to point to a different Cline API instance (staging or local).
 
+To configure the API instance:
+
+1. **Using launch configuration** (recommended): 
+   - Open `.vscode/launch.json`
+   - Uncomment and modify the `CLINE_INSTANCE` environment variable in the "Run Extension" configuration:
+     ```json
+     "env": {
+         "IS_DEV": "true",
+         "DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+         "CLINE_INSTANCE": "staging"  // or "local" or "production"
+     }
+     ```
+
+2. **Using build-time environment variable**:
+   - Set the `CLINE_INSTANCE` environment variable when building:
+     ```bash
+     CLINE_INSTANCE=staging npm run build
+     ```
+
+Available instances:
+- `"production"` (default) - Production API at `https://api.cline.bot`
+- `"staging"` - Staging API at `https://core-api.staging.int.cline.bot`
+- `"local"` - Local development API at `http://localhost:7777`
+
+You can search for `CLINE_INSTANCE` in the codebase to see how this configuration is used in `src/config.ts` and `webview-ui/src/config.ts`.
 
 ### Creating a Pull Request
 

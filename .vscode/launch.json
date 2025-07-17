@@ -14,10 +14,9 @@
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 				// Cline API instance to connect to: "local", "staging", or "production"
-				// Default to "production"
-				// "CLINE_INSTANCE": "staging"
+				// "CLINE_INSTANCE": "staging", // default to "production" when not set
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
 		},
 		{
