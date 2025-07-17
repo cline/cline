@@ -4,7 +4,6 @@ import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
 import { arePathsEqual, getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
-import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
@@ -141,16 +140,6 @@ export abstract class DiffViewProvider {
 			accumulatedLines.pop() // remove the last partial line only if it's not the final update
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
-
-		const diffEditor = this.activeDiffEditor
-		const document = diffEditor?.document
-		if (!diffEditor || !document) {
-			throw new Error("User closed text editor, unable to edit file...")
-		}
-
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
-		const beginningOfDocument = new vscode.Position(0, 0)
-		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
 		// Instead of animating each line, we'll update in larger chunks
 		const currentLine = this.streamedLines.length + diffLines.length - 1
