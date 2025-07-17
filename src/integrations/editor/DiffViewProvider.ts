@@ -105,6 +105,12 @@ export abstract class DiffViewProvider {
 	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
 
 	/**
+	 * Removes content from the specified line to the end of the document.
+	 * Called after the final update is received.
+	 */
+	protected abstract truncateDocument(lineNumber: number): Promise<void>
+
+	/**
 	 * Cleans up the diff view resources and resets internal state.
 	 */
 	protected abstract resetDiffView(): Promise<void>
@@ -179,11 +185,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			if (this.streamedLines.length < document.lineCount) {
-				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
-				await vscode.workspace.applyEdit(edit)
-			}
+			this.truncateDocument(this.streamedLines.length)
+
 			// Add empty last line if original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
 			if (hasEmptyLastLine) {
@@ -192,9 +195,6 @@ export abstract class DiffViewProvider {
 					accumulatedContent += "\n"
 				}
 			}
-			// Clear all decorations at the end (before applying final edit)
-			this.fadedOverlayController?.clear()
-			this.activeLineController?.clear()
 		}
 	}
 

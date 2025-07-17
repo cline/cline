@@ -118,6 +118,25 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		}
 	}
 
+	/**
+	 * Removes content from the specified line to the end of the document.
+	 * Called after the last update is recieved.
+	 */
+	override async truncateDocument(lineNumber: number): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		const document = this.activeDiffEditor.document
+		if (lineNumber < document.lineCount) {
+			const edit = new vscode.WorkspaceEdit()
+			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
+			await vscode.workspace.applyEdit(edit)
+		}
+		// Clear all decorations at the end (before applying final edit)
+		this.fadedOverlayController?.clear()
+		this.activeLineController?.clear()
+	}
+
 	protected override async resetDiffView(): Promise<void> {
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
