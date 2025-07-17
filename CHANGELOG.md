@@ -1,5 +1,22 @@
 # Roo Code Changelog
 
+## [3.23.13] - 2025-07-17
+
+- Add the ability to "undo" enhance prompt changes
+- Fix a bug where the path component of the baseURL for the LiteLLM provider contains path in it (thanks @ChuKhaLi)
+- Add support for Vertex AI model name formatting when using Claude Code with Vertex AI (thanks @janaki-sasidhar)
+- The list-files tool must include at least the first-level directory contents (thanks @qdaxb)
+- Add a configurable limit that controls both consecutive errors and tool repetitions (thanks @MuriloFP)
+- Add `.terraform/` and `.terragrunt-cache/` directories to the checkpoint exclusion patterns (thanks @MuriloFP)
+- Increase Ollama API timeout values (thanks @daniel-lxs)
+- Fix an issue where you need to "discard changes" before saving even though there are no settings changes
+- Fix `DirectoryScanner` memory leak and improve file limit handling (thanks @daniel-lxs)
+- Fix time formatting in environment (thanks @chrarnoldus)
+- Prevent empty mode names from being saved (thanks @daniel-lxs)
+- Improve auto-approve checkbox UX
+- Improve the chat message edit / delete functionality (thanks @liwilliam2021)
+- Add `commandExecutionTimeout` to `GlobalSettings`
+
 ## [3.23.12] - 2025-07-15
 
 - Update the max-token calculation in model-params to better support Kimi K2 and others
