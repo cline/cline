@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.23.14] - 2025-07-17
+
+- Log api-initiated tasks to a tmp directory
+
 ## [3.23.13] - 2025-07-17
 
 - Add the ability to "undo" enhance prompt changes
