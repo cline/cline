@@ -369,6 +369,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addTerminalOutputToChat", async () => {
+			// Ensure Cline is visible and input focused
+			await vscode.commands.executeCommand("cline.focusChatInput")
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+
 			const terminal = vscode.window.activeTerminal
 			if (!terminal) {
 				return
