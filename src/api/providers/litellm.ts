@@ -159,7 +159,7 @@ export class LiteLlmHandler implements ApiHandler {
 			const costInfo = await this.getModelCostInfo(publicModelId)
 
 			// Calculate costs for different token types
-			const inputCost = (prompt_tokens - (cache_read_tokens || 0)) * costInfo.inputCostPerToken
+			const inputCost = Math.max(0, prompt_tokens - (cache_read_tokens || 0)) * costInfo.inputCostPerToken
 			const outputCost = completion_tokens * costInfo.outputCostPerToken
 			const cacheCreationCost = (cache_creation_tokens || 0) * (costInfo.cacheCreationCostPerToken || 0)
 			const cacheReadCost = (cache_read_tokens || 0) * (costInfo.cacheReadCostPerToken || 0)
