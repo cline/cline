@@ -4,7 +4,7 @@ import { StorybookProvider, VSCodeWebview } from "@/components/common/StorybookD
 import { ExtensionState } from "@shared/ExtensionMessage"
 
 const meta: Meta<typeof McpResponseDisplay> = {
-	title: "Component/McpResponseDisplay",
+	title: "Component/mcpDisplayMode",
 	component: McpResponseDisplay,
 	parameters: {
 		docs: {

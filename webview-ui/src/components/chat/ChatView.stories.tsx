@@ -23,8 +23,8 @@ export const Default: StoryObj<typeof meta> = {}
 
 // Mock API configuration
 const mockApiConfiguration: ApiConfiguration = {
-	apiProvider: "anthropic",
-	apiModelId: "claude-3-5-sonnet-20241022",
+	actModeApiProvider: "anthropic",
+	actModeApiModelId: "claude-3-5-sonnet-20241022",
 	apiKey: "mock-key",
 }
 

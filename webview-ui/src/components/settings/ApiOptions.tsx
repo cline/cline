@@ -37,7 +37,7 @@ import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { GroqProvider } from "./providers/GroqProvider"
 
-interface ApiOptionsProps {
+export interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
@@ -73,7 +73,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	// Use full context state for immediate save payload
 	const { apiConfiguration } = useExtensionState()
 
-	const selectedProvider = currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+	const selectedProvider =
+		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "cline"
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 

@@ -118,7 +118,8 @@ export const FeaturesTab: Story = {
 					...DEFAULT_AUTO_APPROVAL_SETTINGS,
 				},
 				apiConfiguration: {
-					apiProvider: "cline",
+					actModeApiProvider: "cline",
+					planModeApiProvider: "cline",
 				},
 				enableCheckpointsSetting: true,
 				mcpMarketplaceEnabled: true,

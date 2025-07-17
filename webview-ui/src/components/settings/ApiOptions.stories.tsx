@@ -1,14 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import React from "react"
-import ApiOptions from "./ApiOptions"
+import ApiOptions, { ApiOptionsProps } from "./ApiOptions"
 import { ApiConfiguration } from "@shared/api"
 import { StorybookProvider, VSCodeWebview } from "../common/StorybookDecorator"
 import { ExtensionState } from "@shared/ExtensionMessage"
 
 const mockApiConfiguration: ApiConfiguration = {
-	apiModelId: undefined,
-	apiKey: undefined,
-	apiProvider: "cline",
+	planModeApiProvider: undefined,
+	actModeApiProvider: "cline",
 	favoritedModelIds: [],
 }
 
@@ -27,10 +26,15 @@ const meta: Meta<typeof ApiOptions> = {
 	component: ApiOptions,
 	decorators: [VSCodeWebview],
 	argTypes: {
-		showModelOptions: { control: "boolean" },
+		showModelOptions: { control: "boolean", value: true },
 		apiErrorMessage: { control: "text" },
 		modelIdErrorMessage: { control: "text" },
-		isPopup: { control: "boolean" },
+		isPopup: { control: "boolean", defaultValue: false },
+		currentMode: {
+			control: "select",
+			options: ["plan", "act"],
+			defaultValue: "act",
+		},
 	},
 }
 
@@ -42,23 +46,25 @@ const defaultArgs = {
 	isPopup: false,
 }
 
+export const Default: Story = {}
+
 export const ClineProvider: Story = {
 	args: defaultArgs,
-	decorators: [createStoryDecorator({ apiProvider: "cline" })],
+	decorators: [createStoryDecorator({ actModeApiModelId: "cline" })],
 }
 
 export const OpenRouterProvider: Story = {
 	args: defaultArgs,
-	decorators: [createStoryDecorator({ apiProvider: "openrouter" })],
+	decorators: [createStoryDecorator({ actModeApiProvider: "openrouter" })],
 }
 
 export const OpenAIProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "openai-native",
-			openAiNativeApiKey: "sk-abc123...",
-			openAiModelId: "gpt-4o",
+			planModeApiProvider: "openai-native",
+			openAiApiKey: "sk-abc123...",
+			planModeOpenAiModelId: "gpt-4o",
 		}),
 	],
 }
@@ -67,8 +73,8 @@ export const OllamaProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "ollama",
-			ollamaModelId: "llama3.2:latest",
+			actModeApiProvider: "ollama",
+			actModeOllamaModelId: "llama3.2:latest",
 			ollamaBaseUrl: "http://localhost:11434",
 		}),
 	],
@@ -78,11 +84,11 @@ export const BedrockProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "bedrock",
+			actModeApiProvider: "bedrock",
 			awsAccessKey: "AKIA...",
 			awsSecretKey: "secret123...",
 			awsRegion: "us-east-1",
-			awsBedrockCustomModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 		}),
 	],
 }
@@ -91,9 +97,9 @@ export const GeminiProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "gemini",
+			actModeApiProvider: "gemini",
 			geminiApiKey: "AIza...",
-			apiModelId: "gemini-1.5-pro-002",
+			actModeApiModelId: "gemini-1.5-pro-002",
 		}),
 	],
 }
@@ -102,26 +108,26 @@ export const DeepSeekProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "deepseek",
+			actModeApiProvider: "deepseek",
 			deepSeekApiKey: "sk-abc123...",
-			apiModelId: "deepseek-chat",
+			actModeApiModelId: "deepseek-chat",
 		}),
 	],
 }
 
 export const VSCodeLMProvider: Story = {
 	args: defaultArgs,
-	decorators: [createStoryDecorator({ apiProvider: "vscode-lm" })],
+	decorators: [createStoryDecorator({ actModeApiProvider: "vscode-lm" })],
 }
 
 export const OpenAICompatibleProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "openai",
+			actModeApiProvider: "openai",
 			openAiApiKey: "custom-key-123",
 			openAiBaseUrl: "https://api.custom-provider.com/v1",
-			openAiModelId: "custom-model-v1",
+			actModeApiModelId: "custom-model-v1",
 		}),
 	],
 }
@@ -130,19 +136,11 @@ export const LMStudioProvider: Story = {
 	args: defaultArgs,
 	decorators: [
 		createStoryDecorator({
-			apiProvider: "lmstudio",
+			actModeApiProvider: "lmstudio",
 			lmStudioBaseUrl: "http://localhost:1234/v1",
-			lmStudioModelId: "local-model",
+			actModeApiModelId: "local-model",
 		}),
 	],
-}
-
-interface ApiOptionsProps {
-	showSubmitButton?: boolean
-	showModelOptions: boolean
-	apiErrorMessage?: string
-	modelIdErrorMessage?: string
-	isPopup?: boolean
 }
 
 const ErrorStatesComponent: React.FC<ApiOptionsProps> = (args) => {
@@ -197,11 +195,11 @@ const ProviderComparisonComponent: React.FC<ApiOptionsProps> = (args) => {
 	const [selectedProvider, setSelectedProvider] = React.useState("anthropic")
 
 	const providerConfigs = {
-		anthropic: { apiProvider: "anthropic" },
-		"openai-native": { apiProvider: "openai-native", openAiNativeApiKey: "sk-test..." },
-		openrouter: { apiProvider: "openrouter", openRouterApiKey: "or-v1-test..." },
-		ollama: { apiProvider: "ollama", ollamaBaseUrl: "http://localhost:11434" },
-		gemini: { apiProvider: "gemini", geminiApiKey: "AIza..." },
+		anthropic: { actModeApiProvider: "anthropic" },
+		"openai-native": { actModeApiProvider: "openai-native", openAiApiKey: "sk-test..." },
+		openrouter: { actModeApiProvider: "openrouter", openRouterApiKey: "or-v1-test..." },
+		ollama: { actModeApiProvider: "ollama", ollamaBaseUrl: "http://localhost:11434" },
+		gemini: { actModeApiProvider: "gemini", geminiApiKey: "AIza..." },
 	} as const
 
 	const providers = Object.keys(providerConfigs).map((id) => ({
