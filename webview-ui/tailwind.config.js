@@ -10,7 +10,8 @@ module.exports = {
 			},
 		},
 	},
-	darkMode: "class",
+	// Toggle dark-mode based on .dark class or data-mode="dark"
+	darkMode: ["class", '[data-mode="dark"]', '[class="vs-dark"]'],
 	plugins: [
 		heroui({
 			defaultTheme: "vscode",

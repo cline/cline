@@ -36,6 +36,8 @@ webview-ui/src/services/grpc-client.ts
 # Host bridge
 src/hosts/vscode/client/host-grpc-client.ts
 src/standalone/server-setup.ts
-
+# Storybook
+*storybook.log
+storybook-static
 # E2E Tests
 test-results
