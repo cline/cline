@@ -1,4 +1,4 @@
-export type Environment = "production" | "staging" | "preview"
+export type Environment = "production" | "staging" | "local"
 
 const CURRENT_ENVIRONMENT: Environment = "production"
 
@@ -13,7 +13,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	staging: {
 		appBaseUrl: "https://staging-app.cline.bot",
 	},
-	preview: {
+	local: {
 		appBaseUrl: "http://localhost:3000",
 	},
 }
