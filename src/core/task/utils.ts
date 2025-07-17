@@ -1,24 +1,8 @@
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
-import { serializeError } from "serialize-error"
 import { MessageStateHandler } from "./message-state"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { ApiHandler } from "@/api"
-
-export function formatErrorWithStatusCode(error: any): string {
-	const { statusCode, message } = extractErrorDetails(error)
-
-	// Only prepend the statusCode if it's not already part of the message
-	return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
-}
-
-export function extractErrorDetails(error: any): { message: string; statusCode?: number; requestId?: string } {
-	const statusCode = error.status || error.statusCode || (error.response && error.response?.status)
-	const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
-	const requestId = error.request_id || error.response?.request_id || undefined
-
-	return { message, statusCode, requestId }
-}
 
 export const showNotificationForApprovalIfAutoApprovalEnabled = (
 	message: string,

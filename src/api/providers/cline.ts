@@ -177,17 +177,7 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Cline API Error:", error)
-			const requestId = error?.request_id ? `\n | Request ID: ${error.request_id}` : ""
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE + requestId)
-			} else if (error.code === "insufficient_credits" || error.status === 402) {
-				if (error.error) {
-					throw new Error(JSON.stringify(error.error))
-				}
-			}
-			const _error = error instanceof Error ? error : new Error(String(error))
-			_error.message = _error.message + requestId
-			throw _error
+			throw error
 		}
 	}
 
