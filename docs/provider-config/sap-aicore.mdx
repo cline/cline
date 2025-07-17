@@ -1,0 +1,39 @@
+---
+title: "SAP AI Core"
+description: "Learn how to configure and use LLM models from Generative AI Hub in SAP AI Core with Cline."
+---
+
+SAP AI Core and the generative AI hub help you to integrate LLMs and AI into new business processes in a cost-efficient manner.
+
+**Website:** [SAP Help Portal](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/what-is-sap-ai-core)
+
+### Getting a Service Binding
+
+> 💡 **Information**
+>
+> SAP AI Core, and Generative AI Hub, are offerings from SAP BTP.
+> You need an active SAP BTP contract and a existing subaccount with a SAP AI Core instance to perform these steps.
+
+1. **Access:** Go to your subaccount via [BTP Cloud Cockpit](cockpit.btp.cloud.sap/cockpit)
+2. **Create a Service Binding:** Go to "Instances and Subscriptions", select your SAP AI Core service instance and click on Service Bindings > Create.
+3. **Copy the Service Binding:** Copy the service binding values.
+
+### Supported Models
+
+SAP AI Core supports a large and growing number of models.
+Refer to the [Generative AI Hub Supported Models page](https://me.sap.com/notes/3437766) for the complete and up-to-date list.
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "SAP AI Core" from the "API Provider" dropdown.
+3.  **Enter Client Id:** Add the `.clientid` field from the service binding into the "AI Core Client Id" field.
+4.  **Enter Client Secret:** Add the `.clientsecret` field from the service binding into the "AI Core Client Secret" field.
+5.  **Enter Base URL:** Add the `.serviceurls.AI_API_URL` field from the service binding into the "AI Core Base URL" field.
+6.  **Enter Auth URL:** Add the `.url` field from the service binding into the "AI Core Auth URL" field.
+7.  **Enter Resource Group:** Add the resource group where you have your model deployments. See [Create a Deployment for a Generative AI Model](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-deployment-for-generative-ai-model-in-sap-ai-core).
+8.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Tips and Notes
+
+-   **Model Selection:** SAP AI Core offers a wide range of models. You won't be able to use the model, even if selected, if a deployment doesn't exist in the provided resource group.
