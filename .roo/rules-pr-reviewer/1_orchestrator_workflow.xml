@@ -3,7 +3,7 @@
     This workflow orchestrates a comprehensive pull request review process by delegating
     specialized analysis tasks to appropriate modes while maintaining context through
     structured report files. The orchestrator ensures critical review coverage while
-    avoiding redundant feedback.
+    avoiding redundant feedback. All GitHub operations are performed using the GitHub CLI.
   </overview>
 
   <initialization>
@@ -27,14 +27,12 @@
     <step number="2">
       <name>Fetch PR Details and Context</name>
       <description>
-        Try using GitHub MCP tools first. If unavailable or failing, fall back to GitHub CLI.
+        Use GitHub CLI to fetch comprehensive PR details.
       </description>
-      <mcp_approach>
-        Use get_pull_request tool to fetch PR details
-      </mcp_approach>
-      <cli_fallback>
+      <command>
         gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles
-      </cli_fallback>
+      </command>
+      <save_to>.roo/temp/pr-[PR_NUMBER]/pr-metadata.json</save_to>
     </step>
 
     <step number="3">
@@ -42,12 +40,10 @@
       <description>
         If PR references an issue, fetch its details for context.
       </description>
-      <mcp_approach>
-        Use get_issue tool if issue is referenced
-      </mcp_approach>
-      <cli_fallback>
+      <command>
         gh issue view [issue_number] --repo [owner]/[repo] --json number,title,body,author,state
-      </cli_fallback>
+      </command>
+      <save_to>.roo/temp/pr-[PR_NUMBER]/linked-issue.json</save_to>
     </step>
 
     <step number="4">
@@ -55,12 +51,10 @@
       <description>
         CRITICAL: Get all existing feedback to avoid redundancy.
       </description>
-      <mcp_approach>
-        Use get_pull_request_comments and get_pull_request_reviews
-      </mcp_approach>
-      <cli_fallback>
-        gh pr review [PR_NUMBER] --repo [owner]/[repo] --json comments,reviews
-      </cli_fallback>
+      <commands>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json comments --jq '.comments'</command>
+        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json reviews --jq '.reviews'</command>
+      </commands>
       <save_to>.roo/temp/pr-[PR_NUMBER]/existing-feedback.json</save_to>
     </step>
 
@@ -178,21 +172,26 @@
     <step number="12">
       <name>Post Review Comment (if approved)</name>
       <description>
-        If user approves and not called by another mode, post review.
+        If user approves and not called by another mode, post review using GitHub CLI.
       </description>
-      <mcp_approach>
-        Use add_issue_comment or create PR review
-      </mcp_approach>
-      <cli_fallback>
+      <command>
         gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body-file .roo/temp/pr-[PR_NUMBER]/final-review.md
-      </cli_fallback>
+      </command>
     </step>
   </completion>
 
   <error_handling>
-    <github_api_failures>
-      Always fall back to GitHub CLI commands
-    </github_api_failures>
+    <github_cli_failures>
+      <scenario name="authentication_failure">
+        <action>Inform user to run 'gh auth login' and check authentication status</action>
+      </scenario>
+      <scenario name="pr_not_found">
+        <action>Verify PR number and repository, ask user to confirm details</action>
+      </scenario>
+      <scenario name="rate_limit">
+        <action>Wait briefly and retry, inform user about rate limiting</action>
+      </scenario>
+    </github_cli_failures>
     <delegation_failures>
       Continue with available analysis and note limitations
     </delegation_failures>

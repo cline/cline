@@ -12,28 +12,9 @@
       <step number="1">
         <description>Get PR details and review comments.</description>
         <tool_use>
-<use_mcp_tool>
-  <server_name>github</server_name>
-  <tool_name>get_pull_request</tool_name>
-  <arguments>
-    {
-      "owner": "RooCodeInc",
-      "repo": "Roo-Code",
-      "pullNumber": 4365
-    }
-  </arguments>
-</use_mcp_tool>
-<use_mcp_tool>
-  <server_name>github</server_name>
-  <tool_name>get_pull_request_comments</tool_name>
-  <arguments>
-    {
-      "owner": "RooCodeInc",
-      "repo": "Roo-Code",
-      "pullNumber": 4365
-    }
-  </arguments>
-</use_mcp_tool>
+<execute_command>
+<command>gh pr view 4365 --repo RooCodeInc/Roo-Code --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles,comments,reviews,mergeable,mergeStateStatus</command>
+</execute_command>
         </tool_use>
         <expected_outcome>Get the branch name, list of review comments, and check for mergeability.</expected_outcome>
       </step>
@@ -42,7 +23,7 @@
         <description>Check CI status.</description>
         <tool_use>
 <execute_command>
-<command>gh pr checks 4365</command>
+<command>gh pr checks 4365 --repo RooCodeInc/Roo-Code</command>
 </execute_command>
         </tool_use>
         <analysis>Identify which check is failing.</analysis>
@@ -52,7 +33,17 @@
         <description>Get logs for the failing check.</description>
         <tool_use>
 <execute_command>
-<command>gh run view <run_id> --log-failed</command>
+<command>gh run list --pr 4365 --repo RooCodeInc/Roo-Code</command>
+</execute_command>
+        </tool_use>
+        <analysis>Get the run ID of the failing workflow.</analysis>
+      </step>
+
+      <step number="3a">
+        <description>View the failed logs.</description>
+        <tool_use>
+<execute_command>
+<command>gh run view [run_id] --repo RooCodeInc/Roo-Code --log-failed</command>
 </execute_command>
         </tool_use>
         <analysis>Find the specific error message causing the test to fail.</analysis>
@@ -62,7 +53,7 @@
         <description>Check out the pull request branch.</description>
         <tool_use>
           <execute_command>
-            <command>gh pr checkout 4365 --force</command>
+            <command>gh pr checkout 4365 --repo RooCodeInc/Roo-Code --force</command>
           </execute_command>
         </tool_use>
         <analysis>The PR branch is now ready for local edits.</analysis>
@@ -85,7 +76,7 @@
        <description>After pushing the changes, monitor PR checks in real-time.</description>
        <tool_use>
          <execute_command>
-           <command>gh pr checks 4365 --watch</command>
+           <command>gh pr checks 4365 --repo RooCodeInc/Roo-Code --watch</command>
          </execute_command>
        </tool_use>
        <analysis>Monitor checks continuously until all complete. The --watch flag provides real-time updates as check statuses change.</analysis>
@@ -94,7 +85,8 @@
 
     <key_takeaways>
       <takeaway>Always gather all information before proposing a solution.</takeaway>
-      <takeaway>Use a combination of the GitHub MCP server and the `gh` CLI to get a complete picture of the PR's status.</takeaway>
+      <takeaway>Use the GitHub CLI to get a complete picture of the PR's status.</takeaway>
+      <takeaway>The --watch flag on gh pr checks provides real-time monitoring of CI status.</takeaway>
     </key_takeaways>
   </example>
 
@@ -111,17 +103,9 @@
       <step number="1">
         <description>Get PR details and analyze changes.</description>
         <tool_use>
-<use_mcp_tool>
-  <server_name>github</server_name>
-  <tool_name>get_pull_request</tool_name>
-  <arguments>
-    {
-      "owner": "RooCodeInc",
-      "repo": "Roo-Code",
-      "pullNumber": 1234
-    }
-  </arguments>
-</use_mcp_tool>
+<execute_command>
+<command>gh pr view 1234 --repo RooCodeInc/Roo-Code --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles,comments,reviews</command>
+</execute_command>
         </tool_use>
         <expected_outcome>Identify the files changed and review feedback requiring UI text modifications.</expected_outcome>
       </step>
@@ -130,7 +114,7 @@
         <description>Check out PR and apply the requested changes.</description>
         <tool_use>
 <execute_command>
-<command>gh pr checkout 1234 --force</command>
+<command>gh pr checkout 1234 --repo RooCodeInc/Roo-Code --force</command>
 </execute_command>
         </tool_use>
         <analysis>Make the requested button text changes in the UI components.</analysis>
@@ -158,20 +142,30 @@ Ensure consistency across all language files and maintain the same context and t
       </step>
 
       <step number="4">
-        <description>Commit all changes including translations with automated git configuration.</description>
+        <description>Review and commit changes including translations.</description>
         <tool_use>
 <execute_command>
-<command>git add . && git commit -m "fix: update button text and translations as requested in review"</command>
+<command>git status --porcelain</command>
 </execute_command>
         </tool_use>
-        <analysis>All code changes and translation updates are now committed.</analysis>
+        <analysis>Review the list of modified files to ensure only intended changes are present.</analysis>
+      </step>
+      
+      <step number="4a">
+        <description>Stage only the intended files for commit.</description>
+        <tool_use>
+<execute_command>
+<command>git add -u && git commit -m "fix: update button text and translations as requested in review"</command>
+</execute_command>
+        </tool_use>
+        <analysis>Using 'git add -u' stages only modified tracked files, avoiding any temporary files.</analysis>
       </step>
 
       <step number="5">
         <description>Check if PR is from a fork and push to correct remote.</description>
         <tool_use>
 <execute_command>
-<command>gh pr view 1234 --json isCrossRepository,headRepositoryOwner,headRefName</command>
+<command>gh pr view 1234 --repo RooCodeInc/Roo-Code --json isCrossRepository,headRepositoryOwner,headRefName</command>
 </execute_command>
         </tool_use>
         <analysis>Determine if this is a cross-repository PR to know which remote to push to.</analysis>
@@ -181,7 +175,7 @@ Ensure consistency across all language files and maintain the same context and t
         <description>Push changes to the appropriate remote.</description>
         <tool_use>
 <execute_command>
-<command>git push --force-with-lease origin <branch_name></command>
+<command>git push --force-with-lease origin [branch_name]</command>
 </execute_command>
         </tool_use>
         <analysis>Push changes safely to update the pull request. Use 'fork' remote instead if PR is from a fork.</analysis>
@@ -191,7 +185,7 @@ Ensure consistency across all language files and maintain the same context and t
         <description>Monitor CI status in real-time.</description>
         <tool_use>
 <execute_command>
-<command>gh pr checks 1234 --watch</command>
+<command>gh pr checks 1234 --repo RooCodeInc/Roo-Code --watch</command>
 </execute_command>
         </tool_use>
         <analysis>Watch CI checks continuously until all tests pass. The --watch flag provides automatic updates as check statuses change.</analysis>
@@ -203,6 +197,7 @@ Ensure consistency across all language files and maintain the same context and t
       <takeaway>Use new_task with translate mode to ensure consistent translation updates.</takeaway>
       <takeaway>Include detailed context about what changed and why in translation requests.</takeaway>
       <takeaway>Verify translation completeness before considering the PR fix complete.</takeaway>
+      <takeaway>Use gh pr view --json to get structured data about PR properties.</takeaway>
     </key_takeaways>
   </example>
 </complete_examples>

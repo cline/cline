@@ -1,0 +1,273 @@
+<github_cli_usage>
+  <overview>
+    The GitHub CLI (gh) provides comprehensive tools for interacting with GitHub.
+    Here's when and how to use each command in the issue creation workflow.
+    
+    Note: Issue body formatting should follow the templates defined in
+    2_github_issue_templates.xml, with different formats for problem reporters
+    vs contributors.
+  </overview>
+
+  <pre_creation_commands>
+    <command name="gh issue list">
+      <when_to_use>
+        ALWAYS use this FIRST before creating any issue to check for duplicates.
+        Search for keywords from the user's problem description.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh issue list --repo RooCodeInc/Roo-Code --search "dark theme button visibility" --state all --limit 20</command>
+        </execute_command>
+      </example>
+      <options>
+        --search: Search query for issue titles and bodies
+        --state: all, open, or closed
+        --label: Filter by specific labels
+        --limit: Number of results to show
+        --json: Get structured JSON output
+      </options>
+    </command>
+
+    <command name="gh search issues">
+      <when_to_use>
+        Use for more advanced searches across issues and pull requests.
+        Supports GitHub's advanced search syntax.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh search issues --repo RooCodeInc/Roo-Code "dark theme button" --limit 10</command>
+        </execute_command>
+      </example>
+    </command>
+
+    <command name="gh issue view">
+      <when_to_use>
+        Use when you find a potentially related issue and need full details.
+        Check if the user's issue is already reported or related.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh issue view 123 --repo RooCodeInc/Roo-Code --comments</command>
+        </execute_command>
+      </example>
+      <options>
+        --comments: Include issue comments
+        --json: Get structured data
+        --web: Open in browser
+      </options>
+    </command>
+  </pre_creation_commands>
+
+  <contributor_only_commands>
+    <note>
+      These commands should ONLY be used if the user has indicated they want to
+      contribute the implementation. Skip these for problem reporters.
+    </note>
+    
+    <command name="gh repo view">
+      <when_to_use>
+        Get repository information and recent activity.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh repo view RooCodeInc/Roo-Code --json defaultBranchRef,description,updatedAt</command>
+        </execute_command>
+      </example>
+    </command>
+
+    <command name="gh search prs">
+      <when_to_use>
+        Check recent PRs that might be related to the issue.
+        Look for PRs that modified relevant code.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh search prs --repo RooCodeInc/Roo-Code "dark theme" --limit 10 --state all</command>
+        </execute_command>
+      </example>
+    </command>
+
+    <command name="git log">
+      <when_to_use>
+        For bug reports from contributors, check recent commits that might have introduced the issue.
+        Use after cloning the repository locally.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>git log --oneline --grep="theme" -n 20</command>
+        </execute_command>
+      </example>
+    </command>
+  </contributor_only_commands>
+
+  <issue_creation_command>
+    <command name="gh issue create">
+      <when_to_use>
+        Only use after:
+        1. Confirming no duplicates exist
+        2. Gathering all required information
+        3. Determining if user is contributing or just reporting
+        4. Getting user confirmation
+      </when_to_use>
+      <bug_report_example>
+        <execute_command>
+        <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Descriptive title of the bug]" --body-file /tmp/issue_body.md --label "bug"</command>
+        </execute_command>
+      </bug_report_example>
+      <feature_request_example>
+        <execute_command>
+        <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Problem-focused title]" --body-file /tmp/issue_body.md --label "proposal" --label "enhancement"</command>
+        </execute_command>
+      </feature_request_example>
+      <options>
+        --title: Issue title (required)
+        --body: Issue body text
+        --body-file: Read body from file
+        --label: Add labels (can use multiple times)
+        --assignee: Assign to user
+        --project: Add to project
+        --web: Open in browser to create
+      </options>
+    </command>
+  </issue_creation_command>
+
+  <post_creation_commands>
+    <command name="gh issue comment">
+      <when_to_use>
+        ONLY use if user wants to add additional information after creation.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh issue comment 456 --repo RooCodeInc/Roo-Code --body "Additional context or comments."</command>
+        </execute_command>
+      </example>
+    </command>
+
+    <command name="gh issue edit">
+      <when_to_use>
+        Use if user realizes they need to update the issue after creation.
+        Can update title, body, or labels.
+      </when_to_use>
+      <example>
+        <execute_command>
+        <command>gh issue edit 456 --repo RooCodeInc/Roo-Code --title "[Updated title]" --body "[Updated body]"</command>
+        </execute_command>
+      </example>
+    </command>
+  </post_creation_commands>
+
+  <workflow_integration>
+    <step_1_integration>
+      After user selects issue type, immediately search for related issues:
+      1. Use `gh issue list --search` with keywords from their description
+      2. Show any similar issues found
+      3. Ask if they want to continue or comment on existing issue
+    </step_1_integration>
+
+    <step_3_integration>
+      When searching GitHub Discussions:
+      1. Note that GitHub CLI doesn't currently have full discussions support
+      2. Use web search or instruct user to manually search discussions at:
+         https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests
+      3. Ask user to provide any related discussion numbers they find
+      4. Include these in the "Related Discussions" section of the issue
+    </step_3_integration>
+
+    <step_4_integration>
+      Decision point for contribution:
+      1. Ask user if they want to contribute implementation
+      2. If yes: Use contributor commands for codebase investigation
+      3. If no: Skip directly to creating a problem-focused issue
+      4. This saves time for problem reporters
+    </step_4_integration>
+
+    <step_5_integration>
+      During codebase exploration (CONTRIBUTORS ONLY):
+      1. Clone repo locally if needed: `gh repo clone RooCodeInc/Roo-Code`
+      2. Use `git log` to find recent changes to affected files
+      3. Use `gh search prs` for related pull requests
+      4. Include findings in the technical context section
+    </step_5_integration>
+
+    <step_6_integration>
+      When creating the issue:
+      1. Format differently based on contributor vs problem reporter
+      2. Problem reporters: Simple problem description + context
+      3. Contributors: Full template with technical sections
+      4. Save formatted body to temporary file
+      5. Use `gh issue create` with appropriate labels
+      6. Capture the returned issue URL
+      7. Show user the created issue URL
+    </step_6_integration>
+  </workflow_integration>
+
+  <best_practices>
+    <practice name="file_handling">
+      When creating issues with long bodies:
+      1. Save to temporary file: `cat > /tmp/issue_body.md << 'EOF'`
+      2. Use --body-file flag with gh issue create
+      3. Clean up after: `rm /tmp/issue_body.md`
+    </practice>
+
+    <practice name="search_efficiency">
+      Use specific search terms:
+      - Include error messages in quotes
+      - Use label filters when appropriate
+      - Limit results to avoid overwhelming output
+    </practice>
+
+    <practice name="json_output">
+      Use --json flag for structured data when needed:
+      - Easier to parse programmatically
+      - Consistent format across commands
+      - Example: `gh issue list --json number,title,state`
+    </practice>
+  </best_practices>
+
+  <error_handling>
+    <duplicate_found>
+      If search finds exact duplicate:
+      - Show the existing issue to user using `gh issue view`
+      - Ask if they want to add a comment instead
+      - Use `gh issue comment` if they agree
+    </duplicate_found>
+
+    <creation_failed>
+      If `gh issue create` fails:
+      - Check error message (auth, permissions, network)
+      - Ensure gh is authenticated: `gh auth status`
+      - Save the drafted issue content for user
+      - Suggest using --web flag to create in browser
+    </creation_failed>
+
+    <authentication>
+      Ensure GitHub CLI is authenticated:
+      - Check status: `gh auth status`
+      - Login if needed: `gh auth login`
+      - Select appropriate scopes for issue creation
+    </authentication>
+  </error_handling>
+
+  <command_reference>
+    <issues>
+      gh issue create    - Create new issue
+      gh issue list      - List and search issues
+      gh issue view      - View issue details
+      gh issue comment   - Add comment to issue
+      gh issue edit      - Edit existing issue
+      gh issue close     - Close an issue
+      gh issue reopen    - Reopen closed issue
+    </issues>
+
+    <search>
+      gh search issues   - Search issues and PRs
+      gh search prs      - Search pull requests
+      gh search repos    - Search repositories
+    </search>
+
+    <repository>
+      gh repo view       - View repository info
+      gh repo clone      - Clone repository
+    </repository>
+  </command_reference>
+</github_cli_usage>

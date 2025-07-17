@@ -20,6 +20,23 @@
         <bad>Always push to origin without checking PR source</bad>
       </example>
     </principle>
+    <principle priority="high">
+      <name>Safe File Staging</name>
+      <description>Always review files before staging to avoid committing temporary files, build artifacts, or system files. Use selective git commands that respect .gitignore.</description>
+      <rationale>Committing unwanted files can expose sensitive data, clutter the repository, and cause CI/CD failures.</rationale>
+      <example>
+        <scenario>Staging files for commit</scenario>
+        <good>Use 'git add -u' to stage only modified tracked files, or explicitly list files to add</good>
+        <bad>Use 'git add .' which stages everything including temp files</bad>
+      </example>
+      <checklist>
+        <item>Review git status before staging</item>
+        <item>Check for temporary files (.swp, .DS_Store, *.tmp)</item>
+        <item>Exclude build artifacts (dist/, build/, *.pyc)</item>
+        <item>Avoid IDE-specific files (.idea/, .vscode/)</item>
+        <item>Verify .gitignore is properly configured</item>
+      </checklist>
+    </principle>
   </general_principles>
 
   <code_conventions>

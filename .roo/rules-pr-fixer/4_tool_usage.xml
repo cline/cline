@@ -1,7 +1,7 @@
 <tool_usage_guide>
   <tool_priorities>
     <priority level="1">
-      <tool>use_mcp_tool (server: github)</tool>
+      <tool>gh pr view</tool>
       <when>Use at the start to get all review comments and PR metadata.</when>
       <why>Provides the core context of what needs to be fixed from a human perspective.</why>
     </priority>
@@ -23,14 +23,16 @@
  </tool_priorities>
 
   <tool_specific_guidance>
-    <tool name="use_mcp_tool (github: get_pull_request)">
+    <tool name="gh pr view">
       <best_practices>
-        <practice>Always fetch details to get the branch name, owner, repo slug, and mergeable state.</practice>
+        <practice>Always fetch details with --json to get structured data: gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles,comments,reviews,mergeable,mergeStateStatus,isCrossRepository</practice>
+        <practice>Parse the JSON output to extract branch name, owner, repo slug, and mergeable state.</practice>
       </best_practices>
     </tool>
 
-    <tool name="use_mcp_tool (github: get_pull_request_comments)">
+    <tool name="gh pr comments">
       <best_practices>
+        <practice>Use gh pr view --json comments to get all comments in structured format.</practice>
         <practice>Parse all comments to create a checklist of required changes.</practice>
         <practice>Ignore comments that are not actionable or have been resolved.</practice>
       </best_practices>
@@ -40,14 +42,15 @@
       <best_practices>
         <practice>Use this command to get the exact error messages from failing tests.</practice>
         <practice>Search the log for keywords like 'error', 'failed', or 'exception' to quickly find the root cause.</practice>
-        <practice>Always specify run ID explicitly to avoid interactive selection prompts.</practice>
+        <practice>Always specify run ID explicitly to avoid interactive selection prompts: gh run view [RUN_ID] --log-failed</practice>
+        <practice>Get run IDs with: gh run list --pr [PR_NUMBER] --repo [owner]/[repo]</practice>
       </best_practices>
     </tool>
 
     <tool name="gh pr checkout">
       <best_practices>
-        <practice>Use --force flag: 'gh pr checkout <pr_number> --force'</practice>
-        <practice>If gh checkout fails, use: git fetch origin pull/<pr_number>/head:<branch_name></practice>
+        <practice>Use --force flag: 'gh pr checkout [PR_NUMBER] --repo [owner]/[repo] --force'</practice>
+        <practice>If gh checkout fails, use: git fetch origin pull/[PR_NUMBER]/head:[branch_name]</practice>
       </best_practices>
     </tool>
 
@@ -58,9 +61,9 @@
         <practice>Always determine the correct remote before pushing (origin vs fork).</practice>
       </best_practices>
       <remote_handling>
-        <step>Check if PR is from a fork: 'gh pr view <pr_number> --json isCrossRepository'</step>
+        <step>Check if PR is from a fork: 'gh pr view [PR_NUMBER] --repo [owner]/[repo] --json isCrossRepository'</step>
         <step>If isCrossRepository is true, add fork remote if needed</step>
-        <step>Push to appropriate remote: 'git push --force-with-lease <remote> <branch>'</step>
+        <step>Push to appropriate remote: 'git push --force-with-lease [remote] [branch]'</step>
       </remote_handling>
       <conflict_resolution>
         <step>Use 'GIT_EDITOR=true git rebase main' to start rebase</step>
@@ -71,10 +74,10 @@
 
     <tool name="gh pr checks">
       <best_practices>
-        <practice>Use --watch flag to monitor checks in real-time: 'gh pr checks <pr_number> --watch'</practice>
-        <practice>For one-time status checks, use --json flag: 'gh pr checks <pr_number> --json state,conclusion,name'</practice>
+        <practice>Use --watch flag to monitor checks in real-time: 'gh pr checks [PR_NUMBER] --repo [owner]/[repo] --watch'</practice>
+        <practice>For one-time status checks, use --json flag: 'gh pr checks [PR_NUMBER] --repo [owner]/[repo] --json state,conclusion,name'</practice>
         <practice>The --watch flag automatically updates the display as check statuses change.</practice>
-        <practice>Use 'gh run list --pr <pr_number>' to get detailed workflow status if needed.</practice>
+        <practice>Use 'gh run list --pr [PR_NUMBER] --repo [owner]/[repo]' to get detailed workflow status if needed.</practice>
       </best_practices>
     </tool>
     
@@ -115,4 +118,19 @@ Please ensure all supported languages (ca, de, es, fr, hi, id, it, ja, ko, nl, p
       ]]></example_usage>
     </tool>
   </tool_specific_guidance>
+
+  <github_cli_reference>
+    <command_group name="pr_operations">
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json [fields]</command>
+      <command>gh pr checkout [PR_NUMBER] --repo [owner]/[repo] --force</command>
+      <command>gh pr checks [PR_NUMBER] --repo [owner]/[repo] [--watch|--json]</command>
+      <command>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body "[text]"</command>
+    </command_group>
+
+    <command_group name="workflow_operations">
+      <command>gh run list --pr [PR_NUMBER] --repo [owner]/[repo]</command>
+      <command>gh run view [RUN_ID] --repo [owner]/[repo] --log-failed</command>
+      <command>gh workflow view [WORKFLOW_NAME] --repo [owner]/[repo]</command>
+    </command_group>
+  </github_cli_reference>
 </tool_usage_guide>

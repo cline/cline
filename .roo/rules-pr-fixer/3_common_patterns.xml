@@ -101,10 +101,42 @@
   </pattern>
 
   <pattern name="automated_commit_operations">
-    <usage>Commit operations that work in automated environments.</usage>
+    <usage>Commit operations that work in automated environments while respecting .gitignore.</usage>
     <template>
-      <command tool="git">git add .</command>
+      <comment>Review what files have been modified</comment>
+      <command tool="git">git status --porcelain</command>
+      <comment>Add only tracked files that were modified (respects .gitignore)</comment>
+      <command tool="git">git add -u</command>
+      <comment>If you need to add specific new files, list them explicitly</comment>
+      <command tool="git">git add <specific_file_path></command>
       <command tool="git">git commit -m "<commit_message>"</command>
+    </template>
+  </pattern>
+  <pattern name="safe_file_staging">
+    <usage>Safely stage files for commit while avoiding temporary files and respecting .gitignore.</usage>
+    <template>
+      <comment>First, check what files are currently modified or untracked</comment>
+      <command tool="git">git status --porcelain</command>
+      <comment>Review the output to identify files that should NOT be committed:</comment>
+      <comment>- Files starting with . (hidden files like .DS_Store, .swp)</comment>
+      <comment>- Build artifacts (dist/, build/, *.pyc, *.o)</comment>
+      <comment>- IDE files (.idea/, .vscode/, *.iml)</comment>
+      <comment>- Temporary files (*.tmp, *.temp, *~)</comment>
+      
+      <comment>Option 1: Stage only modified tracked files (safest)</comment>
+      <command tool="git">git add -u</command>
+      
+      <comment>Option 2: Stage specific files by path</comment>
+      <command tool="git">git add src/file1.ts src/file2.ts</command>
+      
+      <comment>Option 3: Use pathspec to add files matching a pattern</comment>
+      <command tool="git">git add '*.ts' '*.tsx' --</command>
+      
+      <comment>Option 4: Interactive staging to review each change</comment>
+      <command tool="git">git add -p</command>
+      
+      <comment>Always verify what's staged before committing</comment>
+      <command tool="git">git diff --cached --name-only</command>
     </template>
   </pattern>
 </common_patterns>

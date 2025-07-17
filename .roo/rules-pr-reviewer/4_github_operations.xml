@@ -1,226 +1,224 @@
 <github_operations>
   <overview>
-    Guidelines for handling GitHub operations with fallback strategies
-    when MCP tools are unavailable or failing.
+    Guidelines for handling GitHub operations using the GitHub CLI (gh).
+    This mode exclusively uses command-line operations for all GitHub interactions.
   </overview>
 
-  <mcp_vs_cli>
-    <principle>
-      Always try MCP tools first, fall back to GitHub CLI if they fail
-    </principle>
-    <benefits_of_mcp>
-      - Structured data responses
-      - Better error handling
-      - Integrated with the system
-    </benefits_of_mcp>
-    <benefits_of_cli>
-      - More reliable when MCP is down
-      - Direct GitHub API access
-      - Can handle complex queries
-    </benefits_of_cli>
-  </mcp_vs_cli>
+  <prerequisites>
+    <requirement name="github_cli">
+      <description>GitHub CLI must be installed and authenticated</description>
+      <check_command>gh auth status</check_command>
+      <install_url>https://cli.github.com/</install_url>
+    </requirement>
+    <requirement name="authentication">
+      <description>User must be authenticated with appropriate permissions</description>
+      <setup_command>gh auth login</setup_command>
+    </requirement>
+  </prerequisites>
 
   <operation_patterns>
     <operation name="fetch_pr_details">
-      <mcp_approach>
-        <tool>get_pull_request</tool>
-        <example><![CDATA[
-<use_mcp_tool>
-<server_name>github</server_name>
-<tool_name>get_pull_request</tool_name>
-<arguments>
-{
-  "owner": "RooCodeInc",
-  "repo": "Roo-Code",
-  "pullNumber": 123
-}
-</arguments>
-</use_mcp_tool>
-        ]]></example>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles</command>
-        <parse_json>true</parse_json>
-      </cli_fallback>
+      <description>Fetch comprehensive PR metadata</description>
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles</command>
+      <output_format>JSON</output_format>
+      <save_to>.roo/temp/pr-[PR_NUMBER]/pr-metadata.json</save_to>
     </operation>
 
     <operation name="fetch_pr_diff">
-      <mcp_approach>
-        <tool>get_pull_request_diff</tool>
-        <example><![CDATA[
-<use_mcp_tool>
-<server_name>github</server_name>
-<tool_name>get_pull_request_diff</tool_name>
-<arguments>
-{
-  "owner": "RooCodeInc",
-  "repo": "Roo-Code",
-  "pullNumber": 123
-}
-</arguments>
-</use_mcp_tool>
-        ]]></example>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr diff [PR_NUMBER] --repo [owner]/[repo]</command>
-        <save_to>.roo/temp/pr-[PR_NUMBER]/pr.diff</save_to>
-      </cli_fallback>
+      <description>Get the full diff of PR changes</description>
+      <command>gh pr diff [PR_NUMBER] --repo [owner]/[repo]</command>
+      <save_to>.roo/temp/pr-[PR_NUMBER]/pr.diff</save_to>
     </operation>
 
     <operation name="fetch_pr_files">
-      <mcp_approach>
-        <tool>get_pull_request_files</tool>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json files --jq '.files[].path'</command>
-        <description>Lists all files changed in the PR</description>
-      </cli_fallback>
+      <description>List all files changed in the PR</description>
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json files --jq '.files[].path'</command>
+      <output_format>Line-separated file paths</output_format>
     </operation>
 
     <operation name="fetch_comments">
-      <mcp_approach>
-        <tool>get_pull_request_comments</tool>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json comments --jq '.comments'</command>
-      </cli_fallback>
+      <description>Get all comments on the PR</description>
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json comments --jq '.comments'</command>
+      <output_format>JSON array of comments</output_format>
     </operation>
 
     <operation name="fetch_reviews">
-      <mcp_approach>
-        <tool>get_pull_request_reviews</tool>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json reviews --jq '.reviews'</command>
-      </cli_fallback>
+      <description>Get all reviews on the PR</description>
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json reviews --jq '.reviews'</command>
+      <output_format>JSON array of reviews</output_format>
     </operation>
 
     <operation name="checkout_pr">
-      <cli_only>
-        <command>gh pr checkout [PR_NUMBER] --repo [owner]/[repo]</command>
-        <note>No MCP equivalent - always use CLI</note>
-      </cli_only>
+      <description>Check out PR branch locally for analysis</description>
+      <command>gh pr checkout [PR_NUMBER] --repo [owner]/[repo]</command>
+      <note>This switches the current branch to the PR branch</note>
     </operation>
 
     <operation name="post_comment">
-      <mcp_approach>
-        <tool>add_issue_comment</tool>
-        <note>PRs use same comment system as issues</note>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body-file [file_path]</command>
-        <alternative>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body "[comment_text]"</alternative>
-      </cli_fallback>
+      <description>Post a comment on the PR</description>
+      <command>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body-file [file_path]</command>
+      <alternative>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body "[comment_text]"</alternative>
     </operation>
 
     <operation name="create_review">
-      <mcp_approach>
-        <sequence>
-          1. create_pending_pull_request_review
-          2. add_pull_request_review_comment_to_pending_review (multiple times)
-          3. submit_pending_pull_request_review
-        </sequence>
-      </mcp_approach>
-      <cli_fallback>
-        <command>gh pr review [PR_NUMBER] --repo [owner]/[repo] --comment --body-file [review_file]</command>
-      </cli_fallback>
+      <description>Create a PR review with comments</description>
+      <command>gh pr review [PR_NUMBER] --repo [owner]/[repo] --comment --body-file [review_file]</command>
+      <options>
+        <option>--approve: Approve the PR</option>
+        <option>--request-changes: Request changes</option>
+        <option>--comment: Just comment without approval/rejection</option>
+      </options>
+    </operation>
+
+    <operation name="fetch_issue">
+      <description>Get issue details (for linked issues)</description>
+      <command>gh issue view [issue_number] --repo [owner]/[repo] --json number,title,body,author,state</command>
+      <output_format>JSON</output_format>
     </operation>
   </operation_patterns>
 
   <error_handling>
-    <scenario name="mcp_server_unavailable">
+    <scenario name="authentication_failure">
       <detection>
-        Error message contains "MCP server" or "github server not found"
+        Error contains "authentication" or "not logged in"
       </detection>
       <action>
-        Immediately switch to CLI commands for all operations
+        1. Inform user about auth issue
+        2. Suggest running: gh auth login
+        3. Check status with: gh auth status
       </action>
     </scenario>
 
     <scenario name="api_rate_limit">
       <detection>
-        Error contains "rate limit" or status code 403
+        Error contains "rate limit" or "API rate limit exceeded"
       </detection>
       <action>
-        1. Wait briefly (30 seconds)
-        2. Retry with CLI using --limit flag
-        3. Reduce number of API calls
-      </action>
-    </scenario>
-
-    <scenario name="authentication_failure">
-      <detection>
-        Error contains "authentication" or status code 401
-      </detection>
-      <action>
-        1. Inform user about auth issue
-        2. Suggest checking gh auth status
-        3. Continue with available data
+        1. Wait 30-60 seconds before retry
+        2. Inform user about rate limiting
+        3. Consider reducing API calls
       </action>
     </scenario>
 
     <scenario name="pr_not_found">
       <detection>
-        Error contains "not found" or status code 404
+        Error contains "not found" or "could not find pull request"
       </detection>
       <action>
-        1. Verify PR number and repository
-        2. Ask user to confirm details
-        3. Check if PR is from a fork
+        1. Verify PR number and repository format
+        2. Check if repository is accessible
+        3. Ensure correct owner/repo format
+      </action>
+    </scenario>
+
+    <scenario name="permission_denied">
+      <detection>
+        Error contains "permission denied" or "403"
+      </detection>
+      <action>
+        1. Check repository permissions
+        2. Verify authentication scope
+        3. May need to re-authenticate with proper scopes
       </action>
     </scenario>
   </error_handling>
 
   <data_handling>
     <principle name="save_everything">
-      <description>Always save API responses to temp files</description>
-      <reason>Preserve data in case of failures</reason>
+      <description>Always save command outputs to temp files</description>
+      <reason>Preserve data for analysis and recovery</reason>
     </principle>
 
     <principle name="parse_json_safely">
-      <description>Use jq or built-in JSON parsing</description>
+      <description>Use jq for JSON parsing when available</description>
       <example>
         gh pr view --json files --jq '.files[].path'
       </example>
     </principle>
 
     <principle name="handle_large_prs">
-      <description>For PRs with many files, process in batches</description>
+      <description>For PRs with many files, save outputs to files first</description>
       <threshold>More than 50 files</threshold>
+      <approach>Save to file, then process in chunks</approach>
+    </principle>
+
+    <principle name="validate_json">
+      <description>Always validate JSON before parsing</description>
+      <command>jq empty < file.json || echo "Invalid JSON"</command>
     </principle>
   </data_handling>
 
   <cli_command_reference>
     <command_group name="pr_info">
-      <command>gh pr view [number] --json [fields]</command>
-      <fields>
+      <base_command>gh pr view [number]</base_command>
+      <options>
+        <option>--repo [owner]/[repo]: Specify repository</option>
+        <option>--json [fields]: Get JSON output</option>
+        <option>--jq [expression]: Parse JSON with jq</option>
+      </options>
+      <json_fields>
         number, title, author, state, body, url, 
         headRefName, baseRefName, files, additions, 
-        deletions, changedFiles, comments, reviews
-      </fields>
+        deletions, changedFiles, comments, reviews,
+        isDraft, mergeable, mergeStateStatus
+      </json_fields>
     </command_group>
 
     <command_group name="pr_interaction">
-      <command>gh pr checkout [number]</command>
-      <command>gh pr diff [number]</command>
-      <command>gh pr comment [number] --body "[text]"</command>
-      <command>gh pr review [number] --comment --body "[text]"</command>
+      <commands>
+        <command>gh pr checkout [number]: Check out PR locally</command>
+        <command>gh pr diff [number]: View PR diff</command>
+        <command>gh pr comment [number] --body "[text]": Add comment</command>
+        <command>gh pr review [number]: Create review</command>
+        <command>gh pr close [number]: Close PR</command>
+        <command>gh pr reopen [number]: Reopen PR</command>
+      </commands>
     </command_group>
 
     <command_group name="issue_info">
-      <command>gh issue view [number] --json [fields]</command>
-      <fields>
+      <base_command>gh issue view [number]</base_command>
+      <json_fields>
         number, title, body, author, state, 
-        labels, assignees, milestone
-      </fields>
+        labels, assignees, milestone, comments
+      </json_fields>
+    </command_group>
+
+    <command_group name="repo_info">
+      <commands>
+        <command>gh repo view --json [fields]: Get repo info</command>
+        <command>gh repo clone [owner]/[repo]: Clone repository</command>
+      </commands>
     </command_group>
   </cli_command_reference>
 
   <best_practices>
     <practice>Always specify --repo to avoid ambiguity</practice>
-    <practice>Use --json for structured data</practice>
-    <practice>Save command outputs to temp files</practice>
-    <practice>Check gh auth status before operations</practice>
-    <practice>Handle both personal repos and org repos</practice>
+    <practice>Use --json for structured data that needs parsing</practice>
+    <practice>Save command outputs to temp files for reliability</practice>
+    <practice>Check gh auth status before starting operations</practice>
+    <practice>Handle both personal repos and organization repos</practice>
+    <practice>Use meaningful file names when saving outputs</practice>
+    <practice>Include error handling for all commands</practice>
+    <practice>Document the expected format of saved files</practice>
   </best_practices>
+
+  <example_workflows>
+    <workflow name="complete_pr_fetch">
+      <description>Fetch all PR data for analysis</description>
+      <steps>
+        <step>gh pr view 123 --repo owner/repo --json number,title,author,state,body,url,headRefName,baseRefName,files,additions,deletions,changedFiles > .roo/temp/pr-123/metadata.json</step>
+        <step>gh pr view 123 --repo owner/repo --json comments > .roo/temp/pr-123/comments.json</step>
+        <step>gh pr view 123 --repo owner/repo --json reviews > .roo/temp/pr-123/reviews.json</step>
+        <step>gh pr diff 123 --repo owner/repo > .roo/temp/pr-123/pr.diff</step>
+      </steps>
+    </workflow>
+
+    <workflow name="post_review">
+      <description>Post a comprehensive review</description>
+      <steps>
+        <step>Create review content in .roo/temp/pr-123/review.md</step>
+        <step>gh pr review 123 --repo owner/repo --comment --body-file .roo/temp/pr-123/review.md</step>
+      </steps>
+    </workflow>
+  </example_workflows>
 </github_operations>

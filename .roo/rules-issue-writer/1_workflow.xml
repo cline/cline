@@ -308,23 +308,31 @@
   <step number="8">
     <name>Create GitHub Issue</name>
     <instructions>
-      Once user confirms, create the issue using the GitHub MCP tool:
+      Once user confirms, create the issue using the GitHub CLI:
       
-      <use_mcp_tool>
-      <server_name>github</server_name>
-      <tool_name>create_issue</tool_name>
-      <arguments>
-      {
-        "owner": "RooCodeInc",
-        "repo": "Roo-Code",
-        "title": "[Create a descriptive title based on the issue content]",
-        "body": "[The complete formatted issue body from step 6]",
-        "labels": [Use ["bug"] for bug reports or ["proposal", "enhancement"] for features]
-      }
-      </arguments>
-      </use_mcp_tool>
+      First, save the issue body to a temporary file:
+      <execute_command>
+      <command>cat > /tmp/issue_body.md << 'EOF'
+[The complete formatted issue body from step 6]
+EOF</command>
+      </execute_command>
       
-      After creation, inform the user of the issue number and URL.
+      Then create the issue:
+      <execute_command>
+      <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Create a descriptive title based on the issue content]" --body-file /tmp/issue_body.md --label "bug"</command>
+      </execute_command>
+      
+      For feature requests, use labels "proposal,enhancement":
+      <execute_command>
+      <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Create a descriptive title based on the issue content]" --body-file /tmp/issue_body.md --label "proposal" --label "enhancement"</command>
+      </execute_command>
+      
+      The command will return the issue URL. Inform the user of the created issue number and URL.
+      
+      Clean up the temporary file:
+      <execute_command>
+      <command>rm /tmp/issue_body.md</command>
+      </execute_command>
     </instructions>
   </step>
 </workflow>
