@@ -10,13 +10,13 @@ import "common.proto";
 service DiffService {
   // Open the diff view/editor.
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
-  // Replace a text selection in the diff.option
+  // Replace a text selection in the diff.
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
-
+  // Truncate the diff document.
   rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
-
+  // Save the diff document.
   rpc saveDocument(SaveDocumentRequest) returns (SaveDocumentResponse);
-
+  // Close the diff editor UI.
   rpc closeDiff(CloseDiffRequest) returns (CloseDiffResponse);
 }
 
