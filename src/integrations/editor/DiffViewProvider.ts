@@ -88,7 +88,6 @@ export abstract class DiffViewProvider {
 	 * streaming updates to keep the user's view focused on the changing content.
 	 *
 	 * @param line The 0-based line number to scroll to
-	 * @returns A promise that resolves when the scrolling operation is complete
 	 */
 	protected abstract scrollEditorToLine(line: number): Promise<void>
 
@@ -102,9 +101,13 @@ export abstract class DiffViewProvider {
 	 *
 	 * @param startLine The 0-based line number to begin the animation from
 	 * @param endLine The 0-based line number to animate to
-	 * @returns A promise that resolves when the animation is complete
 	 */
 	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
+
+	/**
+	 * Cleans up the diff view resources and resets internal state.
+	 */
+	protected abstract resetDiffView(): Promise<void>
 
 	async update(
 		accumulatedContent: string,
@@ -398,10 +401,8 @@ export abstract class DiffViewProvider {
 		this.originalContent = undefined
 		this.createdDirs = []
 		this.documentWasOpen = false
-		this.activeDiffEditor = undefined
-		this.fadedOverlayController = undefined
-		this.activeLineController = undefined
 		this.streamedLines = []
-		this.preDiagnostics = []
+
+		await this.resetDiffView()
 	}
 }

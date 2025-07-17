@@ -34,4 +34,8 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
 		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
 	}
+
+	protected override async resetDiffView(): Promise<void> {
+		this.activeDiffEditorId = undefined
+	}
 }
