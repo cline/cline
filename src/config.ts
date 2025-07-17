@@ -1,4 +1,4 @@
-export type Environment = "production" | "staging" | "preview"
+export type Environment = "production" | "staging" | "local"
 
 const CURRENT_ENVIRONMENT: Environment = "production"
 
@@ -43,7 +43,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
 			appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
 		},
 	},
-	preview: {
+	local: {
 		appBaseUrl: "http://localhost:3000",
 		apiBaseUrl: "http://localhost:7777",
 		mcpBaseUrl: "https://api.cline.bot/v1/mcp",
