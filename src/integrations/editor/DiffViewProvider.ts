@@ -66,10 +66,6 @@ export abstract class DiffViewProvider {
 	/**
 	 * Opens a diff editor or viewer for the current file.
 	 *
-	 * This abstract method must be implemented by subclasses to create and display
-	 * a diff editor or viewer that shows the difference between the original and
-	 * modified content.
-	 *
 	 * Called automatically by the `open` method after ensuring the file exists and
 	 * creating any necessary directories.
 	 *
@@ -80,9 +76,7 @@ export abstract class DiffViewProvider {
 	/**
 	 * Scrolls the diff editor to reveal a specific line.
 	 *
-	 * This abstract method must be implemented by subclasses to handle scrolling
-	 * the diff editor view to ensure a specific line is visible. It's used during
-	 * streaming updates to keep the user's view focused on the changing content.
+	 * It's used during streaming updates to keep the user's view focused on the changing content.
 	 *
 	 * @param line The 0-based line number to scroll to
 	 */
@@ -91,9 +85,7 @@ export abstract class DiffViewProvider {
 	/**
 	 * Creates a smooth scrolling animation between two lines in the diff editor.
 	 *
-	 * This abstract method must be implemented by subclasses to provide a visual
-	 * animation effect when scrolling through large changes. It's typically used
-	 * when updates contain many lines, to help the user visually track the flow
+	 * It's typically used when updates contain many lines, to help the user visually track the flow
 	 * of significant changes in the document.
 	 *
 	 * @param startLine The 0-based line number to begin the animation from
