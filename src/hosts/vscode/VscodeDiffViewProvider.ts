@@ -5,6 +5,9 @@ import { DecorationController } from "@integrations/editor/DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
+	private fadedOverlayController?: DecorationController
+	private activeLineController?: DecorationController
+
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
@@ -135,6 +138,19 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		// Clear all decorations at the end (before applying final edit)
 		this.fadedOverlayController?.clear()
 		this.activeLineController?.clear()
+	}
+
+	protected async closeDiffView(): Promise<void> {
+		// Close all the cline diff views.
+		const tabs = vscode.window.tabGroups.all
+			.flatMap((tg) => tg.tabs)
+			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
+		for (const tab of tabs) {
+			// trying to close dirty views results in save popup
+			if (!tab.isDirty) {
+				await vscode.window.tabGroups.close(tab)
+			}
+		}
 	}
 
 	protected override async resetDiffView(): Promise<void> {
