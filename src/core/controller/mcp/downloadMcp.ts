@@ -3,7 +3,6 @@ import { StringRequest } from "../../../shared/proto/common"
 import { McpDownloadResponse } from "../../../shared/proto/mcp"
 import { McpServer } from "@shared/mcp"
 import axios from "axios"
-import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
