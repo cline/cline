@@ -2,6 +2,7 @@ import { EventEmitter } from "events"
 import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
+import * as os from "os"
 
 import {
 	RooCodeAPI,
@@ -50,7 +51,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 				console.log(args)
 			}
 
-			this.logfile = path.join(getWorkspacePath(), "roo-code-messages.log")
+			this.logfile = path.join(os.tmpdir(), "roo-code-messages.log")
 		} else {
 			this.log = () => {}
 		}
