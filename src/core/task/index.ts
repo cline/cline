@@ -83,7 +83,7 @@ import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { createDiffViewProvider } from "@/hosts/host-providers"
-import { ErrorService } from "@services/error/ErrorService"
+import { ErrorService } from "@/services/error/ErrorService"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
