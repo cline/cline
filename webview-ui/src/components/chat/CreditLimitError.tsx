@@ -3,7 +3,7 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import { AskResponseRequest } from "@shared/proto/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
-import { config } from "@/config"
+import { clineEnvConfig } from "@/config"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
@@ -18,7 +18,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	totalSpent = 0,
 	totalPromotions = 0,
 	message = "You have run out of credit.",
-	buyCreditsUrl = `${config.appBaseUrl}/dashboard`,
+	buyCreditsUrl = `${clineEnvConfig.appBaseUrl}/dashboard`,
 }) => {
 	// We have to divide because the balance is stored in microcredits
 	return (

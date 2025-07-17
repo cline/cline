@@ -6,7 +6,7 @@ import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCreden
 import { ExtensionContext } from "vscode"
 import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { jwtDecode } from "jwt-decode"
-import { config } from "@/config"
+import { clineEnvConfig } from "@/config"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -70,7 +70,7 @@ export class FirebaseAuthProvider {
 			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
 			// TODO: consolidate with fetchMe() instead of making the call directly here
-			const userResponse = await axios.get(`${config.apiBaseUrl}/api/v1/users/me`, {
+			const userResponse = await axios.get(`${clineEnvConfig.apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer ${idToken}`,
 				},

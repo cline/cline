@@ -55,4 +55,4 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	},
 }
 
-export const config = configs[CURRENT_ENVIRONMENT]
+export const clineEnvConfig = configs[CURRENT_ENVIRONMENT]

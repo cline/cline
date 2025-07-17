@@ -5,9 +5,9 @@ import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
-import { config } from "@/config"
+import { clineEnvConfig } from "@/config"
 
-const DefaultClineAccountURI = `${config.appBaseUrl}/auth`
+const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
 
 type ServiceConfig = {
@@ -69,7 +69,7 @@ export class AuthService {
 		const authProvidersConfigs = [
 			{
 				name: "firebase",
-				config: config.firebase,
+				config: clineEnvConfig.firebase,
 			},
 		]
 

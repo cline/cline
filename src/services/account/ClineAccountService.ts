@@ -8,12 +8,12 @@ import type {
 	UserResponse,
 } from "@shared/ClineAccount"
 import { AuthService } from "../auth/AuthService"
-import { config } from "@/config"
+import { clineEnvConfig } from "@/config"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	private readonly _baseUrl = config.apiBaseUrl
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
