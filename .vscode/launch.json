@@ -15,6 +15,9 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+				// Cline API instance to connect to: "local", "staging", or "production"
+				// Default to "production"
+				// "CLINE_INSTANCE": "staging"
 			}
 		},
 		{
