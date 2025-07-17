@@ -62,7 +62,7 @@ export abstract class DiffViewProvider {
 			await fs.writeFile(this.absolutePath, "")
 		}
 		await this.openDiffEditor()
-		this.scrollEditorToLine(0) // will this crash for new files?
+		await this.scrollEditorToLine(0)
 		this.streamedLines = []
 	}
 
@@ -80,13 +80,27 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract openDiffEditor(): Promise<void>
 
+	/**
+	 * Scrolls the diff editor to reveal a specific line.
+	 *
+	 * This abstract method must be implemented by subclasses to handle scrolling
+	 * the diff editor view to ensure a specific line is visible. It's used during
+	 * streaming updates to keep the user's view focused on the changing content.
+	 *
+	 * @param line The 0-based line number to scroll to
+	 * @returns A promise that resolves when the scrolling operation is complete
+	 */
+	protected abstract scrollEditorToLine(line: number): Promise<void>
+
+	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
 		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
 	) {
-		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
-			throw new Error("Required values not set")
+		if (!this.relPath) {
+			throw new Error("Required value relPath not set")
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -129,30 +143,19 @@ export abstract class DiffViewProvider {
 			if (changeLocation) {
 				// We have the actual location of the change, scroll to it
 				const targetLine = changeLocation.startLine
-				this.scrollEditorToLine(targetLine)
+				await this.scrollEditorToLine(targetLine)
 			} else {
 				// Fallback to the old logic for non-replacement updates
 				if (diffLines.length <= 5) {
 					// For small changes, just jump directly to the line
-					this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine)
 				} else {
 					// For larger changes, create a quick scrolling animation
 					const startLine = this.streamedLines.length
 					const endLine = currentLine
-					const totalLines = endLine - startLine
-					const numSteps = 10 // Adjust this number to control animation speed
-					const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
-
-					// Create and await the smooth scrolling animation
-					for (let line = startLine; line <= endLine; line += stepSize) {
-						this.activeDiffEditor?.revealRange(
-							new vscode.Range(line, 0, line, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-						await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
-					}
+					await this.scrollAnimation(startLine, endLine)
 					// Ensure we end at the final line
-					this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine)
 				}
 			}
 		}
@@ -175,8 +178,8 @@ export abstract class DiffViewProvider {
 				}
 			}
 			// Clear all decorations at the end (before applying final edit)
-			this.fadedOverlayController.clear()
-			this.activeLineController.clear()
+			this.fadedOverlayController?.clear()
+			this.activeLineController?.clear()
 		}
 	}
 
@@ -351,16 +354,6 @@ export abstract class DiffViewProvider {
 			if (!tab.isDirty) {
 				await vscode.window.tabGroups.close(tab)
 			}
-		}
-	}
-
-	private scrollEditorToLine(line: number) {
-		if (this.activeDiffEditor) {
-			const scrollLine = line + 4
-			this.activeDiffEditor.revealRange(
-				new vscode.Range(scrollLine, 0, scrollLine, 0),
-				vscode.TextEditorRevealType.InCenter,
-			)
 		}
 	}
 

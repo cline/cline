@@ -97,4 +97,27 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.activeLineController?.setActiveLine(currentLine)
 		this.fadedOverlayController?.updateOverlayAfterLine(currentLine, document.lineCount)
 	}
+
+	override async scrollEditorToLine(line: number): Promise<void> {
+		console.log(`sjfsjf .scrollEditorToLine(${line}) `)
+
+		if (!this.activeDiffEditor) {
+			return
+		}
+		const scrollLine = line + 4
+		this.activeDiffEditor.revealRange(new vscode.Range(scrollLine, 0, scrollLine, 0), vscode.TextEditorRevealType.InCenter)
+	}
+
+	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
+		console.log(`sjfsjf .scrollAnimation(${startLine}, ${endLine}) `)
+		const totalLines = endLine - startLine
+		const numSteps = 10 // Adjust this number to control animation speed
+		const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+
+		// Create and await the smooth scrolling animation
+		for (let line = startLine; line <= endLine; line += stepSize) {
+			this.activeDiffEditor?.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
+			await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+		}
+	}
 }

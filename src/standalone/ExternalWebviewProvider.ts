@@ -4,11 +4,6 @@ import * as vscode from "vscode"
 import { URI } from "vscode-uri"
 import { WebviewProvider } from "@core/webview"
 
-/*
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
-https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
-*/
-
 export class ExternalWebviewProvider extends WebviewProvider {
 	// This hostname cannot be changed without updating the external webview handler.
 	private RESOURCE_HOSTNAME: string = "internal.resources"
