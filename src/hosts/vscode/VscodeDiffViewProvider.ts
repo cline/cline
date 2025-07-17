@@ -99,8 +99,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	override async scrollEditorToLine(line: number): Promise<void> {
-		console.log(`sjfsjf .scrollEditorToLine(${line}) `)
-
 		if (!this.activeDiffEditor) {
 			return
 		}
@@ -109,7 +107,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
-		console.log(`sjfsjf .scrollAnimation(${startLine}, ${endLine}) `)
 		const totalLines = endLine - startLine
 		const numSteps = 10 // Adjust this number to control animation speed
 		const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
