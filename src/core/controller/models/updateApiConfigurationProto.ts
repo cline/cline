@@ -29,7 +29,12 @@ export async function updateApiConfigurationProto(
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			controller.task.api = buildApiHandler(appApiConfiguration)
+			// Preserve the current taskId when rebuilding the API handler
+			const effectiveConfig = {
+				...appApiConfiguration,
+				taskId: controller.task.taskId,
+			}
+			controller.task.api = buildApiHandler(effectiveConfig)
 		}
 
 		// Post updated state to webview

@@ -21,7 +21,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await updateApiConfiguration(controller.context, apiConfiguration)
 
 			if (controller.task) {
-				controller.task.api = buildApiHandler(apiConfiguration)
+				// Preserve the current taskId when rebuilding the API handler
+				const effectiveConfig = {
+					...apiConfiguration,
+					taskId: controller.task.taskId,
+				}
+				controller.task.api = buildApiHandler(effectiveConfig)
 			}
 		}
 

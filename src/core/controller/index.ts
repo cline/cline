@@ -401,7 +401,12 @@ export class Controller {
 
 				if (this.task) {
 					const { apiConfiguration: updatedApiConfiguration } = await getAllExtensionState(this.context)
-					this.task.api = buildApiHandler(updatedApiConfiguration)
+					// Preserve the current taskId when rebuilding the API handler
+					const effectiveConfig = {
+						...updatedApiConfiguration,
+						taskId: this.task.taskId,
+					}
+					this.task.api = buildApiHandler(effectiveConfig)
 				}
 			}
 		}
@@ -479,7 +484,12 @@ export class Controller {
 			}
 
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig)
+				// Preserve the current taskId when rebuilding the API handler
+				const effectiveConfig = {
+					...updatedConfig,
+					taskId: this.task.taskId,
+				}
+				this.task.api = buildApiHandler(effectiveConfig)
 			}
 
 			await this.postStateToWebview()
@@ -644,9 +654,11 @@ export class Controller {
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
+			// Preserve the current taskId when rebuilding the API handler
 			this.task.api = buildApiHandler({
 				apiProvider: openrouter,
 				openRouterApiKey: apiKey,
+				taskId: this.task.taskId,
 			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
