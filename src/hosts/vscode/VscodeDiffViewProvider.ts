@@ -121,10 +121,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		}
 	}
 
-	/**
-	 * Removes content from the specified line to the end of the document.
-	 * Called after the last update is recieved.
-	 */
 	override async truncateDocument(lineNumber: number): Promise<void> {
 		if (!this.activeDiffEditor) {
 			return
