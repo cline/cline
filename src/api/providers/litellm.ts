@@ -38,7 +38,7 @@ export class LiteLlmHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private modelInfoCache: LiteLlmModelInfoResponse | undefined
 	private modelInfoCacheTimestamp: number = 0
-	private readonly MODEL_INFO_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+	private readonly modelInfoCacheTTL = 5 * 60 * 1000 // 5 minutes
 
 	constructor(options: LiteLlmHandlerOptions) {
 		this.options = options
@@ -64,7 +64,7 @@ export class LiteLlmHandler implements ApiHandler {
 	private async fetchModelInfo(): Promise<LiteLlmModelInfoResponse | undefined> {
 		// Check if cache is still valid
 		const now = Date.now()
-		if (this.modelInfoCache && now - this.modelInfoCacheTimestamp < this.MODEL_INFO_CACHE_TTL) {
+		if (this.modelInfoCache && now - this.modelInfoCacheTimestamp < this.modelInfoCacheTTL) {
 			return this.modelInfoCache
 		}
 
