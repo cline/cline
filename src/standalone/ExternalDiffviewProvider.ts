@@ -27,11 +27,22 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
+	protected override async truncateDocument(lineNumber: number): Promise<void> {
+		console.log(`Called ExternalDiffViewProvider.truncateDocument(${lineNumber}) stub`)
+	}
+
 	protected override async scrollEditorToLine(line: number): Promise<void> {
 		console.log(`Called ExternalDiffViewProvider.scrollEditorToLine(${line}) stub`)
 	}
 
 	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
 		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
+	}
+	protected override async closeDiffView(): Promise<void> {
+		console.log(`Called ExternalDiffViewProvider.closeDiffView() stub`)
+	}
+
+	protected override async resetDiffView(): Promise<void> {
+		this.activeDiffEditorId = undefined
 	}
 }
