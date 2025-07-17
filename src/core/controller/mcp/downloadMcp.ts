@@ -32,7 +32,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 
 		// Fetch server details from marketplace
 		const response = await axios.post<McpDownloadResponse>(
-			`${clineEnvConfig.mcpBaseUrl}/v1/mcp/download`,
+			`${clineEnvConfig.mcpBaseUrl}/download`,
 			{ mcpId },
 			{
 				headers: { "Content-Type": "application/json" },
