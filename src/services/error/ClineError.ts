@@ -9,10 +9,32 @@ export enum ClineErrorType {
 }
 
 interface ErrorDetails {
+	/**
+	 * The HTTP status code of the error, if applicable.
+	 */
 	status?: number
+	/**
+	 * The request ID associated with the error, if available.
+	 * This can be useful for debugging and support.
+	 */
 	request_id?: string
+	/**
+	 * Specific error code provided by the API or service.
+	 */
 	code?: string
+	/**
+	 * The model ID associated with the error, if applicable.
+	 * This is useful for identifying which model the error relates to.
+	 */
 	modelId?: string
+	/**
+	 * The provider ID associated with the error, if applicable.
+	 * This is useful for identifying which provider the error relates to.
+	 */
+	providerId?: string
+	/**
+	 * The error message associated with the error, if applicable.
+	 */
 	message?: string
 	// Additional details that might be present in the error
 	// This can include things like current balance, error messages, etc.
@@ -46,6 +68,7 @@ export class ClineError extends Error {
 			request_id: error.request_id || error.response?.request_id,
 			code: error.code,
 			modelId,
+			providerId,
 			details: error.details || error.error, // Additional details provided by the server
 			...error,
 			stack: undefined, // Avoid serializing stack trace to keep the error object clean
@@ -62,6 +85,8 @@ export class ClineError extends Error {
 			status: this._error.status,
 			request_id: this._error.request_id,
 			code: this._error.code,
+			modelId: this.modelId,
+			providerId: this.providerId,
 			details: this._error.details,
 		})
 	}
@@ -76,6 +101,10 @@ export class ClineError extends Error {
 		return ClineError.transform(errorStr, modelId)
 	}
 
+	/**
+	 * Transforms any object into a ClineError instance.
+	 * Always returns a ClineError, even if the input is not a valid error object.
+	 */
 	static transform(error: any, modelId?: string, providerId?: string): ClineError {
 		try {
 			return new ClineError(JSON.parse(error), modelId, providerId)
@@ -88,6 +117,10 @@ export class ClineError extends Error {
 		return ClineError.getErrorType(this) === type
 	}
 
+	/**
+	 * Is known error type based on the error code, status, and details.
+	 * This is useful for determining how to handle the error in the UI or logic.
+	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
 

@@ -1567,6 +1567,12 @@ export class Task {
 		}
 	}
 
+	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
+		const modelId = this.api.getModel()?.id
+		const providerId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		return { modelId, providerId }
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1657,15 +1663,15 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
-			const isCline = this.api instanceof ClineHandler
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
 			const isAnthropic = this.api instanceof AnthropicHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
-
-			const clineError = ErrorService.toClineError(error, isCline ? "cline" : modelInfo.id)
+			const { modelId, providerId } = await this.getCurrentProviderInfo()
+			const clineError = ErrorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
+			// TODO: Move into ErrorService
 			telemetryService.captureProviderApiError({
 				taskId: this.taskId,
 				model: modelInfo.id,
@@ -1886,10 +1892,10 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
-		if (currentProviderId && this.api.getModel().id) {
+		const { modelId, providerId } = await this.getCurrentProviderInfo()
+		if (providerId && modelId) {
 			try {
-				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.chatSettings.mode)
 			} catch {}
 		}
 
@@ -2067,7 +2073,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2132,19 +2138,13 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					currentProviderId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, providerId, this.api.getModel().id, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2312,19 +2312,13 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					currentProviderId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
