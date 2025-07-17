@@ -87,6 +87,16 @@ export class Controller {
 		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
 	}
 
+	rebuildApiHandler(newConfig: ApiConfiguration) {
+		if (this.task) {
+			const effectiveConfig = {
+				...newConfig,
+				taskId: this.task.taskId,
+			}
+			this.task.api = buildApiHandler(effectiveConfig)
+		}
+	}
+
 	/*
 	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
 	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
@@ -401,12 +411,7 @@ export class Controller {
 
 				if (this.task) {
 					const { apiConfiguration: updatedApiConfiguration } = await getAllExtensionState(this.context)
-					// Preserve the current taskId when rebuilding the API handler
-					const effectiveConfig = {
-						...updatedApiConfiguration,
-						taskId: this.task.taskId,
-					}
-					this.task.api = buildApiHandler(effectiveConfig)
+					this.rebuildApiHandler(updatedApiConfiguration)
 				}
 			}
 		}
@@ -484,12 +489,7 @@ export class Controller {
 			}
 
 			if (this.task) {
-				// Preserve the current taskId when rebuilding the API handler
-				const effectiveConfig = {
-					...updatedConfig,
-					taskId: this.task.taskId,
-				}
-				this.task.api = buildApiHandler(effectiveConfig)
+				this.rebuildApiHandler(updatedConfig)
 			}
 
 			await this.postStateToWebview()
@@ -655,10 +655,9 @@ export class Controller {
 		await this.postStateToWebview()
 		if (this.task) {
 			// Preserve the current taskId when rebuilding the API handler
-			this.task.api = buildApiHandler({
-				apiProvider: openrouter,
+			this.rebuildApiHandler({
+				apiProvider: "openrouter",
 				openRouterApiKey: apiKey,
-				taskId: this.task.taskId,
 			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome

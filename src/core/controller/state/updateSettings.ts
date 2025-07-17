@@ -2,7 +2,6 @@ import { Controller } from ".."
 import { Empty } from "../../../shared/proto/common"
 import { UpdateSettingsRequest } from "../../../shared/proto/state"
 import { updateApiConfiguration } from "../../storage/state"
-import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
@@ -21,12 +20,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await updateApiConfiguration(controller.context, apiConfiguration)
 
 			if (controller.task) {
-				// Preserve the current taskId when rebuilding the API handler
-				const effectiveConfig = {
-					...apiConfiguration,
-					taskId: controller.task.taskId,
-				}
-				controller.task.api = buildApiHandler(effectiveConfig)
+				controller.rebuildApiHandler(apiConfiguration)
 			}
 		}
 
