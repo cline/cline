@@ -27,8 +27,6 @@ export abstract class DiffViewProvider {
 	private newContent?: string
 
 	protected activeDiffEditor?: vscode.TextEditor
-	protected fadedOverlayController?: DecorationController
-	protected activeLineController?: DecorationController
 	protected preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	constructor() {}
@@ -109,6 +107,11 @@ export abstract class DiffViewProvider {
 	 * Called after the final update is received.
 	 */
 	protected abstract truncateDocument(lineNumber: number): Promise<void>
+
+	/**
+	 * Closes the diff editor tab or window.
+	 */
+	protected abstract closeDiffView(): Promise<void>
 
 	/**
 	 * Cleans up the diff view resources and resets internal state.
@@ -251,7 +254,7 @@ export abstract class DiffViewProvider {
 				}),
 			}),
 		)
-		await this.closeAllDiffViews()
+		await this.closeDiffView()
 
 		/*
 		Getting diagnostics before and after the file edit is a better approach than
@@ -322,7 +325,7 @@ export abstract class DiffViewProvider {
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
-			await this.closeAllDiffViews()
+			await this.closeDiffView()
 			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
@@ -353,23 +356,11 @@ export abstract class DiffViewProvider {
 					}),
 				)
 			}
-			await this.closeAllDiffViews()
+			await this.closeDiffView()
 		}
 
 		// edit is done
 		await this.reset()
-	}
-
-	private async closeAllDiffViews() {
-		const tabs = vscode.window.tabGroups.all
-			.flatMap((tg) => tg.tabs)
-			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
-		for (const tab of tabs) {
-			// trying to close dirty views results in save popup
-			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
-			}
-		}
 	}
 
 	scrollToFirstDiff() {
