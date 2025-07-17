@@ -1,7 +1,8 @@
 import { ApiConfiguration, openRouterDefaultModelId, ModelInfo } from "@shared/api"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
-export function validateApiConfiguration(currentMode: "plan" | "act", apiConfiguration?: ApiConfiguration): string | undefined {
+export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		const {
 			apiProvider,
@@ -150,7 +151,7 @@ export function validateApiConfiguration(currentMode: "plan" | "act", apiConfigu
 }
 
 export function validateModelId(
-	currentMode: "plan" | "act",
+	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {

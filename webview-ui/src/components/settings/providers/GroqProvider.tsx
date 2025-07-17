@@ -1,3 +1,4 @@
+import { Mode } from "@shared/ChatSettings"
 import { ApiKeyField } from "../common/ApiKeyField"
 import GroqModelPicker from "../GroqModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -9,7 +10,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface GroqProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

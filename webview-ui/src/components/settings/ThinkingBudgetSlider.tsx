@@ -5,6 +5,7 @@ import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "./utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -84,7 +85,7 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 
 interface ThinkingBudgetSliderProps {
 	maxBudget?: number
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderProps) => {

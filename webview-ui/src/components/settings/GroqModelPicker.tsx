@@ -13,10 +13,11 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "./utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 export interface GroqModelPickerProps {
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode }) => {

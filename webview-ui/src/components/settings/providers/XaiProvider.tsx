@@ -8,6 +8,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/provi
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the XaiProvider component
@@ -15,7 +16,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface XaiProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {

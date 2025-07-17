@@ -8,6 +8,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the LiteLlmProvider component
@@ -15,7 +16,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface LiteLlmProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

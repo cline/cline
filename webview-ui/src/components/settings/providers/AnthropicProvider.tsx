@@ -7,6 +7,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/provi
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -21,7 +22,7 @@ export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 interface AnthropicProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

@@ -8,6 +8,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the LMStudioProvider component
@@ -15,7 +16,7 @@ import { getModeSpecificFields } from "../utils/providerUtils"
 interface LMStudioProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

@@ -29,6 +29,7 @@ import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
+import { Mode } from "../shared/ChatSettings"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -43,7 +44,7 @@ export interface SingleCompletionHandler {
 function createHandlerForProvider(
 	apiProvider: string | undefined,
 	options: Omit<ApiConfiguration, "apiProvider">,
-	mode: "plan" | "act",
+	mode: Mode,
 ): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
@@ -273,7 +274,7 @@ function createHandlerForProvider(
 	}
 }
 
-export function buildApiHandler(configuration: ApiConfiguration, mode: "plan" | "act"): ApiHandler {
+export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider

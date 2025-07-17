@@ -8,6 +8,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 // Z-index constants for proper dropdown layering
 const DROPDOWN_Z_INDEX = 1000
@@ -15,7 +16,7 @@ const DROPDOWN_Z_INDEX = 1000
 interface BedrockProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {

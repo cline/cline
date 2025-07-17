@@ -8,9 +8,10 @@ import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 interface VSCodeLmProviderProps {
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {

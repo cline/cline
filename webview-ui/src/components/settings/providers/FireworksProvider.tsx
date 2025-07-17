@@ -4,6 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { ApiConfiguration } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the FireworksProvider component
@@ -11,7 +12,7 @@ import { ApiConfiguration } from "@shared/api"
 interface FireworksProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

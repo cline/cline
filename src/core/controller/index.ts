@@ -10,7 +10,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, Mode, StoredChatSettings } from "@shared/ChatSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -83,8 +83,8 @@ export class Controller {
 		})
 	}
 
-	async getCurrentMode(): Promise<"plan" | "act"> {
-		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
+	async getCurrentMode(): Promise<Mode> {
+		return ((await getGlobalState(this.context, "mode")) as Mode | undefined) || "act"
 	}
 
 	/*

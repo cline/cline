@@ -7,6 +7,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useState } from "react"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the MoonshotProvider component
@@ -14,7 +15,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 interface MoonshotProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

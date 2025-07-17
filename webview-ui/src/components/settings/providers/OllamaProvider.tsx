@@ -9,6 +9,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the OllamaProvider component
@@ -16,7 +17,7 @@ import { getModeSpecificFields } from "../utils/providerUtils"
 interface OllamaProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

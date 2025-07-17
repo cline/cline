@@ -8,6 +8,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 const SUPPORTED_THINKING_MODELS = [
 	"qwen3-235b-a22b",
@@ -28,7 +29,7 @@ const SUPPORTED_THINKING_MODELS = [
 interface QwenProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

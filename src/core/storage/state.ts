@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DEFAULT_CHAT_SETTINGS, Mode } from "@shared/ChatSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
@@ -323,7 +323,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
-		getGlobalState(context, "mode") as Promise<"plan" | "act" | undefined>,
+		getGlobalState(context, "mode") as Promise<Mode | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,

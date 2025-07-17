@@ -14,10 +14,11 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, currentMode }) => {

@@ -8,6 +8,7 @@ import { UpdateSettingsRequest } from "@shared/proto/state"
 import { useState } from "react"
 import { syncModeConfigurations } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 interface ApiConfigurationSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
@@ -15,7 +16,7 @@ interface ApiConfigurationSectionProps {
 
 const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectionProps) => {
 	const { planActSeparateModelsSetting, chatSettings, apiConfiguration } = useExtensionState()
-	const [currentTab, setCurrentTab] = useState<"plan" | "act">(chatSettings.mode)
+	const [currentTab, setCurrentTab] = useState<Mode>(chatSettings.mode)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	return (
 		<div>

@@ -47,6 +47,7 @@ import {
 	groqModels,
 	groqDefaultModelId,
 } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Interface for normalized API configuration
@@ -62,7 +63,7 @@ export interface NormalizedApiConfig {
  */
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
-	currentMode: "plan" | "act",
+	currentMode: Mode,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -244,7 +245,7 @@ export function normalizeApiConfiguration(
  * @param mode The current mode ("plan" or "act")
  * @returns Object containing mode-specific field values for clean destructuring
  */
-export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undefined, mode: "plan" | "act") {
+export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undefined, mode: Mode) {
 	if (!apiConfiguration) {
 		return {
 			// Core fields
@@ -331,7 +332,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
  */
 export async function syncModeConfigurations(
 	apiConfiguration: ApiConfiguration | undefined,
-	sourceMode: "plan" | "act",
+	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
 	if (!apiConfiguration) return

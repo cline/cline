@@ -10,6 +10,7 @@ import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenR
 import { formatPrice } from "../utils/pricingUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Component to display OpenRouter balance information
@@ -53,7 +54,7 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { useCallback } from "react"
@@ -58,7 +59,7 @@ export const useApiConfigurationHandlers = () => {
 	const handleModeFieldChange = async <PlanK extends keyof ApiConfiguration, ActK extends keyof ApiConfiguration>(
 		fieldPair: { plan: PlanK; act: ActK },
 		value: ApiConfiguration[PlanK] & ApiConfiguration[ActK], // Intersection ensures value is compatible with both field types
-		currentMode: "plan" | "act",
+		currentMode: Mode,
 	) => {
 		if (planActSeparateModelsSetting) {
 			const targetField = fieldPair[currentMode]
@@ -84,7 +85,7 @@ export const useApiConfigurationHandlers = () => {
 	const handleModeFieldsChange = async <T extends Record<string, any>>(
 		fieldPairs: { [K in keyof T]: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration } },
 		values: T,
-		currentMode: "plan" | "act",
+		currentMode: Mode,
 	) => {
 		if (planActSeparateModelsSetting) {
 			// Update only the current mode's fields

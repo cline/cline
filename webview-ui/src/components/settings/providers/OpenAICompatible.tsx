@@ -11,6 +11,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -18,7 +19,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface OpenAICompatibleProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	currentMode: "plan" | "act"
+	currentMode: Mode
 }
 
 /**
