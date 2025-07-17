@@ -59,12 +59,10 @@ export function extractCommitMessage(aiResponse: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message: "Commit message copied to clipboard",
-		}),
-	)
+	await getHostBridgeProvider().windowClient.showMessage({
+		type: ShowMessageType.INFORMATION,
+		message: "Commit message copied to clipboard",
+	})
 }
 
 /**
@@ -77,17 +75,15 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 	const editAction = "Edit Message"
 
 	const selectedAction = (
-		await getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.INFORMATION,
-				message: "Commit message generated",
-				options: {
-					modal: false,
-					detail: message,
-					items: [copyAction, applyAction, editAction],
-				},
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "Commit message generated",
+			options: {
+				modal: false,
+				detail: message,
+				items: [copyAction, applyAction, editAction],
+			},
+		})
 	)?.selectedOption
 
 	// Handle user dismissing the dialog (selectedAction is undefined)
@@ -120,28 +116,22 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Commit message applied to Git input",
-				}),
-			)
+			await getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Commit message applied to Git input",
+			})
 		} else {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: "No Git repositories found",
-				}),
-			)
+			await getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "No Git repositories found",
+			})
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: "Git extension not found",
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "Git extension not found",
+		})
 		await copyCommitMessageToClipboard(message)
 	}
 }
@@ -161,10 +151,8 @@ async function editCommitMessage(message: string): Promise<void> {
 			path: document.uri.fsPath,
 		}),
 	)
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message: "Edit the commit message and copy when ready",
-		}),
-	)
+	await getHostBridgeProvider().windowClient.showMessage({
+		type: ShowMessageType.INFORMATION,
+		message: "Edit the commit message and copy when ready",
+	})
 }

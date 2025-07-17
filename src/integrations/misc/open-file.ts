@@ -9,12 +9,10 @@ import { writeFile } from "@utils/fs"
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: "Invalid data URI format",
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "Invalid data URI format",
+		})
 		return
 	}
 	const [, format, base64Data] = matches
@@ -24,12 +22,10 @@ export async function openImage(dataUri: string) {
 		await writeFile(tempFilePath, new Uint8Array(imageBuffer))
 		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: `Error opening image: ${error}`,
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Error opening image: ${error}`,
+		})
 	}
 }
 
@@ -59,7 +55,7 @@ export async function openFile(absolutePath: string) {
 			options: { preview: false },
 		})
 	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage({
+		await getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Could not open file!`,
 		})
