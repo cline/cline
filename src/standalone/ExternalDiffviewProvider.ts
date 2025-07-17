@@ -27,6 +27,10 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
+	protected override async truncateDocument(lineNumber: number): Promise<void> {
+		console.log(`Called ExternalDiffViewProvider.truncateDocument(${lineNumber}) stub`)
+	}
+
 	protected override async scrollEditorToLine(line: number): Promise<void> {
 		console.log(`Called ExternalDiffViewProvider.scrollEditorToLine(${line}) stub`)
 	}
