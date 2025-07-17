@@ -92,6 +92,18 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract scrollEditorToLine(line: number): Promise<void>
 
+	/**
+	 * Creates a smooth scrolling animation between two lines in the diff editor.
+	 *
+	 * This abstract method must be implemented by subclasses to provide a visual
+	 * animation effect when scrolling through large changes. It's typically used
+	 * when updates contain many lines, to help the user visually track the flow
+	 * of significant changes in the document.
+	 *
+	 * @param startLine The 0-based line number to begin the animation from
+	 * @param endLine The 0-based line number to animate to
+	 * @returns A promise that resolves when the animation is complete
+	 */
 	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
 
 	async update(
