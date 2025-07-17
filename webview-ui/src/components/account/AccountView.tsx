@@ -15,9 +15,10 @@ import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
-import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
 import { clineEnvConfig } from "@/config"
+import debounce from "debounce"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -125,95 +126,63 @@ export const ClineAccountView = () => {
 	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
-	const intervalRef = useRef<NodeJS.Timeout | null>(null)
+	const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now())
 
 	const dashboardAddCreditsURL = activeOrganization
 		? `${clineEnvConfig.appBaseUrl}/dashboard/organization?tab=credits&redirect=true`
 		: `${clineEnvConfig.appBaseUrl}/dashboard/account?tab=credits&redirect=true`
 
-	async function getUserCredits() {
-		setIsLoading(true)
+	const getUserOrganizations = useCallback(async () => {
 		try {
+			if (!clineUser?.uid) {
+				setBalance(null)
+				setUserOrganizations([])
+				setActiveOrganization(null)
+				return
+			}
+			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
+			if (response.organizations && userOrganizations !== response.organizations) {
+				setUserOrganizations(response.organizations)
+				setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
+			}
+		} catch (error) {
+			console.error("Failed to fetch user organizations:", error)
+		}
+	}, [])
+
+	const getUserCredits = useCallback(async () => {
+		try {
+			if (activeOrganization?.organizationId) {
+				const response = await AccountServiceClient.getOrganizationCredits(
+					GetOrganizationCreditsRequest.fromPartial({
+						organizationId: activeOrganization.organizationId,
+					}),
+				)
+				const updatedBalance = response.balance?.currentBalance
+				if (updatedBalance !== balance) {
+					setBalance(updatedBalance)
+				}
+				// Map organization usage transactions to the expected format
+				setUsageData(response.usageTransactions)
+				// Organizations don't have payment transactions, so clear them
+				setPaymentsData([])
+				return
+			}
+
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
 			setBalance(response.balance?.currentBalance ?? null)
 			setUsageData(response.usageTransactions)
 			setPaymentsData(response.paymentTransactions)
-		} catch (error) {
-			console.error("Failed to fetch user credits data:", error)
-			setBalance(null)
-			setUsageData([])
-			setPaymentsData([])
 		} finally {
+			setLastFetchTime(Date.now())
 			setIsLoading(false)
 		}
-	}
+	}, [activeOrganization?.organizationId || clineUser?.uid])
 
-	async function getUserOrganizations() {
-		setIsLoading(true)
-		try {
-			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
-			setUserOrganizations(response.organizations || [])
-			setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
-		} catch (error) {
-			console.error("Failed to fetch user organizations:", error)
-			setUserOrganizations([])
-			setActiveOrganization(null)
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	// Fetch all account data when component mounts using gRPC
-	useEffect(() => {
-		if (!user) return
-
-		const fetchUserData = async () => {
-			try {
-				Promise.all([getUserCredits(), getUserOrganizations()])
-			} catch (error) {
-				console.error("Failed to fetch user data:", error)
-				setBalance(null)
-				setUsageData([])
-				setPaymentsData([])
-			} finally {
-				setIsLoading(false)
-			}
-		}
-
-		fetchUserData()
-	}, [user])
-
-	// Periodic refresh while component is mounted
-	useEffect(() => {
-		if (!user) return
-
-		intervalRef.current = setInterval(() => {
-			getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
-		}, 10_000)
-
-		return () => {
-			if (intervalRef.current) clearInterval(intervalRef.current)
-		}
-	}, [user])
-
-	const handleManualRefresh = async () => {
-		await getUserCredits()
-
-		if (intervalRef.current) {
-			clearInterval(intervalRef.current)
-			intervalRef.current = setInterval(() => {
-				getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
-			}, 10_000)
-		}
-	}
-
-	const handleLogin = () => {
-		handleSignIn()
-	}
-
-	const handleLogout = () => {
-		handleSignOut()
-	}
+	const handleManualRefresh = useCallback(
+		debounce(() => getUserCredits(), 500, { immediate: true }),
+		[getUserCredits],
+	)
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
@@ -237,6 +206,28 @@ export const ClineAccountView = () => {
 		},
 		[activeOrganization],
 	)
+
+	// Handle organization changes and initial load
+	useEffect(() => {
+		getUserOrganizations().then(() => getUserCredits())
+	}, [activeOrganization?.organizationId, clineUser?.uid, getUserOrganizations, getUserCredits])
+
+	// Periodic refresh
+	useEffect(() => {
+		const refreshData = async () => {
+			try {
+				if (clineUser?.uid) {
+					await getUserOrganizations()
+					await getUserCredits()
+				}
+			} catch (error) {
+				console.error("Error during periodic refresh:", error)
+			}
+		}
+
+		const intervalId = setInterval(refreshData, 30000)
+		return () => clearInterval(intervalId)
+	}, [clineUser?.uid, getUserOrganizations, getUserCredits])
 
 	return (
 		<div className="h-full flex flex-col">
@@ -298,19 +289,22 @@ export const ClineAccountView = () => {
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
-						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-full min-[225px]:w-1/2">
+						<VSCodeButton appearance="secondary" onClick={() => handleSignOut()} className="w-full min-[225px]:w-1/2">
 							Log out
 						</VSCodeButton>
 					</div>
 
 					<VSCodeDivider className="w-full my-6" />
 
-					<div className="w-full flex flex-col items-center">
+					<div
+						className="w-full flex flex-col items-center"
+						title={`Last updated: ${new Date(lastFetchTime).toLocaleTimeString()}`}>
 						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3 font-azeret-mono font-light">
 							CURRENT BALANCE
 						</div>
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
+							{isLoading && <div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>}
 							{isLoading ? (
 								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
 							) : (
@@ -356,7 +350,7 @@ export const ClineAccountView = () => {
 						and more upcoming features.
 					</p>
 
-					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
+					<VSCodeButton onClick={() => handleSignIn()} className="w-full mb-4">
 						Sign up with Cline
 					</VSCodeButton>
 
