@@ -5,7 +5,7 @@ import {
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 	DiffServiceClientImpl,
-} from "@generated/standalone/host-bridge-clients"
+} from "@generated/hosts/standalone/host-bridge-clients"
 import {
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
@@ -14,6 +14,7 @@ import {
 	DiffServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+import { HOSTBRIDGE_PORT } from "./cline-core"
 
 /**
  * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
@@ -28,7 +29,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	diffClient: DiffServiceClientInterface
 
 	constructor() {
-		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
+		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
 		this.channel = createChannel(address)
 
 		this.watchServiceClient = new WatchServiceClientImpl(this.channel)

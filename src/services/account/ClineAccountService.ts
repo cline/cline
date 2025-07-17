@@ -8,14 +8,12 @@ import type {
 	UserResponse,
 } from "@shared/ClineAccount"
 import { AuthService } from "../auth/AuthService"
+import { clineEnvConfig } from "@/config"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()

@@ -148,9 +148,9 @@ export class McpHub {
 			}),
 			{
 				onResponse: async (response) => {
-					console.log(
-						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
-					)
+					// console.log(
+					// 	`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
+					// )
 
 					// Only process the file if it was changed (not created or deleted)
 					if (response.type === FileChangeEvent_ChangeType.CHANGED) {
@@ -174,7 +174,7 @@ export class McpHub {
 					console.error("Error watching MCP settings file:", error)
 				},
 				onComplete: () => {
-					console.log("[DEBUG] MCP settings file watch completed")
+					//console.log("[DEBUG] MCP settings file watch completed")
 				},
 			},
 		)

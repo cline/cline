@@ -5,6 +5,9 @@ import { DecorationController } from "@integrations/editor/DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
+	private fadedOverlayController?: DecorationController
+	private activeLineController?: DecorationController
+
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
@@ -83,11 +86,15 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		currentLine: number,
 	): Promise<void> {
-		const document = this.activeDiffEditor?.document
-		if (!document) {
+		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
+		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		const beginningOfDocument = new vscode.Position(0, 0)
+		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
+		// Replace the text in the diff editor document.
+		const document = this.activeDiffEditor?.document
 		const edit = new vscode.WorkspaceEdit()
 		const range = new vscode.Range(rangeToReplace.startLine, 0, rangeToReplace.endLine, 0)
 		edit.replace(document.uri, range, content)
@@ -96,5 +103,63 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		// Update decorations for the entire changed section
 		this.activeLineController?.setActiveLine(currentLine)
 		this.fadedOverlayController?.updateOverlayAfterLine(currentLine, document.lineCount)
+	}
+
+	override async scrollEditorToLine(line: number): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		const scrollLine = line + 4
+		this.activeDiffEditor.revealRange(new vscode.Range(scrollLine, 0, scrollLine, 0), vscode.TextEditorRevealType.InCenter)
+	}
+
+	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		const totalLines = endLine - startLine
+		const numSteps = 10 // Adjust this number to control animation speed
+		const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+
+		// Create and await the smooth scrolling animation
+		for (let line = startLine; line <= endLine; line += stepSize) {
+			this.activeDiffEditor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
+			await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+		}
+	}
+
+	override async truncateDocument(lineNumber: number): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		const document = this.activeDiffEditor.document
+		if (lineNumber < document.lineCount) {
+			const edit = new vscode.WorkspaceEdit()
+			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
+			await vscode.workspace.applyEdit(edit)
+		}
+		// Clear all decorations at the end (before applying final edit)
+		this.fadedOverlayController?.clear()
+		this.activeLineController?.clear()
+	}
+
+	protected async closeDiffView(): Promise<void> {
+		// Close all the cline diff views.
+		const tabs = vscode.window.tabGroups.all
+			.flatMap((tg) => tg.tabs)
+			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
+		for (const tab of tabs) {
+			// trying to close dirty views results in save popup
+			if (!tab.isDirty) {
+				await vscode.window.tabGroups.close(tab)
+			}
+		}
+	}
+
+	protected override async resetDiffView(): Promise<void> {
+		this.activeDiffEditor = undefined
+		this.fadedOverlayController = undefined
+		this.activeLineController = undefined
+		this.preDiagnostics = []
 	}
 }
