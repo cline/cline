@@ -12,6 +12,7 @@ import OpenAI from "openai"
 import { version as extensionVersion } from "../../../package.json"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -28,10 +29,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
 	private counter = 0
 
