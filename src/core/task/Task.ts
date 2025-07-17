@@ -23,6 +23,7 @@ import {
 	TelemetryEventName,
 	TodoItem,
 	getApiProtocol,
+	getModelId,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
@@ -1211,8 +1212,9 @@ export class Task extends EventEmitter<ClineEvents> {
 		// take a few seconds. For the best UX we show a placeholder api_req_started
 		// message with a loading spinner as this happens.
 
-		// Determine API protocol based on provider
-		const apiProtocol = getApiProtocol(this.apiConfiguration.apiProvider)
+		// Determine API protocol based on provider and model
+		const modelId = getModelId(this.apiConfiguration)
+		const apiProtocol = getApiProtocol(this.apiConfiguration.apiProvider, modelId)
 
 		await this.say(
 			"api_req_started",
