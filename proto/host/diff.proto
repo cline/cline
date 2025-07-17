@@ -13,7 +13,7 @@ service DiffService {
   // Replace a text selection in the diff.option
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
   
-  rpc truncateDocument(TruncateDocumenttRequest) returns (TruncateDocumentResponse);
+  rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
 }
 
 message OpenDiffRequest {
@@ -39,7 +39,7 @@ message ReplaceTextRequest {
 
 message ReplaceTextResponse {}
 
-message TruncateDocumenttRequest {
+message TruncateDocumentRequest {
   optional cline.Metadata metadata = 1;
   optional string diff_id = 2;
   optional int32 end_line = 5;
