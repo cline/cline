@@ -47,6 +47,10 @@ export class ClineError extends Error {
 	readonly title = "ClineError"
 	readonly _error: ErrorDetails
 
+	// Error details per providers:
+	// Cline: error?.error
+	// Ollama: error?.cause
+	// tbc
 	constructor(
 		raw: any,
 		public readonly modelId?: string,
@@ -54,7 +58,7 @@ export class ClineError extends Error {
 	) {
 		const error = serializeError(raw)
 
-		const message = error.message || String(error)
+		const message = error.message || String(error) || error?.cause?.means
 		super(message)
 
 		// Extract status from multiple possible locations
@@ -63,10 +67,10 @@ export class ClineError extends Error {
 		// Construct the error details object to includes relevant information
 		// And ensure it has a consistent structure
 		this._error = {
-			message: raw.message,
+			message: raw.message || message,
 			status,
 			request_id: error.request_id || error.response?.request_id,
-			code: error.code,
+			code: error.code || error?.cause?.code,
 			modelId,
 			providerId,
 			details: error.details || error.error, // Additional details provided by the server

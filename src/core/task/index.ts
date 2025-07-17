@@ -84,6 +84,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { createDiffViewProvider } from "@/hosts/host-providers"
 import { ErrorService } from "@/services/error/ErrorService"
+import { ClineErrorType } from "@/services/error/ClineError"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -1757,6 +1758,11 @@ export class Task {
 					throw new Error("API request failed")
 				}
 
+				// Do not retry automatically again if currently unauthenticated
+				if (clineError.isErrorType(ClineErrorType.Auth)) {
+					return
+				}
+
 				await this.say("api_req_retried")
 			}
 			// delegate generator output from the recursive call
@@ -2279,7 +2285,7 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				throw ErrorService.toClineError("Cline instance aborted", this.api.getModel().id)
+				throw new Error("Cline instance aborted")
 			}
 
 			this.taskState.didCompleteReadingStream = true
@@ -2364,6 +2370,8 @@ export class Task {
 						},
 					],
 				})
+				// Returns early to avoid retry since no assistant message was received
+				return true
 			}
 
 			return didEndLoop // will always be false for now

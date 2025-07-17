@@ -80,7 +80,7 @@ export const ErrorBlockTitle = ({
 		if (apiReqCancelReason === "user_cancelled") {
 			details.title = "API Request Cancelled"
 			details.classNames.push("text-[var(--vscode-foreground)]")
-		} else if (apiReqCancelReason) {
+		} else if (apiReqCancelReason != null) {
 			details.title = "API Streaming Failed"
 			details.classNames.push("text-[var(--vscode-errorForeground)]")
 		} else if (cost != null) {
