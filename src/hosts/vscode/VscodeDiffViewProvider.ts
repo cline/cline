@@ -86,11 +86,15 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		currentLine: number,
 	): Promise<void> {
-		const document = this.activeDiffEditor?.document
-		if (!document) {
+		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
+		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		const beginningOfDocument = new vscode.Position(0, 0)
+		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
+		// Replace the text in the diff editor document.
+		const document = this.activeDiffEditor?.document
 		const edit = new vscode.WorkspaceEdit()
 		const range = new vscode.Range(rangeToReplace.startLine, 0, rangeToReplace.endLine, 0)
 		edit.replace(document.uri, range, content)
@@ -110,13 +114,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
 		const totalLines = endLine - startLine
 		const numSteps = 10 // Adjust this number to control animation speed
 		const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
 
 		// Create and await the smooth scrolling animation
 		for (let line = startLine; line <= endLine; line += stepSize) {
-			this.activeDiffEditor?.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
+			this.activeDiffEditor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
 			await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
 		}
 	}
