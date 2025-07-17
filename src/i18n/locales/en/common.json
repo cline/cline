@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Are you sure you want to reset all state and secret storage in the extension? This cannot be undone.",
 		"delete_config_profile": "Are you sure you want to delete this configuration profile?",
-		"delete_custom_mode_with_rules": "Are you sure you want to delete this {scope} mode?\n\nThis will also delete the associated rules folder at:\n{rulesFolderPath}",
-		"delete_message": "What would you like to delete?",
-		"edit_warning": "Editing this message will delete all subsequent messages in the conversation. Do you want to proceed?",
-		"delete_just_this_message": "Just this message",
-		"delete_this_and_subsequent": "This and all subsequent messages",
-		"proceed": "Proceed"
+		"delete_custom_mode_with_rules": "Are you sure you want to delete this {scope} mode?\n\nThis will also delete the associated rules folder at:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Invalid data URI format",

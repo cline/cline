@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "Bild-Daten-URI in die Zwischenablage kopiert"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Nachricht löschen",
+		"deleteWarning": "Das Löschen dieser Nachricht wird alle nachfolgenden Nachrichten in der Unterhaltung löschen. Möchtest du fortfahren?",
+		"editMessage": "Nachricht bearbeiten",
+		"editWarning": "Das Bearbeiten dieser Nachricht wird alle nachfolgenden Nachrichten in der Unterhaltung löschen. Möchtest du fortfahren?",
+		"proceed": "Fortfahren"
 	}
 }

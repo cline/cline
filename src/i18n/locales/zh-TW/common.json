@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "您確定要重設擴充套件中的所有狀態和金鑰儲存嗎？此操作無法復原。",
 		"delete_config_profile": "您確定要刪除此設定檔案嗎？",
-		"delete_custom_mode_with_rules": "您確定要刪除此 {scope} 模式嗎？\n\n這也將刪除位於以下位置的關聯規則資料夾：\n{rulesFolderPath}",
-		"delete_message": "您想刪除哪些內容？",
-		"edit_warning": "編輯此訊息將刪除對話中的所有後續訊息。您要繼續嗎？",
-		"delete_just_this_message": "僅這則訊息",
-		"delete_this_and_subsequent": "這則訊息及所有後續訊息",
-		"proceed": "繼續"
+		"delete_custom_mode_with_rules": "您確定要刪除此 {scope} 模式嗎？\n\n這也將刪除位於以下位置的關聯規則資料夾：\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "資料 URI 格式無效",

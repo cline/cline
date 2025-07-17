@@ -21,12 +21,7 @@
 	"confirmation": {
 		"reset_state": "Tem certeza de que deseja redefinir todo o estado e armazenamento secreto na extensão? Isso não pode ser desfeito.",
 		"delete_config_profile": "Tem certeza de que deseja excluir este perfil de configuração?",
-		"delete_custom_mode_with_rules": "Tem certeza de que deseja excluir este modo {scope}?\n\nIsso também excluirá a pasta de regras associada em:\n{rulesFolderPath}",
-		"delete_message": "O que você gostaria de excluir?",
-		"delete_just_this_message": "Apenas esta mensagem",
-		"delete_this_and_subsequent": "Esta e todas as mensagens subsequentes",
-		"edit_warning": "Editar esta mensagem excluirá todas as mensagens subsequentes na conversa. Deseja continuar?",
-		"proceed": "Continuar"
+		"delete_custom_mode_with_rules": "Tem certeza de que deseja excluir este modo {scope}?\n\nIsso também excluirá a pasta de regras associada em:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Formato de URI de dados inválido",

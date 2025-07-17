@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Êtes-vous sûr de vouloir réinitialiser le global state et le stockage de secrets de l'extension ? Cette action est irréversible.",
 		"delete_config_profile": "Êtes-vous sûr de vouloir supprimer ce profil de configuration ?",
-		"delete_custom_mode_with_rules": "Êtes-vous sûr de vouloir supprimer ce mode {scope} ?\n\nCela supprimera également le dossier de règles associé à l'adresse :\n{rulesFolderPath}",
-		"delete_message": "Que souhaitez-vous supprimer ?",
-		"edit_warning": "Modifier ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
-		"delete_just_this_message": "Uniquement ce message",
-		"delete_this_and_subsequent": "Ce message et tous les messages suivants",
-		"proceed": "Continuer"
+		"delete_custom_mode_with_rules": "Êtes-vous sûr de vouloir supprimer ce mode {scope} ?\n\nCela supprimera également le dossier de règles associé à l'adresse :\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Format d'URI de données invalide",

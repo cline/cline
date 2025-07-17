@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "URI danych obrazu skopiowane do schowka"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Usuń Wiadomość",
+		"deleteWarning": "Usunięcie tej wiadomości spowoduje usunięcie wszystkich kolejnych wiadomości w rozmowie. Czy chcesz kontynuować?",
+		"editMessage": "Edytuj Wiadomość",
+		"editWarning": "Edycja tej wiadomości spowoduje usunięcie wszystkich kolejnych wiadomości w rozmowie. Czy chcesz kontynuować?",
+		"proceed": "Kontynuuj"
 	}
 }

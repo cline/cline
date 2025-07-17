@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "圖片資料 URI 已複製到剪貼簿"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "刪除訊息",
+		"deleteWarning": "刪除此訊息將刪除對話中的所有後續訊息。是否繼續？",
+		"editMessage": "編輯訊息",
+		"editWarning": "編輯此訊息將刪除對話中的所有後續訊息。是否繼續？",
+		"proceed": "繼續"
 	}
 }

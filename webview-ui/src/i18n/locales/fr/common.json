@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "URI de données d'image copiée dans le presse-papiers"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Supprimer le message",
+		"deleteWarning": "Supprimer ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
+		"editMessage": "Modifier le message",
+		"editWarning": "Modifier ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
+		"proceed": "Continuer"
 	}
 }

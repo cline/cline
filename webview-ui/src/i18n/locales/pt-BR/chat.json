@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "Salvar",
-		"tooltip": "Salvar as alterações do arquivo"
+		"tooltip": "Salvar as alterações da mensagem"
 	},
 	"reject": {
 		"title": "Rejeitar",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Versão {{version}} - Clique para ver as notas de lançamento"
+	},
+	"editMessage": {
+		"placeholder": "Edite sua mensagem..."
 	}
 }

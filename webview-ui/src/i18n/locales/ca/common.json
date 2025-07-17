@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "URI de dades de la imatge copiada al porta-retalls"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Eliminar missatge",
+		"deleteWarning": "Eliminar aquest missatge eliminarà tots els missatges posteriors de la conversa. Vols continuar?",
+		"editMessage": "Editar missatge",
+		"editWarning": "Editar aquest missatge eliminarà tots els missatges posteriors de la conversa. Vols continuar?",
+		"proceed": "Continuar"
 	}
 }

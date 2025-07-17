@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "URI dati immagine copiato negli appunti"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Elimina Messaggio",
+		"deleteWarning": "Eliminando questo messaggio verranno eliminati tutti i messaggi successivi nella conversazione. Vuoi procedere?",
+		"editMessage": "Modifica Messaggio",
+		"editWarning": "Modificando questo messaggio verranno eliminati tutti i messaggi successivi nella conversazione. Vuoi procedere?",
+		"proceed": "Procedi"
 	}
 }

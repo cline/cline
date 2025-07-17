@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "Desar",
-		"tooltip": "Desa els canvis del fitxer"
+		"tooltip": "Desa els canvis del missatge"
 	},
 	"reject": {
 		"title": "Rebutjar",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Versió {{version}} - Feu clic per veure les notes de llançament"
+	},
+	"editMessage": {
+		"placeholder": "Edita el teu missatge..."
 	}
 }

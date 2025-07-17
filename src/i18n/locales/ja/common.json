@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "拡張機能のすべての状態とシークレットストレージをリセットしてもよろしいですか？この操作は元に戻せません。",
 		"delete_config_profile": "この設定プロファイルを削除してもよろしいですか？",
-		"delete_custom_mode_with_rules": "この{scope}モードを削除してもよろしいですか？\n\nこれにより、関連するルールフォルダも次の場所で削除されます:\n{rulesFolderPath}",
-		"delete_message": "何を削除しますか？",
-		"edit_warning": "このメッセージを編集すると、会話内のすべての後続メッセージが削除されます。続行しますか？",
-		"delete_just_this_message": "このメッセージのみ",
-		"delete_this_and_subsequent": "これ以降のすべてのメッセージ",
-		"proceed": "続行"
+		"delete_custom_mode_with_rules": "この{scope}モードを削除してもよろしいですか？\n\nこれにより、関連するルールフォルダも次の場所で削除されます:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "データURIフォーマットが無効です",

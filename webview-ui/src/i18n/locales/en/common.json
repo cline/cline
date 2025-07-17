@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "Image data URI copied to clipboard"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Delete Message",
+		"deleteWarning": "Deleting this message will delete all subsequent messages in the conversation. Do you want to proceed?",
+		"editMessage": "Edit Message",
+		"editWarning": "Editing this message will delete all subsequent messages in the conversation. Do you want to proceed?",
+		"proceed": "Proceed"
 	}
 }

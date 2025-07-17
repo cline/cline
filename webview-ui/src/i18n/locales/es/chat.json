@@ -39,7 +39,7 @@
 	},
 	"save": {
 		"title": "Guardar",
-		"tooltip": "Guardar los cambios del archivo"
+		"tooltip": "Guardar los cambios del mensaje"
 	},
 	"tokenProgress": {
 		"availableSpace": "Espacio disponible: {{amount}} tokens",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Versión {{version}} - Haz clic para ver las notas de la versión"
+	},
+	"editMessage": {
+		"placeholder": "Edita tu mensaje..."
 	}
 }

@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "URI de dados da imagem copiada para a área de transferência"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Excluir Mensagem",
+		"deleteWarning": "Excluir esta mensagem irá excluir todas as mensagens subsequentes na conversa. Deseja prosseguir?",
+		"editMessage": "Editar Mensagem",
+		"editWarning": "Editar esta mensagem irá excluir todas as mensagens subsequentes na conversa. Deseja prosseguir?",
+		"proceed": "Prosseguir"
 	}
 }

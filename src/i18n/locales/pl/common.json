@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Czy na pewno chcesz zresetować wszystkie stany i tajne magazyny w rozszerzeniu? Tej operacji nie można cofnąć.",
 		"delete_config_profile": "Czy na pewno chcesz usunąć ten profil konfiguracyjny?",
-		"delete_custom_mode_with_rules": "Czy na pewno chcesz usunąć ten tryb {scope}?\n\nSpowoduje to również usunięcie powiązanego folderu reguł pod adresem:\n{rulesFolderPath}",
-		"delete_message": "Co chcesz usunąć?",
-		"delete_just_this_message": "Tylko tę wiadomość",
-		"delete_this_and_subsequent": "Tę i wszystkie kolejne wiadomości",
-		"edit_warning": "Edytowanie tej wiadomości usunie wszystkie kolejne wiadomości w rozmowie. Czy chcesz kontynuować?",
-		"proceed": "Kontynuuj"
+		"delete_custom_mode_with_rules": "Czy na pewno chcesz usunąć ten tryb {scope}?\n\nSpowoduje to również usunięcie powiązanego folderu reguł pod adresem:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Nieprawidłowy format URI danych",

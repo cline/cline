@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "Data URI gambar disalin ke clipboard"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Hapus Pesan",
+		"deleteWarning": "Menghapus pesan ini akan menghapus semua pesan selanjutnya dalam percakapan. Apakah kamu ingin melanjutkan?",
+		"editMessage": "Edit Pesan",
+		"editWarning": "Mengedit pesan ini akan menghapus semua pesan selanjutnya dalam percakapan. Apakah kamu ingin melanjutkan?",
+		"proceed": "Lanjutkan"
 	}
 }

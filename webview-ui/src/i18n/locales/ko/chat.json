@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "저장",
-		"tooltip": "파일 변경사항 저장"
+		"tooltip": "메시지 변경사항 저장"
 	},
 	"reject": {
 		"title": "거부",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "버전 {{version}} - 릴리스 노트를 보려면 클릭하세요"
+	},
+	"editMessage": {
+		"placeholder": "메시지 편집..."
 	}
 }

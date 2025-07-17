@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "儲存",
-		"tooltip": "儲存檔案變更"
+		"tooltip": "儲存訊息變更"
 	},
 	"reject": {
 		"title": "拒絕",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "版本 {{version}} - 點擊查看發布說明"
+	},
+	"editMessage": {
+		"placeholder": "編輯訊息..."
 	}
 }

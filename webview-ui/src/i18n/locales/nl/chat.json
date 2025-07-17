@@ -39,7 +39,7 @@
 	},
 	"save": {
 		"title": "Opslaan",
-		"tooltip": "Bestandswijzigingen opslaan"
+		"tooltip": "Berichtwijzigingen opslaan"
 	},
 	"tokenProgress": {
 		"availableSpace": "Beschikbare ruimte: {{amount}} tokens",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Versie {{version}} - Klik om release notes te bekijken"
+	},
+	"editMessage": {
+		"placeholder": "Bewerk je bericht..."
 	}
 }

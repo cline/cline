@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Bạn có chắc chắn muốn đặt lại tất cả trạng thái và lưu trữ bí mật trong tiện ích mở rộng không? Hành động này không thể hoàn tác.",
 		"delete_config_profile": "Bạn có chắc chắn muốn xóa hồ sơ cấu hình này không?",
-		"delete_custom_mode_with_rules": "Bạn có chắc chắn muốn xóa chế độ {scope} này không?\n\nThao tác này cũng sẽ xóa thư mục quy tắc liên quan tại:\n{rulesFolderPath}",
-		"delete_message": "Bạn muốn xóa gì?",
-		"delete_just_this_message": "Chỉ tin nhắn này",
-		"delete_this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo",
-		"edit_warning": "Chỉnh sửa tin nhắn này sẽ xóa tất cả tin nhắn tiếp theo trong cuộc trò chuyện. Bạn có muốn tiếp tục không?",
-		"proceed": "Tiếp tục"
+		"delete_custom_mode_with_rules": "Bạn có chắc chắn muốn xóa chế độ {scope} này không?\n\nThao tác này cũng sẽ xóa thư mục quy tắc liên quan tại:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Định dạng URI dữ liệu không hợp lệ",

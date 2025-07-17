@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "क्या आप वाकई एक्सटेंशन में सभी स्टेट और गुप्त स्टोरेज रीसेट करना चाहते हैं? इसे पूर्ववत नहीं किया जा सकता है।",
 		"delete_config_profile": "क्या आप वाकई इस कॉन्फ़िगरेशन प्रोफ़ाइल को हटाना चाहते हैं?",
-		"delete_custom_mode_with_rules": "क्या आप वाकई इस {scope} मोड को हटाना चाहते हैं?\n\nयह संबंधित नियम फ़ोल्डर को भी यहाँ हटा देगा:\n{rulesFolderPath}",
-		"delete_message": "आप क्या हटाना चाहते हैं?",
-		"edit_warning": "इस संदेश को संपादित करने से बातचीत के सभी बाद के संदेश हट जाएंगे। क्या आप जारी रखना चाहते हैं?",
-		"delete_just_this_message": "सिर्फ यह संदेश",
-		"delete_this_and_subsequent": "यह और सभी बाद के संदेश",
-		"proceed": "जारी रखें"
+		"delete_custom_mode_with_rules": "क्या आप वाकई इस {scope} मोड को हटाना चाहते हैं?\n\nयह संबंधित नियम फ़ोल्डर को भी यहाँ हटा देगा:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "अमान्य डेटा URI फॉर्मेट",

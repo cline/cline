@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Weet je zeker dat je alle status en geheime opslag in de extensie wilt resetten? Dit kan niet ongedaan worden gemaakt.",
 		"delete_config_profile": "Weet je zeker dat je dit configuratieprofiel wilt verwijderen?",
-		"delete_custom_mode_with_rules": "Weet je zeker dat je deze {scope}-modus wilt verwijderen?\n\nDit verwijdert ook de bijbehorende regelsmap op:\n{rulesFolderPath}",
-		"delete_message": "Wat wil je verwijderen?",
-		"delete_just_this_message": "Alleen dit bericht",
-		"delete_this_and_subsequent": "Dit en alle volgende berichten",
-		"edit_warning": "Het bewerken van dit bericht zal alle volgende berichten in het gesprek verwijderen. Wil je doorgaan?",
-		"proceed": "Doorgaan"
+		"delete_custom_mode_with_rules": "Weet je zeker dat je deze {scope}-modus wilt verwijderen?\n\nDit verwijdert ook de bijbehorende regelsmap op:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Ongeldig data-URI-formaat",

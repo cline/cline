@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "保存",
-		"tooltip": "保存文件更改"
+		"tooltip": "保存消息更改"
 	},
 	"reject": {
 		"title": "拒绝",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "版本 {{version}} - 点击查看发布说明"
+	},
+	"editMessage": {
+		"placeholder": "编辑消息..."
 	}
 }

@@ -45,7 +45,7 @@
 	},
 	"save": {
 		"title": "Simpan",
-		"tooltip": "Simpan perubahan file"
+		"tooltip": "Simpan perubahan pesan"
 	},
 	"tokenProgress": {
 		"availableSpace": "Ruang tersedia: {{amount}} token",
@@ -328,5 +328,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Versi {{version}} - Klik untuk melihat catatan rilis"
+	},
+	"editMessage": {
+		"placeholder": "Edit pesan Anda..."
 	}
 }

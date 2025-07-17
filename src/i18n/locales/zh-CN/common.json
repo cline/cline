@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "您确定要重置扩展中的所有状态和密钥存储吗？此操作无法撤消。",
 		"delete_config_profile": "您确定要删除此配置文件吗？",
-		"delete_custom_mode_with_rules": "您确定要删除此 {scope} 模式吗？\n\n这也将删除位于以下位置的关联规则文件夹：\n{rulesFolderPath}",
-		"delete_message": "您想删除什么？",
-		"edit_warning": "编辑此消息将删除对话中的所有后续消息。您要继续吗？",
-		"delete_just_this_message": "仅此消息",
-		"delete_this_and_subsequent": "此消息及所有后续消息",
-		"proceed": "继续"
+		"delete_custom_mode_with_rules": "您确定要删除此 {scope} 模式吗？\n\n这也将删除位于以下位置的关联规则文件夹：\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_mcp_config": "项目MCP配置格式无效",

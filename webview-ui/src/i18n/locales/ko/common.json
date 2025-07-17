@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "이미지 데이터 URI가 클립보드에 복사됨"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "메시지 삭제",
+		"deleteWarning": "이 메시지를 삭제하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
+		"editMessage": "메시지 편집",
+		"editWarning": "이 메시지를 편집하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
+		"proceed": "계속"
 	}
 }

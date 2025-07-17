@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "확장 프로그램의 모든 상태와 보안 저장소를 재설정하시겠습니까? 이 작업은 취소할 수 없습니다.",
 		"delete_config_profile": "이 구성 프로필을 삭제하시겠습니까?",
-		"delete_custom_mode_with_rules": "이 {scope} 모드를 삭제하시겠습니까?\n\n이렇게 하면 연결된 규칙 폴더도 다음 위치에서 삭제됩니다:\n{rulesFolderPath}",
-		"delete_message": "무엇을 삭제하시겠습니까?",
-		"edit_warning": "이 메시지를 편집하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
-		"delete_just_this_message": "이 메시지만",
-		"delete_this_and_subsequent": "이 메시지와 모든 후속 메시지",
-		"proceed": "계속"
+		"delete_custom_mode_with_rules": "이 {scope} 모드를 삭제하시겠습니까?\n\n이렇게 하면 연결된 규칙 폴더도 다음 위치에서 삭제됩니다:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "잘못된 데이터 URI 형식",

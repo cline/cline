@@ -51,5 +51,12 @@
 		"success": {
 			"imageDataUriCopied": "Görsel veri URI'si panoya kopyalandı"
 		}
+	},
+	"confirmation": {
+		"deleteMessage": "Mesajı Sil",
+		"deleteWarning": "Bu mesajı silmek, konuşmadaki sonraki tüm mesajları da silecektir. Devam etmek istiyor musun?",
+		"editMessage": "Mesajı Düzenle",
+		"editWarning": "Bu mesajı düzenlemek, konuşmadaki sonraki tüm mesajları da silecektir. Devam etmek istiyor musun?",
+		"proceed": "Devam Et"
 	}
 }

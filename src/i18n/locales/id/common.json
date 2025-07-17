@@ -17,12 +17,7 @@
 	"confirmation": {
 		"reset_state": "Apakah kamu yakin ingin mereset semua state dan secret storage di ekstensi? Ini tidak dapat dibatalkan.",
 		"delete_config_profile": "Apakah kamu yakin ingin menghapus profil konfigurasi ini?",
-		"delete_custom_mode_with_rules": "Anda yakin ingin menghapus mode {scope} ini?\n\nIni juga akan menghapus folder aturan terkait di:\n{rulesFolderPath}",
-		"delete_message": "Apa yang ingin kamu hapus?",
-		"edit_warning": "Mengedit pesan ini akan menghapus semua pesan selanjutnya dalam percakapan. Apakah kamu ingin melanjutkan?",
-		"delete_just_this_message": "Hanya pesan ini",
-		"delete_this_and_subsequent": "Ini dan semua pesan selanjutnya",
-		"proceed": "Lanjutkan"
+		"delete_custom_mode_with_rules": "Anda yakin ingin menghapus mode {scope} ini?\n\nIni juga akan menghapus folder aturan terkait di:\n{rulesFolderPath}"
 	},
 	"errors": {
 		"invalid_data_uri": "Format data URI tidak valid",

@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "Lưu",
-		"tooltip": "Lưu các thay đổi tệp"
+		"tooltip": "Lưu các thay đổi tin nhắn"
 	},
 	"reject": {
 		"title": "Từ chối",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "Phiên bản {{version}} - Nhấp để xem ghi chú phát hành"
+	},
+	"editMessage": {
+		"placeholder": "Chỉnh sửa tin nhắn của bạn..."
 	}
 }

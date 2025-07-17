@@ -44,7 +44,7 @@
 	},
 	"save": {
 		"title": "保存",
-		"tooltip": "ファイル変更を保存"
+		"tooltip": "メッセージの変更を保存"
 	},
 	"reject": {
 		"title": "拒否",
@@ -322,5 +322,8 @@
 	},
 	"versionIndicator": {
 		"ariaLabel": "バージョン {{version}} - クリックしてリリースノートを表示"
+	},
+	"editMessage": {
+		"placeholder": "メッセージを編集..."
 	}
 }
