@@ -12,8 +12,12 @@ service DiffService {
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
   // Replace a text selection in the diff.option
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
-  
+
   rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
+
+  rpc saveDocument(SaveDocumentRequest) returns (SaveDocumentResponse);
+
+  rpc closeDiff(CloseDiffRequest) returns (CloseDiffResponse);
 }
 
 message OpenDiffRequest {
@@ -46,3 +50,17 @@ message TruncateDocumentRequest {
 }
 
 message TruncateDocumentResponse {}
+
+message CloseDiffRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+}
+
+message CloseDiffResponse {}
+
+message SaveDocumentRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+}
+
+message SaveDocumentResponse {}
