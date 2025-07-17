@@ -105,6 +105,8 @@ export type GlobalStateKey =
 	| "planModeTogetherModelId"
 	| "planModeFireworksModelId"
 	| "planModeSapAiCoreModelId"
+	| "planModeGroqModelId"
+	| "planModeGroqModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -126,7 +128,7 @@ export type GlobalStateKey =
 	| "actModeTogetherModelId"
 	| "actModeFireworksModelId"
 	| "actModeSapAiCoreModelId"
-	| "groqModelId"
-	| "groqModelInfo"
+	| "actModeGroqModelId"
+	| "actModeGroqModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"

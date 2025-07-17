@@ -84,8 +84,6 @@ export interface ApiHandlerOptions {
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
 	groqApiKey?: string
-	groqModelId?: string
-	groqModelInfo?: ModelInfo
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
@@ -113,6 +111,8 @@ export interface ApiHandlerOptions {
 	planModeTogetherModelId?: string
 	planModeFireworksModelId?: string
 	planModeSapAiCoreModelId?: string
+	planModeGroqModelId?: string
+	planModeGroqModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -134,6 +134,8 @@ export interface ApiHandlerOptions {
 	actModeTogetherModelId?: string
 	actModeFireworksModelId?: string
 	actModeSapAiCoreModelId?: string
+	actModeGroqModelId?: string
+	actModeGroqModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

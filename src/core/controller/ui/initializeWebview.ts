@@ -68,11 +68,39 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 
 		handleModelsServiceRequest(controller, "refreshGroqModels", EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
-				// update model info in state for Groq
-				const { apiConfiguration } = await getAllExtensionState(controller.context)
-				if (apiConfiguration.groqModelId && response.models[apiConfiguration.groqModelId]) {
-					await updateGlobalState(controller.context, "groqModelInfo", response.models[apiConfiguration.groqModelId])
-					await controller.postStateToWebview()
+				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeGroqModelId" : "actModeGroqModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeGroqModelInfo" : "actModeGroqModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						await updateGlobalState(controller.context, modelInfoField, response.models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeGroqModelId
+					const actModelId = apiConfiguration.actModeGroqModelId
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						await updateGlobalState(controller.context, "planModeGroqModelInfo", response.models[planModelId])
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						await updateGlobalState(controller.context, "actModeGroqModelInfo", response.models[actModelId])
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						await controller.postStateToWebview()
+					}
 				}
 			}
 		})

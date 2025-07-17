@@ -222,13 +222,15 @@ export function normalizeApiConfiguration(
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
 		case "groq":
-			const result = {
+			const groqModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeGroqModelId : apiConfiguration?.actModeGroqModelId
+			const groqModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeGroqModelInfo : apiConfiguration?.actModeGroqModelInfo
+			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.groqModelId || groqDefaultModelId,
-				selectedModelInfo: apiConfiguration?.groqModelInfo || groqModels[groqDefaultModelId],
+				selectedModelId: groqModelId || groqDefaultModelId,
+				selectedModelInfo: groqModelInfo || groqModels[groqDefaultModelId],
 			}
-
-			return result
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		default:
@@ -258,12 +260,14 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			requestyModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
+			groqModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
 			requestyModelInfo: undefined,
+			groqModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
 
 			// AWS Bedrock fields
@@ -291,6 +295,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
+		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -299,6 +304,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
+		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 
@@ -390,6 +396,13 @@ export async function syncModeConfigurations(
 			updates.actModeLiteLlmModelId = sourceFields.liteLlmModelId
 			updates.planModeLiteLlmModelInfo = sourceFields.liteLlmModelInfo
 			updates.actModeLiteLlmModelInfo = sourceFields.liteLlmModelInfo
+			break
+
+		case "groq":
+			updates.planModeGroqModelId = sourceFields.groqModelId
+			updates.actModeGroqModelId = sourceFields.groqModelId
+			updates.planModeGroqModelInfo = sourceFields.groqModelInfo
+			updates.actModeGroqModelInfo = sourceFields.groqModelInfo
 			break
 
 		case "together":

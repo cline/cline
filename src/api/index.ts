@@ -242,9 +242,9 @@ function createHandlerForProvider(
 		case "groq":
 			return new GroqHandler({
 				groqApiKey: options.groqApiKey,
-				groqModelId: options.groqModelId,
-				groqModelInfo: options.groqModelInfo,
-				apiModelId: options.apiModelId,
+				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
+				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "sapaicore":
 			return new SapAiCoreHandler({

@@ -224,6 +224,7 @@ message ModelsApiConfiguration {
   optional string aws_authentication = 56;
   optional string aws_bedrock_api_key = 57;
   optional string cline_account_id = 58;
+  optional string groq_api_key = 59;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -246,6 +247,8 @@ message ModelsApiConfiguration {
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
   optional string plan_mode_sap_ai_core_model_id = 119;
+  optional string plan_mode_groq_model_id = 120;
+  optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -268,9 +271,8 @@ message ModelsApiConfiguration {
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
+  optional string act_mode_groq_model_id = 220;
+  optional OpenRouterModelInfo act_mode_groq_model_info = 221;
 
   repeated string favorited_model_ids = 300;
-  optional string groq_api_key = 301;
-  optional string groq_model_id = 302;
-  optional OpenRouterModelInfo groq_model_info = 303;
 }

@@ -367,8 +367,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
 		groqApiKey: config.groqApiKey,
-		groqModelId: config.groqModelId,
-		groqModelInfo: convertModelInfoToProtoOpenRouter(config.groqModelInfo),
 		requestTimeoutMs: config.requestTimeoutMs,
 		sapAiCoreClientId: config.sapAiCoreClientId,
 		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
@@ -396,6 +394,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeRequestyModelInfo: convertModelInfoToProtoOpenRouter(config.planModeRequestyModelInfo),
 		planModeTogetherModelId: config.planModeTogetherModelId,
 		planModeFireworksModelId: config.planModeFireworksModelId,
+		planModeGroqModelId: config.planModeGroqModelId,
+		planModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.planModeGroqModelInfo),
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
 
 		// Act mode configurations
@@ -418,6 +418,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeRequestyModelInfo: convertModelInfoToProtoOpenRouter(config.actModeRequestyModelInfo),
 		actModeTogetherModelId: config.actModeTogetherModelId,
 		actModeFireworksModelId: config.actModeFireworksModelId,
+		actModeGroqModelId: config.actModeGroqModelId,
+		actModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.actModeGroqModelInfo),
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
 
 		// Favorited model IDs
@@ -481,8 +483,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
 		groqApiKey: protoConfig.groqApiKey,
-		groqModelId: protoConfig.groqModelId,
-		groqModelInfo: convertProtoToModelInfo(protoConfig.groqModelInfo),
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
 		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
 		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
@@ -513,6 +513,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeRequestyModelInfo: convertProtoToModelInfo(protoConfig.planModeRequestyModelInfo),
 		planModeTogetherModelId: protoConfig.planModeTogetherModelId,
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
+		planModeGroqModelId: protoConfig.planModeGroqModelId,
+		planModeGroqModelInfo: convertProtoToModelInfo(protoConfig.planModeGroqModelInfo),
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 
 		// Act mode configurations
@@ -536,6 +538,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeRequestyModelInfo: convertProtoToModelInfo(protoConfig.actModeRequestyModelInfo),
 		actModeTogetherModelId: protoConfig.actModeTogetherModelId,
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
+		actModeGroqModelId: protoConfig.actModeGroqModelId,
+		actModeGroqModelInfo: convertProtoToModelInfo(protoConfig.actModeGroqModelInfo),
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 
 		// Favorited model IDs

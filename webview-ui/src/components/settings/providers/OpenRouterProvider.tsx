@@ -53,15 +53,14 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	uriScheme?: string
 	currentMode: "plan" | "act"
 }
 
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme, currentMode }: OpenRouterProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
+	const { apiConfiguration, uriScheme } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)

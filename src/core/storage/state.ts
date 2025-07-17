@@ -189,8 +189,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
-		groqModelId,
-		groqModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,8 +267,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
-		getGlobalState(context, "groqModelId") as Promise<string | undefined>,
-		getGlobalState(context, "groqModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -300,6 +296,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeTogetherModelId,
 		planModeFireworksModelId,
 		planModeSapAiCoreModelId,
+		planModeGroqModelId,
+		planModeGroqModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -321,6 +319,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeTogetherModelId,
 		actModeFireworksModelId,
 		actModeSapAiCoreModelId,
+		actModeGroqModelId,
+		actModeGroqModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<"plan" | "act" | undefined>,
@@ -345,6 +345,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeTogetherModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeFireworksModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeSapAiCoreModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeGroqModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -366,6 +368,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeTogetherModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeFireworksModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeSapAiCoreModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeGroqModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const processingStart = performance.now()
@@ -456,8 +460,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			cerebrasApiKey,
 			groqApiKey,
-			groqModelId,
-			groqModelInfo,
 			moonshotApiKey,
 			nebiusApiKey,
 			favoritedModelIds,
@@ -488,6 +490,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeGroqModelId,
+			planModeGroqModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -509,6 +513,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeGroqModelId,
+			actModeGroqModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -585,8 +591,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sambanovaApiKey,
 		cerebrasApiKey,
 		groqApiKey,
-		groqModelId,
-		groqModelInfo,
 		moonshotApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
@@ -620,6 +624,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeTogetherModelId,
 		planModeFireworksModelId,
 		planModeSapAiCoreModelId,
+		planModeGroqModelId,
+		planModeGroqModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -641,6 +647,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeTogetherModelId,
 		actModeFireworksModelId,
 		actModeSapAiCoreModelId,
+		actModeGroqModelId,
+		actModeGroqModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -666,6 +674,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeTogetherModelId,
 		planModeFireworksModelId,
 		planModeSapAiCoreModelId,
+		planModeGroqModelId,
+		planModeGroqModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -687,9 +697,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeRequestyModelInfo,
 		actModeTogetherModelId,
 		actModeFireworksModelId,
-		groqModelId,
-		groqModelInfo,
 		actModeSapAiCoreModelId,
+		actModeGroqModelId,
+		actModeGroqModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
