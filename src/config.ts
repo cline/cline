@@ -5,6 +5,7 @@ const CURRENT_ENVIRONMENT: Environment = "production"
 interface EnvironmentConfig {
 	appBaseUrl: string
 	apiBaseUrl: string
+	mcpBaseUrl: string
 	firebase: {
 		apiKey: string
 		authDomain: string
@@ -19,6 +20,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	production: {
 		appBaseUrl: "https://app.cline.bot",
 		apiBaseUrl: "https://api.cline.bot",
+		mcpBaseUrl: "https://api.cline.bot",
 		firebase: {
 			apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
 			authDomain: "cline-prod.firebaseapp.com",
@@ -31,6 +33,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	staging: {
 		appBaseUrl: "https://staging-app.cline.bot",
 		apiBaseUrl: "https://core-api.staging.int.cline.bot",
+		mcpBaseUrl: "https://api.cline.bot",
 		firebase: {
 			apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
 			authDomain: "cline-staging.firebaseapp.com",
@@ -43,6 +46,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	preview: {
 		appBaseUrl: "http://localhost:3000",
 		apiBaseUrl: "http://localhost:7777",
+		mcpBaseUrl: "https://api.cline.bot",
 		firebase: {
 			apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
 			authDomain: "cline-preview.firebaseapp.com",
