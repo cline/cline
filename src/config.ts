@@ -9,9 +9,9 @@ interface EnvironmentConfig {
 		apiKey: string
 		authDomain: string
 		projectId: string
-		storageBucket: string
-		messagingSenderId: string
-		appId: string
+		storageBucket?: string
+		messagingSenderId?: string
+		appId?: string
 	}
 }
 
@@ -44,13 +44,9 @@ const configs: Record<Environment, EnvironmentConfig> = {
 		appBaseUrl: "http://localhost:3000",
 		apiBaseUrl: "http://localhost:7777",
 		firebase: {
-			// config for staging and preview is the same
-			apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-			authDomain: "cline-staging.firebaseapp.com",
-			projectId: "cline-staging",
-			storageBucket: "cline-staging.firebasestorage.app",
-			messagingSenderId: "853479478430",
-			appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
+			apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
+			authDomain: "cline-preview.firebaseapp.com",
+			projectId: "cline-preview",
 		},
 	},
 }
