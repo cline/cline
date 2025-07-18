@@ -1,21 +1,12 @@
 export type Environment = "production" | "staging" | "local"
 
-const CLINE_ENVIRONMENT: Environment = (process.env.CLINE_ENVIRONMENT as Environment) || "production"
+// Use the injected global variable from vite.config.ts
+declare const __APP_BASE_URL__: string
 
 interface EnvironmentConfig {
 	appBaseUrl: string
 }
 
-const configs: Record<Environment, EnvironmentConfig> = {
-	production: {
-		appBaseUrl: "https://app.cline.bot",
-	},
-	staging: {
-		appBaseUrl: "https://staging-app.cline.bot",
-	},
-	local: {
-		appBaseUrl: "http://localhost:3000",
-	},
+export const clineEnvConfig: EnvironmentConfig = {
+	appBaseUrl: typeof __APP_BASE_URL__ !== "undefined" ? __APP_BASE_URL__ : "https://app.cline.bot",
 }
-
-export const clineEnvConfig = configs[CLINE_ENVIRONMENT]

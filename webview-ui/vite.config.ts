@@ -69,6 +69,13 @@ export default defineConfig({
 			IS_TEST: JSON.stringify(process.env.IS_TEST),
 			CLINE_ENVIRONMENT: JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
 		},
+		__APP_BASE_URL__: JSON.stringify(
+			process.env.CLINE_ENVIRONMENT === "local"
+				? "http://localhost:3000"
+				: process.env.CLINE_ENVIRONMENT === "staging"
+					? "https://staging-app.cline.bot"
+					: "https://app.cline.bot",
+		),
 	},
 	resolve: {
 		alias: {
