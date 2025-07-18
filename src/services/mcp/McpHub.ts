@@ -154,10 +154,6 @@ export class McpHub {
 						if (settings) {
 							try {
 								await this.updateServerConnections(settings.mcpServers)
-								getHostBridgeProvider().windowClient.showMessage({
-									type: ShowMessageType.INFORMATION,
-									message: "MCP servers updated",
-								})
 							} catch (error) {
 								console.error("Failed to process MCP settings change:", error)
 							}
