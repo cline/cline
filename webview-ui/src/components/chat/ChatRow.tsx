@@ -1,10 +1,9 @@
-import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useSize } from "react-use"
 
-import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
@@ -36,8 +35,8 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
-import { useClineAuth } from "@/context/ClineAuthContext"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
+import ErrorRow from "./ErrorRow"
+import { ErrorBlockTitle } from "./ErrorBlockTitle"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -104,42 +103,6 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	)
 })
 
-const RetryMessage = memo(
-	({ seconds, attempt, retryOperations }: { retryOperations: number; attempt: number; seconds?: number }) => {
-		const [remainingSeconds, setRemainingSeconds] = useState(seconds || 0)
-
-		useEffect(() => {
-			if (seconds && seconds > 0) {
-				setRemainingSeconds(seconds)
-
-				const interval = setInterval(() => {
-					setRemainingSeconds((prev) => {
-						if (prev <= 1) {
-							clearInterval(interval)
-							return 0
-						}
-						return prev - 1
-					})
-				}, 1000)
-
-				return () => clearInterval(interval)
-			}
-		}, [seconds])
-
-		return (
-			<span
-				style={{
-					color: normalColor,
-					fontWeight: "bold",
-				}}>
-				{`API Request (Retrying failed attempt ${attempt}/${retryOperations}`}
-				{remainingSeconds > 0 && ` in ${remainingSeconds} seconds`}
-				)...
-			</span>
-		)
-	},
-)
-
 const ChatRow = memo(
 	(props: ChatRowProps) => {
 		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
@@ -186,7 +149,6 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
-		const { handleSignIn, clineUser } = useClineAuth()
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -201,7 +163,7 @@ export const ChatRowContent = memo(
 				const info: ClineApiReqInfo = JSON.parse(message.text)
 				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
 			}
-			return [undefined, undefined, undefined, undefined]
+			return [undefined, undefined, undefined, undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
@@ -381,73 +343,12 @@ export const ChatRowContent = memo(
 						<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 					]
 				case "api_req_started":
-					const getIconSpan = (iconName: string, color: string) => (
-						<div
-							style={{
-								width: 16,
-								height: 16,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-							}}>
-							<span
-								className={`codicon codicon-${iconName}`}
-								style={{
-									color,
-									fontSize: 16,
-									marginBottom: "-1.5px",
-								}}></span>
-						</div>
-					)
-					return [
-						apiReqCancelReason != null ? (
-							apiReqCancelReason === "user_cancelled" ? (
-								getIconSpan("error", cancelledColor)
-							) : (
-								getIconSpan("error", errorColor)
-							)
-						) : cost != null ? (
-							getIconSpan("check", successColor)
-						) : apiRequestFailedMessage ? (
-							getIconSpan("error", errorColor)
-						) : (
-							<ProgressIndicator />
-						),
-						(() => {
-							if (apiReqCancelReason != null) {
-								return apiReqCancelReason === "user_cancelled" ? (
-									<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
-								) : (
-									<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
-								)
-							}
-
-							if (cost != null) {
-								return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
-							}
-
-							if (apiRequestFailedMessage) {
-								const errorData = parseErrorText(apiRequestFailedMessage)
-								if (errorData?.code === "insufficient_credits") {
-									return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
-								}
-								return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
-							}
-							// New: Check for retryStatus to modify the title
-							if (retryStatus && cost == null && !apiReqCancelReason) {
-								const retryOperations = retryStatus.maxAttempts > 0 ? retryStatus.maxAttempts - 1 : 0
-								return (
-									<RetryMessage
-										seconds={retryStatus.delaySec}
-										attempt={retryStatus.attempt}
-										retryOperations={retryOperations}
-									/>
-								)
-							}
-
-							return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
-						})(),
-					]
+					return ErrorBlockTitle({
+						cost,
+						apiReqCancelReason,
+						apiRequestFailedMessage,
+						retryStatus,
+					})
 				case "followup":
 					return [
 						<span
@@ -946,92 +847,12 @@ export const ChatRowContent = memo(
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 								</div>
 								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
-									<>
-										{(() => {
-											// Try to parse the error message as JSON for credit limit error
-											const errorData = parseErrorText(
-												apiRequestFailedMessage || apiReqStreamingFailedMessage,
-											)
-											if (errorData) {
-												if (
-													errorData.code === "insufficient_credits" &&
-													typeof errorData.current_balance === "number"
-												) {
-													return (
-														<CreditLimitError
-															currentBalance={errorData.current_balance}
-															totalSpent={errorData.total_spent}
-															totalPromotions={errorData.total_promotions}
-															message={errorData.message}
-															buyCreditsUrl={errorData.buy_credits_url}
-														/>
-													)
-												}
-											}
-
-											// Check for rate limit errors (status code 429)
-											const isRateLimitError =
-												apiRequestFailedMessage?.includes("status code 429") ||
-												apiRequestFailedMessage?.toLowerCase().includes("rate limit") ||
-												apiRequestFailedMessage?.toLowerCase().includes("too many requests") ||
-												apiRequestFailedMessage?.toLowerCase().includes("quota exceeded") ||
-												apiRequestFailedMessage?.toLowerCase().includes("resource exhausted")
-
-											if (isRateLimitError) {
-												return (
-													<p
-														style={{
-															...pStyle,
-															color: "var(--vscode-errorForeground)",
-														}}>
-														{apiRequestFailedMessage || apiReqStreamingFailedMessage}
-													</p>
-												)
-											}
-
-											// Default error display
-											return (
-												<p
-													style={{
-														...pStyle,
-														color: "var(--vscode-errorForeground)",
-													}}>
-													{apiRequestFailedMessage || apiReqStreamingFailedMessage}
-													{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
-														<>
-															<br />
-															<br />
-															It seems like you're having Windows PowerShell issues, please see this{" "}
-															<a
-																href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-																style={{
-																	color: "inherit",
-																	textDecoration: "underline",
-																}}>
-																troubleshooting guide
-															</a>
-															.
-														</>
-													)}
-													{apiRequestFailedMessage?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) && (
-														<>
-															<br />
-															<br />
-															{clineUser ? (
-																<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-																	(Click "Retry" below)
-																</span>
-															) : (
-																<VSCodeButton onClick={handleSignIn} className="w-full mb-4">
-																	Sign in to Cline
-																</VSCodeButton>
-															)}
-														</>
-													)}
-												</p>
-											)
-										})()}
-									</>
+									<ErrorRow
+										message={message}
+										errorType="error"
+										apiRequestFailedMessage={apiRequestFailedMessage}
+										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
+									/>
 								)}
 
 								{isExpanded && (
@@ -1183,97 +1004,11 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "error":
-						return (
-							<>
-								{title && (
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<p
-									style={{
-										...pStyle,
-										color: "var(--vscode-errorForeground)",
-									}}>
-									{message.text}
-								</p>
-							</>
-						)
+						return <ErrorRow message={message} errorType="error" />
 					case "diff_error":
-						return (
-							<>
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "var(--vscode-textBlockQuote-background)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
-										color: "var(--vscode-foreground)",
-										opacity: 0.8,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
-										}}>
-										<i
-											className="codicon codicon-warning"
-											style={{
-												marginRight: 8,
-												fontSize: 14,
-												color: "var(--vscode-descriptionForeground)",
-											}}></i>
-										<span style={{ fontWeight: 500 }}>Diff Edit Mismatch</span>
-									</div>
-									<div>The model used search patterns that don't match anything in the file. Retrying...</div>
-								</div>
-							</>
-						)
+						return <ErrorRow message={message} errorType="diff_error" />
 					case "clineignore_error":
-						return (
-							<>
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "rgba(255, 191, 0, 0.1)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
-										}}>
-										<i
-											className="codicon codicon-error"
-											style={{
-												marginRight: 8,
-												fontSize: 18,
-												color: "#FFA500",
-											}}></i>
-										<span
-											style={{
-												fontWeight: 500,
-												color: "#FFA500",
-											}}>
-											Access Denied
-										</span>
-									</div>
-									<div>
-										Cline tried to access <code>{message.text}</code> which is blocked by the{" "}
-										<code>.clineignore</code>
-										file.
-									</div>
-								</div>
-							</>
-						)
+						return <ErrorRow message={message} errorType="clineignore_error" />
 					case "checkpoint_created":
 						return (
 							<>
@@ -1433,37 +1168,9 @@ export const ChatRowContent = memo(
 			case "ask":
 				switch (message.ask) {
 					case "mistake_limit_reached":
-						return (
-							<>
-								<div style={headerStyle}>
-									{icon}
-									{title}
-								</div>
-								<p
-									style={{
-										...pStyle,
-										color: "var(--vscode-errorForeground)",
-									}}>
-									{message.text}
-								</p>
-							</>
-						)
+						return <ErrorRow message={message} errorType="mistake_limit_reached" />
 					case "auto_approval_max_req_reached":
-						return (
-							<>
-								<div style={headerStyle}>
-									{icon}
-									{title}
-								</div>
-								<p
-									style={{
-										...pStyle,
-										color: "var(--vscode-errorForeground)",
-									}}>
-									{message.text}
-								</p>
-							</>
-						)
+						return <ErrorRow message={message} errorType="auto_approval_max_req_reached" />
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
@@ -1686,20 +1393,3 @@ export const ChatRowContent = memo(
 		}
 	},
 )
-
-function parseErrorText(text: string | undefined) {
-	if (!text) {
-		return undefined
-	}
-	try {
-		const startIndex = text.indexOf("{")
-		const endIndex = text.lastIndexOf("}")
-		if (startIndex !== -1 && endIndex !== -1) {
-			const jsonStr = text.substring(startIndex, endIndex + 1)
-			const errorObject = JSON.parse(jsonStr)
-			return errorObject
-		}
-	} catch (e) {
-		// Not JSON or missing required fields
-	}
-}

@@ -21,6 +21,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "moonshotApiKey"
+	| "huggingFaceApiKey"
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
@@ -108,6 +109,8 @@ export type GlobalStateKey =
 	| "requestyModelInfo"
 	| "togetherModelId"
 	| "fireworksModelId"
+	| "huggingFaceModelId"
+	| "huggingFaceModelInfo"
 	| "sapAiCoreModelId"
 	// Previous mode saved configurations (per workspace)
 	| "previousModeApiProvider"

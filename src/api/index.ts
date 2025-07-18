@@ -30,6 +30,7 @@ import { ClaudeCodeHandler } from "./providers/claude-code"
 import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
+import { HuggingFaceHandler } from "./providers/huggingface"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -194,6 +195,11 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 			return new MoonshotHandler({
 				moonshotApiKey: options.moonshotApiKey,
 				moonshotApiLine: options.moonshotApiLine,
+				apiModelId: options.apiModelId,
+			})
+		case "huggingface":
+			return new HuggingFaceHandler({
+				huggingFaceApiKey: options.huggingFaceApiKey,
 				apiModelId: options.apiModelId,
 			})
 		case "nebius":

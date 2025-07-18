@@ -36,6 +36,8 @@ import {
 	liteLlmModelInfoSaneDefaults,
 	moonshotModels,
 	moonshotDefaultModelId,
+	huggingFaceModels,
+	huggingFaceDefaultModelId,
 	nebiusModels,
 	nebiusDefaultModelId,
 	cerebrasModels,
@@ -176,6 +178,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "moonshot":
 			return getProviderData(moonshotModels, moonshotDefaultModelId)
+		case "huggingface":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.huggingFaceModelId || huggingFaceDefaultModelId,
+				selectedModelInfo: apiConfiguration?.huggingFaceModelInfo || huggingFaceModels[huggingFaceDefaultModelId],
+			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
