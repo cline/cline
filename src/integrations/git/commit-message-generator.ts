@@ -1,7 +1,112 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
+import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
+import { buildApiHandler } from "@/api"
+import { getAllExtensionState } from "@/core/storage/state"
+import { getWorkingState } from "@/utils/git"
+import { getCwd } from "@/utils/path"
+
+/**
+ * Git commit message generator module
+ */
+export const GitCommitGenerator = {
+	generate,
+	abort,
+}
+
+let commitGenerationAbortController: AbortController | undefined = undefined
+
+async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
+	const cwd = await getCwd()
+	if (!context || !cwd) {
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "No workspace folder open",
+		})
+		return
+	}
+
+	const gitDiff = await getWorkingState(cwd)
+	if (gitDiff === "No changes in working directory") {
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "No changes in workspace for commit message",
+		})
+		return
+	}
+
+	const inputBox = scm?.inputBox
+	if (!inputBox) {
+		vscode.window.showErrorMessage("Git extension not found or no repositories available")
+		return
+	}
+
+	await vscode.window.withProgress(
+		{
+			location: vscode.ProgressLocation.SourceControl,
+			title: "Generating commit message...",
+			cancellable: true,
+		},
+		() => performCommitGeneration(context, gitDiff, inputBox),
+	)
+}
+
+async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
+	try {
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+
+		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+
+		const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+${truncatedDiff}
+The commit message should:
+1. Start with a short summary (50-72 characters)
+	@@ -1114,68 +1126,46 @@ The commit message should:
+Commit message:`
+
+		// Get the current API configuration
+		const { apiConfiguration } = await getAllExtensionState(context)
+		const currentMode = "act"
+
+		// Build the API handler
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+
+		// Create a system prompt
+		const systemPrompt =
+			"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+		// Create a message for the API
+		const messages = [{ role: "user" as const, content: prompt }]
+
+		commitGenerationAbortController = new AbortController()
+		const stream = apiHandler.createMessage(systemPrompt, messages)
+
+		let response = ""
+		for await (const chunk of stream) {
+			commitGenerationAbortController.signal.throwIfAborted()
+			if (chunk.type === "text") {
+				response += chunk.text
+				inputBox.value = extractCommitMessage(response)
+			}
+		}
+
+		if (!inputBox.value) {
+			throw new Error("empty API response")
+		}
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+	} finally {
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	}
+}
+
+function abort() {
+	commitGenerationAbortController?.abort()
+	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+}
+
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -36,21 +141,7 @@ Commit message:`
  */
 export function extractCommitMessage(aiResponse: string): string {
 	// Remove any markdown formatting or extra text
-	let message = aiResponse.trim()
-
-	// Remove markdown code blocks if present
-	if (message.startsWith("```") && message.endsWith("```")) {
-		message = message.substring(3, message.length - 3).trim()
-
-		// Remove language identifier if present (e.g., ```git)
-		const firstLineBreak = message.indexOf("\n")
-		if (firstLineBreak > 0 && firstLineBreak < 20) {
-			// Reasonable length for a language identifier
-			message = message.substring(firstLineBreak).trim()
-		}
-	}
-
-	return message
+	return aiResponse.trim().replace(/^```/g, "").replace(/```$/g, "").trim()
 }
 
 /**
