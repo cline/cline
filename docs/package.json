@@ -11,6 +11,6 @@
 	"license": "ISC",
 	"description": "",
 	"dependencies": {
-		"mintlify": "^4.0.538"
+		"mintlify": "^4.2.23"
 	}
 }
