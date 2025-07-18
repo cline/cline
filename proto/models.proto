@@ -126,6 +126,7 @@ enum ApiProvider {
   SAPAICORE = 25;
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
+  HUAWEI_CLOUD_MAAS = 28;
 }
 
 // Model info for OpenAI-compatible models
@@ -246,4 +247,5 @@ message ModelsApiConfiguration {
   optional string groq_api_key = 78;
   optional string groq_model_id = 79;
   optional OpenRouterModelInfo groq_model_info = 80;
+  optional string huawei_cloud_maas_api_key = 81;
 }

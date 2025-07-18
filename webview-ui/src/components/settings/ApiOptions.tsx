@@ -36,6 +36,7 @@ import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { GroqProvider } from "./providers/GroqProvider"
+import { HuaweiCloudMaaSProvider } from "./providers/HuaweiCloudMaaSProvider.tsx"
 
 interface ApiOptionsProps {
 	showSubmitButton?: boolean
@@ -165,6 +166,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
+					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MAAS</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -275,6 +277,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "sapaicore" && (
 				<SapAiCoreProvider showModelOptions={showModelOptions} isPopup={isPopup} />
+			)}
+
+			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
+				<HuaweiCloudMaaSProvider showModelOptions={showModelOptions} isPopup={isPopup} />
 			)}
 
 			{apiErrorMessage && (

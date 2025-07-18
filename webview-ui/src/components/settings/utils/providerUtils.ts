@@ -46,6 +46,8 @@ import {
 	claudeCodeModels,
 	groqModels,
 	groqDefaultModelId,
+	huaweiCloudMaaSModels,
+	huaweiCloudMaaSDefaultModelId,
 } from "@shared/api"
 
 /**
@@ -190,6 +192,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return result
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		case "huawei-cloud-maas":
+			return getProviderData(huaweiCloudMaaSModels, huaweiCloudMaaSDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

@@ -191,6 +191,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		claudeCodePath,
 		groqModelId,
 		groqModelInfo,
+		huaweiCloudMaaSApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -271,6 +272,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getGlobalState(context, "groqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "groqModelInfo") as Promise<ModelInfo | undefined>,
+		getSecret(context, "huaweiCloudMaaSApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -462,6 +464,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			sapAiCoreModelId,
+			huaweiCloudMaaSApiKey,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -581,6 +584,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		sapAiCoreModelId,
 		claudeCodePath,
+		huaweiCloudMaaSApiKey,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -672,6 +676,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		nebiusApiKey,
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
+		huaweiCloudMaaSApiKey,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -715,6 +720,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"groqApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
+		"huaweiCloudMaaSApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
