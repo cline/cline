@@ -3,6 +3,7 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditorId: string | undefined
+
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			return
@@ -19,6 +20,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		_currentLine: number,
 	): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
 		await getHostBridgeProvider().diffClient.replaceText({
 			diffId: this.activeDiffEditorId,
 			content: content,
@@ -28,7 +32,20 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async truncateDocument(lineNumber: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.truncateDocument(${lineNumber}) stub`)
+		if (!this.activeDiffEditor) {
+			return
+		}
+		await getHostBridgeProvider().diffClient.truncateDocument({
+			diffId: this.activeDiffEditorId,
+			endLine: lineNumber,
+		})
+	}
+
+	protected async saveDocument(): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
 	}
 
 	protected override async scrollEditorToLine(line: number): Promise<void> {
@@ -39,7 +56,11 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
 	}
 	protected override async closeDiffView(): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.closeDiffView() stub`)
+		if (!this.activeDiffEditor) {
+			return
+		}
+		await getHostBridgeProvider().diffClient.closeDiff({ diffId: this.activeDiffEditorId })
+		this.activeDiffEditorId = undefined
 	}
 
 	protected override async resetDiffView(): Promise<void> {

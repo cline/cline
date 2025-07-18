@@ -6,6 +6,10 @@ option java_multiple_files = true;
 
 import "common.proto";
 
+/** 
+ * The watch service is only here as example of a streaming rpc in the host bridge. 
+ * This being replaced with a native JS file watcher.
+ */
 // WatchService provides methods for watching files in the IDE
 service WatchService {
   // Subscribe to file changes

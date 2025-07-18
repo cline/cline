@@ -10,7 +10,14 @@ import "common.proto";
 service DiffService {
   // Open the diff view/editor.
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
+  // Replace a text selection in the diff.
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
+  // Truncate the diff document.
+  rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
+  // Save the diff document.
+  rpc saveDocument(SaveDocumentRequest) returns (SaveDocumentResponse);
+  // Close the diff editor UI.
+  rpc closeDiff(CloseDiffRequest) returns (CloseDiffResponse);
 }
 
 message OpenDiffRequest {
@@ -34,6 +41,26 @@ message ReplaceTextRequest {
   optional int32 end_line = 5;
 }
 
-message ReplaceTextResponse {
-  // TBD
+message ReplaceTextResponse {}
+
+message TruncateDocumentRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+  optional int32 end_line = 5;
 }
+
+message TruncateDocumentResponse {}
+
+message CloseDiffRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+}
+
+message CloseDiffResponse {}
+
+message SaveDocumentRequest {
+  optional cline.Metadata metadata = 1;
+  optional string diff_id = 2;
+}
+
+message SaveDocumentResponse {}
