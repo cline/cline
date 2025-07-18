@@ -46,7 +46,7 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
-	await getHostBridgeProvider().windowClient.showMessage({
+	getHostBridgeProvider().windowClient.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message,
 	})
