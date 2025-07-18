@@ -83,7 +83,7 @@ module.exports = createRule({
 				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
 			useUtils:
-				"Use utilities in @/utils calling vscode APIs directly.\n" +
+				"Use utilities in @/utils instead of calling vscode APIs directly.\n" +
 				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
 		},
