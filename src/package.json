@@ -345,6 +345,14 @@
 					"maximum": 600,
 					"description": "%commands.commandExecutionTimeout.description%"
 				},
+				"roo-cline.commandTimeoutAllowlist": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "%commands.commandTimeoutAllowlist.description%"
+				},
 				"roo-cline.preventCompletionWithOpenTodos": {
 					"type": "boolean",
 					"default": false,

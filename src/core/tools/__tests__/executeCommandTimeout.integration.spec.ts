@@ -3,7 +3,7 @@
 
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
-import { executeCommand, ExecuteCommandOptions } from "../executeCommandTool"
+import { executeCommand, executeCommandTool, ExecuteCommandOptions } from "../executeCommandTool"
 import { Task } from "../../task/Task"
 import { TerminalRegistry } from "../../../integrations/terminal/TerminalRegistry"
 
@@ -17,6 +17,20 @@ vitest.mock("vscode", () => ({
 vitest.mock("fs/promises")
 vitest.mock("../../../integrations/terminal/TerminalRegistry")
 vitest.mock("../../task/Task")
+vitest.mock("../../prompts/responses", () => ({
+	formatResponse: {
+		toolError: vitest.fn((msg) => `Tool Error: ${msg}`),
+		rooIgnoreError: vitest.fn((msg) => `RooIgnore Error: ${msg}`),
+	},
+}))
+vitest.mock("../../../utils/text-normalization", () => ({
+	unescapeHtmlEntities: vitest.fn((text) => text),
+}))
+vitest.mock("../../../shared/package", () => ({
+	Package: {
+		name: "roo-cline",
+	},
+}))
 
 describe("Command Execution Timeout Integration", () => {
 	let mockTask: any
@@ -185,5 +199,214 @@ describe("Command Execution Timeout Integration", () => {
 		// Should complete successfully without timeout
 		expect(result[0]).toBe(false) // Not rejected
 		expect(result[1]).not.toContain("terminated after exceeding")
+	})
+
+	describe("Command Timeout Allowlist", () => {
+		let mockBlock: any
+		let mockAskApproval: any
+		let mockHandleError: any
+		let mockPushToolResult: any
+		let mockRemoveClosingTag: any
+
+		beforeEach(() => {
+			// Reset mocks for allowlist tests
+			vitest.clearAllMocks()
+			;(fs.access as any).mockResolvedValue(undefined)
+			;(TerminalRegistry.getOrCreateTerminal as any).mockResolvedValue(mockTerminal)
+
+			// Mock the executeCommandTool parameters
+			mockBlock = {
+				params: {
+					command: "",
+					cwd: undefined,
+				},
+				partial: false,
+			}
+
+			mockAskApproval = vitest.fn().mockResolvedValue(true) // Always approve
+			mockHandleError = vitest.fn()
+			mockPushToolResult = vitest.fn()
+			mockRemoveClosingTag = vitest.fn()
+
+			// Mock task with additional properties needed by executeCommandTool
+			mockTask = {
+				cwd: "/test/directory",
+				terminalProcess: undefined,
+				providerRef: {
+					deref: vitest.fn().mockResolvedValue({
+						postMessageToWebview: vitest.fn(),
+						getState: vitest.fn().mockResolvedValue({
+							terminalOutputLineLimit: 500,
+							terminalShellIntegrationDisabled: false,
+						}),
+					}),
+				},
+				say: vitest.fn().mockResolvedValue(undefined),
+				consecutiveMistakeCount: 0,
+				recordToolError: vitest.fn(),
+				sayAndCreateMissingParamError: vitest.fn(),
+				rooIgnoreController: {
+					validateCommand: vitest.fn().mockReturnValue(null),
+				},
+				lastMessageTs: Date.now(),
+				ask: vitest.fn(),
+				didRejectTool: false,
+			}
+		})
+
+		it("should skip timeout for commands in allowlist", async () => {
+			// Mock VSCode configuration with timeout and allowlist
+			const mockGetConfiguration = vitest.fn().mockReturnValue({
+				get: vitest.fn().mockImplementation((key: string) => {
+					if (key === "commandExecutionTimeout") return 1 // 1 second timeout
+					if (key === "commandTimeoutAllowlist") return ["npm", "git"]
+					return undefined
+				}),
+			})
+			;(vscode.workspace.getConfiguration as any).mockReturnValue(mockGetConfiguration())
+
+			mockBlock.params.command = "npm install"
+
+			// Create a process that would timeout if not allowlisted
+			const longRunningProcess = new Promise((resolve) => {
+				setTimeout(resolve, 2000) // 2 seconds, longer than 1 second timeout
+			})
+			mockTerminal.runCommand.mockReturnValue(longRunningProcess)
+
+			await executeCommandTool(
+				mockTask as Task,
+				mockBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			// Should complete successfully without timeout because "npm" is in allowlist
+			expect(mockPushToolResult).toHaveBeenCalled()
+			const result = mockPushToolResult.mock.calls[0][0]
+			expect(result).not.toContain("terminated after exceeding")
+		}, 3000)
+
+		it("should apply timeout for commands not in allowlist", async () => {
+			// Mock VSCode configuration with timeout and allowlist
+			const mockGetConfiguration = vitest.fn().mockReturnValue({
+				get: vitest.fn().mockImplementation((key: string) => {
+					if (key === "commandExecutionTimeout") return 1 // 1 second timeout
+					if (key === "commandTimeoutAllowlist") return ["npm", "git"]
+					return undefined
+				}),
+			})
+			;(vscode.workspace.getConfiguration as any).mockReturnValue(mockGetConfiguration())
+
+			mockBlock.params.command = "sleep 10" // Not in allowlist
+
+			// Create a process that never resolves
+			const neverResolvingProcess = new Promise(() => {})
+			;(neverResolvingProcess as any).abort = vitest.fn()
+			mockTerminal.runCommand.mockReturnValue(neverResolvingProcess)
+
+			await executeCommandTool(
+				mockTask as Task,
+				mockBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			// Should timeout because "sleep" is not in allowlist
+			expect(mockPushToolResult).toHaveBeenCalled()
+			const result = mockPushToolResult.mock.calls[0][0]
+			expect(result).toContain("terminated after exceeding")
+		}, 3000)
+
+		it("should handle empty allowlist", async () => {
+			// Mock VSCode configuration with timeout and empty allowlist
+			const mockGetConfiguration = vitest.fn().mockReturnValue({
+				get: vitest.fn().mockImplementation((key: string) => {
+					if (key === "commandExecutionTimeout") return 1 // 1 second timeout
+					if (key === "commandTimeoutAllowlist") return []
+					return undefined
+				}),
+			})
+			;(vscode.workspace.getConfiguration as any).mockReturnValue(mockGetConfiguration())
+
+			mockBlock.params.command = "npm install"
+
+			// Create a process that never resolves
+			const neverResolvingProcess = new Promise(() => {})
+			;(neverResolvingProcess as any).abort = vitest.fn()
+			mockTerminal.runCommand.mockReturnValue(neverResolvingProcess)
+
+			await executeCommandTool(
+				mockTask as Task,
+				mockBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			// Should timeout because allowlist is empty
+			expect(mockPushToolResult).toHaveBeenCalled()
+			const result = mockPushToolResult.mock.calls[0][0]
+			expect(result).toContain("terminated after exceeding")
+		}, 3000)
+
+		it("should match command prefixes correctly", async () => {
+			// Mock VSCode configuration with timeout and allowlist
+			const mockGetConfiguration = vitest.fn().mockReturnValue({
+				get: vitest.fn().mockImplementation((key: string) => {
+					if (key === "commandExecutionTimeout") return 1 // 1 second timeout
+					if (key === "commandTimeoutAllowlist") return ["git log", "npm run"]
+					return undefined
+				}),
+			})
+			;(vscode.workspace.getConfiguration as any).mockReturnValue(mockGetConfiguration())
+
+			const longRunningProcess = new Promise((resolve) => {
+				setTimeout(resolve, 2000) // 2 seconds
+			})
+			const neverResolvingProcess = new Promise(() => {})
+			;(neverResolvingProcess as any).abort = vitest.fn()
+
+			// Test exact prefix match - should not timeout
+			mockBlock.params.command = "git log --oneline"
+			mockTerminal.runCommand.mockReturnValueOnce(longRunningProcess)
+
+			await executeCommandTool(
+				mockTask as Task,
+				mockBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			expect(mockPushToolResult).toHaveBeenCalled()
+			const result1 = mockPushToolResult.mock.calls[0][0]
+			expect(result1).not.toContain("terminated after exceeding")
+
+			// Reset mocks for second test
+			mockPushToolResult.mockClear()
+
+			// Test partial prefix match (should not match) - should timeout
+			mockBlock.params.command = "git status" // "git" alone is not in allowlist, only "git log"
+			mockTerminal.runCommand.mockReturnValueOnce(neverResolvingProcess)
+
+			await executeCommandTool(
+				mockTask as Task,
+				mockBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			expect(mockPushToolResult).toHaveBeenCalled()
+			const result2 = mockPushToolResult.mock.calls[0][0]
+			expect(result2).toContain("terminated after exceeding")
+		}, 5000)
 	})
 })

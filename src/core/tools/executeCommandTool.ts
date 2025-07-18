@@ -70,8 +70,16 @@ export async function executeCommandTool(
 				.getConfiguration(Package.name)
 				.get<number>("commandExecutionTimeout", 0)
 
-			// Convert seconds to milliseconds for internal use
-			const commandExecutionTimeout = commandExecutionTimeoutSeconds * 1000
+			// Get command timeout allowlist from VSCode configuration
+			const commandTimeoutAllowlist = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<string[]>("commandTimeoutAllowlist", [])
+
+			// Check if command matches any prefix in the allowlist
+			const isCommandAllowlisted = commandTimeoutAllowlist.some((prefix) => command!.startsWith(prefix.trim()))
+
+			// Convert seconds to milliseconds for internal use, but skip timeout if command is allowlisted
+			const commandExecutionTimeout = isCommandAllowlisted ? 0 : commandExecutionTimeoutSeconds * 1000
 
 			const options: ExecuteCommandOptions = {
 				executionId,
