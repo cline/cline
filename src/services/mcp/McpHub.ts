@@ -35,10 +35,10 @@ import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
-import { McpConnection, McpServerConfig } from "./types"
+import { McpConnection, McpServerConfig, Transport } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
