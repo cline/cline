@@ -129,6 +129,7 @@ enum ApiProvider {
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
   HUGGINGFACE = 28;
+  HUAWEI_CLOUD_MAAS = 29;
 }
 
 // Model info for OpenAI-compatible models
@@ -252,4 +253,5 @@ message ModelsApiConfiguration {
   optional string hugging_face_api_key = 81;
   optional string hugging_face_model_id = 82;
   optional OpenRouterModelInfo hugging_face_model_info = 83;
+  optional string huawei_cloud_maas_api_key = 84;
 }

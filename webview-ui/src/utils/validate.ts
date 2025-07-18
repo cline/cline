@@ -132,6 +132,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid Auth URL or choose a different provider."
 				}
 				break
+			case "huawei-cloud-maas":
+				if (!apiConfiguration.huaweiCloudMaaSApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 		}
 	}
 	return undefined

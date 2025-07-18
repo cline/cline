@@ -192,6 +192,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		claudeCodePath,
 		groqModelId,
 		groqModelInfo,
+		huaweiCloudMaaSApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -273,6 +274,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getGlobalState(context, "groqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "groqModelInfo") as Promise<ModelInfo | undefined>,
+		getSecret(context, "huaweiCloudMaaSApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -468,6 +470,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			sapAiCoreModelId,
+			huaweiCloudMaaSApiKey,
 			huggingFaceApiKey,
 			huggingFaceModelId,
 			huggingFaceModelInfo,
@@ -590,6 +593,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		sapAiCoreModelId,
 		claudeCodePath,
+		huaweiCloudMaaSApiKey,
 		huggingFaceApiKey,
 		huggingFaceModelId,
 		huggingFaceModelInfo,
@@ -686,6 +690,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		nebiusApiKey,
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
+		huaweiCloudMaaSApiKey,
 		huggingFaceApiKey,
 	}
 
@@ -730,6 +735,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"groqApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
+		"huaweiCloudMaaSApiKey",
 		"huggingFaceApiKey",
 	]
 	for (const key of secretKeys) {

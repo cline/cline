@@ -29,6 +29,7 @@ import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
+import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 
 export interface ApiHandler {
@@ -249,6 +250,11 @@ function createHandlerForProvider(apiProvider: string | undefined, options: Omit
 				claudeCodePath: options.claudeCodePath,
 				apiModelId: options.apiModelId,
 				thinkingBudgetTokens: options.thinkingBudgetTokens,
+			})
+		case "huawei-cloud-maas":
+			return new HuaweiCloudMaaSHandler({
+				huaweiCloudMaaSApiKey: options.huaweiCloudMaaSApiKey,
+				apiModelId: options.apiModelId,
 			})
 		default:
 			return new AnthropicHandler({

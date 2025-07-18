@@ -244,6 +244,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.SAPAICORE
 		case "claude-code":
 			return ProtoApiProvider.CLAUDE_CODE
+		case "huawei-cloud-maas":
+			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -310,6 +312,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "sapaicore"
 		case ProtoApiProvider.CLAUDE_CODE:
 			return "claude-code"
+		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
+			return "huawei-cloud-maas"
 		default:
 			return "anthropic"
 	}
@@ -401,6 +405,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		claudeCodePath: config.claudeCodePath,
+		huaweiCloudMaasApiKey: config.huaweiCloudMaaSApiKey,
 	}
 }
 
@@ -490,5 +495,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		claudeCodePath: protoConfig.claudeCodePath,
+		huaweiCloudMaaSApiKey: protoConfig.huaweiCloudMaasApiKey,
 	}
 }
