@@ -1,11 +1,11 @@
 import vscode from "vscode"
-import { EmptyRequest, String } from "../../shared/proto/common"
-import { AuthState, UserInfo } from "../../shared/proto/account"
-import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { Controller } from "@/core/controller"
-import { storeSecret } from "@/core/storage/state"
 import { clineEnvConfig } from "@/config"
+import type { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { storeSecret } from "@/core/storage/state"
+import { AuthState, UserInfo } from "../../shared/proto/account"
+import { type EmptyRequest, String } from "../../shared/proto/common"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -31,6 +31,7 @@ export interface ClineAccountUserInfo {
 	email: string
 	id: string
 	organizations: ClineAccountOrganization[]
+	apiBaseUrl?: string
 }
 
 export interface ClineAccountOrganization {
@@ -155,17 +156,19 @@ export class AuthService {
 		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
+			userInfo.apiBaseUrl = clineEnvConfig?.apiBaseUrl
 			user = UserInfo.create({
 				// TODO: create proto for new user info type
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
+				apiBaseUrl: userInfo?.apiBaseUrl,
 			})
 		}
 
 		return AuthState.create({
-			user: user,
+			user,
 		})
 	}
 

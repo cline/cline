@@ -1,23 +1,22 @@
+import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
+import { type UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { EmptyRequest } from "@shared/proto/common"
 import {
 	VSCodeButton,
 	VSCodeDivider,
-	VSCodeLink,
 	VSCodeDropdown,
+	VSCodeLink,
 	VSCodeOption,
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useState, useRef } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
-import CreditsHistoryTable from "./CreditsHistoryTable"
-import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
-import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
-import { clineEnvConfig } from "@/config"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import CreditsHistoryTable from "./CreditsHistoryTable"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -35,7 +34,7 @@ const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
 			const progress = Math.min(elapsed / duration, 1)
 
 			// Easing function (ease-out)
-			const easedProgress = 1 - Math.pow(1 - progress, 3)
+			const easedProgress = 1 - (1 - progress) ** 3
 			const newValue = easedProgress * targetValue
 
 			setCurrentValue(newValue)
@@ -112,11 +111,13 @@ const getMainRole = (roles?: string[]) => {
 	return "Member"
 }
 
+const CLINE_API_URL = "https://api.cline.bot"
+
 export const ClineAccountView = () => {
 	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
 	const { userInfo, apiConfiguration } = useExtensionState()
 
-	let user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
+	const user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
 
 	const [balance, setBalance] = useState<number | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
@@ -127,9 +128,12 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-	const dashboardAddCreditsURL = activeOrganization
-		? `${clineEnvConfig.appBaseUrl}/dashboard/organization?tab=credits&redirect=true`
-		: `${clineEnvConfig.appBaseUrl}/dashboard/account?tab=credits&redirect=true`
+	const dashboardAddCreditsUrl = useMemo(() => {
+		const baseUrl = userInfo?.apiBaseUrl || CLINE_API_URL
+		return activeOrganization
+			? `${baseUrl}/dashboard/organization?tab=credits&redirect=true`
+			: `${baseUrl}/dashboard/account?tab=credits&redirect=true`
+	}, [userInfo?.apiBaseUrl, activeOrganization])
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -291,10 +295,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink
-								href={`${clineEnvConfig.appBaseUrl}/dashboard`}
-								appearance="primary"
-								className="w-full">
+							<VSCodeButtonLink href={`${CLINE_API_URL}/dashboard`} appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -332,7 +333,7 @@ export const ClineAccountView = () => {
 							</div>
 
 							<div className="w-full">
-								<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
+								<VSCodeButtonLink href={dashboardAddCreditsUrl} className="w-full">
 									Add Credits
 								</VSCodeButtonLink>
 							</div>
