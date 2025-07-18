@@ -5,6 +5,7 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
+import { Mode } from "@/shared/ChatSettings"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -312,7 +313,7 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param mode The mode being switched to (plan or act)
 	 */
-	public captureModeSwitch(taskId: string, mode: "plan" | "act") {
+	public captureModeSwitch(taskId: string, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
 			properties: {
@@ -534,7 +535,7 @@ class TelemetryService {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
-	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
+	public captureOptionSelected(taskId: string, qty: number, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
 			properties: {
@@ -551,7 +552,7 @@ class TelemetryService {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
-	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
+	public captureOptionsIgnored(taskId: string, qty: number, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
 			properties: {

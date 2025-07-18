@@ -9,7 +9,8 @@ import { ApiStream } from "../transform/stream"
 
 interface HuggingFaceHandlerOptions {
 	huggingFaceApiKey?: string
-	apiModelId?: string
+	huggingFaceModelId?: string
+	huggingFaceModelInfo?: ModelInfo
 }
 
 export class HuggingFaceHandler implements ApiHandler {
@@ -115,7 +116,7 @@ export class HuggingFaceHandler implements ApiHandler {
 			return this.cachedModel
 		}
 
-		const modelId = this.options.apiModelId
+		const modelId = this.options.huggingFaceModelId
 
 		// List all available models for debugging
 		const availableModels = Object.keys(huggingFaceModels)

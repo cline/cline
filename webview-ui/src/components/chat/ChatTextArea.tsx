@@ -7,7 +7,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions from "@/components/settings/ApiOptions"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import {
@@ -966,8 +966,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(async () => {
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+			const apiValidationResult = validateApiConfiguration(chatSettings.mode, apiConfiguration)
+			const modelIdValidationResult = validateModelId(chatSettings.mode, apiConfiguration, openRouterModels)
 
 			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
 				try {
@@ -1089,7 +1089,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
-			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, chatSettings.mode)
+			const {
+				vsCodeLmModelSelector,
+				togetherModelId,
+				fireworksModelId,
+				lmStudioModelId,
+				ollamaModelId,
+				liteLlmModelId,
+				requestyModelId,
+			} = getModeSpecificFields(apiConfiguration, chatSettings.mode)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
@@ -1098,25 +1107,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
-					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+					return `vscode-lm:${vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				case "together":
-					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+					return `${selectedProvider}:${togetherModelId}`
 				case "fireworks":
-					return `fireworks:${apiConfiguration.fireworksModelId}`
+					return `fireworks:${fireworksModelId}`
 				case "lmstudio":
-					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
+					return `${selectedProvider}:${lmStudioModelId}`
 				case "ollama":
-					return `${selectedProvider}:${apiConfiguration.ollamaModelId}`
+					return `${selectedProvider}:${ollamaModelId}`
 				case "litellm":
-					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
+					return `${selectedProvider}:${liteLlmModelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+					return `${selectedProvider}:${requestyModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration])
+		}, [apiConfiguration, chatSettings.mode])
 
 		// Calculate arrow position and menu position based on button location
 		useEffect(() => {
@@ -1720,7 +1729,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										style={{
 											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 										}}>
-										<ApiOptions showModelOptions={true} modelIdErrorMessage={undefined} isPopup={true} />
+										<ApiOptions
+											showModelOptions={true}
+											apiErrorMessage={undefined}
+											modelIdErrorMessage={undefined}
+											isPopup={true}
+											currentMode={chatSettings.mode}
+										/>
 									</ModelSelectorTooltip>
 								)}
 							</ModelContainer>
