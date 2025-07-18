@@ -229,7 +229,7 @@ export abstract class DiffViewProvider {
 			}
 		}
 
-		this.saveDocument()
+		await this.saveDocument()
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
