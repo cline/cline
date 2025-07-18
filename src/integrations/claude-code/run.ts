@@ -30,8 +30,9 @@ export const MAX_SYSTEM_PROMPT_LENGTH = 65536
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
 	const isSystemPromptTooLong = options.systemPrompt.length > MAX_SYSTEM_PROMPT_LENGTH
+	const uniqueId = crypto.randomUUID().slice(0, 8)
+	const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-${uniqueId}.txt`)
 	if (os.platform() === "win32" || isSystemPromptTooLong) {
-		const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-cc.txt`)
 		// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
 		// https://github.com/anthropics/claude-code/issues/3411#issuecomment-3082068547
 		await fs.writeFile(tempFilePath, options.systemPrompt, "utf8")
@@ -148,6 +149,8 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 		if (!cProcess.killed) {
 			cProcess.kill()
 		}
+
+		fs.unlink(tempFilePath).catch(console.error)
 	}
 }
 
