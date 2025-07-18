@@ -1,4 +1,5 @@
 import { huggingFaceModels } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -13,17 +14,18 @@ import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
 interface HuggingFaceProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Hugging Face provider configuration component
  */
-export const HuggingFaceProvider = ({ showModelOptions, isPopup }: HuggingFaceProviderProps) => {
+export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: HuggingFaceProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -50,7 +52,7 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup }: HuggingFacePr
 
 			{showModelOptions && (
 				<>
-					<HuggingFaceModelPicker isPopup={isPopup} />
+					<HuggingFaceModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>

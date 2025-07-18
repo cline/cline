@@ -6,6 +6,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the AskSageProvider component
@@ -13,17 +14,18 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface AskSageProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The AskSage provider configuration component
  */
-export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderProps) => {
+export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -48,7 +50,13 @@ export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderPr
 					<ModelSelector
 						models={askSageModels}
 						selectedModelId={selectedModelId}
-						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

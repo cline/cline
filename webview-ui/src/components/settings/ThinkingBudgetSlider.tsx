@@ -4,6 +4,8 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "./utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -83,20 +85,23 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 
 interface ThinkingBudgetSliderProps {
 	maxBudget?: number
+	currentMode: Mode
 }
 
-const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const [isEnabled, setIsEnabled] = useState<boolean>((apiConfiguration?.thinkingBudgetTokens || 0) > 0)
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+
+	const [isEnabled, setIsEnabled] = useState<boolean>((modeFields.thinkingBudgetTokens || 0) > 0)
 
 	const maxTokens = useMemo(
 		() =>
-			apiConfiguration?.apiProvider === "gemini"
+			modeFields.apiProvider === "gemini"
 				? geminiModels[geminiDefaultModelId].maxTokens
 				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-		[apiConfiguration?.apiProvider],
+		[modeFields.apiProvider],
 	)
 
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
@@ -108,7 +113,7 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 	}, [maxBudget, maxTokens])
 
 	// Add local state for the slider value
-	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
+	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
@@ -116,7 +121,11 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 	}, [])
 
 	const handleSliderComplete = () => {
-		handleFieldChange("thinkingBudgetTokens", localValue)
+		handleModeFieldChange(
+			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
+			localValue,
+			currentMode,
+		)
 	}
 
 	const handleToggleChange = (event: any) => {
@@ -125,7 +134,7 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 		setIsEnabled(isChecked)
 		setLocalValue(newValue)
 
-		handleFieldChange("thinkingBudgetTokens", newValue)
+		handleModeFieldChange({ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" }, newValue, currentMode)
 	}
 
 	return (

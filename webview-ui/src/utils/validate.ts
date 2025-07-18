@@ -1,8 +1,21 @@
 import { ApiConfiguration, openRouterDefaultModelId, ModelInfo } from "@shared/api"
+import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
-export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
+export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
-		switch (apiConfiguration.apiProvider) {
+		const {
+			apiProvider,
+			openAiModelId,
+			requestyModelId,
+			fireworksModelId,
+			togetherModelId,
+			ollamaModelId,
+			lmStudioModelId,
+			vsCodeLmModelSelector,
+		} = getModeSpecificFields(apiConfiguration, currentMode)
+
+		switch (apiProvider) {
 			case "anthropic":
 				if (!apiConfiguration.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
@@ -64,37 +77,37 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "openai":
-				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !apiConfiguration.openAiModelId) {
+				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !openAiModelId) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
 			case "requesty":
-				if (!apiConfiguration.requestyApiKey || !apiConfiguration.requestyModelId) {
+				if (!apiConfiguration.requestyApiKey || !requestyModelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !apiConfiguration.fireworksModelId) {
+				if (!apiConfiguration.fireworksApiKey || !fireworksModelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "together":
-				if (!apiConfiguration.togetherApiKey || !apiConfiguration.togetherModelId) {
+				if (!apiConfiguration.togetherApiKey || !togetherModelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "ollama":
-				if (!apiConfiguration.ollamaModelId) {
+				if (!ollamaModelId) {
 					return "You must provide a valid model ID."
 				}
 				break
 			case "lmstudio":
-				if (!apiConfiguration.lmStudioModelId) {
+				if (!lmStudioModelId) {
 					return "You must provide a valid model ID."
 				}
 				break
 			case "vscode-lm":
-				if (!apiConfiguration.vsCodeLmModelSelector) {
+				if (!vsCodeLmModelSelector) {
 					return "You must provide a valid model selector."
 				}
 				break
@@ -138,14 +151,16 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 }
 
 export function validateModelId(
+	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
-		switch (apiConfiguration.apiProvider) {
+		const { apiProvider, openRouterModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+		switch (apiProvider) {
 			case "openrouter":
 			case "cline":
-				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
 				}

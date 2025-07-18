@@ -6,6 +6,7 @@ import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenR
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the ClineProvider component
@@ -13,12 +14,13 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface ClineProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Cline provider configuration component
  */
-export const ClineProvider = ({ showModelOptions, isPopup }: ClineProviderProps) => {
+export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -76,7 +78,7 @@ export const ClineProvider = ({ showModelOptions, isPopup }: ClineProviderProps)
 					)}
 
 					{/* OpenRouter Model Picker */}
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>

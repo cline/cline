@@ -261,12 +261,19 @@ export class Task {
 			},
 		}
 
-		if (apiConfiguration.apiProvider === "openai" || apiConfiguration.apiProvider === "openai-native") {
-			effectiveApiConfiguration.reasoningEffort = chatSettings.openAIReasoningEffort
+		const currentProvider =
+			chatSettings.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+
+		if (currentProvider === "openai" || currentProvider === "openai-native") {
+			if (chatSettings.mode === "plan") {
+				effectiveApiConfiguration.planModeReasoningEffort = chatSettings.openAIReasoningEffort
+			} else {
+				effectiveApiConfiguration.actModeReasoningEffort = chatSettings.openAIReasoningEffort
+			}
 		}
 
 		// Now that taskId is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration)
+		this.api = buildApiHandler(effectiveApiConfiguration, chatSettings.mode)
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -281,10 +288,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskRestarted(this.taskId, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskCreated(this.taskId, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -304,6 +311,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
+			this.chatSettings,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -1591,7 +1599,10 @@ export class Task {
 
 	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
-		const providerId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const providerId =
+			this.chatSettings.mode === "plan"
+				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
+				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
 		return { modelId, providerId }
 	}
 

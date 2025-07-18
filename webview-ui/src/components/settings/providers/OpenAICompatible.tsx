@@ -8,9 +8,10 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -18,19 +19,23 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface OpenAICompatibleProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The OpenAI Compatible provider configuration component
  */
-export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICompatibleProviderProps) => {
+export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMode }: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// Get mode-specific fields
+	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -86,8 +91,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 			/>
 
 			<DebouncedTextField
-				initialValue={apiConfiguration?.openAiModelId || ""}
-				onChange={(value) => handleFieldChange("openAiModelId", value)}
+				initialValue={selectedModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+				}
 				style={{ width: "100%", marginBottom: 10 }}
 				placeholder={"Enter Model ID..."}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -188,41 +195,47 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 			{modelConfigurationSelected && (
 				<>
 					<VSCodeCheckbox
-						checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
+						checked={!!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							const modelInfo = apiConfiguration?.openAiModelInfo
-								? apiConfiguration.openAiModelInfo
-								: { ...openAiModelInfoSaneDefaults }
+							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
-							handleFieldChange("openAiModelInfo", modelInfo)
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+								modelInfo,
+								currentMode,
+							)
 						}}>
 						Supports Images
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
+						checked={!!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							let modelInfo = apiConfiguration?.openAiModelInfo
-								? apiConfiguration.openAiModelInfo
-								: { ...openAiModelInfoSaneDefaults }
+							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
-							handleFieldChange("openAiModelInfo", modelInfo)
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+								modelInfo,
+								currentMode,
+							)
 						}}>
 						Supports browser use
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={!!apiConfiguration?.openAiModelInfo?.isR1FormatRequired}
+						checked={!!openAiModelInfo?.isR1FormatRequired}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							let modelInfo = apiConfiguration?.openAiModelInfo
-								? apiConfiguration.openAiModelInfo
-								: { ...openAiModelInfoSaneDefaults }
+							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
 
-							handleFieldChange("openAiModelInfo", modelInfo)
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+								modelInfo,
+								currentMode,
+							)
 						}}>
 						Enable R1 messages format
 					</VSCodeCheckbox>
@@ -230,34 +243,38 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.openAiModelInfo?.contextWindow
-									? apiConfiguration.openAiModelInfo.contextWindow.toString()
+								openAiModelInfo?.contextWindow
+									? openAiModelInfo.contextWindow.toString()
 									: (openAiModelInfoSaneDefaults.contextWindow?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.openAiModelInfo
-									? apiConfiguration.openAiModelInfo
-									: { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
-								handleFieldChange("openAiModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
 						</DebouncedTextField>
 
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.openAiModelInfo?.maxTokens
-									? apiConfiguration.openAiModelInfo.maxTokens.toString()
+								openAiModelInfo?.maxTokens
+									? openAiModelInfo.maxTokens.toString()
 									: (openAiModelInfoSaneDefaults.maxTokens?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.openAiModelInfo
-									? apiConfiguration.openAiModelInfo
-									: { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
-								handleFieldChange("openAiModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</DebouncedTextField>
@@ -266,34 +283,38 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.openAiModelInfo?.inputPrice
-									? apiConfiguration.openAiModelInfo.inputPrice.toString()
+								openAiModelInfo?.inputPrice
+									? openAiModelInfo.inputPrice.toString()
 									: (openAiModelInfoSaneDefaults.inputPrice?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.openAiModelInfo
-									? apiConfiguration.openAiModelInfo
-									: { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.inputPrice = Number(value)
-								handleFieldChange("openAiModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
 						</DebouncedTextField>
 
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.openAiModelInfo?.outputPrice
-									? apiConfiguration.openAiModelInfo.outputPrice.toString()
+								openAiModelInfo?.outputPrice
+									? openAiModelInfo.outputPrice.toString()
 									: (openAiModelInfoSaneDefaults.outputPrice?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.openAiModelInfo
-									? apiConfiguration.openAiModelInfo
-									: { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.outputPrice = Number(value)
-								handleFieldChange("openAiModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 						</DebouncedTextField>
@@ -302,14 +323,12 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.openAiModelInfo?.temperature
-									? apiConfiguration.openAiModelInfo.temperature.toString()
+								openAiModelInfo?.temperature
+									? openAiModelInfo.temperature.toString()
 									: (openAiModelInfoSaneDefaults.temperature?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.openAiModelInfo
-									? apiConfiguration.openAiModelInfo
-									: { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 
 								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
 
@@ -320,7 +339,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup }: OpenAICo
 											? (value as any)
 											: parseFloat(value)
 
-								handleFieldChange("openAiModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</DebouncedTextField>

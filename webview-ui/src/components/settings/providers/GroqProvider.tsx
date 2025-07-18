@@ -1,3 +1,4 @@
+import { Mode } from "@shared/ChatSettings"
 import { ApiKeyField } from "../common/ApiKeyField"
 import GroqModelPicker from "../GroqModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -9,12 +10,13 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface GroqProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Groq provider configuration component
  */
-export const GroqProvider = ({ showModelOptions, isPopup }: GroqProviderProps) => {
+export const GroqProvider = ({ showModelOptions, isPopup, currentMode }: GroqProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -27,7 +29,7 @@ export const GroqProvider = ({ showModelOptions, isPopup }: GroqProviderProps) =
 				signupUrl="https://console.groq.com/keys"
 			/>
 
-			{showModelOptions && <GroqModelPicker isPopup={isPopup} />}
+			{showModelOptions && <GroqModelPicker isPopup={isPopup} currentMode={currentMode} />}
 		</div>
 	)
 }

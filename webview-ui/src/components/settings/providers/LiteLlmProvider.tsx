@@ -3,11 +3,12 @@ import { liteLlmModelInfoSaneDefaults } from "@shared/api"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the LiteLlmProvider component
@@ -15,17 +16,21 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface LiteLlmProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The LiteLLM provider configuration component
  */
-export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderProps) => {
+export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// Get mode-specific fields
+	const { liteLlmModelId, liteLlmModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Local state for collapsible model configuration section
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
@@ -49,8 +54,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderPr
 				<span style={{ fontWeight: 500 }}>API Key</span>
 			</DebouncedTextField>
 			<DebouncedTextField
-				initialValue={apiConfiguration?.liteLlmModelId || ""}
-				onChange={(value) => handleFieldChange("liteLlmModelId", value)}
+				initialValue={liteLlmModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" }, value, currentMode)
+				}
 				style={{ width: "100%" }}
 				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -77,7 +84,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderPr
 			</div>
 
 			<>
-				<ThinkingBudgetSlider />
+				<ThinkingBudgetSlider currentMode={currentMode} />
 				<p
 					style={{
 						fontSize: "12px",
@@ -118,50 +125,56 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderPr
 			{modelConfigurationSelected && (
 				<>
 					<VSCodeCheckbox
-						checked={!!apiConfiguration?.liteLlmModelInfo?.supportsImages}
+						checked={!!liteLlmModelInfo?.supportsImages}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							const modelInfo = apiConfiguration?.liteLlmModelInfo
-								? apiConfiguration.liteLlmModelInfo
-								: { ...liteLlmModelInfoSaneDefaults }
+							const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
 
-							handleFieldChange("liteLlmModelInfo", modelInfo)
+							handleModeFieldChange(
+								{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+								modelInfo,
+								currentMode,
+							)
 						}}>
 						Supports Images
 					</VSCodeCheckbox>
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.liteLlmModelInfo?.contextWindow
-									? apiConfiguration.liteLlmModelInfo.contextWindow.toString()
+								liteLlmModelInfo?.contextWindow
+									? liteLlmModelInfo.contextWindow.toString()
 									: (liteLlmModelInfoSaneDefaults.contextWindow?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.liteLlmModelInfo
-									? apiConfiguration.liteLlmModelInfo
-									: { ...liteLlmModelInfoSaneDefaults }
+								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
 
-								handleFieldChange("liteLlmModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
 						</DebouncedTextField>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.liteLlmModelInfo?.maxTokens
-									? apiConfiguration.liteLlmModelInfo.maxTokens.toString()
+								liteLlmModelInfo?.maxTokens
+									? liteLlmModelInfo.maxTokens.toString()
 									: (liteLlmModelInfoSaneDefaults.maxTokens?.toString() ?? "")
 							}
 							style={{ flex: 1 }}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.liteLlmModelInfo
-									? apiConfiguration.liteLlmModelInfo
-									: { ...liteLlmModelInfoSaneDefaults }
+								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
 
-								handleFieldChange("liteLlmModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</DebouncedTextField>
@@ -169,14 +182,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderPr
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								apiConfiguration?.liteLlmModelInfo?.temperature !== undefined
-									? apiConfiguration.liteLlmModelInfo.temperature.toString()
+								liteLlmModelInfo?.temperature !== undefined
+									? liteLlmModelInfo.temperature.toString()
 									: (liteLlmModelInfoSaneDefaults.temperature?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = apiConfiguration?.liteLlmModelInfo
-									? apiConfiguration.liteLlmModelInfo
-									: { ...liteLlmModelInfoSaneDefaults }
+								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 
 								// Check if the input ends with a decimal point or has trailing zeros after decimal
 								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
@@ -184,7 +195,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup }: LiteLlmProviderPr
 								modelInfo.temperature =
 									value === "" ? liteLlmModelInfoSaneDefaults.temperature : parseFloat(value)
 
-								handleFieldChange("liteLlmModelInfo", modelInfo)
+								handleModeFieldChange(
+									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+									modelInfo,
+									currentMode,
+								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</DebouncedTextField>

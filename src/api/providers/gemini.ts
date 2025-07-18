@@ -44,7 +44,7 @@ interface GeminiHandlerOptions {
  * 4. Separating immediate costs from ongoing costs to avoid double-counting
  */
 export class GeminiHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: GeminiHandlerOptions
 	private client: GoogleGenAI | undefined
 
 	constructor(options: GeminiHandlerOptions) {
