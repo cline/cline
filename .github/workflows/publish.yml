@@ -94,9 +94,10 @@ jobs:
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  CLINE_ENVIRONMENT: production
               run: |
                   # Required to generate the .vsix
-                  CLINE_ENVIRONMENT=production vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
