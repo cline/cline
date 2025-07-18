@@ -39,6 +39,6 @@ export async function readTextFromClipboard(): Promise<string> {
  * @throws Error if the operation fails
  */
 export async function openExternal(url: string): Promise<void> {
-	console.log(`Opening ${url} in browser`)
+	console.log("Opening browser:", url)
 	await open(url)
 }
