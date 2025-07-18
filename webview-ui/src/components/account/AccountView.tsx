@@ -124,7 +124,7 @@ export const ClineAccountView = () => {
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
-	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
+	const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now())
@@ -139,86 +139,93 @@ export const ClineAccountView = () => {
 				setBalance(null)
 				setUserOrganizations([])
 				setActiveOrganization(null)
+				setIsSwitchingProfile(false)
+				setIsLoading(false)
 				return
 			}
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
 				setUserOrganizations(response.organizations)
-				setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
+				const newOrg = response.organizations.find((org: UserOrganization) => org.active)
+				if (newOrg?.organizationId !== activeOrganization?.organizationId) {
+					setActiveOrganization(newOrg)
+				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
 	}, [clineUser?.uid, userOrganizations])
 
-	const getUserCredits = useCallback(async () => {
+	const fetchCreditBalance = useCallback(async () => {
 		try {
-			if (activeOrganization?.organizationId) {
-				const response = await AccountServiceClient.getOrganizationCredits(
-					GetOrganizationCreditsRequest.fromPartial({
-						organizationId: activeOrganization.organizationId,
-					}),
-				)
-				const updatedBalance = response.balance?.currentBalance
-				if (updatedBalance !== balance) {
-					setBalance(updatedBalance)
-				}
-				// Map organization usage transactions to the expected format
-				setUsageData(response.usageTransactions)
-				// Organizations don't have payment transactions, so clear them
-				setPaymentsData([])
-				return
+			setIsLoading(true)
+			const response = activeOrganization?.organizationId
+				? await AccountServiceClient.getOrganizationCredits(
+						GetOrganizationCreditsRequest.fromPartial({
+							organizationId: activeOrganization.organizationId,
+						}),
+					)
+				: await AccountServiceClient.getUserCredits(EmptyRequest.create())
+			// Update changed states only
+			const newBalance = response.balance?.currentBalance
+			if (newBalance !== balance) {
+				setBalance(newBalance)
 			}
-
-			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
-			setBalance(response.balance?.currentBalance ?? null)
-			setUsageData(response.usageTransactions)
-			setPaymentsData(response.paymentTransactions)
+			if (response.usageTransactions?.length !== usageData?.length) {
+				setUsageData(response.usageTransactions)
+			}
+			if (activeOrganization?.organizationId) {
+				setPaymentsData([]) // Organizations don't have payment transactions
+			} else if (response.paymentTransactions?.length !== paymentsData?.length) {
+				setPaymentsData(response.paymentTransactions)
+			}
 		} finally {
 			setLastFetchTime(Date.now())
 			setIsLoading(false)
 		}
-	}, [activeOrganization?.organizationId, balance])
+	}, [activeOrganization?.organizationId, balance, usageData?.length, paymentsData?.length])
 
-	const handleManualRefresh = useCallback(() => {
-		return () => debounce(() => getUserCredits(), 500, { immediate: true })
-	}, [getUserCredits])
+	const handleManualRefresh = useCallback(
+		debounce(() => !isLoading && fetchCreditBalance(), 500, { immediate: true }),
+		[fetchCreditBalance, isLoading],
+	)
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
-
 			if (activeOrganization?.organizationId !== newOrgId) {
-				setIsSwitchingOrg(true) // Disable dropdown
+				setIsSwitchingProfile(true) // Disable dropdown
+				setBalance(null)
 
 				try {
-					await AccountServiceClient.setUserOrganization(
-						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
-					)
+					const org = userOrganizations.find((org: UserOrganization) => org.organizationId === newOrgId)
+					if (org) {
+						setActiveOrganization(org)
+					}
+					AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
 					await getUserOrganizations() // Refresh to get new active org
-					await getUserCredits() // Refresh credits for new org
+					await fetchCreditBalance() // Refresh credits for new org
 				} catch (error) {
 					console.error("Failed to update organization:", error)
-				} finally {
-					setIsSwitchingOrg(false) // Re-enable dropdown
 				}
+
+				setIsSwitchingProfile(false) // Re-enable dropdown
 			}
 		},
-		[activeOrganization?.organizationId, getUserCredits, getUserOrganizations],
+		[activeOrganization?.organizationId, fetchCreditBalance, getUserOrganizations],
 	)
 
 	// Handle organization changes and initial load
 	useEffect(() => {
-		getUserOrganizations().then(() => getUserCredits())
-	}, [getUserOrganizations, getUserCredits])
+		getUserOrganizations().then(() => fetchCreditBalance())
+	}, [getUserOrganizations, fetchCreditBalance])
 
 	// Periodic refresh
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
 				if (clineUser?.uid) {
-					await getUserOrganizations()
-					await getUserCredits()
+					Promise.all([getUserOrganizations(), fetchCreditBalance()])
 				}
 			} catch (error) {
 				console.error("Error during periodic refresh:", error)
@@ -227,7 +234,7 @@ export const ClineAccountView = () => {
 
 		const intervalId = setInterval(refreshData, 30000)
 		return () => clearInterval(intervalId)
-	}, [clineUser?.uid, getUserOrganizations, getUserCredits])
+	}, [clineUser?.uid, getUserOrganizations, fetchCreditBalance])
 
 	return (
 		<div className="h-full flex flex-col">
@@ -260,7 +267,7 @@ export const ClineAccountView = () => {
 											key={activeOrganization?.organizationId || "personal"}
 											currentValue={activeOrganization?.organizationId || ""}
 											onChange={handleOrganizationChange}
-											disabled={isSwitchingOrg || isLoading}
+											disabled={isSwitchingProfile}
 											className="w-full">
 											<VSCodeOption value="">Personal</VSCodeOption>
 											{userOrganizations.map((org: UserOrganization) => (
@@ -304,22 +311,10 @@ export const ClineAccountView = () => {
 						</div>
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
-							{isLoading ? (
-								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
-							) : (
-								<>
-									{balance === null ? (
-										<span>----</span>
-									) : (
-										<>
-											<StyledCreditDisplay balance={balance} />
-										</>
-									)}
-									<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
-										<span className="codicon codicon-refresh"></span>
-									</VSCodeButton>
-								</>
-							)}
+							{balance === null ? <span>----</span> : <StyledCreditDisplay balance={balance} />}
+							<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
+								<span className="codicon codicon-refresh"></span>
+							</VSCodeButton>
 						</div>
 
 						<div className="w-full">
@@ -333,10 +328,10 @@ export const ClineAccountView = () => {
 
 					<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
 						<CreditsHistoryTable
-							isLoading={isLoading}
+							isLoading={isSwitchingProfile}
 							usageData={usageData}
 							paymentsData={paymentsData}
-							showPayments={!activeOrganization}
+							showPayments={!activeOrganization?.active}
 						/>
 					</div>
 				</div>
@@ -344,7 +339,7 @@ export const ClineAccountView = () => {
 				<div className="flex flex-col items-center pr-3">
 					<ClineLogoWhite className="size-16 mb-4" />
 
-					<p style={{}}>
+					<p>
 						Sign up for an account to get access to the latest models, billing dashboard to view usage and credits,
 						and more upcoming features.
 					</p>
