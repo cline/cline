@@ -1,12 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { memo, useCallback, useEffect, useState, useMemo } from "react"
+import { ApiConfiguration, geminiModels, geminiDefaultModelId, anthropicModels } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { Mode } from "@shared/ChatSettings"
-
+import { normalizeApiConfiguration } from "./utils/providerUtils"
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
@@ -91,6 +91,7 @@ interface ThinkingBudgetSliderProps {
 const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
@@ -104,16 +105,25 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 		[modeFields.apiProvider],
 	)
 
-	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
-	const maxSliderValue = useMemo(() => {
-		if (maxBudget !== undefined) {
-			return maxBudget
-		}
-		return Math.floor(maxTokens * MAX_PERCENTAGE)
-	}, [maxBudget, maxTokens])
+	const maxSliderValue =
+		selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE)
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
+
+	useEffect(() => {
+		const budget = modeFields.thinkingBudgetTokens || 0
+		if (budget > maxSliderValue) {
+			setLocalValue(maxSliderValue)
+			handleModeFieldChange(
+				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
+				maxSliderValue,
+				currentMode
+			)
+		} else {
+			setLocalValue(budget)
+		}
+	}, [modeFields.thinkingBudgetTokens, maxSliderValue, handleModeFieldChange, currentMode])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)

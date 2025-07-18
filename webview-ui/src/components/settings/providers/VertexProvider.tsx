@@ -110,7 +110,6 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						label="Model"
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
-
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
 					)}

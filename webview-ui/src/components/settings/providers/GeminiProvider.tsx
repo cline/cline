@@ -61,7 +61,6 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 						}
 						label="Model"
 					/>
-
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
 					)}

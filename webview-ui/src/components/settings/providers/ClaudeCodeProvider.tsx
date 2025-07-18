@@ -62,7 +62,6 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						}
 						label="Model"
 					/>
-
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
 					)}
