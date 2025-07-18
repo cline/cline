@@ -79,8 +79,6 @@ export interface ApiHandlerOptions {
 	moonshotApiLine?: string
 	moonshotApiKey?: string
 	huggingFaceApiKey?: string
-	huggingFaceModelId?: string
-	huggingFaceModelInfo?: ModelInfo
 	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
@@ -117,6 +115,8 @@ export interface ApiHandlerOptions {
 	planModeSapAiCoreModelId?: string
 	planModeGroqModelId?: string
 	planModeGroqModelInfo?: ModelInfo
+	planModeHuggingFaceModelId?: string
+	planModeHuggingFaceModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -140,6 +140,8 @@ export interface ApiHandlerOptions {
 	actModeSapAiCoreModelId?: string
 	actModeGroqModelId?: string
 	actModeGroqModelInfo?: ModelInfo
+	actModeHuggingFaceModelId?: string
+	actModeHuggingFaceModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

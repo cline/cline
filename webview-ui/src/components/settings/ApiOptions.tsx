@@ -261,7 +261,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "huggingface" && (
-				<HuggingFaceProvider showModelOptions={showModelOptions} isPopup={isPopup} />
+				<HuggingFaceProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiConfiguration && selectedProvider === "nebius" && (

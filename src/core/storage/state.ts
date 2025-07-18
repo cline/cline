@@ -277,8 +277,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
 		chatSettings,
 		currentMode,
-		huggingFaceModelId,
-		huggingFaceModelInfo,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -302,6 +300,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeHuggingFaceModelId,
+		planModeHuggingFaceModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -325,11 +325,11 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeSapAiCoreModelId,
 		actModeGroqModelId,
 		actModeGroqModelInfo,
+		actModeHuggingFaceModelId,
+		actModeHuggingFaceModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
-		getGlobalState(context, "huggingFaceModelId") as Promise<string | undefined>,
-		getGlobalState(context, "huggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,
@@ -353,6 +353,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeSapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeGroqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -376,6 +378,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeSapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeGroqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const processingStart = performance.now()
@@ -476,8 +480,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			huggingFaceApiKey,
-			huggingFaceModelId,
-			huggingFaceModelInfo,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -501,6 +503,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeSapAiCoreModelId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
+			planModeHuggingFaceModelId,
+			planModeHuggingFaceModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -613,8 +617,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		claudeCodePath,
 		huggingFaceApiKey,
-		huggingFaceModelId,
-		huggingFaceModelInfo,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -638,6 +640,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeHuggingFaceModelId,
+		planModeHuggingFaceModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -661,12 +665,12 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeSapAiCoreModelId,
 		actModeGroqModelId,
 		actModeGroqModelInfo,
+		actModeHuggingFaceModelId,
+		actModeHuggingFaceModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
 	const batchedGlobalUpdates = {
-		huggingFaceModelId,
-		huggingFaceModelInfo,
 		// Plan mode configuration updates
 		planModeApiProvider,
 		planModeApiModelId,
@@ -690,6 +694,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeHuggingFaceModelId,
+		planModeHuggingFaceModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -714,6 +720,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeSapAiCoreModelId,
 		actModeGroqModelId,
 		actModeGroqModelInfo,
+		actModeHuggingFaceModelId,
+		actModeHuggingFaceModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,

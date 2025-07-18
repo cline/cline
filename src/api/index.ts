@@ -217,7 +217,9 @@ function createHandlerForProvider(
 		case "huggingface":
 			return new HuggingFaceHandler({
 				huggingFaceApiKey: options.huggingFaceApiKey,
-				apiModelId: options.apiModelId,
+				huggingFaceModelId: mode === "plan" ? options.planModeHuggingFaceModelId : options.actModeHuggingFaceModelId,
+				huggingFaceModelInfo:
+					mode === "plan" ? options.planModeHuggingFaceModelInfo : options.actModeHuggingFaceModelInfo,
 			})
 		case "nebius":
 			return new NebiusHandler({

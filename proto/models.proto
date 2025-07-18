@@ -229,8 +229,6 @@ message ModelsApiConfiguration {
   optional string cline_account_id = 58;
   optional string groq_api_key = 59;
   optional string hugging_face_api_key = 60;
-  optional string hugging_face_model_id = 61;
-  optional OpenRouterModelInfo hugging_face_model_info = 62;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -255,6 +253,8 @@ message ModelsApiConfiguration {
   optional string plan_mode_sap_ai_core_model_id = 119;
   optional string plan_mode_groq_model_id = 120;
   optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
+  optional string plan_mode_hugging_face_model_id = 122;
+  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -279,6 +279,8 @@ message ModelsApiConfiguration {
   optional string act_mode_sap_ai_core_model_id = 219;
   optional string act_mode_groq_model_id = 220;
   optional OpenRouterModelInfo act_mode_groq_model_info = 221;
+  optional string act_mode_hugging_face_model_id = 222;
+  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
 
   repeated string favorited_model_ids = 300;
 }

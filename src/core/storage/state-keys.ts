@@ -85,8 +85,6 @@ export type GlobalStateKey =
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
 	| "mode"
-	| "huggingFaceModelId"
-	| "huggingFaceModelInfo"
 	// Plan mode configurations
 	| "planModeApiProvider"
 	| "planModeApiModelId"
@@ -110,6 +108,8 @@ export type GlobalStateKey =
 	| "planModeSapAiCoreModelId"
 	| "planModeGroqModelId"
 	| "planModeGroqModelInfo"
+	| "planModeHuggingFaceModelId"
+	| "planModeHuggingFaceModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -133,5 +133,7 @@ export type GlobalStateKey =
 	| "actModeSapAiCoreModelId"
 	| "actModeGroqModelId"
 	| "actModeGroqModelInfo"
+	| "actModeHuggingFaceModelId"
+	| "actModeHuggingFaceModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"

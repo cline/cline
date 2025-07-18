@@ -219,10 +219,18 @@ export function normalizeApiConfiguration(
 		case "moonshot":
 			return getProviderData(moonshotModels, moonshotDefaultModelId)
 		case "huggingface":
+			const huggingFaceModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuggingFaceModelId
+					: apiConfiguration?.actModeHuggingFaceModelId
+			const huggingFaceModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuggingFaceModelInfo
+					: apiConfiguration?.actModeHuggingFaceModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.huggingFaceModelId || huggingFaceDefaultModelId,
-				selectedModelInfo: apiConfiguration?.huggingFaceModelInfo || huggingFaceModels[huggingFaceDefaultModelId],
+				selectedModelId: huggingFaceModelId || huggingFaceDefaultModelId,
+				selectedModelInfo: huggingFaceModelInfo || huggingFaceModels[huggingFaceDefaultModelId],
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
@@ -270,6 +278,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
 			groqModelId: undefined,
+			huggingFaceModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -277,6 +286,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openRouterModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
+			huggingFaceModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
 
 			// AWS Bedrock fields
@@ -305,6 +315,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
+		huggingFaceModelId:
+			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -314,6 +326,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
+		huggingFaceModelInfo:
+			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelInfo : apiConfiguration.actModeHuggingFaceModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 
@@ -412,6 +426,13 @@ export async function syncModeConfigurations(
 			updates.actModeGroqModelId = sourceFields.groqModelId
 			updates.planModeGroqModelInfo = sourceFields.groqModelInfo
 			updates.actModeGroqModelInfo = sourceFields.groqModelInfo
+			break
+
+		case "huggingface":
+			updates.planModeHuggingFaceModelId = sourceFields.huggingFaceModelId
+			updates.actModeHuggingFaceModelId = sourceFields.huggingFaceModelId
+			updates.planModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
+			updates.actModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
 			break
 
 		case "together":

@@ -365,8 +365,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		moonshotApiLine: config.moonshotApiLine,
 		moonshotApiKey: config.moonshotApiKey,
 		huggingFaceApiKey: config.huggingFaceApiKey,
-		huggingFaceModelId: config.huggingFaceModelId,
-		huggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.huggingFaceModelInfo),
 		nebiusApiKey: config.nebiusApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
@@ -403,6 +401,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeFireworksModelId: config.planModeFireworksModelId,
 		planModeGroqModelId: config.planModeGroqModelId,
 		planModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.planModeGroqModelInfo),
+		planModeHuggingFaceModelId: config.planModeHuggingFaceModelId,
+		planModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuggingFaceModelInfo),
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
 
 		// Act mode configurations
@@ -427,6 +427,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeFireworksModelId: config.actModeFireworksModelId,
 		actModeGroqModelId: config.actModeGroqModelId,
 		actModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.actModeGroqModelInfo),
+		actModeHuggingFaceModelId: config.actModeHuggingFaceModelId,
+		actModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuggingFaceModelInfo),
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
 
 		// Favorited model IDs
@@ -484,8 +486,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		moonshotApiLine: protoConfig.moonshotApiLine,
 		moonshotApiKey: protoConfig.moonshotApiKey,
 		huggingFaceApiKey: protoConfig.huggingFaceApiKey,
-		huggingFaceModelId: protoConfig.huggingFaceModelId,
-		huggingFaceModelInfo: convertProtoToModelInfo(protoConfig.huggingFaceModelInfo),
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,
@@ -525,6 +525,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeGroqModelId: protoConfig.planModeGroqModelId,
 		planModeGroqModelInfo: convertProtoToModelInfo(protoConfig.planModeGroqModelInfo),
+		planModeHuggingFaceModelId: protoConfig.planModeHuggingFaceModelId,
+		planModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.planModeHuggingFaceModelInfo),
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 
 		// Act mode configurations
@@ -550,6 +552,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeGroqModelId: protoConfig.actModeGroqModelId,
 		actModeGroqModelInfo: convertProtoToModelInfo(protoConfig.actModeGroqModelInfo),
+		actModeHuggingFaceModelId: protoConfig.actModeHuggingFaceModelId,
+		actModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.actModeHuggingFaceModelInfo),
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 
 		// Favorited model IDs
