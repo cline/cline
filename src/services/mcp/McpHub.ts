@@ -109,7 +109,7 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (error) {
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
 				})
@@ -119,7 +119,7 @@ export class McpHub {
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings schema.",
 				})
@@ -154,7 +154,7 @@ export class McpHub {
 						if (settings) {
 							try {
 								await this.updateServerConnections(settings.mcpServers)
-								await getHostBridgeProvider().windowClient.showMessage({
+								getHostBridgeProvider().windowClient.showMessage({
 									type: ShowMessageType.INFORMATION,
 									message: "MCP servers updated",
 								})
@@ -407,7 +407,7 @@ export class McpHub {
 					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
-					await getHostBridgeProvider().windowClient.showMessage({
+					getHostBridgeProvider().windowClient.showMessage({
 						type: ShowMessageType.INFORMATION,
 						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					})
@@ -663,7 +663,7 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: `Restarting ${serverName} MCP server...`,
 			})
@@ -675,13 +675,13 @@ export class McpHub {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config), "internal")
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: `${serverName} MCP server connected`,
 				})
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.ERROR,
 					message: `Failed to connect to ${serverName} MCP server`,
 				})
@@ -770,7 +770,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			})
@@ -930,7 +930,7 @@ export class McpHub {
 			}
 		} catch (error) {
 			console.error("Failed to update autoApprove settings:", error)
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to update autoApprove settings",
 			})
@@ -1051,7 +1051,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			})

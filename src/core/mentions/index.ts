@@ -78,7 +78,7 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Error fetching content for ${urlMention}: ${error.message}`,
 			})
@@ -98,7 +98,7 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					await getHostBridgeProvider().windowClient.showMessage({
+					getHostBridgeProvider().windowClient.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `Error fetching content for ${mention}: ${error.message}`,
 					})

@@ -9,7 +9,7 @@ import { writeFile } from "@utils/fs"
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Invalid data URI format",
 		})
@@ -22,7 +22,7 @@ export async function openImage(dataUri: string) {
 		await writeFile(tempFilePath, new Uint8Array(imageBuffer))
 		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Error opening image: ${error}`,
 		})
@@ -55,7 +55,7 @@ export async function openFile(absolutePath: string) {
 			options: { preview: false },
 		})
 	} catch (error) {
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Could not open file!`,
 		})

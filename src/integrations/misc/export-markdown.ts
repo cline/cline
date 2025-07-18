@@ -48,7 +48,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 				}),
 			)
 		} catch (error) {
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
 			})

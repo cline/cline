@@ -15,13 +15,13 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting global state...",
 			})
 			await resetGlobalState(controller.context)
 		} else {
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting workspace state...",
 			})
@@ -33,7 +33,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "State reset",
 		})
@@ -44,7 +44,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
 		})

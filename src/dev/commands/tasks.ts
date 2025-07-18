@@ -99,7 +99,7 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					await controller.postStateToWebview()
 
 					const message = `Created ${tasksCount} test tasks`
-					await getHostBridgeProvider().windowClient.showMessage({
+					getHostBridgeProvider().windowClient.showMessage({
 						type: ShowMessageType.INFORMATION,
 						message,
 					})

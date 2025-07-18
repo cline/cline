@@ -106,7 +106,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const message = `Cline has been updated to v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message,
 				})
@@ -411,7 +411,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to get terminal contents",
 				})
@@ -550,7 +550,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: "Please select some code to explain.",
 				})
@@ -575,7 +575,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: "Please select some code to improve.",
 				})
@@ -643,7 +643,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				await getHostBridgeProvider().windowClient.showMessage({
+				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
 				})

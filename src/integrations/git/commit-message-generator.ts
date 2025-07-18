@@ -59,7 +59,7 @@ export function extractCommitMessage(aiResponse: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	await getHostBridgeProvider().windowClient.showMessage({
+	getHostBridgeProvider().windowClient.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: "Commit message copied to clipboard",
 	})
@@ -116,19 +116,19 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Commit message applied to Git input",
 			})
 		} else {
-			await getHostBridgeProvider().windowClient.showMessage({
+			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "No Git repositories found",
 			})
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Git extension not found",
 		})
@@ -151,7 +151,7 @@ async function editCommitMessage(message: string): Promise<void> {
 			path: document.uri.fsPath,
 		}),
 	)
-	await getHostBridgeProvider().windowClient.showMessage({
+	getHostBridgeProvider().windowClient.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: "Edit the commit message and copy when ready",
 	})

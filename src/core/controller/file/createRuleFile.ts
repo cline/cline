@@ -44,7 +44,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 	if (fileExists) {
 		const message = `${fileTypeName} file "${request.filename}" already exists.`
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.WARNING,
 			message,
 		})
@@ -61,7 +61,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
 		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
-		await getHostBridgeProvider().windowClient.showMessage({
+		getHostBridgeProvider().windowClient.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message,
 		})
