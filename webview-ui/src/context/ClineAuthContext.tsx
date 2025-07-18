@@ -8,6 +8,7 @@ export interface ClineUser {
 	email?: string
 	displayName?: string
 	photoUrl?: string
+	apiBaseUrl?: string
 }
 
 export interface ClineAuthContextType {

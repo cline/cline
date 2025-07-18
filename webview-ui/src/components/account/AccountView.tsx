@@ -128,11 +128,17 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-	const dashboardAddCreditsUrl = useMemo(() => {
-		const baseUrl = userInfo?.apiBaseUrl || CLINE_API_URL
-		return activeOrganization
-			? `${baseUrl}/dashboard/organization?tab=credits&redirect=true`
-			: `${baseUrl}/dashboard/account?tab=credits&redirect=true`
+	const clineUris = useMemo(() => {
+		const base = new URL(clineUser?.apiBaseUrl || CLINE_API_URL)
+		const dashboard = new URL("dashboard", base)
+		const credits = new URL(activeOrganization ? "/organization" : "/account", dashboard)
+		credits.searchParams.set("tab", "credits")
+		credits.searchParams.set("redirect", "true")
+
+		return {
+			dashboard,
+			credits,
+		}
 	}, [userInfo?.apiBaseUrl, activeOrganization])
 
 	async function getUserCredits() {
@@ -295,7 +301,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink href={`${CLINE_API_URL}/dashboard`} appearance="primary" className="w-full">
+							<VSCodeButtonLink href={clineUris.dashboard.href} appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -333,7 +339,7 @@ export const ClineAccountView = () => {
 							</div>
 
 							<div className="w-full">
-								<VSCodeButtonLink href={dashboardAddCreditsUrl} className="w-full">
+								<VSCodeButtonLink href={clineUris.credits.href} className="w-full">
 									Add Credits
 								</VSCodeButtonLink>
 							</div>
