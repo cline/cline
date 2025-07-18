@@ -1221,7 +1221,11 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (!this.enableCheckpoints || this.taskState.checkpointTrackerErrorMessage === "Checkpoints timeout error") {
+		if (
+			!this.enableCheckpoints ||
+			this.taskState.checkpointTrackerErrorMessage ===
+				"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+		) {
 			// If checkpoints are disabled or previously encountered a timeout error, do nothing.
 			return
 		}
@@ -1277,7 +1281,11 @@ export class Task {
 		} else {
 			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
 			// Check if checkpoint tracker exists, if not, create it
-			if (!this.checkpointTracker && this.taskState.checkpointTrackerErrorMessage !== "Checkpoints timeout error") {
+			if (
+				!this.checkpointTracker &&
+				this.taskState.checkpointTrackerErrorMessage !==
+					"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+			) {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
@@ -1292,7 +1300,11 @@ export class Task {
 				}
 			}
 
-			if (this.checkpointTracker && this.taskState.checkpointTrackerErrorMessage !== "Checkpoints timeout error") {
+			if (
+				this.checkpointTracker &&
+				this.taskState.checkpointTrackerErrorMessage !==
+					"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+			) {
 				const commitHash = await this.checkpointTracker.commit()
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
@@ -2049,6 +2061,19 @@ export class Task {
 			!this.taskState.checkpointTrackerErrorMessage
 		) {
 			try {
+				// Set up a warning timer for 7 seconds
+				let warningTimer: NodeJS.Timeout | null = null
+				let warningShown = false
+
+				warningTimer = setTimeout(async () => {
+					if (!warningShown) {
+						warningShown = true
+						this.taskState.checkpointTrackerErrorMessage =
+							"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+						await this.postStateToWebview()
+					}
+				}, 7_000)
+
 				this.checkpointTracker = await pTimeout(
 					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
 					{
@@ -2063,7 +2088,8 @@ export class Task {
 
 				// If the error was a timeout, we disabled all checkpoint ops for the rest of the task
 				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
-					this.taskState.checkpointTrackerErrorMessage = "Checkpoints timeout error"
+					this.taskState.checkpointTrackerErrorMessage =
+						"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
 				} else {
 					this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
 				}
