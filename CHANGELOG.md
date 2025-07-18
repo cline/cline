@@ -2,8 +2,6 @@
 
 ## 3.19.7
 
-### Patch Changes
-
 -   b18ad77: Improve the Claude Code error messages
 -   2a3f0e9: adding huggingface provider
 -   8e95c13: Handle auth state changes in all extension windows
