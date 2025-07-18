@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.19.7
+## [3.19.7]
 
--   b18ad77: Improve the Claude Code error messages
--   2a3f0e9: adding huggingface provider
--   8e95c13: Handle auth state changes in all extension windows
+-   Add Hugging Face as a new API provider with support for their inference API models
+-   Improve Claude Code error messages with better guidance for common setup issues (Thanks @BarreiroT!)
+-   Fix authentication sync issues when using multiple VSCode windows
 
 ## [3.19.6]
 
