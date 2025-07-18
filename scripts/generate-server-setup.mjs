@@ -62,7 +62,7 @@ let output = `// GENERATED CODE -- DO NOT EDIT!
 import * as grpc from "@grpc/grpc-js"
 import { cline } from "@generated/grpc-js"
 import { Controller } from "@core/controller"
-import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "@/standalone/grpc-types"
+import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "@hosts/external/grpc-types"
 
 ${imports}
 export function addProtobusServices(
