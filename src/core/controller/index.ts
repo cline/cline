@@ -8,7 +8,7 @@ import { downloadTask } from "@integrations/misc/export-markdown"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
-import { ApiProvider, ModelInfo } from "@shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -85,6 +85,16 @@ export class Controller {
 
 	private async getCurrentMode(): Promise<"plan" | "act"> {
 		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
+	}
+
+	rebuildApiHandler(newConfig: ApiConfiguration) {
+		if (this.task) {
+			const effectiveConfig = {
+				...newConfig,
+				taskId: this.task.taskId,
+			}
+			this.task.api = buildApiHandler(effectiveConfig)
+		}
 	}
 
 	/*
@@ -397,7 +407,7 @@ export class Controller {
 
 				if (this.task) {
 					const { apiConfiguration: updatedApiConfiguration } = await getAllExtensionState(this.context)
-					this.task.api = buildApiHandler(updatedApiConfiguration)
+					this.rebuildApiHandler(updatedApiConfiguration)
 				}
 			}
 		}
@@ -475,7 +485,7 @@ export class Controller {
 			}
 
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig)
+				this.rebuildApiHandler(updatedConfig)
 			}
 
 			await this.postStateToWebview()
@@ -634,7 +644,8 @@ export class Controller {
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({
+			// Preserve the current taskId when rebuilding the API handler
+			this.rebuildApiHandler({
 				apiProvider: openrouter,
 				openRouterApiKey: apiKey,
 			})
