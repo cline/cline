@@ -19,6 +19,7 @@ import { GetOrganizationCreditsRequest, UserOrganization, UserOrganizationUpdate
 import { formatCreditsBalance } from "@/utils/format"
 import { clineEnvConfig } from "@/config"
 import debounce from "debounce"
+import deepEqual from "fast-deep-equal"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -141,7 +142,7 @@ export const ClineAccountView = () => {
 				return
 			}
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
-			if (response.organizations && userOrganizations !== response.organizations) {
+			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
 				setUserOrganizations(response.organizations)
 				setActiveOrganization(response.organizations.find((org: UserOrganization) => org.active) || null)
 			}
@@ -179,10 +180,9 @@ export const ClineAccountView = () => {
 		}
 	}, [activeOrganization?.organizationId, balance])
 
-	const handleManualRefresh = useCallback(
-		debounce(() => getUserCredits(), 500, { immediate: true }),
-		[getUserCredits],
-	)
+	const handleManualRefresh = useCallback(() => {
+		return () => debounce(() => getUserCredits(), 500, { immediate: true })
+	}, [getUserCredits])
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
