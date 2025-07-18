@@ -92,17 +92,10 @@ module.exports = createRule({
 	defaultOptions: [],
 
 	create(context) {
-		// Check if current file is in an exception directory or is grpc-client-base.ts
-		const filename = context.filename
-		const isGrpcClientBase = path.basename(filename) === "grpc-client-base.ts"
-
-		// Skip checking files in src/hosts/vscode or standalone/runtime-files
-		const isExceptionDirectory = filename.includes("/src/hosts/vscode/") || filename.includes("/standalone/runtime-files/")
-
 		// Pattern for checking memberExpressions like vscode.workspace.fs.stat
 		function checkMemberExpression(node) {
-			// Skip if this file is in an exception directory or is grpc-client-base.ts
-			if (isGrpcClientBase || isExceptionDirectory) {
+			if (isExcluded(context.filename)) {
+				// Skip if this file is being excluded.
 				return
 			}
 
@@ -181,6 +174,20 @@ module.exports = createRule({
 			})
 		}
 
+		function isExcluded(filename) {
+			// Check if current file is in an exception directory or is grpc-client-base.ts
+			if (path.basename(filename) === "grpc-client-base.ts") {
+				return true
+			}
+			// Skip checking files in src/hosts/vscode or standalone/runtime-files
+			if (filename.includes("/src/hosts/vscode/")) {
+				return true
+			}
+			if (filename.includes("/standalone/runtime-files/")) {
+				return true
+			}
+		}
+
 		return {
 			// Detect basic member expressions (e.g., vscode.postMessage)
 			MemberExpression(node) {
@@ -190,7 +197,7 @@ module.exports = createRule({
 			// Detect property access through destructuring
 			VariableDeclarator(node) {
 				// Skip if this file is in an exception directory or is grpc-client-base.ts
-				if (isGrpcClientBase || isExceptionDirectory) {
+				if (isExcluded(context.filename)) {
 					return
 				}
 
