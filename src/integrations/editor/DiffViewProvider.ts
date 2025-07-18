@@ -9,7 +9,6 @@ import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions } from "@/shared/proto/host/window"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -98,6 +97,18 @@ export abstract class DiffViewProvider {
 	 * Called after the final update is received.
 	 */
 	protected abstract truncateDocument(lineNumber: number): Promise<void>
+
+	/**
+	 * Get the contents of the diff editor document.
+	 *
+	 * Returns undefined if the diff editor was closed.
+	 */
+	protected abstract getDocumentText(): Promise<string | undefined>
+
+	/**
+	 * Save the contents of the diff editor UI to the file.
+	 */
+	protected abstract saveDocument(): Promise<void>
 
 	/**
 	 * Closes the diff editor tab or window.
@@ -197,7 +208,7 @@ export abstract class DiffViewProvider {
 	abstract replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
-		currentLine: number,
+		currentLine: number | undefined,
 	): Promise<void>
 
 	async saveChanges(): Promise<{
@@ -206,7 +217,10 @@ export abstract class DiffViewProvider {
 		autoFormattingEdits: string | undefined
 		finalContent: string | undefined
 	}> {
-		if (!this.relPath || !this.newContent || !this.activeDiffEditor) {
+		// get the contents before save operation which may do auto-formatting
+		const preSaveContent = await this.getDocumentText()
+
+		if (!this.relPath || !this.absolutePath || !this.newContent || preSaveContent === undefined) {
 			return {
 				newProblemsMessage: undefined,
 				userEdits: undefined,
@@ -214,27 +228,18 @@ export abstract class DiffViewProvider {
 				finalContent: undefined,
 			}
 		}
-		const updatedDocument = this.activeDiffEditor.document
 
-		// get the contents before save operation which may do auto-formatting
-		const preSaveContent = updatedDocument.getText()
-
-		if (updatedDocument.isDirty) {
-			await updatedDocument.save()
-		}
-
+		this.saveDocument()
 		// get text after save in case there is any auto-formatting done by the editor
-		const postSaveContent = updatedDocument.getText()
+		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await getHostBridgeProvider().windowClient.showTextDocument(
-			ShowTextDocumentRequest.create({
-				path: this.absolutePath,
-				options: ShowTextDocumentOptions.create({
-					preview: false,
-					preserveFocus: true,
-				}),
-			}),
-		)
+		await getHostBridgeProvider().windowClient.showTextDocument({
+			path: this.absolutePath,
+			options: {
+				preview: false,
+				preserveFocus: true,
+			},
+		})
 		await this.closeDiffView()
 
 		/*
@@ -301,11 +306,9 @@ export abstract class DiffViewProvider {
 			return
 		}
 		const fileExists = this.editType === "modify"
-		const updatedDocument = this.activeDiffEditor.document
+
 		if (!fileExists) {
-			if (updatedDocument.isDirty) {
-				await updatedDocument.save()
-			}
+			this.saveDocument()
 			await this.closeDiffView()
 			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
@@ -316,6 +319,7 @@ export abstract class DiffViewProvider {
 			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
+			const updatedDocument = this.activeDiffEditor.document
 			const edit = new vscode.WorkspaceEdit()
 			const fullRange = new vscode.Range(
 				updatedDocument.positionAt(0),
@@ -327,15 +331,13 @@ export abstract class DiffViewProvider {
 			await updatedDocument.save()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
-				await getHostBridgeProvider().windowClient.showTextDocument(
-					ShowTextDocumentRequest.create({
-						path: this.absolutePath,
-						options: ShowTextDocumentOptions.create({
-							preview: false,
-							preserveFocus: true,
-						}),
-					}),
-				)
+				await getHostBridgeProvider().windowClient.showTextDocument({
+					path: this.absolutePath,
+					options: {
+						preview: false,
+						preserveFocus: true,
+					},
+				})
 			}
 			await this.closeDiffView()
 		}
@@ -344,20 +346,17 @@ export abstract class DiffViewProvider {
 		await this.reset()
 	}
 
-	scrollToFirstDiff() {
-		if (!this.activeDiffEditor) {
+	async scrollToFirstDiff() {
+		if (!this.isEditing) {
 			return
 		}
-		const currentContent = this.activeDiffEditor.document.getText()
+		const currentContent = (await this.getDocumentText()) || ""
 		const diffs = diff.diffLines(this.originalContent || "", currentContent)
 		let lineCount = 0
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.activeDiffEditor.revealRange(
-					new vscode.Range(lineCount, 0, lineCount, 0),
-					vscode.TextEditorRevealType.InCenter,
-				)
+				this.scrollEditorToLine(lineCount)
 				return
 			}
 			if (!part.removed) {
