@@ -51,6 +51,7 @@ export const globalSettingsSchema = z.object({
 	allowedCommands: z.array(z.string()).optional(),
 	deniedCommands: z.array(z.string()).optional(),
 	commandExecutionTimeout: z.number().optional(),
+	preventCompletionWithOpenTodos: z.boolean().optional(),
 	allowedMaxRequests: z.number().nullish(),
 	autoCondenseContext: z.boolean().optional(),
 	autoCondenseContextPercent: z.number().optional(),
@@ -202,6 +203,7 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 	followupAutoApproveTimeoutMs: 0,
 	allowedCommands: ["*"],
 	commandExecutionTimeout: 30_000,
+	preventCompletionWithOpenTodos: false,
 
 	browserToolEnabled: false,
 	browserViewportSize: "900x600",

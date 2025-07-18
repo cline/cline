@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Sei sicuro di voler eliminare questa modalità personalizzata?",
 			"confirm": "Elimina"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Impedire il completamento delle attività quando ci sono todo incompleti nella lista dei todo"
+		}
 	}
 }

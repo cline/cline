@@ -166,5 +166,10 @@
 			"descriptionNoRules": "क्या आप वाकई इस कस्टम मोड को हटाना चाहते हैं?",
 			"confirm": "हटाएं"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "जब टूडू सूची में अधूरे टूडू हों तो कार्य पूर्ण होने से रोकें"
+		}
 	}
 }

@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Esteu segur que voleu suprimir aquest mode personalitzat?",
 			"confirm": "Suprimeix"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Evitar la finalització de tasques quan hi ha todos incomplets a la llista de todos"
+		}
 	}
 }

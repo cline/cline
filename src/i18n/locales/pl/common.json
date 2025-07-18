@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Czy na pewno chcesz usunąć ten tryb niestandardowy?",
 			"confirm": "Usuń"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Zapobiegaj ukończeniu zadania gdy na liście zadań są nieukończone zadania"
+		}
 	}
 }

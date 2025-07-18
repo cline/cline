@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Bist du sicher, dass du diesen benutzerdefinierten Modus löschen möchtest?",
 			"confirm": "Löschen"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Aufgabenabschluss verhindern, wenn unvollständige Todos in der Todo-Liste vorhanden sind"
+		}
 	}
 }

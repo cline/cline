@@ -345,6 +345,11 @@
 					"maximum": 600,
 					"description": "%commands.commandExecutionTimeout.description%"
 				},
+				"roo-cline.preventCompletionWithOpenTodos": {
+					"type": "boolean",
+					"default": false,
+					"description": "%commands.preventCompletionWithOpenTodos.description%"
+				},
 				"roo-cline.vsCodeLmModelSelector": {
 					"type": "object",
 					"properties": {

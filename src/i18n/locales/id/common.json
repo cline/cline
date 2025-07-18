@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Anda yakin ingin menghapus mode kustom ini?",
 			"confirm": "Hapus"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Mencegah penyelesaian tugas ketika ada todo yang belum selesai dalam daftar todo"
+		}
 	}
 }

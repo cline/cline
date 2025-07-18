@@ -166,5 +166,10 @@
 			"descriptionNoRules": "このカスタムモードを削除してもよろしいですか？",
 			"confirm": "削除"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Todoリストに未完了のTodoがある場合、タスクの完了を防ぐ"
+		}
 	}
 }

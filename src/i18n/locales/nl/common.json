@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
 			"confirm": "Verwijderen"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Voorkom taakafronding wanneer er onvolledige todos in de todolijst staan"
+		}
 	}
 }

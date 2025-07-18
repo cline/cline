@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Bu özel modu silmek istediğinizden emin misiniz?",
 			"confirm": "Sil"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Todo listesinde tamamlanmamış todolar olduğunda görev tamamlanmasını engelle"
+		}
 	}
 }

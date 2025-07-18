@@ -171,5 +171,10 @@
 			"descriptionNoRules": "您确定要删除此自定义模式吗？",
 			"confirm": "删除"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "当待办事项列表中有未完成的待办事项时阻止任务完成"
+		}
 	}
 }

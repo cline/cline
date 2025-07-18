@@ -155,5 +155,10 @@
 			"descriptionNoRules": "Are you sure you want to delete this custom mode?",
 			"confirm": "Delete"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Prevent task completion when there are incomplete todos in the todo list"
+		}
 	}
 }

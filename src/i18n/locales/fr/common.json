@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Êtes-vous sûr de vouloir supprimer ce mode personnalisé ?",
 			"confirm": "Supprimer"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Empêcher la finalisation des tâches lorsqu'il y a des todos incomplets dans la liste de todos"
+		}
 	}
 }

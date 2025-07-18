@@ -166,5 +166,10 @@
 			"descriptionNoRules": "¿Estás seguro de que quieres eliminar este modo personalizado?",
 			"confirm": "Eliminar"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Prevenir la finalización de tareas cuando hay todos incompletos en la lista de todos"
+		}
 	}
 }

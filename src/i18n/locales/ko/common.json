@@ -166,5 +166,10 @@
 			"descriptionNoRules": "이 사용자 정의 모드를 삭제하시겠습니까?",
 			"confirm": "삭제"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "할 일 목록에 미완료된 할 일이 있을 때 작업 완료를 방지"
+		}
 	}
 }

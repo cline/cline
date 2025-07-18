@@ -166,5 +166,10 @@
 			"descriptionNoRules": "Tem certeza de que deseja excluir este modo personalizado?",
 			"confirm": "Excluir"
 		}
+	},
+	"commands": {
+		"preventCompletionWithOpenTodos": {
+			"description": "Impedir a conclusão de tarefas quando há todos incompletos na lista de todos"
+		}
 	}
 }
