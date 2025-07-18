@@ -86,7 +86,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private async runWithShellIntegration(terminal: vscode.Terminal, command: string): Promise<void> {
 		// Execute command and get stream
 		const stream = await this.executeCommandWithShellIntegration(terminal, command)
-		if (!stream) return
+		if (!stream) {
+			return
+		}
 
 		// Initialize state for stream processing
 		const streamState = this.initializeStreamState()
