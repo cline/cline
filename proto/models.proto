@@ -15,6 +15,8 @@ service ModelsService {
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
   rpc refreshOpenRouterModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Hugging Face models
+  rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
@@ -126,6 +128,7 @@ enum ApiProvider {
   SAPAICORE = 25;
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
+  HUGGINGFACE = 28;
 }
 
 // Model info for OpenAI-compatible models
@@ -246,4 +249,7 @@ message ModelsApiConfiguration {
   optional string groq_api_key = 78;
   optional string groq_model_id = 79;
   optional OpenRouterModelInfo groq_model_info = 80;
+  optional string hugging_face_api_key = 81;
+  optional string hugging_face_model_id = 82;
+  optional OpenRouterModelInfo hugging_face_model_info = 83;
 }
