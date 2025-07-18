@@ -2063,7 +2063,7 @@ export class Task {
 			!this.taskState.checkpointTrackerErrorMessage
 		) {
 			try {
-				// Set up a warning timer for 7 seconds
+				// Warning Timer - If checkpoints take a while to to initialize, show a warning message
 				let warningTimer: NodeJS.Timeout | null = null
 				let warningShown = false
 
@@ -2076,6 +2076,7 @@ export class Task {
 					}
 				}, 7_000)
 
+				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
 				this.checkpointTracker = await pTimeout(
 					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
 					{
