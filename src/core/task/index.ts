@@ -2064,12 +2064,12 @@ export class Task {
 		) {
 			try {
 				// Warning Timer - If checkpoints take a while to to initialize, show a warning message
-				let warningTimer: NodeJS.Timeout | null = null
-				let warningShown = false
+				let checkpointsWarningTimer: NodeJS.Timeout | null = null
+				let checkpointsWarningShown = false
 
-				warningTimer = setTimeout(async () => {
-					if (!warningShown) {
-						warningShown = true
+				checkpointsWarningTimer = setTimeout(async () => {
+					if (!checkpointsWarningShown) {
+						checkpointsWarningShown = true
 						this.taskState.checkpointTrackerErrorMessage =
 							"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints."
 						await this.postStateToWebview()
