@@ -9,11 +9,11 @@ import { getPackageDefinition, log } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "../hosts/external/grpc-types"
 import { addProtobusServices } from "@generated/standalone/server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { ExternalHostBridgeClientManager } from "../hosts/external/host-bridge-client-manager"
-import { ExternalWebviewProvider } from "../hosts/external/ExternalWebviewProvider"
+import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
+import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
-import { ExternalDiffViewProvider } from "../hosts/external/ExternalDiffviewProvider"
+import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 
 export const PROTOBUS_PORT = 26040
 export const HOSTBRIDGE_PORT = 26041
