@@ -96,10 +96,10 @@ export async function searchWorkspaceFiles(
 	limit: number = 20,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
-		const rgPath = await getBinPath(vscode.env.appRoot)
+		const rgPath = await getBinPath()
 
 		if (!rgPath) {
-			throw new Error("Could not find ripgrep binary")
+			throw new Error("[searchWorkspaceFiles] Could not find ripgrep binary")
 		}
 
 		// Get all files and directories

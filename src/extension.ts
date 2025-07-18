@@ -709,7 +709,7 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 		const createDiffView = function () {
 			return new VscodeDiffViewProvider()
 		}
-		hostProviders.initializeHostProviders(createWebview, createDiffView, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(createWebview, createDiffView, vscodeHostBridgeClient, "")
 	}
 }
 

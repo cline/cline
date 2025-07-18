@@ -14,6 +14,8 @@ import { ExternalWebviewProvider } from "./ExternalWebviewProvider"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 import { ExternalDiffViewProvider } from "./ExternalDiffviewProvider"
+import * as path from "path"
+import * as os from "os"
 
 export const PROTOBUS_PORT = 26040
 export const HOSTBRIDGE_PORT = 26041
@@ -21,10 +23,24 @@ export const HOSTBRIDGE_PORT = 26041
 async function main() {
 	log("Starting standalone service...")
 
-	hostProviders.initializeHostProviders(createWebview, createDiffView, new ExternalHostBridgeClientManager())
+	const binaryPath = getStandaloneBinaryPath()
+	hostProviders.initializeHostProviders(createWebview, createDiffView, new ExternalHostBridgeClientManager(), binaryPath)
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	startProtobusService(controller)
+}
+
+/**
+ * Gets the standalone binary installation path
+ * Uses CLINE_BINARY_PATH environment variable if set
+ * Otherwise defaults to ~/.cline/bin for standalone installations
+ */
+function getStandaloneBinaryPath(): string {
+	const envPath = process.env.CLINE_BINARY_PATH
+	if (envPath) {
+		return envPath
+	}
+	return path.join(os.homedir(), ".cline", "bin")
 }
 
 function startProtobusService(controller: Controller) {
