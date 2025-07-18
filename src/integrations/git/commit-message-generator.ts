@@ -84,7 +84,7 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 				items: [copyAction, applyAction, editAction],
 			},
 		})
-	)?.selectedOption
+	).selectedOption
 
 	// Handle user dismissing the dialog (selectedAction is undefined)
 	if (!selectedAction) {
