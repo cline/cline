@@ -22,20 +22,14 @@ coverage
 
 *evals.env
 
-# Generated files
+## Generated files ##
 src/generated/
-# Core
 src/core/controller/*/methods.ts
 src/core/controller/*/index.ts
 src/core/controller/grpc-service-config.ts
-# Shared
 src/shared/proto/*.ts
 src/shared/proto/host/*.ts
-# Webview
 webview-ui/src/services/grpc-client.ts
-# Host bridge
-src/hosts/vscode/client/host-grpc-client.ts
-src/standalone/server-setup.ts
 
 # E2E Tests
 test-results

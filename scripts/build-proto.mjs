@@ -42,6 +42,8 @@ const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join("s
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
 
+	await cleanup()
+
 	// Check for Apple Silicon compatibility before proceeding
 	checkAppleSiliconCompatibility()
 
@@ -49,8 +51,6 @@ async function main() {
 	for (const dir of [TS_OUT_DIR, GRPC_JS_OUT_DIR, NICE_JS_OUT_DIR, DESCRIPTOR_OUT_DIR]) {
 		await fs.mkdir(dir, { recursive: true })
 	}
-
-	await cleanup()
 
 	// Check for missing proto files for services in serviceNameMap
 	await ensureProtoFilesExist()
@@ -420,20 +420,13 @@ service ${serviceClassName} {
 async function cleanup() {
 	// Clean up existing generated files
 	log_verbose(chalk.cyan("Cleaning up existing generated TypeScript files..."))
-	const existingFiles = await globby("**/*.ts", { cwd: TS_OUT_DIR })
-	for (const file of existingFiles) {
-		await fs.unlink(path.join(TS_OUT_DIR, file))
-	}
-	await rmdir("src/generated")
+	await rmrf(TS_OUT_DIR)
+	await rmrf("src/generated")
 
 	// Clean up generated files that were moved.
-	await fs.rm("src/standalone/services/host-grpc-client.ts", { force: true })
-	await rmdir("src/standalone/services")
-	await fs.rm("hosts/vscode", { force: true, recursive: true })
-	await rmdir("hosts")
-
-	await fs.rm("src/standalone/server-setup.ts", { force: true })
-	await fs.rm("src/hosts/vscode/host-grpc-service-config.ts", { force: true })
+	await rmrf("src/standalone/services/host-grpc-client.ts")
+	await rmrf("src/standalone/server-setup.ts")
+	await rmrf("src/hosts/vscode/host-grpc-service-config.ts")
 	const oldhostbridgefiles = [
 		"src/hosts/vscode/workspace/methods.ts",
 		"src/hosts/vscode/workspace/index.ts",
@@ -449,7 +442,7 @@ async function cleanup() {
 		"src/hosts/vscode/uri/index.ts",
 	]
 	for (const file of oldhostbridgefiles) {
-		await fs.rm(file, { force: true })
+		await rmrf(file)
 	}
 }
 
@@ -473,6 +466,10 @@ async function rmdir(path) {
 			throw error
 		}
 	}
+}
+
+async function rmrf(path) {
+	await fs.rm(path, { force: true, recursive: true })
 }
 
 // Check for Apple Silicon compatibility
