@@ -14,7 +14,8 @@
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "production"
 			}
 		},
 		{
@@ -37,7 +38,8 @@
 			"env": {
 				"IS_DEV": "true",
 				"TEMP_PROFILE": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "production"
 			}
 		},
 		{

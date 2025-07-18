@@ -1,6 +1,6 @@
 export type Environment = "production" | "staging" | "local"
 
-const CURRENT_ENVIRONMENT: Environment = "production"
+const CLINE_ENVIRONMENT: Environment = (process.env.CLINE_ENVIRONMENT as Environment) || "production"
 
 interface EnvironmentConfig {
 	appBaseUrl: string
@@ -55,4 +55,4 @@ const configs: Record<Environment, EnvironmentConfig> = {
 	},
 }
 
-export const clineEnvConfig = configs[CURRENT_ENVIRONMENT]
+export const clineEnvConfig = configs[CLINE_ENVIRONMENT]
