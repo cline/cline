@@ -81,9 +81,10 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { extractErrorDetails, formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
-import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
-
+import { updateApiReqMsg } from "./utils"
+import { createDiffViewProvider } from "@/hosts/host-providers"
+import { ErrorService } from "@/services/error/ErrorService"
+import { ClineErrorType } from "@/services/error/ClineError"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -165,8 +166,19 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
-		// Initialization moved to startTask/resumeTaskFromHistory
-		this.terminalManager = new TerminalManager()
+
+		// TODO(ae) this is a hack to replace the terminal manager for standalone,
+		// until we have proper host bridge support for terminal execution. The
+		// standaloneTerminalManager is defined in the vscode-impls and injected
+		// during compilation of the standalone manager only, so this variable only
+		// exists in that case
+		if ((global as any).standaloneTerminalManager) {
+			console.log("[DEBUG] Using vscode-impls.js terminal manager")
+			this.terminalManager = (global as any).standaloneTerminalManager
+		} else {
+			console.log("[DEBUG] Using built in terminal manager")
+			this.terminalManager = new TerminalManager()
+		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
@@ -1585,6 +1597,15 @@ export class Task {
 		}
 	}
 
+	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
+		const modelId = this.api.getModel()?.id
+		const providerId =
+			this.chatSettings.mode === "plan"
+				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
+				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
+		return { modelId, providerId }
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1679,16 +1700,17 @@ export class Task {
 			const isAnthropic = this.api instanceof AnthropicHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
+			const { modelId, providerId } = await this.getCurrentProviderInfo()
+			const clineError = ErrorService.toClineError(error, modelId, providerId)
 
-			const { statusCode, message, requestId } = extractErrorDetails(error)
-
-			// Capture provider failure telemetry
+			// Capture provider failure telemetry using clineError
+			// TODO: Move into ErrorService
 			telemetryService.captureProviderApiError({
 				taskId: this.taskId,
 				model: modelInfo.id,
-				errorMessage: message,
-				errorStatus: statusCode,
-				requestId,
+				errorMessage: clineError.message,
+				errorStatus: clineError._error?.status,
+				requestId: clineError._error?.request_id,
 			})
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
@@ -1734,12 +1756,12 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						error = new Error("Context window exceeded. Click retry to truncate the conversation and try again.")
+						clineError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
 
-				const errorMessage = formatErrorWithStatusCode(error)
+				const streamingFailedMessage = clineError.serialize()
 
 				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
 				const lastApiReqStartedIndex = findLastIndex(
@@ -1755,17 +1777,22 @@ export class Task {
 						text: JSON.stringify({
 							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
 							// cancelReason: "retries_exhausted", // Indicate that automatic retries failed
-							streamingFailedMessage: errorMessage,
+							streamingFailedMessage,
 						} satisfies ClineApiReqInfo),
 					})
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
-				const { response } = await this.ask("api_req_failed", errorMessage)
+				const { response } = await this.ask("api_req_failed", streamingFailedMessage)
 
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
+				}
+
+				// Do not retry automatically again if currently unauthenticated
+				if (clineError.isErrorType(ClineErrorType.Auth)) {
+					return
 				}
 
 				await this.say("api_req_retried")
@@ -1903,13 +1930,10 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const currentProviderId =
-			this.chatSettings.mode === "plan"
-				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
-				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
-		if (currentProviderId && this.api.getModel().id) {
+		const { modelId, providerId } = await this.getCurrentProviderInfo()
+		if (providerId && modelId) {
 			try {
-				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.chatSettings.mode)
 			} catch {}
 		}
 
@@ -2087,7 +2111,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2152,19 +2176,13 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					currentProviderId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, providerId, this.api.getModel().id, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2261,7 +2279,8 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const errorMessage = formatErrorWithStatusCode(error)
+					const clineError = ErrorService.toClineError(error, this.api.getModel().id)
+					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)
 					await this.reinitExistingTaskFromId(this.taskId)
@@ -2331,19 +2350,13 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					currentProviderId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
@@ -2389,6 +2402,8 @@ export class Task {
 						},
 					],
 				})
+				// Returns early to avoid retry since no assistant message was received
+				return true
 			}
 
 			return didEndLoop // will always be false for now

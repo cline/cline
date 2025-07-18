@@ -4,7 +4,6 @@ import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
 import { arePathsEqual, getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
-import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
@@ -27,8 +26,6 @@ export abstract class DiffViewProvider {
 	private newContent?: string
 
 	protected activeDiffEditor?: vscode.TextEditor
-	protected fadedOverlayController?: DecorationController
-	protected activeLineController?: DecorationController
 	protected preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	constructor() {}
@@ -62,16 +59,12 @@ export abstract class DiffViewProvider {
 			await fs.writeFile(this.absolutePath, "")
 		}
 		await this.openDiffEditor()
-		this.scrollEditorToLine(0) // will this crash for new files?
+		await this.scrollEditorToLine(0)
 		this.streamedLines = []
 	}
 
 	/**
 	 * Opens a diff editor or viewer for the current file.
-	 *
-	 * This abstract method must be implemented by subclasses to create and display
-	 * a diff editor or viewer that shows the difference between the original and
-	 * modified content.
 	 *
 	 * Called automatically by the `open` method after ensuring the file exists and
 	 * creating any necessary directories.
@@ -80,13 +73,49 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract openDiffEditor(): Promise<void>
 
+	/**
+	 * Scrolls the diff editor to reveal a specific line.
+	 *
+	 * It's used during streaming updates to keep the user's view focused on the changing content.
+	 *
+	 * @param line The 0-based line number to scroll to
+	 */
+	protected abstract scrollEditorToLine(line: number): Promise<void>
+
+	/**
+	 * Creates a smooth scrolling animation between two lines in the diff editor.
+	 *
+	 * It's typically used when updates contain many lines, to help the user visually track the flow
+	 * of significant changes in the document.
+	 *
+	 * @param startLine The 0-based line number to begin the animation from
+	 * @param endLine The 0-based line number to animate to
+	 */
+	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
+
+	/**
+	 * Removes content from the specified line to the end of the document.
+	 * Called after the final update is received.
+	 */
+	protected abstract truncateDocument(lineNumber: number): Promise<void>
+
+	/**
+	 * Closes the diff editor tab or window.
+	 */
+	protected abstract closeDiffView(): Promise<void>
+
+	/**
+	 * Cleans up the diff view resources and resets internal state.
+	 */
+	protected abstract resetDiffView(): Promise<void>
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
 		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
 	) {
-		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
-			throw new Error("Required values not set")
+		if (!this.relPath) {
+			throw new Error("Required value relPath not set")
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -104,16 +133,6 @@ export abstract class DiffViewProvider {
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
-		const diffEditor = this.activeDiffEditor
-		const document = diffEditor?.document
-		if (!diffEditor || !document) {
-			throw new Error("User closed text editor, unable to edit file...")
-		}
-
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
-		const beginningOfDocument = new vscode.Position(0, 0)
-		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
-
 		// Instead of animating each line, we'll update in larger chunks
 		const currentLine = this.streamedLines.length + diffLines.length - 1
 		if (currentLine >= 0) {
@@ -129,30 +148,19 @@ export abstract class DiffViewProvider {
 			if (changeLocation) {
 				// We have the actual location of the change, scroll to it
 				const targetLine = changeLocation.startLine
-				this.scrollEditorToLine(targetLine)
+				await this.scrollEditorToLine(targetLine)
 			} else {
 				// Fallback to the old logic for non-replacement updates
 				if (diffLines.length <= 5) {
 					// For small changes, just jump directly to the line
-					this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine)
 				} else {
 					// For larger changes, create a quick scrolling animation
 					const startLine = this.streamedLines.length
 					const endLine = currentLine
-					const totalLines = endLine - startLine
-					const numSteps = 10 // Adjust this number to control animation speed
-					const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
-
-					// Create and await the smooth scrolling animation
-					for (let line = startLine; line <= endLine; line += stepSize) {
-						this.activeDiffEditor?.revealRange(
-							new vscode.Range(line, 0, line, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-						await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
-					}
+					await this.scrollAnimation(startLine, endLine)
 					// Ensure we end at the final line
-					this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine)
 				}
 			}
 		}
@@ -161,11 +169,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			if (this.streamedLines.length < document.lineCount) {
-				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
-				await vscode.workspace.applyEdit(edit)
-			}
+			await this.truncateDocument(this.streamedLines.length)
+
 			// Add empty last line if original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
 			if (hasEmptyLastLine) {
@@ -174,9 +179,6 @@ export abstract class DiffViewProvider {
 					accumulatedContent += "\n"
 				}
 			}
-			// Clear all decorations at the end (before applying final edit)
-			this.fadedOverlayController.clear()
-			this.activeLineController.clear()
 		}
 	}
 
@@ -233,7 +235,7 @@ export abstract class DiffViewProvider {
 				}),
 			}),
 		)
-		await this.closeAllDiffViews()
+		await this.closeDiffView()
 
 		/*
 		Getting diagnostics before and after the file edit is a better approach than
@@ -304,7 +306,7 @@ export abstract class DiffViewProvider {
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
-			await this.closeAllDiffViews()
+			await this.closeDiffView()
 			await fs.unlink(this.absolutePath)
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
@@ -335,33 +337,11 @@ export abstract class DiffViewProvider {
 					}),
 				)
 			}
-			await this.closeAllDiffViews()
+			await this.closeDiffView()
 		}
 
 		// edit is done
 		await this.reset()
-	}
-
-	private async closeAllDiffViews() {
-		const tabs = vscode.window.tabGroups.all
-			.flatMap((tg) => tg.tabs)
-			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
-		for (const tab of tabs) {
-			// trying to close dirty views results in save popup
-			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
-			}
-		}
-	}
-
-	private scrollEditorToLine(line: number) {
-		if (this.activeDiffEditor) {
-			const scrollLine = line + 4
-			this.activeDiffEditor.revealRange(
-				new vscode.Range(scrollLine, 0, scrollLine, 0),
-				vscode.TextEditorRevealType.InCenter,
-			)
-		}
 	}
 
 	scrollToFirstDiff() {
@@ -393,10 +373,8 @@ export abstract class DiffViewProvider {
 		this.originalContent = undefined
 		this.createdDirs = []
 		this.documentWasOpen = false
-		this.activeDiffEditor = undefined
-		this.fadedOverlayController = undefined
-		this.activeLineController = undefined
 		this.streamedLines = []
-		this.preDiagnostics = []
+
+		await this.resetDiffView()
 	}
 }

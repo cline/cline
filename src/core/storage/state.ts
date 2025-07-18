@@ -170,6 +170,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		groqApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
+		huggingFaceApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 		globalClineRulesToggles,
@@ -248,6 +249,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "groqApiKey") as Promise<string | undefined>,
 		getSecret(context, "moonshotApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
+		getSecret(context, "huggingFaceApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
@@ -275,6 +277,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
 		chatSettings,
 		currentMode,
+		huggingFaceModelId,
+		huggingFaceModelInfo,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -324,6 +328,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
+		getGlobalState(context, "huggingFaceModelId") as Promise<string | undefined>,
+		getGlobalState(context, "huggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,
@@ -469,6 +475,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			huggingFaceApiKey,
+			huggingFaceModelId,
+			huggingFaceModelInfo,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -603,6 +612,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		huggingFaceApiKey,
+		huggingFaceModelId,
+		huggingFaceModelInfo,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -653,6 +665,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
 	const batchedGlobalUpdates = {
+		huggingFaceModelId,
+		huggingFaceModelInfo,
 		// Plan mode configuration updates
 		planModeApiProvider,
 		planModeApiModelId,
@@ -764,6 +778,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		nebiusApiKey,
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
+		huggingFaceApiKey,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -807,6 +822,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"groqApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
+		"huggingFaceApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)

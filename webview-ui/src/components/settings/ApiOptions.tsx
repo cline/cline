@@ -30,6 +30,7 @@ import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
+import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
@@ -156,6 +157,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="moonshot">Moonshot AI</VSCodeOption>
+					<VSCodeOption value="huggingface">Hugging Face</VSCodeOption>
 					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
@@ -256,6 +258,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "moonshot" && (
 				<MoonshotProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
+
+			{apiConfiguration && selectedProvider === "huggingface" && (
+				<HuggingFaceProvider showModelOptions={showModelOptions} isPopup={isPopup} />
 			)}
 
 			{apiConfiguration && selectedProvider === "nebius" && (

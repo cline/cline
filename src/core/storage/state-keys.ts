@@ -21,6 +21,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "moonshotApiKey"
+	| "huggingFaceApiKey"
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
@@ -84,6 +85,8 @@ export type GlobalStateKey =
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
 	| "mode"
+	| "huggingFaceModelId"
+	| "huggingFaceModelInfo"
 	// Plan mode configurations
 	| "planModeApiProvider"
 	| "planModeApiModelId"
