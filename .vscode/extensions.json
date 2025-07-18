@@ -5,6 +5,7 @@
 		"dbaeumer.vscode-eslint",
 		"connor4312.esbuild-problem-matchers",
 		"ms-vscode.extension-test-runner",
-		"bradlc.vscode-tailwindcss"
+		"bradlc.vscode-tailwindcss",
+		"biomejs.biome"
 	]
 }
