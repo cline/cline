@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { ClineProvider } from "./providers/ClineProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { MistralProvider } from "./providers/MistralProvider"
@@ -75,7 +75,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	// Use full context state for immediate save payload
 	const { apiConfiguration } = useExtensionState()
 
-	const selectedProvider = currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
