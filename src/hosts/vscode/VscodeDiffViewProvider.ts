@@ -1,7 +1,7 @@
 import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
-import { DecorationController } from "@integrations/editor/DecorationController"
+import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 
