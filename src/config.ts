@@ -1,6 +1,6 @@
 export type Environment = "production" | "staging" | "local"
 
-const CURRENT_ENVIRONMENT: Environment = "production"
+const CURRENT_ENVIRONMENT: Environment = (process.env.CURRENT_ENVIRONMENT as Environment) || "production"
 
 interface EnvironmentConfig {
 	appBaseUrl: string
