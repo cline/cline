@@ -6,6 +6,7 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
 import readline from "readline"
 import { ClaudeCodeMessage } from "./types"
+import crypto from "node:crypto"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string
@@ -30,7 +31,7 @@ export const MAX_SYSTEM_PROMPT_LENGTH = 65536
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
 	const isSystemPromptTooLong = options.systemPrompt.length > MAX_SYSTEM_PROMPT_LENGTH
-	const uniqueId = crypto.randomUUID().slice(0, 8)
+	const uniqueId = crypto.randomUUID()
 	const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-${uniqueId}.txt`)
 	if (os.platform() === "win32" || isSystemPromptTooLong) {
 		// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
@@ -98,7 +99,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 	} catch (err) {
 		console.error(`Error during Claude Code execution:`, err)
 
-		if (processState.stderrLogs.includes("error: unknown option '--system-prompt-file'\n")) {
+		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {
 			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
 				cause: err,
 			})
@@ -150,7 +151,9 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 			cProcess.kill()
 		}
 
-		fs.unlink(tempFilePath).catch(console.error)
+		if (options.shouldUseFile) {
+			fs.unlink(tempFilePath).catch(console.error)
+		}
 	}
 }
 
