@@ -54,6 +54,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async getDocumentText(): Promise<string | undefined> {
+		if (!this.activeDiffEditorId) {
+			return undefined
+		}
 		return (await getHostBridgeProvider().diffClient.getDocumentText({ diffId: this.activeDiffEditorId })).content
 	}
 
