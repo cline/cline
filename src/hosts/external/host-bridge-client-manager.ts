@@ -14,7 +14,7 @@ import {
 	DiffServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
-import { HOSTBRIDGE_PORT } from "./cline-core"
+import { HOSTBRIDGE_PORT } from "../../standalone/cline-core"
 
 /**
  * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
