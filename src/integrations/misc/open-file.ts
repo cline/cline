@@ -3,7 +3,7 @@ import * as os from "os"
 import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
 
 export async function openImage(dataUri: string) {

@@ -634,7 +634,7 @@ export class ToolExecutor {
 						}
 						await this.diffViewProvider.update(newContent, true)
 						await setTimeoutPromise(300) // wait for diff view to update
-						this.diffViewProvider.scrollToFirstDiff()
+						await this.diffViewProvider.scrollToFirstDiff()
 						// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 						const completeMessage = JSON.stringify({
