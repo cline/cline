@@ -148,7 +148,7 @@ export const ClineAccountView = () => {
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [])
+	}, [clineUser?.uid, userOrganizations])
 
 	const getUserCredits = useCallback(async () => {
 		try {
@@ -177,7 +177,7 @@ export const ClineAccountView = () => {
 			setLastFetchTime(Date.now())
 			setIsLoading(false)
 		}
-	}, [activeOrganization?.organizationId || clineUser?.uid])
+	}, [activeOrganization?.organizationId, balance])
 
 	const handleManualRefresh = useCallback(
 		debounce(() => getUserCredits(), 500, { immediate: true }),
@@ -204,13 +204,13 @@ export const ClineAccountView = () => {
 				}
 			}
 		},
-		[activeOrganization],
+		[activeOrganization?.organizationId, getUserCredits, getUserOrganizations],
 	)
 
 	// Handle organization changes and initial load
 	useEffect(() => {
 		getUserOrganizations().then(() => getUserCredits())
-	}, [activeOrganization?.organizationId, clineUser?.uid, getUserOrganizations, getUserCredits])
+	}, [getUserOrganizations, getUserCredits])
 
 	// Periodic refresh
 	useEffect(() => {
@@ -304,7 +304,6 @@ export const ClineAccountView = () => {
 						</div>
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
-							{isLoading && <div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>}
 							{isLoading ? (
 								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
 							) : (
