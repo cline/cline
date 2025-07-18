@@ -63,11 +63,11 @@ module.exports = createRule({
 				"Example: AccountServiceClient.methodName(RequestType.create({...})) instead of vscode.postMessage({type: '...'}).\n" +
 				"Found: {{code}}",
 			useFsUtils:
-				"Use utilities in @/utils/fs instead of vscode.workspace.fs.*\n" +
+				"Use utilities in @/utils/fs instead of vscode.workspace.fs\n" +
 				"Example: import { isDirectory } from '@/utils/fs' or use the file system methods from the host bridge provider.\n" +
 				"Found: {{code}}",
 			usePathUtils:
-				"Use path utilities from @/utils/path instead of direct VSCode workspace path methods.\n" +
+				"Use path utilities from @/utils/path instead of VSCode workspace path methods.\n" +
 				"This provides consistent path handling across different environments.\n" +
 				"Found: {{code}}",
 			useHostBridgeWorkspace:
