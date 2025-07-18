@@ -13,6 +13,7 @@ type ClaudeCodeOptions = {
 	path?: string
 	modelId: string
 	thinkingBudgetTokens?: number
+	shouldUseFile?: boolean
 }
 
 type ProcessState = {
@@ -22,41 +23,45 @@ type ProcessState = {
 	exitCode: number | null
 }
 
+// The maximum argument length is longer than this,
+// but environment variables and other factors can reduce it.
+// We use a conservative limit to avoid issues while supporting older Claude Code versions that don't support file input.
+export const MAX_SYSTEM_PROMPT_LENGTH = 65536
+
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
-	const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-cc.txt`)
+	const isSystemPromptTooLong = options.systemPrompt.length > MAX_SYSTEM_PROMPT_LENGTH
+	if (os.platform() === "win32" || isSystemPromptTooLong) {
+		const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-cc.txt`)
+		// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
+		// https://github.com/anthropics/claude-code/issues/3411#issuecomment-3082068547
+		await fs.writeFile(tempFilePath, options.systemPrompt, "utf8")
+		options.systemPrompt = tempFilePath
+		options.shouldUseFile = true
+	}
 
-	// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
-	// https://github.com/anthropics/claude-code/issues/3411#issuecomment-3082068547
-	await fs.writeFile(tempFilePath, options.systemPrompt, "utf8")
+	const cProcess = runProcess(options, await getCwd())
 
-	const process = runProcess(
-		{
-			...options,
-			systemPrompt: tempFilePath,
-		},
-		await getCwd(),
-	)
 	const rl = readline.createInterface({
-		input: process.stdout,
+		input: cProcess.stdout,
 	})
 
-	try {
-		const processState: ProcessState = {
-			error: null,
-			stderrLogs: "",
-			exitCode: null,
-			partialData: null,
-		}
+	const processState: ProcessState = {
+		error: null,
+		stderrLogs: "",
+		exitCode: null,
+		partialData: null,
+	}
 
-		process.stderr.on("data", (data) => {
+	try {
+		cProcess.stderr.on("data", (data) => {
 			processState.stderrLogs += data.toString()
 		})
 
-		process.on("close", (code) => {
+		cProcess.on("close", (code) => {
 			processState.exitCode = code
 		})
 
-		process.on("error", (err) => {
+		cProcess.on("error", (err) => {
 			processState.error = err
 		})
 
@@ -82,7 +87,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			yield processState.partialData
 		}
 
-		const { exitCode } = await process
+		const { exitCode } = await cProcess
 		if (exitCode !== null && exitCode !== 0) {
 			const errorOutput = processState.error?.message || processState.stderrLogs?.trim()
 			throw new Error(
@@ -91,6 +96,12 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		}
 	} catch (err) {
 		console.error(`Error during Claude Code execution:`, err)
+
+		if (processState.stderrLogs.includes("error: unknown option '--system-prompt-file'\n")) {
+			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
+				cause: err,
+			})
+		}
 
 		if (err instanceof Error) {
 			if (err.message.includes("ENOENT")) {
@@ -127,15 +138,15 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 			if (startOfCommand !== -1) {
 				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
 
-				throw new Error(messageWithoutCommand, { cause: err })
+				throw new Error(`${messageWithoutCommand}\n${processState.stderrLogs?.trim()}`, { cause: err })
 			}
 		}
 
 		throw err
 	} finally {
 		rl.close()
-		if (!process.killed) {
-			process.kill()
+		if (!cProcess.killed) {
+			cProcess.kill()
 		}
 	}
 }
@@ -165,12 +176,14 @@ const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
 // https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
 const BUFFER_SIZE = 20_000_000 // 20 MB
 
-function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions, cwd: string) {
+function runProcess(
+	{ systemPrompt, messages, path, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
+	cwd: string,
+) {
 	const claudePath = path?.trim() || "claude"
 
 	const args = [
-		"-p",
-		"--system-prompt-file",
+		shouldUseFile ? "--system-prompt-file" : "--system-prompt",
 		systemPrompt,
 		"--verbose",
 		"--output-format",
@@ -180,11 +193,10 @@ function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetToken
 		// Cline will handle recursive calls
 		"--max-turns",
 		"1",
+		"--model",
+		modelId,
+		"-p",
 	]
-
-	if (modelId) {
-		args.push("--model", modelId)
-	}
 
 	/**
 	 * @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables}
