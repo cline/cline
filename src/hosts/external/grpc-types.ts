@@ -1,5 +1,5 @@
 import * as grpc from "@grpc/grpc-js"
-import { Controller } from "../core/controller"
+import { Controller } from "@core/controller"
 
 /**
  * Type definition for a gRPC handler function.
