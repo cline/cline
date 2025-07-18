@@ -15,7 +15,7 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
-				"CURRENT_ENVIRONMENT": "production"
+				"CLINE_ENVIRONMENT": "production"
 			}
 		},
 		{
@@ -39,7 +39,7 @@
 				"IS_DEV": "true",
 				"TEMP_PROFILE": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
-				"CURRENT_ENVIRONMENT": "production"
+				"CLINE_ENVIRONMENT": "production"
 			}
 		},
 		{
