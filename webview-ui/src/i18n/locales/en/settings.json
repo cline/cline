@@ -426,6 +426,26 @@
 			"label": "Enable text-to-speech",
 			"description": "When enabled, Roo will read aloud its responses using text-to-speech.",
 			"speedLabel": "Speed"
+		},
+		"desktop": {
+			"label": "Enable desktop notifications",
+			"description": "When enabled, Roo will show OS-level desktop notifications for important events.",
+			"approvalRequests": {
+				"label": "Show approval request notifications",
+				"description": "Get notified when Roo needs approval to perform actions."
+			},
+			"errors": {
+				"label": "Show error notifications",
+				"description": "Get notified when errors occur during task execution."
+			},
+			"taskCompletion": {
+				"label": "Show task completion notifications",
+				"description": "Get notified when tasks are completed successfully."
+			},
+			"timeout": {
+				"label": "Notification timeout",
+				"description": "How long notifications stay visible (in seconds). Set to 0 for no timeout."
+			}
 		}
 	},
 	"contextManagement": {

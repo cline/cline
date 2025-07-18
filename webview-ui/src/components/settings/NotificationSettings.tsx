@@ -13,7 +13,23 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsSpeed?: number
 	soundEnabled?: boolean
 	soundVolume?: number
-	setCachedStateField: SetCachedStateField<"ttsEnabled" | "ttsSpeed" | "soundEnabled" | "soundVolume">
+	// Desktop notification settings
+	desktopNotificationsEnabled?: boolean
+	desktopNotificationApprovalRequests?: boolean
+	desktopNotificationErrors?: boolean
+	desktopNotificationTaskCompletion?: boolean
+	desktopNotificationTimeout?: number
+	setCachedStateField: SetCachedStateField<
+		| "ttsEnabled"
+		| "ttsSpeed"
+		| "soundEnabled"
+		| "soundVolume"
+		| "desktopNotificationsEnabled"
+		| "desktopNotificationApprovalRequests"
+		| "desktopNotificationErrors"
+		| "desktopNotificationTaskCompletion"
+		| "desktopNotificationTimeout"
+	>
 }
 
 export const NotificationSettings = ({
@@ -21,6 +37,11 @@ export const NotificationSettings = ({
 	ttsSpeed,
 	soundEnabled,
 	soundVolume,
+	desktopNotificationsEnabled,
+	desktopNotificationApprovalRequests,
+	desktopNotificationErrors,
+	desktopNotificationTaskCompletion,
+	desktopNotificationTimeout,
 	setCachedStateField,
 	...props
 }: NotificationSettingsProps) => {
@@ -96,6 +117,78 @@ export const NotificationSettings = ({
 									data-testid="sound-volume-slider"
 								/>
 								<span className="w-10">{((soundVolume ?? 0.5) * 100).toFixed(0)}%</span>
+							</div>
+						</div>
+					</div>
+				)}
+
+				<div>
+					<VSCodeCheckbox
+						checked={desktopNotificationsEnabled}
+						onChange={(e: any) => setCachedStateField("desktopNotificationsEnabled", e.target.checked)}
+						data-testid="desktop-notifications-enabled-checkbox">
+						<span className="font-medium">{t("settings:notifications.desktop.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:notifications.desktop.description")}
+					</div>
+				</div>
+
+				{desktopNotificationsEnabled && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<VSCodeCheckbox
+								checked={desktopNotificationApprovalRequests}
+								onChange={(e: any) => setCachedStateField("desktopNotificationApprovalRequests", e.target.checked)}
+								data-testid="desktop-notification-approval-requests-checkbox">
+								<span className="font-medium">{t("settings:notifications.desktop.approvalRequests.label")}</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:notifications.desktop.approvalRequests.description")}
+							</div>
+						</div>
+
+						<div>
+							<VSCodeCheckbox
+								checked={desktopNotificationErrors}
+								onChange={(e: any) => setCachedStateField("desktopNotificationErrors", e.target.checked)}
+								data-testid="desktop-notification-errors-checkbox">
+								<span className="font-medium">{t("settings:notifications.desktop.errors.label")}</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:notifications.desktop.errors.description")}
+							</div>
+						</div>
+
+						<div>
+							<VSCodeCheckbox
+								checked={desktopNotificationTaskCompletion}
+								onChange={(e: any) => setCachedStateField("desktopNotificationTaskCompletion", e.target.checked)}
+								data-testid="desktop-notification-task-completion-checkbox">
+								<span className="font-medium">{t("settings:notifications.desktop.taskCompletion.label")}</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:notifications.desktop.taskCompletion.description")}
+							</div>
+						</div>
+
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:notifications.desktop.timeout.label")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={0}
+									max={60}
+									step={1}
+									value={[Math.round((desktopNotificationTimeout ?? 10000) / 1000)]}
+									onValueChange={([value]) => setCachedStateField("desktopNotificationTimeout", value * 1000)}
+									data-testid="desktop-notification-timeout-slider"
+								/>
+								<span className="w-10">{Math.round((desktopNotificationTimeout ?? 10000) / 1000)}s</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:notifications.desktop.timeout.description")}
 							</div>
 						</div>
 					</div>

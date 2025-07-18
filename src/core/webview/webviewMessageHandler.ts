@@ -964,6 +964,26 @@ export const webviewMessageHandler = async (
 		case "stopTts":
 			stopTts()
 			break
+		case "desktopNotificationsEnabled":
+			await updateGlobalState("desktopNotificationsEnabled", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
+		case "desktopNotificationApprovalRequests":
+			await updateGlobalState("desktopNotificationApprovalRequests", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
+		case "desktopNotificationErrors":
+			await updateGlobalState("desktopNotificationErrors", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
+		case "desktopNotificationTaskCompletion":
+			await updateGlobalState("desktopNotificationTaskCompletion", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
+		case "desktopNotificationTimeout":
+			await updateGlobalState("desktopNotificationTimeout", message.value ?? 10000)
+			await provider.postStateToWebview()
+			break
 		case "diffEnabled":
 			const diffEnabled = message.bool ?? true
 			await updateGlobalState("diffEnabled", diffEnabled)

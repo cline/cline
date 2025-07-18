@@ -1407,6 +1407,7 @@ export class ClineProvider
 			listApiConfigMeta,
 			pinnedApiConfigs,
 			mode,
+			modeApiConfigs,
 			customModePrompts,
 			customSupportPrompts,
 			enhancementApiConfigId,
@@ -1434,6 +1435,11 @@ export class ClineProvider
 			profileThresholds,
 			alwaysAllowFollowupQuestions,
 			followupAutoApproveTimeoutMs,
+			desktopNotificationsEnabled,
+			desktopNotificationApprovalRequests,
+			desktopNotificationErrors,
+			desktopNotificationTaskCompletion,
+			desktopNotificationTimeout,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1506,6 +1512,7 @@ export class ClineProvider
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			pinnedApiConfigs: pinnedApiConfigs ?? {},
 			mode: mode ?? defaultModeSlug,
+			modeApiConfigs: modeApiConfigs ?? {},
 			customModePrompts: customModePrompts ?? {},
 			customSupportPrompts: customSupportPrompts ?? {},
 			enhancementApiConfigId,
@@ -1553,6 +1560,12 @@ export class ClineProvider
 			hasOpenedModeSelector: this.getGlobalState("hasOpenedModeSelector") ?? false,
 			alwaysAllowFollowupQuestions: alwaysAllowFollowupQuestions ?? false,
 			followupAutoApproveTimeoutMs: followupAutoApproveTimeoutMs ?? 60000,
+			// Desktop notification settings
+			desktopNotificationsEnabled: desktopNotificationsEnabled ?? false,
+			desktopNotificationApprovalRequests: desktopNotificationApprovalRequests ?? true,
+			desktopNotificationErrors: desktopNotificationErrors ?? true,
+			desktopNotificationTaskCompletion: desktopNotificationTaskCompletion ?? true,
+			desktopNotificationTimeout: desktopNotificationTimeout ?? 10000,
 		}
 	}
 
@@ -1715,6 +1728,12 @@ export class ClineProvider
 				codebaseIndexSearchMinScore: stateValues.codebaseIndexConfig?.codebaseIndexSearchMinScore,
 			},
 			profileThresholds: stateValues.profileThresholds ?? {},
+			// Desktop notification settings
+			desktopNotificationsEnabled: stateValues.desktopNotificationsEnabled ?? false,
+			desktopNotificationApprovalRequests: stateValues.desktopNotificationApprovalRequests ?? true,
+			desktopNotificationErrors: stateValues.desktopNotificationErrors ?? true,
+			desktopNotificationTaskCompletion: stateValues.desktopNotificationTaskCompletion ?? true,
+			desktopNotificationTimeout: stateValues.desktopNotificationTimeout ?? 10000,
 		}
 	}
 

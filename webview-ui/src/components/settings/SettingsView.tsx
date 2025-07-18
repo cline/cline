@@ -176,6 +176,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowFollowupQuestions,
 		alwaysAllowUpdateTodoList,
 		followupAutoApproveTimeoutMs,
+		desktopNotificationsEnabled,
+		desktopNotificationApprovalRequests,
+		desktopNotificationErrors,
+		desktopNotificationTaskCompletion,
+		desktopNotificationTimeout,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -323,6 +328,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
 			vscode.postMessage({ type: "profileThresholds", values: profileThresholds })
+			vscode.postMessage({ type: "desktopNotificationsEnabled", bool: desktopNotificationsEnabled })
+			vscode.postMessage({ type: "desktopNotificationApprovalRequests", bool: desktopNotificationApprovalRequests })
+			vscode.postMessage({ type: "desktopNotificationErrors", bool: desktopNotificationErrors })
+			vscode.postMessage({ type: "desktopNotificationTaskCompletion", bool: desktopNotificationTaskCompletion })
+			vscode.postMessage({ type: "desktopNotificationTimeout", value: desktopNotificationTimeout })
 			setChangeDetected(false)
 		}
 	}
@@ -640,6 +650,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							ttsSpeed={ttsSpeed}
 							soundEnabled={soundEnabled}
 							soundVolume={soundVolume}
+							desktopNotificationsEnabled={desktopNotificationsEnabled}
+							desktopNotificationApprovalRequests={desktopNotificationApprovalRequests}
+							desktopNotificationErrors={desktopNotificationErrors}
+							desktopNotificationTaskCompletion={desktopNotificationTaskCompletion}
+							desktopNotificationTimeout={desktopNotificationTimeout}
 							setCachedStateField={setCachedStateField}
 						/>
 					)}

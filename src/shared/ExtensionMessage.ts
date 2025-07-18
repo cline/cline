@@ -195,6 +195,11 @@ export type ExtensionState = Pick<
 	| "ttsSpeed"
 	| "soundEnabled"
 	| "soundVolume"
+	| "desktopNotificationsEnabled"
+	| "desktopNotificationApprovalRequests"
+	| "desktopNotificationErrors"
+	| "desktopNotificationTaskCompletion"
+	| "desktopNotificationTimeout"
 	// | "maxOpenTabsContext" // Optional in GlobalSettings, required here.
 	// | "maxWorkspaceFiles" // Optional in GlobalSettings, required here.
 	// | "showRooIgnoredFiles" // Optional in GlobalSettings, required here.
