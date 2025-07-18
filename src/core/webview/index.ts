@@ -264,13 +264,11 @@ export abstract class WebviewProvider {
 		} catch (error) {
 			// Only show the error message if not in development mode.
 			if (!process.env.IS_DEV) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message:
-							"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message:
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				})
 			}
 
 			return this.getHtmlContent()

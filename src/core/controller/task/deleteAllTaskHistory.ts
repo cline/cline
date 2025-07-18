@@ -33,7 +33,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 					},
 				}),
 			)
-		)?.selectedOption
+		).selectedOption
 
 		// Default VS Code Cancel button returns `undefined` - don't delete anything
 		if (userChoice === undefined) {
@@ -67,17 +67,15 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			} else {
 				// No favorited tasks found - show warning and ask user what to do
 				const answer = (
-					await getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.WARNING,
-							message: "No favorited tasks found. Would you like to delete all tasks anyway?",
-							options: {
-								modal: true,
-								items: ["Delete All Tasks"],
-							},
-						}),
-					)
-				)?.selectedOption
+					await getHostBridgeProvider().windowClient.showMessage({
+						type: ShowMessageType.WARNING,
+						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+						options: {
+							modal: true,
+							items: ["Delete All Tasks"],
+						},
+					})
+				).selectedOption
 
 				// User cancelled - don't delete anything
 				if (answer === undefined) {
@@ -105,12 +103,10 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+			})
 		}
 
 		// Update webview
