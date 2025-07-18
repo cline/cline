@@ -967,7 +967,7 @@ export class Controller {
 
 	// Git commit message generation
 
-	async generateGitCommitMessage(sourceControl?: any) {
+	async generateGitCommitMessage(sourceControl?: vscode.SourceControl) {
 		try {
 			// Get the Git extension API
 			const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
