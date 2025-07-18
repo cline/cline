@@ -48,12 +48,10 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 				}),
 			)
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
+			})
 		}
 	}
 }

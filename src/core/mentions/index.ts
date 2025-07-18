@@ -78,12 +78,10 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Error fetching content for ${urlMention}: ${error.message}`,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Error fetching content for ${urlMention}: ${error.message}`,
+			})
 		}
 	}
 
@@ -100,12 +98,10 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.ERROR,
-							message: `Error fetching content for ${mention}: ${error.message}`,
-						}),
-					)
+					getHostBridgeProvider().windowClient.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Error fetching content for ${mention}: ${error.message}`,
+					})
 					result = `Error fetching content: ${error.message}`
 				}
 			}

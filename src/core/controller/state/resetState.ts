@@ -15,20 +15,16 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Resetting global state...",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting global state...",
+			})
 			await resetGlobalState(controller.context)
 		} else {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Resetting workspace state...",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting workspace state...",
+			})
 			await resetWorkspaceState(controller.context)
 		}
 
@@ -37,12 +33,10 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.INFORMATION,
-				message: "State reset",
-			}),
-		)
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "State reset",
+		})
 		await controller.postStateToWebview()
 
 		await sendChatButtonClickedEvent(controller.id)
@@ -50,12 +44,10 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
-			}),
-		)
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+		})
 		throw error
 	}
 }
