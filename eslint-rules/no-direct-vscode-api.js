@@ -11,8 +11,11 @@ const disallowedApis = {
 	"vscode.workspace.fs.stat": {
 		messageId: "useFsUtils",
 	},
+	"vscode.workspace.fs.writeFile": {
+		messageId: "useFsUtils",
+	},
 	"vscode.workspace.workspaceFolders": {
-		messageId: "useHostBridge",
+		messageId: "useHostBridgeWorkspace",
 	},
 	"vscode.workspace.asRelativePath": {
 		messageId: "usePathUtils",
@@ -20,6 +23,29 @@ const disallowedApis = {
 	"vscode.workspace.getWorkspaceFolder": {
 		messageId: "usePathUtils",
 	},
+	"vscode.window.showTextDocument": {
+		messageId: "useHostBridge",
+	},
+	"vscode.workspace.applyEdit": {
+		messageId: "useHostBridge",
+	},
+	// "vscode.env.openExternal": {
+	// 	messageId: "useUtils",
+	// },
+	// "vscode.window.showWarningMessage": {
+	// 	messageId: "useHostBridgeShowMessage",
+	// },
+	"vscode.window.showOpenDialog": {
+		messageId: "useHostBridgeShowMessage",
+	},
+	// There are too many warnings for these calls, uncomment the following
+	// when the migration is finished.
+	// "vscode.window.showErrorMessage": {
+	// 	messageId: "useHostBridgeShowMessage",
+	// },
+	// "vscode.window.showInformationMessage": {
+	// 	messageId: "useHostBridgeShowMessage",
+	// },
 }
 
 module.exports = createRule({
@@ -37,16 +63,28 @@ module.exports = createRule({
 				"Example: AccountServiceClient.methodName(RequestType.create({...})) instead of vscode.postMessage({type: '...'}).\n" +
 				"Found: {{code}}",
 			useFsUtils:
-				"Use utilities in @/utils/fs instead of vscode.workspace.fs.stat.\n" +
+				"Use utilities in @/utils/fs instead of vscode.workspace.fs\n" +
 				"Example: import { isDirectory } from '@/utils/fs' or use the file system methods from the host bridge provider.\n" +
 				"Found: {{code}}",
-			useHostBridge:
+			usePathUtils:
+				"Use path utilities from @/utils/path instead of VSCode workspace path methods.\n" +
+				"This provides consistent path handling across different environments.\n" +
+				"Found: {{code}}",
+			useHostBridgeWorkspace:
 				"Use getHostBridgeProvider().workspaceClient.getWorkspacePaths({}) instead of vscode.workspace.workspaceFolders.\n" +
 				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
-			usePathUtils:
-				"Use path utilities from @/utils/path instead of direct VSCode workspace path methods.\n" +
-				"This provides consistent path handling across different environments.\n" +
+			useHostBridgeShowMessage:
+				"Use getHostBridgeProvider().windowClient.showMessage instead of the vscode.window.showMessage.\n" +
+				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
+				"Found: {{code}}",
+			useHostBridge:
+				"Use the host bridge instead of calling vscode APIs directly.\n" +
+				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
+				"Found: {{code}}",
+			useUtils:
+				"Use utilities in @/utils instead of calling vscode APIs directly.\n" +
+				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
 		},
 		schema: [],
@@ -54,17 +92,10 @@ module.exports = createRule({
 	defaultOptions: [],
 
 	create(context) {
-		// Check if current file is in an exception directory or is grpc-client-base.ts
-		const filename = context.filename
-		const isGrpcClientBase = path.basename(filename) === "grpc-client-base.ts"
-
-		// Skip checking files in src/hosts/vscode or standalone/runtime-files
-		const isExceptionDirectory = filename.includes("/src/hosts/vscode/") || filename.includes("/standalone/runtime-files/")
-
 		// Pattern for checking memberExpressions like vscode.workspace.fs.stat
 		function checkMemberExpression(node) {
-			// Skip if this file is in an exception directory or is grpc-client-base.ts
-			if (isGrpcClientBase || isExceptionDirectory) {
+			if (isExcluded(context.filename)) {
+				// Skip if this file is being excluded.
 				return
 			}
 
@@ -143,6 +174,20 @@ module.exports = createRule({
 			})
 		}
 
+		function isExcluded(filename) {
+			// Check if current file is in an exception directory or is grpc-client-base.ts
+			if (path.basename(filename) === "grpc-client-base.ts") {
+				return true
+			}
+			// Skip checking files in src/hosts/vscode or standalone/runtime-files
+			if (filename.includes("/src/hosts/vscode/")) {
+				return true
+			}
+			if (filename.includes("/standalone/runtime-files/")) {
+				return true
+			}
+		}
+
 		return {
 			// Detect basic member expressions (e.g., vscode.postMessage)
 			MemberExpression(node) {
@@ -152,7 +197,7 @@ module.exports = createRule({
 			// Detect property access through destructuring
 			VariableDeclarator(node) {
 				// Skip if this file is in an exception directory or is grpc-client-base.ts
-				if (isGrpcClientBase || isExceptionDirectory) {
+				if (isExcluded(context.filename)) {
 					return
 				}
 
