@@ -20,6 +20,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		_currentLine: number | undefined,
 	): Promise<void> {
+		if (!this.activeDiffEditorId) {
+			return
+		}
 		await getHostBridgeProvider().diffClient.replaceText({
 			diffId: this.activeDiffEditorId,
 			content: content,
@@ -58,6 +61,11 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 			return undefined
 		}
 		return (await getHostBridgeProvider().diffClient.getDocumentText({ diffId: this.activeDiffEditorId })).content
+	}
+
+	protected override async getNewDiagnosticProblems(): Promise<string> {
+		console.log(`Called ExternalDiffViewProvider.getNewDiagnosticProblems() stub`)
+		return ""
 	}
 
 	protected override async closeDiffView(): Promise<void> {
