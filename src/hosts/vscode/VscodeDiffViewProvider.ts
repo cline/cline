@@ -1,10 +1,14 @@
 import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
-import { DecorationController } from "@integrations/editor/DecorationController"
+import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
+	private activeDiffEditor?: vscode.TextEditor
+	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
 
@@ -150,6 +154,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			return undefined
 		}
 		return this.activeDiffEditor.document.getText()
+	}
+
+	protected override async getNewDiagnosticProblems(): Promise<string> {
+		// Get the diagnostics after changing the document.
+		const postDiagnostics = vscode.languages.getDiagnostics()
+		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
+		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+		// will be empty string if no errors
+		const problems = await diagnosticsToProblemsString(newProblems, [vscode.DiagnosticSeverity.Error])
+		return problems
 	}
 
 	protected override async saveDocument(): Promise<void> {
