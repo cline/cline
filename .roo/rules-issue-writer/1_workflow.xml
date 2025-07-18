@@ -1,16 +1,74 @@
 <workflow>
+  <initialization>
+    <step number="1">
+      <name>Initialize Issue Creation Process</name>
+      <instructions>
+        When the user requests to create an issue, immediately set up a todo list to track the workflow.
+        
+        <update_todo_list>
+        <todos>
+        [ ] Analyze user request to determine issue type
+        [ ] Gather initial information for the issue
+        [ ] Determine if user wants to contribute
+        [ ] Perform technical analysis (if contributing)
+        [ ] Draft issue content
+        [ ] Review and confirm with user
+        [ ] Create GitHub issue
+        </todos>
+        </update_todo_list>
+      </instructions>
+    </step>
+  </initialization>
+
   <step number="1">
     <name>Determine Issue Type</name>
     <instructions>
-      Use ask_followup_question to determine if the user wants to create:
+      Analyze the user's initial request to automatically assess whether they're reporting a bug or proposing a feature.
+      Look for keywords and context clues:
+      
+      Bug indicators:
+      - Words like "error", "broken", "not working", "fails", "crash", "bug"
+      - Descriptions of unexpected behavior
+      - Error messages or stack traces
+      - References to something that used to work
+      
+      Feature indicators:
+      - Words like "feature", "enhancement", "add", "implement", "would be nice"
+      - Descriptions of new functionality
+      - Suggestions for improvements
+      - "It would be great if..."
+      
+      Based on your analysis, order the options with the most likely choice first:
       
       <ask_followup_question>
-      <question>What type of issue would you like to create?</question>
+      <question>Based on your request, what type of issue would you like to create?</question>
       <follow_up>
+      [If bug indicators found:]
+      <suggest>Bug Report - Report a problem with existing functionality</suggest>
+      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
+      
+      [If feature indicators found:]
+      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
+      <suggest>Bug Report - Report a problem with existing functionality</suggest>
+      
+      [If unclear:]
       <suggest>Bug Report - Report a problem with existing functionality</suggest>
       <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
       </follow_up>
       </ask_followup_question>
+      
+      After determining the type, update the todo list:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [-] Gather initial information for the issue
+      [ ] Determine if user wants to contribute
+      [ ] Perform technical analysis (if contributing)
+      [ ] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 
@@ -38,96 +96,97 @@
       
       Use multiple ask_followup_question calls if needed to gather all information.
       Be specific in your questions based on what's missing.
+      
+      After gathering information, update the todo:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [-] Determine if user wants to contribute
+      [ ] Perform technical analysis (if contributing)
+      [ ] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 
   <step number="3">
-    <name>Search GitHub Discussions</name>
-    <instructions>
-      Search GitHub Discussions for related feature requests or bug reports:
-      
-      1. Use the GitHub web interface or API to search discussions in:
-         https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests
-      
-      2. Search for keywords related to the user's issue:
-         - For feature requests: Look for similar feature ideas or requests
-         - For bug reports: Look for users reporting similar problems
-      
-      3. Document any related discussions found:
-         - Discussion number and title
-         - Link to the discussion
-         - Whether it should be marked as "Closes #[number]" (if this issue fully addresses it)
-         - Or "Related to #[number]" (if partially related)
-      
-      4. If multiple related discussions exist, list them all for inclusion in the issue
-    </instructions>
-  </step>
-
-  <step number="4">
     <name>Determine if User Wants to Contribute</name>
     <instructions>
       Before exploring the codebase, determine if the user wants to contribute the implementation:
       
       <ask_followup_question>
-      <question>Are you interested in implementing this feature yourself, or are you just reporting the problem for the Roo team to solve?</question>
+      <question>Are you interested in implementing this yourself, or are you just reporting the problem for the Roo team to solve?</question>
       <follow_up>
       <suggest>Just reporting the problem - the Roo team can design the solution</suggest>
-      <suggest>I want to contribute and implement this feature myself</suggest>
+      <suggest>I want to contribute and implement this myself</suggest>
       <suggest>I'm not sure yet, but I'd like to provide technical analysis</suggest>
       </follow_up>
       </ask_followup_question>
       
       Based on their response:
-      - If just reporting: Skip to step 6 (Draft Issue - Problem Only)
-      - If contributing: Continue to step 5 (Explore Codebase)
-      - If providing analysis: Continue to step 5 but make technical sections optional
+      - If just reporting: Skip to step 5 (Draft Issue - Problem Only)
+      - If contributing: Continue to step 4 (Technical Analysis)
+      - If providing analysis: Continue to step 4 but make technical sections optional
+      
+      Update the todo based on the decision:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [x] Determine if user wants to contribute
+      [If contributing: [ ] Perform technical analysis (if contributing)]
+      [If not contributing: [-] Perform technical analysis (skipped - not contributing)]
+      [-] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="4">
+    <name>Technical Analysis for Contributors</name>
+    <instructions>
+      ONLY perform this step if the user wants to contribute or provide technical analysis.
+      
+      This step uses the comprehensive technical analysis sub-workflow defined in
+      6_technical_analysis_workflow.xml. The sub-workflow will:
+      
+      1. Create its own detailed investigation todo list
+      2. Perform exhaustive codebase searches using iterative refinement
+      3. Analyze all relevant files and dependencies
+      4. Form and validate hypotheses about the implementation
+      5. Create a comprehensive technical solution
+      6. Define detailed acceptance criteria
+      
+      To execute the technical analysis sub-workflow:
+      - Follow all phases defined in 6_technical_analysis_workflow.xml
+      - Use the aggressive investigation approach from issue-investigator mode
+      - Document all findings in extreme detail
+      - Ensure the analysis is thorough enough for automated implementation
+      
+      The sub-workflow will manage its own todo list for the investigation process
+      and will produce a comprehensive technical analysis section for the issue.
+      
+      After completing the technical analysis:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [x] Determine if user wants to contribute
+      [x] Perform technical analysis (if contributing)
+      [-] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 
   <step number="5">
-    <name>Explore Codebase for Contributors</name>
-    <instructions>
-      ONLY perform this step if the user wants to contribute or provide technical analysis.
-      
-      Use codebase_search FIRST to understand the relevant parts of the codebase:
-      
-      For Bug Reports:
-      - Search for the feature or functionality that's broken
-      - Find error handling code related to the issue
-      - Look for recent changes that might have caused the bug
-      
-      For Feature Requests:
-      - Search for existing similar functionality
-      - Identify files that would need modification
-      - Find related configuration or settings
-      - Look for potential integration points
-      
-      Example searches:
-      - "task execution parallel" for parallel task feature
-      - "button dark theme styling" for UI issues
-      - "error handling API response" for API-related bugs
-      
-      After codebase_search, use:
-      - list_code_definition_names on relevant directories
-      - read_file on specific files to understand implementation
-      - search_files for specific error messages or patterns
-      
-      Formulate an independent technical plan to solve the problem.
-      
-      Document all relevant findings including:
-      - File paths and line numbers
-      - Current implementation details
-      - Your proposed implementation plan
-      - Related code that might be affected
-      
-      Then gather additional technical details:
-      - Ask for proposed solution approach
-      - Request acceptance criteria in Given/When/Then format
-      - Discuss technical considerations and trade-offs
-    </instructions>
-  </step>
-
-  <step number="6">
     <name>Draft Issue Content</name>
     <instructions>
       Create the issue body based on whether the user is just reporting or contributing.
@@ -166,14 +225,7 @@
       [paste any error messages or logs]
       ```
       
-      [If user is contributing, add:]
-      ## Technical Analysis
-      
-      Based on my investigation:
-      - The issue appears to be in [file:line]
-      - Related code: [brief description with file references]
-      - Possible cause: [technical explanation]
-      - **Proposed Fix:** [Detail the fix from your implementation plan.]
+      [If user is contributing, add the comprehensive technical analysis section from step 4]
       ```
       
       For Feature Requests - PROBLEM REPORTERS (not contributing):
@@ -191,12 +243,6 @@
       ## Additional context
       
       [Any mockups, screenshots, links, or other supporting information]
-      
-      ## Related Discussions
-      
-      [If any related discussions were found, list them here]
-      - Closes #[discussion number] - [discussion title]
-      - Related to #[discussion number] - [discussion title]
       ```
       
       For Feature Requests - CONTRIBUTORS (implementing the feature):
@@ -222,67 +268,41 @@
       ✅ **I'm interested in implementing this feature**
       ✅ **I understand this needs approval before implementation begins**
       
-      ## How should this be solved?
-      
-      [Based on your analysis, describe the proposed solution]
-      
-      **What will change:**
-      - [Specific change 1]
-      - [Specific change 2]
-      
-      **User interaction:**
-      - [How users will use this feature]
-      - [What they'll see in the UI]
+      [Insert the comprehensive technical analysis section from step 4, including:]
+      - Root cause / Implementation target
+      - Affected components with file paths and line numbers
+      - Current implementation analysis
+      - Detailed proposed implementation steps
+      - Code architecture considerations
+      - Testing requirements
+      - Performance impact
+      - Security considerations
+      - Migration strategy
+      - Rollback plan
+      - Dependencies and breaking changes
+      - Implementation complexity assessment
       
       ## Acceptance Criteria
       
-      ```
-      Given [context]
-      When [action]
-      Then [result]
-      And [additional expectation]
-      But [what should not happen]
+      [Insert the detailed acceptance criteria from the technical analysis]
       ```
       
-      [Add multiple scenarios as needed]
-      
-      ## Technical Considerations
-      
-      **Implementation approach:**
-      - Key files to modify: [list with paths]
-      - Current architecture: [brief description]
-      - Integration points: [where this fits]
-      - Similar patterns in codebase: [examples]
-      
-      **Performance implications:**
-      [Any performance considerations]
-      
-      **Compatibility concerns:**
-      [Any compatibility issues]
-      
-      ## Trade-offs and Risks
-      
-      **Alternatives considered:**
-      - [Alternative 1]: [Why not chosen]
-      - [Alternative 2]: [Why not chosen]
-      
-      **Potential risks:**
-      - [Risk 1]: [Mitigation strategy]
-      - [Risk 2]: [Mitigation strategy]
-      
-      **Breaking changes:**
-      [Any breaking changes or migration needs]
-      
-      ## Related Discussions
-      
-      [If any related discussions were found, list them here]
-      - Closes #[discussion number] - [discussion title]
-      - Related to #[discussion number] - [discussion title]
-      ```
+      After drafting:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [x] Determine if user wants to contribute
+      [x] Perform technical analysis (if contributing)
+      [x] Draft issue content
+      [-] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 
-  <step number="7">
+  <step number="6">
     <name>Review and Confirm with User</name>
     <instructions>
       Present the complete drafted issue to the user for review:
@@ -302,10 +322,23 @@
       </ask_followup_question>
       
       If user requests changes, make them and show the updated version for confirmation.
+      
+      After confirmation:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [x] Determine if user wants to contribute
+      [x] Perform technical analysis (if contributing)
+      [x] Draft issue content
+      [x] Review and confirm with user
+      [-] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 
-  <step number="8">
+  <step number="7">
     <name>Create GitHub Issue</name>
     <instructions>
       Once user confirms, create the issue using the GitHub CLI:
@@ -313,7 +346,7 @@
       First, save the issue body to a temporary file:
       <execute_command>
       <command>cat > /tmp/issue_body.md << 'EOF'
-[The complete formatted issue body from step 6]
+[The complete formatted issue body from step 5]
 EOF</command>
       </execute_command>
       
@@ -333,6 +366,19 @@ EOF</command>
       <execute_command>
       <command>rm /tmp/issue_body.md</command>
       </execute_command>
+      
+      Complete the workflow:
+      <update_todo_list>
+      <todos>
+      [x] Analyze user request to determine issue type
+      [x] Gather initial information for the issue
+      [x] Determine if user wants to contribute
+      [x] Perform technical analysis (if contributing)
+      [x] Draft issue content
+      [x] Review and confirm with user
+      [x] Create GitHub issue
+      </todos>
+      </update_todo_list>
     </instructions>
   </step>
 </workflow>

@@ -1,0 +1,349 @@
+<technical_analysis_workflow>
+  <overview>
+    This sub-workflow provides an aggressive, thorough, and all-encompassing investigation
+    process for technical analysis when creating GitHub issues. It employs methods from
+    the issue-investigator mode to deeply analyze the codebase and formulate comprehensive
+    technical solutions. This workflow is designed to produce scoped issues that can be
+    used in automated fix workflows.
+  </overview>
+
+  <initialization>
+    <step number="1">
+      <name>Create Investigation Plan</name>
+      <instructions>
+        When technical analysis is requested, immediately create a comprehensive todo list
+        to track the investigation progress.
+      </instructions>
+      <tool_use><![CDATA[
+<update_todo_list>
+<todos>
+[ ] Extract keywords from the issue description
+[ ] Perform initial broad codebase search
+[ ] Analyze search results and identify key components
+[ ] Deep dive into relevant files and implementations
+[ ] Form initial hypothesis about the issue/feature
+[ ] Attempt to disprove hypothesis through further investigation
+[ ] Identify all affected files and dependencies
+[ ] Map out the complete implementation approach
+[ ] Document technical risks and edge cases
+[ ] Formulate comprehensive technical solution
+[ ] Create detailed acceptance criteria
+[ ] Prepare technical analysis summary
+</todos>
+</update_todo_list>
+      ]]></tool_use>
+    </step>
+  </initialization>
+
+  <investigation_phases>
+    <phase name="keyword_extraction">
+      <description>
+        Extract all relevant keywords, concepts, and technical terms from the issue description.
+        Be exhaustive - include function names, error messages, feature names, and related concepts.
+      </description>
+      <actions>
+        <action>Identify primary technical concepts</action>
+        <action>Extract error messages or specific symptoms</action>
+        <action>Note any mentioned file paths or components</action>
+        <action>List related features or functionality</action>
+        <action>Include synonyms and related terms</action>
+      </actions>
+      <update_todo>Mark "Extract keywords from the issue description" as complete</update_todo>
+    </phase>
+
+    <phase name="iterative_search">
+      <description>
+        Perform multiple rounds of codebase searches, starting broad and progressively
+        narrowing based on findings. This is an aggressive, exhaustive search process.
+      </description>
+      <iteration number="1">
+        <title>Initial Broad Search</title>
+        <instructions>
+          Use codebase_search with all extracted keywords to get an overview of relevant code.
+          <tool_use><![CDATA[
+<codebase_search>
+<query>[Combined keywords from extraction phase]</query>
+</codebase_search>
+          ]]></tool_use>
+        </instructions>
+      </iteration>
+      
+      <iteration number="2">
+        <title>Component Discovery</title>
+        <instructions>
+          Based on initial results, identify key components and search for:
+          - Related class/function definitions
+          - Import statements and dependencies
+          - Configuration files
+          - Test files that might reveal expected behavior
+        </instructions>
+      </iteration>
+      
+      <iteration number="3">
+        <title>Deep Implementation Search</title>
+        <instructions>
+          Search for specific implementation details:
+          - Error handling patterns
+          - State management
+          - API endpoints or routes
+          - Database queries or models
+          - UI components and their interactions
+        </instructions>
+      </iteration>
+      
+      <iteration number="4">
+        <title>Edge Case and Integration Search</title>
+        <instructions>
+          Look for:
+          - Edge cases in the code
+          - Integration points with other systems
+          - Configuration options that affect behavior
+          - Feature flags or conditional logic
+        </instructions>
+      </iteration>
+      
+      <update_todo>Update search-related todos as each iteration completes</update_todo>
+    </phase>
+
+    <phase name="file_analysis">
+      <description>
+        Thoroughly analyze all relevant files discovered during the search phase.
+      </description>
+      <actions>
+        <action>Use list_code_definition_names to understand file structure</action>
+        <action>Read complete files to understand full context</action>
+        <action>Trace execution paths through the code</action>
+        <action>Identify all dependencies and imports</action>
+        <action>Map relationships between components</action>
+      </actions>
+      <documentation>
+        Document findings including:
+        - File paths and their purposes
+        - Key functions and their responsibilities
+        - Data flow through the system
+        - External dependencies
+        - Potential impact areas
+      </documentation>
+      <update_todo>Mark file analysis todos as complete</update_todo>
+    </phase>
+
+    <phase name="hypothesis_formation">
+      <description>
+        Form a comprehensive hypothesis about the issue or feature implementation.
+      </description>
+      <for_bugs>
+        <steps>
+          <step>Identify the most likely root cause</step>
+          <step>Trace the bug through the execution path</step>
+          <step>Determine why the current implementation fails</step>
+          <step>Consider environmental factors</step>
+        </steps>
+      </for_bugs>
+      <for_features>
+        <steps>
+          <step>Identify the optimal integration points</step>
+          <step>Determine required architectural changes</step>
+          <step>Plan the implementation approach</step>
+          <step>Consider scalability and maintainability</step>
+        </steps>
+      </for_features>
+      <update_todo>Mark hypothesis formation as complete</update_todo>
+    </phase>
+
+    <phase name="hypothesis_validation">
+      <description>
+        Aggressively attempt to disprove the hypothesis by searching for contradictory evidence.
+      </description>
+      <validation_steps>
+        <step>
+          <title>Search for Alternative Implementations</title>
+          <action>Look for similar features implemented differently</action>
+          <action>Check for deprecated code that might interfere</action>
+        </step>
+        <step>
+          <title>Configuration and Environment Check</title>
+          <action>Search for configuration that could change behavior</action>
+          <action>Look for environment-specific code paths</action>
+        </step>
+        <step>
+          <title>Test Case Analysis</title>
+          <action>Find existing tests that might contradict hypothesis</action>
+          <action>Look for test cases that reveal edge cases</action>
+        </step>
+        <step>
+          <title>Historical Context</title>
+          <action>Search for comments explaining design decisions</action>
+          <action>Look for TODO or FIXME comments related to the area</action>
+        </step>
+      </validation_steps>
+      <outcome>
+        If hypothesis is disproven, return to search phase with new insights.
+        If hypothesis stands, proceed to solution formulation.
+      </outcome>
+      <update_todo>Update hypothesis validation status</update_todo>
+    </phase>
+
+    <phase name="solution_formulation">
+      <description>
+        Create a comprehensive technical solution with extreme detail.
+      </description>
+      <components>
+        <component name="implementation_plan">
+          <details>
+            - Exact files to modify with line numbers
+            - New files to create with full paths
+            - Specific code changes required
+            - Order of implementation steps
+            - Migration strategy if needed
+          </details>
+        </component>
+        
+        <component name="dependency_analysis">
+          <details>
+            - All files that import affected code
+            - API contracts that must be maintained
+            - Database schema changes if any
+            - Configuration changes required
+            - Documentation updates needed
+          </details>
+        </component>
+        
+        <component name="test_strategy">
+          <details>
+            - Unit tests to add or modify
+            - Integration tests required
+            - Edge cases to test
+            - Performance testing needs
+            - Manual testing scenarios
+          </details>
+        </component>
+        
+        <component name="risk_assessment">
+          <details>
+            - Breaking changes identified
+            - Performance implications
+            - Security considerations
+            - Backward compatibility issues
+            - Rollback strategy
+          </details>
+        </component>
+      </components>
+      <update_todo>Mark solution formulation as complete</update_todo>
+    </phase>
+
+    <phase name="acceptance_criteria">
+      <description>
+        Create extremely detailed acceptance criteria that can guide automated implementation.
+      </description>
+      <format><![CDATA[
+Given [detailed context including system state]
+When [specific user or system action]
+Then [exact expected outcome]
+And [additional verifiable outcomes]
+But [what should NOT happen]
+
+Include:
+- Specific UI changes with exact text/behavior
+- API response formats
+- Database state changes
+- Performance requirements
+- Error handling scenarios
+      ]]></format>
+      <guidelines>
+        <guideline>Each criterion must be independently testable</guideline>
+        <guideline>Include both positive and negative test cases</guideline>
+        <guideline>Specify exact error messages and codes</guideline>
+        <guideline>Define performance thresholds where applicable</guideline>
+      </guidelines>
+      <update_todo>Mark acceptance criteria creation as complete</update_todo>
+    </phase>
+  </investigation_phases>
+
+  <output_format>
+    <technical_analysis_section><![CDATA[
+## 🔍 Comprehensive Technical Analysis
+
+### Root Cause / Implementation Target
+[Detailed explanation of the core issue or feature target]
+
+### Affected Components
+- **Primary Files:**
+  - `path/to/file1.ts` (lines X-Y): [Purpose and changes needed]
+  - `path/to/file2.ts` (lines A-B): [Purpose and changes needed]
+
+- **Secondary Impact:**
+  - Files that import affected components
+  - Related test files
+  - Documentation files
+
+### Current Implementation Analysis
+[Detailed explanation of how the current code works and why it's insufficient]
+
+### Proposed Implementation
+
+#### Step 1: [First implementation step]
+- File: `path/to/file.ts`
+- Changes: [Specific code changes]
+- Rationale: [Why this change is needed]
+
+#### Step 2: [Second implementation step]
+[Continue for all steps...]
+
+### Code Architecture Considerations
+- Design patterns to follow
+- Existing patterns in codebase to match
+- Architectural constraints
+
+### Testing Requirements
+- Unit Tests:
+  - [ ] Test case 1: [Description]
+  - [ ] Test case 2: [Description]
+- Integration Tests:
+  - [ ] Test scenario 1: [Description]
+- Edge Cases:
+  - [ ] Edge case 1: [Description]
+
+### Performance Impact
+- Expected performance change: [Increase/Decrease/Neutral]
+- Benchmarking needed: [Yes/No, specifics]
+- Optimization opportunities: [List any]
+
+### Security Considerations
+- Input validation requirements
+- Authentication/Authorization changes
+- Data exposure risks
+
+### Migration Strategy
+[If applicable, how to migrate existing data/functionality]
+
+### Rollback Plan
+[How to safely rollback if issues arise]
+
+### Dependencies and Breaking Changes
+- External dependencies affected: [List]
+- API contract changes: [List]
+- Breaking changes for users: [List with mitigation]
+
+### Implementation Complexity
+- Estimated effort: [Small/Medium/Large]
+- Risk level: [Low/Medium/High]
+- Prerequisites: [Any required changes that must happen first]
+    ]]></technical_analysis_section>
+  </output_format>
+
+  <completion>
+    <checklist>
+      <item>All keywords extracted and searched</item>
+      <item>Multiple search iterations completed</item>
+      <item>All relevant files analyzed</item>
+      <item>Hypothesis formed and validated</item>
+      <item>Comprehensive solution documented</item>
+      <item>Acceptance criteria defined</item>
+      <item>All risks and edge cases identified</item>
+      <item>Technical analysis formatted for issue</item>
+    </checklist>
+    <final_todo_update>
+      Mark all investigation todos as complete and update the main workflow todo list
+    </final_todo_update>
+  </completion>
+</technical_analysis_workflow>

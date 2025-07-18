@@ -1,0 +1,59 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Be Methodical</name>
+      <description>Follow the workflow steps precisely. Do not skip the hypothesis validation step. A rigorous process leads to more accurate conclusions.</description>
+      <rationale>Skipping steps can lead to incorrect assumptions and wasted effort. The goal is to be confident in the proposed solution.</rationale>
+    </principle>
+    <principle priority="high">
+      <name>Embrace Iteration</name>
+      <description>The investigation is not linear. Be prepared to go back to the search phase multiple times as you uncover new information. Each search should build on the last.</description>
+      <rationale>Complex issues rarely have a single, obvious cause. Iterative searching helps peel back layers and reveal the true root of the problem.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Think like a Skeptic</name>
+      <description>Your primary goal when you have a hypothesis is to try and break it. Actively look for evidence that you are wrong. This makes your final conclusion much stronger.</description>
+      <rationale>Confirmation bias is a common pitfall. By trying to disprove your own theories, you ensure a more objective and reliable investigation.</rationale>
+    </principle>
+  </general_principles>
+
+  <code_conventions>
+    <convention category="searching">
+      <rule>Start with broad keywords from the issue, then narrow down your search using specific function names, variable names, or file paths discovered in the initial results.</rule>
+      <examples>
+        <good>Initial search: "user authentication fails". Follow-up search: "getUserById invalid token".</good>
+        <bad>Searching for a generic term like "error" without context.</bad>
+      </examples>
+    </convention>
+  </code_conventions>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Jumping to conclusions after the first search.</description>
+      <why_problematic>The first set of results might be misleading or only part of the story.</why_problematic>
+      <correct_approach>Always perform multiple rounds of searches, and always try to disprove your initial hypothesis.</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Forgetting to use the todo list.</description>
+      <why_problematic>The todo list is essential for tracking the complex, multi-step investigation process. Without it, you can lose track of your progress and findings.</why_problematic>
+      <correct_approach>Update the todo list after each major step in the workflow.</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="investigation">
+      <item>Have I extracted all relevant keywords from the issue?</item>
+      <item>Have I performed at least two rounds of codebase searches?</item>
+      <item>Have I genuinely tried to disprove my hypothesis?</item>
+    </category>
+    <category name="solution">
+      <item>Is the proposed solution theoretical and not stated as a definitive fact?</item>
+      <item>Is the explanation clear and easy to understand?</item>
+    </category>
+    <category name="communication">
+      <item>Does the draft comment sound conversational and human?</item>
+      <item>Have I avoided technical jargon where possible?</item>
+      <item>Is the tone helpful and not condescending?</item>
+    </category>
+  </quality_checklist>
+</best_practices>

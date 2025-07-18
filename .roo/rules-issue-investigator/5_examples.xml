@@ -1,0 +1,99 @@
+<complete_examples>
+  <example name="investigating_a_login_bug">
+    <scenario>
+      A user has reported a bug where they are unable to log in with valid credentials, but no error message is shown.
+    </scenario>
+    
+    <user_request>
+      "Please investigate issue #456. Users are reporting that they can't log in."
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Fetch issue details from GitHub.</description>
+        <tool_use><![CDATA[
+<execute_command>
+<command>gh issue view 456 --json title,body,comments</command>
+</execute_command>
+        ]]></tool_use>
+        <expected_outcome>Get the title "Login fails silently" and body "Users with valid credentials are not able to log in. The page just refreshes without any error message."</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create the initial investigation plan.</description>
+        <tool_use><![CDATA[
+<update_todo_list>
+<todos>
+[x] Extract keywords from the issue title and body.
+[-] Perform initial codebase search with keywords.
+[ ] Analyze search results and form a hypothesis.
+[ ] Attempt to disprove the hypothesis.
+[ ] Formulate a theoretical solution.
+[ ] Draft a comment for the user.
+</todos>
+</update_todo_list>
+        ]]></tool_use>
+      </step>
+
+      <step number="3">
+          <description>Perform initial codebase search using keywords "login", "authentication", "silent fail".</description>
+          <tool_use><![CDATA[
+<codebase_search>
+<query>user login authentication silent fail</query>
+</codebase_search>
+          ]]></tool_use>
+          <analysis>The search results point to `src/auth/login.ts` as a highly relevant file.</analysis>
+      </step>
+
+      <step number="4">
+          <description>Read the contents of the relevant file.</description>
+          <tool_use><![CDATA[
+<read_file>
+<path>src/auth/login.ts</path>
+</read_file>
+          ]]></tool_use>
+          <analysis>
+            The file contains a `try...catch` block in the `handleLogin` function. The `catch` block is empty, which explains the silent failure. This is the likely cause. Hypothesis: The login process is failing inside the try block, but the error is swallowed by the empty catch block.
+          </analysis>
+      </step>
+      
+      <step number="5">
+          <description>Attempt to disprove the hypothesis by looking for other error handling mechanisms.</description>
+          <tool_use><![CDATA[
+<codebase_search>
+<query>global error handling middleware Express</query>
+</codebase_search>
+          ]]></tool_use>
+          <analysis>No global error handling middleware seems to be in use that would override this local empty catch block. The hypothesis stands.</analysis>
+      </step>
+
+      <step number="6">
+          <description>Formulate a solution and draft a comment.</description>
+          <draft>
+"Hey, I took a look at this issue and it seems like the problem is in the `handleLogin` function in `src/auth/login.ts`. There's an empty `try...catch` block that is likely catching the login error and preventing any message from being shown to the user.
+
+A good first step to fixing this would be to add some logging to the `catch` block to see what error is actually happening. Then, we should probably implement proper error feedback to the user on the login page. This should solve the issue of the silent failure."
+          </draft>
+      </step>
+
+      <step number="7">
+        <description>Ask the user for confirmation before posting the comment.</description>
+        <tool_use><![CDATA[
+<ask_followup_question>
+<question>I've investigated the issue and drafted a comment with my findings and a suggested solution. Would you like me to post it to the GitHub issue?</question>
+<follow_up>
+<suggest>Yes, please post the comment to the issue.</suggest>
+<suggest>Show me the draft comment first.</suggest>
+<suggest>No, do not post the comment.</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></tool_use>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Empty catch blocks are a strong indicator of silent failures.</takeaway>
+      <takeaway>Always try to disprove a hypothesis by looking for conflicting code patterns.</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>

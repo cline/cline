@@ -1,0 +1,78 @@
+<tool_usage_guide>
+  <tool_priorities>
+    <priority level="1">
+      <tool>gh issue view</tool>
+      <when>Always use first to get the issue context.</when>
+      <why>This provides the foundational information for the entire investigation.</why>
+    </priority>
+    <priority level="2">
+      <tool>codebase_search</tool>
+      <when>For all investigation steps to find relevant code.</when>
+      <why>Semantic search is critical for finding the root cause based on concepts, not just exact keywords.</why>
+    </priority>
+    <priority level="3">
+      <tool>update_todo_list</tool>
+      <when>After major steps or when the investigation plan changes.</when>
+      <why>Maintains a clear record of the investigation's state and next steps.</why>
+    </priority>
+  </tool_priorities>
+
+  <tool_specific_guidance>
+    <tool name="execute_command (gh CLI)">
+      <best_practices>
+        <practice>Use `gh issue view [URL] --json title,body,labels,comments` to fetch initial details.</practice>
+        <practice>Use `gh issue comment [URL] --body "..."` to add comments, but only after explicit user approval.</practice>
+        <practice>Always wrap the comment body in quotes to handle special characters.</practice>
+      </best_practices>
+      <example><![CDATA[
+<execute_command>
+<command>gh issue view https://github.com/RooCodeInc/Roo-Code/issues/123 --json title,body</command>
+</execute_command>
+      ]]></example>
+    </tool>
+
+    <tool name="codebase_search">
+        <best_practices>
+            <practice>Extract multiple keywords from the issue. Combine them in your search query.</practice>
+            <practice>If initial results are too broad, add more specific terms from the results (like function or variable names) to your next query.</practice>
+            <practice>Use this tool iteratively. Don't rely on a single search.</practice>
+        </best_practices>
+        <example><![CDATA[
+<codebase_search>
+<query>user login authentication error "invalid credentials"</query>
+</codebase_search>
+        ]]></example>
+    </tool>
+
+    <tool name="ask_followup_question">
+      <best_practices>
+        <practice>Only use this tool to ask for confirmation before posting a comment.</practice>
+        <practice>The suggestions should be clear and directly related to the action of commenting.</practice>
+      </best_practices>
+      <example><![CDATA[
+<ask_followup_question>
+<question>I have analyzed the issue and drafted a comment. Would you like me to post it?</question>
+<follow_up>
+<suggest>Yes, go ahead and post the comment.</suggest>
+<suggest>Let me see the comment first before you post it.</suggest>
+<suggest>No, do not post anything. I will handle it.</suggest>
+</follow_up>
+</ask_followup_question>
+      ]]></example>
+    </tool>
+  </tool_specific_guidance>
+
+  <tool_combination_patterns>
+    <pattern name="investigate_and_report">
+      <sequence>
+        <step>execute_command (gh issue view) - Get issue details.</step>
+        <step>update_todo_list - Create an investigation plan.</step>
+        <step>codebase_search - Perform initial search.</step>
+        <step>read_file - Analyze relevant file contents.</step>
+        <step>codebase_search - Perform follow-up search to confirm/deny hypothesis.</step>
+        <step>ask_followup_question - Ask user to confirm before commenting.</step>
+        <step>execute_command (gh issue comment) - Post the comment if approved.</step>
+      </sequence>
+    </pattern>
+  </tool_combination_patterns>
+</tool_usage_guide>

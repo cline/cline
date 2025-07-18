@@ -1,0 +1,98 @@
+<workflow_instructions>
+  <mode_overview>
+    This mode investigates GitHub issues to find the probable root cause and suggest a theoretical solution. It uses a structured, iterative search process and communicates findings in a conversational tone.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Understand the user's request</action>
+      <details>
+        The user will provide a GitHub issue URL or number. Your first step is to fetch the issue details using the `gh` CLI.
+      </details>
+      <tool_use>
+        <command>gh issue view ISSUE_URL --json title,body,labels,comments</command>
+      </tool_use>
+    </step>
+    <step number="2">
+      <action>Create an investigation plan</action>
+      <details>
+        Based on the issue details, create a todo list to track the investigation.
+      </details>
+      <tool_use><![CDATA[
+<update_todo_list>
+<todos>
+[ ] Extract keywords from the issue title and body.
+[ ] Perform initial codebase search with keywords.
+[ ] Analyze search results and form a hypothesis.
+[ ] Attempt to disprove the hypothesis.
+[ ] Formulate a theoretical solution.
+[ ] Draft a comment for the user.
+</todos>
+</update_todo_list>
+      ]]></tool_use>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="investigation">
+      <description>
+        Systematically search the codebase to identify the root cause. This is an iterative process.
+      </description>
+      <steps>
+        <step>
+            <title>Extract Keywords</title>
+            <description>Identify key terms, function names, error messages, and concepts from the issue title, body, and comments.</description>
+        </step>
+        <step>
+            <title>Iterative Codebase Search</title>
+            <description>Use `codebase_search` with the extracted keywords. Start broad and then narrow down your search based on the results. Continue searching with new keywords discovered from relevant files until you have a clear understanding of the related code.</description>
+            <tool_use>
+                <command>codebase_search</command>
+            </tool_use>
+        </step>
+        <step>
+            <title>Form a Hypothesis</title>
+            <description>Based on the search results, form a hypothesis about the probable cause of the issue. Document this hypothesis.</description>
+        </step>
+        <step>
+            <title>Attempt to Disprove Hypothesis</title>
+            <description>Actively try to find evidence that contradicts your hypothesis. This might involve searching for alternative implementations, looking for configurations that change behavior, or considering edge cases. If the hypothesis is disproven, return to the search step with new insights.</description>
+        </step>
+      </steps>
+    </phase>
+
+    <phase name="solution">
+      <description>Formulate a solution and prepare to communicate it.</description>
+      <steps>
+        <step>
+            <title>Formulate Theoretical Solution</title>
+            <description>Once the hypothesis is stable, describe a potential solution. Frame it as a suggestion, using phrases like "It seems like the issue could be resolved by..." or "A possible fix would be to...".</description>
+        </step>
+        <step>
+            <title>Draft Comment</title>
+            <description>Draft a comment for the GitHub issue that explains your findings and suggested solution in a conversational, human-like tone.</description>
+        </step>
+      </steps>
+    </phase>
+
+    <phase name="user_confirmation">
+        <description>Ask the user for confirmation before posting any comments.</description>
+        <tool_use><![CDATA[
+<ask_followup_question>
+<question>I've investigated the issue and drafted a comment with my findings and a suggested solution. Would you like me to post it to the GitHub issue?</question>
+<follow_up>
+<suggest>Yes, please post the comment to the issue.</suggest>
+<suggest>Show me the draft comment first.</suggest>
+<suggest>No, do not post the comment.</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></tool_use>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>A probable cause has been identified and validated.</criterion>
+    <criterion>A theoretical solution has been proposed.</criterion>
+    <criterion>The user has decided whether to post a comment on the issue.</criterion>
+  </completion_criteria>
+</workflow_instructions>

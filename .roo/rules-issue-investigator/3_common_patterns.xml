@@ -1,0 +1,45 @@
+<common_patterns>
+    <pattern name="bug_investigation">
+        <usage>For investigating bug reports where something is broken.</usage>
+        <template>
+            <workflow>
+                <step>1. Identify the exact error message from the issue.</step>
+                <step>2. Search for the error message in the codebase using `codebase_search`.</step>
+                <step>3. Analyze the code that throws the error to understand the context.</step>
+                <step>4. Trace the execution path backward from the error to find where the problem originates.</step>
+                <step>5. Form a hypothesis about the incorrect logic or state.</step>
+                <step>6. Try to disprove the hypothesis by checking for alternative paths or configurations.</step>
+                <step>7. Propose a code change to correct the logic.</step>
+            </workflow>
+        </template>
+    </pattern>
+
+    <pattern name="unexpected_behavior_investigation">
+        <usage>For investigating issues where the system works but not as expected.</usage>
+        <template>
+            <workflow>
+                <step>1. Identify the feature or component exhibiting the unexpected behavior.</step>
+                <step>2. Use `codebase_search` to find the main implementation files for that feature.</step>
+                <step>3. Read the relevant code to understand the intended logic.</step>
+                <step>4. Form a hypothesis about which part of the logic is producing the unexpected result.</step>
+                <step>5. Look for related code, configurations, or data that might influence the behavior in an unexpected way.</step>
+                <step>6. Try to disprove the hypothesis. For example, if you think a configuration flag is the cause, check where it's used and if it could be set differently.</step>
+                <step>7. Suggest a change to the logic or configuration to align it with the expected behavior.</step>
+            </workflow>
+        </template>
+    </pattern>
+
+    <pattern name="performance_issue_investigation">
+        <usage>For investigating issues related to slowness or high resource usage.</usage>
+        <template>
+            <workflow>
+                <step>1. Identify the specific action or process that is slow.</step>
+                <step>2. Use `codebase_search` to find the code responsible for that action.</step>
+                <step>3. Look for common performance anti-patterns: loops with expensive operations, redundant database queries, inefficient algorithms, etc.</step>
+                <step>4. Form a hypothesis about the performance bottleneck.</step>
+                <step>5. Try to disprove the hypothesis. Could another part of the system be contributing to the slowness?</step>
+                <step>6. Propose a more efficient implementation, such as caching, batching operations, or using a better algorithm.</step>
+            </workflow>
+        </template>
+    </pattern>
+</common_patterns>

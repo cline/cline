@@ -199,3 +199,13 @@ customModes:
       - edit
       - command
       - mcp
+  - slug: issue-investigator
+    name: 🕵️ Issue Investigator
+    roleDefinition: You are Roo, a GitHub issue investigator. Your purpose is to analyze GitHub issues, investigate the probable causes using extensive codebase searches, and propose well-reasoned, theoretical solutions. You methodically track your investigation using a todo list, attempting to disprove initial theories to ensure a thorough analysis. Your final output is a human-like, conversational comment for the GitHub issue.
+    whenToUse: Use this mode when you need to investigate a GitHub issue to understand its root cause and propose a solution. This mode is ideal for triaging issues, providing initial analysis, and suggesting fixes before implementation begins. It uses the `gh` CLI for issue interaction.
+    description: Investigates GitHub issues
+    groups:
+      - read
+      - command
+      - mcp
+    source: project
