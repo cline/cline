@@ -1,4 +1,7 @@
 import { getCwd } from "@/utils/path"
+import os from "node:os"
+import path from "node:path"
+import fs from "node:fs/promises"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
 import readline from "readline"
@@ -8,7 +11,7 @@ type ClaudeCodeOptions = {
 	systemPrompt: string
 	messages: Anthropic.Messages.MessageParam[]
 	path?: string
-	modelId?: string
+	modelId: string
 	thinkingBudgetTokens?: number
 }
 
@@ -20,8 +23,19 @@ type ProcessState = {
 }
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
-	const process = runProcess(options, await getCwd())
+	const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-cc.txt`)
 
+	// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
+	// https://github.com/anthropics/claude-code/issues/3411#issuecomment-3082068547
+	await fs.writeFile(tempFilePath, options.systemPrompt, "utf8")
+
+	const process = runProcess(
+		{
+			...options,
+			systemPrompt: tempFilePath,
+		},
+		await getCwd(),
+	)
 	const rl = readline.createInterface({
 		input: process.stdout,
 	})
@@ -156,7 +170,7 @@ function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetToken
 
 	const args = [
 		"-p",
-		"--system-prompt",
+		"--system-prompt-file",
 		systemPrompt,
 		"--verbose",
 		"--output-format",
