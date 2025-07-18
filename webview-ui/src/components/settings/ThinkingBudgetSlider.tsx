@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { ApiConfiguration } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { normalizeApiConfiguration } from "./utils/providerUtils"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -81,34 +82,29 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 	}
 `
 
-interface ThinkingBudgetSliderProps {
-	maxBudget?: number
-}
-
-const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = () => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 
 	const [isEnabled, setIsEnabled] = useState<boolean>((apiConfiguration?.thinkingBudgetTokens || 0) > 0)
 
-	const maxTokens = useMemo(
-		() =>
-			apiConfiguration?.apiProvider === "gemini"
-				? geminiModels[geminiDefaultModelId].maxTokens
-				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-		[apiConfiguration?.apiProvider],
+	const maxSliderValue = useMemo(
+		() => selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE),
+		[selectedModelInfo],
 	)
-
-	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
-	const maxSliderValue = useMemo(() => {
-		if (maxBudget !== undefined) {
-			return maxBudget
-		}
-		return Math.floor(maxTokens * MAX_PERCENTAGE)
-	}, [maxBudget, maxTokens])
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
+
+	useEffect(() => {
+		const budget = apiConfiguration?.thinkingBudgetTokens || 0
+		if (budget > maxSliderValue) {
+			setLocalValue(maxSliderValue)
+		} else {
+			setLocalValue(budget)
+		}
+	}, [apiConfiguration?.thinkingBudgetTokens, maxSliderValue])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
