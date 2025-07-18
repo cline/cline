@@ -662,19 +662,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.generateGitCommitMessage", async () => {
+		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (sourceControl) => {
 			// Get the controller from any instance, without activating the view
 			const controller = WebviewProvider.getAllInstances()[0]?.controller
 
 			if (controller) {
 				// Call the controller method to generate commit message
-				await controller.generateGitCommitMessage()
+				await controller.generateGitCommitMessage(sourceControl)
 			} else {
 				// Create a temporary controller just for this operation
 				const outputChannel = vscode.window.createOutputChannel("Cline Commit Generator")
 				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true), uuidv4())
 
-				await tempController.generateGitCommitMessage()
+				await tempController.generateGitCommitMessage(sourceControl)
 				outputChannel.dispose()
 			}
 		}),
