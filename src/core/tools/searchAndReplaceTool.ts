@@ -11,6 +11,7 @@ import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { getReadablePath } from "../../utils/path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
+import { DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
 
 /**
  * Tool for performing search and replace operations on files
@@ -227,7 +228,11 @@ export async function searchAndReplaceTool(
 		}
 
 		// Call saveChanges to update the DiffViewProvider properties
-		await cline.diffViewProvider.saveChanges()
+		const provider = cline.providerRef.deref()
+		const state = await provider?.getState()
+		const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
+		const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
+		await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
 
 		// Track file edit operation
 		if (relPath) {

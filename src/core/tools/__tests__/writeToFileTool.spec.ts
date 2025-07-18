@@ -132,6 +132,14 @@ describe("writeToFileTool", () => {
 		mockCline.consecutiveMistakeCount = 0
 		mockCline.didEditFile = false
 		mockCline.diffStrategy = undefined
+		mockCline.providerRef = {
+			deref: vi.fn().mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					diagnosticsEnabled: true,
+					writeDelayMs: 1000,
+				}),
+			}),
+		}
 		mockCline.rooIgnoreController = {
 			validateAccess: vi.fn().mockReturnValue(true),
 		}
@@ -376,7 +384,7 @@ describe("writeToFileTool", () => {
 				userEdits: userEditsValue,
 				finalContent: "modified content",
 			})
-			// Manually set the property on the mock instance because the original saveChanges is not called
+			// Set the userEdits property on the diffViewProvider mock to simulate user edits
 			mockCline.diffViewProvider.userEdits = userEditsValue
 
 			await executeWriteFileTool({}, { fileExists: true })

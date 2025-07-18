@@ -16,6 +16,13 @@ import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { languagesSchema } from "./vscode.js"
 
 /**
+ * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
+ * This delay is particularly important for Go and other languages where tools like goimports
+ * need time to automatically clean up unused imports.
+ */
+export const DEFAULT_WRITE_DELAY_MS = 1000
+
+/**
  * GlobalSettings
  */
 
@@ -37,7 +44,7 @@ export const globalSettingsSchema = z.object({
 	alwaysAllowWrite: z.boolean().optional(),
 	alwaysAllowWriteOutsideWorkspace: z.boolean().optional(),
 	alwaysAllowWriteProtected: z.boolean().optional(),
-	writeDelayMs: z.number().optional(),
+	writeDelayMs: z.number().min(0).optional(),
 	alwaysAllowBrowser: z.boolean().optional(),
 	alwaysApproveResubmit: z.boolean().optional(),
 	requestDelaySeconds: z.number().optional(),
@@ -86,6 +93,8 @@ export const globalSettingsSchema = z.object({
 	terminalZshP10k: z.boolean().optional(),
 	terminalZdotdir: z.boolean().optional(),
 	terminalCompressProgressBar: z.boolean().optional(),
+
+	diagnosticsEnabled: z.boolean().optional(),
 
 	rateLimitSeconds: z.number().optional(),
 	diffEnabled: z.boolean().optional(),
@@ -225,6 +234,8 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 	terminalZdotdir: true,
 	terminalCompressProgressBar: true,
 	terminalShellIntegrationDisabled: true,
+
+	diagnosticsEnabled: true,
 
 	diffEnabled: true,
 	fuzzyMatchThreshold: 1,

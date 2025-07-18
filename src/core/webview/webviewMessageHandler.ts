@@ -1044,6 +1044,10 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("writeDelayMs", message.value)
 			await provider.postStateToWebview()
 			break
+		case "diagnosticsEnabled":
+			await updateGlobalState("diagnosticsEnabled", message.bool ?? true)
+			await provider.postStateToWebview()
+			break
 		case "terminalOutputLineLimit":
 			await updateGlobalState("terminalOutputLineLimit", message.value)
 			await provider.postStateToWebview()

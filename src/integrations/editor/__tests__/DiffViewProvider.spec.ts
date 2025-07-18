@@ -1,6 +1,12 @@
 import { DiffViewProvider, DIFF_VIEW_URI_SCHEME, DIFF_VIEW_LABEL_CHANGES } from "../DiffViewProvider"
 import * as vscode from "vscode"
 import * as path from "path"
+import delay from "delay"
+
+// Mock delay
+vi.mock("delay", () => ({
+	default: vi.fn().mockResolvedValue(undefined),
+}))
 
 // Mock fs/promises
 vi.mock("fs/promises", () => ({
@@ -44,6 +50,12 @@ vi.mock("vscode", () => ({
 	},
 	languages: {
 		getDiagnostics: vi.fn(() => []),
+	},
+	DiagnosticSeverity: {
+		Error: 0,
+		Warning: 1,
+		Information: 2,
+		Hint: 3,
 	},
 	WorkspaceEdit: vi.fn().mockImplementation(() => ({
 		replace: vi.fn(),
@@ -325,6 +337,85 @@ describe("DiffViewProvider", () => {
 			expect(
 				closedTabs.find((t) => t.label === `file4.ts: ${DIFF_VIEW_LABEL_CHANGES} (Editable)` && t.isDirty),
 			).toBeUndefined()
+		})
+	})
+
+	describe("saveChanges method with diagnostic settings", () => {
+		beforeEach(() => {
+			// Setup common mocks for saveChanges tests
+			;(diffViewProvider as any).relPath = "test.ts"
+			;(diffViewProvider as any).newContent = "new content"
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					getText: vi.fn().mockReturnValue("new content"),
+					isDirty: false,
+					save: vi.fn().mockResolvedValue(undefined),
+				},
+			}
+			;(diffViewProvider as any).preDiagnostics = []
+
+			// Mock vscode functions
+			vi.mocked(vscode.window.showTextDocument).mockResolvedValue({} as any)
+			vi.mocked(vscode.languages.getDiagnostics).mockReturnValue([])
+		})
+
+		it("should apply diagnostic delay when diagnosticsEnabled is true", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			// Mock closeAllDiffViews
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges(true, 3000)
+
+			// Verify delay was called with correct duration
+			expect(mockDelay).toHaveBeenCalledWith(3000)
+			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+			expect(result.newProblemsMessage).toBe("")
+		})
+
+		it("should skip diagnostics when diagnosticsEnabled is false", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			// Mock closeAllDiffViews
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges(false, 2000)
+
+			// Verify delay was NOT called and diagnostics were NOT checked
+			expect(mockDelay).not.toHaveBeenCalled()
+			expect(vscode.languages.getDiagnostics).not.toHaveBeenCalled()
+			expect(result.newProblemsMessage).toBe("")
+		})
+
+		it("should use default values when no parameters provided", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			// Mock closeAllDiffViews
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges()
+
+			// Verify default behavior (enabled=true, delay=2000ms)
+			expect(mockDelay).toHaveBeenCalledWith(1000)
+			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+			expect(result.newProblemsMessage).toBe("")
+		})
+
+		it("should handle custom delay values", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			// Mock closeAllDiffViews
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+
+			const result = await diffViewProvider.saveChanges(true, 5000)
+
+			// Verify custom delay was used
+			expect(mockDelay).toHaveBeenCalledWith(5000)
+			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
 		})
 	})
 })
