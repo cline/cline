@@ -1,0 +1,114 @@
+{
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "off"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"correctness": {
+				"useExhaustiveDependencies": "error",
+				"noUndeclaredVariables": "error",
+				"noUnusedVariables": "warn"
+			},
+			"style": {
+				"useNodejsImportProtocol": "info",
+				"useBlockStatements": "warn",
+				"useNamingConvention": {
+					"level": "info",
+					"options": {
+						"strictCase": true,
+						"requireAscii": false,
+						"conventions": [
+							{
+								"selector": { "kind": "importNamespace" },
+								"formats": ["camelCase", "PascalCase"]
+							},
+							{
+								"selector": { "kind": "importAlias" },
+								"formats": ["camelCase", "PascalCase"]
+							},
+							{
+								"selector": { "kind": "function" },
+								"formats": ["camelCase", "PascalCase"]
+							},
+							{
+								"selector": { "kind": "variable" },
+								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
+							}
+						]
+					}
+				},
+				"useThrowOnlyError": "info",
+				"useConsistentArrayType": "off"
+			},
+			"suspicious": {
+				"noDoubleEquals": "warn",
+				"noImplicitAnyLet": "info",
+				"noMisleadingCharacterClass": "error",
+				"noUnsafeDeclarationMerging": "error"
+			},
+			"complexity": {
+				"noBannedTypes": "error",
+				"noUselessConstructor": "warn",
+				"useOptionalChain": "warn"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "error"
+			}
+		}
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"formatWithErrors": false
+	},
+	"javascript": {
+		"linter": {
+			"enabled": true
+		},
+		"formatter": {
+			"semicolons": "asNeeded",
+			"arrowParentheses": "always",
+			"bracketSameLine": false,
+			"bracketSpacing": true,
+			"jsxQuoteStyle": "double",
+			"quoteProperties": "asNeeded",
+			"trailingCommas": "es5"
+		}
+	},
+	"json": {
+		"linter": {
+			"enabled": true
+		},
+		"formatter": {
+			"indentStyle": "tab",
+			"bracketSpacing": true,
+			"trailingCommas": "none"
+		}
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/node_modules/**",
+			"!**/out/**",
+			"!**/dist/**",
+			"!**/build/**",
+			"!**/dist-*/",
+			"!**/.vscode*/**",
+			"!**/*.d.ts",
+			"!**/*-lock.json",
+			"!**/generated/**"
+		]
+	}
+}
