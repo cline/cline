@@ -88,9 +88,7 @@ export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) =
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
-					)}
+					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && <ThinkingBudgetSlider />}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>
