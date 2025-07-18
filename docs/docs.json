@@ -159,7 +159,8 @@
 					"provider-config/openai",
 					"provider-config/openai-compatible",
 					"provider-config/openrouter",
-					"provider-config/requesty"
+					"provider-config/requesty",
+					"provider-config/sap-aicore"
 				]
 			},
 			{
