@@ -1,10 +1,14 @@
 import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
-import { DecorationController } from "@integrations/editor/DecorationController"
+import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
+	private activeDiffEditor?: vscode.TextEditor
+	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
 
@@ -84,7 +88,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	override async replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
-		currentLine: number,
+		currentLine: number | undefined,
 	): Promise<void> {
 		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
@@ -100,9 +104,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		edit.replace(document.uri, range, content)
 		await vscode.workspace.applyEdit(edit)
 
-		// Update decorations for the entire changed section
-		this.activeLineController?.setActiveLine(currentLine)
-		this.fadedOverlayController?.updateOverlayAfterLine(currentLine, document.lineCount)
+		if (currentLine !== undefined) {
+			// Update decorations for the entire changed section
+			this.activeLineController?.setActiveLine(currentLine)
+			this.fadedOverlayController?.updateOverlayAfterLine(currentLine, document.lineCount)
+		}
 	}
 
 	override async scrollEditorToLine(line: number): Promise<void> {
@@ -141,6 +147,32 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		// Clear all decorations at the end (before applying final edit)
 		this.fadedOverlayController?.clear()
 		this.activeLineController?.clear()
+	}
+
+	protected override async getDocumentText(): Promise<string | undefined> {
+		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
+			return undefined
+		}
+		return this.activeDiffEditor.document.getText()
+	}
+
+	protected override async getNewDiagnosticProblems(): Promise<string> {
+		// Get the diagnostics after changing the document.
+		const postDiagnostics = vscode.languages.getDiagnostics()
+		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
+		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+		// will be empty string if no errors
+		const problems = await diagnosticsToProblemsString(newProblems, [vscode.DiagnosticSeverity.Error])
+		return problems
+	}
+
+	protected override async saveDocument(): Promise<void> {
+		if (!this.activeDiffEditor) {
+			return
+		}
+		if (this.activeDiffEditor.document.isDirty) {
+			await this.activeDiffEditor.document.save()
+		}
 	}
 
 	protected async closeDiffView(): Promise<void> {

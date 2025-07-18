@@ -18,9 +18,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	override async replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
-		_currentLine: number,
+		_currentLine: number | undefined,
 	): Promise<void> {
-		if (!this.activeDiffEditor) {
+		if (!this.activeDiffEditorId) {
 			return
 		}
 		await getHostBridgeProvider().diffClient.replaceText({
@@ -32,7 +32,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async truncateDocument(lineNumber: number): Promise<void> {
-		if (!this.activeDiffEditor) {
+		if (!this.activeDiffEditorId) {
 			return
 		}
 		await getHostBridgeProvider().diffClient.truncateDocument({
@@ -42,7 +42,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected async saveDocument(): Promise<void> {
-		if (!this.activeDiffEditor) {
+		if (!this.activeDiffEditorId) {
 			return
 		}
 		await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
@@ -55,8 +55,21 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
 		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
 	}
+
+	protected override async getDocumentText(): Promise<string | undefined> {
+		if (!this.activeDiffEditorId) {
+			return undefined
+		}
+		return (await getHostBridgeProvider().diffClient.getDocumentText({ diffId: this.activeDiffEditorId })).content
+	}
+
+	protected override async getNewDiagnosticProblems(): Promise<string> {
+		console.log(`Called ExternalDiffViewProvider.getNewDiagnosticProblems() stub`)
+		return ""
+	}
+
 	protected override async closeDiffView(): Promise<void> {
-		if (!this.activeDiffEditor) {
+		if (!this.activeDiffEditorId) {
 			return
 		}
 		await getHostBridgeProvider().diffClient.closeDiff({ diffId: this.activeDiffEditorId })

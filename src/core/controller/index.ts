@@ -118,19 +118,15 @@ export class Controller {
 				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
 			])
 			await this.postStateToWebview()
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Successfully logged out of Cline",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Successfully logged out of Cline",
+			})
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Logout failed",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Logout failed",
+			})
 		}
 	}
 
@@ -365,12 +361,10 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: "Failed to log in to Cline",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to log in to Cline",
+			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -405,12 +399,10 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: errorMessage,
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: errorMessage,
+				})
 			}
 			return undefined
 		}
@@ -494,12 +486,10 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: errorMessage,
+			})
 		}
 	}
 
@@ -869,24 +859,20 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "No workspace folder open",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "No workspace folder open",
+				})
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes in workspace for commit message",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No changes in workspace for commit message",
+				})
 				return
 			}
 
@@ -955,58 +941,46 @@ Commit message:`
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
 									const message = "Commit message generated and applied"
-									getHostBridgeProvider().windowClient.showMessage(
-										ShowMessageRequest.create({
-											type: ShowMessageType.INFORMATION,
-											message,
-										}),
-									)
+									getHostBridgeProvider().windowClient.showMessage({
+										type: ShowMessageType.INFORMATION,
+										message,
+									})
 								} else {
 									const message = "No Git repositories found"
-									getHostBridgeProvider().windowClient.showMessage(
-										ShowMessageRequest.create({
-											type: ShowMessageType.ERROR,
-											message,
-										}),
-									)
+									getHostBridgeProvider().windowClient.showMessage({
+										type: ShowMessageType.ERROR,
+										message,
+									})
 								}
 							} else {
 								const message = "Git extension not found"
-								getHostBridgeProvider().windowClient.showMessage(
-									ShowMessageRequest.create({
-										type: ShowMessageType.ERROR,
-										message,
-									}),
-								)
+								getHostBridgeProvider().windowClient.showMessage({
+									type: ShowMessageType.ERROR,
+									message,
+								})
 							}
 						} else {
 							const message = "Failed to generate commit message"
-							getHostBridgeProvider().windowClient.showMessage(
-								ShowMessageRequest.create({
-									type: ShowMessageType.ERROR,
-									message,
-								}),
-							)
+							getHostBridgeProvider().windowClient.showMessage({
+								type: ShowMessageType.ERROR,
+								message,
+							})
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						getHostBridgeProvider().windowClient.showMessage(
-							ShowMessageRequest.create({
-								type: ShowMessageType.ERROR,
-								message: `Failed to generate commit message: ${innerErrorMessage}`,
-							}),
-						)
+						getHostBridgeProvider().windowClient.showMessage({
+							type: ShowMessageType.ERROR,
+							message: `Failed to generate commit message: ${innerErrorMessage}`,
+						})
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Failed to generate commit message: ${errorMessage}`,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to generate commit message: ${errorMessage}`,
+			})
 		}
 	}
 }
