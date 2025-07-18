@@ -2085,6 +2085,10 @@ export class Task {
 							"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
 					},
 				)
+				if (checkpointsWarningTimer) {
+					clearTimeout(checkpointsWarningTimer)
+					checkpointsWarningTimer = null
+				}
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
