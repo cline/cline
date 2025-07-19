@@ -12,6 +12,8 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  // Shows a save dialog for file selection.
+  rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +72,27 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+message ShowSaveDialogRequest {
+  cline.Metadata metadata = 1;
+  optional ShowSaveDialogFilterOption filters = 2;
+  optional string default_uri = 3;
+  optional string save_label = 4;
+}
+
+message ShowSaveDialogFilterOption {
+  // A set of file filters used by the dialog. Each entry is a human-readable
+  // label (the key) and a list of file extensions (the value).
+  // For example, in JavaScript, this would be represented as:
+  // { 'Images': ['png', 'jpg'], 'TypeScript': ['ts', 'tsx'] }
+  map<string, FileExtensionList> filter_map = 1;
+}
+
+message FileExtensionList {
+  repeated string extensions = 1;
+}
+
+message ShowSaveDialogResponse {
+  optional string path = 1;
 }
