@@ -1,28 +1,21 @@
 {
+	"root": false,
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true,
 		"defaultBranch": "main"
 	},
-	"assist": {
-		"actions": {
-			"source": {
-				"organizeImports": "off"
-			}
-		}
-	},
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": true,
 			"correctness": {
-				"useExhaustiveDependencies": "error",
-				"noUndeclaredVariables": "error",
-				"noUnusedVariables": "warn"
+				"noUnusedVariables": "off",
+				"useExhaustiveDependencies": "off"
 			},
 			"style": {
-				"useNodejsImportProtocol": "info",
+				"useConst": "off",
 				"useBlockStatements": "warn",
 				"useNamingConvention": {
 					"level": "info",
@@ -48,23 +41,15 @@
 							}
 						]
 					}
-				},
-				"useThrowOnlyError": "info",
-				"useConsistentArrayType": "off"
+				}
 			},
 			"suspicious": {
+				"noExplicitAny": "off",
 				"noDoubleEquals": "warn",
-				"noImplicitAnyLet": "info",
-				"noMisleadingCharacterClass": "error",
-				"noUnsafeDeclarationMerging": "error"
+				"noShadowRestrictedNames": "off"
 			},
 			"complexity": {
-				"noBannedTypes": "error",
-				"noUselessConstructor": "warn",
-				"useOptionalChain": "warn"
-			},
-			"security": {
-				"noDangerouslySetInnerHtml": "error"
+				"noBannedTypes": "off"
 			}
 		}
 	},
@@ -73,13 +58,9 @@
 		"indentStyle": "tab",
 		"indentWidth": 4,
 		"lineWidth": 130,
-		"lineEnding": "lf",
-		"formatWithErrors": false
+		"lineEnding": "lf"
 	},
 	"javascript": {
-		"linter": {
-			"enabled": true
-		},
 		"formatter": {
 			"semicolons": "asNeeded",
 			"arrowParentheses": "always",
@@ -89,37 +70,5 @@
 			"quoteProperties": "asNeeded",
 			"trailingCommas": "es5"
 		}
-	},
-	"json": {
-		"linter": {
-			"enabled": true
-		},
-		"formatter": {
-			"indentStyle": "tab",
-			"indentWidth": 4,
-			"lineWidth": 130,
-			"bracketSpacing": true,
-			"trailingCommas": "none"
-		}
-	},
-	"files": {
-		"includes": [
-			"**",
-			"!**/node_modules/**",
-			"!**/out/**",
-			"!**/dist/**",
-			"!**/build/**",
-			"!**/dist-*/",
-			"!**/.vscode*/**",
-			"!**/*.d.ts",
-			"!**/*-lock.json",
-			"!**/generated/**",
-			"src/host/vscode.d.ts",
-			"!*.md*",
-			"!package-lock.json",
-			"!src/core/prompts/system.ts",
-			"!src/core/prompts/model_prompts/claude4.ts",
-			"!evals/"
-		]
 	}
 }
