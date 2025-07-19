@@ -2,8 +2,6 @@
 
 ## 3.19.8
 
-### Patch Changes
-
 - 419e3e4: fix: mcp servers are not started when disabled
 
 ## [3.19.7]
