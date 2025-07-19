@@ -219,7 +219,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"when": "config.git.enabled &&scmProvider == git"
+				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
 				"command": "cline.focusChatInput",
@@ -312,7 +312,7 @@
 				{
 					"command": "cline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled &&scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
 				},
 				{
 					"command": "cline.abortGitCommitMessage",

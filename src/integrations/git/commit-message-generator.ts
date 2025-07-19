@@ -62,11 +62,15 @@ async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff
 ${truncatedDiff}
 The commit message should:
 1. Start with a short summary (50-72 characters)
-	@@ -1114,68 +1126,46 @@ The commit message should:
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive
 Commit message:`
 
 		// Get the current API configuration
 		const { apiConfiguration } = await getAllExtensionState(context)
+		// Set to use Act mode for now by default
+		// TODO: A new mode for commit generation
 		const currentMode = "act"
 
 		// Build the API handler
@@ -136,12 +140,15 @@ Commit message:`
 
 /**
  * Extracts the commit message from the AI response
- * @param aiResponse The response from the AI
+ * @param str String containing the AI response
  * @returns The extracted commit message
  */
-export function extractCommitMessage(aiResponse: string): string {
+export function extractCommitMessage(str: string): string {
 	// Remove any markdown formatting or extra text
-	return aiResponse.trim().replace(/^```/g, "").replace(/```$/g, "").trim()
+	return str
+		.trim()
+		.replace(/^```[^\n]*\n?|```$/g, "")
+		.trim()
 }
 
 /**
