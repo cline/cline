@@ -236,9 +236,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "gemini-cli" && (
 				<GeminiCliProvider
 					apiConfiguration={apiConfiguration}
-					handleInputChange={(field) => (e) => handleFieldChange(field, e?.target?.value ?? e)}
+					handleInputChange={(field) => (e) =>
+						handleModeFieldChange({ plan: field, act: field }, e?.target?.value ?? e, currentMode)
+					}
 					showModelOptions={showModelOptions}
 					isPopup={isPopup}
+					currentMode={currentMode}
 				/>
 			)}
 

@@ -17,12 +17,14 @@ import { memo } from "react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 interface GeminiCliProviderProps {
 	apiConfiguration: ApiConfiguration
 	handleInputChange: (field: keyof ApiConfiguration) => (e: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 const GeminiCliProvider = ({
@@ -30,9 +32,10 @@ const GeminiCliProvider = ({
 	handleInputChange = () => () => {},
 	showModelOptions,
 	isPopup,
+	currentMode,
 }: GeminiCliProviderProps) => {
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	return (
 		<div>
 			<VSCodeTextField
@@ -102,7 +105,9 @@ const GeminiCliProvider = ({
 					<ModelSelector
 						models={geminiCliModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleInputChange("apiModelId")(e.target.value)}
+						onChange={(e: any) =>
+							handleInputChange(currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId")(e.target.value)
+						}
 						label="Model"
 					/>
 

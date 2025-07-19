@@ -53,6 +53,7 @@ interface OAuthCredentials {
 interface GeminiCliHandlerOptions extends ApiHandlerOptions {
 	geminiCliOAuthPath?: string
 	geminiCliProjectId?: string
+	apiModelId?: string
 }
 
 /**

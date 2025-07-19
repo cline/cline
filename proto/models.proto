@@ -285,5 +285,5 @@ message ModelsApiConfiguration {
   optional string act_mode_hugging_face_model_id = 222;
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
 
-//  repeated string favorited_model_ids = 300;
+  repeated string favorited_model_ids = 300;
 }
