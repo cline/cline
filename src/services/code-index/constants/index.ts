@@ -20,6 +20,7 @@ export const BATCH_SEGMENT_THRESHOLD = 60 // Number of code segments to batch fo
 export const MAX_BATCH_RETRIES = 3
 export const INITIAL_RETRY_DELAY_MS = 500
 export const PARSING_CONCURRENCY = 10
+export const MAX_PENDING_BATCHES = 20 // Maximum number of batches to accumulate before waiting
 
 /**OpenAI Embedder */
 export const MAX_BATCH_TOKENS = 100000

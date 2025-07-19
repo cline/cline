@@ -23,6 +23,7 @@ import {
 	INITIAL_RETRY_DELAY_MS,
 	PARSING_CONCURRENCY,
 	BATCH_PROCESSING_CONCURRENCY,
+	MAX_PENDING_BATCHES,
 } from "../constants"
 import { isPathInIgnoredDirectory } from "../../glob/ignore-utils"
 import { TelemetryService } from "@roo-code/telemetry"
@@ -98,6 +99,7 @@ export class DirectoryScanner implements IDirectoryScanner {
 		let currentBatchTexts: string[] = []
 		let currentBatchFileInfos: { filePath: string; fileHash: string; isNew: boolean }[] = []
 		const activeBatchPromises = new Set<Promise<void>>()
+		let pendingBatchCount = 0
 
 		// Initialize block counter
 		let totalBlockCount = 0
@@ -152,6 +154,12 @@ export class DirectoryScanner implements IDirectoryScanner {
 
 									// Check if batch threshold is met
 									if (currentBatchBlocks.length >= BATCH_SEGMENT_THRESHOLD) {
+										// Wait if we've reached the maximum pending batches
+										while (pendingBatchCount >= MAX_PENDING_BATCHES) {
+											// Wait for at least one batch to complete
+											await Promise.race(activeBatchPromises)
+										}
+
 										// Copy current batch data and clear accumulators
 										const batchBlocks = [...currentBatchBlocks]
 										const batchTexts = [...currentBatchTexts]
@@ -159,6 +167,9 @@ export class DirectoryScanner implements IDirectoryScanner {
 										currentBatchBlocks = []
 										currentBatchTexts = []
 										currentBatchFileInfos = []
+
+										// Increment pending batch count
+										pendingBatchCount++
 
 										// Queue batch processing
 										const batchPromise = batchLimiter(() =>
@@ -176,6 +187,7 @@ export class DirectoryScanner implements IDirectoryScanner {
 										// Clean up completed promises to prevent memory accumulation
 										batchPromise.finally(() => {
 											activeBatchPromises.delete(batchPromise)
+											pendingBatchCount--
 										})
 									}
 								} finally {
@@ -238,6 +250,9 @@ export class DirectoryScanner implements IDirectoryScanner {
 				currentBatchTexts = []
 				currentBatchFileInfos = []
 
+				// Increment pending batch count for final batch
+				pendingBatchCount++
+
 				// Queue final batch processing
 				const batchPromise = batchLimiter(() =>
 					this.processBatch(batchBlocks, batchTexts, batchFileInfos, scanWorkspace, onError, onBlocksIndexed),
@@ -247,6 +262,7 @@ export class DirectoryScanner implements IDirectoryScanner {
 				// Clean up completed promises to prevent memory accumulation
 				batchPromise.finally(() => {
 					activeBatchPromises.delete(batchPromise)
+					pendingBatchCount--
 				})
 			} finally {
 				release()
