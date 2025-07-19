@@ -150,17 +150,26 @@ class TelemetryService {
 
 		// Update PostHog client state based on telemetry preference
 		if (this.telemetryEnabled) {
-			this.client.optIn()
+			await this.client.optIn()
 			this.client.identify({ distinctId: this.distinctId })
+			this.client.capture({
+				distinctId: this.distinctId,
+				event: "$set",
+				properties: this.addProperties({
+					$set: { telemetry_enabled: true },
+				}),
+			})
 		} else {
 			this.client.capture({
 				distinctId: this.distinctId,
 				event: TelemetryService.EVENTS.USER.OPT_OUT,
-				properties: this.addProperties({}),
+				properties: this.addProperties({
+					$set: { telemetry_enabled: false },
+				}),
 			})
 
 			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
-			this.client.optOut()
+			await this.client.optOut()
 		}
 	}
 
@@ -207,7 +216,11 @@ class TelemetryService {
 
 		if (this.telemetryEnabled) {
 			this.client.identify({ distinctId: this.distinctId })
-			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
+			this.client.capture({
+				distinctId: this.distinctId,
+				event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+				properties: this.addProperties({}),
+			})
 		}
 	}
 
