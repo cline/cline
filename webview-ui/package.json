@@ -16,6 +16,7 @@
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
+		"@fontsource/azeret-mono": "^5.2.9",
 		"@heroui/react": "^2.8.0-beta.2",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"debounce": "^2.1.1",
@@ -30,7 +31,6 @@
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
-		"react-countup": "^6.5.3",
 		"react-dom": "^18.3.1",
 		"react-remark": "^2.1.0",
 		"react-textarea-autosize": "^8.5.7",

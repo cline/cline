@@ -101,8 +101,14 @@ export async function refreshOpenRouterModels(
 						break
 					case "x-ai/grok-3-beta":
 						modelInfo.supportsPromptCache = true
-						modelInfo.cacheWritesPrice = 0
+						modelInfo.cacheWritesPrice = 0.75
 						modelInfo.cacheReadsPrice = 0
+						break
+					case "moonshotai/kimi-k2":
+						// forcing kimi-k2 to use the together provider for full context and best throughput
+						modelInfo.inputPrice = 1
+						modelInfo.outputPrice = 3
+						modelInfo.contextWindow = 131_000
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
@@ -120,11 +126,6 @@ export async function refreshOpenRouterModels(
 							}
 						}
 						break
-				}
-
-				// add new model id
-				if (rawModel.id === "x-ai/grok-3-beta") {
-					models["x-ai/grok-3"] = modelInfo
 				}
 
 				models[rawModel.id] = modelInfo

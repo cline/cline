@@ -1,7 +1,9 @@
 export type OpenAIReasoningEffort = "low" | "medium" | "high"
 
+export type Mode = "plan" | "act"
+
 export interface ChatSettings {
-	mode: "plan" | "act"
+	mode: Mode
 	preferredLanguage?: string
 	openAIReasoningEffort?: OpenAIReasoningEffort
 }

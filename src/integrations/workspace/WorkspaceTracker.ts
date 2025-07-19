@@ -3,6 +3,7 @@ import * as path from "path"
 import { listFiles } from "@services/glob/list-files"
 import { sendWorkspaceUpdateEvent } from "@core/controller/file/subscribeToWorkspaceUpdates"
 import { getCwd } from "@/utils/path"
+import { isDirectory } from "@/utils/fs"
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
@@ -114,9 +115,8 @@ class WorkspaceTracker {
 	private async addFilePath(filePath: string): Promise<string> {
 		const normalizedPath = this.normalizeFilePath(filePath)
 		try {
-			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
-			const isDirectory = (stat.type & vscode.FileType.Directory) !== 0
-			const pathWithSlash = isDirectory && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
+			const isDir = await isDirectory(normalizedPath)
+			const pathWithSlash = isDir && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
 			this.filePaths.add(pathWithSlash)
 			return pathWithSlash
 		} catch {

@@ -1,10 +1,8 @@
-import * as vscode from "vscode"
+import { getCwd } from "@/utils/path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
-import { ClaudeCodeMessage } from "./types"
 import readline from "readline"
-
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+import { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string
@@ -22,7 +20,7 @@ type ProcessState = {
 }
 
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
-	const process = runProcess(options)
+	const process = runProcess(options, await getCwd())
 
 	const rl = readline.createInterface({
 		input: process.stdout,
@@ -77,6 +75,49 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
 			)
 		}
+	} catch (err) {
+		console.error(`Error during Claude Code execution:`, err)
+
+		if (err instanceof Error) {
+			if (err.message.includes("ENOENT")) {
+				throw new Error(
+					`Failed to find the Claude Code executable.
+Make sure it's installed and available in your PATH or properly set in your provider settings.`,
+					{ cause: err },
+				)
+			}
+
+			if (err.message.includes("E2BIG")) {
+				throw new Error(
+					`Executing Claude Code failed due to a long system prompt. The maximum argument length is 131072 bytes. 
+Rules and workflows contribute to a longer system prompt, consider disabling some of them temporarily to reduce the length.
+Anthropic is aware of this issue and is considering a fix: https://github.com/anthropics/claude-code/issues/3411.
+`,
+					{ cause: err },
+				)
+			}
+
+			if (err.message.includes("ENAMETOOLONG")) {
+				throw new Error(
+					`Executing Claude Code failed due to a long system prompt. Windows has a limit of 8191 characters, which makes the integration with Cline not work properly.
+Please check our docs on how to integrate Claude Code with Cline on Windows: https://docs.cline.bot/provider-config/claude-code#windows-setup.
+Anthropic is aware of this issue and is considering a fix: https://github.com/anthropics/claude-code/issues/3411.
+`,
+					{ cause: err },
+				)
+			}
+
+			// When the command fails, execa throws an error with the arguments, which include the whole system prompt.
+			// We want to log that, but not show it to the user.
+			const startOfCommand = err.message.indexOf(": ")
+			if (startOfCommand !== -1) {
+				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
+
+				throw new Error(messageWithoutCommand, { cause: err })
+			}
+		}
+
+		throw err
 	} finally {
 		rl.close()
 		if (!process.killed) {
@@ -107,9 +148,11 @@ const claudeCodeTools = [
 ].join(",")
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
+// https://github.com/sindresorhus/execa/blob/main/docs/api.md#optionsmaxbuffer
+const BUFFER_SIZE = 20_000_000 // 20 MB
 
-function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions) {
-	const claudePath = path || "claude"
+function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetTokens }: ClaudeCodeOptions, cwd: string) {
+	const claudePath = path?.trim() || "claude"
 
 	const args = [
 		"-p",
@@ -129,10 +172,17 @@ function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetToken
 		args.push("--model", modelId)
 	}
 
+	/**
+	 * @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables}
+	 */
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
-		// The default is 32000. However, I've gotten larger responses, so we increase it unless the user specified it.
+		// Respect the user's environment variables but set defaults.
+		// The default is 32000. However, I've gotten larger responses.
 		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
+		// Disable telemetry, auto-updater and error reporting.
+		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
+		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
 		MAX_THINKING_TOKENS: (thinkingBudgetTokens || 0).toString(),
 	}
 
@@ -146,7 +196,7 @@ function runProcess({ systemPrompt, messages, path, modelId, thinkingBudgetToken
 		stderr: "pipe",
 		env,
 		cwd,
-		maxBuffer: 1024 * 1024 * 1000,
+		maxBuffer: BUFFER_SIZE,
 		timeout: CLAUDE_CODE_TIMEOUT,
 	})
 

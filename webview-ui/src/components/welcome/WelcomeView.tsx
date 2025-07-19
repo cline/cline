@@ -4,11 +4,11 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { validateApiConfiguration } from "@/utils/validate"
 import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
-import { AccountServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { EmptyRequest, BooleanRequest } from "@shared/proto/common"
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, chatSettings } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
 
@@ -29,8 +29,8 @@ const WelcomeView = memo(() => {
 	}
 
 	useEffect(() => {
-		setApiErrorMessage(validateApiConfiguration(apiConfiguration))
-	}, [apiConfiguration])
+		setApiErrorMessage(validateApiConfiguration(chatSettings.mode, apiConfiguration))
+	}, [apiConfiguration, chatSettings.mode])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
@@ -70,7 +70,7 @@ const WelcomeView = memo(() => {
 				<div className="mt-4.5">
 					{showApiOptions && (
 						<div>
-							<ApiOptions showModelOptions={false} />
+							<ApiOptions showModelOptions={false} currentMode={chatSettings.mode} />
 							<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} className="mt-0.75">
 								Let's go!
 							</VSCodeButton>

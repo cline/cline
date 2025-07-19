@@ -1,26 +1,45 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { convertToR1Format } from "@api/transform/r1-format"
 
-export class TogetherHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
+interface TogetherHandlerOptions {
+	togetherApiKey?: string
+	togetherModelId?: string
+}
 
-	constructor(options: ApiHandlerOptions) {
+export class TogetherHandler implements ApiHandler {
+	private options: TogetherHandlerOptions
+	private client: OpenAI | undefined
+
+	constructor(options: TogetherHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.together.xyz/v1",
-			apiKey: this.options.togetherApiKey,
-		})
+	}
+
+	private ensureClient(): OpenAI {
+		if (!this.client) {
+			if (!this.options.togetherApiKey) {
+				throw new Error("Together API key is required")
+			}
+			try {
+				this.client = new OpenAI({
+					baseURL: "https://api.together.xyz/v1",
+					apiKey: this.options.togetherApiKey,
+				})
+			} catch (error: any) {
+				throw new Error(`Error creating Together client: ${error.message}`)
+			}
+		}
+		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const client = this.ensureClient()
 		const modelId = this.options.togetherModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
@@ -33,7 +52,7 @@ export class TogetherHandler implements ApiHandler {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
 			temperature: 0,

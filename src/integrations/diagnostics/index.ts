@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import deepEqual from "fast-deep-equal"
+import { getCwd } from "@/utils/path"
 
 export function getNewDiagnostics(
 	oldDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
@@ -70,11 +71,11 @@ export function getNewDiagnostics(
 // // - New error in file3 (1:1)
 
 // will return empty string if no problems with the given severity are found
-export function diagnosticsToProblemsString(
+export async function diagnosticsToProblemsString(
 	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
 	severities: vscode.DiagnosticSeverity[],
-	cwd: string,
-): string {
+): Promise<string> {
+	const cwd = await getCwd()
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {
 		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))

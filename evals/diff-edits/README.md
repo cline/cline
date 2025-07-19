@@ -36,7 +36,7 @@ It starts with our test cases. Each one is a JSON file in `./cases` that has the
 Then, for every test run, we set up a specific configuration. This includes which LLM we're testing, which system prompt it gets, which function we use to parse the model's raw output, and which function we use to actually apply the diff. Here's the command I've been using:
 
 ```bash
-npm run diff-eval -- --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-3-beta" --max-cases 4 --valid-attempts-per-case 2 --verbose --parallel
+npm run diff-eval -- --model-ids "anthropic/claude-3-5-sonnet,x-ai/grok-3-beta,anthropic/claude-3.7-sonnet,anthropic/claude-sonnet-4,google/gemini-2.5-pro-preview,google/gemini-2.5-flash" --max-cases 5 --valid-attempts-per-case 5 --parallel --diff-edit-function diff-06-26-25 --verbose 
 ```
 
 This will build the eval script, run it, and then open the streamlit dashboard to show the results.

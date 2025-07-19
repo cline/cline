@@ -1,5 +1,103 @@
 # Changelog
 
+## [3.19.7]
+
+-   Add Hugging Face as a new API provider with support for their inference API models
+-   Improve Claude Code error messages with better guidance for common setup issues (Thanks @BarreiroT!)
+-   Fix authentication sync issues when using multiple VSCode windows
+
+## [3.19.6]
+
+-   Improve Kimi K2 model provider routing with additional provider options for better availability and performance
+-   Fixed terminal bug where Cline failed to capture output of certain fast-running commands
+-   Fixed bug with increasing auto approved number of requests not resetting the counter mid-task
+
+## [3.19.5]
+
+-   Add Groq as a new API provider with support for all Groq models including Kimi-K2
+-   Add user role display in organization UI for Cline account users
+-   Fix message dialogs not showing option buttons properly
+-   Fix authentication issues when using multiple VSCode windows
+
+## [3.19.4]
+
+-   Add ability to choose Chinese endpoint for Moonshot provider
+
+## [3.19.3]
+
+-   Add Moonshot AI provider
+
+## [3.19.2]
+
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
+
+## [3.19.1]
+
+-   Fix documentation
+
+## [3.19.0]
+
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
+
+## [3.18.14]
+
+-   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
+
+## [3.18.13]
+
+-   Fix authentication issue where Cline accounts users would keep getting logged out or seeing 'Unexpected API response' errors
+
+## [3.18.12]
+
+-   Fix flaky organization switching behavior in Cline provider that caused UI inconsistencies and double loading
+-   Fix insufficient credits error display to properly show error messages when account balance is too low
+-   Improve credit balance validation and error handling for Cline provider requests
+
+## [3.18.11]
+
+-   Fix authentication issues with Cline provider by ensuring the client always uses the latest auth token
+
+## [3.18.10]
+
+-   Update recommended fast & cheap model to Grok 4 in OpenRouter model picker
+-   Fix Gemini 2.5 Pro thinking budget slider and add support for Gemini 2.5 Flash Lite Preview model (Thanks @arafatkatze!)
+
+## [3.18.9]
+
+-   Fix streaming reliability issues with Cline provider that could cause connection problems during long conversations
+-   Fix authentication error handling for Cline provider to show clearer error messages when not signed in and prevent recursive failed requests
+-   Remove incorrect pricing display for SAP AI Core provider since it uses non-USD "Capacity Units" that cannot be directly converted (Thanks @ncryptedV1!)
+
+## [3.18.8]
+
+-   Update pricing for Grok 3 model because the promotion ended
+
+## [3.18.7]
+
+-   Remove promotional "free" messaging for Grok 3 model in UI
+
+## [3.18.6]
+
+-   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
+-   Add organization accounts
+
+## [3.18.5]
+
+-   Fix Plan/Act mode persistence across sessions and multi-workspace conflicts
+-   Improve provider switching performance by 18x (from 550ms to 30ms) with batched storage operations
+-   Improve SAP AI Core provider model organization and fix exception handling (Thanks @schardosin!)
+
+## [3.18.4]
+
+-   Add support for Gemini 2.5 Pro and Flash to SAP AI Core Provider
+-   Fix logging in with Cline account not getting past welcome screen
+
+## [3.18.3]
+
+-   Improve Cerebras Qwen model performance by removing thinking tokens from model input (Thanks @kevint-cerebras!)
+-   Improve Claude Code provider with better error handling and performance optimizations (Thanks @BarreiroT!)
+
 ## [3.18.2]
 
 -   Fix issue where terminal output would not be captured if shell integration fails by falling back to capturing the terminal content.

@@ -6,9 +6,9 @@ import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "@core/storage/disk"
 import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { WebviewProviderCreator } from "@/hosts/host-providers"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
 import * as hostProviders from "@hosts/host-providers"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
@@ -53,7 +53,11 @@ describe("FileContextTracker", () => {
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
-		hostProviders.initializeHostProviders(((_) => {}) as WebviewProviderCreator, vscodeHostBridgeClient)
+		hostProviders.initializeHostProviders(
+			((_) => {}) as WebviewProviderCreator,
+			(() => {}) as DiffViewProviderCreator,
+			vscodeHostBridgeClient,
+		)
 
 		// Create tracker instance
 		taskId = "test-task-id"
