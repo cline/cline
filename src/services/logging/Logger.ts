@@ -46,7 +46,7 @@ export class Logger {
 		return timestamp
 	}
 	static #output(level: string, message: string, error?: Error) {
-		var fullMessage = message
+		let fullMessage = message
 		if (error?.message) {
 			fullMessage += ` ${error.message}`
 		}
