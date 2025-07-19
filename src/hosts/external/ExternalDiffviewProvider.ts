@@ -42,16 +42,19 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
-	protected async saveDocument(): Promise<void> {
+	protected async saveDocument(): Promise<Boolean> {
 		if (!this.activeDiffEditorId) {
-			return
+			return false
 		}
 		try {
 			await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
+			return true
 		} catch (err: any) {
 			if (err.code === status.NOT_FOUND) {
-				// This can happen when the task is reloaded.
+				// This can happen when the task is reloaded or the diff editor is closed. So, don't
+				// consider it a real error.
 				console.log("Diff not found:", this.activeDiffEditorId)
+				return false
 			} else {
 				throw err
 			}
