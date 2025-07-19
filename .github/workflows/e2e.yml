@@ -91,14 +91,6 @@ jobs:
               if: matrix.runner == 'ubuntu'
               run: sudo apt-get update && sudo apt-get install -y xvfb
 
-            # Log cache status for debugging
-            - name: Log cache status
-              run: |
-                  echo "Root dependencies cache hit: ${{ steps.root-cache.outputs.cache-hit }}"
-                  echo "Webview dependencies cache hit: ${{ steps.webview-cache.outputs.cache-hit }}"
-                  echo "VS Code cache hit: ${{ steps.vscode-cache.outputs.cache-hit }}"
-                  echo "Playwright cache hit: ${{ steps.playwright-cache.outputs.cache-hit }}"
-
             # Build the extension before running tests
             - name: Build Tests and Extension
               run: npm run pretest
