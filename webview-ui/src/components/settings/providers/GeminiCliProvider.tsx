@@ -20,12 +20,17 @@ import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 interface GeminiCliProviderProps {
 	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
+	handleInputChange: (field: keyof ApiConfiguration) => (e: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
 }
 
-const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: GeminiCliProviderProps) => {
+const GeminiCliProvider = ({
+	apiConfiguration,
+	handleInputChange = () => () => {},
+	showModelOptions,
+	isPopup,
+}: GeminiCliProviderProps) => {
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
 	return (
@@ -97,7 +102,7 @@ const GeminiCliProvider = ({ apiConfiguration, handleInputChange, showModelOptio
 					<ModelSelector
 						models={geminiCliModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) => handleInputChange("apiModelId")(e.target.value)}
 						label="Model"
 					/>
 
