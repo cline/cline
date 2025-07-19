@@ -91,17 +91,14 @@ jobs:
               if: matrix.runner == 'ubuntu'
               run: sudo apt-get update && sudo apt-get install -y xvfb
 
-            # Build the extension before running tests
-            - name: Build Tests and Extension
-              run: npm run pretest
-
+            # Run optimized E2E tests (eliminates redundant builds)
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
-              run: xvfb-run -a npm run test:e2e
+              run: xvfb-run -a npm run test:e2e:optimal
 
             - name: Run E2E tests - Non-Linux
               if: matrix.runner != 'ubuntu'
-              run: npm run test:e2e
+              run: npm run test:e2e:optimal
 
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}
