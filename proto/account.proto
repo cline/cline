@@ -53,6 +53,7 @@ message UserInfo {
   optional string display_name = 2;
   optional string email = 3;
   optional string photo_url = 4;
+  optional string app_base_url = 5; // Cline app base URL
 }
 
 message UserOrganization {
