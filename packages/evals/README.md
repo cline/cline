@@ -89,6 +89,46 @@ The setup script does the following:
 - Prompts for an OpenRouter API key to add to `.env.local`
 - Optionally builds and installs the Roo Code extension from source
 
+## Port Configuration
+
+By default, the evals system uses the following ports:
+
+- **PostgreSQL**: 5433 (external) → 5432 (internal)
+- **Redis**: 6380 (external) → 6379 (internal)
+- **Web Service**: 3446 (external) → 3000 (internal)
+
+These ports are configured to avoid conflicts with other services that might be running on the standard PostgreSQL (5432) and Redis (6379) ports.
+
+### Customizing Ports
+
+If you need to use different ports, you can customize them by creating a `.env.local` file in the `packages/evals/` directory:
+
+```sh
+# Copy the example file and customize as needed
+cp packages/evals/.env.local.example packages/evals/.env.local
+```
+
+Then edit `.env.local` to set your preferred ports:
+
+```sh
+# Custom port configuration
+EVALS_DB_PORT=5434
+EVALS_REDIS_PORT=6381
+EVALS_WEB_PORT=3447
+
+# Optional: Override database URL if needed
+DATABASE_URL=postgres://postgres:password@localhost:5434/evals_development
+```
+
+### Port Conflict Resolution
+
+If you encounter port conflicts when running `pnpm evals`, you have several options:
+
+1. **Use the default configuration** (recommended): The system now uses non-standard ports by default
+2. **Stop conflicting services**: Temporarily stop other PostgreSQL/Redis services
+3. **Customize ports**: Use the `.env.local` file to set different ports
+4. **Use Docker networks**: Run services in isolated Docker networks
+
 ## Troubleshooting
 
 Here are some errors that you might encounter along with potential fixes:
