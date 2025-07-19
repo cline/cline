@@ -528,6 +528,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeSapAiCoreModelId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
+			actModeHuggingFaceModelId,
+			actModeHuggingFaceModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
