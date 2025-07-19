@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API Anahtarı:",
 		"geminiApiKeyPlaceholder": "Gemini API anahtarınızı girin",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "API Anahtarı:",
+		"mistralApiKeyPlaceholder": "Mistral API anahtarınızı girin",
 		"openaiCompatibleProvider": "OpenAI Uyumlu",
 		"openAiKeyLabel": "OpenAI API Anahtarı",
 		"openAiKeyPlaceholder": "OpenAI API anahtarınızı girin",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "Model kimliği gereklidir",
 			"modelDimensionRequired": "Model boyutu gereklidir",
 			"geminiApiKeyRequired": "Gemini API anahtarı gereklidir",
+			"mistralApiKeyRequired": "Mistral API anahtarı gereklidir",
 			"ollamaBaseUrlRequired": "Ollama temel URL'si gereklidir",
 			"baseUrlRequired": "Temel URL'si gereklidir",
 			"modelDimensionMinValue": "Model boyutu 0'dan büyük olmalıdır"

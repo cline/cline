@@ -3,6 +3,7 @@ import { OpenAiEmbedder } from "./embedders/openai"
 import { CodeIndexOllamaEmbedder } from "./embedders/ollama"
 import { OpenAICompatibleEmbedder } from "./embedders/openai-compatible"
 import { GeminiEmbedder } from "./embedders/gemini"
+import { MistralEmbedder } from "./embedders/mistral"
 import { EmbedderProvider, getDefaultModelId, getModelDimension } from "../../shared/embeddingModels"
 import { QdrantVectorStore } from "./vector-store/qdrant-client"
 import { codeParser, DirectoryScanner, FileWatcher } from "./processors"
@@ -64,6 +65,11 @@ export class CodeIndexServiceFactory {
 				throw new Error(t("embeddings:serviceFactory.geminiConfigMissing"))
 			}
 			return new GeminiEmbedder(config.geminiOptions.apiKey, config.modelId)
+		} else if (provider === "mistral") {
+			if (!config.mistralOptions?.apiKey) {
+				throw new Error(t("embeddings:serviceFactory.mistralConfigMissing"))
+			}
+			return new MistralEmbedder(config.mistralOptions.apiKey, config.modelId)
 		}
 
 		throw new Error(

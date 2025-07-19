@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "Falta la configuració d'Ollama per crear l'embedder",
 		"openAiCompatibleConfigMissing": "Falta la configuració compatible amb OpenAI per crear l'embedder",
 		"geminiConfigMissing": "Falta la configuració de Gemini per crear l'embedder",
+		"mistralConfigMissing": "Falta la configuració de Mistral per crear l'embedder",
 		"invalidEmbedderType": "Tipus d'embedder configurat no vàlid: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "No s'ha pogut determinar la dimensió del vector per al model '{{modelId}}' amb el proveïdor '{{provider}}'. Assegura't que la 'Dimensió d'incrustació' estigui configurada correctament als paràmetres del proveïdor compatible amb OpenAI.",
 		"vectorDimensionNotDetermined": "No s'ha pogut determinar la dimensió del vector per al model '{{modelId}}' amb el proveïdor '{{provider}}'. Comprova els perfils del model o la configuració.",

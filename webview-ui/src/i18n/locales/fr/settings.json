@@ -52,6 +52,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Clé API :",
 		"geminiApiKeyPlaceholder": "Entrez votre clé API Gemini",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Clé d'API:",
+		"mistralApiKeyPlaceholder": "Entrez votre clé d'API Mistral",
 		"openaiCompatibleProvider": "Compatible OpenAI",
 		"openAiKeyLabel": "Clé API OpenAI",
 		"openAiKeyPlaceholder": "Entrez votre clé API OpenAI",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "L'ID du modèle est requis",
 			"modelDimensionRequired": "La dimension du modèle est requise",
 			"geminiApiKeyRequired": "La clé API Gemini est requise",
+			"mistralApiKeyRequired": "La clé API Mistral est requise",
 			"ollamaBaseUrlRequired": "L'URL de base Ollama est requise",
 			"baseUrlRequired": "L'URL de base est requise",
 			"modelDimensionMinValue": "La dimension du modèle doit être supérieure à 0"

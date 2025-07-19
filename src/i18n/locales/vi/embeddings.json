@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "Thiếu cấu hình Ollama để tạo embedder",
 		"openAiCompatibleConfigMissing": "Thiếu cấu hình tương thích OpenAI để tạo embedder",
 		"geminiConfigMissing": "Thiếu cấu hình Gemini để tạo embedder",
+		"mistralConfigMissing": "Thiếu cấu hình Mistral để tạo trình nhúng",
 		"invalidEmbedderType": "Loại embedder được cấu hình không hợp lệ: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "Không thể xác định kích thước vector cho mô hình '{{modelId}}' với nhà cung cấp '{{provider}}'. Hãy đảm bảo 'Kích thước Embedding' được cài đặt đúng trong cài đặt nhà cung cấp tương thích OpenAI.",
 		"vectorDimensionNotDetermined": "Không thể xác định kích thước vector cho mô hình '{{modelId}}' với nhà cung cấp '{{provider}}'. Kiểm tra hồ sơ mô hình hoặc cấu hình.",

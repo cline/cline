@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API कुंजी:",
 		"geminiApiKeyPlaceholder": "अपना जेमिनी एपीआई कुंजी दर्ज करें",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "API कुंजी:",
+		"mistralApiKeyPlaceholder": "अपनी मिस्ट्रल एपीआई कुंजी दर्ज करें",
 		"openaiCompatibleProvider": "OpenAI संगत",
 		"openAiKeyLabel": "OpenAI API कुंजी",
 		"openAiKeyPlaceholder": "अपना OpenAI API कुंजी दर्ज करें",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "मॉडल आईडी आवश्यक है",
 			"modelDimensionRequired": "मॉडल आयाम आवश्यक है",
 			"geminiApiKeyRequired": "Gemini API कुंजी आवश्यक है",
+			"mistralApiKeyRequired": "मिस्ट्रल एपीआई कुंजी आवश्यक है",
 			"ollamaBaseUrlRequired": "Ollama आधार URL आवश्यक है",
 			"baseUrlRequired": "आधार URL आवश्यक है",
 			"modelDimensionMinValue": "मॉडल आयाम 0 से बड़ा होना चाहिए"

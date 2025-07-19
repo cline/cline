@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "Отсутствует конфигурация Ollama для создания эмбеддера",
 		"openAiCompatibleConfigMissing": "Отсутствует конфигурация, совместимая с OpenAI, для создания эмбеддера",
 		"geminiConfigMissing": "Отсутствует конфигурация Gemini для создания эмбеддера",
+		"mistralConfigMissing": "Конфигурация Mistral отсутствует для создания эмбеддера",
 		"invalidEmbedderType": "Настроен недопустимый тип эмбеддера: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "Не удалось определить размерность вектора для модели '{{modelId}}' с провайдером '{{provider}}'. Убедитесь, что 'Размерность эмбеддинга' правильно установлена в настройках провайдера, совместимого с OpenAI.",
 		"vectorDimensionNotDetermined": "Не удалось определить размерность вектора для модели '{{modelId}}' с провайдером '{{provider}}'. Проверьте профили модели или конфигурацию.",

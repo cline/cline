@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API Key:",
 		"geminiApiKeyPlaceholder": "Masukkan kunci API Gemini Anda",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Kunci API:",
+		"mistralApiKeyPlaceholder": "Masukkan kunci API Mistral Anda",
 		"openaiCompatibleProvider": "OpenAI Compatible",
 		"openAiKeyLabel": "OpenAI API Key",
 		"openAiKeyPlaceholder": "Masukkan kunci API OpenAI kamu",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "ID Model diperlukan",
 			"modelDimensionRequired": "Dimensi model diperlukan",
 			"geminiApiKeyRequired": "Kunci API Gemini diperlukan",
+			"mistralApiKeyRequired": "Kunci API Mistral diperlukan",
 			"ollamaBaseUrlRequired": "URL dasar Ollama diperlukan",
 			"baseUrlRequired": "URL dasar diperlukan",
 			"modelDimensionMinValue": "Dimensi model harus lebih besar dari 0"

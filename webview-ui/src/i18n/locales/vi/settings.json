@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Khóa API:",
 		"geminiApiKeyPlaceholder": "Nhập khóa API Gemini của bạn",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Khóa API:",
+		"mistralApiKeyPlaceholder": "Nhập khóa API Mistral của bạn",
 		"openaiCompatibleProvider": "Tương thích OpenAI",
 		"openAiKeyLabel": "Khóa API OpenAI",
 		"openAiKeyPlaceholder": "Nhập khóa API OpenAI của bạn",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "Yêu cầu ID mô hình",
 			"modelDimensionRequired": "Yêu cầu kích thước mô hình",
 			"geminiApiKeyRequired": "Yêu cầu khóa API Gemini",
+			"mistralApiKeyRequired": "Cần có khóa API của Mistral",
 			"ollamaBaseUrlRequired": "Yêu cầu URL cơ sở Ollama",
 			"baseUrlRequired": "Yêu cầu URL cơ sở",
 			"modelDimensionMinValue": "Kích thước mô hình phải lớn hơn 0"

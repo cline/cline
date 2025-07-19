@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "エンベッダー作成のためのOllama設定がありません",
 		"openAiCompatibleConfigMissing": "エンベッダー作成のためのOpenAI互換設定がありません",
 		"geminiConfigMissing": "エンベッダー作成のためのGemini設定がありません",
+		"mistralConfigMissing": "エンベッダー作成のためのMistral設定がありません",
 		"invalidEmbedderType": "無効なエンベッダータイプが設定されています: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "プロバイダー '{{provider}}' のモデル '{{modelId}}' の埋め込み次元を決定できませんでした。OpenAI互換プロバイダー設定で「埋め込み次元」が正しく設定されていることを確認してください。",
 		"vectorDimensionNotDetermined": "プロバイダー '{{provider}}' のモデル '{{modelId}}' の埋め込み次元を決定できませんでした。モデルプロファイルまたは設定を確認してください。",

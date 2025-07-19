@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "Konfigurasi Ollama tidak ada untuk membuat embedder",
 		"openAiCompatibleConfigMissing": "Konfigurasi yang kompatibel dengan OpenAI tidak ada untuk membuat embedder",
 		"geminiConfigMissing": "Konfigurasi Gemini tidak ada untuk membuat embedder",
+		"mistralConfigMissing": "Konfigurasi Mistral hilang untuk pembuatan embedder",
 		"invalidEmbedderType": "Tipe embedder yang dikonfigurasi tidak valid: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "Tidak dapat menentukan dimensi vektor untuk model '{{modelId}}' dengan penyedia '{{provider}}'. Pastikan 'Dimensi Embedding' diatur dengan benar di pengaturan penyedia yang kompatibel dengan OpenAI.",
 		"vectorDimensionNotDetermined": "Tidak dapat menentukan dimensi vektor untuk model '{{modelId}}' dengan penyedia '{{provider}}'. Periksa profil model atau konfigurasi.",

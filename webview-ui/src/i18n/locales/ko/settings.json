@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API 키:",
 		"geminiApiKeyPlaceholder": "Gemini API 키를 입력하세요",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "API 키:",
+		"mistralApiKeyPlaceholder": "Mistral API 키를 입력하세요",
 		"openaiCompatibleProvider": "OpenAI 호환",
 		"openAiKeyLabel": "OpenAI API 키",
 		"openAiKeyPlaceholder": "OpenAI API 키를 입력하세요",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "모델 ID가 필요합니다",
 			"modelDimensionRequired": "모델 차원이 필요합니다",
 			"geminiApiKeyRequired": "Gemini API 키가 필요합니다",
+			"mistralApiKeyRequired": "Mistral API 키가 필요합니다",
 			"ollamaBaseUrlRequired": "Ollama 기본 URL이 필요합니다",
 			"baseUrlRequired": "기본 URL이 필요합니다",
 			"modelDimensionMinValue": "모델 차원은 0보다 커야 합니다"

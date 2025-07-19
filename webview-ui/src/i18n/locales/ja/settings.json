@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "APIキー：",
 		"geminiApiKeyPlaceholder": "Gemini APIキーを入力してください",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "APIキー:",
+		"mistralApiKeyPlaceholder": "Mistral APIキーを入力してください",
 		"openaiCompatibleProvider": "OpenAI互換",
 		"openAiKeyLabel": "OpenAI APIキー",
 		"openAiKeyPlaceholder": "OpenAI APIキーを入力してください",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "モデルIDが必要です",
 			"modelDimensionRequired": "モデルの次元が必要です",
 			"geminiApiKeyRequired": "Gemini APIキーが必要です",
+			"mistralApiKeyRequired": "Mistral APIキーが必要です",
 			"ollamaBaseUrlRequired": "OllamaのベースURLが必要です",
 			"baseUrlRequired": "ベースURLが必要です",
 			"modelDimensionMinValue": "モデルの次元は0より大きくなければなりません"

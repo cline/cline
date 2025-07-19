@@ -46,6 +46,7 @@
 		"ollamaConfigMissing": "Gömücü oluşturmak için Ollama yapılandırması eksik",
 		"openAiCompatibleConfigMissing": "Gömücü oluşturmak için OpenAI uyumlu yapılandırması eksik",
 		"geminiConfigMissing": "Gömücü oluşturmak için Gemini yapılandırması eksik",
+		"mistralConfigMissing": "Gömücü oluşturmak için Mistral yapılandırması eksik",
 		"invalidEmbedderType": "Geçersiz gömücü türü yapılandırıldı: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "'{{provider}}' sağlayıcısı ile '{{modelId}}' modeli için vektör boyutu belirlenemedi. OpenAI uyumlu sağlayıcı ayarlarında 'Gömme Boyutu'nun doğru ayarlandığından emin ol.",
 		"vectorDimensionNotDetermined": "'{{provider}}' sağlayıcısı ile '{{modelId}}' modeli için vektör boyutu belirlenemedi. Model profillerini veya yapılandırmayı kontrol et.",

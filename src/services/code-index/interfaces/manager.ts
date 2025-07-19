@@ -70,7 +70,7 @@ export interface ICodeIndexManager {
 }
 
 export type IndexingState = "Standby" | "Indexing" | "Indexed" | "Error"
-export type EmbedderProvider = "openai" | "ollama" | "openai-compatible" | "gemini"
+export type EmbedderProvider = "openai" | "ollama" | "openai-compatible" | "gemini" | "mistral"
 
 export interface IndexProgressUpdate {
 	systemStatus: IndexingState
