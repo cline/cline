@@ -4,13 +4,15 @@
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"dev": "mintlify dev"
+		"dev": "mintlify dev",
+		"check": "mintlify broken-links",
+		"rename": "mintlify rename"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"description": "",
 	"dependencies": {
-		"mintlify": "^4.0.538"
+		"mintlify": "^4.2.23"
 	}
 }

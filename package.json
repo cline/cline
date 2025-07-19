@@ -356,9 +356,9 @@
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"docs": "cd docs && mintlify dev",
-		"docs:check-links": "cd docs && mintlify broken-links",
-		"docs:rename-file": "cd docs && mintlify rename",
+		"docs": "cd docs && npm run dev",
+		"docs:check-links": "cd docs && npm run check",
+		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js"
 	},
 	"lint-staged": {
@@ -396,7 +396,6 @@
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
-		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"protoc-gen-ts": "^0.8.7",
