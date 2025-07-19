@@ -717,15 +717,6 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 	}
 }
 
-// TODO: Find a solution for automatically removing DEV related content from production builds.
-//  This type of code is fine in production to keep. We just will want to remove it from production builds
-//  to bring down built asset sizes.
-//
-// This is a workaround to reload the extension when the source code changes
-// since vscode doesn't support hot reload for extensions
-const IS_DEV = process.env.IS_DEV
-const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
-
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose all webview instances
@@ -737,6 +728,15 @@ export async function deactivate() {
 
 	Logger.log("Cline extension deactivated")
 }
+
+// TODO: Find a solution for automatically removing DEV related content from production builds.
+//  This type of code is fine in production to keep. We just will want to remove it from production builds
+//  to bring down built asset sizes.
+//
+// This is a workaround to reload the extension when the source code changes
+// since vscode doesn't support hot reload for extensions
+const IS_DEV = process.env.IS_DEV
+const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 
 // Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {

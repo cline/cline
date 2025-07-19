@@ -11,7 +11,7 @@ import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
 
 async function main() {
-	log("Starting cline-core service...")
+	log("\n\n\nStarting cline-core service...\n\n\n")
 
 	// Set up global error handlers to prevent process crashes
 	setupGlobalErrorHandlers()
@@ -53,9 +53,6 @@ function setupGlobalErrorHandlers() {
 	// Handle process warnings (optional, for debugging)
 	process.on("warning", (warning: Error) => {
 		log(`Process Warning: ${warning.name}: ${warning.message}`)
-		if (warning.stack) {
-			log(`Stack trace: ${warning.stack}`)
-		}
 	})
 
 	// Graceful shutdown handlers
