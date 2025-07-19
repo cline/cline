@@ -371,16 +371,54 @@ describe("TaskActions", () => {
 	})
 
 	describe("Button States", () => {
-		it("disables buttons when buttonsDisabled is true", () => {
+		it("keeps share, export, and copy buttons enabled but disables delete button when buttonsDisabled is true", () => {
 			render(<TaskActions item={mockItem} buttonsDisabled={true} />)
 
-			// Find button by its icon class
+			// Find buttons by their labels/icons
 			const buttons = screen.getAllByRole("button")
 			const shareButton = buttons.find((btn) => btn.querySelector(".codicon-link"))
 			const exportButton = screen.getByLabelText("Export task history")
+			const copyButton = buttons.find((btn) => btn.querySelector(".codicon-copy"))
+			const deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
 
-			expect(shareButton).toBeDisabled()
-			expect(exportButton).toBeDisabled()
+			// Share, export, and copy buttons should be enabled regardless of buttonsDisabled
+			expect(shareButton).not.toBeDisabled()
+			expect(exportButton).not.toBeDisabled()
+			expect(copyButton).not.toBeDisabled()
+			// Delete button should respect buttonsDisabled
+			expect(deleteButton).toBeDisabled()
+		})
+
+		it("share, export, and copy buttons are always enabled while delete button respects buttonsDisabled state", () => {
+			// Test with buttonsDisabled = false
+			const { rerender } = render(<TaskActions item={mockItem} buttonsDisabled={false} />)
+
+			let buttons = screen.getAllByRole("button")
+			let shareButton = buttons.find((btn) => btn.querySelector(".codicon-link"))
+			let exportButton = screen.getByLabelText("Export task history")
+			let copyButton = buttons.find((btn) => btn.querySelector(".codicon-copy"))
+			let deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
+
+			expect(shareButton).not.toBeDisabled()
+			expect(exportButton).not.toBeDisabled()
+			expect(copyButton).not.toBeDisabled()
+			expect(deleteButton).not.toBeDisabled()
+
+			// Test with buttonsDisabled = true
+			rerender(<TaskActions item={mockItem} buttonsDisabled={true} />)
+
+			buttons = screen.getAllByRole("button")
+			shareButton = buttons.find((btn) => btn.querySelector(".codicon-link"))
+			exportButton = screen.getByLabelText("Export task history")
+			copyButton = buttons.find((btn) => btn.querySelector(".codicon-copy"))
+			deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
+
+			// Share, export, and copy remain enabled
+			expect(shareButton).not.toBeDisabled()
+			expect(exportButton).not.toBeDisabled()
+			expect(copyButton).not.toBeDisabled()
+			// Delete button is disabled
+			expect(deleteButton).toBeDisabled()
 		})
 	})
 })

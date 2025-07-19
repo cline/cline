@@ -23,18 +23,16 @@ export const TaskActions = ({ item, buttonsDisabled }: TaskActionsProps) => {
 
 	return (
 		<div className="flex flex-row gap-1">
-			<ShareButton item={item} disabled={buttonsDisabled} />
+			<ShareButton item={item} disabled={false} />
 			<IconButton
 				iconClass="codicon-desktop-download"
 				title={t("chat:task.export")}
-				disabled={buttonsDisabled}
 				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}
 			/>
 			{item?.task && (
 				<IconButton
 					iconClass={showCopyFeedback ? "codicon-check" : "codicon-copy"}
 					title={t("history:copyPrompt")}
-					disabled={buttonsDisabled}
 					onClick={(e) => copyWithFeedback(item.task, e)}
 				/>
 			)}
