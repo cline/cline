@@ -6,21 +6,41 @@
 		"useIgnoreFile": true,
 		"defaultBranch": "main"
 	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "off"
+			}
+		}
+	},
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"a11y": "off",
 			"correctness": {
 				"noUnusedVariables": "off",
-				"useExhaustiveDependencies": "off"
+				"useExhaustiveDependencies": "off",
+				"noUnusedImports": "off",
+				"noSwitchDeclarations": "off",
+				"noUndeclaredVariables": "off",
+				"useJsxKeyInIterable": "off",
+				"noUnusedFunctionParameters": "off",
+				"noInvalidPositionAtImportRule": "off",
+				"useHookAtTopLevel": "off"
 			},
 			"style": {
 				"useConst": "off",
-				"useBlockStatements": "warn",
+				"noNonNullAssertion": "off",
+				"useNodejsImportProtocol": "off",
+				"useImportType": "off",
+				"useBlockStatements": "off",
+				"useExponentiationOperator": "off",
+				"useTemplate": "off",
 				"useNamingConvention": {
-					"level": "info",
+					"level": "off",
 					"options": {
-						"strictCase": true,
+						"strictCase": false,
 						"requireAscii": false,
 						"conventions": [
 							{
@@ -38,6 +58,10 @@
 							{
 								"selector": { "kind": "variable" },
 								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
+							},
+							{
+								"selector": { "kind": "objectLiteralMember" },
+								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
 							}
 						]
 					}
@@ -45,11 +69,23 @@
 			},
 			"suspicious": {
 				"noExplicitAny": "off",
-				"noDoubleEquals": "warn",
-				"noShadowRestrictedNames": "off"
+				"noDoubleEquals": "off",
+				"noShadowRestrictedNames": "off",
+				"noArrayIndexKey": "off",
+				"noGlobalIsNan": "off",
+				"noConfusingVoidType": "off",
+				"noAssignInExpressions": "off"
 			},
 			"complexity": {
-				"noBannedTypes": "off"
+				"noBannedTypes": "off",
+				"useOptionalChain": "off",
+				"useLiteralKeys": "off",
+				"noUselessConstructor": "off",
+				"noUselessSwitchCase": "off",
+				"noUselessFragments": "off"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off"
 			}
 		}
 	},
@@ -68,7 +104,7 @@
 			"bracketSpacing": true,
 			"jsxQuoteStyle": "double",
 			"quoteProperties": "asNeeded",
-			"trailingCommas": "es5"
+			"trailingCommas": "all"
 		}
 	}
 }

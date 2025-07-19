@@ -31,7 +31,8 @@
 			"@services/*": ["src/services/*"],
 			"@shared/*": ["src/shared/*"],
 			"@utils/*": ["src/utils/*"]
-		}
+		},
+		"types": ["nlcst"]
 	},
 	"include": ["src/**/*", "scripts/**/*"],
 	"exclude": ["node_modules", ".vscode-test", "webview-ui", "src/test/e2e/**/*"]

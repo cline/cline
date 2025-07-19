@@ -20,6 +20,7 @@
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedSideEffectImports": true,
+		"forceConsistentCasingInFileNames": true,
 
 		/* Aliasing */
 		"baseUrl": ".",
