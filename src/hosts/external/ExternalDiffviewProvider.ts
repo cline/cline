@@ -48,13 +48,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
 	}
 
-	protected override async scrollEditorToLine(line: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.scrollEditorToLine(${line}) stub`)
-	}
+	protected override async scrollEditorToLine(_line: number): Promise<void> {}
 
-	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
-	}
+	override async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
 	protected override async getDocumentText(): Promise<string | undefined> {
 		if (!this.activeDiffEditorId) {
