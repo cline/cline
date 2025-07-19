@@ -174,13 +174,6 @@ vscode.Uri = {
 	},
 }
 
-vscode.env.openExternal = async (uri) => {
-	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
-	console.log("Opening browser:", url)
-	await open(url)
-	return true
-}
-
 // Export the terminal manager globally for Cline core to use
 global.standaloneTerminalManager = globalTerminalManager
 
