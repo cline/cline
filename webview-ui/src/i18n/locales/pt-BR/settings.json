@@ -508,6 +508,10 @@
 			"label": "Limite de saída do terminal",
 			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token. <0>Saiba mais</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Limite de caracteres do terminal",
+			"description": "Número máximo de caracteres a serem incluídos na saída do terminal ao executar comandos. Este limite tem precedência sobre o limite de linhas para evitar problemas de memória com linhas extremamente longas. Quando excedido, a saída será truncada. <0>Saiba mais</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Tempo limite de integração do shell do terminal",
 			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal. <0>Saiba mais</0>"

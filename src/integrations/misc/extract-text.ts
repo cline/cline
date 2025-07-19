@@ -135,17 +135,58 @@ export function stripLineNumbers(content: string, aggressive: boolean = false): 
  * When truncation is needed, it keeps 20% of the lines from the start and 80% from the end,
  * with a clear indicator of how many lines were omitted in between.
  *
+ * IMPORTANT: Character limit takes precedence over line limit. This is because:
+ * 1. Character limit provides a hard cap on memory usage and context window consumption
+ * 2. A single line with millions of characters could bypass line limits and cause issues
+ * 3. Character limit ensures consistent behavior regardless of line structure
+ *
+ * When both limits are specified:
+ * - If content exceeds character limit, character-based truncation is applied (regardless of line count)
+ * - If content is within character limit but exceeds line limit, line-based truncation is applied
+ * - This prevents edge cases where extremely long lines could consume excessive resources
+ *
  * @param content The multi-line string to truncate
- * @param lineLimit Optional maximum number of lines to keep. If not provided or 0, returns the original content
- * @returns The truncated string with an indicator of omitted lines, or the original content if no truncation needed
+ * @param lineLimit Optional maximum number of lines to keep. If not provided or 0, no line limit is applied
+ * @param characterLimit Optional maximum number of characters to keep. If not provided or 0, no character limit is applied
+ * @returns The truncated string with an indicator of omitted content, or the original content if no truncation needed
  *
  * @example
  * // With 10 line limit on 25 lines of content:
  * // - Keeps first 2 lines (20% of 10)
  * // - Keeps last 8 lines (80% of 10)
  * // - Adds "[...15 lines omitted...]" in between
+ *
+ * @example
+ * // With character limit on long single line:
+ * // - Keeps first 20% of characters
+ * // - Keeps last 80% of characters
+ * // - Adds "[...X characters omitted...]" in between
+ *
+ * @example
+ * // Character limit takes precedence:
+ * // content = "A".repeat(50000) + "\n" + "B".repeat(50000) // 2 lines, 100,002 chars
+ * // truncateOutput(content, 10, 40000) // Uses character limit, not line limit
+ * // Result: First ~8000 chars + "[...60002 characters omitted...]" + Last ~32000 chars
  */
-export function truncateOutput(content: string, lineLimit?: number): string {
+export function truncateOutput(content: string, lineLimit?: number, characterLimit?: number): string {
+	// If no limits are specified, return original content
+	if (!lineLimit && !characterLimit) {
+		return content
+	}
+
+	// Character limit takes priority over line limit
+	if (characterLimit && content.length > characterLimit) {
+		const beforeLimit = Math.floor(characterLimit * 0.2) // 20% of characters before
+		const afterLimit = characterLimit - beforeLimit // remaining 80% after
+
+		const startSection = content.slice(0, beforeLimit)
+		const endSection = content.slice(-afterLimit)
+		const omittedChars = content.length - characterLimit
+
+		return startSection + `\n[...${omittedChars} characters omitted...]\n` + endSection
+	}
+
+	// If character limit is not exceeded or not specified, check line limit
 	if (!lineLimit) {
 		return content
 	}

@@ -116,6 +116,7 @@ export interface WebviewMessage {
 		| "submitEditedMessage"
 		| "editMessageConfirm"
 		| "terminalOutputLineLimit"
+		| "terminalOutputCharacterLimit"
 		| "terminalShellIntegrationTimeout"
 		| "terminalShellIntegrationDisabled"
 		| "terminalCommandDelay"

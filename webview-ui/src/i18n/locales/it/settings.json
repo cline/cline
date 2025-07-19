@@ -508,6 +508,10 @@
 			"label": "Limite output terminale",
 			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token. <0>Scopri di più</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Limite di caratteri del terminale",
+			"description": "Numero massimo di caratteri da includere nell'output del terminale durante l'esecuzione dei comandi. Questo limite ha la precedenza sul limite di righe per prevenire problemi di memoria causati da righe estremamente lunghe. Se superato, l'output verrà troncato. <0>Scopri di più</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Timeout integrazione shell del terminale",
 			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale. <0>Scopri di più</0>"

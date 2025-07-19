@@ -512,6 +512,10 @@
 			"label": "Batas output terminal",
 			"description": "Jumlah maksimum baris yang disertakan dalam output terminal saat mengeksekusi perintah. Ketika terlampaui, baris akan dihapus dari tengah, menghemat token. <0>Pelajari lebih lanjut</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Batas karakter terminal",
+			"description": "Jumlah maksimum karakter yang akan disertakan dalam output terminal saat menjalankan perintah. Batas ini lebih diutamakan daripada batas baris untuk mencegah masalah memori dari baris yang sangat panjang. Ketika terlampaui, output akan dipotong. <0>Pelajari lebih lanjut</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Timeout integrasi shell terminal",
 			"description": "Waktu maksimum untuk menunggu integrasi shell menginisialisasi sebelum mengeksekusi perintah. Untuk pengguna dengan waktu startup shell yang lama, nilai ini mungkin perlu ditingkatkan jika kamu melihat error \"Shell Integration Unavailable\" di terminal. <0>Pelajari lebih lanjut</0>"

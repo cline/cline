@@ -508,6 +508,10 @@
 			"label": "Terminaluitvoerlimiet",
 			"description": "Maximaal aantal regels dat wordt opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Overtollige regels worden uit het midden verwijderd om tokens te besparen. <0>Meer informatie</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Tekenlimiet terminal",
+			"description": "Maximaal aantal tekens dat moet worden opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Deze limiet heeft voorrang op de regellimiet om geheugenproblemen door extreem lange regels te voorkomen. Bij overschrijding wordt de uitvoer afgekapt. <0>Meer informatie</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal shell-integratie timeout",
 			"description": "Maximale wachttijd voor het initialiseren van shell-integratie voordat commando's worden uitgevoerd. Voor gebruikers met lange shell-opstarttijden moet deze waarde mogelijk worden verhoogd als je 'Shell Integration Unavailable'-fouten ziet in de terminal. <0>Meer informatie</0>"

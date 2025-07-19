@@ -508,6 +508,10 @@
 			"label": "终端输出限制",
 			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。 <0>了解更多</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "终端字符限制",
+			"description": "执行命令时在终端输出中包含的最大字符数。此限制优先于行数限制，以防止因行过长而导致的内存问题。超出后，输出将被截断。 <0>了解更多</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "终端初始化等待时间",
 			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。 <0>了解更多</0>"

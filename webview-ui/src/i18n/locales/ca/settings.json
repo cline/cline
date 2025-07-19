@@ -508,6 +508,10 @@
 			"label": "Límit de sortida de terminal",
 			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token. <0>Més informació</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Límit de caràcters del terminal",
+			"description": "Nombre màxim de caràcters a incloure en la sortida del terminal en executar ordres. Aquest límit té precedència sobre el límit de línies per evitar problemes de memòria amb línies extremadament llargues. Quan se superi, la sortida es truncarà. <0>Més informació</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Temps d'espera d'integració de shell del terminal",
 			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal. <0>Més informació</0>"

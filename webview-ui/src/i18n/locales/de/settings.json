@@ -508,6 +508,10 @@
 			"label": "Terminal-Ausgabelimit",
 			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden. <0>Mehr erfahren</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Terminal-Zeichenlimit",
+			"description": "Maximale Anzahl von Zeichen, die in die Terminalausgabe bei der Ausführung von Befehlen aufgenommen werden sollen. Dieses Limit hat Vorrang vor dem Zeilenlimit, um Speicherprobleme durch extrem lange Zeilen zu vermeiden. Bei Überschreitung wird die Ausgabe abgeschnitten. <0>Mehr erfahren</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal-Shell-Integrationszeit-Limit",
 			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten musst du diesen Wert möglicherweise erhöhen, wenn du Fehler vom Typ \"Shell Integration Unavailable\" im Terminal siehst. <0>Mehr erfahren</0>"

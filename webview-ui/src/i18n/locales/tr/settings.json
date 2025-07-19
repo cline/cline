@@ -508,6 +508,10 @@
 			"label": "Terminal çıktısı sınırı",
 			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır. <0>Daha fazla bilgi</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Terminal karakter sınırı",
+			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum karakter sayısı. Bu sınır, aşırı uzun satırlardan kaynaklanan bellek sorunlarını önlemek için satır sınırına göre önceliklidir. Aşıldığında, çıktı kesilir. <0>Daha fazla bilgi edinin</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal kabuk entegrasyonu zaman aşımı",
 			"description": "Komutları yürütmeden önce kabuk entegrasyonunun başlatılması için beklenecek maksimum süre. Kabuk başlatma süresi uzun olan kullanıcılar için, terminalde \"Shell Integration Unavailable\" hatalarını görürseniz bu değerin artırılması gerekebilir. <0>Daha fazla bilgi</0>"

@@ -18,6 +18,7 @@ import { Section } from "./Section"
 
 type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalOutputLineLimit?: number
+	terminalOutputCharacterLimit?: number
 	terminalShellIntegrationTimeout?: number
 	terminalShellIntegrationDisabled?: boolean
 	terminalCommandDelay?: number
@@ -29,6 +30,7 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalCompressProgressBar?: boolean
 	setCachedStateField: SetCachedStateField<
 		| "terminalOutputLineLimit"
+		| "terminalOutputCharacterLimit"
 		| "terminalShellIntegrationTimeout"
 		| "terminalShellIntegrationDisabled"
 		| "terminalCommandDelay"
@@ -43,6 +45,7 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 
 export const TerminalSettings = ({
 	terminalOutputLineLimit,
+	terminalOutputCharacterLimit,
 	terminalShellIntegrationTimeout,
 	terminalShellIntegrationDisabled,
 	terminalCommandDelay,
@@ -122,6 +125,36 @@ export const TerminalSettings = ({
 										href={buildDocLink(
 											"features/shell-integration#terminal-output-limit",
 											"settings_terminal_output_limit",
+										)}
+										style={{ display: "inline" }}>
+										{" "}
+									</VSCodeLink>
+								</Trans>
+							</div>
+						</div>
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:terminal.outputCharacterLimit.label")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={1000}
+									max={100000}
+									step={1000}
+									value={[terminalOutputCharacterLimit ?? 50000]}
+									onValueChange={([value]) =>
+										setCachedStateField("terminalOutputCharacterLimit", value)
+									}
+									data-testid="terminal-output-character-limit-slider"
+								/>
+								<span className="w-16">{terminalOutputCharacterLimit ?? 50000}</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								<Trans i18nKey="settings:terminal.outputCharacterLimit.description">
+									<VSCodeLink
+										href={buildDocLink(
+											"features/shell-integration#terminal-output-limit",
+											"settings_terminal_output_character_limit",
 										)}
 										style={{ display: "inline" }}>
 										{" "}
