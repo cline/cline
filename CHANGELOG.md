@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.23.15] - 2025-07-18
+
+- Fix configurable delay for diagnostics to prevent premature error reporting
+- Add command timeout allowlist
+- Add description and whenToUse fields to custom modes in .roomodes (thanks @RandalSchwartz!)
+- Fix Claude model detection by name for API protocol selection (thanks @daniel-lxs!)
+- Move marketplace icon from overflow menu to top navigation
+- Optional setting to prevent completion with open todos
+- Added YouTube to website footer (thanks @thill2323!)
+
 ## [3.23.14] - 2025-07-17
 
 - Log api-initiated tasks to a tmp directory
