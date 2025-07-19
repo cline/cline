@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ChevronDown } from "lucide-react"
-import { FaBluesky, FaDiscord, FaGithub, FaLinkedin, FaReddit, FaTiktok, FaXTwitter } from "react-icons/fa6"
+import { FaBluesky, FaDiscord, FaGithub, FaLinkedin, FaReddit, FaTiktok, FaXTwitter, FaYoutube } from "react-icons/fa6"
 
 import { EXTERNAL_LINKS, INTERNAL_LINKS } from "@/lib/constants"
 import { useLogoSrc } from "@/lib/hooks/use-logo-src"
@@ -81,6 +81,14 @@ export function Footer() {
 								<span className="sr-only">LinkedIn</span>
 							</a>
 							<a
+								href={EXTERNAL_LINKS.BLUESKY}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground transition-colors hover:text-foreground">
+								<FaBluesky className="h-6 w-6" />
+								<span className="sr-only">Bluesky</span>
+							</a>
+							<a
 								href={EXTERNAL_LINKS.TIKTOK}
 								target="_blank"
 								rel="noopener noreferrer"
@@ -89,12 +97,12 @@ export function Footer() {
 								<span className="sr-only">TikTok</span>
 							</a>
 							<a
-								href={EXTERNAL_LINKS.BLUESKY}
+								href={EXTERNAL_LINKS.YOUTUBE}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-muted-foreground transition-colors hover:text-foreground">
-								<FaBluesky className="h-6 w-6" />
-								<span className="sr-only">Bluesky</span>
+								<FaYoutube className="h-6 w-6" />
+								<span className="sr-only">YouTube</span>
 							</a>
 						</div>
 					</div>
