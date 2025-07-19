@@ -13,25 +13,47 @@ export class Logger {
 		Logger.outputChannel = outputChannel
 	}
 
-	static error(message: string, exception?: Error) {
-		Logger.outputChannel.appendLine(`ERROR: ${message}`)
+	static error(message: string, error?: Error) {
+		Logger.#output("ERROR", message, error)
 		ErrorService.logMessage(message, "error")
-		exception && ErrorService.logException(exception)
+		error && ErrorService.logException(error)
 	}
 	static warn(message: string) {
-		Logger.outputChannel.appendLine(`WARN: ${message}`)
+		Logger.#output("WARN", message)
 		ErrorService.logMessage(message, "warning")
 	}
 	static log(message: string) {
-		Logger.outputChannel.appendLine(`LOG: ${message}`)
+		Logger.#output("LOG", message)
 	}
 	static debug(message: string) {
-		Logger.outputChannel.appendLine(`DEBUG: ${message}`)
+		Logger.#output("DEBUG", message)
 	}
 	static info(message: string) {
-		Logger.outputChannel.appendLine(`INFO: ${message}`)
+		Logger.#output("INFO", message)
 	}
 	static trace(message: string) {
-		Logger.outputChannel.appendLine(`TRACE: ${message}`)
+		Logger.#output("TRACE", message)
+	}
+	static #timestamp() {
+		const now = new Date()
+		const year = now.getFullYear()
+		const month = String(now.getMonth() + 1).padStart(2, "0")
+		const day = String(now.getDate()).padStart(2, "0")
+		const hour = String(now.getHours()).padStart(2, "0")
+		const minute = String(now.getMinutes()).padStart(2, "0")
+		const second = String(now.getSeconds()).padStart(2, "0")
+		const timestamp = `${year}-${month}-${day}T${hour}:${minute}:${second}`
+		return timestamp
+	}
+	static #output(level: string, message: string, error?: Error) {
+		let fullMessage = message
+		if (error?.message) {
+			fullMessage += ` ${error.message}`
+		}
+		Logger.outputChannel.appendLine(`${level} ${fullMessage}`)
+		console.log(`[${Logger.#timestamp()}] ${level} ${fullMessage}`)
+		if (error?.stack) {
+			console.log(`Stack trace:\n${error.stack}`)
+		}
 	}
 }
