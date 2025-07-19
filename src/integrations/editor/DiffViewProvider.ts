@@ -305,7 +305,7 @@ export abstract class DiffViewProvider {
 		if (!fileExists) {
 			await this.saveDocument()
 			await this.closeDiffView()
-			await fs.unlink(this.absolutePath)
+			await fs.rm(this.absolutePath, { force: true })
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
