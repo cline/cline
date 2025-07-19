@@ -240,7 +240,7 @@ export async function deleteRuleFile(
 		}
 
 		// Delete the file from disk
-		await fs.unlink(rulePath)
+		await fs.rm(rulePath, { force: true })
 
 		// Get the filename for messages
 		const fileName = path.basename(rulePath)
