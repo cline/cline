@@ -129,7 +129,7 @@ export const ClineAccountView = () => {
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	const clineUris = useMemo(() => {
-		const base = new URL(clineUser?.apiBaseUrl || CLINE_API_URL)
+		const base = new URL(clineUser?.appBaseUrl || CLINE_API_URL)
 		const dashboard = new URL("dashboard", base)
 		const credits = new URL(activeOrganization ? "/organization" : "/account", dashboard)
 		credits.searchParams.set("tab", "credits")
@@ -139,7 +139,7 @@ export const ClineAccountView = () => {
 			dashboard,
 			credits,
 		}
-	}, [userInfo?.apiBaseUrl, activeOrganization])
+	}, [clineUser?.appBaseUrl, activeOrganization])
 
 	async function getUserCredits() {
 		setIsLoading(true)

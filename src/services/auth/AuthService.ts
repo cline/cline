@@ -31,7 +31,10 @@ export interface ClineAccountUserInfo {
 	email: string
 	id: string
 	organizations: ClineAccountOrganization[]
-	apiBaseUrl?: string
+	/**
+	 * Cline app base URL, used for webview UI and other client-side operations
+	 */
+	appBaseUrl?: string
 }
 
 export interface ClineAccountOrganization {
@@ -156,14 +159,15 @@ export class AuthService {
 		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
-			userInfo.apiBaseUrl = clineEnvConfig?.apiBaseUrl
+			this._clineAuthInfo.userInfo.appBaseUrl = clineEnvConfig?.appBaseUrl
+
 			user = UserInfo.create({
 				// TODO: create proto for new user info type
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
-				apiBaseUrl: userInfo?.apiBaseUrl,
+				appBaseUrl: userInfo?.appBaseUrl,
 			})
 		}
 
