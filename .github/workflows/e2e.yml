@@ -61,7 +61,7 @@ jobs:
               uses: actions/cache@v4
               id: vscode-cache
               with:
-                  path: ~/.vscode-test
+                  path: .vscode-test
                   key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
                   restore-keys: |
                       vscode-${{ runner.os }}-stable-
