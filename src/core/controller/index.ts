@@ -854,20 +854,57 @@ export class Controller {
 
 	// Git commit message generation
 
-	async generateGitCommitMessage() {
+	async generateGitCommitMessage(sourceControl?: vscode.SourceControl) {
 		try {
-			// Check if there's a workspace folder open
-			const cwd = await getCwd()
-			if (!cwd) {
-				getHostBridgeProvider().windowClient.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "No workspace folder open",
-				})
+			// Get the Git extension API
+			const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+			if (!gitExtension) {
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "Git extension not found",
+					}),
+				)
 				return
 			}
 
-			// Get the git diff
-			const gitDiff = await getWorkingState(cwd)
+			const api = gitExtension.getAPI(1)
+			if (!api || api.repositories.length === 0) {
+				getHostBridgeProvider().windowClient.showMessage(
+					ShowMessageRequest.create({
+						type: ShowMessageType.ERROR,
+						message: "No Git repositories found",
+					}),
+				)
+				return
+			}
+
+			// Determine which repository to use
+			let targetRepo: any
+
+			// If sourceControl is provided and it has an inputBox, it's a repository
+			if (sourceControl && sourceControl.inputBox) {
+				targetRepo = sourceControl
+			} else {
+				// Get the current working directory
+				const cwd = await getCwd()
+				if (cwd) {
+					// Find the repository based on the current working directory
+					targetRepo = api.repositories.find((repo: any) => repo.rootUri && repo.rootUri.fsPath === cwd)
+				}
+
+				// If we still don't have a target repository, use the first one
+				if (!targetRepo) {
+					targetRepo = api.repositories[0]
+				}
+			}
+
+			// Get the repository's root path
+			const repoPath = targetRepo.rootUri.fsPath
+
+			// Get the git diff for this specific repository
+			const gitDiff = await getWorkingState(repoPath)
+
 			if (gitDiff === "No changes in working directory") {
 				getHostBridgeProvider().windowClient.showMessage({
 					type: ShowMessageType.INFORMATION,
@@ -933,32 +970,16 @@ Commit message:`
 
 						// Apply the commit message to the Git input box
 						if (commitMessage) {
-							// Get the Git extension API
-							const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
-							if (gitExtension) {
-								const api = gitExtension.getAPI(1)
-								if (api && api.repositories.length > 0) {
-									const repo = api.repositories[0]
-									repo.inputBox.value = commitMessage
-									const message = "Commit message generated and applied"
-									getHostBridgeProvider().windowClient.showMessage({
-										type: ShowMessageType.INFORMATION,
-										message,
-									})
-								} else {
-									const message = "No Git repositories found"
-									getHostBridgeProvider().windowClient.showMessage({
-										type: ShowMessageType.ERROR,
-										message,
-									})
-								}
-							} else {
-								const message = "Git extension not found"
-								getHostBridgeProvider().windowClient.showMessage({
-									type: ShowMessageType.ERROR,
+							// Apply the commit message to the target repository
+							targetRepo.inputBox.value = commitMessage
+
+							const message = "Commit message generated and applied"
+							getHostBridgeProvider().windowClient.showMessage(
+								ShowMessageRequest.create({
+									type: ShowMessageType.INFORMATION,
 									message,
-								})
-							}
+								}),
+							)
 						} else {
 							const message = "Failed to generate commit message"
 							getHostBridgeProvider().windowClient.showMessage({

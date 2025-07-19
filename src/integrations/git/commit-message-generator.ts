@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
+import { getCwd } from "@/utils/path"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -38,15 +39,38 @@ export function extractCommitMessage(aiResponse: string): string {
 	// Remove any markdown formatting or extra text
 	let message = aiResponse.trim()
 
-	// Remove markdown code blocks if present
-	if (message.startsWith("```") && message.endsWith("```")) {
-		message = message.substring(3, message.length - 3).trim()
+	// Look for code blocks which typically contain the actual commit message
+	const codeBlockRegex = /```(?:git|commit|plaintext|)?\s*([\s\S]*?)```/g
+	const matches = [...message.matchAll(codeBlockRegex)]
 
-		// Remove language identifier if present (e.g., ```git)
-		const firstLineBreak = message.indexOf("\n")
-		if (firstLineBreak > 0 && firstLineBreak < 20) {
-			// Reasonable length for a language identifier
-			message = message.substring(firstLineBreak).trim()
+	if (matches.length > 0) {
+		// Use the last code block if there are multiple (usually the final one contains the refined message)
+		const lastMatch = matches[matches.length - 1]
+		if (lastMatch && lastMatch[1]) {
+			return lastMatch[1].trim()
+		}
+	}
+
+	// If no code blocks found, try to extract the message after "Commit message:" if present
+	const commitMessagePrefix = "Commit message:"
+	const prefixIndex = message.lastIndexOf(commitMessagePrefix)
+	if (prefixIndex !== -1) {
+		return message.substring(prefixIndex + commitMessagePrefix.length).trim()
+	}
+
+	// If we can't find a specific pattern, just return the first few lines (likely the summary)
+	const lines = message.split("\n")
+	if (lines.length > 0) {
+		// Return just the first paragraph (usually the commit message)
+		const firstParagraph = []
+		for (const line of lines) {
+			if (line.trim() === "") {
+				break
+			}
+			firstParagraph.push(line)
+		}
+		if (firstParagraph.length > 0) {
+			return firstParagraph.join("\n")
 		}
 	}
 
@@ -114,12 +138,19 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 	if (gitExtension) {
 		const api = gitExtension.getAPI(1)
 		if (api && api.repositories.length > 0) {
-			const repo = api.repositories[0]
-			repo.inputBox.value = message
-			getHostBridgeProvider().windowClient.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "Commit message applied to Git input",
-			})
+			// Get the current working directory
+			const cwd = await getCwd()
+			// Find the active repository based on the current working directory
+			const activeRepo = cwd
+				? api.repositories.find((repo: any) => repo.rootUri.fsPath === cwd) || api.repositories[0]
+				: api.repositories[0]
+			activeRepo.inputBox.value = message
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.INFORMATION,
+					message: "Commit message applied to Git input",
+				}),
+			)
 		} else {
 			getHostBridgeProvider().windowClient.showMessage({
 				type: ShowMessageType.ERROR,

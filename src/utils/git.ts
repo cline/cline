@@ -167,10 +167,20 @@ export async function getWorkingState(cwd: string): Promise<string> {
 			return "No changes in working directory"
 		}
 
-		// Check if repo has any commits before trying to diff against HEAD
+		// Check if repo has any commits before trying to diff
 		let diff = ""
 		if (await checkGitRepoHasCommits(cwd)) {
-			// Only run git diff if there are commits
+			// Check for staged changes first
+			const { stdout: stagedDiff } = await execAsync("git diff --staged", { cwd })
+
+			// If there are staged changes, use those
+			if (stagedDiff.trim()) {
+				diff = stagedDiff
+				const output = `Staged changes:\n\n${status}\n\n${diff}`.trim()
+				return truncateOutput(output)
+			}
+
+			// Otherwise, fall back to all changes
 			const { stdout: diffOutput } = await execAsync("git diff HEAD", { cwd })
 			diff = diffOutput
 		} else {

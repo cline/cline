@@ -203,7 +203,7 @@ export class McpHub {
 					disabled: true,
 				},
 				client: null as unknown as Client,
-				transport: null as unknown as Transport,
+				transport: null as unknown as StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport,
 			}
 			this.connections.push(disabledConnection)
 			return
