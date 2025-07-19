@@ -36,15 +36,14 @@ function createDiffView() {
 function setupGlobalErrorHandlers() {
 	// Handle unhandled exceptions
 	process.on("uncaughtException", (error: Error) => {
-		log(`Uncaught Exception: ${error.message}`)
+		log(`ERROR: Uncaught exception: ${error.message}`)
 		log(`Stack trace: ${error.stack}`)
 		// Log the error but don't exit the process
 	})
 
 	// Handle unhandled promise rejections
-	process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
-		log(`Unhandled Promise Rejection at: ${promise}`)
-		log(`Reason: ${reason}`)
+	process.on("unhandledRejection", (reason: any, _promise: Promise<any>) => {
+		log(`ERROR: Unhandled promise rejection: ${reason}`)
 		if (reason instanceof Error) {
 			log(`Stack trace: ${reason.stack}`)
 		}
@@ -69,8 +68,6 @@ function setupGlobalErrorHandlers() {
 		log("Received SIGTERM, shutting down gracefully...")
 		process.exit(0)
 	})
-
-	log("Global error handlers set up successfully")
 }
 
 main()
