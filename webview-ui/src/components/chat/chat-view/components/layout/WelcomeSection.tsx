@@ -33,7 +33,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				}}>
 				{telemetrySetting === "unset" && <TelemetryBanner />}
 				{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-				<HomeHeader />
+				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
