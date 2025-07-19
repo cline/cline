@@ -99,7 +99,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	// Internal state management for description expansion
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
-	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const isGeminiProvider = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
 
@@ -170,7 +170,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 			supportsLabel="Supports browser use"
 			doesNotSupportLabel="Does not support browser use"
 		/>,
-		!isGemini && (
+		!isGeminiProvider && (
 			<ModelInfoSupportsItem
 				key="supportsPromptCache"
 				isSupported={supportsPromptCache(modelInfo)}
@@ -195,6 +195,13 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 			</span>
 		),
 		outputPriceElement, // Add the generated output price block
+		isGeminiProvider && (
+			<span key="geminiPricing" style={{ fontStyle: "italic" }}>
+				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
+					For more info, see pricing details.
+				</VSCodeLink>
+			</span>
+		),
 	].filter(Boolean)
 
 	return (
