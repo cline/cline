@@ -7,7 +7,7 @@ import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-
 import * as health from "grpc-health-check"
 import { getPackageDefinition, log } from "./utils"
 
-function startProtobusService(controller: Controller) {
+export function startProtobusService(controller: Controller) {
 	const server = new grpc.Server()
 
 	// Set up health check.
