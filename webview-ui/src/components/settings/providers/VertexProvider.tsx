@@ -111,29 +111,33 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 				</DebouncedTextField>
 			)}
 
+			{/* Custom region help text */}
+			{isCustomRegion && (
+				<p
+					style={{
+						fontSize: "11px",
+						marginTop: "5px",
+						marginBottom: "10px",
+						color: "var(--vscode-descriptionForeground)",
+						fontStyle: "italic",
+					}}>
+					💡 See{" "}
+					<VSCodeLink
+						href="https://cloud.google.com/vertex-ai/docs/general/locations"
+						style={{ display: "inline", fontSize: "inherit" }}>
+						Vertex AI regions
+					</VSCodeLink>{" "}
+					for all available options.
+				</p>
+			)}
+
+			{/* General setup instructions */}
 			<p
 				style={{
 					fontSize: "12px",
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				{isCustomRegion && (
-					<p
-						style={{
-							fontSize: "11px",
-							marginTop: "3px",
-							color: "var(--vscode-descriptionForeground)",
-							fontStyle: "italic",
-						}}>
-						💡 See{" "}
-						<VSCodeLink
-							href="https://cloud.google.com/vertex-ai/docs/general/locations"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							Vertex AI regions
-						</VSCodeLink>{" "}
-						for all available options.
-					</p>
-				)}
 				To use Google Cloud Vertex AI, you need to{" "}
 				<VSCodeLink
 					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
