@@ -726,7 +726,7 @@ export class Task {
 	}> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Cline instance aborted ASKASKASK")
 		}
 		let askTs: number
 		if (partial !== undefined) {
@@ -828,6 +828,12 @@ export class Task {
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
 		})
+
+		// Check if task was aborted during the wait
+		if (this.taskState.abort) {
+			throw new Error("Cline instance aborted AAAA")
+		}
+
 		if (this.taskState.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
