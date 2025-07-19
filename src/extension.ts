@@ -6,7 +6,7 @@ import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"

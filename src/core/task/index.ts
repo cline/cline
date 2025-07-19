@@ -4,8 +4,9 @@ import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
 import { ApiStream } from "@api/transform/stream"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
@@ -36,6 +37,9 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 
+import { createDiffViewProvider } from "@/hosts/host-providers"
+import { ClineErrorType } from "@/services/error/ClineError"
+import { ErrorService } from "@/services/error/ErrorService"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -82,9 +86,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { createDiffViewProvider } from "@/hosts/host-providers"
-import { ErrorService } from "@/services/error/ErrorService"
-import { ClineErrorType } from "@/services/error/ClineError"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -1433,7 +1434,7 @@ export class Task {
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
-		Logger.info("Executing command in VS code terminal: " + command)
+		Logger.info("Executing command in terminal: " + command)
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
