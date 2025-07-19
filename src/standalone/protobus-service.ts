@@ -7,6 +7,9 @@ import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-
 import * as health from "grpc-health-check"
 import { getPackageDefinition, log } from "./utils"
 
+export const PROTOBUS_PORT = 26040
+export const HOSTBRIDGE_PORT = 26041
+
 export function startProtobusService(controller: Controller) {
 	const server = new grpc.Server()
 

@@ -8,9 +8,7 @@ import { WebviewProviderType } from "@shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
-
-export const PROTOBUS_PORT = 26040
-export const HOSTBRIDGE_PORT = 26041
+import { startProtobusService } from "./protobus-service"
 
 async function main() {
 	log("Starting cline-core service...")
