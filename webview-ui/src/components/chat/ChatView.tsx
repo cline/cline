@@ -39,6 +39,7 @@ interface ChatViewProps {
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
+const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const IS_STANDALONE = window?.__is_standalone__ ?? false
 
@@ -52,7 +53,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		navigateToChat,
 		mode,
 	} = useExtensionState()
-	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
+	const shouldShowQuickWins = !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])

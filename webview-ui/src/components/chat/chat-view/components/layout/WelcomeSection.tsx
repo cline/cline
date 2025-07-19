@@ -25,7 +25,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				{telemetrySetting === "unset" && <TelemetryBanner />}
 				{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-				<HomeHeader />
+				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
