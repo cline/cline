@@ -4,3 +4,17 @@ src/assets/docs/demo.gif filter=lfs diff=lfs merge=lfs -text
 
 # Test snapshot files - mark as linguist-generated to exclude from GitHub language statistics
 *.snap linguist-generated=true
+
+# Non-English translation files - mark as linguist-generated to exclude from GitHub language statistics
+# Root locales directory (contains only non-English translations)
+locales/** linguist-generated=true
+
+# Mark all locale directories as generated first
+src/i18n/locales/** linguist-generated=true
+webview-ui/src/i18n/locales/** linguist-generated=true
+
+# Then explicitly mark English directories as NOT generated (override the above)
+src/i18n/locales/en/** linguist-generated=false
+webview-ui/src/i18n/locales/en/** linguist-generated=false
+
+# This approach uses gitattributes' last-match-wins rule to exclude English while including all other locales
