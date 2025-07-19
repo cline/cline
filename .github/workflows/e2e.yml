@@ -56,6 +56,29 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
+            # Cache VS Code installation
+            - name: Cache VS Code
+              uses: actions/cache@v4
+              id: vscode-cache
+              with:
+                  path: ~/.vscode-test
+                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
+                  restore-keys: |
+                      vscode-${{ runner.os }}-stable-
+
+            # Cache Playwright browsers
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: |
+                      ~/.cache/ms-playwright
+                      ~/Library/Caches/ms-playwright
+                      ~/AppData/Local/ms-playwright
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      playwright-browsers-${{ runner.os }}-
+
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
@@ -67,6 +90,14 @@ jobs:
             - name: Install xvfb on Linux
               if: matrix.runner == 'ubuntu'
               run: sudo apt-get update && sudo apt-get install -y xvfb
+
+            # Log cache status for debugging
+            - name: Log cache status
+              run: |
+                  echo "Root dependencies cache hit: ${{ steps.root-cache.outputs.cache-hit }}"
+                  echo "Webview dependencies cache hit: ${{ steps.webview-cache.outputs.cache-hit }}"
+                  echo "VS Code cache hit: ${{ steps.vscode-cache.outputs.cache-hit }}"
+                  echo "Playwright cache hit: ${{ steps.playwright-cache.outputs.cache-hit }}"
 
             # Build the extension before running tests
             - name: Build Tests and Extension
