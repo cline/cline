@@ -205,6 +205,9 @@ export class Task {
 			this.taskId = historyItem.id
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			if (historyItem.checkpointTrackerErrorMessage) {
+				this.taskState.checkpointTrackerErrorMessage = historyItem.checkpointTrackerErrorMessage
+			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
 		} else {
@@ -1062,7 +1065,9 @@ export class Task {
 		let responseFiles: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images, files)
-			await this.saveCheckpoint()
+			if (!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")) {
+				await this.saveCheckpoint()
+			}
 			responseText = text
 			responseImages = images
 			responseFiles = files
@@ -1221,8 +1226,11 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (!this.enableCheckpoints) {
-			// If checkpoints are disabled, do nothing.
+		if (
+			!this.enableCheckpoints ||
+			this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+		) {
+			// If checkpoints are disabled or previously encountered a timeout error, do nothing.
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
@@ -1276,8 +1284,11 @@ export class Task {
 			//
 		} else {
 			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-			// Check if checkpoint tracker exists, if not, create it
-			if (!this.checkpointTracker) {
+			// Check if checkpoint tracker exists, if not, create it. Skip if there was a previous checkpoints initialization timeout error.
+			if (
+				!this.checkpointTracker &&
+				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
@@ -1292,7 +1303,10 @@ export class Task {
 				}
 			}
 
-			if (this.checkpointTracker) {
+			if (
+				this.checkpointTracker &&
+				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				const commitHash = await this.checkpointTracker.commit()
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
@@ -2049,6 +2063,20 @@ export class Task {
 			!this.taskState.checkpointTrackerErrorMessage
 		) {
 			try {
+				// Warning Timer - If checkpoints take a while to to initialize, show a warning message
+				let checkpointsWarningTimer: NodeJS.Timeout | null = null
+				let checkpointsWarningShown = false
+
+				checkpointsWarningTimer = setTimeout(async () => {
+					if (!checkpointsWarningShown) {
+						checkpointsWarningShown = true
+						this.taskState.checkpointTrackerErrorMessage =
+							"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+						await this.postStateToWebview()
+					}
+				}, 7_000)
+
+				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
 				this.checkpointTracker = await pTimeout(
 					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
 					{
@@ -2057,10 +2085,22 @@ export class Task {
 							"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
 					},
 				)
+				if (checkpointsWarningTimer) {
+					clearTimeout(checkpointsWarningTimer)
+					checkpointsWarningTimer = null
+				}
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+
+				// If the error was a timeout, we disabled all checkpoint operations for the rest of the task
+				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
+					this.taskState.checkpointTrackerErrorMessage =
+						"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+					await this.postStateToWebview()
+				} else {
+					this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				}
 			}
 		}
 
