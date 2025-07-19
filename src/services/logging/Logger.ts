@@ -46,12 +46,12 @@ export class Logger {
 		return timestamp
 	}
 	static #output(level: string, message: string, error?: Error) {
-		var mesg = message
+		var fullMessage = message
 		if (error?.message) {
-			mesg += ` ${error.message}`
+			fullMessage += ` ${error.message}`
 		}
-		Logger.outputChannel.appendLine(`${level} ${message}`)
-		console.log(`[${Logger.#timestamp()}] ${level} ${message}`)
+		Logger.outputChannel.appendLine(`${level} ${fullMessage}`)
+		console.log(`[${Logger.#timestamp()}] ${level} ${fullMessage}`)
 		if (error?.stack) {
 			console.log(`Stack trace:\n${error.stack}`)
 		}
