@@ -67,6 +67,12 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 			})
 	})
 
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.groqModelId || groqDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.groqModelId])
+
 	// Debounce search term to reduce re-renders
 	useEffect(() => {
 		const timer = setTimeout(() => {

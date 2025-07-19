@@ -63,6 +63,12 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 			})
 	})
 
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.huggingFaceModelId || huggingFaceDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.huggingFaceModelId])
+
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -173,8 +179,25 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
-						className="w-full relative z-[1000]"
-					/>
+						className="w-full relative z-[1000]">
+						{searchTerm && (
+							<div
+								className="input-icon-button codicon codicon-close"
+								aria-label="Clear search"
+								onClick={() => {
+									setSearchTerm("")
+									setIsDropdownVisible(true)
+								}}
+								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
+							/>
+						)}
+					</VSCodeTextField>
 					{isDropdownVisible && (
 						<div
 							ref={dropdownListRef}
