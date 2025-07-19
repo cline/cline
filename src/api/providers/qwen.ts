@@ -30,6 +30,10 @@ export class QwenHandler implements ApiHandler {
 		this.options = options
 	}
 
+	private getQwenApiLine(): string {
+		return this.options.qwenApiLine || "china"
+	}
+
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.qwenApiKey) {
@@ -38,7 +42,7 @@ export class QwenHandler implements ApiHandler {
 			try {
 				this.client = new OpenAI({
 					baseURL:
-						this.options.qwenApiLine === "china"
+						this.getQwenApiLine() === "china"
 							? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 							: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 					apiKey: this.options.qwenApiKey,
@@ -53,7 +57,7 @@ export class QwenHandler implements ApiHandler {
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		// Branch based on API line to let poor typescript know what to do
-		if (this.options.qwenApiLine === "china") {
+		if (this.getQwenApiLine() === "china") {
 			return {
 				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
 				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],
