@@ -3,8 +3,8 @@ import { StringRequest } from "../../../shared/proto/common"
 import { McpDownloadResponse } from "../../../shared/proto/mcp"
 import { McpServer } from "@shared/mcp"
 import axios from "axios"
-import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { clineEnvConfig } from "@/config"
 
 /**
  * Download an MCP server from the marketplace
@@ -31,7 +31,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 
 		// Fetch server details from marketplace
 		const response = await axios.post<McpDownloadResponse>(
-			"https://api.cline.bot/v1/mcp/download",
+			`${clineEnvConfig.mcpBaseUrl}/download`,
 			{ mcpId },
 			{
 				headers: { "Content-Type": "application/json" },

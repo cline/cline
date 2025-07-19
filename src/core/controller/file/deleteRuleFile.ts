@@ -46,12 +46,10 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message,
-		}),
-	)
+	getHostBridgeProvider().windowClient.showMessage({
+		type: ShowMessageType.INFORMATION,
+		message,
+	})
 
 	return RuleFile.create({
 		filePath: request.rulePath,

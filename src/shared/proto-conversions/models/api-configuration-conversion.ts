@@ -224,6 +224,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.LITELLM
 		case "moonshot":
 			return ProtoApiProvider.MOONSHOT
+		case "huggingface":
+			return ProtoApiProvider.HUGGINGFACE
 		case "nebius":
 			return ProtoApiProvider.NEBIUS
 		case "fireworks":
@@ -288,6 +290,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "litellm"
 		case ProtoApiProvider.MOONSHOT:
 			return "moonshot"
+		case ProtoApiProvider.HUGGINGFACE:
+			return "huggingface"
 		case ProtoApiProvider.NEBIUS:
 			return "nebius"
 		case ProtoApiProvider.FIREWORKS:
@@ -360,6 +364,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		qwenApiLine: config.qwenApiLine,
 		moonshotApiLine: config.moonshotApiLine,
 		moonshotApiKey: config.moonshotApiKey,
+		huggingFaceApiKey: config.huggingFaceApiKey,
+		huggingFaceModelId: config.huggingFaceModelId,
+		huggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.huggingFaceModelInfo),
 		nebiusApiKey: config.nebiusApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
@@ -476,6 +483,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		qwenApiLine: protoConfig.qwenApiLine,
 		moonshotApiLine: protoConfig.moonshotApiLine,
 		moonshotApiKey: protoConfig.moonshotApiKey,
+		huggingFaceApiKey: protoConfig.huggingFaceApiKey,
+		huggingFaceModelId: protoConfig.huggingFaceModelId,
+		huggingFaceModelInfo: convertProtoToModelInfo(protoConfig.huggingFaceModelInfo),
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,
