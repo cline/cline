@@ -60,6 +60,16 @@ describe("OpenAICompatibleEmbedder", () => {
 		}
 
 		MockedOpenAI.mockImplementation(() => mockOpenAIInstance)
+
+		// Reset global rate limit state to prevent interference between tests
+		const tempEmbedder = new OpenAICompatibleEmbedder(testBaseUrl, testApiKey, testModelId)
+		;(tempEmbedder as any).constructor.globalRateLimitState = {
+			isRateLimited: false,
+			rateLimitResetTime: 0,
+			consecutiveRateLimitErrors: 0,
+			lastRateLimitError: 0,
+			mutex: (tempEmbedder as any).constructor.globalRateLimitState.mutex,
+		}
 	})
 
 	afterEach(() => {
@@ -385,9 +395,17 @@ describe("OpenAICompatibleEmbedder", () => {
 
 				const resultPromise = embedder.createEmbeddings(testTexts)
 
-				// Fast-forward through the delays
-				await vitest.advanceTimersByTimeAsync(INITIAL_RETRY_DELAY_MS) // First retry delay
-				await vitest.advanceTimersByTimeAsync(INITIAL_RETRY_DELAY_MS * 2) // Second retry delay
+				// First attempt fails immediately, triggering global rate limit (5s)
+				await vitest.advanceTimersByTimeAsync(100)
+
+				// Wait for global rate limit delay
+				await vitest.advanceTimersByTimeAsync(5000)
+
+				// Second attempt also fails, increasing delay
+				await vitest.advanceTimersByTimeAsync(100)
+
+				// Wait for increased global rate limit delay (10s)
+				await vitest.advanceTimersByTimeAsync(10000)
 
 				const result = await resultPromise
 
@@ -445,7 +463,7 @@ describe("OpenAICompatibleEmbedder", () => {
 
 				expect(console.error).toHaveBeenCalledWith(
 					expect.stringContaining("OpenAI Compatible embedder error"),
-					expect.any(Error),
+					apiError,
 				)
 			})
 
@@ -461,7 +479,7 @@ describe("OpenAICompatibleEmbedder", () => {
 
 				expect(console.error).toHaveBeenCalledWith(
 					expect.stringContaining("OpenAI Compatible embedder error"),
-					batchError,
+					expect.any(Error),
 				)
 			})
 
@@ -791,10 +809,23 @@ describe("OpenAICompatibleEmbedder", () => {
 						)
 
 					const resultPromise = embedder.createEmbeddings(["test"])
-					await vitest.advanceTimersByTimeAsync(INITIAL_RETRY_DELAY_MS * 3)
+
+					// First attempt fails, triggering global rate limit
+					await vitest.advanceTimersByTimeAsync(100)
+
+					// Wait for global rate limit (5s)
+					await vitest.advanceTimersByTimeAsync(5000)
+
+					// Second attempt also fails
+					await vitest.advanceTimersByTimeAsync(100)
+
+					// Wait for increased global rate limit (10s)
+					await vitest.advanceTimersByTimeAsync(10000)
+
 					const result = await resultPromise
 
 					expect(global.fetch).toHaveBeenCalledTimes(3)
+					// Check that rate limit warnings were logged
 					expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("Rate limit hit"))
 					expectEmbeddingValues(result.embeddings[0], [0.1, 0.2, 0.3])
 					vitest.useRealTimers()

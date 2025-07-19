@@ -11,6 +11,7 @@ import { t } from "../../../i18n"
 import { withValidationErrorHandling, HttpError, formatEmbeddingError } from "../shared/validation-helpers"
 import { TelemetryEventName } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
+import { Mutex } from "async-mutex"
 
 interface EmbeddingItem {
 	embedding: string | number[]
@@ -37,6 +38,16 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	private readonly apiKey: string
 	private readonly isFullUrl: boolean
 	private readonly maxItemTokens: number
+
+	// Global rate limiting state shared across all instances
+	private static globalRateLimitState = {
+		isRateLimited: false,
+		rateLimitResetTime: 0,
+		consecutiveRateLimitErrors: 0,
+		lastRateLimitError: 0,
+		// Mutex to ensure thread-safe access to rate limit state
+		mutex: new Mutex(),
+	}
 
 	/**
 	 * Creates a new OpenAI Compatible embedder
@@ -239,6 +250,9 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 		const isFullUrl = this.isFullUrl
 
 		for (let attempts = 0; attempts < MAX_RETRIES; attempts++) {
+			// Check global rate limit before attempting request
+			await this.waitForGlobalRateLimit()
+
 			try {
 				let response: OpenAIEmbeddingResponse
 
@@ -298,17 +312,26 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 
 				// Check if it's a rate limit error
 				const httpError = error as HttpError
-				if (httpError?.status === 429 && hasMoreAttempts) {
-					const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempts)
-					console.warn(
-						t("embeddings:rateLimitRetry", {
-							delayMs,
-							attempt: attempts + 1,
-							maxRetries: MAX_RETRIES,
-						}),
-					)
-					await new Promise((resolve) => setTimeout(resolve, delayMs))
-					continue
+				if (httpError?.status === 429) {
+					// Update global rate limit state
+					await this.updateGlobalRateLimitState(httpError)
+
+					if (hasMoreAttempts) {
+						// Calculate delay based on global rate limit state
+						const baseDelay = INITIAL_DELAY_MS * Math.pow(2, attempts)
+						const globalDelay = await this.getGlobalRateLimitDelay()
+						const delayMs = Math.max(baseDelay, globalDelay)
+
+						console.warn(
+							t("embeddings:rateLimitRetry", {
+								delayMs,
+								attempt: attempts + 1,
+								maxRetries: MAX_RETRIES,
+							}),
+						)
+						await new Promise((resolve) => setTimeout(resolve, delayMs))
+						continue
+					}
 				}
 
 				// Log the error for debugging
@@ -374,6 +397,89 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 	get embedderInfo(): EmbedderInfo {
 		return {
 			name: "openai-compatible",
+		}
+	}
+
+	/**
+	 * Waits if there's an active global rate limit
+	 */
+	private async waitForGlobalRateLimit(): Promise<void> {
+		const release = await OpenAICompatibleEmbedder.globalRateLimitState.mutex.acquire()
+		try {
+			const state = OpenAICompatibleEmbedder.globalRateLimitState
+
+			if (state.isRateLimited && state.rateLimitResetTime > Date.now()) {
+				const waitTime = state.rateLimitResetTime - Date.now()
+				// Silent wait - no logging to prevent flooding
+				release() // Release mutex before waiting
+				await new Promise((resolve) => setTimeout(resolve, waitTime))
+				return
+			}
+
+			// Reset rate limit if time has passed
+			if (state.isRateLimited && state.rateLimitResetTime <= Date.now()) {
+				state.isRateLimited = false
+				state.consecutiveRateLimitErrors = 0
+			}
+		} finally {
+			// Only release if we haven't already
+			try {
+				release()
+			} catch {
+				// Already released
+			}
+		}
+	}
+
+	/**
+	 * Updates global rate limit state when a 429 error occurs
+	 */
+	private async updateGlobalRateLimitState(error: HttpError): Promise<void> {
+		const release = await OpenAICompatibleEmbedder.globalRateLimitState.mutex.acquire()
+		try {
+			const state = OpenAICompatibleEmbedder.globalRateLimitState
+			const now = Date.now()
+
+			// Increment consecutive rate limit errors
+			if (now - state.lastRateLimitError < 60000) {
+				// Within 1 minute
+				state.consecutiveRateLimitErrors++
+			} else {
+				state.consecutiveRateLimitErrors = 1
+			}
+
+			state.lastRateLimitError = now
+
+			// Calculate exponential backoff based on consecutive errors
+			const baseDelay = 5000 // 5 seconds base
+			const maxDelay = 300000 // 5 minutes max
+			const exponentialDelay = Math.min(baseDelay * Math.pow(2, state.consecutiveRateLimitErrors - 1), maxDelay)
+
+			// Set global rate limit
+			state.isRateLimited = true
+			state.rateLimitResetTime = now + exponentialDelay
+
+			// Silent rate limit activation - no logging to prevent flooding
+		} finally {
+			release()
+		}
+	}
+
+	/**
+	 * Gets the current global rate limit delay
+	 */
+	private async getGlobalRateLimitDelay(): Promise<number> {
+		const release = await OpenAICompatibleEmbedder.globalRateLimitState.mutex.acquire()
+		try {
+			const state = OpenAICompatibleEmbedder.globalRateLimitState
+
+			if (state.isRateLimited && state.rateLimitResetTime > Date.now()) {
+				return state.rateLimitResetTime - Date.now()
+			}
+
+			return 0
+		} finally {
+			release()
 		}
 	}
 }
