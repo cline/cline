@@ -122,8 +122,10 @@ export abstract class DiffViewProvider {
 
 	/**
 	 * Save the contents of the diff editor UI to the file.
+	 *
+	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<void>
+	protected abstract saveDocument(): Promise<Boolean>
 
 	/**
 	 * Closes the diff editor tab or window.
@@ -303,9 +305,11 @@ export abstract class DiffViewProvider {
 		const fileExists = this.editType === "modify"
 
 		if (!fileExists) {
+			// This is a load-bearing save statement- even though the file is saved and then immediately deleted.
+			// In vscode, it will not close the diff editor correctly if the file is not saved.
 			await this.saveDocument()
 			await this.closeDiffView()
-			await fs.unlink(this.absolutePath)
+			await fs.rm(this.absolutePath, { force: true })
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])

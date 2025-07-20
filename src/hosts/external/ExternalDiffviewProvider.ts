@@ -1,5 +1,6 @@
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { status } from "@grpc/grpc-js"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditorId: string | undefined
@@ -41,20 +42,28 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
-	protected async saveDocument(): Promise<void> {
+	protected async saveDocument(): Promise<Boolean> {
 		if (!this.activeDiffEditorId) {
-			return
+			return false
 		}
-		await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
+		try {
+			await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
+			return true
+		} catch (err: any) {
+			if (err.code === status.NOT_FOUND) {
+				// This can happen when the task is reloaded or the diff editor is closed. So, don't
+				// consider it a real error.
+				console.log("Diff not found:", this.activeDiffEditorId)
+				return false
+			} else {
+				throw err
+			}
+		}
 	}
 
-	protected override async scrollEditorToLine(line: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.scrollEditorToLine(${line}) stub`)
-	}
+	protected override async scrollEditorToLine(_line: number): Promise<void> {}
 
-	override async scrollAnimation(startLine: number, endLine: number): Promise<void> {
-		console.log(`Called ExternalDiffViewProvider.scrollAnimation(${startLine}, ${endLine}) stub`)
-	}
+	override async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
 	protected override async getDocumentText(): Promise<string | undefined> {
 		if (!this.activeDiffEditorId) {
