@@ -56,6 +56,29 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
+            # Cache VS Code installation
+            - name: Cache VS Code
+              uses: actions/cache@v4
+              id: vscode-cache
+              with:
+                  path: .vscode-test
+                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
+                  restore-keys: |
+                      vscode-${{ runner.os }}-stable-
+
+            # Cache Playwright browsers
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: |
+                      ~/.cache/ms-playwright
+                      ~/Library/Caches/ms-playwright
+                      ~/AppData/Local/ms-playwright
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      playwright-browsers-${{ runner.os }}-
+
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
@@ -68,17 +91,14 @@ jobs:
               if: matrix.runner == 'ubuntu'
               run: sudo apt-get update && sudo apt-get install -y xvfb
 
-            # Build the extension before running tests
-            - name: Build Tests and Extension
-              run: npm run pretest
-
+            # Run optimized E2E tests (eliminates redundant builds)
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
-              run: xvfb-run -a npm run test:e2e
+              run: xvfb-run -a npm run test:e2e:optimal
 
             - name: Run E2E tests - Non-Linux
               if: matrix.runner != 'ubuntu'
-              run: npm run test:e2e
+              run: npm run test:e2e:optimal
 
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}

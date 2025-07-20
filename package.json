@@ -347,6 +347,7 @@
 		"test:coverage": "vscode-test --coverage",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e": "playwright install && vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
+		"test:e2e:optimal": "vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
