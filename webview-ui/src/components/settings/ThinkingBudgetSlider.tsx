@@ -95,15 +95,15 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
-	const [isEnabled, setIsEnabled] = useState<boolean>((modeFields.thinkingBudgetTokens || 0) > 0)
+	// Clip the raw thinking budget tokens to match backend behavior
+	// Backend clips to maxTokens - 1, so we do the same on frontend for consistency
+	const rawThinkingBudgetTokens = modeFields.thinkingBudgetTokens || 0
+	const clippedThinkingBudgetTokens =
+		rawThinkingBudgetTokens > 0 && selectedModelInfo.maxTokens && rawThinkingBudgetTokens > selectedModelInfo.maxTokens
+			? selectedModelInfo.maxTokens - 1
+			: rawThinkingBudgetTokens
 
-	const maxTokens = useMemo(
-		() =>
-			modeFields.apiProvider === "gemini"
-				? geminiModels[geminiDefaultModelId].maxTokens
-				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-		[modeFields.apiProvider],
-	)
+	const [isEnabled, setIsEnabled] = useState<boolean>(clippedThinkingBudgetTokens > 0)
 
 	const maxSliderValue = Math.max(
 		selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE),
@@ -111,27 +111,25 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 	)
 
 	// Add local state for the slider value
-	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
+	const [localValue, setLocalValue] = useState(clippedThinkingBudgetTokens)
 
 	// Only sync from external changes, don't auto-adjust user input
 	useEffect(() => {
-		const budget = modeFields.thinkingBudgetTokens || 0
-		setLocalValue(budget)
-	}, [modeFields.thinkingBudgetTokens])
+		setLocalValue(clippedThinkingBudgetTokens)
+	}, [clippedThinkingBudgetTokens])
 
 	// Separate effect to handle initial bounds checking (only on mount or model change)
 	useEffect(() => {
-		const budget = modeFields.thinkingBudgetTokens || 0
-		if (budget > 0 && budget > maxSliderValue) {
+		if (clippedThinkingBudgetTokens > 0 && clippedThinkingBudgetTokens > maxSliderValue) {
 			// Only auto-adjust if the current value exceeds the new model's limits
-			const adjustedValue = Math.min(budget, maxSliderValue)
+			const adjustedValue = Math.min(clippedThinkingBudgetTokens, maxSliderValue)
 			handleModeFieldChange(
 				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
 				adjustedValue,
 				currentMode,
 			)
 		}
-	}, [maxSliderValue, currentMode]) // Only trigger on model/mode changes, not budget changes
+	}, [maxSliderValue, currentMode, clippedThinkingBudgetTokens, handleModeFieldChange]) // Only trigger on model/mode changes, not budget changes
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
