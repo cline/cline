@@ -203,7 +203,7 @@ describe("AwsBedrockHandler", () => {
 	})
 
 	const mockOptions: ApiHandlerOptions = {
-		actModeApiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+		actModeAwsBedrockModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
 		awsRegion: "us-east-1",
 		awsAccessKey: "test-key",
 		awsSecretKey: "test-secret",
@@ -617,7 +617,7 @@ describe("AwsBedrockHandler", () => {
 			const customOptions: ApiHandlerOptions = {
 				...mockOptions,
 				actModeAwsBedrockCustomSelected: true,
-				actModeApiModelId:
+				actModeAwsBedrockModelId:
 					"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
 			}
 			const customHandler = new AwsBedrockHandler(customOptions)
@@ -632,7 +632,7 @@ describe("AwsBedrockHandler", () => {
 			const customOptions: ApiHandlerOptions = {
 				...mockOptions,
 				actModeAwsBedrockCustomSelected: true,
-				actModeApiModelId: "my-namespace/my-custom-model",
+				actModeAwsBedrockModelId: "my-namespace/my-custom-model",
 			}
 			const customHandler = new AwsBedrockHandler(customOptions)
 
@@ -681,7 +681,7 @@ describe("AwsBedrockHandler", () => {
 			const customCrossRegionOptions: ApiHandlerOptions = {
 				...mockOptions,
 				actModeAwsBedrockCustomSelected: true,
-				actModeApiModelId: "arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model",
+				actModeAwsBedrockModelId: "arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model",
 				awsUseCrossRegionInference: true,
 			}
 			const customCrossRegionHandler = new AwsBedrockHandler(customCrossRegionOptions)
@@ -694,7 +694,7 @@ describe("AwsBedrockHandler", () => {
 			const ultraThinkOptions: ApiHandlerOptions = {
 				...mockOptions,
 				actModeAwsBedrockCustomSelected: true,
-				actModeApiModelId:
+				actModeAwsBedrockModelId:
 					"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
 				actModeAwsBedrockCustomModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 			}

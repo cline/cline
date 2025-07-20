@@ -11,7 +11,6 @@ interface GroqHandlerOptions {
 	groqApiKey?: string
 	groqModelId?: string
 	groqModelInfo?: ModelInfo
-	apiModelId?: string // For backward compatibility
 }
 
 // Model family definitions for enhanced behavior
@@ -267,7 +266,7 @@ export class GroqHandler implements ApiHandler {
 		}
 
 		// Third priority: apiModelId (for backward compatibility)
-		const apiModelId = this.options.apiModelId
+		const apiModelId = this.options.groqModelId
 		if (apiModelId && apiModelId in groqModels) {
 			const id = apiModelId as GroqModelId
 			return { id, info: groqModels[id] }

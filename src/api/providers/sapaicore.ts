@@ -12,7 +12,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiCoreTokenUrl?: string
 	sapAiResourceGroup?: string
 	sapAiCoreBaseUrl?: string
-	apiModelId?: string
+	sapAiCoreModelId?: string
 }
 
 interface Deployment {
@@ -574,7 +574,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	getModel(): { id: SapAiCoreModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.sapAiCoreModelId
 		if (modelId && modelId in sapAiCoreModels) {
 			const id = modelId as SapAiCoreModelId
 			return { id, info: sapAiCoreModels[id] }

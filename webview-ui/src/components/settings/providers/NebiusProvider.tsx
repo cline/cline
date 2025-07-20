@@ -42,7 +42,7 @@ export const NebiusProvider = ({ showModelOptions, isPopup, currentMode }: Nebiu
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeNebiusModelId", act: "actModeNebiusModelId" },
 								e.target.value,
 								currentMode,
 							)

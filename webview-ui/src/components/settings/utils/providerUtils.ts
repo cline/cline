@@ -69,9 +69,8 @@ export function normalizeApiConfiguration(
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
-	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
 
-	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
+	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string, modelId?: string) => {
 		let selectedModelId: string
 		let selectedModelInfo: ModelInfo
 		if (modelId && modelId in models) {
@@ -90,14 +89,20 @@ export function normalizeApiConfiguration(
 
 	switch (provider) {
 		case "anthropic":
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
+			const anthropicModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAnthropicModelId : apiConfiguration?.actModeAnthropicModelId
+			return getProviderData(anthropicModels, anthropicDefaultModelId, anthropicModelId)
 		case "claude-code":
-			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId)
+			const claudeCodeModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeClaudeCodeModelId : apiConfiguration?.actModeClaudeCodeModelId
+			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId, claudeCodeModelId)
 		case "bedrock":
 			const awsBedrockCustomSelected =
 				currentMode === "plan"
 					? apiConfiguration?.planModeAwsBedrockCustomSelected
 					: apiConfiguration?.actModeAwsBedrockCustomSelected
+			const bedrockModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAwsBedrockModelId : apiConfiguration?.actModeAwsBedrockModelId
 			if (awsBedrockCustomSelected) {
 				const baseModelId =
 					currentMode === "plan"
@@ -105,30 +110,48 @@ export function normalizeApiConfiguration(
 						: apiConfiguration?.actModeAwsBedrockCustomModelBaseId
 				return {
 					selectedProvider: provider,
-					selectedModelId: modelId || bedrockDefaultModelId,
+					selectedModelId: bedrockModelId || bedrockDefaultModelId,
 					selectedModelInfo: (baseModelId && bedrockModels[baseModelId]) || bedrockModels[bedrockDefaultModelId],
 				}
 			}
-			return getProviderData(bedrockModels, bedrockDefaultModelId)
+			return getProviderData(bedrockModels, bedrockDefaultModelId, bedrockModelId)
 		case "vertex":
-			return getProviderData(vertexModels, vertexDefaultModelId)
+			const vertexModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeVertexModelId : apiConfiguration?.actModeVertexModelId
+			return getProviderData(vertexModels, vertexDefaultModelId, vertexModelId)
 		case "gemini":
-			return getProviderData(geminiModels, geminiDefaultModelId)
+			const geminiModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeGeminiModelId : apiConfiguration?.actModeGeminiModelId
+			return getProviderData(geminiModels, geminiDefaultModelId, geminiModelId)
 		case "openai-native":
-			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+			const openAiNativeModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeOpenAiNativeModelId
+					: apiConfiguration?.actModeOpenAiNativeModelId
+			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId, openAiNativeModelId)
 		case "deepseek":
-			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+			const deepSeekModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeDeepSeekModelId : apiConfiguration?.actModeDeepSeekModelId
+			return getProviderData(deepSeekModels, deepSeekDefaultModelId, deepSeekModelId)
 		case "qwen":
 			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 			const qwenDefaultId =
 				apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
-			return getProviderData(qwenModels, qwenDefaultId)
+			const qwenModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeQwenModelId : apiConfiguration?.actModeQwenModelId
+			return getProviderData(qwenModels, qwenDefaultId, qwenModelId)
 		case "doubao":
-			return getProviderData(doubaoModels, doubaoDefaultModelId)
+			const doubaoModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeDoubaoModelId : apiConfiguration?.actModeDoubaoModelId
+			return getProviderData(doubaoModels, doubaoDefaultModelId, doubaoModelId)
 		case "mistral":
-			return getProviderData(mistralModels, mistralDefaultModelId)
+			const mistralModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeMistralModelId : apiConfiguration?.actModeMistralModelId
+			return getProviderData(mistralModels, mistralDefaultModelId, mistralModelId)
 		case "asksage":
-			return getProviderData(askSageModels, askSageDefaultModelId)
+			const askSageModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAskSageModelId : apiConfiguration?.actModeAskSageModelId
+			return getProviderData(askSageModels, askSageDefaultModelId, askSageModelId)
 		case "openrouter":
 			const openRouterModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
@@ -215,9 +238,12 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
-			return getProviderData(xaiModels, xaiDefaultModelId)
+			const xaiModelId = currentMode === "plan" ? apiConfiguration?.planModeXaiModelId : apiConfiguration?.actModeXaiModelId
+			return getProviderData(xaiModels, xaiDefaultModelId, xaiModelId)
 		case "moonshot":
-			return getProviderData(moonshotModels, moonshotDefaultModelId)
+			const moonshotModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeMoonshotModelId : apiConfiguration?.actModeMoonshotModelId
+			return getProviderData(moonshotModels, moonshotDefaultModelId, moonshotModelId)
 		case "huggingface":
 			const huggingFaceModelId =
 				currentMode === "plan"
@@ -233,11 +259,17 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: huggingFaceModelInfo || huggingFaceModels[huggingFaceDefaultModelId],
 			}
 		case "nebius":
-			return getProviderData(nebiusModels, nebiusDefaultModelId)
+			const nebiusModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeNebiusModelId : apiConfiguration?.actModeNebiusModelId
+			return getProviderData(nebiusModels, nebiusDefaultModelId, nebiusModelId)
 		case "sambanova":
-			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+			const sambanovaModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeSambanovaModelId : apiConfiguration?.actModeSambanovaModelId
+			return getProviderData(sambanovaModels, sambanovaDefaultModelId, sambanovaModelId)
 		case "cerebras":
-			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+			const cerebrasModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeCerebrasModelId : apiConfiguration?.actModeCerebrasModelId
+			return getProviderData(cerebrasModels, cerebrasDefaultModelId, cerebrasModelId)
 		case "groq":
 			const groqModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeGroqModelId : apiConfiguration?.actModeGroqModelId
@@ -249,9 +281,13 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: groqModelInfo || groqModels[groqDefaultModelId],
 			}
 		case "sapaicore":
-			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+			const sapAiCoreModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeSapAiCoreModelId : apiConfiguration?.actModeSapAiCoreModelId
+			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId, sapAiCoreModelId)
 		default:
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
+			const defaultModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAnthropicModelId : apiConfiguration?.actModeAnthropicModelId
+			return getProviderData(anthropicModels, anthropicDefaultModelId, defaultModelId)
 	}
 }
 
@@ -266,9 +302,25 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		return {
 			// Core fields
 			apiProvider: undefined,
-			apiModelId: undefined,
 
 			// Provider-specific model IDs
+			anthropicModelId: undefined,
+			claudeCodeModelId: undefined,
+			awsBedrockModelId: undefined,
+			vertexModelId: undefined,
+			geminiModelId: undefined,
+			openAiNativeModelId: undefined,
+			deepSeekModelId: undefined,
+			qwenModelId: undefined,
+			doubaoModelId: undefined,
+			mistralModelId: undefined,
+			askSageModelId: undefined,
+			xaiModelId: undefined,
+			moonshotModelId: undefined,
+			nebiusModelId: undefined,
+			sambanovaModelId: undefined,
+			cerebrasModelId: undefined,
+			sapAiCoreModelId: undefined,
 			togetherModelId: undefined,
 			fireworksModelId: undefined,
 			lmStudioModelId: undefined,
@@ -302,9 +354,28 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 	return {
 		// Core fields
 		apiProvider: mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider,
-		apiModelId: mode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId,
 
 		// Provider-specific model IDs
+		anthropicModelId: mode === "plan" ? apiConfiguration.planModeAnthropicModelId : apiConfiguration.actModeAnthropicModelId,
+		claudeCodeModelId:
+			mode === "plan" ? apiConfiguration.planModeClaudeCodeModelId : apiConfiguration.actModeClaudeCodeModelId,
+		awsBedrockModelId:
+			mode === "plan" ? apiConfiguration.planModeAwsBedrockModelId : apiConfiguration.actModeAwsBedrockModelId,
+		vertexModelId: mode === "plan" ? apiConfiguration.planModeVertexModelId : apiConfiguration.actModeVertexModelId,
+		geminiModelId: mode === "plan" ? apiConfiguration.planModeGeminiModelId : apiConfiguration.actModeGeminiModelId,
+		openAiNativeModelId:
+			mode === "plan" ? apiConfiguration.planModeOpenAiNativeModelId : apiConfiguration.actModeOpenAiNativeModelId,
+		deepSeekModelId: mode === "plan" ? apiConfiguration.planModeDeepSeekModelId : apiConfiguration.actModeDeepSeekModelId,
+		qwenModelId: mode === "plan" ? apiConfiguration.planModeQwenModelId : apiConfiguration.actModeQwenModelId,
+		doubaoModelId: mode === "plan" ? apiConfiguration.planModeDoubaoModelId : apiConfiguration.actModeDoubaoModelId,
+		mistralModelId: mode === "plan" ? apiConfiguration.planModeMistralModelId : apiConfiguration.actModeMistralModelId,
+		askSageModelId: mode === "plan" ? apiConfiguration.planModeAskSageModelId : apiConfiguration.actModeAskSageModelId,
+		xaiModelId: mode === "plan" ? apiConfiguration.planModeXaiModelId : apiConfiguration.actModeXaiModelId,
+		moonshotModelId: mode === "plan" ? apiConfiguration.planModeMoonshotModelId : apiConfiguration.actModeMoonshotModelId,
+		nebiusModelId: mode === "plan" ? apiConfiguration.planModeNebiusModelId : apiConfiguration.actModeNebiusModelId,
+		sambanovaModelId: mode === "plan" ? apiConfiguration.planModeSambanovaModelId : apiConfiguration.actModeSambanovaModelId,
+		cerebrasModelId: mode === "plan" ? apiConfiguration.planModeCerebrasModelId : apiConfiguration.actModeCerebrasModelId,
+		sapAiCoreModelId: mode === "plan" ? apiConfiguration.planModeSapAiCoreModelId : apiConfiguration.actModeSapAiCoreModelId,
 		togetherModelId: mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
 		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
@@ -446,33 +517,98 @@ export async function syncModeConfigurations(
 			break
 
 		case "bedrock":
-			updates.planModeApiModelId = sourceFields.apiModelId
-			updates.actModeApiModelId = sourceFields.apiModelId
+			updates.planModeAwsBedrockModelId = sourceFields.awsBedrockModelId
+			updates.actModeAwsBedrockModelId = sourceFields.awsBedrockModelId
 			updates.planModeAwsBedrockCustomSelected = sourceFields.awsBedrockCustomSelected
 			updates.actModeAwsBedrockCustomSelected = sourceFields.awsBedrockCustomSelected
 			updates.planModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			updates.actModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			break
 
-		// Providers that use apiProvider + apiModelId fields
 		case "anthropic":
+			updates.planModeAnthropicModelId = sourceFields.anthropicModelId
+			updates.actModeAnthropicModelId = sourceFields.anthropicModelId
+			break
+
 		case "claude-code":
+			updates.planModeClaudeCodeModelId = sourceFields.claudeCodeModelId
+			updates.actModeClaudeCodeModelId = sourceFields.claudeCodeModelId
+			break
+
 		case "vertex":
+			updates.planModeVertexModelId = sourceFields.vertexModelId
+			updates.actModeVertexModelId = sourceFields.vertexModelId
+			break
+
 		case "gemini":
+			updates.planModeGeminiModelId = sourceFields.geminiModelId
+			updates.actModeGeminiModelId = sourceFields.geminiModelId
+			break
+
 		case "openai-native":
+			updates.planModeOpenAiNativeModelId = sourceFields.openAiNativeModelId
+			updates.actModeOpenAiNativeModelId = sourceFields.openAiNativeModelId
+			break
+
 		case "deepseek":
+			updates.planModeDeepSeekModelId = sourceFields.deepSeekModelId
+			updates.actModeDeepSeekModelId = sourceFields.deepSeekModelId
+			break
+
 		case "qwen":
+			updates.planModeQwenModelId = sourceFields.qwenModelId
+			updates.actModeQwenModelId = sourceFields.qwenModelId
+			break
+
 		case "doubao":
+			updates.planModeDoubaoModelId = sourceFields.doubaoModelId
+			updates.actModeDoubaoModelId = sourceFields.doubaoModelId
+			break
+
 		case "mistral":
+			updates.planModeMistralModelId = sourceFields.mistralModelId
+			updates.actModeMistralModelId = sourceFields.mistralModelId
+			break
+
 		case "asksage":
+			updates.planModeAskSageModelId = sourceFields.askSageModelId
+			updates.actModeAskSageModelId = sourceFields.askSageModelId
+			break
+
 		case "xai":
+			updates.planModeXaiModelId = sourceFields.xaiModelId
+			updates.actModeXaiModelId = sourceFields.xaiModelId
+			break
+
+		case "moonshot":
+			updates.planModeMoonshotModelId = sourceFields.moonshotModelId
+			updates.actModeMoonshotModelId = sourceFields.moonshotModelId
+			break
+
 		case "nebius":
+			updates.planModeNebiusModelId = sourceFields.nebiusModelId
+			updates.actModeNebiusModelId = sourceFields.nebiusModelId
+			break
+
 		case "sambanova":
+			updates.planModeSambanovaModelId = sourceFields.sambanovaModelId
+			updates.actModeSambanovaModelId = sourceFields.sambanovaModelId
+			break
+
 		case "cerebras":
+			updates.planModeCerebrasModelId = sourceFields.cerebrasModelId
+			updates.actModeCerebrasModelId = sourceFields.cerebrasModelId
+			break
+
 		case "sapaicore":
+			updates.planModeSapAiCoreModelId = sourceFields.sapAiCoreModelId
+			updates.actModeSapAiCoreModelId = sourceFields.sapAiCoreModelId
+			break
+
 		default:
-			updates.planModeApiModelId = sourceFields.apiModelId
-			updates.actModeApiModelId = sourceFields.apiModelId
+			// Default to anthropic
+			updates.planModeAnthropicModelId = sourceFields.anthropicModelId
+			updates.actModeAnthropicModelId = sourceFields.anthropicModelId
 			break
 	}
 

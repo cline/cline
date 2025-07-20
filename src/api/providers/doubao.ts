@@ -8,7 +8,7 @@ import { withRetry } from "../retry"
 
 interface DoubaoHandlerOptions {
 	doubaoApiKey?: string
-	apiModelId?: string
+	doubaoModelId?: string
 }
 
 export class DoubaoHandler implements ApiHandler {
@@ -36,7 +36,7 @@ export class DoubaoHandler implements ApiHandler {
 	}
 
 	getModel(): { id: DoubaoModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.doubaoModelId
 		if (modelId && modelId in doubaoModels) {
 			const id = modelId as DoubaoModelId
 			return { id, info: doubaoModels[id] }

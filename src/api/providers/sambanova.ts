@@ -9,7 +9,7 @@ import { convertToR1Format } from "@api/transform/r1-format"
 
 interface SambanovaHandlerOptions {
 	sambanovaApiKey?: string
-	apiModelId?: string
+	sambanovaModelId?: string
 }
 
 export class SambanovaHandler implements ApiHandler {
@@ -81,7 +81,7 @@ export class SambanovaHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.sambanovaModelId
 		if (modelId && modelId in sambanovaModels) {
 			const id = modelId as SambanovaModelId
 			return { id, info: sambanovaModels[id] }

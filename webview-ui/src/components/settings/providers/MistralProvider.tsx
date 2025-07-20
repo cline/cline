@@ -42,7 +42,7 @@ export const MistralProvider = ({ showModelOptions, isPopup, currentMode }: Mist
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeMistralModelId", act: "actModeMistralModelId" },
 								e.target.value,
 								currentMode,
 							)

@@ -42,7 +42,7 @@ export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: Cer
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeCerebrasModelId", act: "actModeCerebrasModelId" },
 								e.target.value,
 								currentMode,
 							)

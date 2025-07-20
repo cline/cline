@@ -11,7 +11,7 @@ import type { ChatCompletionReasoningEffort } from "openai/resources/chat/comple
 interface OpenAiNativeHandlerOptions {
 	openAiNativeApiKey?: string
 	reasoningEffort?: string
-	apiModelId?: string
+	openaiNativeModelId?: string
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -132,7 +132,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.openaiNativeModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId
 			return { id, info: openAiNativeModels[id] }

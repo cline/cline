@@ -18,7 +18,7 @@ import { withRetry } from "../retry"
 interface QwenHandlerOptions {
 	qwenApiKey?: string
 	qwenApiLine?: string
-	apiModelId?: string
+	qwenModelId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -51,7 +51,7 @@ export class QwenHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.qwenModelId
 		// Branch based on API line to let poor typescript know what to do
 		if (this.options.qwenApiLine === "china") {
 			return {

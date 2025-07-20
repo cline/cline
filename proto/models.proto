@@ -232,7 +232,6 @@ message ModelsApiConfiguration {
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
-  optional string plan_mode_api_model_id = 101;
   optional int32 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 104;
@@ -255,10 +254,26 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
   optional string plan_mode_hugging_face_model_id = 122;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
+  optional string plan_mode_anthropic_model_id = 124;
+  optional string plan_mode_claude_code_model_id = 125;
+  optional string plan_mode_vertex_model_id = 126;
+  optional string plan_mode_gemini_model_id = 127;
+  optional string plan_mode_openai_native_model_id = 128;
+  optional string plan_mode_deepseek_model_id = 129;
+  optional string plan_mode_qwen_model_id = 130;
+  optional string plan_mode_doubao_model_id = 131;
+  optional string plan_mode_mistral_model_id = 132;
+  optional string plan_mode_asksage_model_id = 133;
+  optional string plan_mode_xai_model_id = 134;
+  optional string plan_mode_moonshot_model_id = 135;
+  optional string plan_mode_nebius_model_id = 136;
+  optional string plan_mode_sambanova_model_id = 137;
+  optional string plan_mode_cerebras_model_id = 138;
+  optional string plan_mode_aws_bedrock_model_id = 139;
+  optional string plan_mode_sapaicore_model_id = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
-  optional string act_mode_api_model_id = 201;
   optional int32 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
   optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 204;
@@ -281,6 +296,23 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_groq_model_info = 221;
   optional string act_mode_hugging_face_model_id = 222;
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
+  optional string act_mode_anthropic_model_id = 224;
+  optional string act_mode_claude_code_model_id = 225;
+  optional string act_mode_vertex_model_id = 226;
+  optional string act_mode_gemini_model_id = 227;
+  optional string act_mode_openai_native_model_id = 228;
+  optional string act_mode_deepseek_model_id = 229;
+  optional string act_mode_qwen_model_id = 230;
+  optional string act_mode_doubao_model_id = 231;
+  optional string act_mode_mistral_model_id = 232;
+  optional string act_mode_asksage_model_id = 233;
+  optional string act_mode_xai_model_id = 234;
+  optional string act_mode_moonshot_model_id = 235;
+  optional string act_mode_nebius_model_id = 236;
+  optional string act_mode_sambanova_model_id = 237;
+  optional string act_mode_cerebras_model_id = 238;
+  optional string act_mode_aws_bedrock_model_id = 239;
+  optional string act_mode_sapaicore_model_id = 240;
 
   repeated string favorited_model_ids = 300;
 }

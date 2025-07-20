@@ -7,7 +7,7 @@ import { withRetry } from "../retry"
 interface AskSageHandlerOptions {
 	asksageApiKey?: string
 	asksageApiUrl?: string
-	apiModelId?: string
+	asksageModelId?: string
 }
 
 type AskSageRequest = {
@@ -103,7 +103,7 @@ export class AskSageHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.asksageModelId
 		if (modelId && modelId in askSageModels) {
 			const id = modelId as AskSageModelId
 			return { id, info: askSageModels[id] }
