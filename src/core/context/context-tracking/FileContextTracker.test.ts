@@ -53,6 +53,9 @@ describe("FileContextTracker", () => {
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
+
+		// Reset HostProvider before initializing to avoid "already initialized" errors
+		HostProvider.reset()
 		HostProvider.initialize(
 			((_) => {}) as WebviewProviderCreator,
 			(() => {}) as DiffViewProviderCreator,
@@ -66,6 +69,8 @@ describe("FileContextTracker", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		// Reset HostProvider after each test to ensure clean state
+		HostProvider.reset()
 	})
 
 	it("should add a record when a file is read by a tool", async () => {

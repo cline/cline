@@ -40,7 +40,7 @@ export class HostProvider {
 		hostBridgeProvider: HostBridgeClientProvider,
 	): HostProvider {
 		if (HostProvider.instance) {
-			throw new Error("Host providers have already been initialized")
+			throw new Error("Host providers have already been initialized.")
 		}
 		HostProvider.instance = new HostProvider(webviewProviderCreator, diffViewProviderCreator, hostBridgeProvider)
 		return HostProvider.instance
@@ -58,6 +58,14 @@ export class HostProvider {
 
 	public static isInitialized(): boolean {
 		return !!HostProvider.instance
+	}
+
+	/**
+	 * Resets the HostProvider instance (primarily for testing)
+	 * This allows tests to reinitialize the HostProvider with different configurations
+	 */
+	public static reset(): void {
+		HostProvider.instance = null
 	}
 
 	// Static service accessors for more concise access for callers.
