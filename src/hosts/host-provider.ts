@@ -6,15 +6,15 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 /**
  * Singleton class that manages host-specific providers for dependency injection.
  *
- * This system runs on two totally different platforms (VSCode extension and standalone),
- * so all the host-specific classes and properties are contained in here, and then the
- * rest of the code can use the host provider interface to access platform-specific
+ * This system runs on two different platforms (VSCode extension and cline-core),
+ * so all the host-specific classes and properties are contained in here. The
+ * rest of the codebase can use the host provider interface to access platform-specific
  * implementations in a platform-agnostic way.
  *
  * Usage:
  * - Initialize once: HostProvider.initialize(webviewCreator, diffCreator, hostBridge)
  * - Access HostBridge services: HostProvider.window.showMessage()
- * - Access HostProvider factories: HostProvider.get().createDiffViewProvider()
+ * - Access Host Provider factories: HostProvider.get().createDiffViewProvider()
  */
 export class HostProvider {
 	private static instance: HostProvider | null = null
