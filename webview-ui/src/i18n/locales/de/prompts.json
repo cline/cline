@@ -96,10 +96,19 @@
 			"previewButton": "Vorschau der Prompt-Verbesserung",
 			"testEnhancement": "Verbesserung testen"
 		},
+		"condense": {
+			"apiConfiguration": "API-Konfiguration für die Kontextverdichtung",
+			"apiConfigDescription": "Wählen Sie aus, welche API-Konfiguration für Kontextverdichtungsvorgänge verwendet werden soll. Lassen Sie die Auswahl leer, um die aktuell aktive Konfiguration zu verwenden.",
+			"useCurrentConfig": "Derzeit ausgewählte API-Konfiguration verwenden"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Prompt verbessern",
 				"description": "Verwenden Sie die Prompt-Verbesserung, um maßgeschneiderte Vorschläge oder Verbesserungen für Ihre Eingaben zu erhalten. Dies stellt sicher, dass Roo Ihre Absicht versteht und die bestmöglichen Antworten liefert. Verfügbar über das ✨-Symbol im Chat."
+			},
+			"CONDENSE": {
+				"label": "Kontextverdichtung",
+				"description": "Konfigurieren Sie, wie der Konversationskontext verdichtet wird, um Token-Limits zu verwalten. Dieser Prompt wird sowohl für manuelle als auch für automatische Kontextverdichtungsvorgänge verwendet."
 			},
 			"EXPLAIN": {
 				"label": "Code erklären",

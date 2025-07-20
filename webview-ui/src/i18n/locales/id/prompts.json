@@ -96,10 +96,19 @@
 			"previewButton": "Pratinjau Peningkatan Prompt",
 			"testEnhancement": "Uji Peningkatan"
 		},
+		"condense": {
+			"apiConfiguration": "Konfigurasi API untuk Peringkasan Konteks",
+			"apiConfigDescription": "Pilih konfigurasi API mana yang akan digunakan untuk operasi peringkasan konteks. Biarkan tidak dipilih untuk menggunakan konfigurasi aktif saat ini.",
+			"useCurrentConfig": "Gunakan konfigurasi API yang saat ini dipilih"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Tingkatkan Prompt",
 				"description": "Gunakan peningkatan prompt untuk mendapatkan saran atau perbaikan yang disesuaikan untuk input Anda. Ini memastikan Roo memahami maksud Anda dan memberikan respons terbaik. Tersedia melalui ikon ✨ di chat."
+			},
+			"CONDENSE": {
+				"label": "Peringkasan Konteks",
+				"description": "Konfigurasikan bagaimana konteks percakapan diringkas untuk mengelola batas token. Prompt ini digunakan untuk operasi peringkasan konteks manual dan otomatis."
 			},
 			"EXPLAIN": {
 				"label": "Jelaskan Kode",

@@ -96,10 +96,19 @@
 			"previewButton": "Visualizar aprimoramento do prompt",
 			"testEnhancement": "Testar aprimoramento"
 		},
+		"condense": {
+			"apiConfiguration": "Configuração da API para condensação de contexto",
+			"apiConfigDescription": "Selecione qual configuração de API usar para operações de condensação de contexto. Deixe desmarcado para usar a configuração ativa atual.",
+			"useCurrentConfig": "Usar a configuração de API selecionada no momento"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Aprimorar Prompt",
 				"description": "Use o aprimoramento de prompt para obter sugestões ou melhorias personalizadas para suas entradas. Isso garante que o Roo entenda sua intenção e forneça as melhores respostas possíveis. Disponível através do ícone ✨ no chat."
+			},
+			"CONDENSE": {
+				"label": "Condensação de Contexto",
+				"description": "Configure como o contexto da conversa é condensado para gerenciar os limites de token. Este prompt é usado para operações de condensação de contexto manuais e automáticas."
 			},
 			"EXPLAIN": {
 				"label": "Explicar Código",

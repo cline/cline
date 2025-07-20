@@ -93,10 +93,19 @@
 			"previewButton": "测试提示词增强",
 			"testEnhancement": "测试增强"
 		},
+		"condense": {
+			"apiConfiguration": "用于上下文压缩的 API 配置",
+			"apiConfigDescription": "选择用于上下文压缩操作的 API 配置。保留未选择状态以使用当前活动的配置。",
+			"useCurrentConfig": "使用当前选中的 API 配置"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "增强提示词",
 				"description": "优化提示获取更好回答（点击✨使用）"
+			},
+			"CONDENSE": {
+				"label": "上下文压缩",
+				"description": "配置如何压缩对话上下文以管理令牌限制。此提示用于手动和自动上下文压缩操作。"
 			},
 			"EXPLAIN": {
 				"label": "解释代码",

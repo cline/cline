@@ -96,10 +96,19 @@
 			"previewButton": "Voorbeeld promptverbetering",
 			"testEnhancement": "Test verbetering"
 		},
+		"condense": {
+			"apiConfiguration": "API-configuratie voor contextcondensatie",
+			"apiConfigDescription": "Selecteer welke API-configuratie moet worden gebruikt voor contextcondensatiebewerkingen. Laat leeg om de huidige actieve configuratie te gebruiken.",
+			"useCurrentConfig": "Gebruik de momenteel geselecteerde API-configuratie"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Prompt verbeteren",
 				"description": "Gebruik promptverbetering om op maat gemaakte suggesties of verbeteringen voor je invoer te krijgen. Zo begrijpt Roo je intentie en krijg je de best mogelijke antwoorden. Beschikbaar via het ✨-icoon in de chat."
+			},
+			"CONDENSE": {
+				"label": "Contextcondensatie",
+				"description": "Configureer hoe de gesprekscontext wordt gecondenseerd om tokenlimieten te beheren.Deze prompt wordt gebruikt voor zowel handmatige als automatische contextcondensatiebewerkingen."
 			},
 			"EXPLAIN": {
 				"label": "Code uitleggen",

@@ -93,10 +93,19 @@
 			"previewButton": "Xem trước nâng cao lời nhắc",
 			"testEnhancement": "Kiểm tra cải tiến"
 		},
+		"condense": {
+			"apiConfiguration": "Cấu hình API để cô đọng ngữ cảnh",
+			"apiConfigDescription": "Chọn cấu hình API nào sẽ sử dụng cho các hoạt động cô đọng ngữ cảnh. Để trống để sử dụng cấu hình hiện đang hoạt động.",
+			"useCurrentConfig": "Sử dụng cấu hình API được chọn hiện tại"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Nâng cao lời nhắc",
 				"description": "Sử dụng nâng cao lời nhắc để nhận đề xuất hoặc cải tiến phù hợp cho đầu vào của bạn. Điều này đảm bảo Roo hiểu ý định của bạn và cung cấp phản hồi tốt nhất có thể. Có sẵn thông qua biểu tượng ✨ trong chat."
+			},
+			"CONDENSE": {
+				"label": "Cô đọng ngữ cảnh",
+				"description": "Định cấu hình cách cô đọng ngữ cảnh cuộc trò chuyện để quản lý giới hạn token. Lời nhắc này được sử dụng cho cả hoạt động cô đọng ngữ cảnh thủ công và tự động."
 			},
 			"EXPLAIN": {
 				"label": "Giải thích mã",

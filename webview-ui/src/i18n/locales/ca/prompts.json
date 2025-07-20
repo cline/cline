@@ -96,10 +96,19 @@
 			"previewButton": "Previsualització de la millora del prompt",
 			"testEnhancement": "Prova la millora"
 		},
+		"condense": {
+			"apiConfiguration": "Configuració de l'API per a la condensació de context",
+			"apiConfigDescription": "Seleccioneu quina configuració d'API voleu utilitzar per a les operacions de condensació de context. Deixeu-ho sense seleccionar per utilitzar la configuració activa actual.",
+			"useCurrentConfig": "Utilitza la configuració de l'API seleccionada actualment"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Millorar prompt",
 				"description": "Utilitzeu la millora de prompts per obtenir suggeriments o millores personalitzades per a les vostres entrades. Això assegura que Roo entengui la vostra intenció i proporcioni les millors respostes possibles. Disponible a través de la icona ✨ al xat."
+			},
+			"CONDENSE": {
+				"label": "Condensació de context",
+				"description": "Configureu com es condensa el context de la conversa per gestionar els límits de testimonis. Aquest indicador s'utilitza tant per a les operacions de condensació de context manuals com automàtiques."
 			},
 			"EXPLAIN": {
 				"label": "Explicar codi",

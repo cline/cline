@@ -26,7 +26,15 @@ interface PromptsSettingsProps {
 
 const PromptsSettings = ({ customSupportPrompts, setCustomSupportPrompts }: PromptsSettingsProps) => {
 	const { t } = useAppTranslation()
-	const { listApiConfigMeta, enhancementApiConfigId, setEnhancementApiConfigId } = useExtensionState()
+	const {
+		listApiConfigMeta,
+		enhancementApiConfigId,
+		setEnhancementApiConfigId,
+		condensingApiConfigId,
+		setCondensingApiConfigId,
+		customCondensingPrompt,
+		setCustomCondensingPrompt,
+	} = useExtensionState()
 
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
@@ -48,17 +56,36 @@ const PromptsSettings = ({ customSupportPrompts, setCustomSupportPrompts }: Prom
 	}, [])
 
 	const updateSupportPrompt = (type: SupportPromptType, value: string | undefined) => {
-		const updatedPrompts = { ...customSupportPrompts, [type]: value }
-		setCustomSupportPrompts(updatedPrompts)
+		if (type === "CONDENSE") {
+			setCustomCondensingPrompt(value || supportPrompt.default.CONDENSE)
+			vscode.postMessage({
+				type: "updateCondensingPrompt",
+				text: value || supportPrompt.default.CONDENSE,
+			})
+		} else {
+			const updatedPrompts = { ...customSupportPrompts, [type]: value }
+			setCustomSupportPrompts(updatedPrompts)
+		}
 	}
 
 	const handleSupportReset = (type: SupportPromptType) => {
-		const updatedPrompts = { ...customSupportPrompts }
-		delete updatedPrompts[type]
-		setCustomSupportPrompts(updatedPrompts)
+		if (type === "CONDENSE") {
+			setCustomCondensingPrompt(supportPrompt.default.CONDENSE)
+			vscode.postMessage({
+				type: "updateCondensingPrompt",
+				text: supportPrompt.default.CONDENSE,
+			})
+		} else {
+			const updatedPrompts = { ...customSupportPrompts }
+			delete updatedPrompts[type]
+			setCustomSupportPrompts(updatedPrompts)
+		}
 	}
 
 	const getSupportPromptValue = (type: SupportPromptType): string => {
+		if (type === "CONDENSE") {
+			return customCondensingPrompt || supportPrompt.default.CONDENSE
+		}
 		return supportPrompt.get(customSupportPrompts, type)
 	}
 
@@ -129,29 +156,50 @@ const PromptsSettings = ({ customSupportPrompts, setCustomSupportPrompts }: Prom
 						className="w-full"
 					/>
 
-					{activeSupportOption === "ENHANCE" && (
+					{(activeSupportOption === "ENHANCE" || activeSupportOption === "CONDENSE") && (
 						<div className="mt-4 flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
 							<div>
 								<label className="block font-medium mb-1">
-									{t("prompts:supportPrompts.enhance.apiConfiguration")}
+									{activeSupportOption === "ENHANCE"
+										? t("prompts:supportPrompts.enhance.apiConfiguration")
+										: t("prompts:supportPrompts.condense.apiConfiguration")}
 								</label>
 								<Select
-									value={enhancementApiConfigId || "-"}
+									value={
+										activeSupportOption === "ENHANCE"
+											? enhancementApiConfigId || "-"
+											: condensingApiConfigId || "-"
+									}
 									onValueChange={(value) => {
-										setEnhancementApiConfigId(value === "-" ? "" : value)
-										vscode.postMessage({
-											type: "enhancementApiConfigId",
-											text: value,
-										})
+										const newConfigId = value === "-" ? "" : value
+										if (activeSupportOption === "ENHANCE") {
+											setEnhancementApiConfigId(newConfigId)
+											vscode.postMessage({
+												type: "enhancementApiConfigId",
+												text: value,
+											})
+										} else {
+											setCondensingApiConfigId(newConfigId)
+											vscode.postMessage({
+												type: "condensingApiConfigId",
+												text: newConfigId,
+											})
+										}
 									}}>
 									<SelectTrigger data-testid="api-config-select" className="w-full">
 										<SelectValue
-											placeholder={t("prompts:supportPrompts.enhance.useCurrentConfig")}
+											placeholder={
+												activeSupportOption === "ENHANCE"
+													? t("prompts:supportPrompts.enhance.useCurrentConfig")
+													: t("prompts:supportPrompts.condense.useCurrentConfig")
+											}
 										/>
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value="-">
-											{t("prompts:supportPrompts.enhance.useCurrentConfig")}
+											{activeSupportOption === "ENHANCE"
+												? t("prompts:supportPrompts.enhance.useCurrentConfig")
+												: t("prompts:supportPrompts.condense.useCurrentConfig")}
 										</SelectItem>
 										{(listApiConfigMeta || []).map((config) => (
 											<SelectItem
@@ -164,29 +212,36 @@ const PromptsSettings = ({ customSupportPrompts, setCustomSupportPrompts }: Prom
 									</SelectContent>
 								</Select>
 								<div className="text-sm text-vscode-descriptionForeground mt-1">
-									{t("prompts:supportPrompts.enhance.apiConfigDescription")}
+									{activeSupportOption === "ENHANCE"
+										? t("prompts:supportPrompts.enhance.apiConfigDescription")
+										: t("prompts:supportPrompts.condense.apiConfigDescription")}
 								</div>
 							</div>
 
-							<div>
-								<label className="block font-medium mb-1">
-									{t("prompts:supportPrompts.enhance.testEnhancement")}
-								</label>
-								<VSCodeTextArea
-									resize="vertical"
-									value={testPrompt}
-									onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
-									placeholder={t("prompts:supportPrompts.enhance.testPromptPlaceholder")}
-									rows={3}
-									className="w-full"
-									data-testid="test-prompt-textarea"
-								/>
-								<div className="mt-2 flex justify-start items-center gap-2">
-									<Button variant="default" onClick={handleTestEnhancement} disabled={isEnhancing}>
-										{t("prompts:supportPrompts.enhance.previewButton")}
-									</Button>
+							{activeSupportOption === "ENHANCE" && (
+								<div>
+									<label className="block font-medium mb-1">
+										{t("prompts:supportPrompts.enhance.testEnhancement")}
+									</label>
+									<VSCodeTextArea
+										resize="vertical"
+										value={testPrompt}
+										onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
+										placeholder={t("prompts:supportPrompts.enhance.testPromptPlaceholder")}
+										rows={3}
+										className="w-full"
+										data-testid="test-prompt-textarea"
+									/>
+									<div className="mt-2 flex justify-start items-center gap-2">
+										<Button
+											variant="default"
+											onClick={handleTestEnhancement}
+											disabled={isEnhancing}>
+											{t("prompts:supportPrompts.enhance.previewButton")}
+										</Button>
+									</div>
 								</div>
-							</div>
+							)}
 						</div>
 					)}
 				</div>

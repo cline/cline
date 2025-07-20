@@ -96,10 +96,19 @@
 			"previewButton": "Vista previa de la mejora de solicitud",
 			"testEnhancement": "Probar mejora"
 		},
+		"condense": {
+			"apiConfiguration": "Configuración de API para la condensación de contexto",
+			"apiConfigDescription": "Selecciona qué configuración de API usar para las operaciones de condensación de contexto. Deja sin seleccionar para usar la configuración activa actual.",
+			"useCurrentConfig": "Usar la configuración de API actualmente seleccionada"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Mejorar solicitud",
 				"description": "Utiliza la mejora de solicitudes para obtener sugerencias o mejoras personalizadas para tus entradas. Esto asegura que Roo entienda tu intención y proporcione las mejores respuestas posibles. Disponible a través del icono ✨ en el chat."
+			},
+			"CONDENSE": {
+				"label": "Condensación de contexto",
+				"description": "Configura cómo se condensa el contexto de la conversación para gestionar los límites de tokens. Este prompt se utiliza tanto para operaciones de condensación de contexto manuales como automáticas."
 			},
 			"EXPLAIN": {
 				"label": "Explicar código",

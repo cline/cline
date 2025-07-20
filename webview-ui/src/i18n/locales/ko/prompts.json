@@ -96,10 +96,19 @@
 			"previewButton": "프롬프트 향상 미리보기",
 			"testEnhancement": "향상 테스트"
 		},
+		"condense": {
+			"apiConfiguration": "컨텍스트 압축을 위한 API 구성",
+			"apiConfigDescription": "컨텍스트 압축 작업에 사용할 API 구성을 선택합니다. 현재 활성 구성을 사용하려면 선택하지 않은 상태로 둡니다.",
+			"useCurrentConfig": "현재 선택된 API 구성 사용"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "프롬프트 향상",
 				"description": "입력에 맞춤화된 제안이나 개선을 얻기 위해 프롬프트 향상을 사용하세요. 이를 통해 Roo가 의도를 이해하고 최상의 응답을 제공할 수 있습니다. 채팅에서 ✨ 아이콘을 통해 이용 가능합니다."
+			},
+			"CONDENSE": {
+				"label": "컨텍스트 압축",
+				"description": "토큰 제한을 관리하기 위해 대화 컨텍스트를 압축하는 방법을 구성합니다. 이 프롬프트는 수동 및 자동 컨텍스트 압축 작업 모두에 사용됩니다."
 			},
 			"EXPLAIN": {
 				"label": "코드 설명",

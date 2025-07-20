@@ -96,10 +96,19 @@
 			"previewButton": "Aperçu de l'amélioration du prompt",
 			"testEnhancement": "Tester l'amélioration"
 		},
+		"condense": {
+			"apiConfiguration": "Configuration de l'API pour la condensation du contexte",
+			"apiConfigDescription": "Sélectionnez la configuration d'API à utiliser pour les opérations de condensation de contexte. Laissez non sélectionné pour utiliser la configuration active actuelle.",
+			"useCurrentConfig": "Utiliser la configuration d'API actuellement sélectionnée"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Améliorer le prompt",
 				"description": "Utilisez l'amélioration de prompt pour obtenir des suggestions ou des améliorations personnalisées pour vos entrées. Cela garantit que Roo comprend votre intention et fournit les meilleures réponses possibles. Disponible via l'icône ✨ dans le chat."
+			},
+			"CONDENSE": {
+				"label": "Condensation du contexte",
+				"description": "Configurez la manière dont le contexte de la conversation est condensé pour gérer les limites de jetons. Ce prompt est utilisé pour les opérations de condensation de contexte manuelles et automatiques."
 			},
 			"EXPLAIN": {
 				"label": "Expliquer le code",

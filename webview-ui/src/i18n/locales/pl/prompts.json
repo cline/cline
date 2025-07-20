@@ -96,10 +96,19 @@
 			"previewButton": "Podgląd ulepszenia podpowiedzi",
 			"testEnhancement": "Testuj ulepszenie"
 		},
+		"condense": {
+			"apiConfiguration": "Konfiguracja API do kondensacji kontekstu",
+			"apiConfigDescription": "Wybierz, której konfiguracji API użyć do operacji kondensacji kontekstu. Pozostaw niewybrane, aby użyć bieżącej aktywnej konfiguracji.",
+			"useCurrentConfig": "Użyj aktualnie wybranej konfiguracji API"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Ulepsz podpowiedź",
 				"description": "Użyj ulepszenia podpowiedzi, aby uzyskać dostosowane sugestie lub ulepszenia dla swoich danych wejściowych. Zapewnia to, że Roo rozumie Twoje intencje i dostarcza najlepsze możliwe odpowiedzi. Dostępne za pośrednictwem ikony ✨ w czacie."
+			},
+			"CONDENSE": {
+				"label": "Kondensacja kontekstu",
+				"description": "Skonfiguruj, w jaki sposób kontekst rozmowy jest kondensowany w celu zarządzania limitami tokenów. Ten monit jest używany zarówno do ręcznych, jak i automatycznych operacji kondensacji kontekstu."
 			},
 			"EXPLAIN": {
 				"label": "Wyjaśnij kod",

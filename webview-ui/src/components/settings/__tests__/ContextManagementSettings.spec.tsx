@@ -10,7 +10,6 @@ vitest.mock("@/i18n/TranslationContext", () => ({
 }))
 
 // Mock vscode utilities - this is necessary since we're not in a VSCode environment
-import { vscode } from "@/utils/vscode"
 
 vitest.mock("@/utils/vscode", () => ({
 	vscode: {
@@ -169,8 +168,6 @@ describe("ContextManagementSettings", () => {
 			...defaultProps,
 			autoCondenseContext: true,
 			autoCondenseContextPercent: 75,
-			condensingApiConfigId: "test-config",
-			customCondensingPrompt: "Test prompt",
 		}
 		render(<ContextManagementSettings {...propsWithAutoCondense} />)
 
@@ -182,13 +179,9 @@ describe("ContextManagementSettings", () => {
 		const slider = screen.getByTestId("condense-threshold-slider")
 		expect(slider).toBeInTheDocument()
 
-		// Should render both select dropdowns (profile and API config)
+		// Should render the profile select dropdown
 		const selects = screen.getAllByRole("combobox")
-		expect(selects).toHaveLength(2)
-
-		// Should render the custom prompt textarea
-		const textarea = screen.getByRole("textbox")
-		expect(textarea).toBeInTheDocument()
+		expect(selects).toHaveLength(1)
 	})
 
 	describe("Auto Condense Context functionality", () => {
@@ -196,8 +189,6 @@ describe("ContextManagementSettings", () => {
 			...defaultProps,
 			autoCondenseContext: true,
 			autoCondenseContextPercent: 75,
-			condensingApiConfigId: "test-config",
-			customCondensingPrompt: "Custom test prompt",
 			listApiConfigMeta: [
 				{ id: "config-1", name: "Config 1" },
 				{ id: "config-2", name: "Config 2" },
@@ -217,14 +208,13 @@ describe("ContextManagementSettings", () => {
 			expect(mockSetCachedStateField).toHaveBeenCalledWith("autoCondenseContext", false)
 		})
 
-		it("shows additional settings when auto condense is enabled", () => {
+		it("shows threshold settings when auto condense is enabled", () => {
 			render(<ContextManagementSettings {...autoCondenseProps} />)
 
-			// Additional settings should be visible
+			// Threshold settings should be visible
 			expect(screen.getByTestId("condense-threshold-slider")).toBeInTheDocument()
-			// Two comboboxes: one for profile selection, one for API config
-			expect(screen.getAllByRole("combobox")).toHaveLength(2)
-			expect(screen.getByRole("textbox")).toBeInTheDocument()
+			// One combobox for profile selection
+			expect(screen.getAllByRole("combobox")).toHaveLength(1)
 		})
 
 		it("updates auto condense context percent", () => {
@@ -245,112 +235,6 @@ describe("ContextManagementSettings", () => {
 		it("displays correct auto condense context percent value", () => {
 			render(<ContextManagementSettings {...autoCondenseProps} />)
 			expect(screen.getByText("75%")).toBeInTheDocument()
-		})
-
-		it("updates condensing API configuration", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const mockPostMessage = vitest.fn()
-			const postMessageSpy = vitest.spyOn(vscode, "postMessage")
-			postMessageSpy.mockImplementation(mockPostMessage)
-
-			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
-			render(<ContextManagementSettings {...props} />)
-
-			// Get the second combobox (API config select)
-			const selects = screen.getAllByRole("combobox")
-			const apiSelect = selects[1]
-			fireEvent.click(apiSelect)
-
-			const configOption = screen.getByText("Config 1")
-			fireEvent.click(configOption)
-
-			expect(mockSetCachedStateField).toHaveBeenCalledWith("condensingApiConfigId", "config-1")
-			expect(mockPostMessage).toHaveBeenCalledWith({
-				type: "condensingApiConfigId",
-				text: "config-1",
-			})
-		})
-
-		it("handles selecting default config option", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const mockPostMessage = vitest.fn()
-			const postMessageSpy = vitest.spyOn(vscode, "postMessage")
-			postMessageSpy.mockImplementation(mockPostMessage)
-
-			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
-			render(<ContextManagementSettings {...props} />)
-
-			// Test selecting default config - get the second combobox (API config)
-			const selects = screen.getAllByRole("combobox")
-			const apiSelect = selects[1]
-			fireEvent.click(apiSelect)
-			const defaultOption = screen.getByText(
-				"settings:contextManagement.condensingApiConfiguration.useCurrentConfig",
-			)
-			fireEvent.click(defaultOption)
-
-			expect(mockSetCachedStateField).toHaveBeenCalledWith("condensingApiConfigId", "")
-			expect(mockPostMessage).toHaveBeenCalledWith({
-				type: "condensingApiConfigId",
-				text: "",
-			})
-		})
-
-		it("updates custom condensing prompt", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const mockPostMessage = vitest.fn()
-			const postMessageSpy = vitest.spyOn(vscode, "postMessage")
-			postMessageSpy.mockImplementation(mockPostMessage)
-
-			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
-			render(<ContextManagementSettings {...props} />)
-
-			const textarea = screen.getByRole("textbox")
-			const newPrompt = "Updated custom prompt"
-			fireEvent.change(textarea, { target: { value: newPrompt } })
-
-			expect(mockSetCachedStateField).toHaveBeenCalledWith("customCondensingPrompt", newPrompt)
-			expect(mockPostMessage).toHaveBeenCalledWith({
-				type: "updateCondensingPrompt",
-				text: newPrompt,
-			})
-		})
-
-		it("resets custom condensing prompt to default", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const mockPostMessage = vitest.fn()
-			const postMessageSpy = vitest.spyOn(vscode, "postMessage")
-			postMessageSpy.mockImplementation(mockPostMessage)
-
-			const props = { ...autoCondenseProps, setCachedStateField: mockSetCachedStateField }
-			render(<ContextManagementSettings {...props} />)
-
-			const resetButton = screen.getByRole("button", {
-				name: "settings:contextManagement.customCondensingPrompt.reset",
-			})
-			fireEvent.click(resetButton)
-
-			// Should reset to the default SUMMARY_PROMPT
-			expect(mockSetCachedStateField).toHaveBeenCalledWith(
-				"customCondensingPrompt",
-				expect.stringContaining("Your task is to create a detailed summary"),
-			)
-			expect(mockPostMessage).toHaveBeenCalledWith({
-				type: "updateCondensingPrompt",
-				text: expect.stringContaining("Your task is to create a detailed summary"),
-			})
-		})
-
-		it("uses default prompt when customCondensingPrompt is undefined", () => {
-			const propsWithoutCustomPrompt = {
-				...autoCondenseProps,
-				customCondensingPrompt: undefined,
-			}
-			render(<ContextManagementSettings {...propsWithoutCustomPrompt} />)
-
-			const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
-			// The textarea should contain the full default SUMMARY_PROMPT
-			expect(textarea.value).toContain("Your task is to create a detailed summary")
 		})
 	})
 
@@ -427,8 +311,6 @@ describe("ContextManagementSettings", () => {
 				...defaultProps,
 				showRooIgnoredFiles: undefined,
 				maxReadFileLine: undefined,
-				condensingApiConfigId: undefined,
-				customCondensingPrompt: undefined,
 			}
 
 			expect(() => {
@@ -442,21 +324,15 @@ describe("ContextManagementSettings", () => {
 	})
 
 	describe("Conditional rendering", () => {
-		it("does not render auto condense section when autoCondenseContext is false", () => {
+		it("does not render threshold settings when autoCondenseContext is false", () => {
 			const propsWithoutAutoCondense = {
 				...defaultProps,
 				autoCondenseContext: false,
 			}
 			render(<ContextManagementSettings {...propsWithoutAutoCondense} />)
 
-			// When auto condense is false, all condensing-related UI should not be visible
+			// When auto condense is false, threshold slider should not be visible
 			expect(screen.queryByTestId("condense-threshold-slider")).not.toBeInTheDocument()
-			expect(
-				screen.queryByText("settings:contextManagement.condensingApiConfiguration.label"),
-			).not.toBeInTheDocument()
-			expect(
-				screen.queryByText("settings:contextManagement.customCondensingPrompt.label"),
-			).not.toBeInTheDocument()
 		})
 
 		it("renders max read file controls with default value when maxReadFileLine is undefined", () => {

@@ -93,10 +93,19 @@
 			"previewButton": "預覽提示詞增強",
 			"testEnhancement": "測試增強"
 		},
+		"condense": {
+			"apiConfiguration": "用於上下文壓縮的 API 設定",
+			"apiConfigDescription": "選取用於上下文壓縮作業的 API 設定。保留未選取狀態以使用目前作用中的設定。",
+			"useCurrentConfig": "使用當前選取的 API 設定"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "增強提示詞",
 				"description": "使用提示詞增強功能取得針對您輸入的客製化建議或改進。這確保 Roo 能理解您的意圖並提供最佳的回應。可透過聊天中的 ✨ 圖示使用。"
+			},
+			"CONDENSE": {
+				"label": "上下文壓縮",
+				"description": "設定如何壓縮對話上下文以管理權杖限制。此提示用於手動和自動上下文壓縮作業。"
 			},
 			"EXPLAIN": {
 				"label": "解釋程式碼",

@@ -95,10 +95,19 @@
 			"previewButton": "Preview Prompt Enhancement",
 			"testEnhancement": "Test Enhancement"
 		},
+		"condense": {
+			"apiConfiguration": "API Configuration for Context Condensing",
+			"apiConfigDescription": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Use currently selected API configuration"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Enhance Prompt",
 				"description": "Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat."
+			},
+			"CONDENSE": {
+				"label": "Context Condensing",
+				"description": "Configure how conversation context is condensed to manage token limits. This prompt is used for both manual and automatic context condensing operations."
 			},
 			"EXPLAIN": {
 				"label": "Explain Code",

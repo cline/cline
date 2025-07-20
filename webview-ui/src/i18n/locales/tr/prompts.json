@@ -93,10 +93,19 @@
 			"previewButton": "Prompt geliştirmesini önizle",
 			"testEnhancement": "Geliştirmeyi test et"
 		},
+		"condense": {
+			"apiConfiguration": "Bağlam Yoğunlaştırma için API Yapılandırması",
+			"apiConfigDescription": "Bağlam yoğunlaştırma işlemleri için hangi API yapılandırmasının kullanılacağını seçin. Geçerli etkin yapılandırmayı kullanmak için seçilmemiş bırakın.",
+			"useCurrentConfig": "Şu anda seçili olan API yapılandırmasını kullan"
+		},
 		"types": {
 			"ENHANCE": {
 				"label": "Promptu Geliştir",
 				"description": "Girdileriniz için özel öneriler veya iyileştirmeler almak için prompt geliştirmeyi kullanın. Bu, Roo'nun niyetinizi anlamasını ve mümkün olan en iyi yanıtları sağlamasını garanti eder. Sohbetteki ✨ simgesi aracılığıyla kullanılabilir."
+			},
+			"CONDENSE": {
+				"label": "Bağlam Yoğunlaştırma",
+				"description": "Jeton sınırlarını yönetmek için konuşma bağlamının nasıl yoğunlaştırılacağını yapılandırın. Bu istem, hem manuel hem de otomatik bağlam yoğunlaştırma işlemleri için kullanılır."
 			},
 			"EXPLAIN": {
 				"label": "Kodu Açıkla",
