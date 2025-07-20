@@ -3,7 +3,7 @@ import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
 import { Controller } from ".."
 import { FileMethodHandler } from "./index"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
@@ -46,7 +46,7 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
-	getHostBridgeProvider().windowClient.showMessage({
+	HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message,
 	})

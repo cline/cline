@@ -34,8 +34,9 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { clineEnvConfig } from "@/config"
 
 /*
@@ -118,12 +119,12 @@ export class Controller {
 				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
 			])
 			await this.postStateToWebview()
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",
 			})
@@ -361,7 +362,7 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
 			})
@@ -399,7 +400,7 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: errorMessage,
 				})
@@ -486,7 +487,7 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: errorMessage,
 			})

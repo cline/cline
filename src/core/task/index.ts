@@ -37,7 +37,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import { createDiffViewProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
 import { ErrorService } from "@/services/error/ErrorService"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
@@ -188,7 +188,7 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = createDiffViewProvider()
+		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
