@@ -93,7 +93,6 @@ describe("McpHub", () => {
 		// Mock console.error to suppress error messages during tests
 		console.error = vi.fn()
 
-
 		const mockUri: Uri = {
 			scheme: "file",
 			authority: "",

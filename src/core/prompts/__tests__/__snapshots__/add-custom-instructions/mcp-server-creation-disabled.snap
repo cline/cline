@@ -269,55 +269,6 @@ Examples:
 <ignore_case>true</ignore_case>
 </search_and_replace>
 
-## use_mcp_tool
-Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
-Parameters:
-- server_name: (required) The name of the MCP server providing the tool
-- tool_name: (required) The name of the tool to execute
-- arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-Usage:
-<use_mcp_tool>
-<server_name>server name here</server_name>
-<tool_name>tool name here</tool_name>
-<arguments>
-{
-  "param1": "value1",
-  "param2": "value2"
-}
-</arguments>
-</use_mcp_tool>
-
-Example: Requesting to use an MCP tool
-
-<use_mcp_tool>
-<server_name>weather-server</server_name>
-<tool_name>get_forecast</tool_name>
-<arguments>
-{
-  "city": "San Francisco",
-  "days": 5
-}
-</arguments>
-</use_mcp_tool>
-
-## access_mcp_resource
-Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
-Parameters:
-- server_name: (required) The name of the MCP server providing the resource
-- uri: (required) The URI identifying the specific resource to access
-Usage:
-<access_mcp_resource>
-<server_name>server name here</server_name>
-<uri>resource URI here</uri>
-</access_mcp_resource>
-
-Example: Requesting to access an MCP resource
-
-<access_mcp_resource>
-<server_name>weather-server</server_name>
-<uri>weather://san-francisco/current</uri>
-</access_mcp_resource>
-
 ## ask_followup_question
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
@@ -508,18 +459,7 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.
 
-MCP SERVERS
 
-The Model Context Protocol (MCP) enables communication between the system and MCP servers that provide additional tools and resources to extend your capabilities. MCP servers can be one of two types:
-
-1. Local (Stdio-based) servers: These run locally on the user's machine and communicate via standard input/output
-2. Remote (SSE-based) servers: These run on remote machines and communicate via Server-Sent Events (SSE) over HTTP/HTTPS
-
-# Connected MCP Servers
-
-When a server is connected, you can use the server's tools via the `use_mcp_tool` tool, and access the server's resources via the `access_mcp_resource` tool.
-
-(No MCP servers currently connected)
 
 ====
 
@@ -531,8 +471,6 @@ CAPABILITIES
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
     - For example, when asked to make edits or improvements you might analyze the file structure in the initial environment_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to apply the changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
 - You can use the execute_command tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.
-- You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
-
 
 ====
 

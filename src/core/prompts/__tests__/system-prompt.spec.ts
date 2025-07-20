@@ -168,9 +168,9 @@ const mockContext = {
 } as unknown as vscode.ExtensionContext
 
 // Instead of extending McpHub, create a mock that implements just what we need
-const createMockMcpHub = (): McpHub =>
+const createMockMcpHub = (withServers: boolean = false): McpHub =>
 	({
-		getServers: () => [],
+		getServers: () => (withServers ? [{ name: "test-server", disabled: false }] : []),
 		getMcpServersPath: async () => "/mock/mcp/path",
 		getMcpSettingsFilePath: async () => "/mock/settings/path",
 		dispose: async () => {},
@@ -250,7 +250,7 @@ describe("SYSTEM_PROMPT", () => {
 	})
 
 	it("should include MCP server info when mcpHub is provided", async () => {
-		mockMcpHub = createMockMcpHub()
+		mockMcpHub = createMockMcpHub(true)
 
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,

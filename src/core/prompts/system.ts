@@ -71,9 +71,14 @@ async function generatePrompt(
 	const modeConfig = getModeBySlug(mode, customModeConfigs) || modes.find((m) => m.slug === mode) || modes[0]
 	const { roleDefinition, baseInstructions } = getModeSelection(mode, promptComponent, customModeConfigs)
 
+	// Check if MCP functionality should be included
+	const hasMcpGroup = modeConfig.groups.some((groupEntry) => getGroupName(groupEntry) === "mcp")
+	const hasMcpServers = mcpHub && mcpHub.getServers().length > 0
+	const shouldIncludeMcp = hasMcpGroup && hasMcpServers
+
 	const [modesSection, mcpServersSection] = await Promise.all([
 		getModesSection(context),
-		modeConfig.groups.some((groupEntry) => getGroupName(groupEntry) === "mcp")
+		shouldIncludeMcp
 			? getMcpServersSection(mcpHub, effectiveDiffStrategy, enableMcpServerCreation)
 			: Promise.resolve(""),
 	])
@@ -93,7 +98,7 @@ ${getToolDescriptionsForMode(
 	codeIndexManager,
 	effectiveDiffStrategy,
 	browserViewportSize,
-	mcpHub,
+	shouldIncludeMcp ? mcpHub : undefined,
 	customModeConfigs,
 	experiments,
 	partialReadsEnabled,
@@ -104,7 +109,7 @@ ${getToolUseGuidelinesSection(codeIndexManager)}
 
 ${mcpServersSection}
 
-${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy, codeIndexManager)}
+${getCapabilitiesSection(cwd, supportsComputerUse, shouldIncludeMcp ? mcpHub : undefined, effectiveDiffStrategy, codeIndexManager)}
 
 ${modesSection}
 

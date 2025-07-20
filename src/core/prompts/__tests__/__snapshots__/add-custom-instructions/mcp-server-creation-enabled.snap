@@ -519,7 +519,7 @@ The Model Context Protocol (MCP) enables communication between the system and MC
 
 When a server is connected, you can use the server's tools via the `use_mcp_tool` tool, and access the server's resources via the `access_mcp_resource` tool.
 
-(No MCP servers currently connected)
+
 ## Creating an MCP Server
 
 The user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. If they do, you should obtain detailed instructions on this topic using the fetch_instructions tool, like this:
