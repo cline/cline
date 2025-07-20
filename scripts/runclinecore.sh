@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -eu #x
-# This compiles the cline-core app, installs it to the user's home directory,
-# and runs the service.
+# This installs the cline-core app to the user's home directory,
+# and starts the service.
 
 CORE_DIR=~/.cline/core
 INSTALL_DIR=$CORE_DIR/0.0.1
 
-# Build cline core
-npm run compile-standalone
+ZIP_FILE=standalone.zip
+ZIP=dist-standalone/${ZIP_FILE}
 
 # Remove old unpacked versions to force reinstall
 rm -rf $CORE_DIR/* || true
 
 mkdir -p $INSTALL_DIR
-cp dist-standalone/standalone.zip $INSTALL_DIR
+cp $ZIP $INSTALL_DIR
 cd $INSTALL_DIR
-unp standalone.zip > /dev/null
+unp $ZIP_FILE > /dev/null
 
 pkill -f cline-core.js || true
-NODE_PATH=./node_modules node cline-core.js
+NODE_PATH=./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node cline-core.js
