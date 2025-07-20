@@ -105,47 +105,67 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 		[modeFields.apiProvider],
 	)
 
-	const maxSliderValue =
-		Math.max(selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE), DEFAULT_MIN_VALID_TOKENS)
+	const maxSliderValue = Math.max(
+		selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE),
+		DEFAULT_MIN_VALID_TOKENS,
+	)
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
 
+	// Only sync from external changes, don't auto-adjust user input
 	useEffect(() => {
 		const budget = modeFields.thinkingBudgetTokens || 0
-		if (budget > maxSliderValue) {
-			setLocalValue(maxSliderValue)
+		setLocalValue(budget)
+	}, [modeFields.thinkingBudgetTokens])
+
+	// Separate effect to handle initial bounds checking (only on mount or model change)
+	useEffect(() => {
+		const budget = modeFields.thinkingBudgetTokens || 0
+		if (budget > 0 && budget > maxSliderValue) {
+			// Only auto-adjust if the current value exceeds the new model's limits
+			const adjustedValue = Math.min(budget, maxSliderValue)
 			handleModeFieldChange(
 				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-				maxSliderValue,
-				currentMode
+				adjustedValue,
+				currentMode,
 			)
-		} else {
-			setLocalValue(budget)
 		}
-	}, [modeFields.thinkingBudgetTokens, maxSliderValue, handleModeFieldChange, currentMode])
+	}, [maxSliderValue, currentMode]) // Only trigger on model/mode changes, not budget changes
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setLocalValue(value)
 	}, [])
 
-	const handleSliderComplete = () => {
+	const handleSliderComplete = useCallback(() => {
+		// Ensure the value is within bounds before saving
+		const clampedValue = Math.max(DEFAULT_MIN_VALID_TOKENS, Math.min(localValue, maxSliderValue))
+		if (clampedValue !== localValue) {
+			setLocalValue(clampedValue)
+		}
 		handleModeFieldChange(
 			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-			localValue,
+			clampedValue,
 			currentMode,
 		)
-	}
+	}, [localValue, maxSliderValue, handleModeFieldChange, currentMode])
 
-	const handleToggleChange = (event: any) => {
-		const isChecked = (event.target as HTMLInputElement).checked
-		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
-		setIsEnabled(isChecked)
-		setLocalValue(newValue)
+	const handleToggleChange = useCallback(
+		(event: any) => {
+			const isChecked = (event.target as HTMLInputElement).checked
+			const newValue = isChecked ? Math.min(DEFAULT_MIN_VALID_TOKENS, maxSliderValue) : 0
+			setIsEnabled(isChecked)
+			setLocalValue(newValue)
 
-		handleModeFieldChange({ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" }, newValue, currentMode)
-	}
+			handleModeFieldChange(
+				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
+				newValue,
+				currentMode,
+			)
+		},
+		[maxSliderValue, handleModeFieldChange, currentMode],
+	)
 
 	return (
 		<Container>
