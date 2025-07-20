@@ -1218,8 +1218,9 @@ export class Task {
 		await this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
-		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
-
+		// need to await for when we want to make sure directories/files are reverted before
+		// re-starting the task from a checkpoint
+		await this.diffViewProvider.revertChanges()
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
 	}

@@ -834,7 +834,7 @@ vscode.workspace.applyEdit = function (edit, metadata) {
 	console.log("Called stubbed function: vscode.workspace.applyEdit")
 	return false
 }
-vscode.workspace.textDocuments = createStub("vscode.workspace.textDocuments")
+vscode.workspace.textDocuments = []
 vscode.workspace.openTextDocument = function (uri) {
 	console.log("Called stubbed function: vscode.workspace.openTextDocument")
 	return Promise.resolve(null)
