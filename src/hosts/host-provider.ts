@@ -3,6 +3,19 @@ import { HostBridgeClientProvider } from "./host-provider-types"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
+/**
+ * Singleton class that manages host-specific providers for dependency injection.
+ *
+ * This system runs on two totally different platforms (VSCode extension and standalone),
+ * so all the host-specific classes and properties are contained in here, and then the
+ * rest of the code can use the host provider interface to access platform-specific
+ * implementations in a platform-agnostic way.
+ *
+ * Usage:
+ * - Initialize once: HostProvider.initialize(webviewCreator, diffCreator, hostBridge)
+ * - Access HostBridge services: HostProvider.window.showMessage()
+ * - Access HostProvider factories: HostProvider.get().createDiffViewProvider()
+ */
 export class HostProvider {
 	private static instance: HostProvider | null = null
 
@@ -43,14 +56,11 @@ export class HostProvider {
 		return HostProvider.instance
 	}
 
-	/**
-	 * Gets the singleton instance
-	 */
 	public static isInitialized(): boolean {
 		return !!HostProvider.instance
 	}
 
-	// Static service accessors for even shorter access
+	// Static service accessors for more concise access for callers.
 	public static get watch() {
 		return HostProvider.get().hostBridge.watchServiceClient
 	}
