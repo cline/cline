@@ -106,7 +106,7 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 	)
 
 	const maxSliderValue =
-		selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE)
+		Math.max(selectedModelInfo.thinkingConfig?.maxBudget || Math.floor((selectedModelInfo.maxTokens || 0) * MAX_PERCENTAGE), DEFAULT_MIN_VALID_TOKENS)
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
