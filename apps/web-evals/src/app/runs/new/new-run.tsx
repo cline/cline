@@ -21,6 +21,9 @@ import {
 	CONCURRENCY_MIN,
 	CONCURRENCY_MAX,
 	CONCURRENCY_DEFAULT,
+	TIMEOUT_MIN,
+	TIMEOUT_MAX,
+	TIMEOUT_DEFAULT,
 } from "@/lib/schemas"
 import { cn } from "@/lib/utils"
 import { useOpenRouterModels } from "@/hooks/use-open-router-models"
@@ -77,6 +80,7 @@ export function NewRun() {
 			exercises: [],
 			settings: undefined,
 			concurrency: CONCURRENCY_DEFAULT,
+			timeout: TIMEOUT_DEFAULT,
 		},
 	})
 
@@ -334,6 +338,29 @@ export function NewRun() {
 											onValueChange={(value) => field.onChange(value[0])}
 										/>
 										<div>{field.value}</div>
+									</div>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+
+					<FormField
+						control={form.control}
+						name="timeout"
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Timeout (minutes)</FormLabel>
+								<FormControl>
+									<div className="flex flex-row items-center gap-2">
+										<Slider
+											defaultValue={[field.value]}
+											min={TIMEOUT_MIN}
+											max={TIMEOUT_MAX}
+											step={1}
+											onValueChange={(value) => field.onChange(value[0])}
+										/>
+										<div>{field.value} min</div>
 									</div>
 								</FormControl>
 								<FormMessage />

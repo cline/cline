@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "timeout" integer DEFAULT 5 NOT NULL;

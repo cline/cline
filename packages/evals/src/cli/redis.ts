@@ -1,7 +1,5 @@
 import { createClient, type RedisClientType } from "redis"
 
-import { EVALS_TIMEOUT } from "@roo-code/types"
-
 let redis: RedisClientType | undefined
 
 export const redisClient = async () => {
@@ -18,11 +16,19 @@ export const getPubSubKey = (runId: number) => `evals:${runId}`
 export const getRunnersKey = (runId: number) => `runners:${runId}`
 export const getHeartbeatKey = (runId: number) => `heartbeat:${runId}`
 
-export const registerRunner = async ({ runId, taskId }: { runId: number; taskId: number }) => {
+export const registerRunner = async ({
+	runId,
+	taskId,
+	timeoutSeconds,
+}: {
+	runId: number
+	taskId: number
+	timeoutSeconds: number
+}) => {
 	const redis = await redisClient()
 	const runnersKey = getRunnersKey(runId)
 	await redis.sAdd(runnersKey, `task-${taskId}:${process.env.HOSTNAME ?? process.pid}`)
-	await redis.expire(runnersKey, EVALS_TIMEOUT / 1_000)
+	await redis.expire(runnersKey, timeoutSeconds)
 }
 
 export const deregisterRunner = async ({ runId, taskId }: { runId: number; taskId: number }) => {

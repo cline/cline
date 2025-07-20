@@ -18,6 +18,7 @@ export const runs = pgTable("runs", {
 	pid: integer(),
 	socketPath: text("socket_path").notNull(),
 	concurrency: integer().default(2).notNull(),
+	timeout: integer().default(5).notNull(),
 	passed: integer().default(0).notNull(),
 	failed: integer().default(0).notNull(),
 	createdAt: timestamp("created_at").notNull(),

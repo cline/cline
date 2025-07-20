@@ -5,14 +5,7 @@ import * as os from "node:os"
 import pWaitFor from "p-wait-for"
 import { execa } from "execa"
 
-import {
-	type TaskEvent,
-	TaskCommandName,
-	RooCodeEventName,
-	IpcMessageType,
-	EVALS_SETTINGS,
-	EVALS_TIMEOUT,
-} from "@roo-code/types"
+import { type TaskEvent, TaskCommandName, RooCodeEventName, IpcMessageType, EVALS_SETTINGS } from "@roo-code/types"
 import { IpcClient } from "@roo-code/ipc"
 
 import {
@@ -42,7 +35,7 @@ export const processTask = async ({ taskId, logger }: { taskId: number; logger?:
 	const task = await findTask(taskId)
 	const { language, exercise } = task
 	const run = await findRun(task.runId)
-	await registerRunner({ runId: run.id, taskId })
+	await registerRunner({ runId: run.id, taskId, timeoutSeconds: (run.timeout || 5) * 60 })
 
 	const containerized = isDockerContainer()
 
@@ -304,9 +297,10 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 	})
 
 	try {
+		const timeoutMs = (run.timeout || 5) * 60 * 1_000 // Convert minutes to milliseconds
 		await pWaitFor(() => !!taskFinishedAt || !!taskAbortedAt || isClientDisconnected, {
 			interval: 1_000,
-			timeout: EVALS_TIMEOUT,
+			timeout: timeoutMs,
 		})
 	} catch (_error) {
 		taskTimedOut = true
