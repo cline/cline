@@ -2,8 +2,10 @@ import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+
+export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
