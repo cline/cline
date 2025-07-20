@@ -9,8 +9,6 @@ import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 
-export const DIFF_VIEW_URI_SCHEME = "cline-diff"
-
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
 	isEditing = false
