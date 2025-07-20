@@ -22,9 +22,7 @@ export function getFqn(name) {
 	}
 	return typeNameToFQN.get(name)
 }
-/**
- * Main function to generate the host bridge client
- */
+
 export async function loadServicesFromProtoDescriptor() {
 	// Load service definitions from descriptor set
 	const descriptorBuffer = await fs.readFile(DESCRIPTOR_SET)
