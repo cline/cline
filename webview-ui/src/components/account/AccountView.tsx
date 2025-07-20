@@ -17,6 +17,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { formatCreditsBalance } from "@/utils/format"
+import { clineEnvConfig } from "@/config"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -124,10 +125,11 @@ export const ClineAccountView = () => {
 	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
+	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	const dashboardAddCreditsURL = activeOrganization
-		? "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
-		: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		? `${clineEnvConfig.appBaseUrl}/dashboard/organization?tab=credits&redirect=true`
+		: `${clineEnvConfig.appBaseUrl}/dashboard/account?tab=credits&redirect=true`
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -180,6 +182,30 @@ export const ClineAccountView = () => {
 
 		fetchUserData()
 	}, [user])
+
+	// Periodic refresh while component is mounted
+	useEffect(() => {
+		if (!user) return
+
+		intervalRef.current = setInterval(() => {
+			getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
+		}, 10_000)
+
+		return () => {
+			if (intervalRef.current) clearInterval(intervalRef.current)
+		}
+	}, [user])
+
+	const handleManualRefresh = async () => {
+		await getUserCredits()
+
+		if (intervalRef.current) {
+			clearInterval(intervalRef.current)
+			intervalRef.current = setInterval(() => {
+				getUserCredits().catch((err) => console.error("Auto-refresh failed:", err))
+			}, 10_000)
+		}
+	}
 
 	const handleLogin = () => {
 		handleSignIn()
@@ -265,7 +291,10 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink href="https://app.cline.bot/dashboard" appearance="primary" className="w-full">
+							<VSCodeButtonLink
+								href={`${clineEnvConfig.appBaseUrl}/dashboard`}
+								appearance="primary"
+								className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -295,7 +324,7 @@ export const ClineAccountView = () => {
 												<StyledCreditDisplay balance={balance} />
 											</>
 										)}
-										<VSCodeButton appearance="icon" className="mt-1" onClick={getUserCredits}>
+										<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
 											<span className="codicon codicon-refresh"></span>
 										</VSCodeButton>
 									</>

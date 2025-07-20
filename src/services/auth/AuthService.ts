@@ -5,10 +5,10 @@ import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
+import { clineEnvConfig } from "@/config"
+import { openExternal } from "@/utils/env"
 
-const DefaultClineAccountURI = "https://app.cline.bot/auth"
-// const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
-// const DefaultClineAccountURI = "http://localhost:3000/auth"
+const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
 
 type ServiceConfig = {
@@ -70,37 +70,7 @@ export class AuthService {
 		const authProvidersConfigs = [
 			{
 				name: "firebase",
-				config: {
-					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
-					authDomain: "cline-prod.firebaseapp.com",
-					projectId: "cline-prod",
-					storageBucket: "cline-prod.firebasestorage.app",
-					messagingSenderId: "941048379330",
-					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
-				},
-				// Uncomment for staging environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// Uncomment for local development environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// config: {
-				// 	apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
-				// 	authDomain: "cline-preview.firebaseapp.com",
-				// 	projectId: "cline-preview",
-				// }
+				config: clineEnvConfig.firebase,
 			},
 		]
 
@@ -218,7 +188,7 @@ export class AuthService {
 
 		const authUrlString = authUrl.toString()
 
-		await vscode.env.openExternal(vscode.Uri.parse(authUrlString))
+		await openExternal(authUrlString)
 		return String.create({ value: authUrlString })
 	}
 

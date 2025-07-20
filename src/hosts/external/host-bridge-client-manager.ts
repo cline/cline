@@ -5,7 +5,7 @@ import {
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 	DiffServiceClientImpl,
-} from "@generated/standalone/host-bridge-clients"
+} from "@generated/hosts/standalone/host-bridge-clients"
 import {
 	WatchServiceClientInterface,
 	WorkspaceServiceClientInterface,
@@ -14,13 +14,13 @@ import {
 	DiffServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+import { HOSTBRIDGE_PORT } from "@/standalone/protobus-service"
 
 /**
  * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
  * creating a new TCP connection every time a rpc is made.
  */
 export class ExternalHostBridgeClientManager implements HostBridgeClientProvider {
-	private channel: Channel
 	watchServiceClient: WatchServiceClientInterface
 	workspaceClient: WorkspaceServiceClientInterface
 	envClient: EnvServiceClientInterface
@@ -28,17 +28,12 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	diffClient: DiffServiceClientInterface
 
 	constructor() {
-		const address = process.env.HOST_BRIDGE_ADDRESS || "localhost:50052"
-		this.channel = createChannel(address)
+		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
 
-		this.watchServiceClient = new WatchServiceClientImpl(this.channel)
-		this.workspaceClient = new WorkspaceServiceClientImpl(this.channel)
-		this.envClient = new EnvServiceClientImpl(this.channel)
-		this.windowClient = new WindowServiceClientImpl(this.channel)
-		this.diffClient = new DiffServiceClientImpl(this.channel)
-	}
-
-	public close(): void {
-		this.channel.close()
+		this.watchServiceClient = new WatchServiceClientImpl(address)
+		this.workspaceClient = new WorkspaceServiceClientImpl(address)
+		this.envClient = new EnvServiceClientImpl(address)
+		this.windowClient = new WindowServiceClientImpl(address)
+		this.diffClient = new DiffServiceClientImpl(address)
 	}
 }

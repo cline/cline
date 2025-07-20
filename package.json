@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.19.5-r1",
+	"version": "3.19.7",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -347,6 +347,7 @@
 		"test:coverage": "vscode-test --coverage",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e": "playwright install && vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
+		"test:e2e:optimal": "vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
@@ -356,9 +357,9 @@
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"docs": "cd docs && mintlify dev",
-		"docs:check-links": "cd docs && mintlify broken-links",
-		"docs:rename-file": "cd docs && mintlify rename",
+		"docs": "cd docs && npm run dev",
+		"docs:check-links": "cd docs && npm run check",
+		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js"
 	},
 	"lint-staged": {
@@ -396,7 +397,6 @@
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
-		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"protoc-gen-ts": "^0.8.7",

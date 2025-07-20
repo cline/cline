@@ -61,7 +61,6 @@
 					"getting-started/installing-cline",
 					"getting-started/installing-dev-essentials",
 					"getting-started/model-selection-guide",
-					"getting-started/our-favorite-tech-stack",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
 					"getting-started/what-is-cline"
@@ -160,7 +159,8 @@
 					"provider-config/openai",
 					"provider-config/openai-compatible",
 					"provider-config/openrouter",
-					"provider-config/requesty"
+					"provider-config/requesty",
+					"provider-config/sap-aicore"
 				]
 			},
 			{

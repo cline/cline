@@ -1,5 +1,6 @@
 import * as grpc from "@grpc/grpc-js"
-import { Controller } from "../core/controller"
+import { Controller } from "@core/controller"
+import { Channel, createChannel } from "nice-grpc"
 
 /**
  * Type definition for a gRPC handler function.
@@ -36,3 +37,51 @@ export type GrpcStreamingResponseHandlerWrapper = <TRequest, TResponse>(
 ) => grpc.handleServerStreamingCall<TRequest, TResponse>
 
 export type StreamingResponseWriter<TResponse> = (response: TResponse, isLast?: boolean, sequenceNumber?: number) => Promise<void>
+
+/**
+ * Abstract base class for type-safe gRPC client implementations.
+ *
+ * Provides automatic connection management with lazy initialization and
+ * transparent reconnection on network failures. Ensures type safety through
+ * generic client typing and consistent error handling patterns.
+ *
+ * @template TClient - The specific gRPC client type (e.g., niceGrpc.host.DiffServiceClient)
+ */
+export abstract class BaseGrpcClient<TClient> {
+	private client: TClient | null = null
+	private channel: Channel | null = null
+	protected address: string
+
+	constructor(address: string) {
+		this.address = address
+	}
+
+	protected abstract createClient(channel: Channel): TClient
+
+	protected getClient(): TClient {
+		if (!this.client || !this.channel) {
+			this.channel = createChannel(this.address)
+			this.client = this.createClient(this.channel)
+		}
+		return this.client
+	}
+
+	protected destroyClient(): void {
+		this.channel?.close()
+		this.client = null
+		this.channel = null
+	}
+
+	protected async makeRequest<T>(requestFn: (client: TClient) => Promise<T>): Promise<T> {
+		const client = this.getClient()
+
+		try {
+			return await requestFn(client)
+		} catch (error: any) {
+			if (error?.code === "UNAVAILABLE") {
+				this.destroyClient()
+			}
+			throw error
+		}
+	}
+}
