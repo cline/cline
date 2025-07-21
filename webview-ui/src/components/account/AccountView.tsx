@@ -111,7 +111,7 @@ const getMainRole = (roles?: string[]) => {
 	return "Member"
 }
 
-const CLINE_API_URL = "https://api.cline.bot"
+const CLINE_APP_URL = "https://app.cline.bot"
 
 export const ClineAccountView = () => {
 	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
@@ -129,7 +129,7 @@ export const ClineAccountView = () => {
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	const clineUris = useMemo(() => {
-		const base = new URL(clineUser?.appBaseUrl || CLINE_API_URL)
+		const base = new URL(clineUser?.appBaseUrl || CLINE_APP_URL)
 		const dashboard = new URL("dashboard", base)
 		const credits = new URL(activeOrganization ? "/organization" : "/account", dashboard)
 		credits.searchParams.set("tab", "credits")
