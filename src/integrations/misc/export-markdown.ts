@@ -5,6 +5,7 @@ import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
+import { showSaveDialog } from "@/utils/dialog"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -32,18 +33,15 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		.join("---\n\n")
 
 	// Prompt user for save location
-	const saveUri = await vscode.window.showSaveDialog({
-		filters: { Markdown: ["md"] },
-		defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
-	})
+	const savePath = await showSaveDialog({ Markdown: ["md"] }, path.join(os.homedir(), "Downloads", fileName))
 
-	if (saveUri) {
+	if (savePath) {
 		try {
 			// Write content to the selected location
-			await writeFile(saveUri.fsPath, markdownContent)
+			await writeFile(savePath, markdownContent)
 			await getHostBridgeProvider().windowClient.showTextDocument(
 				ShowTextDocumentRequest.create({
-					path: saveUri.fsPath,
+					path: savePath,
 					options: ShowTextDocumentOptions.create({ preview: true }),
 				}),
 			)
