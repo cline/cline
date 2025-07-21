@@ -54,7 +54,7 @@ export class AuthService {
 	private _authenticated: boolean = false
 	private _clineAuthInfo: ClineAuthInfo | null = null
 	private _provider: { provider: FirebaseAuthProvider } | null = null
-	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
+	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
 	private _context: vscode.ExtensionContext
 
 	/**
@@ -275,8 +275,8 @@ export class AuthService {
 	 */
 	async subscribeToAuthStatusUpdate(
 		controller: Controller,
-		request: EmptyRequest,
-		responseStream: StreamingResponseHandler,
+		_request: EmptyRequest,
+		responseStream: StreamingResponseHandler<AuthState>,
 		requestId?: string,
 	): Promise<void> {
 		console.log("Subscribing to authStatusUpdate")
