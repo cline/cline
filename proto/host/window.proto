@@ -12,6 +12,7 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +71,23 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+message ShowSaveDialogRequest {
+  cline.Metadata metadata = 1;
+  optional ShowSaveDialogOptions options = 2;
+}
+
+message ShowSaveDialogOptions {
+  optional string default_uri = 1;
+  repeated SaveDialogFilter filters = 2;
+}
+
+message SaveDialogFilter {
+  string name = 1;
+  repeated string extensions = 2;
+}
+
+message ShowSaveDialogResponse {
+  optional string selected_uri = 1;
 }

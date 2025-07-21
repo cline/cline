@@ -1,9 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import os from "os"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
@@ -32,23 +31,23 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		.join("---\n\n")
 
 	// Prompt user for save location
-	const saveUri = await vscode.window.showSaveDialog({
-		filters: { Markdown: ["md"] },
-		defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
+	const saveResponse = await HostProvider.window.showSaveDialog({
+		options: {
+			filters: [{ name: "Markdown", extensions: ["md"] }],
+			defaultUri: path.join(os.homedir(), "Downloads", fileName),
+		},
 	})
 
-	if (saveUri) {
+	if (saveResponse.selectedUri) {
 		try {
 			// Write content to the selected location
-			await writeFile(saveUri.fsPath, markdownContent)
-			await HostProvider.window.showTextDocument(
-				ShowTextDocumentRequest.create({
-					path: saveUri.fsPath,
-					options: ShowTextDocumentOptions.create({ preview: true }),
-				}),
-			)
+			await writeFile(saveResponse.selectedUri, markdownContent)
+			await HostProvider.window.showTextDocument({
+				path: saveResponse.selectedUri,
+				options: { preview: true },
+			})
 		} catch (error) {
-			HostProvider.window.showMessage({
+			await HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
 			})
