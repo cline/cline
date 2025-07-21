@@ -55,7 +55,9 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
-	latestAnnouncementId = "june-25-2025_16:11:00" // update to some unique identifier when we add a new announcement
+	get latestAnnouncementId(): string {
+		return this.context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
