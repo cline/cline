@@ -10,7 +10,6 @@ import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
-import { Controller } from "./core/controller"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { ErrorService } from "./services/error/ErrorService"
@@ -40,7 +39,8 @@ import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { getHostBridgeProvider } from "@hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "./shared/proto/host/window"
+import { ShowMessageType } from "./shared/proto/host/window"
+import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -666,21 +666,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.generateGitCommitMessage", async () => {
-			// Get the controller from any instance, without activating the view
-			const controller = WebviewProvider.getAllInstances()[0]?.controller
-
-			if (controller) {
-				// Call the controller method to generate commit message
-				await controller.generateGitCommitMessage()
-			} else {
-				// Create a temporary controller just for this operation
-				const outputChannel = vscode.window.createOutputChannel("Cline Commit Generator")
-				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true), uuidv4())
-
-				await tempController.generateGitCommitMessage()
-				outputChannel.dispose()
-			}
+		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (scm) => {
+			await GitCommitGenerator?.generate?.(context, scm)
+		}),
+		vscode.commands.registerCommand("cline.abortGitCommitMessage", () => {
+			GitCommitGenerator?.abort?.()
 		}),
 	)
 
