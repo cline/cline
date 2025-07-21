@@ -103,7 +103,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Track active tab
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 	// Track if we're currently switching modes
-	const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 
 	const { version, chatSettings } = useExtensionState()
 
@@ -112,7 +111,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		switch (message.type) {
 			// Handle tab navigation through targetSection prop instead
 			case "grpc_response":
-				if (message.grpc_response?.message?.action === "scrollToSettings") {
+				if (message.grpc_response?.message?.key === "scrollToSettings") {
 					const tabId = message.grpc_response?.message?.value
 					if (tabId) {
 						console.log("Opening settings tab from GRPC response:", tabId)
@@ -155,34 +154,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			)
 		} catch (error) {
 			console.error("Failed to reset state:", error)
-		}
-	}
-
-	const handlePlanActModeChange = async (tab: "plan" | "act") => {
-		// Prevent switching if already in that mode or if currently switching
-		if (tab === chatSettings.mode || isSwitchingMode) {
-			return
-		}
-
-		// All settings save immediately, so we can switch modes directly
-		setIsSwitchingMode(true)
-
-		try {
-			// Perform the mode switch
-			await StateServiceClient.togglePlanActMode(
-				TogglePlanActModeRequest.create({
-					chatSettings: {
-						mode: tab === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-						preferredLanguage: chatSettings.preferredLanguage,
-						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-					},
-				}),
-			)
-		} catch (error) {
-			console.error("Failed to toggle Plan/Act mode:", error)
-		} finally {
-			// Always re-enable mode switching, even on error
-			setIsSwitchingMode(false)
 		}
 	}
 
@@ -313,13 +284,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					return (
 						<TabContent className="flex-1 overflow-auto">
 							{/* API Configuration Tab */}
-							{activeTab === "api-config" && (
-								<ApiConfigurationSection
-									isSwitchingMode={isSwitchingMode}
-									handlePlanActModeChange={handlePlanActModeChange}
-									renderSectionHeader={renderSectionHeader}
-								/>
-							)}
+							{activeTab === "api-config" && <ApiConfigurationSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* General Settings Tab */}
 							{activeTab === "general" && <GeneralSettingsSection renderSectionHeader={renderSectionHeader} />}

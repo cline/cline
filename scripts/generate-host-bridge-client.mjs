@@ -2,11 +2,8 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as grpc from "@grpc/grpc-js"
-import * as protoLoader from "@grpc/proto-loader"
 import chalk from "chalk"
-
-const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
+import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
 
 // Contains the interface definitions for the host bridge clients.
 const TYPES_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")
@@ -15,43 +12,11 @@ const EXTERNAL_CLIENT_FILE = path.resolve("src/generated/hosts/standalone/host-b
 // Contains the handler map for the external host bridge clients (using the custom service registry).
 const VSCODE_CLIENT_FILE = path.resolve("src/generated/hosts/vscode/hostbridge-grpc-service-config.ts")
 
-const typeNameToFQN = new Map()
-
-function addTypeNameToFqn(name, fqn) {
-	if (typeNameToFQN.has(name)) {
-		throw new Error(`Proto type ${name} redefined (${fqn}).`)
-	}
-	typeNameToFQN.set(name, fqn)
-}
-function getFqn(name) {
-	if (!typeNameToFQN.has(name)) {
-		throw Error(`No FQN for ${name}`)
-	}
-	return typeNameToFQN.get(name)
-}
 /**
  * Main function to generate the host bridge client
  */
 async function main() {
-	// Load service definitions from descriptor set
-	const descriptorBuffer = await fs.readFile(DESCRIPTOR_SET)
-	const packageDefinition = protoLoader.loadFileDescriptorSetFromBuffer(descriptorBuffer)
-	const proto = grpc.loadPackageDefinition(packageDefinition)
-
-	// Extract host services and proto messages from the proto definition
-	const hostServices = {}
-	for (const [name, def] of Object.entries(proto.host)) {
-		if (def && "service" in def) {
-			hostServices[name] = def
-		} else {
-			addTypeNameToFqn(name, `proto.host.${name}`)
-		}
-	}
-	for (const [name, def] of Object.entries(proto.cline)) {
-		if (def && !("service" in def)) {
-			addTypeNameToFqn(name, `proto.cline.${name}`)
-		}
-	}
+	const { hostServices } = await loadServicesFromProtoDescriptor()
 
 	await generateTypesFile(hostServices)
 	await generateExternalClientFile(hostServices)
@@ -135,6 +100,7 @@ import * as niceGrpc from "@generated/nice-grpc/index"
 import { StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
 import { Channel, createClient } from "nice-grpc"
+import { BaseGrpcClient } from "@/hosts/external/grpc-types"
 
 ${imports.join("\n")}
 
@@ -158,31 +124,49 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 			const isStreamingResponse = methodDef.responseStream
 
 			if (!isStreamingResponse) {
-				return `  ${methodName}(request: ${requestType}): Promise<${responseType}> {
-    return this.client.${methodName}(request)
-  }`
+				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
+      return this.makeRequest((client) => client.${methodName}(request))
+    }`
 			} else {
 				// Generate streaming method
-				return `  ${methodName}(request: ${requestType}, callbacks: StreamingCallbacks<${responseType}>): () => void {
-	const abortController = new AbortController()
-	const stream: AsyncIterable<${responseType}> = this.client.${methodName}(request, {signal: abortController.signal})
-    asyncIteratorToCallbacks(stream, callbacks)
-	return () => {abortController.abort()}
-  }`
+				return `  ${methodName}(
+		request: ${requestType},
+		callbacks: StreamingCallbacks<${responseType}>,
+	): () => void {
+		const client = this.getClient()
+		const abortController = new AbortController()
+		const stream: AsyncIterable<${responseType}> = client.${methodName}(request, {
+			signal: abortController.signal,
+		})
+		const wrappedCallbacks: StreamingCallbacks<${responseType}> = {
+			...callbacks,
+			onError: (error: any) => {
+				if (error?.code === "UNAVAILABLE") {
+					this.destroyClient()
+				}
+				callbacks.onError?.(error)
+			},
+		}
+		asyncIteratorToCallbacks(stream, wrappedCallbacks)
+		return () => {
+			abortController.abort()
+		}
+	}\n`
 			}
 		})
-		.join("\n\n")
+		.join("\n")
 
 	// Generate the class
 	return `/**
  * Type-safe client implementation for ${serviceName}.
  */
-export class ${serviceName}ClientImpl implements ${serviceName}ClientInterface {
-  private client: niceGrpc.host.${serviceName}Client 
+export class ${serviceName}ClientImpl 
+	extends BaseGrpcClient<niceGrpc.host.${serviceName}Client> 
+	implements ${serviceName}ClientInterface {
 
-  constructor(channel: Channel) {
-    this.client = createClient(niceGrpc.host.${serviceName}Definition, channel)
-  }
+	protected createClient(channel: Channel): niceGrpc.host.${serviceName}Client {
+		return createClient(niceGrpc.host.${serviceName}Definition, channel)
+	}
 
 ${methods}
 }`

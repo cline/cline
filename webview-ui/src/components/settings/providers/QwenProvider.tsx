@@ -8,6 +8,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 const SUPPORTED_THINKING_MODELS = [
 	"qwen3-235b-a22b",
@@ -28,17 +29,18 @@ const SUPPORTED_THINKING_MODELS = [
 interface QwenProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Alibaba Qwen provider configuration component
  */
-export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) => {
+export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on API line selection
 	const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
@@ -83,13 +85,19 @@ export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) =
 					<ModelSelector
 						models={qwenModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
 					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />

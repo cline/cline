@@ -118,126 +118,113 @@ message UpdateSettingsRequest {
 
 // Complete API Configuration message
 message ApiConfiguration {
-  // Core API fields
-  optional string api_provider = 1;
-  optional string api_model_id = 2;
-  optional string api_key = 3; // anthropic
-  optional string api_base_url = 4;
+  // Global configuration fields (not mode-specific)
+  optional string api_key = 1; // anthropic
+  optional string cline_api_key = 2;
+  optional string task_id = 3;
+  optional string lite_llm_base_url = 4;
+  optional string lite_llm_api_key = 5;
+  optional bool lite_llm_use_prompt_cache = 6;
+  optional string openai_headers = 7; // JSON string
+  optional string anthropic_base_url = 8;
+  optional string openrouter_api_key = 9;
+  optional string openrouter_provider_sorting = 10;
+  optional string aws_access_key = 11;
+  optional string aws_secret_key = 12;
+  optional string aws_session_token = 13;
+  optional string aws_region = 14;
+  optional bool aws_use_cross_region_inference = 15;
+  optional bool aws_bedrock_use_prompt_cache = 16;
+  optional bool aws_use_profile = 17;
+  optional string aws_profile = 18;
+  optional string aws_bedrock_endpoint = 19;
+  optional string claude_code_path = 20;
+  optional string vertex_project_id = 21;
+  optional string vertex_region = 22;
+  optional string openai_base_url = 23;
+  optional string openai_api_key = 24;
+  optional string ollama_base_url = 25;
+  optional string ollama_api_options_ctx_num = 26;
+  optional string lm_studio_base_url = 27;
+  optional string gemini_api_key = 28;
+  optional string gemini_base_url = 29;
+  optional string openai_native_api_key = 30;
+  optional string deep_seek_api_key = 31;
+  optional string requesty_api_key = 32;
+  optional string together_api_key = 33;
+  optional string fireworks_api_key = 34;
+  optional int64 fireworks_model_max_completion_tokens = 35;
+  optional int64 fireworks_model_max_tokens = 36;
+  optional string qwen_api_key = 37;
+  optional string doubao_api_key = 38;
+  optional string mistral_api_key = 39;
+  optional string azure_api_version = 40;
+  optional string qwen_api_line = 41;
+  optional string nebius_api_key = 42;
+  optional string asksage_api_url = 43;
+  optional string asksage_api_key = 44;
+  optional string xai_api_key = 45;
+  optional string sambanova_api_key = 46;
+  optional string cerebras_api_key = 47;
+  optional int64 request_timeout_ms = 48;
+  optional string sap_ai_core_client_id = 49;
+  optional string sap_ai_core_client_secret = 50;
+  optional string sap_ai_resource_group = 51;
+  optional string sap_ai_core_token_url = 52;
+  optional string sap_ai_core_base_url = 53;
+  optional string moonshot_api_key = 54;
+  optional string moonshot_api_line = 55;
   
-  // Provider-specific API keys
-  optional string cline_account_id = 5;
-  optional string openrouter_api_key = 6;
-  optional string anthropic_base_url = 7;
-  optional string openai_api_key = 8;
-  optional string openai_native_api_key = 9;
-  optional string gemini_api_key = 10;
-  optional string deepseek_api_key = 11;
-  optional string requesty_api_key = 12;
-  optional string together_api_key = 13;
-  optional string fireworks_api_key = 14;
-  optional string qwen_api_key = 15;
-  optional string doubao_api_key = 16;
-  optional string mistral_api_key = 17;
-  optional string nebius_api_key = 18;
-  optional string asksage_api_key = 19;
-  optional string xai_api_key = 20;
-  optional string sambanova_api_key = 21;
-  optional string cerebras_api_key = 22;
+  // Plan mode configurations
+  optional string plan_mode_api_provider = 100;
+  optional string plan_mode_api_model_id = 101;
+  optional int64 plan_mode_thinking_budget_tokens = 102;
+  optional string plan_mode_reasoning_effort = 103;
+  optional string plan_mode_vscode_lm_model_selector = 104; // JSON string
+  optional bool plan_mode_aws_bedrock_custom_selected = 105;
+  optional string plan_mode_aws_bedrock_custom_model_base_id = 106;
+  optional string plan_mode_openrouter_model_id = 107;
+  optional string plan_mode_openrouter_model_info = 108; // JSON string
+  optional string plan_mode_openai_model_id = 109;
+  optional string plan_mode_openai_model_info = 110; // JSON string
+  optional string plan_mode_ollama_model_id = 111;
+  optional string plan_mode_lm_studio_model_id = 112;
+  optional string plan_mode_lite_llm_model_id = 113;
+  optional string plan_mode_lite_llm_model_info = 114; // JSON string
+  optional string plan_mode_requesty_model_id = 115;
+  optional string plan_mode_requesty_model_info = 116; // JSON string
+  optional string plan_mode_together_model_id = 117;
+  optional string plan_mode_fireworks_model_id = 118;
+  optional string plan_mode_sap_ai_core_model_id = 119;
   
-  // Model IDs
-  optional string openrouter_model_id = 23;
-  optional string openai_model_id = 24;
-  optional string anthropic_model_id = 25;
-  optional string bedrock_model_id = 26;
-  optional string vertex_model_id = 27;
-  optional string gemini_model_id = 28;
-  optional string ollama_model_id = 29;
-  optional string lm_studio_model_id = 30;
-  optional string litellm_model_id = 31;
-  optional string requesty_model_id = 32;
-  optional string together_model_id = 33;
-  optional string fireworks_model_id = 34;
-  
-  // AWS Bedrock fields
-  optional bool aws_bedrock_custom_selected = 35;
-  optional string aws_bedrock_custom_model_base_id = 36;
-  optional string aws_access_key = 37;
-  optional string aws_secret_key = 38;
-  optional string aws_session_token = 39;
-  optional string aws_region = 40;
-  optional bool aws_use_cross_region_inference = 41;
-  optional bool aws_bedrock_use_prompt_cache = 42;
-  optional bool aws_use_profile = 43;
-  optional string aws_profile = 44;
-  optional string aws_bedrock_endpoint = 45;
-  
-  // Vertex AI fields
-  optional string vertex_project_id = 46;
-  optional string vertex_region = 47;
-  
-  // Base URLs and endpoints
-  optional string openai_base_url = 48;
-  optional string ollama_base_url = 49;
-  optional string lm_studio_base_url = 50;
-  optional string gemini_base_url = 51;
-  optional string litellm_base_url = 52;
-  optional string asksage_api_url = 53;
-  
-  // LiteLLM specific fields
-  optional string litellm_api_key = 54;
-  optional bool litellm_use_prompt_cache = 55;
-  
-  // Model configuration
-  optional int64 thinking_budget_tokens = 56;
-  optional string reasoning_effort = 57;
-  optional int64 request_timeout_ms = 58;
-  
-  // Fireworks specific
-  optional int64 fireworks_model_max_completion_tokens = 59;
-  optional int64 fireworks_model_max_tokens = 60;
-  
-  // Azure specific
-  optional string azure_api_version = 61;
-  
-  // Ollama specific
-  optional string ollama_api_options_ctx_num = 62;
-  
-  // Qwen specific
-  optional string qwen_api_line = 63;
-  
-  // OpenRouter specific
-  optional string openrouter_provider_sorting = 64;
-  
-  // VSCode LM (stored as JSON string due to complex type)
-  optional string vscode_lm_model_selector = 65;
-  
-  // Model info objects (stored as JSON strings)
-  optional string openrouter_model_info = 66;
-  optional string openai_model_info = 67;
-  optional string requesty_model_info = 68;
-  optional string litellm_model_info = 69;
-  
-  // OpenAI headers (stored as JSON string)
-  optional string openai_headers = 70;
+  // Act mode configurations
+  optional string act_mode_api_provider = 200;
+  optional string act_mode_api_model_id = 201;
+  optional int64 act_mode_thinking_budget_tokens = 202;
+  optional string act_mode_reasoning_effort = 203;
+  optional string act_mode_vscode_lm_model_selector = 204; // JSON string
+  optional bool act_mode_aws_bedrock_custom_selected = 205;
+  optional string act_mode_aws_bedrock_custom_model_base_id = 206;
+  optional string act_mode_openrouter_model_id = 207;
+  optional string act_mode_openrouter_model_info = 208; // JSON string
+  optional string act_mode_openai_model_id = 209;
+  optional string act_mode_openai_model_info = 210; // JSON string
+  optional string act_mode_ollama_model_id = 211;
+  optional string act_mode_lm_studio_model_id = 212;
+  optional string act_mode_lite_llm_model_id = 213;
+  optional string act_mode_lite_llm_model_info = 214; // JSON string
+  optional string act_mode_requesty_model_id = 215;
+  optional string act_mode_requesty_model_info = 216; // JSON string
+  optional string act_mode_together_model_id = 217;
+  optional string act_mode_fireworks_model_id = 218;
+  optional string act_mode_sap_ai_core_model_id = 219;
   
   // Favorited model IDs
-  repeated string favorited_model_ids = 71;
-
-  // SAP AI Core specific
-  optional string sap_ai_core_client_id = 72;
-  optional string sap_ai_core_client_secret = 73;
-  optional string sap_ai_core_base_url = 74;
-  optional string sap_ai_core_token_url = 75;
-  optional string sap_ai_resource_group = 76;
-
-  // Claude Code specific
-  optional string claude_code_path = 77;
+  repeated string favorited_model_ids = 300;
 
   // Extension fields for Bedrock Api Keys
-  optional string aws_authentication = 78;
-  optional string aws_bedrock_api_key = 79;
+  optional string aws_authentication = 301;
+  optional string aws_bedrock_api_key = 302;
 
-  // Moonshot
-  optional string moonshot_api_key = 80;
-  optional string moonshot_api_line = 81;
+  optional string cline_account_id = 303;
 }

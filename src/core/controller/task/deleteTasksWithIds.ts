@@ -74,10 +74,7 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 			contextHistoryFilePath,
 			taskMetadataFilePath,
 		]) {
-			const fileExists = await fileExistsAtPath(filePath)
-			if (fileExists) {
-				await fs.unlink(filePath)
-			}
+			await fs.rm(filePath, { force: true })
 		}
 
 		// Remove empty task directory

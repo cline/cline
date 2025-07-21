@@ -1,5 +1,10 @@
-import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
-import { type UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { clineEnvConfig } from "@/config"
+import { useClineAuth } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { formatCreditsBalance } from "@/utils/format"
+import { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { UsageTransaction as ProtoUsageTransaction, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { EmptyRequest } from "@shared/proto/common"
 import {
 	VSCodeButton,
@@ -10,10 +15,6 @@ import {
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useClineAuth } from "@/context/ClineAuthContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
-import { formatCreditsBalance } from "@/utils/format"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -124,7 +125,7 @@ export const ClineAccountView = () => {
 	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
-	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
+	const [usageData, setUsageData] = useState<ClineAccountUsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -146,7 +147,7 @@ export const ClineAccountView = () => {
 		try {
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
 			setBalance(response.balance?.currentBalance ?? null)
-			setUsageData(response.usageTransactions)
+			setUsageData(convertProtoUsageTransactions(response.usageTransactions))
 			setPaymentsData(response.paymentTransactions)
 		} catch (error) {
 			console.error("Failed to fetch user credits data:", error)
@@ -378,6 +379,29 @@ export const ClineAccountView = () => {
 			)}
 		</div>
 	)
+}
+
+/**
+ * Converts a protobuf UsageTransaction to a ClineAccount UsageTransaction
+ * by adding the missing id and metadata fields
+ */
+function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): ClineAccountUsageTransaction {
+	return {
+		...protoTransaction,
+		id: protoTransaction.generationId, // Use generationId as the id
+		metadata: {
+			additionalProp1: "",
+			additionalProp2: "",
+			additionalProp3: "",
+		},
+	}
+}
+
+/**
+ * Converts an array of protobuf UsageTransactions to ClineAccount UsageTransactions
+ */
+function convertProtoUsageTransactions(protoTransactions: ProtoUsageTransaction[]): ClineAccountUsageTransaction[] {
+	return protoTransactions.map(convertProtoUsageTransaction)
 }
 
 export default memo(AccountView)

@@ -1,6 +1,6 @@
 import HeroTooltip from "@/components/common/HeroTooltip"
 import Thumbnails from "@/components/common/Thumbnails"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
@@ -43,7 +43,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 	onScrollToMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings, chatSettings } =
 		useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
@@ -51,7 +51,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
 
-	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
+	const { selectedModelInfo } = useMemo(
+		() => normalizeApiConfiguration(apiConfiguration, chatSettings.mode),
+		[apiConfiguration, chatSettings.mode],
+	)
 	const contextWindow = selectedModelInfo?.contextWindow
 
 	// Open task header when checkpoint tracker error message is set
@@ -130,19 +133,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [task.text, windowWidth, isTaskExpanded])
 
 	const isCostAvailable = useMemo(() => {
+		const modeFields = getModeSpecificFields(apiConfiguration, chatSettings.mode)
 		const openAiCompatHasPricing =
-			apiConfiguration?.apiProvider === "openai" &&
-			apiConfiguration?.openAiModelInfo?.inputPrice &&
-			apiConfiguration?.openAiModelInfo?.outputPrice
+			modeFields.apiProvider === "openai" &&
+			modeFields.openAiModelInfo?.inputPrice &&
+			modeFields.openAiModelInfo?.outputPrice
 		if (openAiCompatHasPricing) {
 			return true
 		}
 		return (
-			apiConfiguration?.apiProvider !== "vscode-lm" &&
-			apiConfiguration?.apiProvider !== "ollama" &&
-			apiConfiguration?.apiProvider !== "lmstudio"
+			modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio"
 		)
-	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
+	}, [apiConfiguration, chatSettings.mode])
 
 	const shouldShowPromptCacheInfo = () => {
 		// Hybrid logic: Show cache info if we have actual cache data,

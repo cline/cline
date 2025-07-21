@@ -6,7 +6,7 @@ import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
@@ -27,6 +27,7 @@ import {
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
+	migrateLegacyApiConfigurationToModeSpecific,
 } from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
@@ -74,6 +75,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
+
+	// Migrate legacy API configuration to mode-specific keys (one-time migration)
+	await migrateLegacyApiConfigurationToModeSpecific(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
@@ -713,15 +717,6 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 	}
 }
 
-// TODO: Find a solution for automatically removing DEV related content from production builds.
-//  This type of code is fine in production to keep. We just will want to remove it from production builds
-//  to bring down built asset sizes.
-//
-// This is a workaround to reload the extension when the source code changes
-// since vscode doesn't support hot reload for extensions
-const IS_DEV = process.env.IS_DEV
-const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
-
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose all webview instances
@@ -733,6 +728,15 @@ export async function deactivate() {
 
 	Logger.log("Cline extension deactivated")
 }
+
+// TODO: Find a solution for automatically removing DEV related content from production builds.
+//  This type of code is fine in production to keep. We just will want to remove it from production builds
+//  to bring down built asset sizes.
+//
+// This is a workaround to reload the extension when the source code changes
+// since vscode doesn't support hot reload for extensions
+const IS_DEV = process.env.IS_DEV
+const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 
 // Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {

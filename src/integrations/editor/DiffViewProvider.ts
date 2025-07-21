@@ -5,12 +5,9 @@ import { createDirectoriesForFile } from "@utils/fs"
 import { arePathsEqual, getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
 import * as diff from "diff"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-
-export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -23,9 +20,6 @@ export abstract class DiffViewProvider {
 	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
-
-	protected activeDiffEditor?: vscode.TextEditor
-	protected preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	constructor() {}
 
@@ -106,9 +100,32 @@ export abstract class DiffViewProvider {
 	protected abstract getDocumentText(): Promise<string | undefined>
 
 	/**
-	 * Save the contents of the diff editor UI to the file.
+	 * Get any new diagnostic problems that appeared after applying the diff.
+	 *
+	 * Getting diagnostics before and after the file edit is a better approach than
+	 * automatically tracking problems in real-time. This method ensures we only
+	 * report new problems that are a direct result of this specific edit.
+	 * Since these are new problems resulting from Cline's edit, we know they're
+	 * directly related to the work he's doing. This eliminates the risk of Cline
+	 * going off-task or getting distracted by unrelated issues, which was a problem
+	 * with the previous auto-debug approach. Some users' machines may be slow to
+	 * update diagnostics, so this approach provides a good balance between automation
+	 * and avoiding potential issues where Cline might get stuck in loops due to
+	 * outdated problem information. If no new problems show up by the time the user
+	 * accepts the changes, they can always debug later using the '@problems' mention.
+	 * This way, Cline only becomes aware of new problems resulting from his edits
+	 * and can address them accordingly. If problems don't change immediately after
+	 * applying a fix, Cline won't be notified, which is generally fine since the
+	 * initial fix is usually correct and it may just take time for linters to catch up.
 	 */
-	protected abstract saveDocument(): Promise<void>
+	protected abstract getNewDiagnosticProblems(): Promise<string>
+
+	/**
+	 * Save the contents of the diff editor UI to the file.
+	 *
+	 * @returns true if the file was saved.
+	 */
+	protected abstract saveDocument(): Promise<Boolean>
 
 	/**
 	 * Closes the diff editor tab or window.
@@ -125,8 +142,8 @@ export abstract class DiffViewProvider {
 		isFinal: boolean,
 		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
 	) {
-		if (!this.relPath) {
-			throw new Error("Required value relPath not set")
+		if (!this.isEditing) {
+			throw new Error("Not editing any file")
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -242,27 +259,7 @@ export abstract class DiffViewProvider {
 		})
 		await this.closeDiffView()
 
-		/*
-		Getting diagnostics before and after the file edit is a better approach than
-		automatically tracking problems in real-time. This method ensures we only
-		report new problems that are a direct result of this specific edit.
-		Since these are new problems resulting from Cline's edit, we know they're
-		directly related to the work he's doing. This eliminates the risk of Cline
-		going off-task or getting distracted by unrelated issues, which was a problem
-		with the previous auto-debug approach. Some users' machines may be slow to
-		update diagnostics, so this approach provides a good balance between automation
-		and avoiding potential issues where Cline might get stuck in loops due to
-		outdated problem information. If no new problems show up by the time the user
-		accepts the changes, they can always debug later using the '@problems' mention.
-		This way, Cline only becomes aware of new problems resulting from his edits
-		and can address them accordingly. If problems don't change immediately after
-		applying a fix, Cline won't be notified, which is generally fine since the
-		initial fix is usually correct and it may just take time for linters to catch up.
-		*/
-		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = await diagnosticsToProblemsString(getNewDiagnostics(this.preDiagnostics, postDiagnostics), [
-			vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
-		]) // will be empty string if no errors
+		const newProblems = await this.getNewDiagnosticProblems()
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
@@ -302,15 +299,17 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		if (!this.absolutePath || !this.activeDiffEditor) {
+		if (!this.absolutePath) {
 			return
 		}
 		const fileExists = this.editType === "modify"
 
 		if (!fileExists) {
+			// This is a load-bearing save statement- even though the file is saved and then immediately deleted.
+			// In vscode, it will not close the diff editor correctly if the file is not saved.
 			await this.saveDocument()
 			await this.closeDiffView()
-			await fs.unlink(this.absolutePath)
+			await fs.rm(this.absolutePath, { force: true })
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
@@ -319,16 +318,13 @@ export abstract class DiffViewProvider {
 			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
-			const updatedDocument = this.activeDiffEditor.document
-			const edit = new vscode.WorkspaceEdit()
-			const fullRange = new vscode.Range(
-				updatedDocument.positionAt(0),
-				updatedDocument.positionAt(updatedDocument.getText().length),
-			)
-			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
-			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
-			await vscode.workspace.applyEdit(edit)
-			await updatedDocument.save()
+			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
+			// course the user made changes and saved during the edit.
+			const contents = (await this.getDocumentText()) || ""
+			const lineCount = (contents.match(/\n/g) || []).length + 1
+			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
+
+			await this.saveDocument()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				await getHostBridgeProvider().windowClient.showTextDocument({

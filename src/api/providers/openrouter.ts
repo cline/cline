@@ -19,6 +19,15 @@ interface OpenRouterHandlerOptions {
 	thinkingBudgetTokens?: number
 }
 
+interface OpenRouterHandlerOptions {
+	openRouterApiKey?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
+}
+
 export class OpenRouterHandler implements ApiHandler {
 	private options: OpenRouterHandlerOptions
 	private client: OpenAI | undefined

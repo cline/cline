@@ -6,6 +6,10 @@ import { storeSecret } from "@/core/storage/state"
 import { AuthState, UserInfo } from "../../shared/proto/account"
 import { type EmptyRequest, String } from "../../shared/proto/common"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import { Controller } from "@/core/controller"
+import { storeSecret } from "@/core/storage/state"
+import { clineEnvConfig } from "@/config"
+import { openExternal } from "@/utils/env"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -194,7 +198,7 @@ export class AuthService {
 
 		const authUrlString = authUrl.toString()
 
-		await vscode.env.openExternal(vscode.Uri.parse(authUrlString))
+		await openExternal(authUrlString)
 		return String.create({ value: authUrlString })
 	}
 
