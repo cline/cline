@@ -260,7 +260,7 @@ export class Controller {
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
 			const { apiConfiguration } = await getAllExtensionState(this.context)
-			this.task.api = buildApiHandler(apiConfiguration, chatSettings.mode)
+			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, chatSettings.mode)
 		}
 
 		// Save only non-mode properties to global storage
@@ -355,7 +355,7 @@ export class Controller {
 			await updateGlobalState(this.context, "welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig, currentMode)
+				this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
 			}
 
 			await this.postStateToWebview()
@@ -523,6 +523,7 @@ export class Controller {
 			const updatedConfig = {
 				...apiConfiguration,
 				openRouterApiKey: apiKey,
+				taskId: this.task.taskId,
 			}
 			this.task.api = buildApiHandler(updatedConfig, currentMode)
 		}
