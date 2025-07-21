@@ -7,7 +7,7 @@ import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
 interface HuaweiCloudMaaSHandlerOptions {
-	huaweiCloudMaaSApiKey?: string
+	huaweiCloudMaasApiKey?: string
 	apiModelId?: string
 }
 
@@ -20,13 +20,13 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
-			if (!this.options.huaweiCloudMaaSApiKey) {
+			if (!this.options.huaweiCloudMaasApiKey) {
 				throw new Error("Huawei Cloud MaaS API key is required")
 			}
 			try {
 				this.client = new OpenAI({
 					baseURL: "https://api.modelarts-maas.com/v1/",
-					apiKey: this.options.huaweiCloudMaaSApiKey,
+					apiKey: this.options.huaweiCloudMaasApiKey,
 				})
 			} catch (error) {
 				throw new Error(`Error creating Huawei Cloud MaaS client: ${error.message}`)
