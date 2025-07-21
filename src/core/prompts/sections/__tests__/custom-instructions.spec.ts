@@ -1033,6 +1033,157 @@ describe("Rules directory reading", () => {
 		expect(result).toContain("content of file3")
 	})
 
+	it("should return files in alphabetical order by filename", async () => {
+		// Simulate .roo/rules directory exists
+		statMock.mockResolvedValueOnce({
+			isDirectory: vi.fn().mockReturnValue(true),
+		} as any)
+
+		// Simulate listing files in non-alphabetical order to test sorting
+		readdirMock.mockResolvedValueOnce([
+			{ name: "zebra.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "alpha.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "Beta.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" }, // Test case-insensitive sorting
+		] as any)
+
+		statMock.mockImplementation((path) => {
+			return Promise.resolve({
+				isFile: vi.fn().mockReturnValue(true),
+			}) as any
+		})
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			const normalizedPath = pathStr.replace(/\\/g, "/")
+			if (normalizedPath === "/fake/path/.roo/rules/zebra.txt") {
+				return Promise.resolve("zebra content")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/alpha.txt") {
+				return Promise.resolve("alpha content")
+			}
+			if (normalizedPath === "/fake/path/.roo/rules/Beta.txt") {
+				return Promise.resolve("beta content")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await loadRuleFiles("/fake/path")
+
+		// Files should appear in alphabetical order: alpha.txt, Beta.txt, zebra.txt
+		const alphaIndex = result.indexOf("alpha content")
+		const betaIndex = result.indexOf("beta content")
+		const zebraIndex = result.indexOf("zebra content")
+
+		expect(alphaIndex).toBeLessThan(betaIndex)
+		expect(betaIndex).toBeLessThan(zebraIndex)
+
+		// Verify the expected file paths are in the result
+		const expectedAlphaPath =
+			process.platform === "win32" ? "\\fake\\path\\.roo\\rules\\alpha.txt" : "/fake/path/.roo/rules/alpha.txt"
+		const expectedBetaPath =
+			process.platform === "win32" ? "\\fake\\path\\.roo\\rules\\Beta.txt" : "/fake/path/.roo/rules/Beta.txt"
+		const expectedZebraPath =
+			process.platform === "win32" ? "\\fake\\path\\.roo\\rules\\zebra.txt" : "/fake/path/.roo/rules/zebra.txt"
+
+		expect(result).toContain(`# Rules from ${expectedAlphaPath}:`)
+		expect(result).toContain(`# Rules from ${expectedBetaPath}:`)
+		expect(result).toContain(`# Rules from ${expectedZebraPath}:`)
+	})
+
+	it("should sort symlinks by their symlink names, not target names", async () => {
+		// Reset mocks
+		statMock.mockReset()
+		readdirMock.mockReset()
+		readlinkMock.mockReset()
+		readFileMock.mockReset()
+
+		// First call: check if .roo/rules directory exists
+		statMock.mockResolvedValueOnce({
+			isDirectory: vi.fn().mockReturnValue(true),
+		} as any)
+
+		// Simulate listing files with symlinks that point to files with different names
+		readdirMock.mockResolvedValueOnce([
+			{
+				name: "01-first.link",
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				parentPath: "/fake/path/.roo/rules",
+			},
+			{
+				name: "02-second.link",
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				parentPath: "/fake/path/.roo/rules",
+			},
+			{
+				name: "03-third.link",
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				parentPath: "/fake/path/.roo/rules",
+			},
+		] as any)
+
+		// Mock readlink to return target paths that would sort differently than symlink names
+		readlinkMock
+			.mockResolvedValueOnce("../../targets/zzz-last.txt") // 01-first.link -> zzz-last.txt
+			.mockResolvedValueOnce("../../targets/aaa-first.txt") // 02-second.link -> aaa-first.txt
+			.mockResolvedValueOnce("../../targets/mmm-middle.txt") // 03-third.link -> mmm-middle.txt
+
+		// Set up stat mock for the remaining calls
+		statMock.mockImplementation((path) => {
+			const normalizedPath = path.toString().replace(/\\/g, "/")
+			// Target files exist and are files
+			if (normalizedPath.endsWith(".txt")) {
+				return Promise.resolve({
+					isFile: vi.fn().mockReturnValue(true),
+					isDirectory: vi.fn().mockReturnValue(false),
+				} as any)
+			}
+			return Promise.resolve({
+				isFile: vi.fn().mockReturnValue(false),
+				isDirectory: vi.fn().mockReturnValue(false),
+			} as any)
+		})
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			const normalizedPath = pathStr.replace(/\\/g, "/")
+			if (normalizedPath.endsWith("zzz-last.txt")) {
+				return Promise.resolve("content from zzz-last.txt")
+			}
+			if (normalizedPath.endsWith("aaa-first.txt")) {
+				return Promise.resolve("content from aaa-first.txt")
+			}
+			if (normalizedPath.endsWith("mmm-middle.txt")) {
+				return Promise.resolve("content from mmm-middle.txt")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await loadRuleFiles("/fake/path")
+
+		// Content should appear in order of symlink names (01-first, 02-second, 03-third)
+		// NOT in order of target names (aaa-first, mmm-middle, zzz-last)
+		const firstIndex = result.indexOf("content from zzz-last.txt") // from 01-first.link
+		const secondIndex = result.indexOf("content from aaa-first.txt") // from 02-second.link
+		const thirdIndex = result.indexOf("content from mmm-middle.txt") // from 03-third.link
+
+		// All content should be found
+		expect(firstIndex).toBeGreaterThan(-1)
+		expect(secondIndex).toBeGreaterThan(-1)
+		expect(thirdIndex).toBeGreaterThan(-1)
+
+		// And they should be in the order of symlink names, not target names
+		expect(firstIndex).toBeLessThan(secondIndex)
+		expect(secondIndex).toBeLessThan(thirdIndex)
+
+		// Verify the target paths are shown (not symlink paths)
+		expect(result).toContain("zzz-last.txt")
+		expect(result).toContain("aaa-first.txt")
+		expect(result).toContain("mmm-middle.txt")
+	})
+
 	it("should handle empty file list gracefully", async () => {
 		// Simulate .roo/rules directory exists
 		statMock.mockResolvedValueOnce({

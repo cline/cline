@@ -44,7 +44,7 @@ const MAX_DEPTH = 5
 async function resolveDirectoryEntry(
 	entry: Dirent,
 	dirPath: string,
-	filePaths: string[],
+	fileInfo: Array<{ originalPath: string; resolvedPath: string }>,
 	depth: number,
 ): Promise<void> {
 	// Avoid cyclic symlinks
@@ -54,44 +54,49 @@ async function resolveDirectoryEntry(
 
 	const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
 	if (entry.isFile()) {
-		// Regular file
-		filePaths.push(fullPath)
+		// Regular file - both original and resolved paths are the same
+		fileInfo.push({ originalPath: fullPath, resolvedPath: fullPath })
 	} else if (entry.isSymbolicLink()) {
 		// Await the resolution of the symbolic link
-		await resolveSymLink(fullPath, filePaths, depth + 1)
+		await resolveSymLink(fullPath, fileInfo, depth + 1)
 	}
 }
 
 /**
  * Recursively resolve a symbolic link and collect file paths
  */
-async function resolveSymLink(fullPath: string, filePaths: string[], depth: number): Promise<void> {
+async function resolveSymLink(
+	symlinkPath: string,
+	fileInfo: Array<{ originalPath: string; resolvedPath: string }>,
+	depth: number,
+): Promise<void> {
 	// Avoid cyclic symlinks
 	if (depth > MAX_DEPTH) {
 		return
 	}
 	try {
 		// Get the symlink target
-		const linkTarget = await fs.readlink(fullPath)
+		const linkTarget = await fs.readlink(symlinkPath)
 		// Resolve the target path (relative to the symlink location)
-		const resolvedTarget = path.resolve(path.dirname(fullPath), linkTarget)
+		const resolvedTarget = path.resolve(path.dirname(symlinkPath), linkTarget)
 
 		// Check if the target is a file
 		const stats = await fs.stat(resolvedTarget)
 		if (stats.isFile()) {
-			filePaths.push(resolvedTarget)
+			// For symlinks to files, store the symlink path as original and target as resolved
+			fileInfo.push({ originalPath: symlinkPath, resolvedPath: resolvedTarget })
 		} else if (stats.isDirectory()) {
 			const anotherEntries = await fs.readdir(resolvedTarget, { withFileTypes: true, recursive: true })
 			// Collect promises for recursive calls within the directory
 			const directoryPromises: Promise<void>[] = []
 			for (const anotherEntry of anotherEntries) {
-				directoryPromises.push(resolveDirectoryEntry(anotherEntry, resolvedTarget, filePaths, depth + 1))
+				directoryPromises.push(resolveDirectoryEntry(anotherEntry, resolvedTarget, fileInfo, depth + 1))
 			}
 			// Wait for all entries in the resolved directory to be processed
 			await Promise.all(directoryPromises)
 		} else if (stats.isSymbolicLink()) {
 			// Handle nested symlinks by awaiting the recursive call
-			await resolveSymLink(resolvedTarget, filePaths, depth + 1)
+			await resolveSymLink(resolvedTarget, fileInfo, depth + 1)
 		}
 	} catch (err) {
 		// Skip invalid symlinks
@@ -106,29 +111,31 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 		const entries = await fs.readdir(dirPath, { withFileTypes: true, recursive: true })
 
 		// Process all entries - regular files and symlinks that might point to files
-		const filePaths: string[] = []
+		// Store both original path (for sorting) and resolved path (for reading)
+		const fileInfo: Array<{ originalPath: string; resolvedPath: string }> = []
 		// Collect promises for the initial resolution calls
 		const initialPromises: Promise<void>[] = []
 
 		for (const entry of entries) {
-			initialPromises.push(resolveDirectoryEntry(entry, dirPath, filePaths, 0))
+			initialPromises.push(resolveDirectoryEntry(entry, dirPath, fileInfo, 0))
 		}
 
 		// Wait for all asynchronous operations (including recursive ones) to complete
 		await Promise.all(initialPromises)
 
 		const fileContents = await Promise.all(
-			filePaths.map(async (file) => {
+			fileInfo.map(async ({ originalPath, resolvedPath }) => {
 				try {
 					// Check if it's a file (not a directory)
-					const stats = await fs.stat(file)
+					const stats = await fs.stat(resolvedPath)
 					if (stats.isFile()) {
 						// Filter out cache files and system files that shouldn't be in rules
-						if (!shouldIncludeRuleFile(file)) {
+						if (!shouldIncludeRuleFile(resolvedPath)) {
 							return null
 						}
-						const content = await safeReadFile(file)
-						return { filename: file, content }
+						const content = await safeReadFile(resolvedPath)
+						// Use resolvedPath for display to maintain existing behavior
+						return { filename: resolvedPath, content, sortKey: originalPath }
 					}
 					return null
 				} catch (err) {
@@ -138,7 +145,19 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 		)
 
 		// Filter out null values (directories, failed reads, or excluded files)
-		return fileContents.filter((item): item is { filename: string; content: string } => item !== null)
+		const filteredFiles = fileContents.filter(
+			(item): item is { filename: string; content: string; sortKey: string } => item !== null,
+		)
+
+		// Sort files alphabetically by the original filename (case-insensitive) to ensure consistent order
+		// For symlinks, this will use the symlink name, not the target name
+		return filteredFiles
+			.sort((a, b) => {
+				const filenameA = path.basename(a.sortKey).toLowerCase()
+				const filenameB = path.basename(b.sortKey).toLowerCase()
+				return filenameA.localeCompare(filenameB)
+			})
+			.map(({ filename, content }) => ({ filename, content }))
 	} catch (err) {
 		return []
 	}
