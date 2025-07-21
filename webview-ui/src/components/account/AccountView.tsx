@@ -1,4 +1,3 @@
-import { clineEnvConfig } from "@/config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
@@ -14,10 +13,10 @@ import {
 	VSCodeOption,
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import CreditsHistoryTable from "./CreditsHistoryTable"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
@@ -35,7 +34,7 @@ const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
 			const progress = Math.min(elapsed / duration, 1)
 
 			// Easing function (ease-out)
-			const easedProgress = 1 - Math.pow(1 - progress, 3)
+			const easedProgress = 1 - (1 - progress) ** 3
 			const newValue = easedProgress * targetValue
 
 			setCurrentValue(newValue)
@@ -112,11 +111,13 @@ const getMainRole = (roles?: string[]) => {
 	return "Member"
 }
 
+const CLINE_APP_URL = "https://app.cline.bot"
+
 export const ClineAccountView = () => {
 	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
 	const { userInfo, apiConfiguration } = useExtensionState()
 
-	let user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
+	const user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
 
 	const [balance, setBalance] = useState<number | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
@@ -127,9 +128,18 @@ export const ClineAccountView = () => {
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-	const dashboardAddCreditsURL = activeOrganization
-		? `${clineEnvConfig.appBaseUrl}/dashboard/organization?tab=credits&redirect=true`
-		: `${clineEnvConfig.appBaseUrl}/dashboard/account?tab=credits&redirect=true`
+	const clineUris = useMemo(() => {
+		const base = new URL(clineUser?.appBaseUrl || CLINE_APP_URL)
+		const dashboard = new URL("dashboard", base)
+		const credits = new URL(activeOrganization ? "/organization" : "/account", dashboard)
+		credits.searchParams.set("tab", "credits")
+		credits.searchParams.set("redirect", "true")
+
+		return {
+			dashboard,
+			credits,
+		}
+	}, [clineUser?.appBaseUrl, activeOrganization])
 
 	async function getUserCredits() {
 		setIsLoading(true)
@@ -291,10 +301,7 @@ export const ClineAccountView = () => {
 
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
-							<VSCodeButtonLink
-								href={`${clineEnvConfig.appBaseUrl}/dashboard`}
-								appearance="primary"
-								className="w-full">
+							<VSCodeButtonLink href={clineUris.dashboard.href} appearance="primary" className="w-full">
 								Dashboard
 							</VSCodeButtonLink>
 						</div>
@@ -332,7 +339,7 @@ export const ClineAccountView = () => {
 							</div>
 
 							<div className="w-full">
-								<VSCodeButtonLink href={dashboardAddCreditsURL} className="w-full">
+								<VSCodeButtonLink href={clineUris.credits.href} className="w-full">
 									Add Credits
 								</VSCodeButtonLink>
 							</div>

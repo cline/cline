@@ -15,6 +15,9 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				// Use the environment variable to determine the backend URL
+				// Options: "production", "staging", "local"
+				// Require the extension to reload to apply changes
 				"CLINE_ENVIRONMENT": "production"
 			}
 		},
