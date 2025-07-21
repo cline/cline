@@ -6,8 +6,8 @@ import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "@core/storage/disk"
 import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
-import * as hostProviders from "@hosts/host-providers"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
+import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
@@ -53,7 +53,10 @@ describe("FileContextTracker", () => {
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
-		hostProviders.initializeHostProviders(
+
+		// Reset HostProvider before initializing to avoid "already initialized" errors
+		HostProvider.reset()
+		HostProvider.initialize(
 			((_) => {}) as WebviewProviderCreator,
 			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
@@ -66,6 +69,8 @@ describe("FileContextTracker", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		// Reset HostProvider after each test to ensure clean state
+		HostProvider.reset()
 	})
 
 	it("should add a record when a file is read by a tool", async () => {

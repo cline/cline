@@ -1,4 +1,4 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -104,7 +104,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
 export async function getCwd(defaultCwd = ""): Promise<string> {
-	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	return workspacePaths.paths.shift() || defaultCwd
 }
 
@@ -120,7 +120,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 		return await getCwd(defaultCwd)
 	}
 
-	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
 		if (isLocatedInPath(workspacePath, currentFilePath)) {
 			return workspacePath
@@ -130,7 +130,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 }
 
 export async function isLocatedInWorkspace(pathToCheck: string = ""): Promise<boolean> {
-	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
 		const resolvedPath = path.resolve(workspacePath, pathToCheck)
 		if (isLocatedInPath(workspacePath, resolvedPath)) {
@@ -162,7 +162,7 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 }
 
 export async function asRelativePath(filePath: string): Promise<string> {
-	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	for (const workspacePath of workspacePaths.paths) {
 		if (isLocatedInPath(workspacePath, filePath)) {
 			return path.relative(workspacePath, filePath)

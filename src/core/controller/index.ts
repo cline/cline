@@ -1,9 +1,12 @@
+import { clineEnvConfig } from "@/config"
+import { HostProvider } from "@/hosts/host-provider"
+import { AuthService } from "@/services/auth/AuthService"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
-import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -19,7 +22,6 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { getWorkingState } from "@utils/git"
 import axios from "axios"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
@@ -30,13 +32,9 @@ import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalF
 import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { AuthService } from "@/services/auth/AuthService"
-import { ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { clineEnvConfig } from "@/config"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -118,12 +116,12 @@ export class Controller {
 				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
 			])
 			await this.postStateToWebview()
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",
 			})
@@ -361,7 +359,7 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
 			})
@@ -399,7 +397,7 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: errorMessage,
 				})
@@ -486,7 +484,7 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: errorMessage,
 			})
