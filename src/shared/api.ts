@@ -2343,6 +2343,15 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
 	},
+	"qwen-3-235b-a22b": {
+		maxTokens: 40000,
+		contextWindow: 40000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "SOTA performance with ~1500 tokens/s",
+	},
 	"deepseek-r1-distill-llama-70b": {
 		maxTokens: 8192,
 		contextWindow: 8192,
