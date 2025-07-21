@@ -1,14 +1,11 @@
 import vscode from "vscode"
 import { clineEnvConfig } from "@/config"
-import type { Controller } from "@/core/controller"
+import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { storeSecret } from "@/core/storage/state"
 import { AuthState, UserInfo } from "../../shared/proto/account"
 import { type EmptyRequest, String } from "../../shared/proto/common"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { Controller } from "@/core/controller"
-import { storeSecret } from "@/core/storage/state"
-import { clineEnvConfig } from "@/config"
 import { openExternal } from "@/utils/env"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
