@@ -35,7 +35,7 @@ import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { ChatSettings } from "@shared/ChatSettings"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
+import { FileInfo, FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
@@ -753,7 +753,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}),
 							)
 								.then((results) => {
-									setFileSearchResults(results.results || [])
+									setFileSearchResults((results.results || []) as SearchResult[])
 									setSearchLoading(false)
 								})
 								.catch((error) => {

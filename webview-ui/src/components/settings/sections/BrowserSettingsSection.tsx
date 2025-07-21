@@ -143,8 +143,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 		BrowserServiceClient.relaunchChromeDebugMode(EmptyRequest.create({}))
 			.then((result) => {
 				setRelaunchResult({
-					success: result.success,
-					message: result.message,
+					success: true,
+					message: result.value,
 				})
 				setDebugMode(false)
 			})
