@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
 import { getAllExtensionState } from "@/core/storage/state"
