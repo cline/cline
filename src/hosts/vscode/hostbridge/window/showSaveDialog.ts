@@ -10,10 +10,10 @@ export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<Sh
 		vscodeOptions.defaultUri = Uri.file(options.defaultUri)
 	}
 
-	if (options?.filters && options.filters.length > 0) {
+	if (options?.filters && Object.keys(options.filters).length > 0) {
 		vscodeOptions.filters = {}
-		options.filters.forEach((filter) => {
-			vscodeOptions.filters![filter.name] = filter.extensions
+		Object.entries(options.filters).forEach(([name, extensionList]) => {
+			vscodeOptions.filters![name] = extensionList.extensions
 		})
 	}
 

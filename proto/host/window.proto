@@ -80,12 +80,11 @@ message ShowSaveDialogRequest {
 
 message ShowSaveDialogOptions {
   optional string default_uri = 1;
-  repeated SaveDialogFilter filters = 2;
+  map<string, FileExtensionList> filters = 2;
 }
 
-message SaveDialogFilter {
-  string name = 1;
-  repeated string extensions = 2;
+message FileExtensionList {
+  repeated string extensions = 1;
 }
 
 message ShowSaveDialogResponse {

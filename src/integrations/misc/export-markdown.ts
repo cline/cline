@@ -33,7 +33,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	// Prompt user for save location
 	const saveResponse = await HostProvider.window.showSaveDialog({
 		options: {
-			filters: [{ name: "Markdown", extensions: ["md"] }],
+			filters: { Markdown: { extensions: ["md"] } },
 			defaultUri: path.join(os.homedir(), "Downloads", fileName),
 		},
 	})
