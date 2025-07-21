@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import * as fs from "fs"
 import path, { dirname } from "path"
 import { fileURLToPath } from "url"
@@ -10,8 +12,8 @@ const SCRIPT_NAME = path.relative(process.cwd(), fileURLToPath(import.meta.url))
 
 async function main() {
 	const { protobusServices } = await loadServicesFromProtoDescriptor()
-	await generateStandaloneProtobusServiceSetup(protobusServices)
 	await generateWebviewProtobusClients(protobusServices)
+	await generateStandaloneProtobusServiceSetup(protobusServices)
 
 	console.log(`Generated ProtoBus files at:`)
 	console.log(`- ${WEBVIEW_CLIENTS_FILE}`)
