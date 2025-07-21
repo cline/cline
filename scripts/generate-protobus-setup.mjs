@@ -120,7 +120,14 @@ async function generateVscodeProtobusServers(protobusServices) {
 		servers.push(`export const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
 		for (const [rpcName, _rpc] of Object.entries(def.service)) {
 			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			if (rpc.requestStream) {
+				throw new Error("Request streaming is not supported")
+			}
+			//if (!rpc.responseStream) {
 			servers.push(`    ${rpcName}: ${rpcName},`)
+			//	} else {
+			//		servers.push(`    ${rpcName}(controller: Controller, request: ${requestType}): ${rpcName}`)
+			//	}
 		}
 		servers.push(`} \n`)
 		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`)
