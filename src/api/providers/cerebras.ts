@@ -56,7 +56,7 @@ export class CerebrasHandler implements ApiHandler {
 
 		// Check if this is a reasoning model that uses thinking tags
 		const modelId = this.getModel().id
-		const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
+		const isReasoningModel = modelId.includes("qwen")
 
 		// Convert Anthropic messages to Cerebras format
 		for (const message of messages) {
