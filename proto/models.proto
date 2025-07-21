@@ -129,6 +129,7 @@ enum ApiProvider {
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
   HUGGINGFACE = 28;
+  HUAWEI_CLOUD_MAAS = 29;
 }
 
 // Model info for OpenAI-compatible models
@@ -168,6 +169,91 @@ message LiteLLMModelInfo {
 
 // Main ApiConfiguration message
 message ModelsApiConfiguration {
+  // From ApiHandlerOptions (excluding onRetryAttempt function)
+  optional string api_model_id = 1;
+  optional string api_key = 2;
+  optional string cline_account_id = 3;
+  optional string task_id = 4;
+  optional string lite_llm_base_url = 5;
+  optional string lite_llm_model_id = 6;
+  optional string lite_llm_api_key = 7;
+  optional bool lite_llm_use_prompt_cache = 8;
+  map<string, string> open_ai_headers = 9;
+  optional LiteLLMModelInfo lite_llm_model_info = 10;
+  optional string anthropic_base_url = 11;
+  optional string open_router_api_key = 12;
+  optional string open_router_model_id = 13;
+  optional OpenRouterModelInfo open_router_model_info = 14;
+  optional string open_router_provider_sorting = 15;
+  optional string aws_access_key = 16;
+  optional string aws_secret_key = 17;
+  optional string aws_session_token = 18;
+  optional string aws_region = 19;
+  optional bool aws_use_cross_region_inference = 20;
+  optional bool aws_bedrock_use_prompt_cache = 21;
+  optional bool aws_use_profile = 22;
+  optional string aws_profile = 23;
+  optional string aws_bedrock_endpoint = 24;
+  optional bool aws_bedrock_custom_selected = 25;
+  optional string aws_bedrock_custom_model_base_id = 26;
+  optional string vertex_project_id = 27;
+  optional string vertex_region = 28;
+  optional string open_ai_base_url = 29;
+  optional string open_ai_api_key = 30;
+  optional string open_ai_model_id = 31;
+  optional OpenAiCompatibleModelInfo open_ai_model_info = 32;
+  optional string ollama_model_id = 33;
+  optional string ollama_base_url = 34;
+  optional string ollama_api_options_ctx_num = 35;
+  optional string lm_studio_model_id = 36;
+  optional string lm_studio_base_url = 37;
+  optional string gemini_api_key = 38;
+  optional string gemini_base_url = 39;
+  optional string open_ai_native_api_key = 40;
+  optional string deep_seek_api_key = 41;
+  optional string requesty_api_key = 42;
+  optional string requesty_model_id = 43;
+  optional OpenRouterModelInfo requesty_model_info = 44;
+  optional string together_api_key = 45;
+  optional string together_model_id = 46;
+  optional string fireworks_api_key = 47;
+  optional string fireworks_model_id = 48;
+  optional int32 fireworks_model_max_completion_tokens = 49;
+  optional int32 fireworks_model_max_tokens = 50;
+  optional string qwen_api_key = 51;
+  optional string doubao_api_key = 52;
+  optional string mistral_api_key = 53;
+  optional string azure_api_version = 54;
+  optional LanguageModelChatSelector vs_code_lm_model_selector = 55;
+  optional string qwen_api_line = 56;
+  optional string nebius_api_key = 57;
+  optional string asksage_api_url = 58;
+  optional string asksage_api_key = 59;
+  optional string xai_api_key = 60;
+  optional int32 thinking_budget_tokens = 61;
+  optional string reasoning_effort = 62;
+  optional string sambanova_api_key = 63;
+  optional string cerebras_api_key = 64;
+  optional int32 request_timeout_ms = 65;
+  optional ApiProvider api_provider = 66;
+  repeated string favorited_model_ids = 67;
+  optional string sap_ai_core_client_id = 68;
+  optional string sap_ai_core_client_secret = 69;
+  optional string sap_ai_resource_group = 70;
+  optional string sap_ai_core_token_url = 71;
+  optional string sap_ai_core_base_url = 72;
+  optional string claude_code_path = 73;
+  optional string aws_authentication = 74;
+  optional string aws_bedrock_api_key = 75;
+  optional string moonshot_api_key = 76;
+  optional string moonshot_api_line = 77;
+  optional string groq_api_key = 78;
+  optional string groq_model_id = 79;
+  optional OpenRouterModelInfo groq_model_info = 80;
+  optional string hugging_face_api_key = 81;
+  optional string hugging_face_model_id = 82;
+  optional OpenRouterModelInfo hugging_face_model_info = 83;
+  optional string huawei_cloud_maas_api_key = 84;
   // Global configuration fields (not mode-specific)
   optional string api_key = 1;
   optional string cline_api_key = 2;
