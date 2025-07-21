@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
 import { getAllExtensionState } from "@/core/storage/state"
@@ -20,7 +20,7 @@ let commitGenerationAbortController: AbortController | undefined = undefined
 async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
 	const cwd = await getCwd()
 	if (!context || !cwd) {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "No workspace folder open",
 		})
@@ -29,7 +29,7 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 
 	const gitDiff = await getWorkingState(cwd)
 	if (gitDiff === "No changes in working directory") {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "No changes in workspace for commit message",
 		})
@@ -157,7 +157,7 @@ export function extractCommitMessage(str: string): string {
  */
 export async function copyCommitMessageToClipboard(message: string): Promise<void> {
 	await writeTextToClipboard(message)
-	getHostBridgeProvider().windowClient.showMessage({
+	HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: "Commit message copied to clipboard",
 	})
@@ -173,7 +173,7 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 	const editAction = "Edit Message"
 
 	const selectedAction = (
-		await getHostBridgeProvider().windowClient.showMessage({
+		await HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "Commit message generated",
 			options: {
@@ -214,19 +214,19 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 		if (api && api.repositories.length > 0) {
 			const repo = api.repositories[0]
 			repo.inputBox.value = message
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Commit message applied to Git input",
 			})
 		} else {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "No Git repositories found",
 			})
 			await copyCommitMessageToClipboard(message)
 		}
 	} else {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Git extension not found",
 		})
@@ -244,12 +244,12 @@ async function editCommitMessage(message: string): Promise<void> {
 		language: "markdown",
 	})
 
-	await getHostBridgeProvider().windowClient.showTextDocument(
+	await HostProvider.window.showTextDocument(
 		ShowTextDocumentRequest.create({
 			path: document.uri.fsPath,
 		}),
 	)
-	getHostBridgeProvider().windowClient.showMessage({
+	HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: "Edit the commit message and copy when ready",
 	})

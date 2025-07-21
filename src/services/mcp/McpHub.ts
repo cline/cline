@@ -37,7 +37,7 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -109,7 +109,7 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (error) {
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
 				})
@@ -119,7 +119,7 @@ export class McpHub {
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings schema.",
 				})
@@ -138,7 +138,7 @@ export class McpHub {
 
 		// Subscribe to file changes using the gRPC WatchService
 		console.log("[DEBUG] subscribing to mcp file changes")
-		const cancelSubscription = getHostBridgeProvider().watchServiceClient.subscribeToFile(
+		const cancelSubscription = HostProvider.watch.subscribeToFile(
 			SubscribeToFileRequest.create({
 				path: settingsPath,
 			}),
@@ -420,7 +420,7 @@ export class McpHub {
 					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
-					getHostBridgeProvider().windowClient.showMessage({
+					HostProvider.window.showMessage({
 						type: ShowMessageType.INFORMATION,
 						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					})
@@ -702,7 +702,7 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: `Restarting ${serverName} MCP server...`,
 			})
@@ -714,13 +714,13 @@ export class McpHub {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config), "internal")
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: `${serverName} MCP server connected`,
 				})
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
-				getHostBridgeProvider().windowClient.showMessage({
+				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: `Failed to connect to ${serverName} MCP server`,
 				})
@@ -809,7 +809,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			})
@@ -969,7 +969,7 @@ export class McpHub {
 			}
 		} catch (error) {
 			console.error("Failed to update autoApprove settings:", error)
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to update autoApprove settings",
 			})
@@ -1090,7 +1090,7 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			})

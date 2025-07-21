@@ -7,7 +7,7 @@ import * as path from "path"
 import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
@@ -44,7 +44,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 	if (fileExists) {
 		const message = `${fileTypeName} file "${request.filename}" already exists.`
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
 			message,
 		})
@@ -61,7 +61,7 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
 		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message,
 		})

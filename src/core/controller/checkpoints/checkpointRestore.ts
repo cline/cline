@@ -1,4 +1,4 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
 import { ClineCheckpointRestore } from "../../../shared/WebviewMessage"
 import { CheckpointRestoreRequest } from "../../../shared/proto/checkpoints"
@@ -15,7 +15,7 @@ export async function checkpointRestore(controller: Controller, request: Checkpo
 			timeout: 3_000,
 		}).catch((error) => {
 			console.log("Failed to init new Cline instance to restore checkpoint", error)
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to restore checkpoint",
 			})

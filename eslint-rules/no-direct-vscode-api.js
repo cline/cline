@@ -71,11 +71,11 @@ module.exports = createRule({
 				"This provides consistent path handling across different environments.\n" +
 				"Found: {{code}}",
 			useHostBridgeWorkspace:
-				"Use getHostBridgeProvider().workspaceClient.getWorkspacePaths({}) instead of vscode.workspace.workspaceFolders.\n" +
+				"Use HostProvider.workspace.getWorkspacePaths({}) instead of vscode.workspace.workspaceFolders.\n" +
 				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
 			useHostBridgeShowMessage:
-				"Use getHostBridgeProvider().windowClient.showMessage instead of the vscode.window.showMessage.\n" +
+				"Use HostProvider.window.showMessage instead of the vscode.window.showMessage.\n" +
 				"This provides a consistent abstraction across VSCode and standalone environments.\n" +
 				"Found: {{code}}",
 			useHostBridge:

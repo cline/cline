@@ -4,7 +4,7 @@ import { ResetStateRequest } from "../../../shared/proto/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Resets the extension state to its defaults
@@ -15,13 +15,13 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting global state...",
 			})
 			await resetGlobalState(controller.context)
 		} else {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting workspace state...",
 			})
@@ -33,7 +33,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "State reset",
 		})
@@ -44,7 +44,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
 		})

@@ -2,14 +2,14 @@ import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Invalid data URI format",
 		})
@@ -22,7 +22,7 @@ export async function openImage(dataUri: string) {
 		await writeFile(tempFilePath, new Uint8Array(imageBuffer))
 		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
 	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Error opening image: ${error}`,
 		})
@@ -50,12 +50,12 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		await getHostBridgeProvider().windowClient.showTextDocument({
+		await HostProvider.window.showTextDocument({
 			path: uri.fsPath,
 			options: { preview: false },
 		})
 	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Could not open file!`,
 		})

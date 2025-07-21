@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
 
@@ -41,14 +41,14 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		try {
 			// Write content to the selected location
 			await writeFile(saveUri.fsPath, markdownContent)
-			await getHostBridgeProvider().windowClient.showTextDocument(
+			await HostProvider.window.showTextDocument(
 				ShowTextDocumentRequest.create({
 					path: saveUri.fsPath,
 					options: ShowTextDocumentOptions.create({ preview: true }),
 				}),
 			)
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
 			})

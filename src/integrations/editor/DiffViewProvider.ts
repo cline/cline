@@ -7,7 +7,7 @@ import { formatResponse } from "@core/prompts/responses"
 import * as diff from "diff"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -250,7 +250,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await getHostBridgeProvider().windowClient.showTextDocument({
+		await HostProvider.window.showTextDocument({
 			path: this.absolutePath,
 			options: {
 				preview: false,
@@ -327,7 +327,7 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
-				await getHostBridgeProvider().windowClient.showTextDocument({
+				await HostProvider.window.showTextDocument({
 					path: this.absolutePath,
 					options: {
 						preview: false,
