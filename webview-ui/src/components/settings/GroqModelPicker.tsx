@@ -12,15 +12,19 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import { normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "./utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 export interface GroqModelPickerProps {
 	isPopup?: boolean
+	currentMode: Mode
 }
 
-const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup }) => {
+const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { apiConfiguration, groqModels: dynamicGroqModels, setGroqModels } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.groqModelId || groqDefaultModelId)
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.groqModelId || groqDefaultModelId)
 	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -32,16 +36,23 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup }) => {
 		// Use dynamic models if available, otherwise fall back to static models
 		const modelInfo = dynamicGroqModels?.[newModelId] || groqModels[newModelId as keyof typeof groqModels]
 
-		handleFieldsChange({
-			groqModelId: newModelId,
-			groqModelInfo: modelInfo,
-		})
+		handleModeFieldsChange(
+			{
+				groqModelId: { plan: "planModeGroqModelId", act: "actModeGroqModelId" },
+				groqModelInfo: { plan: "planModeGroqModelInfo", act: "actModeGroqModelInfo" },
+			},
+			{
+				groqModelId: newModelId,
+				groqModelInfo: modelInfo,
+			},
+			currentMode,
+		)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
 		ModelsServiceClient.refreshGroqModels(EmptyRequest.create({}))
@@ -55,6 +66,12 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup }) => {
 				console.error("Failed to refresh Groq models:", err)
 			})
 	})
+
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.groqModelId || groqDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.groqModelId])
 
 	// Debounce search term to reduce re-renders
 	useEffect(() => {

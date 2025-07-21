@@ -44,12 +44,10 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 	if (fileExists) {
 		const message = `${fileTypeName} file "${request.filename}" already exists.`
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.WARNING,
-				message,
-			}),
-		)
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.WARNING,
+			message,
+		})
 		// Still open it for editing
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 	} else {
@@ -63,12 +61,10 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 
 		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.INFORMATION,
-				message,
-			}),
-		)
+		getHostBridgeProvider().windowClient.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message,
+		})
 	}
 
 	return RuleFile.create({

@@ -28,13 +28,11 @@ export const deleteTasksWithIds: TaskMethodHandler = async (
 			? "Are you sure you want to delete this task? This action cannot be undone."
 			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
 
-	const userChoice = await getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.WARNING,
-			message,
-			options: { modal: true, items: ["Delete"] },
-		}),
-	)
+	const userChoice = await getHostBridgeProvider().windowClient.showMessage({
+		type: ShowMessageType.WARNING,
+		message,
+		options: { modal: true, items: ["Delete"] },
+	})
 
 	if (userChoice === undefined) {
 		return Empty.create()
@@ -76,10 +74,7 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 			contextHistoryFilePath,
 			taskMetadataFilePath,
 		]) {
-			const fileExists = await fileExistsAtPath(filePath)
-			if (fileExists) {
-				await fs.unlink(filePath)
-			}
+			await fs.rm(filePath, { force: true })
 		}
 
 		// Remove empty task directory

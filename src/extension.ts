@@ -6,7 +6,7 @@ import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
@@ -27,6 +27,7 @@ import {
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
+	migrateLegacyApiConfigurationToModeSpecific,
 } from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
@@ -75,6 +76,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
 
+	// Migrate legacy API configuration to mode-specific keys (one-time migration)
+	await migrateLegacyApiConfigurationToModeSpecific(context)
+
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
@@ -106,12 +110,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				const message = `Cline has been updated to v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message,
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message,
+				})
 				// Record that we've shown the popup for this version.
 				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 			}
@@ -413,12 +415,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "Failed to get terminal contents",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to get terminal contents",
+				})
 			}
 		}),
 	)
@@ -554,12 +554,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "Please select some code to explain.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Please select some code to explain.",
+				})
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -581,12 +579,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "Please select some code to improve.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Please select some code to improve.",
+				})
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -651,12 +647,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
+				})
 			}
 			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId)
 		}),
@@ -723,15 +717,6 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 	}
 }
 
-// TODO: Find a solution for automatically removing DEV related content from production builds.
-//  This type of code is fine in production to keep. We just will want to remove it from production builds
-//  to bring down built asset sizes.
-//
-// This is a workaround to reload the extension when the source code changes
-// since vscode doesn't support hot reload for extensions
-const IS_DEV = process.env.IS_DEV
-const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
-
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose all webview instances
@@ -743,6 +728,15 @@ export async function deactivate() {
 
 	Logger.log("Cline extension deactivated")
 }
+
+// TODO: Find a solution for automatically removing DEV related content from production builds.
+//  This type of code is fine in production to keep. We just will want to remove it from production builds
+//  to bring down built asset sizes.
+//
+// This is a workaround to reload the extension when the source code changes
+// since vscode doesn't support hot reload for extensions
+const IS_DEV = process.env.IS_DEV
+const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 
 // Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {

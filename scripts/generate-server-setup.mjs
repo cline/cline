@@ -1,30 +1,18 @@
-import * as grpc from "@grpc/grpc-js"
-import * as protoLoader from "@grpc/proto-loader"
 import * as fs from "fs"
-import * as health from "grpc-health-check"
-import path, { basename, dirname } from "path"
+import path, { dirname } from "path"
 import { fileURLToPath } from "url"
+import { loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
 const OUT_FILE = path.resolve("src/generated/standalone/server-setup.ts")
-const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
-
-// Load service definitions.
-const clineDef = protoLoader.loadFileDescriptorSetFromBuffer(fs.readFileSync(DESCRIPTOR_SET))
-const healthDef = protoLoader.loadSync(health.protoPath)
-const packageDefinition = { ...clineDef, ...healthDef }
-const proto = grpc.loadPackageDefinition(packageDefinition)
 
 /**
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
-function generateHandlersAndExports() {
+async function generateHandlersAndExports() {
 	let imports = []
 	let handlerSetup = []
-
-	for (const [name, def] of Object.entries(proto.cline)) {
-		if (!def || !("service" in def)) {
-			continue
-		}
+	const { protobusServices } = await loadServicesFromProtoDescriptor()
+	for (const [name, def] of Object.entries(protobusServices)) {
 		const domain = name.replace(/Service$/, "")
 		const dir = domain.charAt(0).toLowerCase() + domain.slice(1)
 		imports.push(`// ${domain} Service`)
@@ -53,7 +41,7 @@ function generateHandlersAndExports() {
 	}
 }
 
-const { imports, handlerSetup } = generateHandlersAndExports()
+const { imports, handlerSetup } = await generateHandlersAndExports()
 const scriptName = path.basename(fileURLToPath(import.meta.url))
 
 // Create output file
@@ -62,7 +50,7 @@ let output = `// GENERATED CODE -- DO NOT EDIT!
 import * as grpc from "@grpc/grpc-js"
 import { cline } from "@generated/grpc-js"
 import { Controller } from "@core/controller"
-import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "@/standalone/grpc-types"
+import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "@hosts/external/grpc-types"
 
 ${imports}
 export function addProtobusServices(

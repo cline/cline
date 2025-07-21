@@ -4,21 +4,24 @@ import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import { huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { normalizeApiConfiguration } from "./utils/providerUtils"
+import { normalizeApiConfiguration, getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface HuggingFaceModelPickerProps {
 	isPopup?: boolean
+	currentMode: Mode
 }
 
-const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup }) => {
+const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { apiConfiguration, huggingFaceModels: dynamicModels, setHuggingFaceModels } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.huggingFaceModelId || huggingFaceDefaultModelId)
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.huggingFaceModelId || huggingFaceDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -27,16 +30,25 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 
 	const handleModelChange = (newModelId: string) => {
 		const allModels = { ...huggingFaceModels, ...dynamicModels }
-		handleFieldsChange({
-			huggingFaceModelId: newModelId,
-			huggingFaceModelInfo: allModels[newModelId as keyof typeof allModels],
-		})
+		const modelInfo = allModels[newModelId as keyof typeof allModels]
+
+		handleModeFieldsChange(
+			{
+				huggingFaceModelId: { plan: "planModeHuggingFaceModelId", act: "actModeHuggingFaceModelId" },
+				huggingFaceModelInfo: { plan: "planModeHuggingFaceModelInfo", act: "actModeHuggingFaceModelInfo" },
+			},
+			{
+				huggingFaceModelId: newModelId,
+				huggingFaceModelInfo: modelInfo,
+			},
+			currentMode,
+		)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
 		ModelsServiceClient.refreshHuggingFaceModels(EmptyRequest.create({}))
@@ -50,6 +62,12 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 				console.error("Failed to refresh Hugging Face models:", err)
 			})
 	})
+
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.huggingFaceModelId || huggingFaceDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.huggingFaceModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -161,8 +179,25 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
-						className="w-full relative z-[1000]"
-					/>
+						className="w-full relative z-[1000]">
+						{searchTerm && (
+							<div
+								className="input-icon-button codicon codicon-close"
+								aria-label="Clear search"
+								onClick={() => {
+									setSearchTerm("")
+									setIsDropdownVisible(true)
+								}}
+								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
+							/>
+						)}
+					</VSCodeTextField>
 					{isDropdownVisible && (
 						<div
 							ref={dropdownListRef}

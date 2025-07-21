@@ -4,8 +4,9 @@ import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
 import { ApiStream } from "@api/transform/stream"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
@@ -36,6 +37,9 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 
+import { createDiffViewProvider } from "@/hosts/host-providers"
+import { ClineErrorType } from "@/services/error/ClineError"
+import { ErrorService } from "@/services/error/ErrorService"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -82,9 +86,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { createDiffViewProvider } from "@/hosts/host-providers"
-import { ErrorService } from "@/services/error/ErrorService"
-import { ClineErrorType } from "@/services/error/ClineError"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -205,6 +206,9 @@ export class Task {
 			this.taskId = historyItem.id
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			if (historyItem.checkpointTrackerErrorMessage) {
+				this.taskState.checkpointTrackerErrorMessage = historyItem.checkpointTrackerErrorMessage
+			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
 		} else {
@@ -261,12 +265,19 @@ export class Task {
 			},
 		}
 
-		if (apiConfiguration.apiProvider === "openai" || apiConfiguration.apiProvider === "openai-native") {
-			effectiveApiConfiguration.reasoningEffort = chatSettings.openAIReasoningEffort
+		const currentProvider =
+			chatSettings.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+
+		if (currentProvider === "openai" || currentProvider === "openai-native") {
+			if (chatSettings.mode === "plan") {
+				effectiveApiConfiguration.planModeReasoningEffort = chatSettings.openAIReasoningEffort
+			} else {
+				effectiveApiConfiguration.actModeReasoningEffort = chatSettings.openAIReasoningEffort
+			}
 		}
 
 		// Now that taskId is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration)
+		this.api = buildApiHandler(effectiveApiConfiguration, chatSettings.mode)
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -281,10 +292,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskRestarted(this.taskId, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskCreated(this.taskId, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -304,6 +315,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
+			this.chatSettings,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -1054,7 +1066,9 @@ export class Task {
 		let responseFiles: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images, files)
-			await this.saveCheckpoint()
+			if (!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")) {
+				await this.saveCheckpoint()
+			}
 			responseText = text
 			responseImages = images
 			responseFiles = files
@@ -1204,8 +1218,9 @@ export class Task {
 		await this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
-		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
-
+		// need to await for when we want to make sure directories/files are reverted before
+		// re-starting the task from a checkpoint
+		await this.diffViewProvider.revertChanges()
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
 	}
@@ -1213,8 +1228,11 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (!this.enableCheckpoints) {
-			// If checkpoints are disabled, do nothing.
+		if (
+			!this.enableCheckpoints ||
+			this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+		) {
+			// If checkpoints are disabled or previously encountered a timeout error, do nothing.
 			return
 		}
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
@@ -1268,8 +1286,11 @@ export class Task {
 			//
 		} else {
 			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-			// Check if checkpoint tracker exists, if not, create it
-			if (!this.checkpointTracker) {
+			// Check if checkpoint tracker exists, if not, create it. Skip if there was a previous checkpoints initialization timeout error.
+			if (
+				!this.checkpointTracker &&
+				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
@@ -1284,7 +1305,10 @@ export class Task {
 				}
 			}
 
-			if (this.checkpointTracker) {
+			if (
+				this.checkpointTracker &&
+				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				const commitHash = await this.checkpointTracker.commit()
 
 				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
@@ -1425,7 +1449,7 @@ export class Task {
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
-		Logger.info("Executing command in VS code terminal: " + command)
+		Logger.info("Executing command in terminal: " + command)
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
@@ -1591,7 +1615,10 @@ export class Task {
 
 	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
-		const providerId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const providerId =
+			this.chatSettings.mode === "plan"
+				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
+				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
 		return { modelId, providerId }
 	}
 
@@ -2038,6 +2065,20 @@ export class Task {
 			!this.taskState.checkpointTrackerErrorMessage
 		) {
 			try {
+				// Warning Timer - If checkpoints take a while to to initialize, show a warning message
+				let checkpointsWarningTimer: NodeJS.Timeout | null = null
+				let checkpointsWarningShown = false
+
+				checkpointsWarningTimer = setTimeout(async () => {
+					if (!checkpointsWarningShown) {
+						checkpointsWarningShown = true
+						this.taskState.checkpointTrackerErrorMessage =
+							"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+						await this.postStateToWebview()
+					}
+				}, 7_000)
+
+				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
 				this.checkpointTracker = await pTimeout(
 					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
 					{
@@ -2046,10 +2087,22 @@ export class Task {
 							"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
 					},
 				)
+				if (checkpointsWarningTimer) {
+					clearTimeout(checkpointsWarningTimer)
+					checkpointsWarningTimer = null
+				}
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+
+				// If the error was a timeout, we disabled all checkpoint operations for the rest of the task
+				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
+					this.taskState.checkpointTrackerErrorMessage =
+						"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
+					await this.postStateToWebview()
+				} else {
+					this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				}
 			}
 		}
 

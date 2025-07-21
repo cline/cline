@@ -1,12 +1,14 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
+import { Mode } from "@shared/ChatSettings"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { useCallback } from "react"
 
 export const useApiConfigurationHandlers = () => {
-	const { apiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
+
 	/**
 	 * Updates a single field in the API configuration.
 	 *
@@ -17,24 +19,19 @@ export const useApiConfigurationHandlers = () => {
 	 * @param field - The field key to update
 	 * @param value - The new value for the field
 	 */
-	const handleFieldChange = useCallback(
-		<K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => {
-			const updatedConfig = {
-				...apiConfiguration,
-				[field]: value,
-			}
+	const handleFieldChange = async <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => {
+		const updatedConfig = {
+			...apiConfiguration,
+			[field]: value,
+		}
 
-			const protoConfig = convertApiConfigurationToProto(updatedConfig)
-			ModelsServiceClient.updateApiConfigurationProto(
-				UpdateApiConfigurationRequest.create({
-					apiConfiguration: protoConfig,
-				}),
-			).catch((error) => {
-				console.error(`Failed to update API configuration field ${field}:`, error)
-			})
-		},
-		[apiConfiguration],
-	)
+		const protoConfig = convertApiConfigurationToProto(updatedConfig)
+		await ModelsServiceClient.updateApiConfigurationProto(
+			UpdateApiConfigurationRequest.create({
+				apiConfiguration: protoConfig,
+			}),
+		)
+	}
 
 	/**
 	 * Updates multiple fields in the API configuration at once.
@@ -45,24 +42,69 @@ export const useApiConfigurationHandlers = () => {
 	 *
 	 * @param updates - An object containing the fields to update and their new values
 	 */
-	const handleFieldsChange = useCallback(
-		(updates: Partial<ApiConfiguration>) => {
-			const updatedConfig = {
-				...apiConfiguration,
-				...updates,
-			}
+	const handleFieldsChange = async (updates: Partial<ApiConfiguration>) => {
+		const updatedConfig = {
+			...apiConfiguration,
+			...updates,
+		}
 
-			const protoConfig = convertApiConfigurationToProto(updatedConfig)
-			ModelsServiceClient.updateApiConfigurationProto(
-				UpdateApiConfigurationRequest.create({
-					apiConfiguration: protoConfig,
-				}),
-			).catch((error) => {
-				console.error("Failed to update API configuration fields:", error)
+		const protoConfig = convertApiConfigurationToProto(updatedConfig)
+		await ModelsServiceClient.updateApiConfigurationProto(
+			UpdateApiConfigurationRequest.create({
+				apiConfiguration: protoConfig,
+			}),
+		)
+	}
+
+	const handleModeFieldChange = async <PlanK extends keyof ApiConfiguration, ActK extends keyof ApiConfiguration>(
+		fieldPair: { plan: PlanK; act: ActK },
+		value: ApiConfiguration[PlanK] & ApiConfiguration[ActK], // Intersection ensures value is compatible with both field types
+		currentMode: Mode,
+	) => {
+		if (planActSeparateModelsSetting) {
+			const targetField = fieldPair[currentMode]
+			await handleFieldChange(targetField, value)
+		} else {
+			await handleFieldsChange({
+				[fieldPair.plan]: value,
+				[fieldPair.act]: value,
 			})
-		},
-		[apiConfiguration],
-	)
+		}
+	}
 
-	return { handleFieldChange, handleFieldsChange, uriScheme, apiConfiguration }
+	/**
+	 * Updates multiple mode-specific fields in a single atomic operation.
+	 *
+	 * This prevents race conditions that can occur when making multiple separate
+	 * handleModeFieldChange calls in rapid succession.
+	 *
+	 * @param fieldPairs - Object mapping keys to plan/act field pairs
+	 * @param values - Object with values for each key
+	 * @param currentMode - The current mode being targeted
+	 */
+	const handleModeFieldsChange = async <T extends Record<string, any>>(
+		fieldPairs: { [K in keyof T]: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration } },
+		values: T,
+		currentMode: Mode,
+	) => {
+		if (planActSeparateModelsSetting) {
+			// Update only the current mode's fields
+			const updates: Partial<ApiConfiguration> = {}
+			Object.entries(fieldPairs).forEach(([key, { plan, act }]) => {
+				const targetField = currentMode === "plan" ? plan : act
+				updates[targetField] = values[key]
+			})
+			await handleFieldsChange(updates)
+		} else {
+			// Update both modes' fields
+			const updates: Partial<ApiConfiguration> = {}
+			Object.entries(fieldPairs).forEach(([key, { plan, act }]) => {
+				updates[plan] = values[key]
+				updates[act] = values[key]
+			})
+			await handleFieldsChange(updates)
+		}
+	}
+
+	return { handleFieldChange, handleFieldsChange, handleModeFieldChange, handleModeFieldsChange }
 }
