@@ -31,6 +31,7 @@ import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
 import { Mode } from "../shared/ChatSettings"
 import { HuggingFaceHandler } from "./providers/huggingface"
+import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -270,6 +271,12 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+			})
+		case "huawei-cloud-maas":
+			return new HuaweiCloudMaaSHandler({
+				huaweiCloudMaaSApiKey: options.huaweiCloudMaaSApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				// Add other needed options here if required
 			})
 		default:
 			return new AnthropicHandler({

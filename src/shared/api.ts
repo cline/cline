@@ -30,6 +30,7 @@ export type ApiProvider =
 	| "sapaicore"
 	| "groq"
 	| "huggingface"
+	| "huawei-cloud-maas"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -92,6 +93,7 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	huaweiCloudMaaSApiKey?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -117,6 +119,8 @@ export interface ApiHandlerOptions {
 	planModeGroqModelInfo?: ModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
+	planModeHuaweiCloudMaaSModelId?: string
+	planModeHuaweiCloudMaaSModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -142,6 +146,8 @@ export interface ApiHandlerOptions {
 	actModeGroqModelInfo?: ModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
+	actModeHuaweiCloudMaaSModelId?: string
+	actModeHuaweiCloudMaaSModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -2754,3 +2760,75 @@ export const moonshotModels = {
 } as const satisfies Record<string, ModelInfo>
 export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
+
+// Huawei Cloud MaaS
+export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
+export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
+export const huaweiCloudMaasModels = {
+	"DeepSeek-V3": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"DeepSeek-R1": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"deepseek-r1-250528": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"qwen3-235b-a22b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+	"qwen3-32b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+} as const satisfies Record<string, ModelInfo>

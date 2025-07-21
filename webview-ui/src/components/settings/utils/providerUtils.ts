@@ -48,6 +48,8 @@ import {
 	claudeCodeModels,
 	groqModels,
 	groqDefaultModelId,
+	huaweiCloudMaasModels,
+	huaweiCloudMaasDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/ChatSettings"
 
@@ -250,6 +252,8 @@ export function normalizeApiConfiguration(
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		case "huawei-cloud-maas":
+			return getProviderData(huaweiCloudMaasModels, huaweiCloudMaasDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -292,6 +296,9 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
 			awsBedrockCustomModelBaseId: undefined,
+
+			// Huawei Cloud Maas Model Info
+			huaweiCloudMaasModelInfo: undefined,
 
 			// Other mode-specific fields
 			thinkingBudgetTokens: undefined,
@@ -340,6 +347,12 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan"
 				? apiConfiguration.planModeAwsBedrockCustomModelBaseId
 				: apiConfiguration.actModeAwsBedrockCustomModelBaseId,
+
+		// Huawei Cloud Maas Model Info
+		huaweiCloudMaasModelInfo:
+			mode === "plan"
+				? apiConfiguration.planModeHuaweiCloudMaaSModelInfo
+				: apiConfiguration.actModeHuaweiCloudMaaSModelInfo,
 
 		// Other mode-specific fields
 		thinkingBudgetTokens:
@@ -452,6 +465,12 @@ export async function syncModeConfigurations(
 			updates.actModeAwsBedrockCustomSelected = sourceFields.awsBedrockCustomSelected
 			updates.planModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			updates.actModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
+			break
+		case "huawei-cloud-maas":
+			updates.planModeHuaweiCloudMaaSModelId = sourceFields.apiModelId
+			updates.actModeHuaweiCloudMaaSModelId = sourceFields.apiModelId
+			updates.planModeHuaweiCloudMaaSModelInfo = sourceFields.huaweiCloudMaasModelInfo
+			updates.actModeHuaweiCloudMaaSModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields
