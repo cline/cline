@@ -2463,8 +2463,8 @@ export const cerebrasModels = {
 		description: "Powerful model with ~2600 tokens/s",
 	},
 	"qwen-3-32b": {
-		maxTokens: 16382,
-		contextWindow: 16382,
+		maxTokens: 64000,
+		contextWindow: 64000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
