@@ -19,7 +19,8 @@ interface EnvironmentConfig {
 }
 
 function getClineEnv(): Environment {
-	const _env = process?.env?.CLINE_ENVIRONMENT
+	const isE2ETesting = process?.env?.E2E_TEST === "true"
+	const _env = isE2ETesting ? Environment.staging : process?.env?.CLINE_ENVIRONMENT
 	if (_env && Object.values(Environment).includes(_env as Environment)) {
 		return _env as Environment
 	}
@@ -28,6 +29,7 @@ function getClineEnv(): Environment {
 
 // Config getter function to avoid storing all configs in memory
 function getEnvironmentConfig(env: Environment): EnvironmentConfig {
+	console.info("Cline environment:", CLINE_ENVIRONMENT)
 	switch (env) {
 		case Environment.staging:
 			return {
@@ -74,7 +76,5 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 // Get environment once at module load
 const CLINE_ENVIRONMENT = getClineEnv()
 const _configCache = getEnvironmentConfig(CLINE_ENVIRONMENT)
-
-console.info("Cline environment:", CLINE_ENVIRONMENT)
 
 export const clineEnvConfig = _configCache

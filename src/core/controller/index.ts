@@ -34,7 +34,7 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { AuthService } from "@/services/auth/AuthService"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { clineEnvConfig } from "@/config"
 
@@ -744,6 +744,7 @@ export class Controller {
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
+			clineAppBaseUrl: clineEnvConfig.appBaseUrl,
 			apiConfiguration,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,

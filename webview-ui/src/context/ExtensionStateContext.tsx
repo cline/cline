@@ -26,8 +26,6 @@ import {
 	requestyDefaultModelInfo,
 	groqDefaultModelId,
 	groqModels,
-	huggingFaceDefaultModelId,
-	huggingFaceModels,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -173,6 +171,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
+		clineAppBaseUrl: "https://app.cline.bot",
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,

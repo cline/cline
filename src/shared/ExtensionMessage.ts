@@ -29,6 +29,7 @@ export const DEFAULT_PLATFORM = "unknown"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	clineAppBaseUrl: string
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings

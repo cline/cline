@@ -6,6 +6,10 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await expect(sidebar.getByRole("button", { name: "Get Started for Free" })).toBeVisible()
 	await expect(sidebar.getByRole("button", { name: "Use your own API key" })).toBeVisible()
 
+	// Check if Sign In button has title attribute set to staging URL
+	await sidebar.getByRole("button", { name: "Get Started for Free" }).hover()
+	await expect(sidebar.getByTitle("https://staging-app.cline.bot")).toBeVisible()
+
 	// Navigate to API key setup
 	await sidebar.getByRole("button", { name: "Use your own API key" }).click()
 

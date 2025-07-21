@@ -8,7 +8,7 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import { EmptyRequest, BooleanRequest } from "@shared/proto/common"
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration, chatSettings } = useExtensionState()
+	const { apiConfiguration, chatSettings, clineAppBaseUrl } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
 
@@ -54,7 +54,7 @@ const WelcomeView = memo(() => {
 					3.7 Sonnet.
 				</p>
 
-				<VSCodeButton appearance="primary" onClick={handleLogin} className="w-full mt-1">
+				<VSCodeButton appearance="primary" title={clineAppBaseUrl} onClick={handleLogin} className="w-full mt-1">
 					Get Started for Free
 				</VSCodeButton>
 
