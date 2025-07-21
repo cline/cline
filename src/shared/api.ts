@@ -20,6 +20,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "moonshot"
 	| "nebius"
 	| "fireworks"
 	| "asksage"
@@ -27,22 +28,20 @@ export type ApiProvider =
 	| "sambanova"
 	| "cerebras"
 	| "sapaicore"
+	| "groq"
+	| "huggingface"
 
 export interface ApiHandlerOptions {
-	apiModelId?: string
+	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
 	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	liteLlmModelInfo?: LiteLLMModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -50,62 +49,104 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
+	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
-	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
-	openAiModelId?: string
-	openAiModelInfo?: OpenAiCompatibleModelInfo
-	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	ollamaApiOptionsCtxNum?: string
-	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
-	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
-	togetherModelId?: string
 	fireworksApiKey?: string
-	fireworksModelId?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
+	moonshotApiLine?: string
+	moonshotApiKey?: string
+	huggingFaceApiKey?: string
 	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
-	thinkingBudgetTokens?: number
-	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	groqApiKey?: string
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
-	sapAiCoreModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	// Plan mode configurations
+	planModeApiModelId?: string
+	planModeThinkingBudgetTokens?: number
+	planModeReasoningEffort?: string
+	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	planModeAwsBedrockCustomSelected?: boolean
+	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeOpenRouterModelId?: string
+	planModeOpenRouterModelInfo?: ModelInfo
+	planModeOpenAiModelId?: string
+	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	planModeOllamaModelId?: string
+	planModeLmStudioModelId?: string
+	planModeLiteLlmModelId?: string
+	planModeLiteLlmModelInfo?: LiteLLMModelInfo
+	planModeRequestyModelId?: string
+	planModeRequestyModelInfo?: ModelInfo
+	planModeTogetherModelId?: string
+	planModeFireworksModelId?: string
+	planModeSapAiCoreModelId?: string
+	planModeGroqModelId?: string
+	planModeGroqModelInfo?: ModelInfo
+	planModeHuggingFaceModelId?: string
+	planModeHuggingFaceModelInfo?: ModelInfo
+	// Act mode configurations
+
+	actModeApiModelId?: string
+	actModeThinkingBudgetTokens?: number
+	actModeReasoningEffort?: string
+	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	actModeAwsBedrockCustomSelected?: boolean
+	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeOpenRouterModelId?: string
+	actModeOpenRouterModelInfo?: ModelInfo
+	actModeOpenAiModelId?: string
+	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	actModeOllamaModelId?: string
+	actModeLmStudioModelId?: string
+	actModeLiteLlmModelId?: string
+	actModeLiteLlmModelInfo?: LiteLLMModelInfo
+	actModeRequestyModelId?: string
+	actModeRequestyModelInfo?: ModelInfo
+	actModeTogetherModelId?: string
+	actModeFireworksModelId?: string
+	actModeSapAiCoreModelId?: string
+	actModeGroqModelId?: string
+	actModeGroqModelInfo?: ModelInfo
+	actModeHuggingFaceModelId?: string
+	actModeHuggingFaceModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+	planModeApiProvider?: ApiProvider
+	actModeApiProvider?: ApiProvider
 	favoritedModelIds?: string[]
 }
 
@@ -1062,6 +1103,49 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Hugging Face Inference Providers
+// https://huggingface.co/docs/inference-providers/en/index
+export type HuggingFaceModelId = keyof typeof huggingFaceModels
+export const huggingFaceDefaultModelId: HuggingFaceModelId = "moonshotai/Kimi-K2-Instruct"
+export const huggingFaceModels = {
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-V3-0324": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
+	},
+	"meta-llama/Llama-3.1-8B-Instruct": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Efficient 8B parameter Llama model for general-purpose tasks.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -2398,6 +2482,95 @@ export const cerebrasModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Groq
+// https://console.groq.com/docs/models
+// https://groq.com/pricing/
+export type GroqModelId = keyof typeof groqModels
+export const groqDefaultModelId: GroqModelId = "moonshotai/kimi-k2-instruct"
+export const groqModels = {
+	// Compound Beta Models - Hybrid architectures optimized for tool use
+	"compound-beta": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description:
+			"Compound model using Llama 4 Scout for core reasoning with Llama 3.3 70B for routing and tool use. Excellent for plan/act workflows.",
+	},
+	"compound-beta-mini": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description: "Lightweight compound model for faster inference while maintaining tool use capabilities.",
+	},
+	// DeepSeek Models - Reasoning-optimized
+	"deepseek-r1-distill-llama-70b": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 0.99,
+		description:
+			"DeepSeek R1 reasoning capabilities distilled into Llama 70B architecture. Excellent for complex problem-solving and planning.",
+	},
+	// Llama 4 Models
+	"meta-llama/llama-4-maverick-17b-128e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+		description: "Meta's Llama 4 Maverick 17B model with 128 experts, supports vision and multimodal tasks.",
+	},
+	"meta-llama/llama-4-scout-17b-16e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.34,
+		description: "Meta's Llama 4 Scout 17B model with 16 experts, optimized for fast inference and general tasks.",
+	},
+	// Llama 3.3 Models
+	"llama-3.3-70b-versatile": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.59,
+		outputPrice: 0.79,
+		description: "Meta's latest Llama 3.3 70B model optimized for versatile use cases with excellent performance and speed.",
+	},
+	// Llama 3.1 Models - Fast inference
+	"llama-3.1-8b-instant": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution.",
+	},
+	// Mistral Models
+	"moonshotai/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 3.0,
+		description:
+			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Requesty
 // https://requesty.ai/models
 export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
@@ -2550,3 +2723,34 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Moonshot AI Studio
+// https://platform.moonshot.ai/docs/pricing/chat
+export const moonshotModels = {
+	"kimi-k2-0711-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+	},
+	"moonshot-v1-128k-vision-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 5,
+	},
+	"kimi-thinking-preview": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 30,
+		outputPrice: 30,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type MoonshotModelId = keyof typeof moonshotModels
+export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId

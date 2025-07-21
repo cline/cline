@@ -27,12 +27,10 @@ export async function updateDefaultTerminalProfile(
 		// Show information message if terminals were closed
 		if (closedCount > 0) {
 			const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message,
+			})
 		}
 
 		// Show warning if there are busy terminals that couldn't be closed
@@ -40,12 +38,10 @@ export async function updateDefaultTerminalProfile(
 			const message =
 				`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
 				`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.WARNING,
-					message,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.WARNING,
+				message,
+			})
 		}
 	}
 

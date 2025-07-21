@@ -10,7 +10,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings, StoredChatSettings } from "@shared/ChatSettings"
+import { ChatSettings, Mode, StoredChatSettings } from "@shared/ChatSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -36,6 +36,7 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { AuthService } from "@/services/auth/AuthService"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { clineEnvConfig } from "@/config"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -49,6 +50,7 @@ export class Controller {
 
 	private disposables: vscode.Disposable[] = []
 	task?: Task
+
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
@@ -82,8 +84,8 @@ export class Controller {
 		})
 	}
 
-	private async getCurrentMode(): Promise<"plan" | "act"> {
-		return ((await getGlobalState(this.context, "mode")) as "plan" | "act" | undefined) || "act"
+	async getCurrentMode(): Promise<Mode> {
+		return ((await getGlobalState(this.context, "mode")) as Mode | undefined) || "act"
 	}
 
 	/*
@@ -111,21 +113,20 @@ export class Controller {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
 			await storeSecret(this.context, "clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await updateGlobalState(this.context, "apiProvider", "openrouter")
+			await Promise.all([
+				updateGlobalState(this.context, "planModeApiProvider", "openrouter"),
+				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
+			])
 			await this.postStateToWebview()
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Successfully logged out of Cline",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Successfully logged out of Cline",
+			})
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Logout failed",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Logout failed",
+			})
 		}
 	}
 
@@ -256,153 +257,10 @@ export class Controller {
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
 
-		// Get previous model info that we will revert to after saving current mode api info
-		const {
-			apiConfiguration,
-			previousModeApiProvider: newApiProvider,
-			previousModeModelId: newModelId,
-			previousModeModelInfo: newModelInfo,
-			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
-			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
-			previousModeReasoningEffort: newReasoningEffort,
-			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
-			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
-			previousModeSapAiCoreModelId: newSapAiCoreModelId,
-			planActSeparateModelsSetting,
-		} = await getAllExtensionState(this.context)
-
-		const shouldSwitchModel = planActSeparateModelsSetting === true
-
-		if (shouldSwitchModel) {
-			// Save the last model used in this mode
-			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
-			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
-			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
-			switch (apiConfiguration.apiProvider) {
-				case "anthropic":
-				case "vertex":
-				case "gemini":
-				case "asksage":
-				case "openai-native":
-				case "qwen":
-				case "deepseek":
-				case "xai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					break
-				case "bedrock":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.awsBedrockCustomSelected,
-					)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.awsBedrockCustomModelBaseId,
-					)
-					break
-				case "openrouter":
-				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
-					break
-				case "vscode-lm":
-					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
-					await updateGlobalState(
-						this.context,
-						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector,
-					)
-					break
-				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
-					break
-				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
-					break
-				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
-					break
-				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
-					break
-				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
-					break
-				case "sapaicore":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
-					break
-			}
-
-			// Restore the model used in previous mode
-			if (
-				newApiProvider ||
-				newModelId ||
-				newThinkingBudgetTokens !== undefined ||
-				newReasoningEffort ||
-				newVsCodeLmModelSelector
-			) {
-				await updateGlobalState(this.context, "apiProvider", newApiProvider)
-				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
-				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
-				switch (newApiProvider) {
-					case "anthropic":
-					case "vertex":
-					case "gemini":
-					case "asksage":
-					case "openai-native":
-					case "qwen":
-					case "deepseek":
-					case "xai":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						break
-					case "bedrock":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
-						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
-						break
-					case "openrouter":
-					case "cline":
-						await updateGlobalState(this.context, "openRouterModelId", newModelId)
-						await updateGlobalState(this.context, "openRouterModelInfo", newModelInfo)
-						break
-					case "vscode-lm":
-						await updateGlobalState(this.context, "vsCodeLmModelSelector", newVsCodeLmModelSelector)
-						break
-					case "openai":
-						await updateGlobalState(this.context, "openAiModelId", newModelId)
-						await updateGlobalState(this.context, "openAiModelInfo", newModelInfo)
-						break
-					case "ollama":
-						await updateGlobalState(this.context, "ollamaModelId", newModelId)
-						break
-					case "lmstudio":
-						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
-						break
-					case "litellm":
-						await updateGlobalState(this.context, "liteLlmModelId", newModelId)
-						await updateGlobalState(this.context, "liteLlmModelInfo", newModelInfo)
-						break
-					case "requesty":
-						await updateGlobalState(this.context, "requestyModelId", newModelId)
-						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
-						break
-					case "sapaicore":
-						await updateGlobalState(this.context, "apiModelId", newModelId)
-						await updateGlobalState(this.context, "sapAiCoreModelId", newSapAiCoreModelId)
-						break
-				}
-
-				if (this.task) {
-					const { apiConfiguration: updatedApiConfiguration } = await getAllExtensionState(this.context)
-					this.task.api = buildApiHandler(updatedApiConfiguration)
-				}
-			}
+		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
+		if (this.task) {
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+			this.task.api = buildApiHandler(apiConfiguration, chatSettings.mode)
 		}
 
 		// Save only non-mode properties to global storage
@@ -461,40 +319,52 @@ export class Controller {
 		}
 	}
 
-	// Auth
-	public async validateAuthState(state: string | null): Promise<boolean> {
-		return state === this.authService.authNonce
-	}
-
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
-			await updateGlobalState(this.context, "apiProvider", clineProvider)
 
-			// Mark welcome view as completed since user has successfully logged in
-			await updateGlobalState(this.context, "welcomeViewCompleted", true)
+			// Get current settings to determine how to update providers
+			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
+			const currentMode = await this.getCurrentMode()
 
+			if (planActSeparateModelsSetting) {
+				// Only update the current mode's provider
+				if (currentMode === "plan") {
+					await updateGlobalState(this.context, "planModeApiProvider", clineProvider)
+				} else {
+					await updateGlobalState(this.context, "actModeApiProvider", clineProvider)
+				}
+			} else {
+				// Update both modes to keep them in sync
+				await Promise.all([
+					updateGlobalState(this.context, "planModeApiProvider", clineProvider),
+					updateGlobalState(this.context, "actModeApiProvider", clineProvider),
+				])
+			}
+
+			// Get the updated API configuration (now includes the updated providers)
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 			const updatedConfig = {
 				...apiConfiguration,
 				apiProvider: clineProvider,
 			}
 
+			// Mark welcome view as completed since user has successfully logged in
+			await updateGlobalState(this.context, "welcomeViewCompleted", true)
+
 			if (this.task) {
-				this.task.api = buildApiHandler(updatedConfig)
+				this.task.api = buildApiHandler(updatedConfig, currentMode)
 			}
 
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: "Failed to log in to Cline",
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to log in to Cline",
+			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -503,7 +373,7 @@ export class Controller {
 	// MCP Marketplace
 	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
 		try {
-			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+			const response = await axios.get(`${clineEnvConfig.mcpBaseUrl}/marketplace`, {
 				headers: {
 					"Content-Type": "application/json",
 				},
@@ -529,12 +399,10 @@ export class Controller {
 			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: errorMessage,
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: errorMessage,
+				})
 			}
 			return undefined
 		}
@@ -542,7 +410,7 @@ export class Controller {
 
 	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
 		try {
-			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+			const response = await axios.get(`${clineEnvConfig.mcpBaseUrl}/marketplace`, {
 				headers: {
 					"Content-Type": "application/json",
 					"User-Agent": "cline-vscode-extension",
@@ -618,12 +486,10 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: errorMessage,
+			})
 		}
 	}
 
@@ -644,14 +510,21 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		await updateGlobalState(this.context, "apiProvider", openrouter)
+		const currentMode = await this.getCurrentMode()
+		await Promise.all([
+			updateGlobalState(this.context, "planModeApiProvider", openrouter),
+			updateGlobalState(this.context, "actModeApiProvider", openrouter),
+		])
 		await storeSecret(this.context, "openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({
-				apiProvider: openrouter,
+			// Get the updated API configuration (now includes the updated providers)
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+			const updatedConfig = {
+				...apiConfiguration,
 				openRouterApiKey: apiKey,
-			})
+			}
+			this.task.api = buildApiHandler(updatedConfig, currentMode)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -834,7 +707,7 @@ export class Controller {
 			chatSettings: storedChatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
-			mcpRichDisplayEnabled,
+			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
@@ -887,7 +760,7 @@ export class Controller {
 			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
-			mcpRichDisplayEnabled,
+			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
@@ -910,7 +783,6 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
-			await telemetryService.sendCollectedEvents(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
@@ -987,24 +859,20 @@ export class Controller {
 			// Check if there's a workspace folder open
 			const cwd = await getCwd()
 			if (!cwd) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "No workspace folder open",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "No workspace folder open",
+				})
 				return
 			}
 
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes in workspace for commit message",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No changes in workspace for commit message",
+				})
 				return
 			}
 
@@ -1032,9 +900,10 @@ Commit message:`
 
 						// Get the current API configuration
 						const { apiConfiguration } = await getAllExtensionState(this.context)
+						const currentMode = await this.getCurrentMode()
 
 						// Build the API handler
-						const apiHandler = buildApiHandler(apiConfiguration)
+						const apiHandler = buildApiHandler(apiConfiguration, currentMode)
 
 						// Create a system prompt
 						const systemPrompt =
@@ -1072,58 +941,46 @@ Commit message:`
 									const repo = api.repositories[0]
 									repo.inputBox.value = commitMessage
 									const message = "Commit message generated and applied"
-									getHostBridgeProvider().windowClient.showMessage(
-										ShowMessageRequest.create({
-											type: ShowMessageType.INFORMATION,
-											message,
-										}),
-									)
+									getHostBridgeProvider().windowClient.showMessage({
+										type: ShowMessageType.INFORMATION,
+										message,
+									})
 								} else {
 									const message = "No Git repositories found"
-									getHostBridgeProvider().windowClient.showMessage(
-										ShowMessageRequest.create({
-											type: ShowMessageType.ERROR,
-											message,
-										}),
-									)
+									getHostBridgeProvider().windowClient.showMessage({
+										type: ShowMessageType.ERROR,
+										message,
+									})
 								}
 							} else {
 								const message = "Git extension not found"
-								getHostBridgeProvider().windowClient.showMessage(
-									ShowMessageRequest.create({
-										type: ShowMessageType.ERROR,
-										message,
-									}),
-								)
+								getHostBridgeProvider().windowClient.showMessage({
+									type: ShowMessageType.ERROR,
+									message,
+								})
 							}
 						} else {
 							const message = "Failed to generate commit message"
-							getHostBridgeProvider().windowClient.showMessage(
-								ShowMessageRequest.create({
-									type: ShowMessageType.ERROR,
-									message,
-								}),
-							)
+							getHostBridgeProvider().windowClient.showMessage({
+								type: ShowMessageType.ERROR,
+								message,
+							})
 						}
 					} catch (innerError) {
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
-						getHostBridgeProvider().windowClient.showMessage(
-							ShowMessageRequest.create({
-								type: ShowMessageType.ERROR,
-								message: `Failed to generate commit message: ${innerErrorMessage}`,
-							}),
-						)
+						getHostBridgeProvider().windowClient.showMessage({
+							type: ShowMessageType.ERROR,
+							message: `Failed to generate commit message: ${innerErrorMessage}`,
+						})
 					}
 				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Failed to generate commit message: ${errorMessage}`,
-				}),
-			)
+			getHostBridgeProvider().windowClient.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to generate commit message: ${errorMessage}`,
+			})
 		}
 	}
 }

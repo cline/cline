@@ -6,7 +6,7 @@ import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
@@ -27,17 +27,18 @@ import {
 	migrateCustomInstructionsToGlobalRules,
 	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
+	migrateLegacyApiConfigurationToModeSpecific,
 } from "./core/storage/state-migrations"
 
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import * as hostProviders from "@hosts/host-providers"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
-import { VscodeWebviewProvider } from "./core/webview/VscodeWebviewProvider"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionContext } from "vscode"
 import { AuthService } from "./services/auth/AuthService"
 import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
-import { VscodeDiffViewProvider } from "./integrations/editor/VscodeDiffViewProvider"
+import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { getHostBridgeProvider } from "@hosts/host-providers"
 import { ShowMessageRequest, ShowMessageType } from "./shared/proto/host/window"
 /*
@@ -75,6 +76,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
 
+	// Migrate legacy API configuration to mode-specific keys (one-time migration)
+	await migrateLegacyApiConfigurationToModeSpecific(context)
+
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
@@ -106,12 +110,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				const message = `Cline has been updated to v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message,
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message,
+				})
 				// Record that we've shown the popup for this version.
 				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 			}
@@ -301,35 +303,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				break
 			}
 			case "/auth": {
-				const authService = AuthService.getInstance()
 				console.log("Auth callback received:", uri.toString())
 
 				const token = query.get("idToken")
-				const state = query.get("state")
 				const provider = query.get("provider")
 
-				console.log("Auth callback received:", {
-					token: token,
-					state: state,
-					provider: provider,
-				})
-
-				// Ask user to confirm on state mismatch. This enables signins initiated from
-				// outside the extension (e.g. Cline web) to be handled correctly.
-				if (authService.authNonce !== state) {
-					const userConfirmation = (
-						await getHostBridgeProvider().windowClient.showMessage(
-							ShowMessageRequest.create({
-								type: ShowMessageType.ERROR,
-								message: "Invalid auth state",
-							}),
-						)
-					)?.selectedOption
-					if (userConfirmation === "Cancel") {
-						console.log("User declined to continue with auth callback due to state mismatch")
-						return
-					}
-				}
+				console.log("Auth callback received:", { provider })
 
 				if (token) {
 					await visibleWebview?.controller.handleAuthCallback(token, provider)
@@ -386,7 +365,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
-			telemetryService.captureButtonClick("codeAction_addToChat", visibleWebview?.controller.task?.taskId, true)
+			telemetryService.captureButtonClick("codeAction_addToChat", visibleWebview?.controller.task?.taskId)
 		}),
 	)
 
@@ -436,12 +415,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
 				console.error("Error getting terminal contents:", error)
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "Failed to get terminal contents",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to get terminal contents",
+				})
 			}
 		}),
 	)
@@ -563,7 +540,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send to sidebar provider with diagnostics
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
-			telemetryService.captureButtonClick("codeAction_fixWithCline", visibleWebview?.controller.task?.taskId, true)
+			telemetryService.captureButtonClick("codeAction_fixWithCline", visibleWebview?.controller.task?.taskId)
 		}),
 	)
 
@@ -577,12 +554,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "Please select some code to explain.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Please select some code to explain.",
+				})
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -590,7 +565,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId, true)
+			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId)
 		}),
 	)
 
@@ -604,12 +579,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const selectedText = editor.document.getText(range)
 			if (!selectedText.trim()) {
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.INFORMATION,
-						message: "Please select some code to improve.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Please select some code to improve.",
+				})
 				return
 			}
 			const filePath = editor.document.uri.fsPath
@@ -617,7 +590,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId, true)
+			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId)
 		}),
 	)
 
@@ -674,14 +647,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				sendFocusChatInputEvent(clientId)
 			} else {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
-					}),
-				)
+				getHostBridgeProvider().windowClient.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
+				})
 			}
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId)
 		}),
 	)
 
@@ -689,7 +660,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
 			await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
-			telemetryService.captureButtonClick("command_openWalkthrough", undefined, true)
+			telemetryService.captureButtonClick("command_openWalkthrough")
 		}),
 	)
 
@@ -714,9 +685,18 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		context.secrets.onDidChange((event) => {
+		context.secrets.onDidChange(async (event) => {
 			if (event.key === "clineAccountId") {
-				AuthService.getInstance(context)?.restoreRefreshTokenAndRetrieveAuthInfo()
+				// Check if the secret was removed (logout) or added/updated (login)
+				const secretValue = await context.secrets.get("clineAccountId")
+				const authService = AuthService.getInstance(context)
+				if (secretValue) {
+					// Secret was added or updated - restore auth info (login from another window)
+					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+				} else {
+					// Secret was removed - handle logout for all windows
+					authService?.handleDeauth()
+				}
 			}
 		}),
 	)
@@ -737,6 +717,18 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 	}
 }
 
+// This method is called when your extension is deactivated
+export async function deactivate() {
+	// Dispose all webview instances
+	await WebviewProvider.disposeAllInstances()
+
+	// Clean up test mode
+	cleanupTestMode()
+	await posthogClientProvider.shutdown()
+
+	Logger.log("Cline extension deactivated")
+}
+
 // TODO: Find a solution for automatically removing DEV related content from production builds.
 //  This type of code is fine in production to keep. We just will want to remove it from production builds
 //  to bring down built asset sizes.
@@ -745,20 +737,6 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 // since vscode doesn't support hot reload for extensions
 const IS_DEV = process.env.IS_DEV
 const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
-
-// This method is called when your extension is deactivated
-export async function deactivate() {
-	// Dispose all webview instances
-	await WebviewProvider.disposeAllInstances()
-
-	await telemetryService.sendCollectedEvents()
-
-	// Clean up test mode
-	cleanupTestMode()
-	await posthogClientProvider.shutdown()
-
-	Logger.log("Cline extension deactivated")
-}
 
 // Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {

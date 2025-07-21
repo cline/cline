@@ -1,5 +1,45 @@
 # Changelog
 
+## [3.19.7]
+
+-   Add Hugging Face as a new API provider with support for their inference API models
+-   Improve Claude Code error messages with better guidance for common setup issues (Thanks @BarreiroT!)
+-   Fix authentication sync issues when using multiple VSCode windows
+
+## [3.19.6]
+
+-   Improve Kimi K2 model provider routing with additional provider options for better availability and performance
+-   Fixed terminal bug where Cline failed to capture output of certain fast-running commands
+-   Fixed bug with increasing auto approved number of requests not resetting the counter mid-task
+
+## [3.19.5]
+
+-   Add Groq as a new API provider with support for all Groq models including Kimi-K2
+-   Add user role display in organization UI for Cline account users
+-   Fix message dialogs not showing option buttons properly
+-   Fix authentication issues when using multiple VSCode windows
+
+## [3.19.4]
+
+-   Add ability to choose Chinese endpoint for Moonshot provider
+
+## [3.19.3]
+
+-   Add Moonshot AI provider
+
+## [3.19.2]
+
+-   Show request ID in error messages returned by Cline Accounts API to help debug user reported issues
+
+## [3.19.1]
+
+-   Fix documentation
+
+## [3.19.0]
+
+-   Add Kimi-K2 as a recommended model in the Cline Provider, and route to Together/Groq for 131k context window and high throughput
+-   Added API Key support for Bedrock integration
+
 ## [3.18.14]
 
 -   Fix bug where Cline account users logged in with invalid token would not be shown as logged out in webview presentation layer
@@ -40,7 +80,7 @@
 ## [3.18.6]
 
 -   Update request header to include `"ai-client-type": "Cline"` to SAP Api Provider
--   Add organization organization accounts
+-   Add organization accounts
 
 ## [3.18.5]
 

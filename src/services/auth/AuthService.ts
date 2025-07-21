@@ -1,15 +1,14 @@
 import vscode from "vscode"
-import crypto from "crypto"
 import { EmptyRequest, String } from "../../shared/proto/common"
 import { AuthState, UserInfo } from "../../shared/proto/account"
 import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { Controller } from "@/core/controller"
 import { storeSecret } from "@/core/storage/state"
+import { clineEnvConfig } from "@/config"
+import { openExternal } from "@/utils/env"
 
-const DefaultClineAccountURI = "https://app.cline.bot/auth"
-// const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
-// const DefaultClineAccountURI = "http://localhost:3000/auth"
+const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
 
 type ServiceConfig = {
@@ -51,7 +50,6 @@ export class AuthService {
 	private _authenticated: boolean = false
 	private _clineAuthInfo: ClineAuthInfo | null = null
 	private _provider: { provider: FirebaseAuthProvider } | null = null
-	private readonly _authNonce = crypto.randomBytes(32).toString("hex")
 	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
 	private _context: vscode.ExtensionContext
 
@@ -72,37 +70,7 @@ export class AuthService {
 		const authProvidersConfigs = [
 			{
 				name: "firebase",
-				config: {
-					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
-					authDomain: "cline-prod.firebaseapp.com",
-					projectId: "cline-prod",
-					storageBucket: "cline-prod.firebasestorage.app",
-					messagingSenderId: "941048379330",
-					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
-				},
-				// Uncomment for staging environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// Uncomment for local development environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// config: {
-				// 	apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
-				// 	authDomain: "cline-preview.firebaseapp.com",
-				// 	projectId: "cline-preview",
-				// }
+				config: clineEnvConfig.firebase,
 			},
 		]
 
@@ -156,10 +124,6 @@ export class AuthService {
 
 	set authProvider(providerName: string) {
 		this._setProvider(providerName)
-	}
-
-	get authNonce(): string {
-		return this._authNonce
 	}
 
 	async getAuthToken(): Promise<string | null> {
@@ -220,12 +184,11 @@ export class AuthService {
 
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(this._config.URI)
-		authUrl.searchParams.set("state", this._authNonce)
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
 		const authUrlString = authUrl.toString()
 
-		await vscode.env.openExternal(vscode.Uri.parse(authUrlString))
+		await openExternal(authUrlString)
 		return String.create({ value: authUrlString })
 	}
 
