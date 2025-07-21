@@ -7,7 +7,7 @@ import { refreshWorkflowToggles } from "@/core/context/instructions/user-instruc
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { FileServiceHandlers } from "@/generated/hosts/vscode/protobus-services"
+import { openFile } from "./openFile"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -48,7 +48,7 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 			message,
 		})
 		// Still open it for editing
-		await FileServiceHandlers.openFile(controller, { value: filePath })
+		await openFile(controller, { value: filePath })
 	} else {
 		if (request.type === "workflow") {
 			await refreshWorkflowToggles(controller.context, cwd)
@@ -57,7 +57,7 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		}
 		await controller.postStateToWebview()
 
-		await FileServiceHandlers.openFile(controller, { value: filePath })
+		await openFile(controller, { value: filePath })
 
 		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
 		HostProvider.window.showMessage({

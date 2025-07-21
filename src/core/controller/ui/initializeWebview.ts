@@ -7,7 +7,8 @@ import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplace
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { OpenRouterCompatibleModelInfo } from "@/shared/proto/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
-import { ModelsServiceHandlers } from "@/generated/hosts/vscode/protobus-services"
+import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { refreshGroqModels } from "../models/refreshGroqModels"
 
 /**
  * Initialize webview when it launches
@@ -28,7 +29,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		})
 
 		// Refresh OpenRouter models from API
-		ModelsServiceHandlers.refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
+		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
@@ -67,7 +68,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			}
 		})
 
-		ModelsServiceHandlers.refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
+		refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
