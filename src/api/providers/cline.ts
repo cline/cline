@@ -68,7 +68,6 @@ export class ClineHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
-			console.log("taskId", this.options.taskId)
 
 			this.lastGenerationId = undefined
 
