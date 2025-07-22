@@ -1970,6 +1970,14 @@ export const mistralModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.3,
 	},
+	"devstral-medium-latest": {
+		maxTokens: 128_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // LiteLLM
