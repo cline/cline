@@ -5,6 +5,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { ApiHandler } from "../../api"
 import { MAX_CONDENSE_THRESHOLD, MIN_CONDENSE_THRESHOLD, summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "@roo-code/types"
 
 /**
  * Default percentage of the context window to use as a buffer when deciding when to truncate
@@ -105,7 +106,7 @@ export async function truncateConversationIfNeeded({
 	let error: string | undefined
 	let cost = 0
 	// Calculate the maximum tokens reserved for response
-	const reservedTokens = maxTokens || contextWindow * 0.2
+	const reservedTokens = maxTokens || ANTHROPIC_DEFAULT_MAX_TOKENS
 
 	// Estimate tokens for the last message (which is always a user message)
 	const lastMessage = messages[messages.length - 1]

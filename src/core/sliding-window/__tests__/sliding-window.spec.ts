@@ -1103,9 +1103,9 @@ describe("Sliding Window", () => {
 			expect(result2.prevContextTokens).toBe(50001)
 		})
 
-		it("should use 20% of context window as buffer when maxTokens is undefined", async () => {
+		it("should use ANTHROPIC_DEFAULT_MAX_TOKENS as buffer when maxTokens is undefined", async () => {
 			const modelInfo = createModelInfo(100000, undefined)
-			// Max tokens = 100000 - (100000 * 0.2) = 80000
+			// Max tokens = 100000 - ANTHROPIC_DEFAULT_MAX_TOKENS = 100000 - 8192 = 91808
 
 			// Create messages with very small content in the last one to avoid token overflow
 			const messagesWithSmallContent = [
@@ -1117,7 +1117,7 @@ describe("Sliding Window", () => {
 			// Below max tokens and buffer - no truncation
 			const result1 = await truncateConversationIfNeeded({
 				messages: messagesWithSmallContent,
-				totalTokens: 69999, // Well below threshold + dynamic buffer
+				totalTokens: 81807, // Well below threshold + dynamic buffer (91808 - 10000 = 81808)
 				contextWindow: modelInfo.contextWindow,
 				maxTokens: modelInfo.maxTokens,
 				apiHandler: mockApiHandler,
@@ -1132,13 +1132,13 @@ describe("Sliding Window", () => {
 				messages: messagesWithSmallContent,
 				summary: "",
 				cost: 0,
-				prevContextTokens: 69999,
+				prevContextTokens: 81807,
 			})
 
 			// Above max tokens - truncate
 			const result2 = await truncateConversationIfNeeded({
 				messages: messagesWithSmallContent,
-				totalTokens: 80001, // Above threshold
+				totalTokens: 81809, // Above threshold (81808)
 				contextWindow: modelInfo.contextWindow,
 				maxTokens: modelInfo.maxTokens,
 				apiHandler: mockApiHandler,
@@ -1153,7 +1153,7 @@ describe("Sliding Window", () => {
 			expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
 			expect(result2.summary).toBe("")
 			expect(result2.cost).toBe(0)
-			expect(result2.prevContextTokens).toBe(80001)
+			expect(result2.prevContextTokens).toBe(81809)
 		})
 
 		it("should handle small context windows appropriately", async () => {
