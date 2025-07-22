@@ -533,6 +533,7 @@ export const ChatRowContent = ({
 							isLoading={message.partial}
 							isExpanded={isExpanded}
 							onToggleExpand={handleToggleExpand}
+							onJumpToFile={() => vscode.postMessage({ type: "openFile", text: "./" + tool.path })}
 						/>
 					</>
 				)
