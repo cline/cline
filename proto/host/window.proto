@@ -12,6 +12,8 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  rpc startProgress(StartProgressRequest) returns (StartProgressResponse);
+  rpc endProgress(EndProgressRequest) returns (cline.Empty);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +72,26 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+enum ProgressLocation {
+  NOTIFICATION = 0;
+  SOURCE_CONTROL = 1;
+  WINDOW = 2;
+}
+
+message StartProgressRequest {
+  cline.Metadata metadata = 1;
+  ProgressLocation location = 2;
+  string title = 3;
+  bool cancellable = 4;
+}
+
+message StartProgressResponse {
+  string progress_id = 1;
+}
+
+message EndProgressRequest {
+  cline.Metadata metadata = 1;
+  string progress_id = 2;
 }

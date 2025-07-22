@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
+import { ShowMessageType, ShowTextDocumentRequest, ProgressLocation } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
 import { getAllExtensionState } from "@/core/storage/state"
 import { getWorkingState } from "@/utils/git"
@@ -42,14 +42,17 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 		return
 	}
 
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.SourceControl,
-			title: "Generating commit message...",
-			cancellable: true,
-		},
-		() => performCommitGeneration(context, gitDiff, inputBox),
-	)
+	const { progressId } = await HostProvider.window.startProgress({
+		location: ProgressLocation.SOURCE_CONTROL,
+		title: "Generating commit message...",
+		cancellable: true,
+	})
+
+	try {
+		await performCommitGeneration(context, gitDiff, inputBox)
+	} finally {
+		await HostProvider.window.endProgress({ progressId })
+	}
 }
 
 async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
