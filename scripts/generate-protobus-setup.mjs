@@ -49,7 +49,7 @@ async function generateWebviewProtobusClients(protobusServices) {
 			}
 		}
 		clients.push(`export class ${serviceName}Client extends ProtoBusClient {
-	static override serviceName: string = "${serviceName}"
+	static override serviceName: string = "cline.${serviceName}"
 ${rpcs.join("\n")}
 }`)
 	}
