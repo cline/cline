@@ -9,12 +9,7 @@ export interface Callbacks<TResponse> {
 
 export abstract class ProtoBusClient {
 	static serviceName: string
-	static async makeRequest<TRequest, TResponse>(
-		methodName: string,
-		request: TRequest,
-		encodeRequest: (_: TRequest) => unknown,
-		decodeResponse: (_: unknown) => TResponse,
-	): Promise<TResponse> {
+	static async makeRequest<TRequest, TResponse>(methodName: string, request: TRequest): Promise<TResponse> {
 		return new Promise((resolve, reject) => {
 			const requestId = uuidv4()
 
@@ -28,9 +23,7 @@ export abstract class ProtoBusClient {
 					if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
 					} else {
-						// Convert JSON back to protobuf message
-						const response = decodeResponse(message.grpc_response.message)
-						resolve(response)
+						resolve(message.grpc_response.message)
 					}
 				}
 			}
@@ -43,7 +36,7 @@ export abstract class ProtoBusClient {
 				grpc_request: {
 					service: this.serviceName,
 					method: methodName,
-					message: encodeRequest(request),
+					message: request,
 					request_id: requestId,
 					is_streaming: false,
 				},
@@ -55,8 +48,6 @@ export abstract class ProtoBusClient {
 		methodName: string,
 		request: TRequest,
 		callbacks: Callbacks<TResponse>,
-		encodeRequest: (_: TRequest) => unknown,
-		decodeResponse: (_: unknown) => TResponse,
 	): () => void {
 		const requestId = uuidv4()
 		// Set up listener for streaming responses
@@ -72,8 +63,7 @@ export abstract class ProtoBusClient {
 					window.removeEventListener("message", handleResponse)
 				} else if (message.grpc_response.message) {
 					// Process streaming message
-					const response = decodeResponse(message.grpc_response.message)
-					callbacks.onResponse(response)
+					callbacks.onResponse(message.grpc_response.message)
 				}
 				if (message.grpc_response.is_streaming === false) {
 					if (callbacks.onComplete) {
@@ -91,7 +81,7 @@ export abstract class ProtoBusClient {
 			grpc_request: {
 				service: this.serviceName,
 				method: methodName,
-				message: encodeRequest(request),
+				message: request,
 				request_id: requestId,
 				is_streaming: true,
 			},

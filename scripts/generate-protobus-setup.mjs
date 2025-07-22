@@ -40,16 +40,16 @@ async function generateWebviewProtobusClients(protobusServices) {
 			}
 			if (!rpc.responseStream) {
 				rpcs.push(`    static async ${rpcName}(request: ${requestType}): Promise<${responseType}> {
-		return this.makeRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON)
+		return this.makeRequest("${rpcName}", request)
 	}`)
 			} else {
 				rpcs.push(`    static ${rpcName}(request: ${requestType}, callbacks: Callbacks<${responseType}>): ()=>void {
-		return this.makeStreamingRequest("${rpcName}", request, callbacks, ${requestType}.toJSON, ${responseType}.fromJSON)
+		return this.makeStreamingRequest("${rpcName}", request, callbacks)
 	}`)
 			}
 		}
 		clients.push(`export class ${serviceName}Client extends ProtoBusClient {
-	static override serviceName: string = "${serviceName}"
+	static override serviceName: string = "cline.${serviceName}"
 ${rpcs.join("\n")}
 }`)
 	}
