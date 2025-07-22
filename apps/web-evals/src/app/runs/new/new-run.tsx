@@ -350,7 +350,7 @@ export function NewRun() {
 						name="timeout"
 						render={({ field }) => (
 							<FormItem>
-								<FormLabel>Timeout (minutes)</FormLabel>
+								<FormLabel>Timeout (Minutes)</FormLabel>
 								<FormControl>
 									<div className="flex flex-row items-center gap-2">
 										<Slider
@@ -360,7 +360,7 @@ export function NewRun() {
 											step={1}
 											onValueChange={(value) => field.onChange(value[0])}
 										/>
-										<div>{field.value} min</div>
+										<div>{field.value}</div>
 									</div>
 								</FormControl>
 								<FormMessage />

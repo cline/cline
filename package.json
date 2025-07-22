@@ -23,7 +23,7 @@
 		"changeset:version": "cp CHANGELOG.md src/CHANGELOG.md && changeset version && cp -vf src/CHANGELOG.md .",
 		"knip": "knip --include files",
 		"update-contributors": "node scripts/update-contributors.js",
-		"evals": "docker compose -f packages/evals/docker-compose.yml --profile server --profile runner up --build --scale runner=0"
+		"evals": "dotenvx run -f packages/evals/.env.development packages/evals/.env.local -- docker compose -f packages/evals/docker-compose.yml --profile server --profile runner up --build --scale runner=0"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.10",

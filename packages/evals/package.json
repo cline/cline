@@ -18,11 +18,12 @@
 		"db:push": "pnpm drizzle-kit push",
 		"db:test:push": "pnpm drizzle-kit:test push",
 		"db:production:push": "pnpm drizzle-kit:production push",
-		"db:start": "docker compose up -d db",
-		"db:stop": "docker compose down db",
-		"redis:start": "docker compose up -d redis",
-		"redis:stop": "docker compose down redis",
-		"services:start": "docker compose up -d db redis"
+		"db:up": "dotenvx run -f .env.development .env.local -- docker compose up -d db",
+		"db:down": "dotenvx run -f .env.development .env.local -- docker compose down db",
+		"redis:up": "dotenvx run -f .env.development .env.local -- docker compose up -d redis",
+		"redis:down": "dotenvx run -f .env.development .env.local -- docker compose down redis",
+		"services:up": "dotenvx run -f .env.development .env.local -- docker compose up -d db redis",
+		"services:down": "dotenvx run -f .env.development .env.local -- docker compose down db redis"
 	},
 	"dependencies": {
 		"@roo-code/ipc": "workspace:^",
