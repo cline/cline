@@ -24,6 +24,10 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	groqDefaultModelId,
+	groqModels,
+	huggingFaceDefaultModelId,
+	huggingFaceModels,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -38,6 +42,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
+	groqModels: Record<string, ModelInfo>
+	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
@@ -58,6 +64,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
+	setGroqModels: (value: Record<string, ModelInfo>) => void
+	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -205,6 +213,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
+	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
+		[groqDefaultModelId]: groqModels[groqDefaultModelId],
+	})
+	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 
@@ -249,7 +261,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -631,6 +642,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		requestyModels,
+		groqModels: groqModelsState,
+		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,
@@ -670,6 +683,8 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
+		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
+		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,

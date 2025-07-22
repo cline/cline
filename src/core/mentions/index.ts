@@ -13,7 +13,7 @@ import { getWorkingState } from "@utils/git"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 export async function openMention(mention?: string): Promise<void> {
@@ -78,12 +78,10 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Error fetching content for ${urlMention}: ${error.message}`,
-				}),
-			)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Error fetching content for ${urlMention}: ${error.message}`,
+			})
 		}
 	}
 
@@ -100,12 +98,10 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.ERROR,
-							message: `Error fetching content for ${mention}: ${error.message}`,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Error fetching content for ${mention}: ${error.message}`,
+					})
 					result = `Error fetching content: ${error.message}`
 				}
 			}

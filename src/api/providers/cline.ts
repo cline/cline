@@ -12,6 +12,7 @@ import OpenAI from "openai"
 import { version as extensionVersion } from "../../../package.json"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -28,10 +29,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
 	private counter = 0
 
@@ -69,12 +67,6 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			// Only continue the request if the user:
-			// 1. Has signed in to Cline with a token
-			// 2. Has more than 0 credits
-			// Or an error is thrown.
-			await this.clineAccountService.validateRequest()
-
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
@@ -185,18 +177,7 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Cline API Error:", error)
-			const requestId = error?.request_id ? ` (Request ID: ${error.request_id})` : ""
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE + requestId)
-			} else if (error.code === "insufficient_credits" || error.status === 402) {
-				if (error.error) {
-					error.error.message = error.error.message + requestId
-					throw new Error(JSON.stringify(error.error))
-				}
-			}
-			const _error = error instanceof Error ? error : new Error(String(error))
-			_error.message = _error.message + requestId
-			throw _error
+			throw error
 		}
 	}
 
