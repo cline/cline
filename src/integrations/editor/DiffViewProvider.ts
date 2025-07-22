@@ -1,4 +1,3 @@
-import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
@@ -31,12 +30,9 @@ export abstract class DiffViewProvider {
 
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, this.absolutePath),
-			)
-			if (existingDocument && existingDocument.isDirty) {
-				await existingDocument.save()
-			}
+			await HostProvider.workspace.saveOpenDocumentIfDirty({
+				filePath: this.absolutePath!,
+			})
 
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
