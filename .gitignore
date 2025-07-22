@@ -24,11 +24,7 @@ coverage
 
 ## Generated files ##
 src/generated/
-src/core/controller/*/methods.ts
-src/core/controller/*/index.ts
-src/core/controller/grpc-service-config.ts
-src/shared/proto/*.ts
-src/shared/proto/host/*.ts
+src/shared/proto/
 webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
