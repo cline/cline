@@ -29,22 +29,19 @@ export type ApiProvider =
 	| "cerebras"
 	| "sapaicore"
 	| "groq"
+	| "huggingface"
 
 export interface ApiHandlerOptions {
-	apiModelId?: string
+	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
 	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	liteLlmModelInfo?: LiteLLMModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -57,64 +54,99 @@ export interface ApiHandlerOptions {
 	awsProfile?: string
 	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
-	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
-	openAiModelId?: string
-	openAiModelInfo?: OpenAiCompatibleModelInfo
-	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	ollamaApiOptionsCtxNum?: string
-	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
-	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
-	togetherModelId?: string
 	fireworksApiKey?: string
-	fireworksModelId?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
 	moonshotApiLine?: string
 	moonshotApiKey?: string
+	huggingFaceApiKey?: string
 	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
-	thinkingBudgetTokens?: number
-	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
 	groqApiKey?: string
-	groqModelId?: string
-	groqModelInfo?: ModelInfo
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
-	sapAiCoreModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	// Plan mode configurations
+	planModeApiModelId?: string
+	planModeThinkingBudgetTokens?: number
+	planModeReasoningEffort?: string
+	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	planModeAwsBedrockCustomSelected?: boolean
+	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeOpenRouterModelId?: string
+	planModeOpenRouterModelInfo?: ModelInfo
+	planModeOpenAiModelId?: string
+	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	planModeOllamaModelId?: string
+	planModeLmStudioModelId?: string
+	planModeLiteLlmModelId?: string
+	planModeLiteLlmModelInfo?: LiteLLMModelInfo
+	planModeRequestyModelId?: string
+	planModeRequestyModelInfo?: ModelInfo
+	planModeTogetherModelId?: string
+	planModeFireworksModelId?: string
+	planModeSapAiCoreModelId?: string
+	planModeGroqModelId?: string
+	planModeGroqModelInfo?: ModelInfo
+	planModeHuggingFaceModelId?: string
+	planModeHuggingFaceModelInfo?: ModelInfo
+	// Act mode configurations
+
+	actModeApiModelId?: string
+	actModeThinkingBudgetTokens?: number
+	actModeReasoningEffort?: string
+	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	actModeAwsBedrockCustomSelected?: boolean
+	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeOpenRouterModelId?: string
+	actModeOpenRouterModelInfo?: ModelInfo
+	actModeOpenAiModelId?: string
+	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	actModeOllamaModelId?: string
+	actModeLmStudioModelId?: string
+	actModeLiteLlmModelId?: string
+	actModeLiteLlmModelInfo?: LiteLLMModelInfo
+	actModeRequestyModelId?: string
+	actModeRequestyModelInfo?: ModelInfo
+	actModeTogetherModelId?: string
+	actModeFireworksModelId?: string
+	actModeSapAiCoreModelId?: string
+	actModeGroqModelId?: string
+	actModeGroqModelInfo?: ModelInfo
+	actModeHuggingFaceModelId?: string
+	actModeHuggingFaceModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+	planModeApiProvider?: ApiProvider
+	actModeApiProvider?: ApiProvider
 	favoritedModelIds?: string[]
 }
 
@@ -1071,6 +1103,49 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Hugging Face Inference Providers
+// https://huggingface.co/docs/inference-providers/en/index
+export type HuggingFaceModelId = keyof typeof huggingFaceModels
+export const huggingFaceDefaultModelId: HuggingFaceModelId = "moonshotai/Kimi-K2-Instruct"
+export const huggingFaceModels = {
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-V3-0324": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
+	},
+	"meta-llama/Llama-3.1-8B-Instruct": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Efficient 8B parameter Llama model for general-purpose tasks.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -2358,29 +2433,11 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "llama3.1-8b"
+export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-32b"
 export const cerebrasModels = {
-	"llama-4-scout-17b-16e-instruct": {
-		maxTokens: 8192,
-		contextWindow: 8192,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Fast inference model with ~2700 tokens/s",
-	},
-	"llama3.1-8b": {
-		maxTokens: 8192,
-		contextWindow: 8192,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Efficient model with ~2100 tokens/s",
-	},
 	"llama-3.3-70b": {
-		maxTokens: 8192,
-		contextWindow: 8192,
+		maxTokens: 64000,
+		contextWindow: 64000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -2388,22 +2445,22 @@ export const cerebrasModels = {
 		description: "Powerful model with ~2600 tokens/s",
 	},
 	"qwen-3-32b": {
-		maxTokens: 16382,
-		contextWindow: 16382,
+		maxTokens: 64000,
+		contextWindow: 64000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
 	},
-	"deepseek-r1-distill-llama-70b": {
-		maxTokens: 8192,
-		contextWindow: 8192,
+	"qwen-3-235b-a22b": {
+		maxTokens: 40000,
+		contextWindow: 40000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Advanced reasoning model with ~2300 tokens/s (private preview)",
+		description: "SOTA performance with ~1500 tokens/s",
 	},
 } as const satisfies Record<string, ModelInfo>
 

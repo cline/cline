@@ -54,6 +54,7 @@ import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
+import { ChatSettings } from "@/shared/ChatSettings"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -90,6 +91,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
+		private chatSettings: ChatSettings,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -634,7 +636,7 @@ export class ToolExecutor {
 						}
 						await this.diffViewProvider.update(newContent, true)
 						await setTimeoutPromise(300) // wait for diff view to update
-						this.diffViewProvider.scrollToFirstDiff()
+						await this.diffViewProvider.scrollToFirstDiff()
 						// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 						const completeMessage = JSON.stringify({
@@ -1917,7 +1919,12 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const providerAndModel = `${await getGlobalState(this.context, "apiProvider")} / ${this.api.getModel().id}`
+						const currentMode = this.chatSettings.mode
+						const apiProvider =
+							currentMode === "plan"
+								? await getGlobalState(this.context, "planModeApiProvider")
+								: await getGlobalState(this.context, "actModeApiProvider")
+						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation
 						const bugReportData = JSON.stringify({
