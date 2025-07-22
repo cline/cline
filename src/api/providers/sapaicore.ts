@@ -5,6 +5,11 @@ import { ApiHandler } from "../"
 import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import {
+	type Message as BedrockMessage,
+	type ContentBlock as BedrockContentBlock,
+	ConversationRole as BedrockConversationRole,
+} from "@aws-sdk/client-bedrock-runtime"
 
 interface SapAiCoreHandlerOptions {
 	sapAiCoreClientId?: string
@@ -27,6 +32,175 @@ interface Token {
 	token_type: string
 	expires_at: number
 }
+
+// Bedrock namespace containing caching-related functions
+namespace Bedrock {
+	// Define cache point type for AWS Bedrock
+	interface CachePointContentBlock {
+		cachePoint: {
+			type: "default"
+		}
+	}
+
+	// Define types for supported content types
+	type SupportedContentType = "text" | "image" | "thinking"
+
+	interface ContentItem {
+		type: SupportedContentType
+		text?: string
+		source?: {
+			data: string | Buffer | Uint8Array
+			media_type?: string
+		}
+	}
+
+	/**
+	 * Prepares system messages with optional caching support
+	 */
+	export function prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
+		if (!systemPrompt) {
+			return undefined
+		}
+
+		if (enableCaching) {
+			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
+		}
+
+		return [{ text: systemPrompt }]
+	}
+
+	/**
+	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
+	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
+	 */
+	export function applyCacheControlToMessages(
+		messages: BedrockMessage[],
+		lastUserMsgIndex: number,
+		secondLastMsgUserIndex: number,
+	): BedrockMessage[] {
+		return messages.map((message, index) => {
+			// Add cachePoint to the last user message and second-to-last user message
+			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+				// Clone the message to avoid modifying the original
+				const messageWithCache = { ...message }
+
+				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
+					// Add cachePoint to the end of the content array
+					messageWithCache.content = [
+						...messageWithCache.content,
+						{
+							cachePoint: {
+								type: "default",
+							},
+						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
+					]
+				}
+
+				return messageWithCache
+			}
+
+			return message
+		})
+	}
+
+	/**
+	 * Formats messages for models using the Converse API specification
+	 * Used by both Anthropic and Nova models to avoid code duplication
+	 */
+	export function formatMessagesForConverseAPI(messages: Anthropic.Messages.MessageParam[]): BedrockMessage[] {
+		return messages.map((message) => {
+			// Determine role (user or assistant)
+			const role = message.role === "user" ? BedrockConversationRole.USER : BedrockConversationRole.ASSISTANT
+
+			// Process content based on type
+			let content: BedrockContentBlock[] = []
+
+			if (typeof message.content === "string") {
+				// Simple text content
+				content = [{ text: message.content }]
+			} else if (Array.isArray(message.content)) {
+				// Convert Anthropic content format to Converse API content format
+				const processedContent = message.content
+					.map((item) => {
+						// Text content
+						if (item.type === "text") {
+							return { text: item.text }
+						}
+
+						// Image content
+						if (item.type === "image") {
+							return processImageContent(item)
+						}
+
+						// Log unsupported content types for debugging
+						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+						return null
+					})
+					.filter((item): item is BedrockContentBlock => item !== null)
+
+				content = processedContent
+			}
+
+			// Return formatted message
+			return {
+				role,
+				content,
+			}
+		})
+	}
+
+	/**
+	 * Processes image content with proper error handling and user notification
+	 */
+	function processImageContent(item: any): BedrockContentBlock | null {
+		let imageData: Uint8Array
+		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
+
+		// Extract format from media_type if available
+		if (item.source.media_type) {
+			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
+			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+			if (formatMatch && formatMatch[1]) {
+				const extractedFormat = formatMatch[1]
+				// Ensure format is one of the allowed values
+				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
+					format = extractedFormat as "png" | "jpeg" | "gif" | "webp"
+				}
+			}
+		}
+
+		// Get image data with improved error handling
+		try {
+			if (typeof item.source.data === "string") {
+				// Handle base64 encoded data
+				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+			} else if (item.source.data && typeof item.source.data === "object") {
+				// Try to convert to Uint8Array
+				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+			} else {
+				throw new Error("Unsupported image data format")
+			}
+
+			return {
+				image: {
+					format,
+					source: {
+						bytes: imageData,
+					},
+				},
+			}
+		} catch (error) {
+			console.error("Failed to process image content:", error)
+			// Return a text content indicating the error instead of null
+			// This ensures users are aware of the issue
+			return {
+				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
+			}
+		}
+	}
+}
+
 export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
@@ -151,25 +325,51 @@ export class SapAiCoreHandler implements ApiHandler {
 		if (anthropicModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
+			// Format messages for Converse API. Note that the Invoke API has
+			// the same format for messages as the Converse API.
+			const formattedMessages = Bedrock.formatMessagesForConverseAPI(messages)
+
+			// Get message indices for caching
+			const userMsgIndices = messages.reduce(
+				(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+				[] as number[],
+			)
+			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
 			if (
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
 			) {
+				// Use converse-stream endpoint with caching support
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
+
+				// Apply caching controls to messages (enabled by default)
+				const messagesWithCache = Bedrock.applyCacheControlToMessages(
+					formattedMessages,
+					lastUserMsgIndex,
+					secondLastMsgUserIndex,
+				)
+
+				// Prepare system message with caching support (enabled by default)
+				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, true)
+
 				payload = {
 					inferenceConfig: {
 						maxTokens: model.info.maxTokens,
 						temperature: 0.0,
 					},
-					system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-					messages: this.formatAnthropicMessages(messages),
+					system: systemMessages,
+					messages: messagesWithCache,
 				}
 			} else {
+				// Use invoke-with-response-stream endpoint
+				// TODO: add caching support using Anthropic-native cache_control blocks
 				payload = {
 					max_tokens: model.info.maxTokens,
 					system: systemPrompt,
-					messages,
+					messages: formattedMessages,
 					anthropic_version: "bedrock-2023-05-31",
 				}
 			}
