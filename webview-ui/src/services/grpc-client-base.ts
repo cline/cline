@@ -1,6 +1,21 @@
 import { vscode } from "../utils/vscode"
 import { v4 as uuidv4 } from "uuid"
 
+/**
+ * Helper function to encode request objects
+ */
+function encodeRequest(request: any): unknown {
+	if (request === null || request === undefined) {
+		return {}
+	} else if (typeof request.toJSON === "function") {
+		return request.toJSON()
+	} else if (typeof request === "object") {
+		return { ...request }
+	} else {
+		return { value: request }
+	}
+}
+
 export interface Callbacks<TResponse> {
 	onResponse: (response: TResponse) => void
 	onError: (error: Error) => void
@@ -12,7 +27,7 @@ export abstract class ProtoBusClient {
 	static async makeRequest<TRequest, TResponse>(
 		methodName: string,
 		request: TRequest,
-		encodeRequest: (_: TRequest) => unknown,
+		_encodeRequest: (_: TRequest) => unknown,
 		decodeResponse: (_: unknown) => TResponse,
 	): Promise<TResponse> {
 		return new Promise((resolve, reject) => {
@@ -55,7 +70,7 @@ export abstract class ProtoBusClient {
 		methodName: string,
 		request: TRequest,
 		callbacks: Callbacks<TResponse>,
-		encodeRequest: (_: TRequest) => unknown,
+		_encodeRequest: (_: TRequest) => unknown,
 		decodeResponse: (_: unknown) => TResponse,
 	): () => void {
 		const requestId = uuidv4()
