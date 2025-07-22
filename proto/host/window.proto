@@ -12,6 +12,7 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  rpc showInputBox(ShowInputBoxRequest) returns (ShowInputBoxResponse);
   rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
 }
 
@@ -89,4 +90,15 @@ message FileExtensionList {
 
 message ShowSaveDialogResponse {
   optional string selected_path = 1;
+}
+
+message ShowInputBoxRequest {
+  cline.Metadata metadata = 1;
+  string title = 2;
+  optional string prompt = 3;
+  optional string value = 4;
+}
+
+message ShowInputBoxResponse {
+  optional string response = 1;
 }
