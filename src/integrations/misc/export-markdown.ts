@@ -34,16 +34,16 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	const saveResponse = await HostProvider.window.showSaveDialog({
 		options: {
 			filters: { Markdown: { extensions: ["md"] } },
-			defaultUri: path.join(os.homedir(), "Downloads", fileName),
+			defaultPath: path.join(os.homedir(), "Downloads", fileName),
 		},
 	})
 
-	if (saveResponse.selectedUri) {
+	if (saveResponse.selectedPath) {
 		try {
 			// Write content to the selected location
-			await writeFile(saveResponse.selectedUri, markdownContent)
+			await writeFile(saveResponse.selectedPath, markdownContent)
 			await HostProvider.window.showTextDocument({
-				path: saveResponse.selectedUri,
+				path: saveResponse.selectedPath,
 				options: { preview: true },
 			})
 		} catch (error) {

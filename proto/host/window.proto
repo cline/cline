@@ -79,7 +79,7 @@ message ShowSaveDialogRequest {
 }
 
 message ShowSaveDialogOptions {
-  optional string default_uri = 1;
+  optional string default_path = 1;
   map<string, FileExtensionList> filters = 2;
 }
 
@@ -88,5 +88,5 @@ message FileExtensionList {
 }
 
 message ShowSaveDialogResponse {
-  optional string selected_uri = 1;
+  optional string selected_path = 1;
 }

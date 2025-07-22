@@ -6,8 +6,8 @@ export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<Sh
 
 	const vscodeOptions: SaveDialogOptions = {}
 
-	if (options?.defaultUri) {
-		vscodeOptions.defaultUri = Uri.file(options.defaultUri)
+	if (options?.defaultPath) {
+		vscodeOptions.defaultUri = Uri.file(options.defaultPath)
 	}
 
 	if (options?.filters && Object.keys(options.filters).length > 0) {
@@ -20,6 +20,6 @@ export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<Sh
 	const selectedUri = await window.showSaveDialog(vscodeOptions)
 
 	return ShowSaveDialogResponse.create({
-		selectedUri: selectedUri?.fsPath,
+		selectedPath: selectedUri?.fsPath,
 	})
 }
