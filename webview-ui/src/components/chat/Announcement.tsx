@@ -30,7 +30,9 @@ const linkContainerStyle: CSSProperties = { margin: "0" }
 const linkStyle: CSSProperties = { display: "inline" }
 
 /*
-You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with what's in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
+Announcements are automatically shown when the major.minor version changes (for ex 3.19.x → 3.20.x or 4.0.x). 
+The latestAnnouncementId is now automatically generated from the extension's package.json version. 
+Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
