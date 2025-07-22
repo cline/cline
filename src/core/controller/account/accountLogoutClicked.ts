@@ -1,6 +1,5 @@
 import { AuthService } from "@/services/auth/AuthService"
-import { Empty } from "../../../shared/proto/common"
-import type { EmptyRequest } from "../../../shared/proto/common"
+import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
 
 const authService = AuthService.getInstance()

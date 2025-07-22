@@ -1,6 +1,6 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active OpenRouter models subscriptions

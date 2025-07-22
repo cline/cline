@@ -4,7 +4,7 @@ import {
 	ApiConfiguration as ProtoApiConfiguration,
 	ChatSettings as ProtoChatSettings,
 	PlanActMode,
-} from "../../../shared/proto/state"
+} from "@shared/proto/cline/state"
 
 /**
  * Converts domain ApiConfiguration objects to proto ApiConfiguration objects

@@ -8,7 +8,7 @@ import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
 const WEBVIEW_CLIENTS_FILE = path.resolve("webview-ui/src/services/grpc-client.ts")
 const VSCODE_SERVICES_FILE = path.resolve("src/generated/hosts/vscode/protobus-services.ts")
 const VSCODE_SERVICE_TYPES_FILE = path.resolve("src/generated/hosts/vscode/protobus-service-types.ts")
-const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/standalone/protobus-server-setup.ts")
+const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/hosts/standalone/protobus-server-setup.ts")
 
 const SCRIPT_NAME = path.relative(process.cwd(), fileURLToPath(import.meta.url))
 

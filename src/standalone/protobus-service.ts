@@ -1,6 +1,6 @@
 import { Controller } from "@core/controller"
 import { StreamingResponseHandler } from "@core/controller/grpc-handler"
-import { addProtobusServices } from "@generated/standalone/protobus-server-setup"
+import { addProtobusServices } from "@generated/hosts/standalone/protobus-server-setup"
 import * as grpc from "@grpc/grpc-js"
 import { ReflectionService } from "@grpc/reflection"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-types"

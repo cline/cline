@@ -3,8 +3,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { formatCreditsBalance } from "@/utils/format"
 import { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import { UsageTransaction as ProtoUsageTransaction, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
-import { EmptyRequest } from "@shared/proto/common"
+import {
+	UsageTransaction as ProtoUsageTransaction,
+	UserOrganization,
+	UserOrganizationUpdateRequest,
+} from "@shared/proto/cline/account"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	VSCodeButton,
 	VSCodeDivider,

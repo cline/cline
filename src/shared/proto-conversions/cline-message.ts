@@ -1,6 +1,6 @@
 import { ClineMessage as AppClineMessage, ClineAsk as AppClineAsk, ClineSay as AppClineSay } from "@shared/ExtensionMessage"
 
-import { ClineMessage as ProtoClineMessage, ClineMessageType, ClineAsk, ClineSay } from "@shared/proto/ui"
+import { ClineMessage as ProtoClineMessage, ClineMessageType, ClineAsk, ClineSay } from "@shared/proto/cline/ui"
 
 // Helper function to convert ClineAsk string to enum
 function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | undefined {
