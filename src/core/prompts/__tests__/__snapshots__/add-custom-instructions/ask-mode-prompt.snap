@@ -317,7 +317,7 @@ Replace the entire TODO list with an updated checklist reflecting the current st
 </update_todo_list>
 
 **When to Use:**
-- The task involves multiple steps or requires ongoing tracking.
+- The task is complicated or involves multiple steps or requires ongoing tracking.
 - You need to update the status of several todos at once.
 - New actionable items are discovered during task execution.
 - The user requests a todo list or provides multiple tasks.
