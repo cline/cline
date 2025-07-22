@@ -111,6 +111,8 @@ export type GlobalStateKey =
 	| "planModeGroqModelInfo"
 	| "planModeHuggingFaceModelId"
 	| "planModeHuggingFaceModelInfo"
+	| "planModeHuaweiCloudMaaSModelId"
+	| "planModeHuaweiCloudMaaSModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -136,5 +138,7 @@ export type GlobalStateKey =
 	| "actModeGroqModelInfo"
 	| "actModeHuggingFaceModelId"
 	| "actModeHuggingFaceModelInfo"
+	| "actModeHuaweiCloudMaaSModelId"
+	| "actModeHuaweiCloudMaaSModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
