@@ -494,7 +494,7 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 			signal: AbortSignal.timeout(10000),
 		})
 
-		if (response.status >= 400 && response.status < 500) {
+		if (response.status === 401 || response.status === 404) {
 			throw new InvalidClientTokenError()
 		} else if (!response.ok) {
 			throw new Error(`HTTP ${response.status}: ${response.statusText}`)
