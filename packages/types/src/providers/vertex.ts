@@ -273,6 +273,15 @@ export const vertexModels = {
 		maxThinkingTokens: 24_576,
 		supportsReasoningBudget: true,
 	},
+	"llama-4-maverick-17b-128e-instruct-maas": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 1.15,
+		description: "Meta Llama 4 Maverick 17B Instruct model, 128K context.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 export const VERTEX_REGIONS = [
