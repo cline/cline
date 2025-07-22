@@ -8,7 +8,7 @@ import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
 const WEBVIEW_CLIENTS_FILE = path.resolve("webview-ui/src/services/grpc-client.ts")
 const VSCODE_SERVICES_FILE = path.resolve("src/generated/hosts/vscode/protobus-services.ts")
 const VSCODE_SERVICE_TYPES_FILE = path.resolve("src/generated/hosts/vscode/protobus-service-types.ts")
-const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/standalone/protobus-server-setup.ts")
+const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/hosts/standalone/protobus-server-setup.ts")
 
 const SCRIPT_NAME = path.relative(process.cwd(), fileURLToPath(import.meta.url))
 
@@ -117,7 +117,7 @@ async function generateVscodeProtobusServers(protobusServices) {
 		const domain = getDomainName(serviceName)
 		const dir = getDirName(serviceName)
 		imports.push(`// ${domain} Service`)
-		servers.push(`export const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
+		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
 		for (const [rpcName, _rpc] of Object.entries(def.service)) {
 			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
 			servers.push(`    ${rpcName}: ${rpcName},`)
