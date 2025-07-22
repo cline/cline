@@ -4,7 +4,7 @@ import { EmptyRequest } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active mcpButtonClicked subscriptions by controller ID
-const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHandler>()
+const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to mcpButtonClicked events
@@ -16,7 +16,7 @@ const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHan
 export async function subscribeToMcpButtonClicked(
 	controller: Controller,
 	_request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id

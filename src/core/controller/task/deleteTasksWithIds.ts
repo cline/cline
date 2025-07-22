@@ -2,7 +2,6 @@ import path from "path"
 import fs from "fs/promises"
 import { Controller } from ".."
 import { Empty, StringArrayRequest } from "../../../shared/proto/common"
-import { TaskMethodHandler } from "./index"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
@@ -14,10 +13,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
  * @returns Empty response
  * @throws Error if operation fails
  */
-export const deleteTasksWithIds: TaskMethodHandler = async (
-	controller: Controller,
-	request: StringArrayRequest,
-): Promise<Empty> => {
+export async function deleteTasksWithIds(controller: Controller, request: StringArrayRequest): Promise<Empty> {
 	if (!request.value || request.value.length === 0) {
 		throw new Error("Missing task IDs")
 	}

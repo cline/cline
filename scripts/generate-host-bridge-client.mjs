@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import * as fs from "fs/promises"
+import { writeFileWithMkdirs } from "./file-utils.mjs"
 import * as path from "path"
 import chalk from "chalk"
 import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
@@ -22,7 +22,7 @@ async function main() {
 	await generateExternalClientFile(hostServices)
 	await generateVscodeClientFile(hostServices)
 
-	console.log(`Generated host bridge client files at:`)
+	console.log(`Generated Host Bridge client files at:`)
 	console.log(`- ${TYPES_FILE}`)
 	console.log(`- ${EXTERNAL_CLIENT_FILE}`)
 	console.log(`- ${VSCODE_CLIENT_FILE}`)
@@ -45,8 +45,7 @@ import { StreamingCallbacks } from "@hosts/host-provider-types"
 ${clientInterfaces.join("\n\n")}
 `
 	// Write output file
-	await fs.mkdir(path.dirname(TYPES_FILE), { recursive: true })
-	await fs.writeFile(TYPES_FILE, content)
+	await writeFileWithMkdirs(TYPES_FILE, content)
 }
 
 /**
@@ -107,8 +106,7 @@ ${imports.join("\n")}
 ${clientImplementations.join("\n\n")}
 `
 	// Write output file
-	await fs.mkdir(path.dirname(EXTERNAL_CLIENT_FILE), { recursive: true })
-	await fs.writeFile(EXTERNAL_CLIENT_FILE, content)
+	await writeFileWithMkdirs(EXTERNAL_CLIENT_FILE, content)
 }
 
 /**
@@ -211,8 +209,7 @@ ${handlerMap.join("\n")}
 `
 
 	// Write output file
-	await fs.mkdir(path.dirname(VSCODE_CLIENT_FILE), { recursive: true })
-	await fs.writeFile(VSCODE_CLIENT_FILE, content)
+	await writeFileWithMkdirs(VSCODE_CLIENT_FILE, content)
 }
 
 function generateVscodeClientImplementation(serviceName, serviceDefinition) {
