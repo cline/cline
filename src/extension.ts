@@ -39,7 +39,7 @@ import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "./shared/proto/host/window"
-import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
+import { Controller } from "./core/controller"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -660,13 +660,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (scm) => {
-			await GitCommitGenerator?.generate?.(context, scm)
-		}),
-		vscode.commands.registerCommand("cline.abortGitCommitMessage", () => {
-			GitCommitGenerator?.abort?.()
+		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (sourceControl) => {
+			// Get the controller from any instance, without activating the view
+			const controller = WebviewProvider.getAllInstances()[0]?.controller
+
+			if (controller) {
+				// Call the controller method to generate commit message
+				await controller.generateGitCommitMessage(sourceControl)
+			} else {
+				// Create a temporary controller just for this operation
+				const outputChannel = vscode.window.createOutputChannel("Cline Commit Generator")
+				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true), uuidv4())
+
+				await tempController.generateGitCommitMessage(sourceControl)
+				outputChannel.dispose()
+			}
 		}),
 	)
 
