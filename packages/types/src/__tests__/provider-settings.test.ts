@@ -12,6 +12,12 @@ describe("getApiProtocol", () => {
 			expect(getApiProtocol("claude-code")).toBe("anthropic")
 			expect(getApiProtocol("claude-code", "some-model")).toBe("anthropic")
 		})
+
+		it("should return 'anthropic' for bedrock provider", () => {
+			expect(getApiProtocol("bedrock")).toBe("anthropic")
+			expect(getApiProtocol("bedrock", "gpt-4")).toBe("anthropic")
+			expect(getApiProtocol("bedrock", "claude-3-opus")).toBe("anthropic")
+		})
 	})
 
 	describe("Vertex provider with Claude models", () => {
@@ -27,25 +33,14 @@ describe("getApiProtocol", () => {
 			expect(getApiProtocol("vertex", "gemini-pro")).toBe("openai")
 			expect(getApiProtocol("vertex", "llama-2")).toBe("openai")
 		})
-	})
 
-	describe("Bedrock provider with Claude models", () => {
-		it("should return 'anthropic' for bedrock provider with claude models", () => {
-			expect(getApiProtocol("bedrock", "claude-3-opus")).toBe("anthropic")
-			expect(getApiProtocol("bedrock", "Claude-3-Sonnet")).toBe("anthropic")
-			expect(getApiProtocol("bedrock", "CLAUDE-instant")).toBe("anthropic")
-			expect(getApiProtocol("bedrock", "anthropic.claude-v2")).toBe("anthropic")
-		})
-
-		it("should return 'openai' for bedrock provider with non-claude models", () => {
-			expect(getApiProtocol("bedrock", "gpt-4")).toBe("openai")
-			expect(getApiProtocol("bedrock", "titan-text")).toBe("openai")
-			expect(getApiProtocol("bedrock", "llama-2")).toBe("openai")
+		it("should return 'openai' for vertex provider without model", () => {
+			expect(getApiProtocol("vertex")).toBe("openai")
 		})
 	})
 
-	describe("Other providers with Claude models", () => {
-		it("should return 'openai' for non-vertex/bedrock providers with claude models", () => {
+	describe("Other providers", () => {
+		it("should return 'openai' for non-anthropic providers regardless of model", () => {
 			expect(getApiProtocol("openrouter", "claude-3-opus")).toBe("openai")
 			expect(getApiProtocol("openai", "claude-3-sonnet")).toBe("openai")
 			expect(getApiProtocol("litellm", "claude-instant")).toBe("openai")
@@ -59,20 +54,13 @@ describe("getApiProtocol", () => {
 			expect(getApiProtocol(undefined, "claude-3-opus")).toBe("openai")
 		})
 
-		it("should return 'openai' when model is undefined", () => {
-			expect(getApiProtocol("openai")).toBe("openai")
-			expect(getApiProtocol("vertex")).toBe("openai")
-			expect(getApiProtocol("bedrock")).toBe("openai")
-		})
-
 		it("should handle empty strings", () => {
 			expect(getApiProtocol("vertex", "")).toBe("openai")
-			expect(getApiProtocol("bedrock", "")).toBe("openai")
 		})
 
 		it("should be case-insensitive for claude detection", () => {
 			expect(getApiProtocol("vertex", "CLAUDE-3-OPUS")).toBe("anthropic")
-			expect(getApiProtocol("bedrock", "claude-3-opus")).toBe("anthropic")
+			expect(getApiProtocol("vertex", "claude-3-opus")).toBe("anthropic")
 			expect(getApiProtocol("vertex", "ClAuDe-InStAnT")).toBe("anthropic")
 		})
 	})
