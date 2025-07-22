@@ -219,7 +219,7 @@ export async function addCustomInstructions(
 	globalCustomInstructions: string,
 	cwd: string,
 	mode: string,
-	options: { language?: string; rooIgnoreInstructions?: string } = {},
+	options: { language?: string; rooIgnoreInstructions?: string; settings?: Record<string, any> } = {},
 ): Promise<string> {
 	const sections = []
 

@@ -21,6 +21,16 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeRadio: ({ value, checked }: any) => <input type="radio" value={value} checked={checked} />,
 	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
 	VSCodeButton: ({ children }: any) => <div>{children}</div>,
+	VSCodeCheckbox: ({ children, checked, onChange }: any) => (
+		<label>
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(e) => onChange && onChange({ target: { checked: e.target.checked } })}
+			/>
+			{children}
+		</label>
+	),
 }))
 
 // Mock other components
@@ -169,6 +179,22 @@ vi.mock("../DiffSettingsControl", () => ({
 					step={0.005}
 				/>
 			</div>
+		</div>
+	),
+}))
+
+// Mock TodoListSettingsControl for tests
+vi.mock("../TodoListSettingsControl", () => ({
+	TodoListSettingsControl: ({ todoListEnabled, onChange }: any) => (
+		<div data-testid="todo-list-settings-control">
+			<label>
+				Enable todo list tool
+				<input
+					type="checkbox"
+					checked={todoListEnabled}
+					onChange={(e) => onChange("todoListEnabled", e.target.checked)}
+				/>
+			</label>
 		</div>
 	),
 }))

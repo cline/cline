@@ -643,6 +643,8 @@ Mode-specific Instructions:
    - Focused on a single, well-defined outcome
    - Clear enough that another mode could execute it independently
 
+   **Note:** If the `update_todo_list` tool is not available, write the plan to a markdown file (e.g., `plan.md` or `todo.md`) instead.
+
 4. As you gather more information or discover new requirements, update the todo list to reflect the current understanding of what needs to be accomplished.
 
 5. Ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and refine the todo list.

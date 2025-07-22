@@ -577,6 +577,10 @@
 				"label": "Matchnauwkeurigheid",
 				"description": "Deze schuifregelaar bepaalt hoe nauwkeurig codeblokken moeten overeenkomen bij het toepassen van diffs. Lagere waarden laten flexibelere matching toe maar verhogen het risico op verkeerde vervangingen. Gebruik waarden onder 100% met uiterste voorzichtigheid."
 			}
+		},
+		"todoList": {
+			"label": "Takenlijst-tool inschakelen",
+			"description": "Wanneer ingeschakeld, kan Roo takenlijsten maken en beheren om de voortgang van taken bij te houden. Dit helpt complexe taken te organiseren in beheersbare stappen."
 		}
 	},
 	"experimental": {

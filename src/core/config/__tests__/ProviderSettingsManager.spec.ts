@@ -67,6 +67,7 @@ describe("ProviderSettingsManager", () => {
 						diffSettingsMigrated: true,
 						openAiHeadersMigrated: true,
 						consecutiveMistakeLimitMigrated: true,
+						todoListEnabledMigrated: true,
 					},
 				}),
 			)
@@ -184,6 +185,48 @@ describe("ProviderSettingsManager", () => {
 			expect(storedConfig.apiConfigs.test.consecutiveMistakeLimit).toEqual(3)
 			expect(storedConfig.apiConfigs.existing.consecutiveMistakeLimit).toEqual(5)
 			expect(storedConfig.migrations.consecutiveMistakeLimitMigrated).toEqual(true)
+		})
+
+		it("should call migrateTodoListEnabled if it has not done so already", async () => {
+			mockSecrets.get.mockResolvedValue(
+				JSON.stringify({
+					currentApiConfigName: "default",
+					apiConfigs: {
+						default: {
+							config: {},
+							id: "default",
+							todoListEnabled: undefined,
+						},
+						test: {
+							apiProvider: "anthropic",
+							todoListEnabled: undefined,
+						},
+						existing: {
+							apiProvider: "anthropic",
+							// this should not really be possible, unless someone has loaded a hand edited config,
+							// but we don't overwrite so we'll check that
+							todoListEnabled: false,
+						},
+					},
+					migrations: {
+						rateLimitSecondsMigrated: true,
+						diffSettingsMigrated: true,
+						openAiHeadersMigrated: true,
+						consecutiveMistakeLimitMigrated: true,
+						todoListEnabledMigrated: false,
+					},
+				}),
+			)
+
+			await providerSettingsManager.initialize()
+
+			// Get the last call to store, which should contain the migrated config
+			const calls = mockSecrets.store.mock.calls
+			const storedConfig = JSON.parse(calls[calls.length - 1][1])
+			expect(storedConfig.apiConfigs.default.todoListEnabled).toEqual(true)
+			expect(storedConfig.apiConfigs.test.todoListEnabled).toEqual(true)
+			expect(storedConfig.apiConfigs.existing.todoListEnabled).toEqual(false)
+			expect(storedConfig.migrations.todoListEnabledMigrated).toEqual(true)
 		})
 
 		it("should throw error if secrets storage fails", async () => {

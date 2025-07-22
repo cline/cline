@@ -577,6 +577,10 @@
 				"label": "Độ chính xác khớp",
 				"description": "Thanh trượt này kiểm soát mức độ chính xác các phần mã phải khớp khi áp dụng diff. Giá trị thấp hơn cho phép khớp linh hoạt hơn nhưng tăng nguy cơ thay thế không chính xác. Sử dụng giá trị dưới 100% với sự thận trọng cao."
 			}
+		},
+		"todoList": {
+			"label": "Bật công cụ danh sách việc cần làm",
+			"description": "Khi được bật, Roo có thể tạo và quản lý danh sách việc cần làm để theo dõi tiến độ công việc. Điều này giúp tổ chức các tác vụ phức tạp thành các bước có thể quản lý được."
 		}
 	},
 	"experimental": {
