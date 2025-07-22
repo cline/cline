@@ -20,9 +20,9 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					prompt: "How many test tasks to create?",
 					value: "10",
 				})
-			)?.response
+			).response
 
-			if (!count) {
+			if (count === undefined) {
 				return
 			}
 
