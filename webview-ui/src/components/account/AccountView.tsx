@@ -144,6 +144,9 @@ export const ClineAccountView = () => {
 		}
 	}, [clineUser?.appBaseUrl, activeOrganization])
 
+	// Add a ref to track the intended organization during transitions
+	const pendingOrganizationRef = useRef<string | null>(null)
+
 	const getUserOrganizations = useCallback(async () => {
 		try {
 			if (!clineUser?.uid) {
@@ -157,34 +160,52 @@ export const ClineAccountView = () => {
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
 				setUserOrganizations(response.organizations)
-				const newOrg = response.organizations.find((org: UserOrganization) => org.active)
-				if (newOrg?.organizationId !== activeOrganization?.organizationId) {
-					setActiveOrganization(newOrg || null)
+
+				// Only update activeOrganization if we're not in the middle of a switch
+				// or if the server response matches our pending change
+				const serverActiveOrg = response.organizations.find((org: UserOrganization) => org.active)
+				const serverActiveOrgId = serverActiveOrg?.organizationId || ""
+
+				if (!isSwitchingProfile || pendingOrganizationRef.current === serverActiveOrgId) {
+					if (serverActiveOrgId !== (activeOrganization?.organizationId || "")) {
+						setActiveOrganization(serverActiveOrg || null)
+					}
+					// Clear pending ref if the server state matches
+					if (pendingOrganizationRef.current === serverActiveOrgId) {
+						pendingOrganizationRef.current = null
+					}
 				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [clineUser?.uid, userOrganizations])
+	}, [clineUser?.uid, userOrganizations, isSwitchingProfile, activeOrganization?.organizationId])
 
 	const fetchCreditBalance = useCallback(async () => {
 		try {
 			setIsLoading(true)
-			const response = activeOrganization?.organizationId
+
+			// Use the pending organization if we're switching, otherwise use current active org
+			const targetOrgId =
+				pendingOrganizationRef.current !== null ? pendingOrganizationRef.current : activeOrganization?.organizationId
+
+			const response = targetOrgId
 				? await AccountServiceClient.getOrganizationCredits(
 						GetOrganizationCreditsRequest.fromPartial({
-							organizationId: activeOrganization.organizationId,
+							organizationId: targetOrgId,
 						}),
 					)
 				: await AccountServiceClient.getUserCredits(EmptyRequest.create())
-			// Update changed states only
+
+			// Update balance if changed
 			const newBalance = response.balance?.currentBalance
 			if (newBalance !== balance) {
 				setBalance(newBalance ?? null)
 			}
-			if (response.usageTransactions?.length !== usageData?.length) {
-				setUsageData(convertProtoUsageTransactions(response.usageTransactions))
-			}
+
+			const clineUsage = convertProtoUsageTransactions(response.usageTransactions)
+			setUsageData(clineUsage || [])
+
 			if (activeOrganization?.organizationId) {
 				setPaymentsData([]) // Organizations don't have payment transactions
 			} else {
@@ -202,7 +223,7 @@ export const ClineAccountView = () => {
 			setLastFetchTime(Date.now())
 			setIsLoading(false)
 		}
-	}, [activeOrganization?.organizationId, balance, usageData?.length, paymentsData?.length])
+	}, [activeOrganization?.organizationId])
 
 	const handleManualRefresh = useCallback(
 		debounce(() => !isLoading && fetchCreditBalance(), 500, { immediate: true }),
@@ -212,39 +233,63 @@ export const ClineAccountView = () => {
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
-			if (activeOrganization?.organizationId !== newOrgId) {
-				setIsSwitchingProfile(true) // Disable dropdown
+			const currentOrgId = activeOrganization?.organizationId || ""
+
+			if (currentOrgId !== newOrgId) {
+				setIsSwitchingProfile(true)
 				setBalance(null)
 
+				// Set the pending organization immediately to prevent race conditions
+				pendingOrganizationRef.current = newOrgId
+
 				try {
-					const org = userOrganizations.find((org: UserOrganization) => org.organizationId === newOrgId)
-					if (org) {
-						setActiveOrganization(org)
+					// Update local state immediately for UI responsiveness
+					if (newOrgId === "") {
+						setActiveOrganization(null)
+					} else {
+						const org = userOrganizations.find((org: UserOrganization) => org.organizationId === newOrgId)
+						if (org) {
+							setActiveOrganization(org)
+						}
 					}
-					AccountServiceClient.setUserOrganization(UserOrganizationUpdateRequest.create({ organizationId: newOrgId }))
-					await getUserOrganizations() // Refresh to get new active org
-					await fetchCreditBalance() // Refresh credits for new org
+
+					// Send the change to the server
+					await AccountServiceClient.setUserOrganization(
+						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
+					)
+
+					// Fetch fresh data for the new organization
+					await fetchCreditBalance()
+
+					// Refresh organizations to get the updated active state from server
+					await getUserOrganizations()
 				} catch (error) {
 					console.error("Failed to update organization:", error)
+					// Reset pending ref on error
+					pendingOrganizationRef.current = null
+				} finally {
+					setIsSwitchingProfile(false)
 				}
-
-				setIsSwitchingProfile(false) // Re-enable dropdown
 			}
 		},
-		[activeOrganization?.organizationId, fetchCreditBalance, getUserOrganizations],
+		[activeOrganization?.organizationId, fetchCreditBalance, getUserOrganizations, userOrganizations],
 	)
 
 	// Handle organization changes and initial load
 	useEffect(() => {
-		getUserOrganizations().then(() => fetchCreditBalance())
-	}, [getUserOrganizations, fetchCreditBalance])
+		const loadData = async () => {
+			await getUserOrganizations()
+			await fetchCreditBalance()
+		}
+		loadData()
+	}, [activeOrganization?.organizationId])
 
 	// Periodic refresh
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
 				if (clineUser?.uid) {
-					Promise.all([getUserOrganizations(), fetchCreditBalance()])
+					await Promise.all([getUserOrganizations(), fetchCreditBalance()])
 				}
 			} catch (error) {
 				console.error("Error during periodic refresh:", error)
@@ -254,6 +299,10 @@ export const ClineAccountView = () => {
 		const intervalId = setInterval(refreshData, 30000)
 		return () => clearInterval(intervalId)
 	}, [clineUser?.uid, getUserOrganizations, fetchCreditBalance])
+
+	// Determine the current dropdown value, considering pending changes
+	const dropdownValue =
+		pendingOrganizationRef.current !== null ? pendingOrganizationRef.current : activeOrganization?.organizationId || ""
 
 	return (
 		<div className="h-full flex flex-col">
@@ -283,8 +332,7 @@ export const ClineAccountView = () => {
 								<div className="flex gap-2 items-center mt-1">
 									{userOrganizations && (
 										<VSCodeDropdown
-											key={activeOrganization?.organizationId || "personal"}
-											currentValue={activeOrganization?.organizationId || ""}
+											currentValue={dropdownValue}
 											onChange={handleOrganizationChange}
 											disabled={isSwitchingProfile}
 											className="w-full">
