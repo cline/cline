@@ -1,17 +1,14 @@
 # Changelog
 
-## 3.20.0
+## [3.19.8]
 
-- 63f3b40: Change available Cerebras models - limit to Qwen and llama 3.3 70b
-- 63f3b40: Change Cerebras Qwen 3 32b context window from 16k to 64k
-- 63f3b40: Improve cerebras Qwen model performance by removing thinking tokens from the model input
-- b1d82e1: Added checkpointTrackerErrorMessage to HistoryItem - restored with task, prevents re-initialization if timed out before
-Never re-init checkpoint tracker if it timed out before
-Warning at 7s that it's taking awhile, timeout and give up at 15s
-Fixed click to open settings - now opens to correct tab
-- 419e3e4: fix: mcp servers are not started when disabled
-- c970b80: Refactor Git commit message generation to support output streaming.
-- 06d5bc5: Introduce Claude Code support on Windows and fix E2BIG issues
+- Add Claude Code support on Windows with improved system prompt handling to fix E2BIG errors (Thanks @BarreiroT!)
+- Improve Cerebras provider with updated model selection (Qwen and Llama 3.3 70B only) and increased context window for Qwen 3 32B from 16K to 64K tokens
+- Improve Cerebras Qwen model performance by removing thinking tokens from model input
+- Add robust checkpoint timeout handling with early warning at 7 seconds and timeout at 15 seconds to prevent hanging on large repositories
+- Fix MCP servers incorrectly starting when disabled in configuration (Thanks @mohanraj-r!)
+- Refactor Git commit message generation with streaming support and improved module organization
+- Fix settings navigation to open correct tab when accessing from checkpoint warnings
 
 ## [3.19.7]
 
