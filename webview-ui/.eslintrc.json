@@ -23,7 +23,6 @@
 		"@typescript-eslint/no-explicit-any": "off",
 		"@typescript-eslint/no-empty-object-type": "off",
 		"no-case-declarations": "off",
-		"react-hooks/exhaustive-deps": "off",
 		"prefer-const": "off",
 		"no-extra-semi": "off",
 		"eslint-rules/no-direct-vscode-api": "warn",
