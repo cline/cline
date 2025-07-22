@@ -451,7 +451,7 @@ Diff ${i + 1} failed for file: ${relPath}
 Error: ${failPart.error}
 
 Suggested fixes:
-1. Verify the search content exactly matches the file content (including whitespace)
+1. Verify the search content exactly matches the file content (including whitespace and case)
 2. Check for correct indentation and line endings
 3. Use <read_file> to see the current file content
 4. Consider breaking complex changes into smaller diffs
