@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
 				destination: "https://roocode.com/:path*",
 				permanent: true,
 			},
+			// Redirect cloud waitlist to Notion page
+			{
+				source: "/cloud-waitlist",
+				destination: "https://shard-dogwood-daf.notion.site/238fd1401b0a8087b858e1ad431507cf?pvs=105",
+				permanent: false,
+			},
 		]
 	},
 }

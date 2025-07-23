@@ -323,6 +323,11 @@
 	"versionIndicator": {
 		"ariaLabel": "バージョン {{version}} - クリックしてリリースノートを表示"
 	},
+	"rooCloudCTA": {
+		"title": "Roo Code Cloud が間もなく登場！",
+		"description": "クラウドでリモートエージェントを実行し、どこからでもタスクにアクセスし、他の人と協力し、その他多くの機能を利用できます。",
+		"joinWaitlist": "早期アクセスを取得するためにウェイトリストに参加してください。"
+	},
 	"editMessage": {
 		"placeholder": "メッセージを編集..."
 	}

@@ -85,6 +85,40 @@ vi.mock("@src/components/modals/Announcement", () => ({
 	},
 }))
 
+// Mock RooCloudCTA component
+vi.mock("@src/components/welcome/RooCloudCTA", () => ({
+	default: function MockRooCloudCTA() {
+		return (
+			<div data-testid="roo-cloud-cta">
+				<div>rooCloudCTA.title</div>
+				<div>rooCloudCTA.description</div>
+				<div>rooCloudCTA.joinWaitlist</div>
+			</div>
+		)
+	},
+}))
+
+// Mock RooTips component
+vi.mock("@src/components/welcome/RooTips", () => ({
+	default: function MockRooTips() {
+		return <div data-testid="roo-tips">Tips content</div>
+	},
+}))
+
+// Mock RooHero component
+vi.mock("@src/components/welcome/RooHero", () => ({
+	default: function MockRooHero() {
+		return <div data-testid="roo-hero">Hero content</div>
+	},
+}))
+
+// Mock TelemetryBanner component
+vi.mock("../common/TelemetryBanner", () => ({
+	default: function MockTelemetryBanner() {
+		return null // Don't render anything to avoid interference
+	},
+}))
+
 // Mock i18n
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -191,6 +225,8 @@ const mockPostMessage = (state: Partial<ExtensionState>) => {
 				shouldShowAnnouncement: false,
 				allowedCommands: [],
 				alwaysAllowExecute: false,
+				cloudIsAuthenticated: false,
+				telemetrySetting: "enabled",
 				...state,
 			},
 		},
@@ -1308,5 +1344,166 @@ describe("ChatView - Version Indicator Tests", () => {
 		// Version indicator should disappear
 		versionButton = queryByTestId("version-indicator")
 		expect(versionButton).not.toBeInTheDocument()
+	})
+})
+
+describe("ChatView - RooCloudCTA Display Tests", () => {
+	beforeEach(() => vi.clearAllMocks())
+
+	it("does not show RooCloudCTA when user is authenticated to Cloud", () => {
+		const { queryByTestId, getByTestId } = renderChatView()
+
+		// Hydrate state with user authenticated to cloud and some task history
+		mockPostMessage({
+			cloudIsAuthenticated: true,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 4000 },
+				{ id: "2", ts: Date.now() - 3000 },
+				{ id: "3", ts: Date.now() - 2000 },
+				{ id: "4", ts: Date.now() - 1000 },
+				{ id: "5", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should not show RooCloudCTA but should show RooTips
+		expect(queryByTestId("roo-cloud-cta")).not.toBeInTheDocument()
+		expect(getByTestId("roo-tips")).toBeInTheDocument()
+	})
+
+	it("does not show RooCloudCTA when user has only run 3 tasks in their history", () => {
+		const { queryByTestId, getByTestId } = renderChatView()
+
+		// Hydrate state with user not authenticated and only 3 tasks in history
+		mockPostMessage({
+			cloudIsAuthenticated: false,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 2000 },
+				{ id: "2", ts: Date.now() - 1000 },
+				{ id: "3", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should not show RooCloudCTA but should show RooTips
+		expect(queryByTestId("roo-cloud-cta")).not.toBeInTheDocument()
+		expect(getByTestId("roo-tips")).toBeInTheDocument()
+	})
+
+	it("shows RooCloudCTA when user is not authenticated and has run 4 or more tasks", async () => {
+		const { getByTestId, queryByTestId } = renderChatView()
+
+		// Hydrate state with user not authenticated and 4+ tasks in history
+		mockPostMessage({
+			cloudIsAuthenticated: false,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 3000 },
+				{ id: "2", ts: Date.now() - 2000 },
+				{ id: "3", ts: Date.now() - 1000 },
+				{ id: "4", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should show RooCloudCTA and not RooTips
+		await waitFor(() => {
+			expect(getByTestId("roo-cloud-cta")).toBeInTheDocument()
+		})
+		expect(queryByTestId("roo-tips")).not.toBeInTheDocument()
+	})
+
+	it("shows RooCloudCTA when user is not authenticated and has run 5 tasks", async () => {
+		const { getByTestId, queryByTestId } = renderChatView()
+
+		// Hydrate state with user not authenticated and 5 tasks in history
+		mockPostMessage({
+			cloudIsAuthenticated: false,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 4000 },
+				{ id: "2", ts: Date.now() - 3000 },
+				{ id: "3", ts: Date.now() - 2000 },
+				{ id: "4", ts: Date.now() - 1000 },
+				{ id: "5", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should show RooCloudCTA and not RooTips
+		await waitFor(() => {
+			expect(getByTestId("roo-cloud-cta")).toBeInTheDocument()
+		})
+		expect(queryByTestId("roo-tips")).not.toBeInTheDocument()
+	})
+
+	it("does not show RooCloudCTA when there is an active task (regardless of auth status)", async () => {
+		const { queryByTestId } = renderChatView()
+
+		// Hydrate state with user not authenticated, 4+ tasks, but with an active task
+		mockPostMessage({
+			cloudIsAuthenticated: false,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 3000 },
+				{ id: "2", ts: Date.now() - 2000 },
+				{ id: "3", ts: Date.now() - 1000 },
+				{ id: "4", ts: Date.now() },
+			],
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now(),
+					text: "Active task in progress",
+				},
+			],
+		})
+
+		// Wait for the state to be updated and the task view to be shown
+		await waitFor(() => {
+			// Should not show RooCloudCTA when there's an active task
+			expect(queryByTestId("roo-cloud-cta")).not.toBeInTheDocument()
+			// Should not show RooTips either since the entire welcome screen is hidden during active tasks
+			expect(queryByTestId("roo-tips")).not.toBeInTheDocument()
+			// Should not show RooHero either since the entire welcome screen is hidden during active tasks
+			expect(queryByTestId("roo-hero")).not.toBeInTheDocument()
+		})
+	})
+
+	it("shows RooTips when user is authenticated (instead of RooCloudCTA)", () => {
+		const { queryByTestId, getByTestId } = renderChatView()
+
+		// Hydrate state with user authenticated to cloud
+		mockPostMessage({
+			cloudIsAuthenticated: true,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 3000 },
+				{ id: "2", ts: Date.now() - 2000 },
+				{ id: "3", ts: Date.now() - 1000 },
+				{ id: "4", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should not show RooCloudCTA but should show RooTips
+		expect(queryByTestId("roo-cloud-cta")).not.toBeInTheDocument()
+		expect(getByTestId("roo-tips")).toBeInTheDocument()
+	})
+
+	it("shows RooTips when user has fewer than 4 tasks (instead of RooCloudCTA)", () => {
+		const { queryByTestId, getByTestId } = renderChatView()
+
+		// Hydrate state with user not authenticated but fewer than 4 tasks
+		mockPostMessage({
+			cloudIsAuthenticated: false,
+			taskHistory: [
+				{ id: "1", ts: Date.now() - 2000 },
+				{ id: "2", ts: Date.now() - 1000 },
+				{ id: "3", ts: Date.now() },
+			],
+			clineMessages: [], // No active task
+		})
+
+		// Should not show RooCloudCTA but should show RooTips
+		expect(queryByTestId("roo-cloud-cta")).not.toBeInTheDocument()
+		expect(getByTestId("roo-tips")).toBeInTheDocument()
 	})
 })

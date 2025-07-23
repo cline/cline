@@ -323,6 +323,11 @@
 	"versionIndicator": {
 		"ariaLabel": "Sürüm {{version}} - Sürüm notlarını görüntülemek için tıklayın"
 	},
+	"rooCloudCTA": {
+		"title": "Roo Code Cloud yakında geliyor!",
+		"description": "Bulutta uzak ajanlar çalıştırın, görevlerinize her yerden erişin, başkalarıyla işbirliği yapın ve daha fazlası.",
+		"joinWaitlist": "Erken erişim için bekleme listesine katılın."
+	},
 	"editMessage": {
 		"placeholder": "Mesajını düzenle..."
 	}

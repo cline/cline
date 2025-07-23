@@ -323,6 +323,11 @@
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}} - Cliquez pour voir les notes de version"
 	},
+	"rooCloudCTA": {
+		"title": "Roo Code Cloud arrive bientôt !",
+		"description": "Exécutez des agents distants dans le cloud, accédez à vos tâches de n'importe où, collaborez avec d'autres et bien plus encore.",
+		"joinWaitlist": "Rejoignez la liste d'attente pour obtenir un accès anticipé."
+	},
 	"editMessage": {
 		"placeholder": "Modifiez votre message..."
 	}

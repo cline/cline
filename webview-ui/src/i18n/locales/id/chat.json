@@ -329,6 +329,11 @@
 	"versionIndicator": {
 		"ariaLabel": "Versi {{version}} - Klik untuk melihat catatan rilis"
 	},
+	"rooCloudCTA": {
+		"title": "Roo Code Cloud segera hadir!",
+		"description": "Jalankan agen jarak jauh di cloud, akses tugas Anda dari mana saja, berkolaborasi dengan orang lain, dan banyak lagi.",
+		"joinWaitlist": "Bergabunglah dengan daftar tunggu untuk mendapatkan akses awal."
+	},
 	"editMessage": {
 		"placeholder": "Edit pesan Anda..."
 	}

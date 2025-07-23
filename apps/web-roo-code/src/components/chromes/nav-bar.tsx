@@ -62,17 +62,10 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						Enterprise
 					</Link>
 					<a
-						href={EXTERNAL_LINKS.SECURITY}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Security
-					</a>
-					<a
 						href={EXTERNAL_LINKS.DOCUMENTATION}
 						target="_blank"
 						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Documentation
+						Docs
 					</a>
 					<a
 						href={EXTERNAL_LINKS.CAREERS}
@@ -80,6 +73,19 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
 						Careers
 					</a>
+					<div className="flex items-center rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 p-0.5 text-xs">
+						<div className="rounded-full bg-background px-2 py-1.5">
+							<span className="text-muted-foreground border-r-2 border-foreground/50 pr-1.5">
+								Roo Code Cloud is coming
+							</span>
+							<a
+								href="/cloud-waitlist"
+								rel="noopener noreferrer"
+								className="font-medium text-primary hover:underline pl-1.5">
+								Sign up
+							</a>
+						</div>
+					</div>
 				</nav>
 
 				<div className="hidden md:flex md:items-center md:space-x-4">
@@ -119,6 +125,19 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 			<div
 				className={`absolute left-0 right-0 top-16 z-50 transform border-b border-border bg-background shadow-lg backdrop-blur-none transition-all duration-200 md:hidden ${isMenuOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}>
 				<nav className="flex flex-col py-2">
+					<div className="mx-5 mb-2 flex items-center rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 p-0.5 text-xs">
+						<div className="flex-grow text-center rounded-full bg-background px-2 py-1.5">
+							<span className="text-muted-foreground border-r-2 border-foreground/50 pr-3">
+								Roo Code Cloud is coming
+							</span>
+							<a
+								href="/cloud-waitlist"
+								rel="noopener noreferrer"
+								className="font-medium text-primary hover:underline pl-3">
+								Sign up
+							</a>
+						</div>
+					</div>
 					<ScrollButton
 						targetId="features"
 						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
@@ -162,7 +181,7 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						target="_blank"
 						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => setIsMenuOpen(false)}>
-						Documentation
+						Docs
 					</a>
 					<a
 						href={EXTERNAL_LINKS.CAREERS}
