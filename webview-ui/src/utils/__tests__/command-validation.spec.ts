@@ -6,8 +6,6 @@ import {
 	parseCommand,
 	isAutoApprovedSingleCommand,
 	isAutoDeniedSingleCommand,
-	isAutoApprovedCommand,
-	isAutoDeniedCommand,
 	findLongestPrefixMatch,
 	getCommandDecision,
 	getSingleCommandDecision,
@@ -167,7 +165,7 @@ ls -la || echo "Failed"`
 		})
 	})
 
-	describe("isAutoApprovedSingleCommand (legacy behavior)", () => {
+	describe("isAutoApprovedSingleCommand", () => {
 		const allowedCommands = ["npm test", "npm run", "echo"]
 
 		it("matches commands case-insensitively", () => {
@@ -191,93 +189,6 @@ ls -la || echo "Failed"`
 		it("handles undefined/empty allowed commands", () => {
 			expect(isAutoApprovedSingleCommand("npm test", undefined as any)).toBe(false)
 			expect(isAutoApprovedSingleCommand("npm test", [])).toBe(false)
-		})
-	})
-
-	describe("isAutoApprovedCommand (legacy behavior)", () => {
-		const allowedCommands = ["npm test", "npm run", "echo", "Select-String"]
-
-		it("validates simple commands", () => {
-			expect(isAutoApprovedCommand("npm test", allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm run build", allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("dangerous", allowedCommands)).toBe(false)
-		})
-
-		it("validates chained commands", () => {
-			expect(isAutoApprovedCommand("npm test && npm run build", allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm test && dangerous", allowedCommands)).toBe(false)
-			expect(isAutoApprovedCommand('npm test | Select-String "Error"', allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm test | rm -rf /", allowedCommands)).toBe(false)
-		})
-
-		it("handles quoted content correctly", () => {
-			expect(isAutoApprovedCommand('npm test "param with | inside"', allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand('echo "hello | world"', allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand('npm test "param with && inside"', allowedCommands)).toBe(true)
-		})
-
-		it("handles subshell execution attempts", () => {
-			// Without denylist, subshells should be allowed if all subcommands are allowed
-			expect(isAutoApprovedCommand("npm test $(echo hello)", allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm test `echo world`", allowedCommands)).toBe(true)
-
-			// With denylist, subshells should be blocked regardless of subcommands
-			expect(isAutoApprovedCommand("npm test $(echo hello)", allowedCommands, ["rm"])).toBe(false)
-			expect(isAutoApprovedCommand("npm test `echo world`", allowedCommands, ["rm"])).toBe(false)
-		})
-
-		it("handles PowerShell patterns", () => {
-			expect(isAutoApprovedCommand('npm test 2>&1 | Select-String "Error"', allowedCommands)).toBe(true)
-			expect(
-				isAutoApprovedCommand(
-					'npm test | Select-String -NotMatch "node_modules" | Select-String "FAIL|Error"',
-					allowedCommands,
-				),
-			).toBe(true)
-			expect(isAutoApprovedCommand("npm test | Select-String | dangerous", allowedCommands)).toBe(false)
-		})
-
-		it("handles empty input", () => {
-			expect(isAutoApprovedCommand("", allowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("	", allowedCommands)).toBe(true)
-		})
-
-		it("allows all commands when wildcard is present", () => {
-			const wildcardAllowedCommands = ["*"]
-			// Should allow any command, including dangerous ones
-			expect(isAutoApprovedCommand("rm -rf /", wildcardAllowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("dangerous-command", wildcardAllowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm test && rm -rf /", wildcardAllowedCommands)).toBe(true)
-			// Should allow subshell commands with wildcard when no denylist is present
-			expect(isAutoApprovedCommand("npm test $(echo dangerous)", wildcardAllowedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("npm test `rm -rf /`", wildcardAllowedCommands)).toBe(true)
-
-			// But should block subshells when denylist is present
-			expect(isAutoApprovedCommand("npm test $(echo dangerous)", wildcardAllowedCommands, ["rm"])).toBe(false)
-			expect(isAutoApprovedCommand("npm test `rm -rf /`", wildcardAllowedCommands, ["rm"])).toBe(false)
-		})
-
-		it("respects denylist even with wildcard in allowlist", () => {
-			const wildcardAllowedCommands = ["*"]
-			const deniedCommands = ["rm -rf", "dangerous"]
-
-			// Wildcard should allow most commands
-			expect(isAutoApprovedCommand("npm test", wildcardAllowedCommands, deniedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("echo hello", wildcardAllowedCommands, deniedCommands)).toBe(true)
-			expect(isAutoApprovedCommand("git status", wildcardAllowedCommands, deniedCommands)).toBe(true)
-
-			// But denylist should still block specific commands
-			expect(isAutoApprovedCommand("rm -rf /", wildcardAllowedCommands, deniedCommands)).toBe(false)
-			expect(isAutoApprovedCommand("dangerous-command", wildcardAllowedCommands, deniedCommands)).toBe(false)
-
-			// Chained commands with denied subcommands should be blocked
-			expect(isAutoApprovedCommand("npm test && rm -rf /", wildcardAllowedCommands, deniedCommands)).toBe(false)
-			expect(
-				isAutoApprovedCommand("echo hello && dangerous-command", wildcardAllowedCommands, deniedCommands),
-			).toBe(false)
-
-			// But chained commands with all allowed subcommands should work
-			expect(isAutoApprovedCommand("npm test && echo done", wildcardAllowedCommands, deniedCommands)).toBe(true)
 		})
 	})
 })
@@ -510,52 +421,6 @@ echo "Successfully converted $count .jsx files to .tsx"`
 		})
 	})
 
-	describe("isAutoApprovedCommand (legacy behavior)", () => {
-		it("should validate allowed commands", () => {
-			const result = isAutoApprovedCommand("echo hello", ["echo"])
-			expect(result).toBe(true)
-		})
-
-		it("should reject disallowed commands", () => {
-			const result = isAutoApprovedCommand("rm -rf /", ["echo", "ls"])
-			expect(result).toBe(false)
-		})
-
-		it("should not fail validation for commands with simple $RANDOM variable", () => {
-			const commandWithRandom = "echo $RANDOM"
-
-			expect(() => {
-				isAutoApprovedCommand(commandWithRandom, ["echo"])
-			}).not.toThrow()
-		})
-
-		it("should not fail validation for commands with simple array indexing using $RANDOM", () => {
-			const commandWithRandomIndex = "echo ${array[$RANDOM]}"
-
-			expect(() => {
-				isAutoApprovedCommand(commandWithRandomIndex, ["echo"])
-			}).not.toThrow()
-		})
-
-		it("should return false for the full log generator command due to subshell detection when denylist is present", () => {
-			// This is the exact command from the original error message
-			const logGeneratorCommand = `while true; do \\
-		levels=(INFO WARN ERROR DEBUG); \\
-		msgs=("User logged in" "Connection timeout" "Processing request" "Cache miss" "Database query"); \\
-		level=\${levels[$RANDOM % \${#levels[@]}]}; \\
-		msg=\${msgs[$RANDOM % \${#msgs[@]}]}; \\
-		echo "\$(date '+%Y-%m-%d %H:%M:%S') [$level] $msg"; \\
-		sleep 1; \\
-done`
-
-			// Without denylist, should allow subshells if all subcommands are allowed (use wildcard)
-			expect(isAutoApprovedCommand(logGeneratorCommand, ["*"])).toBe(true)
-
-			// With denylist, should return false due to subshell detection
-			expect(isAutoApprovedCommand(logGeneratorCommand, ["*"], ["rm"])).toBe(false)
-		})
-	})
-
 	describe("Denylist Command Validation", () => {
 		describe("findLongestPrefixMatch", () => {
 			it("finds the longest matching prefix", () => {
@@ -584,7 +449,7 @@ done`
 			})
 		})
 
-		describe("Legacy isAllowedSingleCommand behavior (now using isAutoApprovedSingleCommand)", () => {
+		describe("isAutoApprovedSingleCommand", () => {
 			const allowedCommands = ["npm", "echo", "git"]
 			const deniedCommands = ["npm test", "git push"]
 
@@ -761,71 +626,6 @@ done`
 					})
 				})
 			})
-
-			describe("Command-level three-tier validation", () => {
-				const allowedCommands = ["npm", "echo"]
-				const deniedCommands = ["npm test"]
-
-				describe("isAutoApprovedCommand", () => {
-					it("auto-approves commands with all sub-commands auto-approved", () => {
-						expect(isAutoApprovedCommand("npm install", allowedCommands, deniedCommands)).toBe(true)
-						expect(isAutoApprovedCommand("npm install && echo done", allowedCommands, deniedCommands)).toBe(
-							true,
-						)
-					})
-
-					it("does not auto-approve commands with any sub-command not auto-approved", () => {
-						expect(isAutoApprovedCommand("npm test", allowedCommands, deniedCommands)).toBe(false)
-						expect(isAutoApprovedCommand("npm install && npm test", allowedCommands, deniedCommands)).toBe(
-							false,
-						)
-					})
-
-					it("blocks subshell commands only when denylist is present", () => {
-						// Without denylist, should allow subshells
-						expect(isAutoApprovedCommand("npm install $(echo test)", allowedCommands)).toBe(true)
-						expect(isAutoApprovedCommand("npm install `echo test`", allowedCommands)).toBe(true)
-
-						// With denylist, should block subshells
-						expect(isAutoApprovedCommand("npm install $(echo test)", allowedCommands, deniedCommands)).toBe(
-							false,
-						)
-						expect(isAutoApprovedCommand("npm install `echo test`", allowedCommands, deniedCommands)).toBe(
-							false,
-						)
-					})
-				})
-
-				describe("isAutoDeniedCommand", () => {
-					it("auto-denies commands with any sub-command auto-denied", () => {
-						expect(isAutoDeniedCommand("npm test", allowedCommands, deniedCommands)).toBe(true)
-						expect(isAutoDeniedCommand("npm install && npm test", allowedCommands, deniedCommands)).toBe(
-							true,
-						)
-					})
-
-					it("does not auto-deny commands with all sub-commands not auto-denied", () => {
-						expect(isAutoDeniedCommand("npm install", allowedCommands, deniedCommands)).toBe(false)
-						expect(isAutoDeniedCommand("npm install && echo done", allowedCommands, deniedCommands)).toBe(
-							false,
-						)
-					})
-
-					it("auto-denies subshell commands only when denylist is present", () => {
-						// Without denylist, should not auto-deny subshells
-						expect(isAutoDeniedCommand("npm install $(echo test)", allowedCommands)).toBe(false)
-						expect(isAutoDeniedCommand("npm install `echo test`", allowedCommands)).toBe(false)
-
-						// With denylist, should auto-deny subshells
-						expect(isAutoDeniedCommand("npm install $(echo test)", allowedCommands, deniedCommands)).toBe(
-							true,
-						)
-						expect(isAutoDeniedCommand("npm install `echo test`", allowedCommands, deniedCommands)).toBe(
-							true,
-						)
-					})
-				})
-			})
 		})
 	})
 })
@@ -912,9 +712,19 @@ describe("Unified Command Decision Functions", () => {
 			expect(getCommandDecision("npm install && dangerous", allowedCommands, deniedCommands)).toBe("ask_user")
 		})
 
-		it("returns auto_deny for subshell commands when denylist is present", () => {
-			expect(getCommandDecision("npm install $(echo test)", allowedCommands, deniedCommands)).toBe("auto_deny")
-			expect(getCommandDecision("npm install `echo test`", allowedCommands, deniedCommands)).toBe("auto_deny")
+		it("returns auto_deny for subshell commands only when they contain denied prefixes", () => {
+			// Subshells without denied prefixes should not be auto-denied
+			expect(getCommandDecision("npm install $(echo test)", allowedCommands, deniedCommands)).toBe("auto_approve")
+			expect(getCommandDecision("npm install `echo test`", allowedCommands, deniedCommands)).toBe("auto_approve")
+
+			// Subshells with denied prefixes should be auto-denied
+			expect(getCommandDecision("npm install $(npm test)", allowedCommands, deniedCommands)).toBe("auto_deny")
+			expect(getCommandDecision("npm install `npm test --coverage`", allowedCommands, deniedCommands)).toBe(
+				"auto_deny",
+			)
+
+			// Main command with denied prefix should also be auto-denied
+			expect(getCommandDecision("npm test $(echo hello)", allowedCommands, deniedCommands)).toBe("auto_deny")
 		})
 
 		it("allows subshell commands when no denylist is present", () => {
@@ -958,39 +768,6 @@ describe("Unified Command Decision Functions", () => {
 			// Ask user: commands that match neither list
 			expect(getCommandDecision("dangerous", allowed, denied)).toBe("ask_user")
 			expect(getCommandDecision("npm install && dangerous", allowed, denied)).toBe("ask_user")
-		})
-	})
-
-	describe("Integration with existing functions", () => {
-		it("maintains backward compatibility with existing behavior", () => {
-			const allowedCommands = ["npm", "echo"]
-			const deniedCommands = ["npm test"]
-
-			// Test that new unified functions produce same results as old separate functions
-			const testCommands = [
-				"npm install", // should be auto-approved
-				"npm test", // should be auto-denied
-				"dangerous", // should ask user
-				"echo hello", // should be auto-approved
-			]
-
-			testCommands.forEach((cmd) => {
-				const decision = getCommandDecision(cmd, allowedCommands, deniedCommands)
-				const oldApproved = isAutoApprovedCommand(cmd, allowedCommands, deniedCommands)
-				const oldDenied = isAutoDeniedCommand(cmd, allowedCommands, deniedCommands)
-
-				// Verify consistency
-				if (decision === "auto_approve") {
-					expect(oldApproved).toBe(true)
-					expect(oldDenied).toBe(false)
-				} else if (decision === "auto_deny") {
-					expect(oldApproved).toBe(false)
-					expect(oldDenied).toBe(true)
-				} else if (decision === "ask_user") {
-					expect(oldApproved).toBe(false)
-					expect(oldDenied).toBe(false)
-				}
-			})
 		})
 	})
 
@@ -1067,7 +844,12 @@ describe("Unified Command Decision Functions", () => {
 				it("detects subshells correctly", () => {
 					const details = validator.getValidationDetails("npm install $(echo test)")
 					expect(details.hasSubshells).toBe(true)
-					expect(details.decision).toBe("auto_deny") // blocked due to subshells with denylist
+					expect(details.decision).toBe("auto_approve") // not blocked since echo doesn't match denied prefixes
+
+					// Test with denied prefix in subshell
+					const detailsWithDenied = validator.getValidationDetails("npm install $(npm test)")
+					expect(detailsWithDenied.hasSubshells).toBe(true)
+					expect(detailsWithDenied.decision).toBe("auto_deny") // blocked due to npm test in subshell
 				})
 
 				it("handles complex command chains", () => {
@@ -1159,6 +941,41 @@ describe("Unified Command Decision Functions", () => {
 				const validator = createCommandValidator(["npm"])
 				expect(validator.validateCommand("npm test")).toBe("auto_approve")
 				expect(validator.validateCommand("dangerous")).toBe("ask_user")
+			})
+		})
+
+		describe("Subshell edge cases", () => {
+			it("handles multiple subshells correctly", () => {
+				const validator = createCommandValidator(["echo", "npm"], ["rm", "sudo"])
+
+				// Multiple subshells, none with denied prefixes but subshell commands not in allowlist
+				// parseCommand extracts subshells as separate commands, so date and pwd are not allowed
+				expect(validator.validateCommand("echo $(date) $(pwd)")).toBe("ask_user")
+
+				// Multiple subshells, one with denied prefix
+				expect(validator.validateCommand("echo $(date) $(rm file)")).toBe("auto_deny")
+
+				// Nested subshells - inner commands are extracted and not in allowlist
+				expect(validator.validateCommand("echo $(echo $(date))")).toBe("ask_user")
+				expect(validator.validateCommand("echo $(echo $(rm file))")).toBe("auto_deny")
+			})
+
+			it("handles complex commands with subshells", () => {
+				const validator = createCommandValidator(["npm", "git", "echo"], ["git push", "npm publish"])
+
+				// Subshell with allowed command - git status is extracted as separate command
+				// Since "git status" starts with "git" which is allowed, it's approved
+				expect(validator.validateCommand("npm run $(git status)")).toBe("auto_approve")
+
+				// Subshell with denied command
+				expect(validator.validateCommand("npm run $(git push origin)")).toBe("auto_deny")
+
+				// Main command denied, subshell allowed
+				expect(validator.validateCommand("git push $(echo origin)")).toBe("auto_deny")
+
+				// Complex chain with subshells - need echo in allowlist
+				expect(validator.validateCommand("npm install && echo $(git status) && npm test")).toBe("auto_approve")
+				expect(validator.validateCommand("npm install && echo $(git push) && npm test")).toBe("auto_deny")
 			})
 		})
 
