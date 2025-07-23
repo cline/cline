@@ -9,6 +9,7 @@ import { withRetry } from "../retry"
 interface HuaweiCloudMaaSHandlerOptions {
 	huaweiCloudMaasApiKey?: string
 	huaweiCloudMaasModelId?: string
+	huaweiCloudMaasModelInfo?: ModelInfo
 }
 
 export class HuaweiCloudMaaSHandler implements ApiHandler {
@@ -36,11 +37,20 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 	}
 
 	getModel(): { id: HuaweiCloudMaasModelId; info: ModelInfo } {
-		const modelId = this.options.huaweiCloudMaasModelId
-		if (modelId && modelId in huaweiCloudMaasModels) {
-			const id = modelId as HuaweiCloudMaasModelId
+		// First priority: huaweiCloudMaasModelId and huaweiCloudMaasModelInfo (like Groq does)
+		const huaweiCloudMaasModelId = this.options.huaweiCloudMaasModelId
+		const huaweiCloudMaasModelInfo = this.options.huaweiCloudMaasModelInfo
+		if (huaweiCloudMaasModelId && huaweiCloudMaasModelInfo) {
+			return { id: huaweiCloudMaasModelId as HuaweiCloudMaasModelId, info: huaweiCloudMaasModelInfo }
+		}
+
+		// Second priority: huaweiCloudMaasModelId with static model info
+		if (huaweiCloudMaasModelId && huaweiCloudMaasModelId in huaweiCloudMaasModels) {
+			const id = huaweiCloudMaasModelId as HuaweiCloudMaasModelId
 			return { id, info: huaweiCloudMaasModels[id] }
 		}
+
+		// Default fallback
 		return {
 			id: huaweiCloudMaasDefaultModelId,
 			info: huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],

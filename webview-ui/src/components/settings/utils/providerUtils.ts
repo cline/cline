@@ -482,8 +482,8 @@ export async function syncModeConfigurations(
 			updates.actModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			break
 		case "huawei-cloud-maas":
-			updates.planModeHuaweiCloudMaasModelId = sourceFields.apiModelId
-			updates.actModeHuaweiCloudMaasModelId = sourceFields.apiModelId
+			updates.planModeHuaweiCloudMaasModelId = sourceFields.huaweiCloudMaasModelId
+			updates.actModeHuaweiCloudMaasModelId = sourceFields.huaweiCloudMaasModelId
 			updates.planModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			updates.actModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
