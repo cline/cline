@@ -1156,6 +1156,22 @@ export type InternationalQwenModelId = keyof typeof internationalQwenModels
 export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
 export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
 export const internationalQwenModels = {
+	"qwen3-coder-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 5,
+	},
+	"qwen3-coder-480b-a35b-instruct": {
+		maxTokens: 65_536,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 7.5,
+	},
 	"qwen3-235b-a22b": {
 		maxTokens: 16_384,
 		contextWindow: 131_072,
