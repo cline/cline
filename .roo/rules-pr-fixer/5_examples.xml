@@ -200,4 +200,105 @@ Ensure consistency across all language files and maintain the same context and t
       <takeaway>Use gh pr view --json to get structured data about PR properties.</takeaway>
     </key_takeaways>
   </example>
+
+  <example name="fix_pr_with_merge_conflicts">
+    <scenario>
+      A pull request has merge conflicts that need to be resolved before other fixes can be applied.
+    </scenario>
+    
+    <user_request>
+      Fix PR #5678 in RooCodeInc/Roo-Code - it has merge conflicts and failing tests.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Get PR details and check merge status.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr view 5678 --repo RooCodeInc/Roo-Code --json number,title,author,state,body,url,headRefName,baseRefName,mergeable,mergeStateStatus</command>
+</execute_command>
+        </tool_use>
+        <expected_outcome>Identify that mergeable is false and mergeStateStatus is CONFLICTING.</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Delegate merge conflict resolution to merge-resolver mode.</description>
+        <tool_use>
+<new_task>
+<mode>merge-resolver</mode>
+<message>#5678</message>
+</new_task>
+        </tool_use>
+        <expected_outcome>The merge-resolver mode will handle checkout, rebase, conflict resolution, and pushing the resolved changes.</expected_outcome>
+      </step>
+
+      <step number="3">
+        <description>After merge-resolver completes, check PR status again.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr view 5678 --repo RooCodeInc/Roo-Code --json mergeable,mergeStateStatus</command>
+</execute_command>
+        </tool_use>
+        <analysis>Verify that the PR is now mergeable after conflict resolution.</analysis>
+      </step>
+
+      <step number="4">
+        <description>Check CI status for any remaining failures.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checks 5678 --repo RooCodeInc/Roo-Code</command>
+</execute_command>
+        </tool_use>
+        <analysis>Identify any tests that are still failing after the merge conflict resolution.</analysis>
+      </step>
+
+      <step number="5">
+        <description>If tests are still failing, proceed with fixing them.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checkout 5678 --repo RooCodeInc/Roo-Code --force</command>
+</execute_command>
+        </tool_use>
+        <analysis>Now that conflicts are resolved, we can focus on fixing the failing tests.</analysis>
+      </step>
+
+      <step number="6">
+        <description>Apply test fixes and push changes.</description>
+        <tool_use>
+<execute_command>
+<command>git add -u && git commit -m "fix: resolve failing tests after merge conflict resolution"</command>
+</execute_command>
+        </tool_use>
+        <analysis>Commit the test fixes separately from the merge conflict resolution.</analysis>
+      </step>
+
+      <step number="7">
+        <description>Push changes and monitor CI status.</description>
+        <tool_use>
+<execute_command>
+<command>git push --force-with-lease origin [branch_name]</command>
+</execute_command>
+        </tool_use>
+        <analysis>Push the test fixes to update the PR.</analysis>
+      </step>
+
+      <step number="8">
+        <description>Monitor CI checks in real-time.</description>
+        <tool_use>
+<execute_command>
+<command>gh pr checks 5678 --repo RooCodeInc/Roo-Code --watch</command>
+</execute_command>
+        </tool_use>
+        <analysis>Watch CI checks continuously until all tests pass.</analysis>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Always check for merge conflicts before attempting other fixes.</takeaway>
+      <takeaway>Delegate merge conflict resolution to the specialized merge-resolver mode.</takeaway>
+      <takeaway>The merge-resolver mode handles the entire conflict resolution workflow including pushing.</takeaway>
+      <takeaway>After conflict resolution, continue with other PR fixes like failing tests.</takeaway>
+      <takeaway>Keep conflict resolution commits separate from other fix commits for clarity.</takeaway>
+    </key_takeaways>
+  </example>
 </complete_examples>

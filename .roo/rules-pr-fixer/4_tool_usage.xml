@@ -66,9 +66,9 @@
         <step>Push to appropriate remote: 'git push --force-with-lease [remote] [branch]'</step>
       </remote_handling>
       <conflict_resolution>
-        <step>Use 'GIT_EDITOR=true git rebase main' to start rebase</step>
-        <step>If conflicts occur, edit files to resolve them</step>
-        <step>Use 'git add .' and 'git rebase --continue' to proceed</step>
+        <step>Delegate to merge-resolver mode using new_task</step>
+        <step>Provide the PR number (e.g., "#123") as the message</step>
+        <step>The merge-resolver mode will handle all conflict resolution automatically</step>
       </conflict_resolution>
     </tool>
 
@@ -114,6 +114,26 @@ Files modified:
 - webview-ui/src/components/settings/ApiSettings.tsx: Updated button text from "Save" to "Save Configuration"
 
 Please ensure all supported languages (ca, de, es, fr, hi, id, it, ja, ko, nl, pl, pt-BR, ru, tr, vi, zh-CN, zh-TW) are updated with appropriate translations for these changes.</message>
+</new_task>
+      ]]></example_usage>
+    </tool>
+    
+    <tool name="new_task (mode: merge-resolver)">
+      <best_practices>
+        <practice>Use when PR has merge conflicts that need to be resolved.</practice>
+        <practice>Simply provide the PR number (e.g., "#123") as the message.</practice>
+        <practice>The merge-resolver mode will handle checkout, rebase, conflict resolution, and pushing.</practice>
+        <practice>Wait for merge-resolver to complete before continuing with other PR fixes.</practice>
+      </best_practices>
+      <when_to_use>
+        <trigger>When gh pr view shows mergeable: false or mergeStateStatus: CONFLICTING</trigger>
+        <trigger>When git rebase fails with conflicts</trigger>
+        <trigger>When git status shows unmerged paths</trigger>
+      </when_to_use>
+      <example_usage><![CDATA[
+<new_task>
+<mode>merge-resolver</mode>
+<message>#1234</message>
 </new_task>
       ]]></example_usage>
     </tool>

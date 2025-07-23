@@ -41,33 +41,25 @@
 
   <code_conventions>
     <convention category="merge_conflicts">
-      <rule>How to correctly escape conflict markers when using apply_diff.</rule>
+      <rule>Delegate merge conflict resolution to the merge-resolver mode.</rule>
       <template>
-When removing merge conflict markers from files, you must **escape** them in your `SEARCH` section by prepending a backslash (`\`) at the beginning of the line. This prevents the system from mistaking them for actual diff syntax.
+When merge conflicts are detected, do not attempt to resolve them manually. Instead, use the new_task tool to create a task for the merge-resolver mode:
 
-**Correct Format Example:**
-
-```
-<<<<<<< SEARCH
-content before
-\<<<<<<< HEAD    <-- Note the backslash here
-content after
-=======
-replacement content
->>>>>>> REPLACE
+```xml
+<new_task>
+<mode>merge-resolver</mode>
+<message>#[PR_NUMBER]</message>
+</new_task>
 ```
 
-Without escaping, the system confuses your content with real diff markers.
+The merge-resolver mode will:
+- Checkout the PR branch
+- Perform the rebase
+- Intelligently resolve conflicts based on commit history and intent
+- Push the resolved changes
+- Return control back to pr-fixer mode
 
-You may include multiple diff blocks in a single request, but if any of the following markers appear within your `SEARCH` or `REPLACE` content, they must be escaped:
-
-```
-\<<<<<<< SEARCH
-\=======
-\>>>>>>> REPLACE
-```
-
-Only these three need to be escaped when used in content.
+This ensures consistent and intelligent conflict resolution across all PRs.
       </template>
     </convention>
   </code_conventions>

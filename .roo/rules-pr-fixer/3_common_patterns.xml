@@ -27,32 +27,26 @@
   <pattern name="detecting_conflicts">
     <usage>Commands to detect merge conflicts.</usage>
     <template>
-      <comment>Fetch latest main branch</comment>
-      <command tool="git">git fetch origin main</command>
-      <comment>Check if rebase would create conflicts</comment>
-      <command tool="git">git rebase --dry-run origin/main</command>
+      <comment>Check PR mergeable status</comment>
+      <command tool="gh">gh pr view <pr_number> --json mergeable,mergeStateStatus</command>
+      <comment>If mergeable is false or mergeStateStatus is CONFLICTING, delegate to merge-resolver</comment>
     </template>
   </pattern>
   
-  <pattern name="non_interactive_rebase">
-    <usage>Rebase operations using GIT_EDITOR to prevent interactive prompts.</usage>
+  <pattern name="delegating_conflict_resolution">
+    <usage>Delegate merge conflict resolution to the merge-resolver mode.</usage>
     <template>
-      <command tool="git">git checkout <pr_branch></command>
-      <command tool="git">GIT_EDITOR=true git rebase main</command>
-      <comment>If conflicts occur, resolve them manually then use 'git rebase --continue'</comment>
-      <command tool="git">git push --force-with-lease <remote> <pr_branch></command>
+      <comment>When conflicts are detected, create a new task for merge-resolver</comment>
+      <command tool="new_task"><![CDATA[
+<new_task>
+<mode>merge-resolver</mode>
+<message>#<pr_number></message>
+</new_task>
+      ]]></command>
+      <comment>Wait for merge-resolver to complete before continuing with other fixes</comment>
     </template>
   </pattern>
   
-  <pattern name="conflict_status_check">
-    <usage>Check current conflict status without interactive input.</usage>
-    <template>
-      <command tool="git">git status --porcelain</command>
-      <command tool="git">git diff --name-only --diff-filter=U</command>
-      <comment>List files with unresolved conflicts</comment>
-      <command tool="git">git ls-files --unmerged</command>
-    </template>
-  </pattern>
   <pattern name="checking_out_pr">
     <usage>Check out a pull request branch locally.</usage>
     <template>

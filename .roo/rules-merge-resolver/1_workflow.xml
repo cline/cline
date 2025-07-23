@@ -1,0 +1,142 @@
+<merge_resolver_workflow>
+  <mode_overview>
+    This mode resolves merge conflicts for a specific pull request by analyzing git history,
+    commit messages, and code changes to make intelligent resolution decisions. It receives
+    a PR number (e.g., "#123") and handles the entire conflict resolution process.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Parse PR number from user input</action>
+      <details>
+        Extract the PR number from input like "#123" or "PR #123"
+        Validate that a PR number was provided
+      </details>
+    </step>
+    
+    <step number="2">
+      <action>Fetch PR information</action>
+      <tools>
+        <tool>gh pr view [PR_NUMBER] --json title,body,headRefName,baseRefName</tool>
+      </tools>
+      <details>
+        Get PR title and description to understand the intent
+        Identify the source and target branches
+      </details>
+    </step>
+
+    <step number="3">
+      <action>Checkout PR branch and prepare for rebase</action>
+      <tools>
+        <tool>gh pr checkout [PR_NUMBER] --force</tool>
+        <tool>git fetch origin main</tool>
+        <tool>git rebase origin/main</tool>
+      </tools>
+      <details>
+        Force checkout the PR branch to ensure clean state
+        Fetch the latest main branch
+        Attempt to rebase onto main to reveal conflicts
+      </details>
+    </step>
+
+    <step number="4">
+      <action>Check for merge conflicts</action>
+      <tools>
+        <tool>git status --porcelain</tool>
+        <tool>git diff --name-only --diff-filter=U</tool>
+      </tools>
+      <details>
+        Identify files with merge conflicts (marked with 'UU')
+        Create a list of files that need resolution
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="conflict_analysis">
+      <description>Analyze each conflicted file to understand the changes</description>
+      <steps>
+        <step>Read the conflicted file to identify conflict markers</step>
+        <step>Extract the conflicting sections between <<<<<<< and >>>>>>></step>
+        <step>Run git blame on both sides of the conflict</step>
+        <step>Fetch commit messages and diffs for relevant commits</step>
+        <step>Analyze the intent behind each change</step>
+      </steps>
+    </phase>
+
+    <phase name="resolution_strategy">
+      <description>Determine the best resolution strategy for each conflict</description>
+      <steps>
+        <step>Categorize changes by intent (bugfix, feature, refactor, etc.)</step>
+        <step>Evaluate recency and relevance of changes</step>
+        <step>Check for structural overlap vs formatting differences</step>
+        <step>Identify if changes can be combined or if one should override</step>
+        <step>Consider test updates and related changes</step>
+      </steps>
+    </phase>
+
+    <phase name="conflict_resolution">
+      <description>Apply the resolution strategy to resolve conflicts</description>
+      <steps>
+        <step>For each conflict, apply the chosen resolution</step>
+        <step>Ensure proper escaping of conflict markers in diffs</step>
+        <step>Validate that resolved code is syntactically correct</step>
+        <step>Stage resolved files with git add</step>
+      </steps>
+    </phase>
+
+    <phase name="validation">
+      <description>Verify the resolution and prepare for commit</description>
+      <steps>
+        <step>Run git status to confirm all conflicts are resolved</step>
+        <step>Check for any compilation or syntax errors</step>
+        <step>Review the final diff to ensure sensible resolutions</step>
+        <step>Prepare a summary of resolution decisions</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <git_commands>
+    <command name="checkout_pr">
+      <syntax>gh pr checkout [PR_NUMBER] --force</syntax>
+      <purpose>Force checkout the PR branch to ensure clean state</purpose>
+    </command>
+    
+    <command name="fetch_main">
+      <syntax>git fetch origin main</syntax>
+      <purpose>Get the latest main branch from origin</purpose>
+    </command>
+    
+    <command name="rebase_main">
+      <syntax>git rebase origin/main</syntax>
+      <purpose>Rebase current branch onto main to reveal conflicts</purpose>
+    </command>
+    
+    <command name="get_blame_info">
+      <syntax>git blame -L [start_line],[end_line] [commit_sha] -- [file_path]</syntax>
+      <purpose>Get commit information for specific lines</purpose>
+    </command>
+    
+    <command name="get_commit_details">
+      <syntax>git show --format="%H%n%an%n%ae%n%ad%n%s%n%b" --no-patch [commit_sha]</syntax>
+      <purpose>Get commit metadata including message</purpose>
+    </command>
+    
+    <command name="get_commit_diff">
+      <syntax>git show [commit_sha] -- [file_path]</syntax>
+      <purpose>Get the actual changes made in a commit</purpose>
+    </command>
+    
+    <command name="check_merge_status">
+      <syntax>git ls-files -u</syntax>
+      <purpose>List unmerged files with stage information</purpose>
+    </command>
+  </git_commands>
+
+  <completion_criteria>
+    <criterion>All merge conflicts have been resolved</criterion>
+    <criterion>Resolved files have been staged</criterion>
+    <criterion>No syntax errors in resolved code</criterion>
+    <criterion>Resolution decisions are documented</criterion>
+  </completion_criteria>
+</merge_resolver_workflow>

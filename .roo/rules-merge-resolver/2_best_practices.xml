@@ -1,0 +1,165 @@
+<merge_resolver_best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Intent-Based Resolution</name>
+      <description>
+        Always prioritize understanding the intent behind changes rather than
+        just looking at the code differences. Commit messages, PR descriptions,
+        and issue references provide crucial context.
+      </description>
+      <rationale>
+        Code changes have purpose - bugfixes should be preserved, features
+        should be integrated properly, and refactors should maintain consistency.
+      </rationale>
+      <example>
+        <scenario>Conflict between a bugfix and a refactor</scenario>
+        <good>Apply the bugfix logic within the refactored structure</good>
+        <bad>Simply choose one side without considering both intents</bad>
+      </example>
+    </principle>
+
+    <principle priority="high">
+      <name>Preserve All Valuable Changes</name>
+      <description>
+        When possible, combine non-conflicting changes from both sides rather
+        than discarding one side entirely.
+      </description>
+      <rationale>
+        Both sides of a conflict often contain valuable changes that can coexist
+        if properly integrated.
+      </rationale>
+    </principle>
+
+    <principle priority="high">
+      <name>Escape Conflict Markers</name>
+      <description>
+        When using apply_diff or search_and_replace tools, always escape merge
+        conflict markers with backslashes to prevent parsing errors.
+      </description>
+      <example><![CDATA[
+        Correct: \<<<<<<< HEAD
+        Wrong: <<<<<<< HEAD
+      ]]></example>
+    </principle>
+
+    <principle priority="medium">
+      <name>Consider Related Changes</name>
+      <description>
+        Look beyond the immediate conflict to understand related changes in
+        tests, documentation, or dependent code.
+      </description>
+      <rationale>
+        A change might seem isolated but could be part of a larger feature
+        or fix that spans multiple files.
+      </rationale>
+    </principle>
+  </general_principles>
+
+  <resolution_heuristics>
+    <heuristic category="bugfix_vs_feature">
+      <rule>Bugfixes generally take precedence over features</rule>
+      <reasoning>
+        Bugfixes address existing problems and should be preserved,
+        while features can be reintegrated around the fix.
+      </reasoning>
+    </heuristic>
+
+    <heuristic category="recent_vs_old">
+      <rule>More recent changes are often more relevant</rule>
+      <reasoning>
+        Recent changes likely reflect the current understanding of
+        requirements and may supersede older implementations.
+      </reasoning>
+      <exception>
+        When older changes are bugfixes or security patches that
+        haven't been addressed in newer code.
+      </exception>
+    </heuristic>
+
+    <heuristic category="test_updates">
+      <rule>Changes that include test updates are likely more complete</rule>
+      <reasoning>
+        Developers who update tests alongside code changes demonstrate
+        thoroughness and understanding of the impact.
+      </reasoning>
+    </heuristic>
+
+    <heuristic category="formatting_vs_logic">
+      <rule>Logic changes take precedence over formatting changes</rule>
+      <reasoning>
+        Formatting can be reapplied, but logic changes represent
+        functional improvements or fixes.
+      </reasoning>
+    </heuristic>
+  </resolution_heuristics>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Blindly choosing one side without analysis</description>
+      <why_problematic>
+        You might lose important changes or introduce regressions
+      </why_problematic>
+      <correct_approach>
+        Always analyze both sides using git blame and commit history
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Ignoring the PR description and context</description>
+      <why_problematic>
+        The PR description often explains the why behind changes,
+        which is crucial for proper resolution
+      </why_problematic>
+      <correct_approach>
+        Always fetch and read the PR information before resolving
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Not validating the resolved code</description>
+      <why_problematic>
+        Merged code might be syntactically incorrect or introduce
+        logical errors
+      </why_problematic>
+      <correct_approach>
+        Always check for syntax errors and review the final diff
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Not escaping conflict markers in diffs</description>
+      <why_problematic>
+        Unescaped conflict markers (<<<<<<, =======, >>>>>>) in SEARCH
+        or REPLACE sections will be interpreted as actual diff syntax,
+        causing the apply_diff tool to fail or produce incorrect results
+      </why_problematic>
+      <correct_approach>
+        Always escape conflict markers with a backslash (\) when they
+        appear in the content you're searching for or replacing.
+        Example: \<<<<<<< HEAD instead of <<<<<<< HEAD
+      </correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_resolution">
+      <item>Fetch PR title and description for context</item>
+      <item>Identify all files with conflicts</item>
+      <item>Understand the overall change being merged</item>
+    </category>
+    
+    <category name="during_resolution">
+      <item>Run git blame on conflicting sections</item>
+      <item>Read commit messages for intent</item>
+      <item>Consider if changes can be combined</item>
+      <item>Escape conflict markers in diffs</item>
+    </category>
+    
+    <category name="after_resolution">
+      <item>Verify no conflict markers remain</item>
+      <item>Check for syntax/compilation errors</item>
+      <item>Review the complete diff</item>
+      <item>Document resolution decisions</item>
+    </category>
+  </quality_checklist>
+</merge_resolver_best_practices>

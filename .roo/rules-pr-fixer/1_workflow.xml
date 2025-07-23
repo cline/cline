@@ -45,7 +45,7 @@
         <step>Determine if the PR is from a fork by checking 'gh pr view [PR_NUMBER] --repo [owner]/[repo] --json isCrossRepository'.</step>
         <step>Apply code changes based on review feedback using file editing tools.</step>
         <step>Fix failing tests by modifying test files or source code as needed.</step>
-        <step>For conflict resolution: Use GIT_EDITOR=true for non-interactive rebases, then resolve conflicts via file editing.</step>
+        <step>For conflict resolution: Delegate to merge-resolver mode using new_task with the PR number.</step>
         <step>If changes affect user-facing content (i18n files, UI components, announcements), delegate translation updates using the new_task tool with translate mode.</step>
         <step>Review modified files with 'git status --porcelain' to ensure no temporary files are included.</step>
         <step>Stage files selectively using 'git add -u' (for modified tracked files) or 'git add <specific-files>' (for new files).</step>

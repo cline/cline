@@ -1,0 +1,315 @@
+<merge_resolver_example>
+  <scenario>
+    User provides PR #123 which has merge conflicts between a bugfix branch
+    and a feature branch that refactored the same code.
+  </scenario>
+
+  <user_request>
+    #123
+  </user_request>
+
+  <workflow>
+    <step number="1">
+      <description>Parse PR number and fetch PR information</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>gh pr view 123 --json title,body,headRefName,baseRefName</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+{
+  "title": "Fix memory leak in data processor",
+  "body": "This PR fixes a memory leak that occurs when processing large datasets. The leak was caused by event listeners not being properly removed.",
+  "headRefName": "fix/memory-leak",
+  "baseRefName": "main"
+}
+      ]]></expected_output>
+      <analysis>
+        The PR is a bugfix for a memory leak issue. This context will help
+        prioritize preserving the fix during conflict resolution.
+      </analysis>
+    </step>
+
+    <step number="2">
+      <description>Checkout PR branch and prepare for rebase</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>gh pr checkout 123 --force</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+Switched to branch 'fix/memory-leak'
+Your branch is up to date with 'origin/fix/memory-leak'.
+      ]]></expected_output>
+      
+      <tool_use><![CDATA[
+<execute_command>
+<command>git fetch origin main</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+From github.com:user/repo
+ * branch            main       -> FETCH_HEAD
+      ]]></expected_output>
+      
+      <tool_use><![CDATA[
+<execute_command>
+<command>git rebase origin/main</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+Auto-merging src/data/processor.ts
+CONFLICT (content): Merge conflict in src/data/processor.ts
+Auto-merging src/data/processor.test.ts
+CONFLICT (content): Merge conflict in src/data/processor.test.ts
+error: could not apply abc123... Fix memory leak in data processor
+Resolve all conflicts manually, mark them as resolved with
+"git add/rm <conflicted_files>", then run "git rebase --continue".
+      ]]></expected_output>
+    </step>
+
+    <step number="3">
+      <description>Check for merge conflicts</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>git status --porcelain | grep "^UU"</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+UU src/data/processor.ts
+UU src/data/processor.test.ts
+      ]]></expected_output>
+      <analysis>
+        Two files have conflicts: the main processor file and its test file.
+        Both need to be resolved before continuing the rebase.
+      </analysis>
+    </step>
+
+    <step number="4">
+      <description>Examine the conflicted processor file</description>
+      <tool_use><![CDATA[
+<read_file>
+<path>src/data/processor.ts</path>
+</read_file>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+45 | export class DataProcessor {
+46 |   private listeners: Map<string, EventListener> = new Map();
+47 | 
+48 | <<<<<<< HEAD
+49 |   async processData(data: DataInput): Promise<ProcessedData> {
+50 |     // Refactored to use async/await
+51 |     const result = await this.transform(data);
+52 |     return result;
+53 |   }
+54 | =======
+55 |   processData(data: any[]): ProcessedData {
+56 |     const listener = this.createListener();
+57 |     this.listeners.set(data.id, listener);
+58 |     
+59 |     return this.transform(data);
+60 |   }
+61 | >>>>>>> abc123 (Fix memory leak in data processor)
+62 | 
+63 |   cleanup() {
+64 | <<<<<<< HEAD
+65 |     // TODO: Implement cleanup
+66 | =======
+67 |     // Fix: Clear all listeners to prevent memory leak
+68 |     this.listeners.forEach(listener => {
+69 |       listener.removeAllListeners();
+70 |     });
+71 |     this.listeners.clear();
+72 | >>>>>>> abc123 (Fix memory leak in data processor)
+73 |   }
+74 | }
+      ]]></expected_output>
+    </step>
+
+    <step number="5">
+      <description>Analyze the conflicts using git blame</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>git blame -L 49,53 HEAD -- src/data/processor.ts | cut -d' ' -f1 | sort -u | xargs -I {} git log -1 --format="%h %s" {}</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+def456 Refactor: Convert processData to async/await pattern
+      ]]></expected_output>
+      
+      <tool_use><![CDATA[
+<execute_command>
+<command>git log -1 --format="%h %s" abc123</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+abc123 Fix: Add listener cleanup to prevent memory leak
+      ]]></expected_output>
+      
+      <analysis>
+        HEAD (main after rebase): Has async/await refactor but missing listener logic
+        Incoming (bugfix branch): Adds listener tracking and cleanup for memory leak fix
+        
+        Resolution strategy: Combine both changes - keep async/await refactor
+        but include the listener tracking and cleanup logic.
+      </analysis>
+    </step>
+
+    <step number="6">
+      <description>Resolve the conflicts</description>
+      <tool_use><![CDATA[
+<apply_diff>
+<path>src/data/processor.ts</path>
+<diff>
+<<<<<<< SEARCH
+:start_line:48
+-------
+\<<<<<<< HEAD
+  async processData(data: DataInput): Promise<ProcessedData> {
+    // Refactored to use async/await
+    const result = await this.transform(data);
+    return result;
+  }
+\=======
+  processData(data: any[]): ProcessedData {
+    const listener = this.createListener();
+    this.listeners.set(data.id, listener);
+    
+    return this.transform(data);
+  }
+\>>>>>>> abc123 (Fix memory leak in data processor)
+=======
+  async processData(data: DataInput): Promise<ProcessedData> {
+    // Create and track listener for cleanup (memory leak fix)
+    const listener = this.createListener();
+    this.listeners.set(data.id, listener);
+    
+    // Refactored to use async/await
+    const result = await this.transform(data);
+    return result;
+  }
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+:start_line:63
+-------
+  cleanup() {
+\<<<<<<< HEAD
+    // TODO: Implement cleanup
+\=======
+    // Fix: Clear all listeners to prevent memory leak
+    this.listeners.forEach(listener => {
+      listener.removeAllListeners();
+    });
+    this.listeners.clear();
+\>>>>>>> abc123 (Fix memory leak in data processor)
+  }
+=======
+  cleanup() {
+    // Fix: Clear all listeners to prevent memory leak
+    this.listeners.forEach(listener => {
+      listener.removeAllListeners();
+    });
+    this.listeners.clear();
+  }
+>>>>>>> REPLACE
+</diff>
+</apply_diff>
+      ]]></tool_use>
+      <explanation>
+        Combined both changes: kept the async/await refactor from main
+        while preserving the memory leak fix (listener tracking and cleanup)
+        from the bugfix branch.
+      </explanation>
+    </step>
+
+    <step number="7">
+      <description>Resolve test file conflicts</description>
+      <tool_use><![CDATA[
+<read_file>
+<path>src/data/processor.test.ts</path>
+</read_file>
+      ]]></tool_use>
+      <!-- Similar process for test file -->
+      <tool_use><![CDATA[
+<apply_diff>
+<path>src/data/processor.test.ts</path>
+<diff>
+<!-- Test resolution would go here -->
+</diff>
+</apply_diff>
+      ]]></tool_use>
+    </step>
+
+    <step number="8">
+      <description>Stage resolved files and continue rebase</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>git add src/data/processor.ts src/data/processor.test.ts</command>
+</execute_command>
+      ]]></tool_use>
+      
+      <tool_use><![CDATA[
+<execute_command>
+<command>git rebase --continue</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+[detached HEAD def789] Fix memory leak in data processor
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+Successfully rebased and updated refs/heads/fix/memory-leak.
+      ]]></expected_output>
+    </step>
+
+    <step number="9">
+      <description>Final validation</description>
+      <tool_use><![CDATA[
+<execute_command>
+<command>git status</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+On branch fix/memory-leak
+Your branch is ahead of 'origin/fix/memory-leak' by 1 commit.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+      ]]></expected_output>
+      
+      <tool_use><![CDATA[
+<execute_command>
+<command>git diff origin/main --stat</command>
+</execute_command>
+      ]]></tool_use>
+      <expected_output><![CDATA[
+ src/data/processor.ts      | 8 ++++++--
+ src/data/processor.test.ts | 4 ++--
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+      ]]></expected_output>
+    </step>
+  </workflow>
+
+  <completion><![CDATA[
+<attempt_completion>
+<result>
+Successfully resolved merge conflicts for PR #123 "Fix memory leak in data processor".
+
+Resolution Summary:
+- src/data/processor.ts: Combined the async/await refactor with the memory leak fix by preserving listener tracking and cleanup logic within the refactored async method
+- src/data/processor.test.ts: Updated tests to work with the async implementation while maintaining memory leak test coverage
+
+Both the feature refactor and the critical bugfix have been preserved in the resolution. The rebase has been completed successfully and the branch is ready to be pushed.
+</result>
+</attempt_completion>
+  ]]></completion>
+
+  <key_takeaways>
+    <takeaway>Always checkout PR with --force and rebase to reveal conflicts</takeaway>
+    <takeaway>Fetch PR context to understand the intent of changes</takeaway>
+    <takeaway>Use git blame and commit messages to understand the history</takeaway>
+    <takeaway>Combine non-conflicting improvements when possible</takeaway>
+    <takeaway>Prioritize bugfixes while accommodating refactors</takeaway>
+    <takeaway>Complete the rebase process with git rebase --continue</takeaway>
+    <takeaway>Validate that both sets of changes work together</takeaway>
+  </key_takeaways>
+</merge_resolver_example>

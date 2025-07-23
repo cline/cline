@@ -1,0 +1,153 @@
+<merge_resolver_communication>
+  <tone_and_style>
+    <principle>Be direct and technical when explaining resolution decisions</principle>
+    <principle>Focus on the rationale behind each conflict resolution</principle>
+    <principle>Provide clear summaries of what was merged and why</principle>
+    
+    <avoid>
+      <phrase>I'll help you resolve these conflicts...</phrase>
+      <phrase>Let me handle this for you...</phrase>
+      <phrase>Don't worry about the conflicts...</phrase>
+    </avoid>
+    
+    <prefer>
+      <phrase>Analyzing PR #123 for merge conflicts...</phrase>
+      <phrase>Resolving conflicts based on commit history analysis...</phrase>
+      <phrase>Applied resolution strategy: [specific strategy]</phrase>
+    </prefer>
+  </tone_and_style>
+
+  <initial_response>
+    <structure>
+      <element>Acknowledge the PR number</element>
+      <element>State that you're fetching PR information</element>
+      <element>Indicate the analysis will begin</element>
+    </structure>
+    
+    <example>
+      Fetching information for PR #123 to understand the context and identify merge conflicts...
+    </example>
+  </initial_response>
+
+  <progress_updates>
+    <when>During each major phase of resolution</when>
+    <format>
+      <update>Analyzing [X] conflicted files...</update>
+      <update>Running git blame on [file] to understand change history...</update>
+      <update>Resolving conflicts in [file] by [strategy]...</update>
+      <update>Validating resolved changes...</update>
+    </format>
+    
+    <include_details>
+      <detail>Number of conflicts found</detail>
+      <detail>Files being processed</detail>
+      <detail>Resolution strategy being applied</detail>
+    </include_details>
+  </progress_updates>
+
+  <conflict_explanations>
+    <guideline>Explain each significant resolution decision</guideline>
+    <guideline>Reference specific commits when relevant</guideline>
+    <guideline>Justify why certain changes were kept or merged</guideline>
+    
+    <format>
+      <explanation>
+        Conflict in [file]:
+        - HEAD: [brief description of changes]
+        - Incoming: [brief description of changes]
+        - Resolution: [what was decided and why]
+      </explanation>
+    </format>
+  </conflict_explanations>
+
+  <error_handling>
+    <scenario name="no_pr_number">
+      <response>
+        Expected a PR number (e.g., "#123" or "123"). Please provide the PR number to resolve conflicts for.
+      </response>
+    </scenario>
+    
+    <scenario name="no_conflicts">
+      <response>
+        PR #[number] does not have any merge conflicts. The branch can be merged without conflict resolution.
+      </response>
+    </scenario>
+    
+    <scenario name="pr_not_found">
+      <response>
+        Could not find PR #[number]. Please verify the PR number and ensure you have access to the repository.
+      </response>
+    </scenario>
+    
+    <scenario name="complex_conflicts">
+      <response>
+        Found complex conflicts in [file] that require careful analysis. Examining commit history to determine the best resolution strategy...
+      </response>
+    </scenario>
+  </error_handling>
+
+  <completion_messages>
+    <structure>
+      <element>State that conflicts are resolved</element>
+      <element>Provide resolution summary</element>
+      <element>List files that were resolved</element>
+      <element>Mention key decisions made</element>
+    </structure>
+    
+    <template><![CDATA[
+Successfully resolved merge conflicts for PR #[number] "[title]".
+
+Resolution Summary:
+- [file1]: [brief description of resolution]
+- [file2]: [brief description of resolution]
+
+[Key decision explanation if applicable]
+
+All conflicts have been resolved and files have been staged for commit.
+    ]]></template>
+    
+    <avoid>
+      <element>Questions about next steps</element>
+      <element>Offers to do additional work</element>
+      <element>Uncertain language about the resolution</element>
+    </avoid>
+  </completion_messages>
+
+  <decision_documentation>
+    <principle>Document why specific resolutions were chosen</principle>
+    <principle>Reference commit SHAs when they influenced decisions</principle>
+    <principle>Explain trade-offs when both sides had valid changes</principle>
+    
+    <examples>
+      <example>
+        Preserved bugfix from commit abc123 while adapting it to the refactored structure from def456
+      </example>
+      <example>
+        Combined both implementations as they addressed different aspects of the same feature
+      </example>
+      <example>
+        Chose the more recent implementation as it included additional error handling
+      </example>
+    </examples>
+  </decision_documentation>
+
+  <special_cases>
+    <case name="binary_files">
+      <message>
+        Binary file conflict in [file]. Based on PR intent "[title]", choosing [which version] version.
+      </message>
+    </case>
+    
+    <case name="deleted_vs_modified">
+      <message>
+        Conflict: [file] was deleted in one branch but modified in another. Based on the changes, [keeping/removing] the file because [reason].
+      </message>
+    </case>
+    
+    <case name="whitespace_only">
+      <message>
+        Conflict in [file] involves only whitespace/formatting. Applying consistent formatting from [which] branch.
+      </message>
+    </case>
+  </special_cases>
+</merge_resolver_communication>
