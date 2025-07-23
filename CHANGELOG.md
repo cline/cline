@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.20.1
+## [3.20.1]
 
-- 9fad0aa: Fix for files being deleted when switching modes or closing tasks
+- Fix for files being deleted when switching modes or closing tasks
 
 ## [3.20.0]
 
