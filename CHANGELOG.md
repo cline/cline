@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.23.19] - 2025-07-23
+
+- Add Roo Code Cloud Waitlist CTAs (thanks @brunobergher!)
+- Split commands on newlines when evaluating auto-approve
+- Smarter auto-deny of commands
+
 ## [3.23.18] - 2025-07-23
 
 - Fix: Resolve 'Bad substitution' error in command parsing (#5978 by @KJ7LNW, PR by @daniel-lxs)
