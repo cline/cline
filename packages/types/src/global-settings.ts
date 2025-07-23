@@ -222,7 +222,7 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 	alwaysAllowUpdateTodoList: true,
 	followupAutoApproveTimeoutMs: 0,
 	allowedCommands: ["*"],
-	commandExecutionTimeout: 30_000,
+	commandExecutionTimeout: 20,
 	commandTimeoutAllowlist: [],
 	preventCompletionWithOpenTodos: false,
 
@@ -266,7 +266,7 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 
 	mcpEnabled: false,
 
-	mode: "code",
+	mode: "code", // "architect",
 
 	customModes: [],
 }

@@ -5,7 +5,14 @@ import * as os from "node:os"
 import pWaitFor from "p-wait-for"
 import { execa } from "execa"
 
-import { type TaskEvent, TaskCommandName, RooCodeEventName, IpcMessageType, EVALS_SETTINGS } from "@roo-code/types"
+import {
+	type TaskEvent,
+	type ClineSay,
+	TaskCommandName,
+	RooCodeEventName,
+	IpcMessageType,
+	EVALS_SETTINGS,
+} from "@roo-code/types"
 import { IpcClient } from "@roo-code/ipc"
 
 import {
@@ -203,6 +210,15 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 		log: [RooCodeEventName.TaskTokenUsageUpdated, RooCodeEventName.TaskAskResponded],
 	}
 
+	const loggableSays: ClineSay[] = [
+		"error",
+		"command_output",
+		"rooignore_error",
+		"diff_error",
+		"condense_context",
+		"condense_context_error",
+	]
+
 	client.on(IpcMessageType.TaskEvent, async (taskEvent) => {
 		const { eventName, payload } = taskEvent
 
@@ -215,7 +231,9 @@ export const runTask = async ({ run, task, publish, logger }: RunTaskOptions) =>
 		// For message events we only log non-partial messages.
 		if (
 			!ignoreEvents.log.includes(eventName) &&
-			(eventName !== RooCodeEventName.Message || payload[0].message.partial !== true)
+			(eventName !== RooCodeEventName.Message ||
+				(payload[0].message.say && loggableSays.includes(payload[0].message.say)) ||
+				payload[0].message.partial !== true)
 		) {
 			logger.info(`${eventName} ->`, payload)
 		}
