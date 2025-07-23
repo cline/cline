@@ -14,6 +14,7 @@ service StateService {
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
+  rpc toggleLogging(ToggleLoggingRequest) returns (Empty);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
@@ -45,6 +46,11 @@ message TogglePlanActModeRequest {
   Metadata metadata = 1;
   ChatSettings chat_settings = 2;
   optional ChatContent chat_content = 3;
+}
+
+message ToggleLoggingRequest {
+  Metadata metadata = 1;
+  bool enabled = 2;
 }
 
 enum PlanActMode {

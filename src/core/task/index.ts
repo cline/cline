@@ -31,6 +31,7 @@ import { getGitRemoteUrls } from "@utils/git"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
+import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
@@ -59,6 +60,7 @@ import {
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
+import { Controller } from "@core/controller"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
@@ -106,6 +108,7 @@ export class Task {
 	private context: vscode.ExtensionContext
 	private mcpHub: McpHub
 	private workspaceTracker: WorkspaceTracker
+	private controller: Controller
 
 	// Service handlers
 	api: ApiHandler
@@ -136,6 +139,7 @@ export class Task {
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 	constructor(
+		controller: Controller,
 		context: vscode.ExtensionContext,
 		mcpHub: McpHub,
 		workspaceTracker: WorkspaceTracker,
@@ -159,6 +163,7 @@ export class Task {
 		historyItem?: HistoryItem,
 	) {
 		this.taskState = new TaskState()
+		this.controller = controller
 		this.context = context
 		this.mcpHub = mcpHub
 		this.workspaceTracker = workspaceTracker
@@ -852,12 +857,25 @@ export class Task {
 		this.taskState.askResponseText = text
 		this.taskState.askResponseImages = images
 		this.taskState.askResponseFiles = files
+		this.logToFile(`User: ${text}`)
+	}
+
+	private async logToFile(message: string) {
+		if (this.controller.isLogging) {
+			const logFilePath = path.join(this.cwd, "cline.log")
+			try {
+				await fs.appendFile(logFilePath, `${new Date().toISOString()} - ${message}\n`)
+			} catch (error) {
+				console.error("Failed to write to log file:", error)
+			}
+		}
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean): Promise<undefined> {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
+		this.logToFile(`Cline: ${text}`)
 
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)

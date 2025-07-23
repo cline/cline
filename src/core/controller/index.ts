@@ -53,6 +53,7 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
+	isLogging: boolean = false
 	get latestAnnouncementId(): string {
 		return this.context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
 	}
@@ -82,6 +83,11 @@ export class Controller {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	async setLogging(enabled: boolean) {
+		this.isLogging = enabled
+		await this.postStateToWebview()
 	}
 
 	async getCurrentMode(): Promise<Mode> {
@@ -175,6 +181,7 @@ export class Controller {
 			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
 		}
 		this.task = new Task(
+			this,
 			this.context,
 			this.mcpHub,
 			this.workspaceTracker,
@@ -746,6 +753,7 @@ export class Controller {
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
+			isLogging: this.isLogging,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,

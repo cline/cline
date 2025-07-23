@@ -173,6 +173,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
+		isLogging: false,
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,

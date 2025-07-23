@@ -4,7 +4,7 @@
 		"target": "ES2020",
 		"useDefineForClassFields": true,
 		"lib": ["ES2020", "DOM", "DOM.Iterable"],
-		"types": ["vitest/globals", "@testing-library/jest-dom"],
+		"types": ["vitest/globals", "@testing-library/jest-dom", "@types/vscode-webview"],
 		"module": "ESNext",
 		"skipLibCheck": true,
 
