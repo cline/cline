@@ -281,10 +281,8 @@ export class Controller {
 				)
 
 				return true
-			} else if (this.task.taskState.isStreaming || this.task.taskState.isWaitingForFirstChunk) {
-				this.cancelTask()
-				return false
 			} else {
+				this.cancelTask()
 				return false
 			}
 		}
@@ -785,9 +783,9 @@ export class Controller {
 	}
 
 	async clearTask() {
-		if (this.task && (this.task.taskState.isStreaming || this.task.taskState.isWaitingForFirstChunk)) {
-			await this.task.abortTask()
+		if (this.task) {
 		}
+		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
 
