@@ -8,7 +8,7 @@ import { withRetry } from "../retry"
 
 interface HuaweiCloudMaaSHandlerOptions {
 	huaweiCloudMaasApiKey?: string
-	apiModelId?: string
+	huaweiCloudMaasModelId?: string
 }
 
 export class HuaweiCloudMaaSHandler implements ApiHandler {
@@ -36,7 +36,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 	}
 
 	getModel(): { id: HuaweiCloudMaasModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.huaweiCloudMaasModelId
 		if (modelId && modelId in huaweiCloudMaasModels) {
 			const id = modelId as HuaweiCloudMaasModelId
 			return { id, info: huaweiCloudMaasModels[id] }

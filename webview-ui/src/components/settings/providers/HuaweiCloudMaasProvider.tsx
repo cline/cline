@@ -39,12 +39,12 @@ export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode
 								{
 									apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
 									huaweiCloudMaaSModelId: {
-										plan: "planModeHuaweiCloudMaaSModelId",
-										act: "actModeHuaweiCloudMaaSModelId",
+										plan: "planModeHuaweiCloudMaasModelId",
+										act: "actModeHuaweiCloudMaasModelId",
 									},
 									huaweiCloudMaaSModelInfo: {
-										plan: "planModeHuaweiCloudMaaSModelInfo",
-										act: "actModeHuaweiCloudMaaSModelInfo",
+										plan: "planModeHuaweiCloudMaasModelInfo",
+										act: "actModeHuaweiCloudMaasModelInfo",
 									},
 								},
 								{

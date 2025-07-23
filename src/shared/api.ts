@@ -119,8 +119,8 @@ export interface ApiHandlerOptions {
 	planModeGroqModelInfo?: ModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
-	planModeHuaweiCloudMaaSModelId?: string
-	planModeHuaweiCloudMaaSModelInfo?: ModelInfo
+	planModeHuaweiCloudMaasModelId?: string
+	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -146,8 +146,8 @@ export interface ApiHandlerOptions {
 	actModeGroqModelInfo?: ModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
-	actModeHuaweiCloudMaaSModelId?: string
-	actModeHuaweiCloudMaaSModelInfo?: ModelInfo
+	actModeHuaweiCloudMaasModelId?: string
+	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

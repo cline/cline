@@ -304,8 +304,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
-		planModeHuaweiCloudMaaSModelId,
-		planModeHuaweiCloudMaaSModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -331,8 +331,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
-		actModeHuaweiCloudMaaSModelId,
-		actModeHuaweiCloudMaaSModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
@@ -361,8 +361,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "planModeHuaweiCloudMaaSModelId") as Promise<string | undefined>,
-		getGlobalState(context, "planModeHuaweiCloudMaaSModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -388,8 +388,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
-		getGlobalState(context, "actModeHuaweiCloudMaaSModelId") as Promise<string | undefined>,
-		getGlobalState(context, "actModeHuaweiCloudMaaSModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const processingStart = performance.now()
@@ -516,8 +516,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
-			planModeHuaweiCloudMaaSModelId,
-			planModeHuaweiCloudMaaSModelInfo,
+			planModeHuaweiCloudMaasModelId,
+			planModeHuaweiCloudMaasModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -543,8 +543,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
-			actModeHuaweiCloudMaaSModelId,
-			actModeHuaweiCloudMaaSModelInfo,
+			actModeHuaweiCloudMaasModelId,
+			actModeHuaweiCloudMaasModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -660,8 +660,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
-		planModeHuaweiCloudMaaSModelId,
-		planModeHuaweiCloudMaaSModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -687,8 +687,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
-		actModeHuaweiCloudMaaSModelId,
-		actModeHuaweiCloudMaaSModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -718,8 +718,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
-		planModeHuaweiCloudMaaSModelId,
-		planModeHuaweiCloudMaaSModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -746,8 +746,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
-		actModeHuaweiCloudMaaSModelId,
-		actModeHuaweiCloudMaaSModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,

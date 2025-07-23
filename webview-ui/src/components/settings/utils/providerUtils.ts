@@ -253,7 +253,19 @@ export function normalizeApiConfiguration(
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		case "huawei-cloud-maas":
-			return getProviderData(huaweiCloudMaasModels, huaweiCloudMaasDefaultModelId)
+			const huaweiCloudMaasModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuaweiCloudMaasModelId
+					: apiConfiguration?.actModeHuaweiCloudMaasModelId
+			const huaweiCloudMaasModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuaweiCloudMaasModelInfo
+					: apiConfiguration?.actModeHuaweiCloudMaasModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
+				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -283,6 +295,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openRouterModelId: undefined,
 			groqModelId: undefined,
 			huggingFaceModelId: undefined,
+			huaweiCloudMaasModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -324,6 +337,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 		huggingFaceModelId:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
+		huaweiCloudMaasModelId:
+			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -351,8 +366,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		// Huawei Cloud Maas Model Info
 		huaweiCloudMaasModelInfo:
 			mode === "plan"
-				? apiConfiguration.planModeHuaweiCloudMaaSModelInfo
-				: apiConfiguration.actModeHuaweiCloudMaaSModelInfo,
+				? apiConfiguration.planModeHuaweiCloudMaasModelInfo
+				: apiConfiguration.actModeHuaweiCloudMaasModelInfo,
 
 		// Other mode-specific fields
 		thinkingBudgetTokens:
@@ -467,10 +482,10 @@ export async function syncModeConfigurations(
 			updates.actModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			break
 		case "huawei-cloud-maas":
-			updates.planModeHuaweiCloudMaaSModelId = sourceFields.apiModelId
-			updates.actModeHuaweiCloudMaaSModelId = sourceFields.apiModelId
-			updates.planModeHuaweiCloudMaaSModelInfo = sourceFields.huaweiCloudMaasModelInfo
-			updates.actModeHuaweiCloudMaaSModelInfo = sourceFields.huaweiCloudMaasModelInfo
+			updates.planModeHuaweiCloudMaasModelId = sourceFields.apiModelId
+			updates.actModeHuaweiCloudMaasModelId = sourceFields.apiModelId
+			updates.planModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
+			updates.actModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

@@ -258,6 +258,7 @@ message ModelsApiConfiguration {
   optional string plan_mode_hugging_face_model_id = 122;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
   optional string plan_mode_huawei_cloud_maas_model_id = 124;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -285,6 +286,7 @@ message ModelsApiConfiguration {
   optional string act_mode_hugging_face_model_id = 222;
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
   optional string act_mode_huawei_cloud_maas_model_id = 224;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
 
   repeated string favorited_model_ids = 300;
 }

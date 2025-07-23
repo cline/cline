@@ -275,8 +275,8 @@ function createHandlerForProvider(
 		case "huawei-cloud-maas":
 			return new HuaweiCloudMaaSHandler({
 				huaweiCloudMaasApiKey: options.huaweiCloudMaasApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				// Add other needed options here if required
+				huaweiCloudMaasModelId:
+					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 			})
 		default:
 			return new AnthropicHandler({
