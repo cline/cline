@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme -->
+    <style name="Theme.Cline" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/dark_primary</item>
+        <item name="colorPrimaryVariant">@color/dark_primary_dark</item>
+        <item name="colorOnPrimary">@color/dark_icons</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/dark_accent</item>
+        <item name="colorSecondaryVariant">@color/dark_accent</item>
+        <item name="colorOnSecondary">@color/dark_icons</item>
+        
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/dark_background</item>
+        <item name="colorSurface">@color/dark_card_background</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/dark_primary_text</item>
+        <item name="android:textColorSecondary">@color/dark_secondary_text</item>
+        
+        <!-- Enable window content transitions -->
+        <item name="android:windowActivityTransitions">true</item>
+        
+        <!-- Customize your theme here -->
+        <item name="materialButtonStyle">@style/Widget.Cline.Button</item>
+        <item name="textInputStyle">@style/Widget.Cline.TextInputLayout</item>
+    </style>
+    
+    <!-- No ActionBar theme -->
+    <style name="Theme.Cline.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+    
+    <!-- Splash screen theme -->
+    <style name="Theme.Cline.Splash" parent="Theme.Cline.NoActionBar">
+        <item name="android:windowBackground">@color/dark_primary</item>
+        <item name="android:statusBarColor">@color/dark_primary</item>
+    </style>
+</resources>

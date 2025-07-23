@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#3F51B5</color>
+    <color name="primary_dark">#303F9F</color>
+    <color name="primary_light">#C5CAE9</color>
+    <color name="accent">#FF4081</color>
+    <color name="primary_text">#212121</color>
+    <color name="secondary_text">#757575</color>
+    <color name="icons">#FFFFFF</color>
+    <color name="divider">#BDBDBD</color>
+    <color name="background">#F5F5F5</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="error">#F44336</color>
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FFC107</color>
+    <color name="info">#2196F3</color>
+    
+    <!-- Dark Theme Colors -->
+    <color name="dark_primary">#3F51B5</color>
+    <color name="dark_primary_dark">#303F9F</color>
+    <color name="dark_primary_light">#C5CAE9</color>
+    <color name="dark_accent">#FF4081</color>
+    <color name="dark_primary_text">#FFFFFF</color>
+    <color name="dark_secondary_text">#B3FFFFFF</color>
+    <color name="dark_icons">#FFFFFF</color>
+    <color name="dark_divider">#1FFFFFFF</color>
+    <color name="dark_background">#121212</color>
+    <color name="dark_card_background">#1E1E1E</color>
+</resources>

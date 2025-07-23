@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cline</string>
+    
+    <!-- Main Activity -->
+    <string name="nav_home">Home</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_projects">Projects</string>
+    <string name="nav_settings">Settings</string>
+    
+    <!-- Chat -->
+    <string name="chat_hint">Ask Cline anything…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_new">New Chat</string>
+    <string name="chat_history">Chat History</string>
+    <string name="chat_loading">Thinking…</string>
+    
+    <!-- Projects -->
+    <string name="project_new">New Project</string>
+    <string name="project_import">Import Project</string>
+    <string name="project_name">Project Name</string>
+    <string name="project_path">Project Path</string>
+    <string name="project_create">Create</string>
+    <string name="project_cancel">Cancel</string>
+    <string name="project_open">Open</string>
+    <string name="project_delete">Delete</string>
+    
+    <!-- Editor -->
+    <string name="editor_save">Save</string>
+    <string name="editor_run">Run</string>
+    <string name="editor_format">Format</string>
+    <string name="editor_find">Find</string>
+    <string name="editor_replace">Replace</string>
+    
+    <!-- Terminal -->
+    <string name="terminal_hint">Enter command…</string>
+    <string name="terminal_execute">Execute</string>
+    <string name="terminal_clear">Clear</string>
+    
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_api_provider">API Provider</string>
+    <string name="settings_model">Model</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_editor_font_size">Editor Font Size</string>
+    <string name="settings_terminal_font_size">Terminal Font Size</string>
+    <string name="settings_save">Save</string>
+    
+    <!-- Dialogs -->
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_yes">Yes</string>
+    <string name="dialog_no">No</string>
+    <string name="dialog_confirm">Confirm</string>
+    <string name="dialog_delete_title">Delete Confirmation</string>
+    <string name="dialog_delete_message">Are you sure you want to delete this item?</string>
+    
+    <!-- Error Messages -->
+    <string name="error_api_key">Please enter a valid API key</string>
+    <string name="error_network">Network error. Please check your connection.</string>
+    <string name="error_file_not_found">File not found</string>
+    <string name="error_permission">Permission denied</string>
+    <string name="error_unknown">An unknown error occurred</string>
+</resources>
