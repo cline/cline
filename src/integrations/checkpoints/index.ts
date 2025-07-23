@@ -4,7 +4,7 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { ClineMessage, ClineApiReqInfo, ClineSay } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
@@ -467,10 +467,10 @@ export class TaskCheckpointManager {
 				seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
 				changedFiles.map((file) => [
 					vscode.Uri.file(file.absolutePath),
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
+					vscode.Uri.parse(`${DiffViewProvider}:${file.relativePath}`).with({
 						query: Buffer.from(file.before ?? "").toString("base64"),
 					}),
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
+					vscode.Uri.parse(`${DiffViewProvider}:${file.relativePath}`).with({
 						query: Buffer.from(file.after ?? "").toString("base64"),
 					}),
 				]),
