@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Algo salió mal",
+		"reportText": "Ayúdanos a mejorar informando de este error en",
+		"githubText": "nuestra página de Issues de GitHub",
+		"copyInstructions": "Copia y pega el siguiente mensaje de error para incluirlo como parte de tu informe:",
+		"errorStack": "Pila de errores:",
+		"componentStack": "Pila de componentes:"
+	},
 	"answers": {
 		"yes": "Sí",
 		"no": "No",

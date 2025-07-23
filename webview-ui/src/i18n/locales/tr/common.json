@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Bir şeyler yanlış gitti",
+		"reportText": "Bu hatayı bildirerek iyileştirmemize yardımcı olun",
+		"githubText": "GitHub Issues sayfamızda",
+		"copyInstructions": "Gönderiminize dahil etmek için aşağıdaki hata mesajını kopyalayıp yapıştırın:",
+		"errorStack": "Hata Yığını:",
+		"componentStack": "Bileşen Yığını:"
+	},
 	"answers": {
 		"yes": "Evet",
 		"no": "Hayır",

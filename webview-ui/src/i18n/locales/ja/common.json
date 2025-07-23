@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "問題が発生しました",
+		"reportText": "このエラーを報告して改善にご協力ください",
+		"githubText": "GitHub Issuesページ",
+		"copyInstructions": "以下のエラーメッセージをコピーして報告に含めてください：",
+		"errorStack": "エラースタック：",
+		"componentStack": "コンポーネントスタック："
+	},
 	"answers": {
 		"yes": "はい",
 		"no": "いいえ",

@@ -1036,6 +1036,9 @@ importers:
       source-map:
         specifier: ^0.7.4
         version: 0.7.4
+      stacktrace-js:
+        specifier: ^2.0.2
+        version: 2.0.2
       styled-components:
         specifier: ^6.1.13
         version: 6.1.18(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1097,6 +1100,9 @@ importers:
       '@types/shell-quote':
         specifier: ^1.7.5
         version: 1.7.5
+      '@types/stacktrace-js':
+        specifier: ^2.0.3
+        version: 2.0.3
       '@types/vscode-webview':
         specifier: ^1.57.5
         version: 1.57.5
@@ -3887,6 +3893,10 @@ packages:
 
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
+
+  '@types/stacktrace-js@2.0.3':
+    resolution: {integrity: sha512-B6JnMic4NAZ4mLWmRi4RvayCN2HZQvpcVF0MkoqubtuZx1AQB0/kRlrngGiocEPyO7R+TFocTEoLKQ0HzmEOPw==}
+    deprecated: This is a stub types definition. stacktrace-js provides its own type definitions, so you do not need this installed.
 
   '@types/stream-chain@2.1.0':
     resolution: {integrity: sha512-guDyAl6s/CAzXUOWpGK2bHvdiopLIwpGu8v10+lb9hnQOyo4oj/ZUQFOvqFjKGsE3wJP1fpIesCcMvbXuWsqOg==}
@@ -13089,6 +13099,10 @@ snapshots:
   '@types/shell-quote@1.7.5': {}
 
   '@types/stack-utils@2.0.3': {}
+
+  '@types/stacktrace-js@2.0.3':
+    dependencies:
+      stacktrace-js: 2.0.2
 
   '@types/stream-chain@2.1.0':
     dependencies:

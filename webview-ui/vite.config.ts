@@ -5,6 +5,7 @@ import { execSync } from "child_process"
 import { defineConfig, type PluginOption, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
+import { sourcemapPlugin } from "./src/vite-plugins/sourcemapPlugin"
 
 function getGitSha() {
 	let gitSha: string | undefined = undefined
@@ -79,7 +80,7 @@ export default defineConfig(({ mode }) => {
 		define["process.env.PKG_OUTPUT_CHANNEL"] = JSON.stringify("Roo-Code-Nightly")
 	}
 
-	const plugins: PluginOption[] = [react(), tailwindcss(), persistPortPlugin(), wasmPlugin()]
+	const plugins: PluginOption[] = [react(), tailwindcss(), persistPortPlugin(), wasmPlugin(), sourcemapPlugin()]
 
 	return {
 		plugins,
@@ -94,7 +95,10 @@ export default defineConfig(({ mode }) => {
 			outDir,
 			emptyOutDir: true,
 			reportCompressedSize: false,
+			// Generate complete source maps with original TypeScript sources
 			sourcemap: true,
+			// Ensure source maps are properly included in the build
+			minify: mode === "production" ? "esbuild" : false,
 			rollupOptions: {
 				output: {
 					entryFileNames: `assets/[name].js`,
@@ -113,6 +117,10 @@ export default defineConfig(({ mode }) => {
 								assetInfo.name.endsWith(".ttf"))
 						) {
 							return "assets/fonts/[name][extname]"
+						}
+						// Ensure source maps are included in the build
+						if (assetInfo.name && assetInfo.name.endsWith(".map")) {
+							return "assets/[name]"
 						}
 						return "assets/[name][extname]"
 					},

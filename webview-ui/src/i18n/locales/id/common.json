@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Terjadi kesalahan",
+		"reportText": "Bantu kami meningkatkan dengan melaporkan kesalahan ini di",
+		"githubText": "halaman GitHub Issues kami",
+		"copyInstructions": "Salin dan tempel pesan kesalahan berikut untuk menyertakannya sebagai bagian dari laporan Anda:",
+		"errorStack": "Stack Error:",
+		"componentStack": "Stack Komponen:"
+	},
 	"answers": {
 		"yes": "Ya",
 		"no": "Tidak",

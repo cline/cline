@@ -11,6 +11,20 @@ vi.mock("@src/utils/vscode", () => ({
 	},
 }))
 
+// Mock the ErrorBoundary component
+vi.mock("@src/components/ErrorBoundary", () => ({
+	__esModule: true,
+	default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+// Mock the telemetry client
+vi.mock("@src/utils/TelemetryClient", () => ({
+	telemetryClient: {
+		capture: vi.fn(),
+		updateTelemetryState: vi.fn(),
+	},
+}))
+
 vi.mock("@src/components/chat/ChatView", () => ({
 	__esModule: true,
 	default: function ChatView({ isHidden }: { isHidden: boolean }) {
@@ -88,9 +102,79 @@ vi.mock("@src/components/account/AccountView", () => ({
 
 const mockUseExtensionState = vi.fn()
 
+// Mock the HumanRelayDialog component
+vi.mock("@src/components/human-relay/HumanRelayDialog", () => ({
+	HumanRelayDialog: ({ _children, isOpen, onClose }: any) => (
+		<div data-testid="human-relay-dialog" data-open={isOpen} onClick={onClose}>
+			Human Relay Dialog
+		</div>
+	),
+}))
+
+// Mock i18next and react-i18next
+vi.mock("i18next", () => {
+	const tFunction = (key: string) => key
+	const i18n = {
+		t: tFunction,
+		use: () => i18n,
+		init: () => Promise.resolve(tFunction),
+		changeLanguage: vi.fn(() => Promise.resolve()),
+	}
+	return { default: i18n }
+})
+
+vi.mock("react-i18next", () => {
+	const tFunction = (key: string) => key
+	return {
+		withTranslation: () => (Component: any) => {
+			const MockedComponent = (props: any) => {
+				return <Component t={tFunction} i18n={{ t: tFunction }} tReady {...props} />
+			}
+			MockedComponent.displayName = `withTranslation(${Component.displayName || Component.name || "Component"})`
+			return MockedComponent
+		},
+		Trans: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+		useTranslation: () => {
+			return {
+				t: tFunction,
+				i18n: {
+					t: tFunction,
+					changeLanguage: vi.fn(() => Promise.resolve()),
+				},
+			}
+		},
+		initReactI18next: {
+			type: "3rdParty",
+			init: vi.fn(),
+		},
+	}
+})
+
+// Mock TranslationProvider to pass through children
+vi.mock("@src/i18n/TranslationContext", () => {
+	const tFunction = (key: string) => key
+	return {
+		__esModule: true,
+		default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+		useAppTranslation: () => ({
+			t: tFunction,
+			i18n: {
+				t: tFunction,
+				changeLanguage: vi.fn(() => Promise.resolve()),
+			},
+		}),
+	}
+})
+
 vi.mock("@src/context/ExtensionStateContext", () => ({
 	useExtensionState: () => mockUseExtensionState(),
 	ExtensionStateContextProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+// Mock environment variables
+vi.mock("process.env", () => ({
+	NODE_ENV: "test",
+	PKG_VERSION: "1.0.0-test",
 }))
 
 describe("App", () => {

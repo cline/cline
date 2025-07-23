@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "문제가 발생했습니다",
+		"reportText": "이 오류를 보고하여 개선에 도움을 주세요",
+		"githubText": "GitHub 이슈 페이지",
+		"copyInstructions": "다음 오류 메시지를 복사하여 보고서에 포함해 주세요:",
+		"errorStack": "오류 스택:",
+		"componentStack": "컴포넌트 스택:"
+	},
 	"answers": {
 		"yes": "예",
 		"no": "아니오",

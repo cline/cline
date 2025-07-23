@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Une erreur s'est produite",
+		"reportText": "Aidez-nous à nous améliorer en signalant cette erreur sur",
+		"githubText": "notre page GitHub Issues",
+		"copyInstructions": "Copiez et collez le message d'erreur suivant pour l'inclure dans votre rapport :",
+		"errorStack": "Pile d'erreurs :",
+		"componentStack": "Pile de composants :"
+	},
 	"answers": {
 		"yes": "Oui",
 		"no": "Non",

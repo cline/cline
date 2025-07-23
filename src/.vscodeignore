@@ -14,7 +14,7 @@
 !dist
 
 # Include the built webview
-**/*.map
+!**/*.map
 !webview-ui/audio
 !webview-ui/build/assets/*.js
 !webview-ui/build/assets/*.ttf

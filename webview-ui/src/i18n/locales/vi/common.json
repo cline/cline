@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Đã xảy ra lỗi",
+		"reportText": "Vui lòng giúp chúng tôi cải thiện bằng cách báo cáo lỗi này trên",
+		"githubText": "trang GitHub Issues của chúng tôi",
+		"copyInstructions": "Sao chép và dán thông báo lỗi sau đây để đưa vào báo cáo của bạn:",
+		"errorStack": "Stack lỗi:",
+		"componentStack": "Stack thành phần:"
+	},
 	"answers": {
 		"yes": "Có",
 		"no": "Không",

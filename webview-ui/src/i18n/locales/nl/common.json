@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Er is iets misgegaan",
+		"reportText": "Help ons te verbeteren door deze fout te melden op",
+		"githubText": "onze GitHub Issues-pagina",
+		"copyInstructions": "Kopieer en plak het volgende foutbericht om het als onderdeel van je melding op te nemen:",
+		"errorStack": "Foutstack:",
+		"componentStack": "Componentstack:"
+	},
 	"answers": {
 		"yes": "Ja",
 		"no": "Nee",

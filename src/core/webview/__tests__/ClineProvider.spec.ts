@@ -400,6 +400,7 @@ describe("ClineProvider", () => {
 				options: {},
 				onDidReceiveMessage: vi.fn(),
 				asWebviewUri: vi.fn(),
+				cspSource: "vscode-webview://test-csp-source",
 			},
 			visible: true,
 			onDidDispose: vi.fn().mockImplementation((callback) => {
@@ -473,7 +474,7 @@ describe("ClineProvider", () => {
 
 		// Verify Content Security Policy contains the necessary PostHog domains
 		expect(mockWebviewView.webview.html).toContain(
-			"connect-src https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com",
+			"connect-src vscode-webview://test-csp-source https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com",
 		)
 
 		// Extract the script-src directive section and verify required security elements
@@ -1986,6 +1987,7 @@ describe("Project MCP Settings", () => {
 				options: {},
 				onDidReceiveMessage: vi.fn(),
 				asWebviewUri: vi.fn(),
+				cspSource: "vscode-webview://test-csp-source",
 			},
 			visible: true,
 			onDidDispose: vi.fn(),

@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Etwas ist schiefgelaufen",
+		"reportText": "Bitte hilf uns, besser zu werden, indem du diesen Fehler meldest auf",
+		"githubText": "unserer GitHub Issues-Seite",
+		"copyInstructions": "Kopiere die folgende Fehlermeldung und füge sie deiner Meldung bei:",
+		"errorStack": "Fehler-Stack:",
+		"componentStack": "Komponenten-Stack:"
+	},
 	"answers": {
 		"yes": "Ja",
 		"no": "Nein",

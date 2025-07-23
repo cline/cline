@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "出现了错误",
+		"reportText": "请通过在以下位置报告此错误来帮助我们改进",
+		"githubText": "我们的 GitHub Issues 页面",
+		"copyInstructions": "复制并粘贴以下错误信息，将其作为提交内容的一部分：",
+		"errorStack": "错误堆栈：",
+		"componentStack": "组件堆栈："
+	},
 	"answers": {
 		"yes": "是",
 		"no": "否",

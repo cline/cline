@@ -1,4 +1,12 @@
 {
+	"errorBoundary": {
+		"title": "Что-то пошло не так",
+		"reportText": "Пожалуйста, помогите нам улучшить приложение, сообщив об этой ошибке на",
+		"githubText": "нашей странице GitHub Issues",
+		"copyInstructions": "Скопируйте и вставьте следующее сообщение об ошибке, чтобы включить его в ваше сообщение:",
+		"errorStack": "Стек ошибки:",
+		"componentStack": "Стек компонентов:"
+	},
 	"number_format": {
 		"thousand_suffix": "тыс",
 		"million_suffix": "млн",
