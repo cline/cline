@@ -174,6 +174,7 @@ message ApiConfiguration {
   optional string sap_ai_core_base_url = 53;
   optional string moonshot_api_key = 54;
   optional string moonshot_api_line = 55;
+  optional string huawei_cloud_maas_api_key = 56;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
@@ -197,6 +198,7 @@ message ApiConfiguration {
   optional string plan_mode_fireworks_model_id = 118;
   optional string plan_mode_sap_ai_core_model_id = 119;
   optional string plan_mode_huawei_cloud_maas_model_id = 120;
+  optional string plan_mode_huawei_cloud_maas_model_info = 121;
   
   // Act mode configurations
   optional string act_mode_api_provider = 200;
@@ -220,6 +222,7 @@ message ApiConfiguration {
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
   optional string act_mode_huawei_cloud_maas_model_id = 220;
+  optional string act_mode_huawei_cloud_maas_model_info = 221;
   
   // Favorited model IDs
   repeated string favorited_model_ids = 300;
@@ -229,5 +232,4 @@ message ApiConfiguration {
   optional string aws_bedrock_api_key = 302;
 
   optional string cline_account_id = 303;
-  optional string huawei_cloud_maas_api_key = 304;
 }
