@@ -2,8 +2,6 @@
 
 ## 3.19.9
 
-### Patch Changes
-
 - db6d288: Display account balance for all org members
 
 ## [3.19.8]
