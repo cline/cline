@@ -218,8 +218,8 @@ export class Task {
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			if (historyItem.checkpointTrackerErrorMessage) {
-				this.taskState.checkpointTrackerErrorMessage = historyItem.checkpointTrackerErrorMessage
+			if (historyItem.checkpointManagerErrorMessage) {
+				this.taskState.checkpointManagerErrorMessage = historyItem.checkpointManagerErrorMessage
 			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
