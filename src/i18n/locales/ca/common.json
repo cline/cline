@@ -32,6 +32,7 @@
 		"could_not_open_file_generic": "No s'ha pogut obrir el fitxer!",
 		"checkpoint_timeout": "S'ha esgotat el temps en intentar restaurar el punt de control.",
 		"checkpoint_failed": "Ha fallat la restauració del punt de control.",
+		"git_not_installed": "Git és necessari per a la funció de punts de control. Si us plau, instal·la Git per activar els punts de control.",
 		"no_workspace": "Si us plau, obre primer una carpeta de projecte",
 		"update_support_prompt": "Ha fallat l'actualització del missatge de suport",
 		"reset_support_prompt": "Ha fallat el restabliment del missatge de suport",
@@ -111,7 +112,8 @@
 	},
 	"buttons": {
 		"save": "Desar",
-		"edit": "Editar"
+		"edit": "Editar",
+		"learn_more": "Més informació"
 	},
 	"tasks": {
 		"canceled": "Error de tasca: Ha estat aturada i cancel·lada per l'usuari.",

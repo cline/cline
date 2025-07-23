@@ -33,6 +33,7 @@
 		"could_not_open_file_generic": "无法打开文件！",
 		"checkpoint_timeout": "尝试恢复检查点时超时。",
 		"checkpoint_failed": "恢复检查点失败。",
+		"git_not_installed": "存档点功能需要 Git。请安装 Git 以启用存档点。",
 		"no_workspace": "请先打开项目文件夹",
 		"update_support_prompt": "更新支持消息失败",
 		"reset_support_prompt": "重置支持消息失败",
@@ -112,7 +113,8 @@
 	},
 	"buttons": {
 		"save": "保存",
-		"edit": "编辑"
+		"edit": "编辑",
+		"learn_more": "了解更多"
 	},
 	"tasks": {
 		"canceled": "任务错误：它已被用户停止并取消。",

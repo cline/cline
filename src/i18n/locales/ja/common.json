@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "ファイルを開けませんでした！",
 		"checkpoint_timeout": "チェックポイントの復元を試みる際にタイムアウトしました。",
 		"checkpoint_failed": "チェックポイントの復元に失敗しました。",
+		"git_not_installed": "チェックポイント機能にはGitが必要です。チェックポイントを有効にするにはGitをインストールしてください。",
 		"no_workspace": "まずプロジェクトフォルダを開いてください",
 		"update_support_prompt": "サポートメッセージの更新に失敗しました",
 		"reset_support_prompt": "サポートメッセージのリセットに失敗しました",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "保存",
-		"edit": "編集"
+		"edit": "編集",
+		"learn_more": "詳細"
 	},
 	"tasks": {
 		"canceled": "タスクエラー：ユーザーによって停止およびキャンセルされました。",

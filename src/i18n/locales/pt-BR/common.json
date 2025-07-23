@@ -32,6 +32,7 @@
 		"could_not_open_file_generic": "Não foi possível abrir o arquivo!",
 		"checkpoint_timeout": "Tempo esgotado ao tentar restaurar o ponto de verificação.",
 		"checkpoint_failed": "Falha ao restaurar o ponto de verificação.",
+		"git_not_installed": "O Git é necessário para o recurso de checkpoints. Por favor, instale o Git para habilitar os checkpoints.",
 		"no_workspace": "Por favor, abra primeiro uma pasta de projeto",
 		"update_support_prompt": "Falha ao atualizar o prompt de suporte",
 		"reset_support_prompt": "Falha ao redefinir o prompt de suporte",
@@ -111,7 +112,8 @@
 	},
 	"buttons": {
 		"save": "Salvar",
-		"edit": "Editar"
+		"edit": "Editar",
+		"learn_more": "Saiba Mais"
 	},
 	"tasks": {
 		"canceled": "Erro na tarefa: Foi interrompida e cancelada pelo usuário.",

@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "無法開啟檔案！",
 		"checkpoint_timeout": "嘗試恢復檢查點時超時。",
 		"checkpoint_failed": "恢復檢查點失敗。",
+		"git_not_installed": "存檔點功能需要 Git。請安裝 Git 以啟用存檔點。",
 		"no_workspace": "請先開啟專案資料夾",
 		"update_support_prompt": "更新支援訊息失敗",
 		"reset_support_prompt": "重設支援訊息失敗",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "儲存",
-		"edit": "編輯"
+		"edit": "編輯",
+		"learn_more": "了解更多"
 	},
 	"tasks": {
 		"canceled": "工作錯誤：它已被使用者停止並取消。",

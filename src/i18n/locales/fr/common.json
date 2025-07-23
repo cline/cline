@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "Impossible d'ouvrir le fichier !",
 		"checkpoint_timeout": "Expiration du délai lors de la tentative de rétablissement du checkpoint.",
 		"checkpoint_failed": "Échec du rétablissement du checkpoint.",
+		"git_not_installed": "Git est requis pour la fonctionnalité des points de contrôle. Veuillez installer Git pour activer les points de contrôle.",
 		"no_workspace": "Veuillez d'abord ouvrir un espace de travail",
 		"update_support_prompt": "Erreur lors de la mise à jour du prompt de support",
 		"reset_support_prompt": "Erreur lors de la réinitialisation du prompt de support",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "Enregistrer",
-		"edit": "Modifier"
+		"edit": "Modifier",
+		"learn_more": "En savoir plus"
 	},
 	"tasks": {
 		"canceled": "Erreur de tâche : Elle a été arrêtée et annulée par l'utilisateur.",

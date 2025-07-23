@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "Không thể mở tệp!",
 		"checkpoint_timeout": "Đã hết thời gian khi cố gắng khôi phục điểm kiểm tra.",
 		"checkpoint_failed": "Không thể khôi phục điểm kiểm tra.",
+		"git_not_installed": "Yêu cầu Git cho tính năng điểm kiểm tra. Vui lòng cài đặt Git để bật điểm kiểm tra.",
 		"no_workspace": "Vui lòng mở thư mục dự án trước",
 		"update_support_prompt": "Không thể cập nhật lời nhắc hỗ trợ",
 		"reset_support_prompt": "Không thể đặt lại lời nhắc hỗ trợ",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "Lưu",
-		"edit": "Chỉnh sửa"
+		"edit": "Chỉnh sửa",
+		"learn_more": "Tìm hiểu thêm"
 	},
 	"tasks": {
 		"canceled": "Lỗi nhiệm vụ: Nó đã bị dừng và hủy bởi người dùng.",

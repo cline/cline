@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "Datei konnte nicht geöffnet werden!",
 		"checkpoint_timeout": "Zeitüberschreitung beim Versuch, den Checkpoint wiederherzustellen.",
 		"checkpoint_failed": "Fehler beim Wiederherstellen des Checkpoints.",
+		"git_not_installed": "Git ist für die Checkpoint-Funktion erforderlich. Bitte installiere Git, um Checkpoints zu aktivieren.",
 		"no_workspace": "Bitte öffne zuerst einen Projektordner",
 		"update_support_prompt": "Fehler beim Aktualisieren der Support-Nachricht",
 		"reset_support_prompt": "Fehler beim Zurücksetzen der Support-Nachricht",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "Speichern",
-		"edit": "Bearbeiten"
+		"edit": "Bearbeiten",
+		"learn_more": "Mehr erfahren"
 	},
 	"tasks": {
 		"canceled": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und abgebrochen.",

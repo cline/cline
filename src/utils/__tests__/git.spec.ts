@@ -4,6 +4,7 @@ import * as fs from "fs"
 import * as path from "path"
 
 import {
+	checkGitInstalled,
 	searchCommits,
 	getCommitInfo,
 	getWorkingState,
@@ -81,6 +82,54 @@ describe("git utils", () => {
 
 	beforeEach(() => {
 		vitest.clearAllMocks()
+	})
+
+	describe("checkGitInstalled", () => {
+		it("should return true when git --version succeeds", async () => {
+			vitest.mocked(exec).mockImplementation((command: string, options: any, callback: any) => {
+				if (command === "git --version") {
+					callback(null, { stdout: "git version 2.39.2", stderr: "" })
+					return {} as any
+				}
+				callback(new Error("Unexpected command"))
+				return {} as any
+			})
+
+			const result = await checkGitInstalled()
+			expect(result).toBe(true)
+			expect(vitest.mocked(exec)).toHaveBeenCalledWith("git --version", {}, expect.any(Function))
+		})
+
+		it("should return false when git --version fails", async () => {
+			vitest.mocked(exec).mockImplementation((command: string, options: any, callback: any) => {
+				if (command === "git --version") {
+					callback(new Error("git not found"))
+					return {} as any
+				}
+				callback(new Error("Unexpected command"))
+				return {} as any
+			})
+
+			const result = await checkGitInstalled()
+			expect(result).toBe(false)
+			expect(vitest.mocked(exec)).toHaveBeenCalledWith("git --version", {}, expect.any(Function))
+		})
+
+		it("should handle unexpected errors gracefully", async () => {
+			vitest.mocked(exec).mockImplementation((command: string, options: any, callback: any) => {
+				if (command === "git --version") {
+					// Simulate an unexpected error
+					callback(new Error("Unexpected system error"))
+					return {} as any
+				}
+				callback(new Error("Unexpected command"))
+				return {} as any
+			})
+
+			const result = await checkGitInstalled()
+			expect(result).toBe(false)
+			expect(vitest.mocked(exec)).toHaveBeenCalledWith("git --version", {}, expect.any(Function))
+		})
 	})
 
 	describe("searchCommits", () => {

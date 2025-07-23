@@ -210,7 +210,16 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 	}
 }
 
-async function checkGitInstalled(): Promise<boolean> {
+/**
+ * Checks if Git is installed on the system by attempting to run git --version
+ * @returns {Promise<boolean>} True if Git is installed and accessible, false otherwise
+ * @example
+ * const isGitInstalled = await checkGitInstalled();
+ * if (!isGitInstalled) {
+ *   console.log("Git is not installed");
+ * }
+ */
+export async function checkGitInstalled(): Promise<boolean> {
 	try {
 		await execAsync("git --version")
 		return true

@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "Nie można otworzyć pliku!",
 		"checkpoint_timeout": "Upłynął limit czasu podczas próby przywrócenia punktu kontrolnego.",
 		"checkpoint_failed": "Nie udało się przywrócić punktu kontrolnego.",
+		"git_not_installed": "Funkcja punktów kontrolnych wymaga oprogramowania Git. Zainstaluj Git, aby włączyć punkty kontrolne.",
 		"no_workspace": "Najpierw otwórz folder projektu",
 		"update_support_prompt": "Nie udało się zaktualizować komunikatu wsparcia",
 		"reset_support_prompt": "Nie udało się zresetować komunikatu wsparcia",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "Zapisz",
-		"edit": "Edytuj"
+		"edit": "Edytuj",
+		"learn_more": "Dowiedz się więcej"
 	},
 	"tasks": {
 		"canceled": "Błąd zadania: Zostało zatrzymane i anulowane przez użytkownika.",

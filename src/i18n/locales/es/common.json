@@ -28,6 +28,7 @@
 		"could_not_open_file_generic": "¡No se pudo abrir el archivo!",
 		"checkpoint_timeout": "Se agotó el tiempo al intentar restaurar el punto de control.",
 		"checkpoint_failed": "Error al restaurar el punto de control.",
+		"git_not_installed": "Git es necesario para la función de puntos de control. Por favor, instala Git para activar los puntos de control.",
 		"no_workspace": "Por favor, abre primero una carpeta de proyecto",
 		"update_support_prompt": "Error al actualizar el mensaje de soporte",
 		"reset_support_prompt": "Error al restablecer el mensaje de soporte",
@@ -107,7 +108,8 @@
 	},
 	"buttons": {
 		"save": "Guardar",
-		"edit": "Editar"
+		"edit": "Editar",
+		"learn_more": "Más información"
 	},
 	"tasks": {
 		"canceled": "Error de tarea: Fue detenida y cancelada por el usuario.",
