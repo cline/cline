@@ -295,7 +295,7 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		if (!this.absolutePath) {
+		if (!this.absolutePath || !this.isEditing) {
 			return
 		}
 		const fileExists = this.editType === "modify"
