@@ -130,6 +130,16 @@ function getSelectedModel({
 			const info = groqModels[id as keyof typeof groqModels]
 			return { id, info }
 		}
+		case "huggingface": {
+			const id = apiConfiguration.huggingFaceModelId ?? "meta-llama/Llama-3.3-70B-Instruct"
+			const info = {
+				maxTokens: 8192,
+				contextWindow: 131072,
+				supportsImages: false,
+				supportsPromptCache: false,
+			}
+			return { id, info }
+		}
 		case "chutes": {
 			const id = apiConfiguration.apiModelId ?? chutesDefaultModelId
 			const info = chutesModels[id as keyof typeof chutesModels]

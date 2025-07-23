@@ -32,6 +32,7 @@ export const providerNames = [
 	"groq",
 	"chutes",
 	"litellm",
+	"huggingface",
 ] as const
 
 export const providerNamesSchema = z.enum(providerNames)
@@ -219,6 +220,12 @@ const groqSchema = apiModelIdProviderModelSchema.extend({
 	groqApiKey: z.string().optional(),
 })
 
+const huggingFaceSchema = baseProviderSettingsSchema.extend({
+	huggingFaceApiKey: z.string().optional(),
+	huggingFaceModelId: z.string().optional(),
+	huggingFaceInferenceProvider: z.string().optional(),
+})
+
 const chutesSchema = apiModelIdProviderModelSchema.extend({
 	chutesApiKey: z.string().optional(),
 })
@@ -256,6 +263,7 @@ export const providerSettingsSchemaDiscriminated = z.discriminatedUnion("apiProv
 	fakeAiSchema.merge(z.object({ apiProvider: z.literal("fake-ai") })),
 	xaiSchema.merge(z.object({ apiProvider: z.literal("xai") })),
 	groqSchema.merge(z.object({ apiProvider: z.literal("groq") })),
+	huggingFaceSchema.merge(z.object({ apiProvider: z.literal("huggingface") })),
 	chutesSchema.merge(z.object({ apiProvider: z.literal("chutes") })),
 	litellmSchema.merge(z.object({ apiProvider: z.literal("litellm") })),
 	defaultSchema,
@@ -285,6 +293,7 @@ export const providerSettingsSchema = z.object({
 	...fakeAiSchema.shape,
 	...xaiSchema.shape,
 	...groqSchema.shape,
+	...huggingFaceSchema.shape,
 	...chutesSchema.shape,
 	...litellmSchema.shape,
 	...codebaseIndexProviderSchema.shape,
@@ -304,6 +313,7 @@ export const MODEL_ID_KEYS: Partial<keyof ProviderSettings>[] = [
 	"unboundModelId",
 	"requestyModelId",
 	"litellmModelId",
+	"huggingFaceModelId",
 ]
 
 export const getModelId = (settings: ProviderSettings): string | undefined => {

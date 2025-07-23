@@ -67,6 +67,7 @@ export interface ExtensionMessage {
 		| "ollamaModels"
 		| "lmStudioModels"
 		| "vsCodeLmModels"
+		| "huggingFaceModels"
 		| "vsCodeLmApiAvailable"
 		| "updatePrompt"
 		| "systemPrompt"
@@ -135,6 +136,28 @@ export interface ExtensionMessage {
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
+	huggingFaceModels?: Array<{
+		_id: string
+		id: string
+		inferenceProviderMapping: Array<{
+			provider: string
+			providerId: string
+			status: "live" | "staging" | "error"
+			task: "conversational"
+		}>
+		trendingScore: number
+		config: {
+			architectures: string[]
+			model_type: string
+			tokenizer_config?: {
+				chat_template?: string | Array<{ name: string; template: string }>
+				model_max_length?: number
+			}
+		}
+		tags: string[]
+		pipeline_tag: "text-generation" | "image-text-to-text"
+		library_name?: string
+	}>
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
 	listApiConfig?: ProviderSettingsEntry[]

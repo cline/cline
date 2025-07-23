@@ -59,6 +59,7 @@ import {
 	Gemini,
 	Glama,
 	Groq,
+	HuggingFace,
 	LMStudio,
 	LiteLLM,
 	Mistral,
@@ -485,6 +486,10 @@ const ApiOptions = ({
 
 			{selectedProvider === "groq" && (
 				<Groq apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+			)}
+
+			{selectedProvider === "huggingface" && (
+				<HuggingFace apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 			)}
 
 			{selectedProvider === "chutes" && (

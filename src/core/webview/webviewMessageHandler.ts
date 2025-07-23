@@ -674,6 +674,22 @@ export const webviewMessageHandler = async (
 			// TODO: Cache like we do for OpenRouter, etc?
 			provider.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
 			break
+		case "requestHuggingFaceModels":
+			try {
+				const { getHuggingFaceModels } = await import("../../api/huggingface-models")
+				const huggingFaceModelsResponse = await getHuggingFaceModels()
+				provider.postMessageToWebview({
+					type: "huggingFaceModels",
+					huggingFaceModels: huggingFaceModelsResponse.models,
+				})
+			} catch (error) {
+				console.error("Failed to fetch Hugging Face models:", error)
+				provider.postMessageToWebview({
+					type: "huggingFaceModels",
+					huggingFaceModels: [],
+				})
+			}
+			break
 		case "openImage":
 			openImage(message.text!, { values: message.values })
 			break

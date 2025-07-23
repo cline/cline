@@ -67,6 +67,7 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "requestVsCodeLmModels"
+		| "requestHuggingFaceModels"
 		| "openImage"
 		| "saveImage"
 		| "openFile"
