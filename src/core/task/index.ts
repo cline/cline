@@ -263,11 +263,13 @@ export class Task {
 					diffViewProvider: this.diffViewProvider,
 					messageStateHandler: this.messageStateHandler,
 					fileContextTracker: this.fileContextTracker,
+					taskState: this.taskState,
 				},
 				{
 					updateTaskHistory: this.updateTaskHistory,
 					say: this.say.bind(this),
 					cancelTask: this.cancelTask,
+					postStateToWebview: this.postStateToWebview,
 				},
 				{
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
