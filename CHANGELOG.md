@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.1
+
+### Patch Changes
+
+- 9fad0aa: Fix for files being deleted when switching modes or closing tasks
+
 ## [3.20.0]
 
 - Add account balance display for all organization members, allowing non-admin users to view their organization's credit balance and add credits
