@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.20.0]
+
+- Add account balance display for all organization members, allowing non-admin users to view their organization's credit balance and add credits
+
 ## [3.19.8]
 
 - Add Claude Code support on Windows with improved system prompt handling to fix E2BIG errors (Thanks @BarreiroT!)
