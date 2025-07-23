@@ -57,10 +57,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Hugging Face Provider:</b> Added as a new API provider with support for their inference API models.
 				</li>
 				<li>
-					<b>Groq Provider:</b> New API provider with support for all Groq models including Kimi-K2 with improved
-					routing for better availability and performance.
-				</li>
-				<li>
 					<b>Moonshot Chinese Endpoints:</b> Added ability to choose Chinese endpoint for Moonshot provider and added
 					Moonshot AI as a new provider.
 				</li>
