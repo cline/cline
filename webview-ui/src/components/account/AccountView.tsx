@@ -149,14 +149,6 @@ export const ClineAccountView = () => {
 
 	const getUserOrganizations = useCallback(async () => {
 		try {
-			if (!clineUser?.uid) {
-				setBalance(null)
-				setUserOrganizations([])
-				setActiveOrganization(null)
-				setIsSwitchingProfile(false)
-				setIsLoading(false)
-				return
-			}
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
 				setUserOrganizations(response.organizations)
@@ -179,7 +171,7 @@ export const ClineAccountView = () => {
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [clineUser?.uid, userOrganizations, isSwitchingProfile, activeOrganization?.organizationId])
+	}, [userOrganizations, isSwitchingProfile, activeOrganization?.organizationId])
 
 	const fetchCreditBalance = useCallback(async () => {
 		try {
@@ -277,12 +269,21 @@ export const ClineAccountView = () => {
 
 	// Handle organization changes and initial load
 	useEffect(() => {
+		// Reset state when user is not logged in
+		if (!clineUser?.uid) {
+			setIsLoading(true)
+			setBalance(null)
+			setUserOrganizations([])
+			setActiveOrganization(null)
+			setIsSwitchingProfile(false)
+			return
+		}
 		const loadData = async () => {
 			await getUserOrganizations()
 			await fetchCreditBalance()
 		}
 		loadData()
-	}, [activeOrganization?.organizationId])
+	}, [activeOrganization?.organizationId, clineUser?.uid])
 
 	// Periodic refresh
 	useEffect(() => {
@@ -376,7 +377,11 @@ export const ClineAccountView = () => {
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
 							{balance === null ? <span>----</span> : <StyledCreditDisplay balance={balance} />}
-							<VSCodeButton appearance="icon" className="mt-1" onClick={handleManualRefresh}>
+							<VSCodeButton
+								appearance="icon"
+								className={`mt-1 ${isLoading ? "animate-spin" : ""}`}
+								onClick={handleManualRefresh}
+								disabled={isLoading}>
 								<span className="codicon codicon-refresh"></span>
 							</VSCodeButton>
 						</div>
