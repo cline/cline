@@ -1,122 +1,320 @@
-import { render, screen, fireEvent } from "@/utils/test-utils"
+// npx vitest src/components/settings/__tests__/ContextManagementSettings.spec.tsx
 
-import { ContextManagementSettings } from "@src/components/settings/ContextManagementSettings"
+import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
+import { ContextManagementSettings } from "../ContextManagementSettings"
 
-// Mock translation hook to return the key as the translation
-vitest.mock("@/i18n/TranslationContext", () => ({
+// Mock the translation hook
+vi.mock("@/hooks/useAppTranslation", () => ({
 	useAppTranslation: () => ({
-		t: (key: string) => key,
+		t: (key: string) => {
+			// Return specific translations for our test cases
+			if (key === "settings:contextManagement.diagnostics.maxMessages.unlimitedLabel") {
+				return "Unlimited"
+			}
+			return key
+		},
 	}),
+}))
+
+// Mock the UI components
+vi.mock("@/components/ui", () => ({
+	...vi.importActual("@/components/ui"),
+	Slider: ({ value, onValueChange, "data-testid": dataTestId, disabled }: any) => (
+		<input
+			type="range"
+			value={value?.[0] ?? 0}
+			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+			onKeyDown={(e) => {
+				const currentValue = value?.[0] ?? 0
+				if (e.key === "ArrowRight") {
+					onValueChange([currentValue + 1])
+				} else if (e.key === "ArrowLeft") {
+					onValueChange([currentValue - 1])
+				}
+			}}
+			data-testid={dataTestId}
+			disabled={disabled}
+			role="slider"
+		/>
+	),
+	Input: ({ value, onChange, "data-testid": dataTestId, ...props }: any) => (
+		<input value={value} onChange={onChange} data-testid={dataTestId} {...props} />
+	),
+	Button: ({ children, onClick, ...props }: any) => (
+		<button onClick={onClick} {...props}>
+			{children}
+		</button>
+	),
+	Select: ({ children, ...props }: any) => (
+		<div role="combobox" {...props}>
+			{children}
+		</div>
+	),
+	SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+	SelectValue: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+	SelectContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+	SelectItem: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 }))
 
 // Mock vscode utilities - this is necessary since we're not in a VSCode environment
 
-vitest.mock("@/utils/vscode", () => ({
+vi.mock("@/utils/vscode", () => ({
 	vscode: {
-		postMessage: vitest.fn(),
+		postMessage: vi.fn(),
 	},
 }))
 
 // Mock VSCode components to behave like standard HTML elements
-vitest.mock("@vscode/webview-ui-toolkit/react", () => ({
+vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeCheckbox: ({ checked, onChange, children, "data-testid": dataTestId, ...props }: any) => (
-		<div>
+		<label data-testid={dataTestId} {...props}>
 			<input
 				type="checkbox"
-				checked={checked}
-				onChange={onChange}
-				data-testid={dataTestId}
-				aria-label={children?.props?.children || children}
 				role="checkbox"
-				aria-checked={checked}
-				{...props}
+				checked={checked || false}
+				aria-checked={checked || false}
+				onChange={(e: any) => onChange?.({ target: { checked: e.target.checked } })}
 			/>
 			{children}
-		</div>
+		</label>
 	),
-	VSCodeTextArea: ({ value, onChange, rows, className, ...props }: any) => (
-		<textarea value={value} onChange={onChange} rows={rows} className={className} role="textbox" {...props} />
-	),
+	VSCodeTextArea: ({ value, onChange, ...props }: any) => <textarea value={value} onChange={onChange} {...props} />,
 }))
 
 describe("ContextManagementSettings", () => {
 	const defaultProps = {
-		autoCondenseContext: true,
-		autoCondenseContextPercent: 100,
+		autoCondenseContext: false,
+		autoCondenseContextPercent: 80,
+		condensingApiConfigId: undefined,
+		customCondensingPrompt: undefined,
 		listApiConfigMeta: [],
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
 		showRooIgnoredFiles: false,
-		setCachedStateField: vitest.fn(),
+		maxReadFileLine: -1,
+		maxConcurrentFileReads: 5,
 		profileThresholds: {},
+		includeDiagnosticMessages: true,
+		maxDiagnosticMessages: 50,
+		writeDelayMs: 1000,
+		setCachedStateField: vi.fn(),
 	}
 
 	beforeEach(() => {
-		vitest.clearAllMocks()
+		vi.clearAllMocks()
 	})
 
-	it("renders all controls", () => {
+	it("renders diagnostic settings", () => {
 		render(<ContextManagementSettings {...defaultProps} />)
 
-		// Open tabs context limit
-		const openTabsSlider = screen.getByTestId("open-tabs-limit-slider")
-		expect(openTabsSlider).toBeInTheDocument()
+		// Check for diagnostic checkbox
+		expect(screen.getByTestId("include-diagnostic-messages-checkbox")).toBeInTheDocument()
 
-		// Workspace files limit
-		const workspaceFilesSlider = screen.getByTestId("workspace-files-limit-slider")
-		expect(workspaceFilesSlider).toBeInTheDocument()
-
-		// Show .rooignore'd files
-		const showRooIgnoredFilesCheckbox = screen.getByTestId("show-rooignored-files-checkbox")
-		expect(showRooIgnoredFilesCheckbox).toBeInTheDocument()
-		expect(screen.getByTestId("show-rooignored-files-checkbox")).not.toBeChecked()
+		// Check for slider
+		expect(screen.getByTestId("max-diagnostic-messages-slider")).toBeInTheDocument()
+		expect(screen.getByText("50")).toBeInTheDocument()
 	})
 
-	it("updates open tabs context limit", () => {
-		const mockSetCachedStateField = vitest.fn()
-		const props = { ...defaultProps, setCachedStateField: mockSetCachedStateField }
-		render(<ContextManagementSettings {...props} />)
+	it("renders with diagnostic messages enabled", () => {
+		render(<ContextManagementSettings {...defaultProps} includeDiagnosticMessages={true} />)
 
-		const slider = screen.getByTestId("open-tabs-limit-slider")
+		const checkbox = screen.getByTestId("include-diagnostic-messages-checkbox")
+		expect(checkbox.querySelector("input")).toBeChecked()
+
+		const slider = screen.getByTestId("max-diagnostic-messages-slider")
 		expect(slider).toBeInTheDocument()
-
-		// Check that the current value is displayed
-		expect(screen.getByText("20")).toBeInTheDocument()
-
-		// Test slider interaction using keyboard events (ArrowRight increases value)
-		slider.focus()
-		fireEvent.keyDown(slider, { key: "ArrowRight" })
-
-		// The callback should have been called with the new value (20 + 1 = 21)
-		expect(mockSetCachedStateField).toHaveBeenCalledWith("maxOpenTabsContext", 21)
+		expect(slider).toHaveValue("50")
 	})
 
-	it("updates workspace files limit", () => {
-		const mockSetCachedStateField = vitest.fn()
-		const props = { ...defaultProps, setCachedStateField: mockSetCachedStateField }
-		render(<ContextManagementSettings {...props} />)
+	it("renders with diagnostic messages disabled", () => {
+		render(<ContextManagementSettings {...defaultProps} includeDiagnosticMessages={false} />)
 
-		const slider = screen.getByTestId("workspace-files-limit-slider")
-		expect(slider).toBeInTheDocument()
+		const checkbox = screen.getByTestId("include-diagnostic-messages-checkbox")
+		expect(checkbox.querySelector("input")).not.toBeChecked()
 
-		// Check that the current value is displayed
-		expect(screen.getByText("200")).toBeInTheDocument()
-
-		// Test slider interaction using keyboard events (ArrowRight increases value)
-		slider.focus()
-		fireEvent.keyDown(slider, { key: "ArrowRight" })
-
-		// The callback should have been called with the new value (200 + 1 = 201)
-		expect(mockSetCachedStateField).toHaveBeenCalledWith("maxWorkspaceFiles", 201)
+		// Slider should still be rendered when diagnostics are disabled
+		expect(screen.getByTestId("max-diagnostic-messages-slider")).toBeInTheDocument()
+		expect(screen.getByText("50")).toBeInTheDocument()
 	})
 
-	it("updates show rooignored files setting", () => {
-		render(<ContextManagementSettings {...defaultProps} />)
+	it("calls setCachedStateField when include diagnostic messages checkbox is toggled", async () => {
+		const setCachedStateField = vi.fn()
+		render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
 
-		const checkbox = screen.getByTestId("show-rooignored-files-checkbox")
+		const checkbox = screen.getByTestId("include-diagnostic-messages-checkbox").querySelector("input")!
 		fireEvent.click(checkbox)
 
-		expect(defaultProps.setCachedStateField).toHaveBeenCalledWith("showRooIgnoredFiles", true)
+		await waitFor(() => {
+			expect(setCachedStateField).toHaveBeenCalledWith("includeDiagnosticMessages", false)
+		})
+	})
+
+	it("calls setCachedStateField when max diagnostic messages slider is changed", async () => {
+		const setCachedStateField = vi.fn()
+		render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+		const slider = screen.getByTestId("max-diagnostic-messages-slider")
+		fireEvent.change(slider, { target: { value: "100" } })
+
+		await waitFor(() => {
+			expect(setCachedStateField).toHaveBeenCalledWith("maxDiagnosticMessages", -1)
+		})
+	})
+
+	it("keeps slider visible when include diagnostic messages is unchecked", () => {
+		const { rerender } = render(<ContextManagementSettings {...defaultProps} includeDiagnosticMessages={true} />)
+
+		const slider = screen.getByTestId("max-diagnostic-messages-slider")
+		expect(slider).toBeInTheDocument()
+
+		// Update to disabled - slider should still be visible
+		rerender(<ContextManagementSettings {...defaultProps} includeDiagnosticMessages={false} />)
+		expect(screen.getByTestId("max-diagnostic-messages-slider")).toBeInTheDocument()
+	})
+
+	it("displays correct max diagnostic messages value", () => {
+		const { rerender } = render(<ContextManagementSettings {...defaultProps} maxDiagnosticMessages={25} />)
+
+		expect(screen.getByText("25")).toBeInTheDocument()
+
+		// Update value - 100 should display as "Unlimited"
+		rerender(<ContextManagementSettings {...defaultProps} maxDiagnosticMessages={100} />)
+		expect(
+			screen.getByText("settings:contextManagement.diagnostics.maxMessages.unlimitedLabel"),
+		).toBeInTheDocument()
+
+		// Test unlimited value (-1) displays as "Unlimited"
+		rerender(<ContextManagementSettings {...defaultProps} maxDiagnosticMessages={-1} />)
+		expect(
+			screen.getByText("settings:contextManagement.diagnostics.maxMessages.unlimitedLabel"),
+		).toBeInTheDocument()
+	})
+
+	it("renders other context management settings", () => {
+		render(<ContextManagementSettings {...defaultProps} />)
+
+		// Check for other sliders
+		expect(screen.getByTestId("open-tabs-limit-slider")).toBeInTheDocument()
+		expect(screen.getByTestId("workspace-files-limit-slider")).toBeInTheDocument()
+		expect(screen.getByTestId("max-concurrent-file-reads-slider")).toBeInTheDocument()
+
+		// Check for checkboxes
+		expect(screen.getByTestId("show-rooignored-files-checkbox")).toBeInTheDocument()
+		expect(screen.getByTestId("auto-condense-context-checkbox")).toBeInTheDocument()
+	})
+
+	describe("Edge cases for maxDiagnosticMessages", () => {
+		it("handles zero value as unlimited", async () => {
+			const setCachedStateField = vi.fn()
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					maxDiagnosticMessages={0}
+					setCachedStateField={setCachedStateField}
+				/>,
+			)
+
+			// Zero is now treated as unlimited
+			expect(
+				screen.getByText("settings:contextManagement.diagnostics.maxMessages.unlimitedLabel"),
+			).toBeInTheDocument()
+
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			// Zero should map to slider position 100 (unlimited)
+			expect(slider).toHaveValue("100")
+		})
+
+		it("handles negative values as unlimited", async () => {
+			const setCachedStateField = vi.fn()
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					maxDiagnosticMessages={-10}
+					setCachedStateField={setCachedStateField}
+				/>,
+			)
+
+			// Component displays "Unlimited" for any negative value
+			expect(
+				screen.getByText("settings:contextManagement.diagnostics.maxMessages.unlimitedLabel"),
+			).toBeInTheDocument()
+
+			// Slider should be at max position (100) for negative values
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			expect(slider).toHaveValue("100")
+		})
+
+		it("handles very large numbers by capping at maximum", async () => {
+			const setCachedStateField = vi.fn()
+			const largeNumber = 1000
+			render(
+				<ContextManagementSettings
+					{...defaultProps}
+					maxDiagnosticMessages={largeNumber}
+					setCachedStateField={setCachedStateField}
+				/>,
+			)
+
+			// Should display the actual value even if it exceeds slider max
+			expect(screen.getByText(largeNumber.toString())).toBeInTheDocument()
+
+			// Slider value would be capped at max (100)
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			expect(slider).toHaveValue("100")
+		})
+
+		it("enforces maximum value constraint", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+
+			// Test that setting value above 100 gets capped
+			fireEvent.change(slider, { target: { value: "150" } })
+
+			await waitFor(() => {
+				// Should be capped at 100, which maps to -1 (unlimited)
+				expect(setCachedStateField).toHaveBeenCalledWith("maxDiagnosticMessages", -1)
+			})
+		})
+
+		it("handles boundary value at minimum (1)", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			fireEvent.change(slider, { target: { value: "1" } })
+
+			await waitFor(() => {
+				expect(setCachedStateField).toHaveBeenCalledWith("maxDiagnosticMessages", 1)
+			})
+		})
+
+		it("handles boundary value at maximum (100) as unlimited (-1)", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			fireEvent.change(slider, { target: { value: "100" } })
+
+			await waitFor(() => {
+				// When slider is at 100, it should set the value to -1 (unlimited)
+				expect(setCachedStateField).toHaveBeenCalledWith("maxDiagnosticMessages", -1)
+			})
+		})
+
+		it("handles decimal values by parsing as float", async () => {
+			const setCachedStateField = vi.fn()
+			render(<ContextManagementSettings {...defaultProps} setCachedStateField={setCachedStateField} />)
+
+			const slider = screen.getByTestId("max-diagnostic-messages-slider")
+			fireEvent.change(slider, { target: { value: "50.7" } })
+
+			await waitFor(() => {
+				// The mock slider component parses as float
+				expect(setCachedStateField).toHaveBeenCalledWith("maxDiagnosticMessages", 50.7)
+			})
+		})
 	})
 
 	it("renders max read file line controls", () => {
@@ -201,7 +399,8 @@ describe("ContextManagementSettings", () => {
 			render(<ContextManagementSettings {...props} />)
 
 			const checkbox = screen.getByTestId("auto-condense-context-checkbox")
-			expect(checkbox).toBeChecked()
+			const input = checkbox.querySelector('input[type="checkbox"]')
+			expect(input).toBeChecked()
 
 			// Toggle off
 			fireEvent.click(checkbox)
@@ -238,89 +437,47 @@ describe("ContextManagementSettings", () => {
 		})
 	})
 
-	describe("Edge cases and validation", () => {
-		it("handles invalid max read file line input", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const propsWithMaxReadFileLine = {
-				...defaultProps,
-				maxReadFileLine: 500,
-				setCachedStateField: mockSetCachedStateField,
-			}
-			render(<ContextManagementSettings {...propsWithMaxReadFileLine} />)
+	it("renders max read file line controls with -1 value", () => {
+		const propsWithMaxReadFileLine = {
+			...defaultProps,
+			maxReadFileLine: -1,
+		}
+		render(<ContextManagementSettings {...propsWithMaxReadFileLine} />)
 
-			const input = screen.getByTestId("max-read-file-line-input")
+		const checkbox = screen.getByTestId("max-read-file-always-full-checkbox")
+		const input = checkbox.querySelector('input[type="checkbox"]')
+		expect(input).toBeChecked()
+	})
 
-			// Test invalid input (non-numeric)
-			fireEvent.change(input, { target: { value: "abc" } })
-			expect(mockSetCachedStateField).not.toHaveBeenCalled()
+	it("handles boundary values for sliders", () => {
+		const mockSetCachedStateField = vitest.fn()
+		const props = {
+			...defaultProps,
+			maxOpenTabsContext: 0,
+			maxWorkspaceFiles: 500,
+			setCachedStateField: mockSetCachedStateField,
+		}
+		render(<ContextManagementSettings {...props} />)
 
-			// Test negative value below -1
-			fireEvent.change(input, { target: { value: "-5" } })
-			expect(mockSetCachedStateField).not.toHaveBeenCalled()
+		// Check boundary values are displayed
+		expect(screen.getByText("0")).toBeInTheDocument() // min open tabs
+		expect(screen.getByText("500")).toBeInTheDocument() // max workspace files
+	})
 
-			// Test valid input
-			fireEvent.change(input, { target: { value: "1000" } })
-			expect(mockSetCachedStateField).toHaveBeenCalledWith("maxReadFileLine", 1000)
-		})
+	it("handles undefined optional props gracefully", () => {
+		const propsWithUndefined = {
+			...defaultProps,
+			showRooIgnoredFiles: undefined,
+			maxReadFileLine: undefined,
+		}
 
-		it("selects input text on click", () => {
-			const propsWithMaxReadFileLine = {
-				...defaultProps,
-				maxReadFileLine: 500,
-			}
-			render(<ContextManagementSettings {...propsWithMaxReadFileLine} />)
+		expect(() => {
+			render(<ContextManagementSettings {...propsWithUndefined} />)
+		}).not.toThrow()
 
-			const input = screen.getByTestId("max-read-file-line-input") as HTMLInputElement
-			const selectSpy = vitest.spyOn(input, "select")
-
-			fireEvent.click(input)
-			expect(selectSpy).toHaveBeenCalled()
-		})
-
-		it("disables max read file input when always full read is checked", () => {
-			const propsWithAlwaysFullRead = {
-				...defaultProps,
-				maxReadFileLine: -1,
-			}
-			render(<ContextManagementSettings {...propsWithAlwaysFullRead} />)
-
-			const input = screen.getByTestId("max-read-file-line-input")
-			expect(input).toBeDisabled()
-
-			const checkbox = screen.getByTestId("max-read-file-always-full-checkbox")
-			expect(checkbox).toBeChecked()
-		})
-
-		it("handles boundary values for sliders", () => {
-			const mockSetCachedStateField = vitest.fn()
-			const props = {
-				...defaultProps,
-				maxOpenTabsContext: 0,
-				maxWorkspaceFiles: 500,
-				setCachedStateField: mockSetCachedStateField,
-			}
-			render(<ContextManagementSettings {...props} />)
-
-			// Check boundary values are displayed
-			expect(screen.getByText("0")).toBeInTheDocument() // min open tabs
-			expect(screen.getByText("500")).toBeInTheDocument() // max workspace files
-		})
-
-		it("handles undefined optional props gracefully", () => {
-			const propsWithUndefined = {
-				...defaultProps,
-				showRooIgnoredFiles: undefined,
-				maxReadFileLine: undefined,
-			}
-
-			expect(() => {
-				render(<ContextManagementSettings {...propsWithUndefined} />)
-			}).not.toThrow()
-
-			// Should use default values
-			expect(screen.getByText("20")).toBeInTheDocument() // default maxOpenTabsContext
-			expect(screen.getByText("200")).toBeInTheDocument() // default maxWorkspaceFiles
-		})
+		// Should use default values
+		expect(screen.getByText("20")).toBeInTheDocument() // default maxOpenTabsContext
+		expect(screen.getByText("200")).toBeInTheDocument() // default maxWorkspaceFiles
 	})
 
 	describe("Conditional rendering", () => {

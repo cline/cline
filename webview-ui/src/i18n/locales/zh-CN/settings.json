@@ -488,6 +488,23 @@
 			"label": "并发文件读取限制",
 			"description": "read_file 工具可以同时处理的最大文件数。较高的值可能会加快读取多个小文件的速度，但会增加内存使用量。"
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "自动在上下文中包含诊断",
+				"description": "启用后，来自已编辑文件的诊断消息（错误）将自动包含在上下文中。您始终可以使用 @problems 手动包含所有工作区诊断。"
+			},
+			"maxMessages": {
+				"label": "最大诊断消息数",
+				"description": "每个文件包含的最大诊断消息数。此限制适用于自动包含（启用复选框时）和手动 @problems 提及。较高的值提供更多上下文，但会增加令牌使用量。",
+				"resetTooltip": "重置为默认值 (50)",
+				"unlimited": "无限制诊断消息",
+				"unlimitedLabel": "无限制"
+			},
+			"delayAfterWrite": {
+				"label": "写入后延迟以允许诊断程序检测潜在问题",
+				"description": "在继续之前写入文件后等待的时间，允许诊断工具处理更改并检测问题。"
+			}
+		},
 		"condensingThreshold": {
 			"label": "压缩触发阈值",
 			"selectProfile": "配置配置文件阈值",

@@ -488,6 +488,22 @@
 			"lines": "Zeilen",
 			"always_full_read": "Immer die gesamte Datei lesen"
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "Diagnosen automatisch in den Kontext aufnehmen",
+				"description": "Wenn aktiviert, werden Diagnosenachrichten (Fehler) aus bearbeiteten Dateien automatisch in den Kontext aufgenommen. Sie können jederzeit alle Workspace-Diagnosen manuell mit @problems einbeziehen."
+			},
+			"maxMessages": {
+				"label": "Maximale Anzahl von Diagnosenachrichten",
+				"description": "Maximale Anzahl von Diagnosenachrichten, die pro Datei eingeschlossen werden. Dieses Limit gilt sowohl für die automatische Einbeziehung (wenn das Kontrollkästchen aktiviert ist) als auch für manuelle @problems-Erwähnungen. Höhere Werte bieten mehr Kontext, erhöhen aber den Token-Verbrauch.",
+				"resetTooltip": "Auf Standardwert zurücksetzen (50)",
+				"unlimitedLabel": "Unbegrenzt"
+			},
+			"delayAfterWrite": {
+				"label": "Verzögerung nach Schreibvorgängen, damit Diagnosen potenzielle Probleme erkennen können",
+				"description": "Wartezeit nach Dateischreibvorgängen vor dem Fortfahren, damit Diagnosetools Änderungen verarbeiten und Probleme erkennen können."
+			}
+		},
 		"condensingThreshold": {
 			"label": "Schwellenwert für Kontextkomprimierung",
 			"selectProfile": "Profil für Schwellenwert konfigurieren",

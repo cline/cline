@@ -101,6 +101,7 @@ describe("DiffViewProvider", () => {
 	let diffViewProvider: DiffViewProvider
 	const mockCwd = "/mock/cwd"
 	let mockWorkspaceEdit: { replace: any; delete: any }
+	let mockTask: any
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -110,7 +111,19 @@ describe("DiffViewProvider", () => {
 		}
 		vi.mocked(vscode.WorkspaceEdit).mockImplementation(() => mockWorkspaceEdit as any)
 
-		diffViewProvider = new DiffViewProvider(mockCwd)
+		// Create a mock Task instance
+		mockTask = {
+			providerRef: {
+				deref: vi.fn().mockReturnValue({
+					getState: vi.fn().mockResolvedValue({
+						includeDiagnosticMessages: true,
+						maxDiagnosticMessages: 50,
+					}),
+				}),
+			},
+		}
+
+		diffViewProvider = new DiffViewProvider(mockCwd, mockTask)
 		// Mock the necessary properties and methods
 		;(diffViewProvider as any).relPath = "test.txt"
 		;(diffViewProvider as any).activeDiffEditor = {

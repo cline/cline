@@ -470,6 +470,23 @@
 			"name": "Secara otomatis memicu kondensasi konteks cerdas",
 			"description": "Ketika diaktifkan, Roo akan secara otomatis mengondensasi konteks ketika ambang batas tercapai. Ketika dinonaktifkan, kamu masih dapat memicu kondensasi konteks secara manual."
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "Secara otomatis sertakan diagnostik dalam konteks",
+				"description": "Ketika diaktifkan, pesan diagnostik (error) dari file yang diedit akan secara otomatis disertakan dalam konteks. Kamu selalu dapat menyertakan semua diagnostik workspace secara manual menggunakan @problems."
+			},
+			"maxMessages": {
+				"label": "Pesan diagnostik maksimum",
+				"description": "Jumlah maksimum pesan diagnostik yang akan disertakan per file. Batas ini berlaku untuk penyertaan otomatis (ketika checkbox diaktifkan) dan penyebutan manual @problems. Nilai yang lebih tinggi memberikan lebih banyak konteks tetapi meningkatkan penggunaan token.",
+				"resetTooltip": "Reset ke nilai default (50)",
+				"unlimited": "Pesan diagnostik tidak terbatas",
+				"unlimitedLabel": "Tak terbatas"
+			},
+			"delayAfterWrite": {
+				"label": "Tunda setelah penulisan untuk memungkinkan diagnostik mendeteksi potensi masalah",
+				"description": "Waktu tunggu setelah penulisan file sebelum melanjutkan, memungkinkan alat diagnostik untuk memproses perubahan dan mendeteksi masalah."
+			}
+		},
 		"condensingThreshold": {
 			"label": "Ambang Batas Pemicu Kondensasi",
 			"selectProfile": "Konfigurasi ambang batas untuk profil",

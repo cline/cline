@@ -488,6 +488,23 @@
 			"label": "Giới hạn đọc file đồng thời",
 			"description": "Số lượng file tối đa mà công cụ 'read_file' có thể xử lý cùng lúc. Giá trị cao hơn có thể tăng tốc độ đọc nhiều file nhỏ nhưng sẽ tăng mức sử dụng bộ nhớ."
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "Tự động bao gồm chẩn đoán trong ngữ cảnh",
+				"description": "Khi được bật, thông báo chẩn đoán (lỗi) từ các tệp đã chỉnh sửa sẽ tự động được bao gồm trong ngữ cảnh. Bạn luôn có thể bao gồm thủ công tất cả chẩn đoán của workspace bằng cách sử dụng @problems."
+			},
+			"maxMessages": {
+				"label": "Thông báo chẩn đoán tối đa",
+				"description": "Số lượng thông báo chẩn đoán tối đa được bao gồm cho mỗi tệp. Giới hạn này áp dụng cho cả việc bao gồm tự động (khi hộp kiểm được bật) và đề cập thủ công @problems. Giá trị cao hơn cung cấp nhiều ngữ cảnh hơn nhưng tăng mức sử dụng token.",
+				"resetTooltip": "Đặt lại về giá trị mặc định (50)",
+				"unlimited": "Thông báo chẩn đoán không giới hạn",
+				"unlimitedLabel": "Không giới hạn"
+			},
+			"delayAfterWrite": {
+				"label": "Trì hoãn sau khi ghi để cho phép chẩn đoán phát hiện các sự cố tiềm ẩn",
+				"description": "Thời gian chờ sau khi ghi tệp trước khi tiếp tục, cho phép các công cụ chẩn đoán xử lý các thay đổi và phát hiện sự cố."
+			}
+		},
 		"condensingThreshold": {
 			"label": "Ngưỡng kích hoạt nén",
 			"selectProfile": "Cấu hình ngưỡng cho hồ sơ",

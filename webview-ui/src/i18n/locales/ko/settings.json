@@ -488,6 +488,23 @@
 			"label": "동시 파일 읽기 제한",
 			"description": "read_file 도구가 동시에 처리할 수 있는 최대 파일 수입니다. 높은 값은 여러 작은 파일을 읽는 속도를 높일 수 있지만 메모리 사용량이 증가합니다."
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "진단을 자동으로 컨텍스트에 포함",
+				"description": "활성화되면 편집된 파일의 진단 메시지(오류)가 자동으로 컨텍스트에 포함됩니다. @problems를 사용하여 언제든지 모든 워크스페이스 진단을 수동으로 포함할 수 있습니다."
+			},
+			"maxMessages": {
+				"label": "최대 진단 메시지",
+				"description": "파일당 포함할 최대 진단 메시지 수입니다. 이 제한은 자동 포함(체크박스가 활성화된 경우)과 수동 @problems 언급 모두에 적용됩니다. 값이 높을수록 더 많은 컨텍스트를 제공하지만 토큰 사용량이 증가합니다.",
+				"resetTooltip": "기본값(50)으로 재설정",
+				"unlimited": "무제한 진단 메시지",
+				"unlimitedLabel": "무제한"
+			},
+			"delayAfterWrite": {
+				"label": "진단이 잠재적인 문제를 감지할 수 있도록 쓰기 후 지연",
+				"description": "파일 쓰기 후 계속 진행하기 전에 대기하는 시간으로, 진단 도구가 변경 사항을 처리하고 문제를 감지할 수 있도록 합니다."
+			}
+		},
 		"condensingThreshold": {
 			"label": "압축 트리거 임계값",
 			"selectProfile": "프로필 임계값 구성",

@@ -260,7 +260,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.consecutiveMistakeLimit = consecutiveMistakeLimit ?? DEFAULT_CONSECUTIVE_MISTAKE_LIMIT
 		this.providerRef = new WeakRef(provider)
 		this.globalStoragePath = provider.context.globalStorageUri.fsPath
-		this.diffViewProvider = new DiffViewProvider(this.cwd)
+		this.diffViewProvider = new DiffViewProvider(this.cwd, this)
 		this.enableCheckpoints = enableCheckpoints
 
 		this.rootTask = rootTask
@@ -1225,7 +1225,11 @@ export class Task extends EventEmitter<ClineEvents> {
 			}),
 		)
 
-		const { showRooIgnoredFiles = true } = (await this.providerRef.deref()?.getState()) ?? {}
+		const {
+			showRooIgnoredFiles = true,
+			includeDiagnosticMessages = true,
+			maxDiagnosticMessages = 50,
+		} = (await this.providerRef.deref()?.getState()) ?? {}
 
 		const parsedUserContent = await processUserContentMentions({
 			userContent,
@@ -1234,6 +1238,8 @@ export class Task extends EventEmitter<ClineEvents> {
 			fileContextTracker: this.fileContextTracker,
 			rooIgnoreController: this.rooIgnoreController,
 			showRooIgnoredFiles,
+			includeDiagnosticMessages,
+			maxDiagnosticMessages,
 		})
 
 		const environmentDetails = await getEnvironmentDetails(this, includeFileDetails)

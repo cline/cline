@@ -162,6 +162,8 @@ export interface WebviewMessage {
 		| "language"
 		| "maxReadFileLine"
 		| "maxConcurrentFileReads"
+		| "includeDiagnosticMessages"
+		| "maxDiagnosticMessages"
 		| "searchFiles"
 		| "toggleApiConfigPin"
 		| "setHistoryPreviewCollapsed"

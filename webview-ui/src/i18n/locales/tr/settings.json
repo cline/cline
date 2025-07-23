@@ -488,6 +488,23 @@
 			"label": "Eşzamanlı dosya okuma sınırı",
 			"description": "'read_file' aracının aynı anda işleyebileceği maksimum dosya sayısı. Daha yüksek değerler birden çok küçük dosyanın okunmasını hızlandırabilir ancak bellek kullanımını artırır."
 		},
+		"diagnostics": {
+			"includeMessages": {
+				"label": "Tanı mesajlarını otomatik olarak bağlama dahil et",
+				"description": "Etkinleştirildiğinde, düzenlenen dosyalardan tanı mesajları (hatalar) otomatik olarak bağlama dahil edilecektir. @problems kullanarak tüm çalışma alanı tanı mesajlarını her zaman manuel olarak dahil edebilirsiniz."
+			},
+			"maxMessages": {
+				"label": "Maksimum tanı mesajı",
+				"description": "Dosya başına dahil edilecek maksimum tanı mesajı sayısı. Bu sınır hem otomatik dahil etme (onay kutusu etkinleştirildiğinde) hem de manuel @problems bahisleri için geçerlidir. Daha yüksek değerler daha fazla bağlam sağlar ancak jeton kullanımını artırır.",
+				"resetTooltip": "Varsayılan değere sıfırla (50)",
+				"unlimited": "Sınırsız tanı mesajları",
+				"unlimitedLabel": "Sınırsız"
+			},
+			"delayAfterWrite": {
+				"label": "Potansiyel sorunları tespit etmek için tanılamaya izin vermek üzere yazmalardan sonra gecikme",
+				"description": "Devam etmeden önce dosya yazımlarından sonra beklenecek süre, tanılama araçlarının değişiklikleri işlemesine ve sorunları tespit etmesine olanak tanır."
+			}
+		},
 		"condensingThreshold": {
 			"label": "Sıkıştırma Tetikleme Eşiği",
 			"selectProfile": "Profil için eşik yapılandır",

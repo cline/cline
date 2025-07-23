@@ -80,6 +80,8 @@ export async function parseMentions(
 	fileContextTracker?: FileContextTracker,
 	rooIgnoreController?: RooIgnoreController,
 	showRooIgnoredFiles: boolean = true,
+	includeDiagnosticMessages: boolean = true,
+	maxDiagnosticMessages: number = 50,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
@@ -165,7 +167,7 @@ export async function parseMentions(
 			}
 		} else if (mention === "problems") {
 			try {
-				const problems = await getWorkspaceProblems(cwd)
+				const problems = await getWorkspaceProblems(cwd, includeDiagnosticMessages, maxDiagnosticMessages)
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
@@ -286,12 +288,18 @@ async function getFileOrFolderContent(
 	}
 }
 
-async function getWorkspaceProblems(cwd: string): Promise<string> {
+async function getWorkspaceProblems(
+	cwd: string,
+	includeDiagnosticMessages: boolean = true,
+	maxDiagnosticMessages: number = 50,
+): Promise<string> {
 	const diagnostics = vscode.languages.getDiagnostics()
 	const result = await diagnosticsToProblemsString(
 		diagnostics,
 		[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
 		cwd,
+		includeDiagnosticMessages,
+		maxDiagnosticMessages,
 	)
 	if (!result) {
 		return "No errors or warnings detected."
