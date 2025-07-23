@@ -5,6 +5,13 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useMount } from "react-use"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import type { Mode } from "@shared/ChatSettings"
+import {
+	VSC_BUTTON_BACKGROUND,
+	VSC_BUTTON_FOREGROUND,
+	VSC_DESCRIPTION_FOREGROUND,
+	VSC_INPUT_BACKGROUND,
+	VSC_INPUT_BORDER,
+} from "@/utils/vscStyles"
 
 /**
  * Props for the OcaProvider component
@@ -19,44 +26,13 @@ function isTokenValid(accessToken?: string, expiresAt?: number, bufferSec = 300)
 	return expiresAt * 1000 > Date.now() + bufferSec * 1000
 }
 
-function InfoCard({
-	icon,
-	children,
-	style = {},
-}: {
-	icon: React.ReactNode
-	children: React.ReactNode
-	style?: React.CSSProperties
-}) {
+function InfoCard({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
 	return (
 		<div
-			style={{
-				display: "flex",
-				alignItems: "flex-start",
-				gap: 12,
-				background: "rgba(34, 34, 34, 0.91)", // slightly darker
-				borderRadius: 16,
-				padding: "15px 18px 15px 16px",
-				margin: "12px 0",
-				width: "100%",
-				boxSizing: "border-box",
-				boxShadow: "0 1px 4px rgba(0,0,0,0.10)", // subtle inner
-				transition: "box-shadow 0.18s",
-				...style,
-			}}>
-			<div
-				style={{
-					width: 22,
-					height: 22,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					marginTop: 1,
-					flexShrink: 0,
-				}}>
-				{icon}
-			</div>
-			<div style={{ flex: 1 }}>{children}</div>
+			className={`flex items-start gap-3 rounded-xl px-5 py-4 border shadow-sm min-w-[40%] max-w-[90%] w-full box-border 
+                 bg-[var(${VSC_INPUT_BACKGROUND})] border-[var(${VSC_INPUT_BORDER})]`}>
+			<div className="min-w-[22px] h-[22px] flex items-center justify-center shrink-0 mt-px">{icon}</div>
+			<div className="flex-1">{children}</div>
 		</div>
 	)
 }
@@ -93,19 +69,9 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 			) : (
 				<div>
 					<div
-						style={{
-							fontSize: 13,
-							color: "var(--vscode-descriptionForeground)",
-							margin: "12px 0",
-							display: "flex",
-							flexDirection: "column",
-							gap: 4,
-							fontWeight: 600,
-						}}>
+						className={`flex flex-col gap-1 font-semibold text-[13px] my-[12px] [color:var(${VSC_DESCRIPTION_FOREGROUND})]`}>
 						<span>Logged in as</span>
-						<span style={{ fontWeight: 600, opacity: 0.95 }}>
-							{apiConfiguration?.ocaAccessTokenSub ?? "Unknown User"}
-						</span>
+						<span className="font-semibold opacity-95">{apiConfiguration?.ocaAccessTokenSub ?? "Unknown User"}</span>
 					</div>
 					<BaseUrlField
 						initialValue={apiConfiguration?.ocaLiteLlmBaseUrl || ""}
@@ -119,8 +85,8 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 							fontSize: 14,
 							borderRadius: 22,
 							fontWeight: 500,
-							background: "var(--vscode-button-background, #0078d4)",
-							color: "var(--vscode-button-foreground, #fff)",
+							background: `var(${VSC_BUTTON_BACKGROUND}, #0078d4)`,
+							color: `var(${VSC_BUTTON_FOREGROUND}, #fff)`,
 							minWidth: 0,
 							margin: "12px 0",
 						}}
@@ -139,7 +105,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 								/>
 							</svg>
 						}>
-						<div style={{ fontSize: 14, color: "var(--vscode-descriptionForeground)", lineHeight: 1.65 }}>
+						<div className={`text-[14px] leading-[1.65] [color:var(${VSC_DESCRIPTION_FOREGROUND})]`}>
 							For internal Oracle Employees, <br />
 							please see the{" "}
 							<VSCodeLink
