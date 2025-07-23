@@ -281,7 +281,7 @@ export class Controller {
 				)
 
 				return true
-			} else if (this.task.taskState.isStreaming) {
+			} else if (this.task.taskState.isStreaming || this.task.taskState.isWaitingForFirstChunk) {
 				this.cancelTask()
 				return false
 			} else {
