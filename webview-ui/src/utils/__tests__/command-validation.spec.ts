@@ -50,6 +50,121 @@ describe("Command Validation", () => {
 				parseCommand('npm test | Select-String -NotMatch "node_modules" | Select-String "FAIL|Error"'),
 			).toEqual(["npm test", 'Select-String -NotMatch "node_modules"', 'Select-String "FAIL|Error"'])
 		})
+
+		describe("newline handling", () => {
+			it("splits commands by Unix newlines (\\n)", () => {
+				expect(parseCommand("echo hello\ngit status\nnpm install")).toEqual([
+					"echo hello",
+					"git status",
+					"npm install",
+				])
+			})
+
+			it("splits commands by Windows newlines (\\r\\n)", () => {
+				expect(parseCommand("echo hello\r\ngit status\r\nnpm install")).toEqual([
+					"echo hello",
+					"git status",
+					"npm install",
+				])
+			})
+
+			it("splits commands by old Mac newlines (\\r)", () => {
+				expect(parseCommand("echo hello\rgit status\rnpm install")).toEqual([
+					"echo hello",
+					"git status",
+					"npm install",
+				])
+			})
+
+			it("handles mixed line endings", () => {
+				expect(parseCommand("echo hello\ngit status\r\nnpm install\rls -la")).toEqual([
+					"echo hello",
+					"git status",
+					"npm install",
+					"ls -la",
+				])
+			})
+
+			it("ignores empty lines", () => {
+				expect(parseCommand("echo hello\n\n\ngit status\r\n\r\nnpm install")).toEqual([
+					"echo hello",
+					"git status",
+					"npm install",
+				])
+			})
+
+			it("handles newlines with chain operators", () => {
+				expect(parseCommand('npm install && npm test\ngit add .\ngit commit -m "test"')).toEqual([
+					"npm install",
+					"npm test",
+					"git add .",
+					'git commit -m "test"',
+				])
+			})
+
+			it("splits on actual newlines even within quotes", () => {
+				// Note: Since we split by newlines first, actual newlines in the input
+				// will split the command, even if they appear to be within quotes
+				// Using template literal to create actual newline
+				const commandWithNewlineInQuotes = `echo "Hello
+World"
+git status`
+				// The quotes get stripped because they're no longer properly paired after splitting
+				expect(parseCommand(commandWithNewlineInQuotes)).toEqual(["echo Hello", "World", "git status"])
+			})
+
+			it("handles quoted strings on single line", () => {
+				// When quotes are on the same line, they are preserved
+				expect(parseCommand('echo "Hello World"\ngit status')).toEqual(['echo "Hello World"', "git status"])
+			})
+
+			it("handles complex multi-line commands", () => {
+				const multiLineCommand = `npm install
+npm test && npm run build
+echo "Done" | tee output.log
+git status; git add .
+ls -la || echo "Failed"`
+
+				expect(parseCommand(multiLineCommand)).toEqual([
+					"npm install",
+					"npm test",
+					"npm run build",
+					'echo "Done"',
+					"tee output.log",
+					"git status",
+					"git add .",
+					"ls -la",
+					'echo "Failed"',
+				])
+			})
+
+			it("handles newlines with subshells", () => {
+				expect(parseCommand("echo $(date)\nnpm test\ngit status")).toEqual([
+					"echo",
+					"date",
+					"npm test",
+					"git status",
+				])
+			})
+
+			it("handles newlines with redirections", () => {
+				expect(parseCommand("npm test 2>&1\necho done\nls -la > files.txt")).toEqual([
+					"npm test 2>&1",
+					"echo done",
+					"ls -la > files.txt",
+				])
+			})
+
+			it("handles empty input with newlines", () => {
+				expect(parseCommand("\n\n\n")).toEqual([])
+				expect(parseCommand("\r\n\r\n")).toEqual([])
+				expect(parseCommand("\r\r\r")).toEqual([])
+			})
+
+			it("handles whitespace-only lines", () => {
+				expect(parseCommand("echo hello\n   \t   \ngit status")).toEqual(["echo hello", "git status"])
+			})
+		})
 	})
 
 	describe("isAutoApprovedSingleCommand (legacy behavior)", () => {

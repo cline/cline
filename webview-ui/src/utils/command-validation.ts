@@ -60,15 +60,39 @@ type ShellToken = string | { op: string } | { command: string }
 
 /**
  * Split a command string into individual sub-commands by
- * chaining operators (&&, ||, ;, or |).
+ * chaining operators (&&, ||, ;, or |) and newlines.
  *
  * Uses shell-quote to properly handle:
  * - Quoted strings (preserves quotes)
  * - Subshell commands ($(cmd) or `cmd`)
  * - PowerShell redirections (2>&1)
  * - Chain operators (&&, ||, ;, |)
+ * - Newlines as command separators
  */
 export function parseCommand(command: string): string[] {
+	if (!command?.trim()) return []
+
+	// Split by newlines first (handle different line ending formats)
+	// This regex splits on \r\n (Windows), \n (Unix), or \r (old Mac)
+	const lines = command.split(/\r\n|\r|\n/)
+	const allCommands: string[] = []
+
+	for (const line of lines) {
+		// Skip empty lines
+		if (!line.trim()) continue
+
+		// Process each line through the existing parsing logic
+		const lineCommands = parseCommandLine(line)
+		allCommands.push(...lineCommands)
+	}
+
+	return allCommands
+}
+
+/**
+ * Parse a single line of commands (internal helper function)
+ */
+function parseCommandLine(command: string): string[] {
 	if (!command?.trim()) return []
 
 	// Storage for replaced content
