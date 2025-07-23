@@ -13,6 +13,8 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { TaskState } from "../../core/task/TaskState"
+import pTimeout from "p-timeout"
 
 // Type definitions for better code organization
 type SayFunction = (
@@ -35,11 +37,13 @@ interface CheckpointManagerServices {
 	readonly diffViewProvider: DiffViewProvider
 	readonly messageStateHandler: MessageStateHandler
 	readonly context: vscode.ExtensionContext
+	readonly taskState: TaskState
 }
 interface CheckpointManagerCallbacks {
 	readonly updateTaskHistory: UpdateTaskHistoryFunction
 	readonly cancelTask: () => Promise<void>
 	readonly say: SayFunction
+	readonly postStateToWebview: () => Promise<void>
 }
 interface CheckpointManagerInternalState {
 	conversationHistoryDeletedRange?: [number, number]
@@ -79,6 +83,7 @@ export class TaskCheckpointManager {
 	private readonly config: CheckpointManagerConfig
 	private readonly services: CheckpointManagerServices
 	private readonly callbacks: CheckpointManagerCallbacks
+	private readonly taskState: TaskState
 
 	private state: CheckpointManagerInternalState
 
@@ -93,6 +98,7 @@ export class TaskCheckpointManager {
 		this.config = config
 		this.services = services
 		this.callbacks = Object.freeze(callbacks)
+		this.taskState = services.taskState
 		this.state = { ...initialState }
 	}
 
@@ -107,8 +113,11 @@ export class TaskCheckpointManager {
 	 */
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number): Promise<void> {
 		try {
-			// If checkpoints are disabled, return early
-			if (!this.config.enableCheckpoints) {
+			// If checkpoints are disabled or previously encountered a timeout error, return early
+			if (
+				!this.config.enableCheckpoints ||
+				this.state.checkpointManagerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				return
 			}
 
@@ -124,8 +133,12 @@ export class TaskCheckpointManager {
 			if (!this.state.checkpointTracker && !isAttemptCompletionMessage && !this.state.checkpointManagerErrorMessage) {
 				await this.checkpointTrackerCheckAndInit()
 			}
-			// attempt completion messages give it one last chance
-			else if (!this.state.checkpointTracker && isAttemptCompletionMessage) {
+			// attempt completion messages give it one last chance. Skip if there was a previous checkpoints initialization timeout error.
+			else if (
+				!this.state.checkpointTracker &&
+				isAttemptCompletionMessage &&
+				!this.state.checkpointManagerErrorMessage?.includes("Checkpoints initialization timed out.")
+			) {
 				await this.checkpointTrackerCheckAndInit()
 			}
 
@@ -722,23 +735,56 @@ export class TaskCheckpointManager {
 	 * Internal method to actually create the checkpoint tracker
 	 */
 	private async initializeCheckpointTracker(): Promise<CheckpointTracker | undefined> {
+		// Warning Timer - If checkpoints take a while to initialize, show a warning message
+		let checkpointsWarningTimer: NodeJS.Timeout | null = null
+		let checkpointsWarningShown = false
+
 		try {
-			const tracker = await CheckpointTracker.create(
-				this.task.taskId,
-				this.services.context.globalStorageUri.fsPath,
-				this.config.enableCheckpoints,
+			checkpointsWarningTimer = setTimeout(async () => {
+				if (!checkpointsWarningShown) {
+					checkpointsWarningShown = true
+					await this.setcheckpointManagerErrorMessage(
+						"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+					)
+				}
+			}, 7_000)
+
+			// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
+			const tracker = await pTimeout(
+				CheckpointTracker.create(
+					this.task.taskId,
+					this.services.context.globalStorageUri.fsPath,
+					this.config.enableCheckpoints,
+				),
+				{
+					milliseconds: 15_000,
+					message:
+						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+				},
 			)
 
 			// Update the state with the created tracker
 			this.state.checkpointTracker = tracker
 			return tracker
 		} catch (error) {
-			// Store error message to prevent future repetative initialization attempts
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			this.setcheckpointManagerErrorMessage(errorMessage)
 			console.error("Failed to initialize checkpoint tracker:", errorMessage)
-			// TODO - Do we need to post state to webview here? TBD
+
+			// If the error was a timeout, we disable all checkpoint operations for the rest of the task
+			if (errorMessage.includes("Checkpoints taking too long to initialize")) {
+				await this.setcheckpointManagerErrorMessage(
+					"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+				)
+			} else {
+				await this.setcheckpointManagerErrorMessage(errorMessage)
+			}
 			return undefined
+		} finally {
+			// Always clean up the timer to prevent memory leaks
+			if (checkpointsWarningTimer) {
+				clearTimeout(checkpointsWarningTimer)
+				checkpointsWarningTimer = null
+			}
 		}
 	}
 
@@ -750,10 +796,17 @@ export class TaskCheckpointManager {
 	}
 
 	/**
-	 * Updates the checkpoint tracker error message
+	 * Updates the checkpoint tracker error message and posts to webview
 	 */
-	setcheckpointManagerErrorMessage(errorMessage: string | undefined): void {
+	async setcheckpointManagerErrorMessage(errorMessage: string | undefined): Promise<void> {
 		this.state.checkpointManagerErrorMessage = errorMessage
+		this.taskState.checkpointManagerErrorMessage = errorMessage
+		// Post state to webview so users can see the error message immediately
+		try {
+			await this.callbacks.postStateToWebview()
+		} catch (error) {
+			console.error("Failed to post state to webview after checkpoint error:", error)
+		}
 		// TODO - Future telemetry event capture here
 	}
 
