@@ -276,6 +276,123 @@ done`
 				parseCommand(problematicPart)
 			}).not.toThrow("Bad substitution")
 		})
+
+		it("should handle bash arithmetic expressions with $(())", () => {
+			// Test the exact script from the user's error
+			const bashScript = `jsx_files=$(find resources/js -name "*.jsx" -type f -not -path "*/node_modules/*")
+count=0
+for file in $jsx_files; do
+  ts_file="\${file%.jsx}.tsx"
+  if [ ! -f "$ts_file" ]; then
+    cp "$file" "$ts_file"
+    count=$((count + 1))
+  fi
+done
+echo "Successfully converted $count .jsx files to .tsx"`
+
+			expect(() => {
+				parseCommand(bashScript)
+			}).not.toThrow("Bad substitution: calc.add")
+		})
+
+		it("should correctly parse commands with arithmetic expressions", () => {
+			const result = parseCommand("count=$((count + 1)) && echo $count")
+			expect(result).toEqual(["count=$((count + 1))", "echo $count"])
+		})
+
+		it("should handle nested arithmetic expressions", () => {
+			const result = parseCommand("result=$((10 * (5 + 3))) && echo $result")
+			expect(result).toEqual(["result=$((10 * (5 + 3)))", "echo $result"])
+		})
+
+		it("should handle arithmetic expressions with variables", () => {
+			const result = parseCommand("total=$((price * quantity + tax))")
+			expect(result).toEqual(["total=$((price * quantity + tax))"])
+		})
+
+		it("should handle complex parameter expansions without errors", () => {
+			const commands = [
+				"echo ${var:-default}",
+				"echo ${#array[@]}",
+				"echo ${var%suffix}",
+				"echo ${var#prefix}",
+				"echo ${var/pattern/replacement}",
+				"echo ${!var}",
+				"echo ${var:0:5}",
+				"echo ${var,,}",
+				"echo ${var^^}",
+			]
+
+			commands.forEach((cmd) => {
+				expect(() => {
+					parseCommand(cmd)
+				}).not.toThrow()
+			})
+		})
+
+		it("should handle process substitutions without errors", () => {
+			const commands = [
+				"diff <(sort file1) <(sort file2)",
+				"command >(gzip > output.gz)",
+				"while read line; do echo $line; done < <(cat file)",
+			]
+
+			commands.forEach((cmd) => {
+				expect(() => {
+					parseCommand(cmd)
+				}).not.toThrow()
+			})
+		})
+
+		it("should handle special bash variables without errors", () => {
+			const commands = [
+				"echo $?",
+				"echo $!",
+				"echo $#",
+				"echo $$",
+				"echo $@",
+				"echo $*",
+				"echo $-",
+				"echo $0",
+				"echo $1 $2 $3",
+			]
+
+			commands.forEach((cmd) => {
+				expect(() => {
+					parseCommand(cmd)
+				}).not.toThrow()
+			})
+		})
+
+		it("should handle mixed complex bash constructs", () => {
+			const complexCommand = `
+				for file in \${files[@]}; do
+					if [[ -f "\${file%.txt}.bak" ]]; then
+						count=\$((count + 1))
+						echo "Processing \${file} (\$count/\${#files[@]})"
+						result=\$(process_file "\$file" 2>&1)
+						if [[ \$? -eq 0 ]]; then
+							echo "Success: \$result" >(logger)
+						fi
+					fi
+				done
+			`
+
+			expect(() => {
+				parseCommand(complexCommand)
+			}).not.toThrow()
+		})
+
+		it("should handle fallback parsing when shell-quote fails", () => {
+			// Test a command that might cause shell-quote to fail
+			const problematicCommand = "echo ${unclosed"
+
+			expect(() => {
+				const result = parseCommand(problematicCommand)
+				// Should not throw and should return some result
+				expect(Array.isArray(result)).toBe(true)
+			}).not.toThrow()
+		})
 	})
 
 	describe("isAutoApprovedCommand (legacy behavior)", () => {

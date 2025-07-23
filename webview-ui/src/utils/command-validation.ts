@@ -76,6 +76,10 @@ export function parseCommand(command: string): string[] {
 	const subshells: string[] = []
 	const quotes: string[] = []
 	const arrayIndexing: string[] = []
+	const arithmeticExpressions: string[] = []
+	const variables: string[] = []
+	const parameterExpansions: string[] = []
+	const processSubstitutions: string[] = []
 
 	// First handle PowerShell redirections by temporarily replacing them
 	let processedCommand = command.replace(/\d*>&\d*/g, (match) => {
@@ -83,10 +87,37 @@ export function parseCommand(command: string): string[] {
 		return `__REDIR_${redirections.length - 1}__`
 	})
 
-	// Handle array indexing expressions: ${array[...]} pattern and partial expressions
-	processedCommand = processedCommand.replace(/\$\{[^}]*\[[^\]]*(\]([^}]*\})?)?/g, (match) => {
-		arrayIndexing.push(match)
-		return `__ARRAY_${arrayIndexing.length - 1}__`
+	// Handle arithmetic expressions: $((...)) pattern
+	// Match the entire arithmetic expression including nested parentheses
+	processedCommand = processedCommand.replace(/\$\(\([^)]*(?:\)[^)]*)*\)\)/g, (match) => {
+		arithmeticExpressions.push(match)
+		return `__ARITH_${arithmeticExpressions.length - 1}__`
+	})
+
+	// Handle parameter expansions: ${...} patterns (including array indexing)
+	// This covers ${var}, ${var:-default}, ${var:+alt}, ${#var}, ${var%pattern}, etc.
+	processedCommand = processedCommand.replace(/\$\{[^}]+\}/g, (match) => {
+		parameterExpansions.push(match)
+		return `__PARAM_${parameterExpansions.length - 1}__`
+	})
+
+	// Handle process substitutions: <(...) and >(...)
+	processedCommand = processedCommand.replace(/[<>]\([^)]+\)/g, (match) => {
+		processSubstitutions.push(match)
+		return `__PROCSUB_${processSubstitutions.length - 1}__`
+	})
+
+	// Handle simple variable references: $varname pattern
+	// This prevents shell-quote from splitting $count into separate tokens
+	processedCommand = processedCommand.replace(/\$[a-zA-Z_][a-zA-Z0-9_]*/g, (match) => {
+		variables.push(match)
+		return `__VAR_${variables.length - 1}__`
+	})
+
+	// Handle special bash variables: $?, $!, $#, $$, $@, $*, $-, $0-$9
+	processedCommand = processedCommand.replace(/\$[?!#$@*\-0-9]/g, (match) => {
+		variables.push(match)
+		return `__VAR_${variables.length - 1}__`
 	})
 
 	// Then handle subshell commands
@@ -106,7 +137,40 @@ export function parseCommand(command: string): string[] {
 		return `__QUOTE_${quotes.length - 1}__`
 	})
 
-	const tokens = parse(processedCommand) as ShellToken[]
+	let tokens: ShellToken[]
+	try {
+		tokens = parse(processedCommand) as ShellToken[]
+	} catch (error: any) {
+		// If shell-quote fails to parse, fall back to simple splitting
+		console.warn("shell-quote parse error:", error.message, "for command:", processedCommand)
+
+		// Simple fallback: split by common operators
+		const fallbackCommands = processedCommand
+			.split(/(?:&&|\|\||;|\|)/)
+			.map((cmd) => cmd.trim())
+			.filter((cmd) => cmd.length > 0)
+
+		// Restore all placeholders for each command
+		return fallbackCommands.map((cmd) => {
+			let result = cmd
+			// Restore quotes
+			result = result.replace(/__QUOTE_(\d+)__/g, (_, i) => quotes[parseInt(i)])
+			// Restore redirections
+			result = result.replace(/__REDIR_(\d+)__/g, (_, i) => redirections[parseInt(i)])
+			// Restore array indexing expressions
+			result = result.replace(/__ARRAY_(\d+)__/g, (_, i) => arrayIndexing[parseInt(i)])
+			// Restore arithmetic expressions
+			result = result.replace(/__ARITH_(\d+)__/g, (_, i) => arithmeticExpressions[parseInt(i)])
+			// Restore parameter expansions
+			result = result.replace(/__PARAM_(\d+)__/g, (_, i) => parameterExpansions[parseInt(i)])
+			// Restore process substitutions
+			result = result.replace(/__PROCSUB_(\d+)__/g, (_, i) => processSubstitutions[parseInt(i)])
+			// Restore variable references
+			result = result.replace(/__VAR_(\d+)__/g, (_, i) => variables[parseInt(i)])
+			return result
+		})
+	}
+
 	const commands: string[] = []
 	let currentCommand: string[] = []
 
@@ -151,6 +215,14 @@ export function parseCommand(command: string): string[] {
 		result = result.replace(/__REDIR_(\d+)__/g, (_, i) => redirections[parseInt(i)])
 		// Restore array indexing expressions
 		result = result.replace(/__ARRAY_(\d+)__/g, (_, i) => arrayIndexing[parseInt(i)])
+		// Restore arithmetic expressions
+		result = result.replace(/__ARITH_(\d+)__/g, (_, i) => arithmeticExpressions[parseInt(i)])
+		// Restore parameter expansions
+		result = result.replace(/__PARAM_(\d+)__/g, (_, i) => parameterExpansions[parseInt(i)])
+		// Restore process substitutions
+		result = result.replace(/__PROCSUB_(\d+)__/g, (_, i) => processSubstitutions[parseInt(i)])
+		// Restore variable references
+		result = result.replace(/__VAR_(\d+)__/g, (_, i) => variables[parseInt(i)])
 		return result
 	})
 }
