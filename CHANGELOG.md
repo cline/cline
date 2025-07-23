@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.19.9
+## [3.20.0]
 
-- db6d288: Display account balance for all org members
+- Add account balance display for all organization members, allowing non-admin users to view their organization's credit balance and add credits
 
 ## [3.19.8]
 
