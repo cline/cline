@@ -25,10 +25,38 @@ export class CerebrasHandler implements ApiHandler {
 		})
 	}
 
+	// Simple token estimation (roughly 3 chars per token, more conservative)
+	private estimateTokens(text: string): number {
+		return Math.ceil(text.length / 3)
+	}
+
+	// Truncate only excessively large individual messages
+	private truncateMegaInput(
+		messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+	): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+		const model = this.getModel()
+		const maxContextTokens = model.info.contextWindow || 40000
+		// Consider a single message mega if it is more than 97% of the (current available) context window
+		const megaInputThreshold = Math.floor(maxContextTokens * 0.97)
+
+		return messages.map((msg) => {
+			const msgTokens = this.estimateTokens(msg.content)
+			if (msgTokens > megaInputThreshold) {
+				// Truncate this individual message to reasonable size
+				const maxChars = megaInputThreshold * 3
+				return {
+					...msg,
+					content: msg.content.substring(0, maxChars) + "...[truncated due to size]",
+				}
+			}
+			return msg
+		})
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Convert Anthropic messages to Cerebras format
-		const cerebrasMessages: Array<{
+		let cerebrasMessages: Array<{
 			role: "system" | "user" | "assistant"
 			content: string
 		}> = [{ role: "system", content: systemPrompt }]
@@ -80,10 +108,13 @@ export class CerebrasHandler implements ApiHandler {
 			}
 		}
 
+		// Apply truncation only for mega large individual inputs
+		cerebrasMessages = this.truncateMegaInput(cerebrasMessages)
+
 		try {
 			const stream = await this.client.chat.completions.create({
 				model: this.getModel().id,
-				messages: cerebrasMessages,
+				messages: cerebrasMessages as any, // Type assertion to work around SDK typing
 				temperature: 0,
 				stream: true,
 			})
