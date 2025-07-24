@@ -505,6 +505,129 @@ describe("addCustomInstructions", () => {
 		expect(result).toContain("Rules from .roorules-test-mode:\nmode specific rules")
 	})
 
+	it("should load AGENTS.md when settings.useAgentRules is true", async () => {
+		// Simulate no .roo/rules-test-mode directory
+		statMock.mockRejectedValueOnce({ code: "ENOENT" })
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			if (pathStr.endsWith("AGENTS.md")) {
+				return Promise.resolve("Agent rules from AGENTS.md file")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{ settings: { maxConcurrentFileReads: 5, todoListEnabled: true, useAgentRules: true } },
+		)
+
+		expect(result).toContain("# Agent Rules Standard (AGENTS.md):")
+		expect(result).toContain("Agent rules from AGENTS.md file")
+		expect(readFileMock).toHaveBeenCalledWith(expect.stringContaining("AGENTS.md"), "utf-8")
+	})
+
+	it("should not load AGENTS.md when settings.useAgentRules is false", async () => {
+		// Simulate no .roo/rules-test-mode directory
+		statMock.mockRejectedValueOnce({ code: "ENOENT" })
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			if (pathStr.endsWith("AGENTS.md")) {
+				return Promise.resolve("Agent rules from AGENTS.md file")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{ settings: { maxConcurrentFileReads: 5, todoListEnabled: true, useAgentRules: false } },
+		)
+
+		expect(result).not.toContain("# Agent Rules Standard (AGENTS.md):")
+		expect(result).not.toContain("Agent rules from AGENTS.md file")
+	})
+
+	it("should load AGENTS.md by default when settings.useAgentRules is undefined", async () => {
+		// Simulate no .roo/rules-test-mode directory
+		statMock.mockRejectedValueOnce({ code: "ENOENT" })
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			if (pathStr.endsWith("AGENTS.md")) {
+				return Promise.resolve("Agent rules from AGENTS.md file")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{}, // No settings.useAgentRules specified
+		)
+
+		expect(result).toContain("# Agent Rules Standard (AGENTS.md):")
+		expect(result).toContain("Agent rules from AGENTS.md file")
+		expect(readFileMock).toHaveBeenCalledWith(expect.stringContaining("AGENTS.md"), "utf-8")
+	})
+
+	it("should handle missing AGENTS.md gracefully", async () => {
+		// Simulate no .roo/rules-test-mode directory
+		statMock.mockRejectedValueOnce({ code: "ENOENT" })
+
+		readFileMock.mockRejectedValue({ code: "ENOENT" })
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{ settings: { maxConcurrentFileReads: 5, todoListEnabled: true, useAgentRules: true } },
+		)
+
+		expect(result).toContain("Global Instructions:\nglobal instructions")
+		expect(result).toContain("Mode-specific Instructions:\nmode instructions")
+		expect(result).not.toContain("# Agent Rules Standard (AGENTS.md):")
+	})
+
+	it("should include AGENTS.md content along with other rules", async () => {
+		// Simulate no .roo/rules-test-mode directory
+		statMock.mockRejectedValueOnce({ code: "ENOENT" })
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const pathStr = filePath.toString()
+			if (pathStr.endsWith("AGENTS.md")) {
+				return Promise.resolve("Agent rules content")
+			}
+			if (pathStr.endsWith(".roorules")) {
+				return Promise.resolve("Roo rules content")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{ settings: { maxConcurrentFileReads: 5, todoListEnabled: true, useAgentRules: true } },
+		)
+
+		// Should contain both AGENTS.md and .roorules content
+		expect(result).toContain("# Agent Rules Standard (AGENTS.md):")
+		expect(result).toContain("Agent rules content")
+		expect(result).toContain("# Rules from .roorules:")
+		expect(result).toContain("Roo rules content")
+	})
+
 	it("should return empty string when no instructions provided", async () => {
 		// Simulate no .roo/rules directory
 		statMock.mockRejectedValueOnce({ code: "ENOENT" })

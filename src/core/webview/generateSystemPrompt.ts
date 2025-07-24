@@ -1,3 +1,4 @@
+import * as vscode from "vscode"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { defaultModeSlug, getModeBySlug, getGroupName } from "../../shared/modes"
 import { buildApiHandler } from "../../api"
@@ -81,7 +82,9 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		rooIgnoreInstructions,
 		maxReadFileLine !== -1,
 		{
-			maxConcurrentFileReads,
+			maxConcurrentFileReads: maxConcurrentFileReads ?? 5,
+			todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
+			useAgentRules: vscode.workspace.getConfiguration("roo-cline").get<boolean>("useAgentRules") ?? true,
 		},
 	)
 

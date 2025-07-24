@@ -1,4 +1,5 @@
 import * as path from "path"
+import * as vscode from "vscode"
 import os from "os"
 import crypto from "crypto"
 import EventEmitter from "events"
@@ -1660,8 +1661,9 @@ export class Task extends EventEmitter<ClineEvents> {
 				rooIgnoreInstructions,
 				maxReadFileLine !== -1,
 				{
-					maxConcurrentFileReads,
-					todoListEnabled: apiConfiguration?.todoListEnabled,
+					maxConcurrentFileReads: maxConcurrentFileReads ?? 5,
+					todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
+					useAgentRules: vscode.workspace.getConfiguration("roo-cline").get<boolean>("useAgentRules") ?? true,
 				},
 			)
 		})()

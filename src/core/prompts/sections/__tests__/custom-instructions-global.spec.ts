@@ -193,6 +193,7 @@ describe("custom-instructions global .roo support", () => {
 			mockReadFile
 				.mockResolvedValueOnce("global mode rule content")
 				.mockResolvedValueOnce("project mode rule content")
+				.mockResolvedValueOnce("") // AGENTS.md file (empty)
 				.mockResolvedValueOnce("") // .roorules legacy file (empty)
 				.mockResolvedValueOnce("") // .clinerules legacy file (empty)
 
@@ -218,6 +219,7 @@ describe("custom-instructions global .roo support", () => {
 			// Mock legacy mode file reading
 			mockReadFile
 				.mockResolvedValueOnce("legacy mode rule content") // .roorules-code
+				.mockResolvedValueOnce("") // AGENTS.md file (empty)
 				.mockResolvedValueOnce("") // generic .roorules (empty)
 				.mockResolvedValueOnce("") // generic .clinerules (empty)
 
