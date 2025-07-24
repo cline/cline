@@ -2,9 +2,8 @@ import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions
 import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
 import { Controller } from ".."
-import { FileMethodHandler } from "./index"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Deletes a rule file from either global or workspace rules directory
@@ -13,7 +12,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
  * @returns Result with file path and display name
  * @throws Error if operation fails
  */
-export const deleteRuleFile: FileMethodHandler = async (controller: Controller, request: RuleFileRequest): Promise<RuleFile> => {
+export async function deleteRuleFile(controller: Controller, request: RuleFileRequest): Promise<RuleFile> {
 	if (
 		typeof request.isGlobal !== "boolean" ||
 		typeof request.rulePath !== "string" ||
@@ -46,7 +45,7 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
-	getHostBridgeProvider().windowClient.showMessage({
+	HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message,
 	})

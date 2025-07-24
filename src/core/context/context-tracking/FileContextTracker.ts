@@ -5,7 +5,7 @@ import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
 import { getGlobalState } from "@core/storage/state"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { getCwd } from "@/utils/path"
 
 // This class is responsible for tracking file operations that may result in stale context.

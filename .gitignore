@@ -15,6 +15,9 @@ pnpm-lock.yaml
 .venv
 .actrc
 
+webview-ui/src/**/*.js
+webview-ui/src/**/*.js.map
+
 # Ignore coverage directories and files
 coverage
 # But don't ignore the coverage scripts in .github/scripts/
@@ -24,11 +27,7 @@ coverage
 
 ## Generated files ##
 src/generated/
-src/core/controller/*/methods.ts
-src/core/controller/*/index.ts
-src/core/controller/grpc-service-config.ts
-src/shared/proto/*.ts
-src/shared/proto/host/*.ts
+src/shared/proto/
 webview-ui/src/services/grpc-client.ts
 
 # E2E Tests

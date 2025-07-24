@@ -1,4 +1,4 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { StringRequest, EmptyRequest } from "@/shared/proto/common"
 
 /**
@@ -9,7 +9,7 @@ import { StringRequest, EmptyRequest } from "@/shared/proto/common"
  */
 export async function writeTextToClipboard(text: string): Promise<void> {
 	try {
-		await getHostBridgeProvider().envClient.clipboardWriteText(StringRequest.create({ value: text }))
+		await HostProvider.env.clipboardWriteText(StringRequest.create({ value: text }))
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		throw new Error(`Failed to write to clipboard: ${errorMessage}`)
@@ -23,7 +23,7 @@ export async function writeTextToClipboard(text: string): Promise<void> {
  */
 export async function readTextFromClipboard(): Promise<string> {
 	try {
-		const response = await getHostBridgeProvider().envClient.clipboardReadText(EmptyRequest.create({}))
+		const response = await HostProvider.env.clipboardReadText(EmptyRequest.create({}))
 		return response.value
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
@@ -39,7 +39,7 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	try {
-		await getHostBridgeProvider().envClient.openExternal(StringRequest.create({ value: url }))
+		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		throw new Error(`Failed to open external URL: ${errorMessage}`)

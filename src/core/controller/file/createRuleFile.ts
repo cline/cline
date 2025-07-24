@@ -1,14 +1,13 @@
 import { Controller } from ".."
 import { RuleFileRequest, RuleFile } from "@shared/proto/file"
-import { FileMethodHandler } from "./index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import * as path from "path"
-import { handleFileServiceRequest } from "./index"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { openFile } from "./openFile"
 
 /**
  * Creates a rule file in either global or workspace rules directory
@@ -17,7 +16,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
  * @returns Result with file path and display name
  * @throws Error if operation fails
  */
-export const createRuleFile: FileMethodHandler = async (controller: Controller, request: RuleFileRequest): Promise<RuleFile> => {
+export async function createRuleFile(controller: Controller, request: RuleFileRequest): Promise<RuleFile> {
 	if (
 		typeof request.isGlobal !== "boolean" ||
 		!request.filename ||
@@ -44,12 +43,12 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 
 	if (fileExists) {
 		const message = `${fileTypeName} file "${request.filename}" already exists.`
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
 			message,
 		})
 		// Still open it for editing
-		await handleFileServiceRequest(controller, "openFile", { value: filePath })
+		await openFile(controller, { value: filePath })
 	} else {
 		if (request.type === "workflow") {
 			await refreshWorkflowToggles(controller.context, cwd)
@@ -58,10 +57,10 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		}
 		await controller.postStateToWebview()
 
-		await handleFileServiceRequest(controller, "openFile", { value: filePath })
+		await openFile(controller, { value: filePath })
 
 		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
-		getHostBridgeProvider().windowClient.showMessage({
+		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message,
 		})
