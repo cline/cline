@@ -11,11 +11,21 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 	 */
 	async function createAndOpenTestDocument(fileNumber: number, column: vscode.ViewColumn): Promise<void> {
 		const content = `// Test file ${fileNumber}\nconsole.log('Hello from file ${fileNumber}');`
-		const doc = await vscode.workspace.openTextDocument({
-			content,
-			language: "javascript",
+
+		// Create an untitled document with a custom name
+		const uri = vscode.Uri.parse(`untitled:test-file-${fileNumber}.js`)
+
+		const doc = await vscode.workspace.openTextDocument(uri)
+
+		// Set the content
+		const edit = new vscode.WorkspaceEdit()
+		edit.insert(uri, new vscode.Position(0, 0), content)
+		await vscode.workspace.applyEdit(edit)
+
+		await vscode.window.showTextDocument(doc, {
+			viewColumn: column,
+			preview: false,
 		})
-		await vscode.window.showTextDocument(doc, column)
 	}
 
 	beforeEach(async () => {
@@ -35,7 +45,11 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const request = GetVisibleTabsRequest.create({})
 		const response = await getVisibleTabs(request)
 
-		assert.strictEqual(response.paths.length, 0, "Should return empty array when no visible editors are open")
+		assert.strictEqual(
+			response.paths.length,
+			0,
+			`Should return empty array when no visible editors are open. Found tabs: ${JSON.stringify(response.paths)}`,
+		)
 	})
 
 	it("should return paths of visible text editors", async () => {
@@ -49,7 +63,11 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const response = await getVisibleTabs(request)
 
 		// Should have 1 visible editor
-		assert.strictEqual(response.paths.length, 1, `Expected 1 visible editor, got ${response.paths.length}`)
+		assert.strictEqual(
+			response.paths.length,
+			1,
+			`Expected 1 visible editor, got ${response.paths.length}. Found: ${JSON.stringify(response.paths)}`,
+		)
 
 		// Open the second document in a different column (both should now be visible)
 		await createAndOpenTestDocument(2, vscode.ViewColumn.Two)
@@ -60,7 +78,11 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const response2 = await getVisibleTabs(request)
 
 		// Should have 2 visible editors
-		assert.strictEqual(response2.paths.length, 2, `Expected 2 visible editors, got ${response2.paths.length}`)
+		assert.strictEqual(
+			response2.paths.length,
+			2,
+			`Expected 2 visible editors, got ${response2.paths.length}. Found: ${JSON.stringify(response2.paths)}`,
+		)
 	})
 
 	it("should only return visible editors, not all open tabs", async () => {
@@ -76,7 +98,11 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const response = await getVisibleTabs(request)
 
 		// Should have only 1 visible editor (the last one opened in the same column)
-		assert.strictEqual(response.paths.length, 1, `Expected 1 visible editor, got ${response.paths.length}`)
+		assert.strictEqual(
+			response.paths.length,
+			1,
+			`Expected 1 visible editor, got ${response.paths.length}. Found: ${JSON.stringify(response.paths)}`,
+		)
 
 		// Verify that we have the correct number of visible text editors
 		const actualVisibleEditors = vscode.window.visibleTextEditors.length
@@ -104,7 +130,11 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const response = await getVisibleTabs(request)
 
 		// Should have only 2 visible editors (one from each column, despite having 5 total open tabs)
-		assert.strictEqual(response.paths.length, 2, `Expected 2 visible editors, got ${response.paths.length}`)
+		assert.strictEqual(
+			response.paths.length,
+			2,
+			`Expected 2 visible editors, got ${response.paths.length}. Found: ${JSON.stringify(response.paths)}`,
+		)
 
 		// Verify that we have the correct number of visible text editors
 		const actualVisibleEditors = vscode.window.visibleTextEditors.length
