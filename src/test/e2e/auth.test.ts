@@ -13,7 +13,6 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 
 	// Verify provider selector is visible and set to OpenRouter
 	await expect(sidebar.locator("slot").filter({ hasText: /^OpenRouter$/ })).toBeVisible()
-
 	// Test Cline provider option
 	await providerSelector.click({ delay: 100 })
 	await expect(sidebar.getByRole("option", { name: "Cline" })).toBeVisible()
@@ -54,4 +53,10 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await expect(releaseBanner).toBeVisible()
 	await sidebar.getByTestId("close-button").locator("span").first().click()
 	await expect(releaseBanner).not.toBeVisible()
+
+	// Sidebar menu should now be visible
+	// await expect(sidebar.getByRole("button", { name: "Account", exact: true })).toBeVisible()
+
+	// await sidebar.getByRole("button", { name: "Settings" }).click()
+	// await expect(sidebar.getByRole("button", { name: "Done" })).toBeVisible()
 })
