@@ -210,8 +210,7 @@ function runProcess(
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		// Respect the user's environment variables but set defaults.
-		// The default is 32000. However, I've gotten larger responses.
-		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "64000",
+		CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || "32000",
 		// Disable telemetry, auto-updater and error reporting.
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
 		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
