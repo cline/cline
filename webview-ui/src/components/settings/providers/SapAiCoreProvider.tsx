@@ -43,7 +43,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			)}
 
 			<DebouncedTextField
-				initialValue={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+				initialValue={apiConfiguration?.sapAiCoreClientSecret || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
 				style={{ width: "100%" }}
 				type="password"
