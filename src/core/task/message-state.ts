@@ -12,7 +12,7 @@ import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
 import Anthropic from "@anthropic-ai/sdk"
 import { TaskState } from "./TaskState"
-import { getCwd } from "@/utils/path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
@@ -20,6 +20,7 @@ interface MessageStateHandlerParams {
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
+	checkpointTrackerErrorMessage?: string
 }
 
 export class MessageStateHandler {
@@ -27,6 +28,7 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
+	private checkpointTrackerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
@@ -38,6 +40,7 @@ export class MessageStateHandler {
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
+		this.checkpointTrackerErrorMessage = this.taskState.checkpointTrackerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -83,7 +86,7 @@ export class MessageStateHandler {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			const cwd = await getCwd(path.join(os.homedir(), "Desktop"))
+			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
@@ -98,6 +101,7 @@ export class MessageStateHandler {
 				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
+				checkpointTrackerErrorMessage: this.taskState.checkpointTrackerErrorMessage,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

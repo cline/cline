@@ -13,3 +13,14 @@ export function isGemini2dot5ModelFamily(api: ApiHandler): boolean {
 	const modelId = model.id
 	return modelId.includes("gemini-2.5")
 }
+
+/**
+ * Determines if reasoning content should be skipped for a given model
+ * Currently skips reasoning for Grok-4 models since they only display "thinking" without useful information
+ */
+export function shouldSkipReasoningForModel(modelId?: string): boolean {
+	if (!modelId) {
+		return false
+	}
+	return modelId.includes("grok-4")
+}

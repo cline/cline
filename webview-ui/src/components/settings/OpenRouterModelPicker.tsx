@@ -1,7 +1,7 @@
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { openRouterDefaultModelId } from "@shared/api"
+import { ApiConfiguration, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -11,9 +11,11 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { normalizeApiConfiguration } from "./utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -38,30 +40,33 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "anthropic/claude-sonnet-4",
+		description: "Recommended for agentic coding in Cline",
 		label: "Best",
 	},
 	{
-		id: "anthropic/claude-sonnet-4",
-		description: "Recommended for agentic coding in Cline",
+		id: "google/gemini-2.5-pro",
+		description: "Large 1M context window, great value",
 		label: "Trending",
 	},
 	{
-		id: "x-ai/grok-3",
-		description: "Latest flagship model from xAI, free for now!",
-		label: "Free",
+		id: "moonshotai/kimi-k2",
+		description: "Open source model topping coding benchmarks",
+		label: "New",
 	},
 ]
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { apiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -70,21 +75,33 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
-			...apiConfiguration,
-			...{
+
+		setSearchTerm(newModelId)
+
+		handleModeFieldsChange(
+			{
+				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
+				openRouterModelInfo: { plan: "planModeOpenRouterModelInfo", act: "actModeOpenRouterModelInfo" },
+			},
+			{
 				openRouterModelId: newModelId,
 				openRouterModelInfo: openRouterModels[newModelId],
 			},
-		})
-		setSearchTerm(newModelId)
+			currentMode,
+		)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
 
 	useMount(refreshOpenRouterModels)
+
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.openRouterModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -102,10 +119,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
 
-		return apiConfiguration?.apiProvider === "cline"
-			? unfilteredModelIds.filter((id) => !id.includes(":free"))
-			: unfilteredModelIds
-	}, [openRouterModels, apiConfiguration?.apiProvider])
+		return modeFields.apiProvider === "cline" ? unfilteredModelIds.filter((id) => !id.includes(":free")) : unfilteredModelIds
+	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -218,7 +233,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
 
-				{apiConfiguration?.apiProvider === "cline" && (
+				{modeFields.apiProvider === "cline" && (
 					<div style={{ marginBottom: "6px", marginTop: 4 }}>
 						{featuredModels.map((model) => (
 							<FeaturedModelCard
@@ -242,7 +257,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						placeholder="Search and select a model..."
 						value={searchTerm}
 						onInput={(e) => {
-							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
+							setSearchTerm((e.target as HTMLInputElement)?.value.toLowerCase() || "")
 							setIsDropdownVisible(true)
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
@@ -257,7 +272,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 								className="input-icon-button codicon codicon-close"
 								aria-label="Clear search"
 								onClick={() => {
-									handleModelChange("")
+									setSearchTerm("")
 									setIsDropdownVisible(true)
 								}}
 								slot="end"
@@ -306,9 +321,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-					)}
+					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>
@@ -327,8 +340,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("google/gemini-2.5-pro")}>
-							google/gemini-2.5-pro.
+							onClick={() => handleModelChange("anthropic/claude-sonnet-4")}>
+							anthropic/claude-sonnet-4.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>

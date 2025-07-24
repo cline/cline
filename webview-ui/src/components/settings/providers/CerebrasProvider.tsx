@@ -1,31 +1,36 @@
-import { ApiConfiguration, cerebrasModels } from "@shared/api"
+import { cerebrasModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the CerebrasProvider component
  */
 interface CerebrasProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Cerebras provider configuration component
  */
-export const CerebrasProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: CerebrasProviderProps) => {
+export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: CerebrasProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.cerebrasApiKey || ""}
-				onChange={handleInputChange("cerebrasApiKey")}
+				initialValue={apiConfiguration?.cerebrasApiKey || ""}
+				onChange={(value) => handleFieldChange("cerebrasApiKey", value)}
 				providerName="Cerebras"
 				signupUrl="https://cloud.cerebras.ai/"
 			/>
@@ -35,7 +40,13 @@ export const CerebrasProvider = ({ apiConfiguration, handleInputChange, showMode
 					<ModelSelector
 						models={cerebrasModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

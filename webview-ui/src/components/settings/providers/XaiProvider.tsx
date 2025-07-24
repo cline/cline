@@ -1,45 +1,42 @@
-import { ApiConfiguration, xaiModels } from "@shared/api"
+import { xaiModels } from "@shared/api"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the XaiProvider component
  */
 interface XaiProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration: (config: ApiConfiguration) => void
+	currentMode: Mode
 }
 
-/**
- * The xAI provider configuration component
- */
-export const XaiProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	setApiConfiguration,
-}: XaiProviderProps) => {
+export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Local state for reasoning effort toggle
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
 
 	return (
 		<div>
 			<div>
 				<ApiKeyField
-					value={apiConfiguration?.xaiApiKey || ""}
-					onChange={handleInputChange("xaiApiKey")}
+					initialValue={apiConfiguration?.xaiApiKey || ""}
+					onChange={(value) => handleFieldChange("xaiApiKey", value)}
 					providerName="X AI"
 					signupUrl="https://x.ai"
 				/>
@@ -61,7 +58,13 @@ export const XaiProvider = ({
 					<ModelSelector
 						models={xaiModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 
@@ -74,10 +77,11 @@ export const XaiProvider = ({
 									const isChecked = e.target.checked === true
 									setReasoningEffortSelected(isChecked)
 									if (!isChecked) {
-										setApiConfiguration({
-											...apiConfiguration,
-											reasoningEffort: "",
-										})
+										handleModeFieldChange(
+											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+											"",
+											currentMode,
+										)
 									}
 								}}>
 								Modify reasoning effort
@@ -92,12 +96,13 @@ export const XaiProvider = ({
 										<VSCodeDropdown
 											id="reasoning-effort-dropdown"
 											style={{ width: "100%", marginTop: 3 }}
-											value={apiConfiguration?.reasoningEffort || "high"}
+											value={modeFields.reasoningEffort || "high"}
 											onChange={(e: any) => {
-												setApiConfiguration({
-													...apiConfiguration,
-													reasoningEffort: e.target.value,
-												})
+												handleModeFieldChange(
+													{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+													e.target.value,
+													currentMode,
+												)
 											}}>
 											<VSCodeOption value="low">low</VSCodeOption>
 											<VSCodeOption value="high">high</VSCodeOption>

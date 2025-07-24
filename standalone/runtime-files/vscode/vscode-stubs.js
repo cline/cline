@@ -563,7 +563,7 @@ vscode.commands.getCommands = function (filterInternal) {
 vscode.window = {}
 vscode.window.tabGroups = createStub("vscode.window.tabGroups")
 vscode.window.activeTextEditor = createStub("vscode.window.activeTextEditor")
-vscode.window.visibleTextEditors = createStub("vscode.window.visibleTextEditors")
+vscode.window.visibleTextEditors = []
 vscode.window.onDidChangeActiveTextEditor = createStub("vscode.window.onDidChangeActiveTextEditor")
 vscode.window.onDidChangeVisibleTextEditors = createStub("vscode.window.onDidChangeVisibleTextEditors")
 vscode.window.onDidChangeTextEditorSelection = createStub("vscode.window.onDidChangeTextEditorSelection")
@@ -671,10 +671,6 @@ vscode.window.showQuickPick = function (items, options, token) {
 vscode.window.showWorkspaceFolderPick = function (options) {
 	console.log("Called stubbed function: vscode.window.showWorkspaceFolderPick")
 	return Promise.resolve(null)
-}
-vscode.window.showOpenDialog = function (options) {
-	console.log("Called stubbed function: vscode.window.showOpenDialog")
-	return []
 }
 vscode.window.showSaveDialog = function (options) {
 	console.log("Called stubbed function: vscode.window.showSaveDialog")
@@ -816,21 +812,11 @@ vscode.TextDocumentSaveReason = { Manual: 0, AfterDelay: 0, FocusOut: 0 }
 vscode.workspace = {}
 vscode.workspace.fs = createStub("vscode.workspace.fs")
 vscode.workspace.rootPath = createStub("vscode.workspace.rootPath")
-vscode.workspace.workspaceFolders = []
 vscode.workspace.name = createStub("vscode.workspace.name")
 vscode.workspace.workspaceFile = createStub("vscode.workspace.workspaceFile")
-vscode.workspace.onDidChangeWorkspaceFolders = createStub("vscode.workspace.onDidChangeWorkspaceFolders")
-vscode.workspace.getWorkspaceFolder = function (uri) {
-	console.log("Called stubbed function: vscode.workspace.getWorkspaceFolder")
-	return createStub("unknown")
-}
 vscode.workspace.asRelativePath = function (pathOrUri, includeWorkspaceFolder) {
 	console.log("Called stubbed function: vscode.workspace.asRelativePath")
 	return ""
-}
-vscode.workspace.updateWorkspaceFolders = function (start, deleteCount, workspaceFoldersToAdd) {
-	console.log("Called stubbed function: vscode.workspace.updateWorkspaceFolders")
-	return false
 }
 vscode.workspace.createFileSystemWatcher = function (globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents) {
 	console.log("Called stubbed function: vscode.workspace.createFileSystemWatcher")
@@ -848,7 +834,7 @@ vscode.workspace.applyEdit = function (edit, metadata) {
 	console.log("Called stubbed function: vscode.workspace.applyEdit")
 	return false
 }
-vscode.workspace.textDocuments = createStub("vscode.workspace.textDocuments")
+vscode.workspace.textDocuments = []
 vscode.workspace.openTextDocument = function (uri) {
 	console.log("Called stubbed function: vscode.workspace.openTextDocument")
 	return Promise.resolve(null)
@@ -1234,7 +1220,7 @@ vscode.extensions.getExtension = function (extensionId) {
 	console.log("Called stubbed function: vscode.extensions.getExtension")
 	return createStub("unknown")
 }
-vscode.extensions.all = createStub("vscode.extensions.all")
+vscode.extensions.all = []
 vscode.extensions.onDidChange = createStub("vscode.extensions.onDidChange")
 vscode.CommentThreadCollapsibleState = { Collapsed: 0, Expanded: 0 }
 vscode.CommentMode = { Editing: 0, Preview: 0 }

@@ -1,33 +1,34 @@
-import { ApiConfiguration } from "@shared/api"
-import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/common"
 import OllamaModelPicker from "../OllamaModelPicker"
 import { BaseUrlField } from "../common/BaseUrlField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the OllamaProvider component
  */
 interface OllamaProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
-	setApiConfiguration: (config: ApiConfiguration) => void
+	currentMode: Mode
 }
 
 /**
  * The Ollama provider configuration component
  */
-export const OllamaProvider = ({
-	apiConfiguration,
-	handleInputChange,
-	showModelOptions,
-	isPopup,
-	setApiConfiguration,
-}: OllamaProviderProps) => {
+export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	// Poll ollama models
@@ -56,8 +57,8 @@ export const OllamaProvider = ({
 	return (
 		<div>
 			<BaseUrlField
-				value={apiConfiguration?.ollamaBaseUrl}
-				onChange={(value) => handleInputChange("ollamaBaseUrl")({ target: { value } })}
+				initialValue={apiConfiguration?.ollamaBaseUrl}
+				onChange={(value) => handleFieldChange("ollamaBaseUrl", value)}
 				placeholder="Default: http://localhost:11434"
 				label="Use custom base URL"
 			/>
@@ -68,12 +69,9 @@ export const OllamaProvider = ({
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
-				selectedModelId={apiConfiguration?.ollamaModelId || ""}
+				selectedModelId={ollamaModelId || ""}
 				onModelChange={(modelId) => {
-					setApiConfiguration({
-						...apiConfiguration,
-						ollamaModelId: modelId,
-					})
+					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
 			/>
@@ -92,33 +90,29 @@ export const OllamaProvider = ({
 				</p>
 			)}
 
-			<VSCodeTextField
-				value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
+			<DebouncedTextField
+				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
+				onChange={(value) => handleFieldChange("ollamaApiOptionsCtxNum", value)}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("ollamaApiOptionsCtxNum")}
 				placeholder={"e.g. 32768"}>
 				<span style={{ fontWeight: 500 }}>Model Context Window</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 
 			{showModelOptions && (
 				<>
-					<VSCodeTextField
-						value={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
-						style={{ width: "100%" }}
-						onInput={(e: any) => {
-							const value = e.target.value
+					<DebouncedTextField
+						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						onChange={(value) => {
 							// Convert to number, with validation
 							const numValue = parseInt(value, 10)
 							if (!isNaN(numValue) && numValue > 0) {
-								setApiConfiguration({
-									...apiConfiguration,
-									requestTimeoutMs: numValue,
-								})
+								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}
+						style={{ width: "100%" }}
 						placeholder="Default: 30000 (30 seconds)">
 						<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
-					</VSCodeTextField>
+					</DebouncedTextField>
 					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
 						Maximum time in milliseconds to wait for API responses before timing out.
 					</p>

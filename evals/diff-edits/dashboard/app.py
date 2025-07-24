@@ -937,8 +937,18 @@ def main():
         
         # Build current URL
         # Dynamically derive the base URL
-        server_address = st.server.server_address if hasattr(st.server, 'server_address') else "localhost"
-        server_port = st.server.server_port if hasattr(st.server, 'server_port') else "8501"
+        try:
+            # For older Streamlit versions
+            server_address = st.server.server_address
+            server_port = st.server.server_port
+        except AttributeError:
+            # Fallback for newer Streamlit versions where st.server is removed
+            # We can't reliably get the server address/port from within the script anymore.
+            # We'll default to localhost and the default port.
+            # The user can see the correct network URL in the terminal.
+            server_address = "localhost"
+            server_port = 8501
+        
         base_url = f"http://{server_address}:{server_port}"
         current_url = f"{base_url}/?run_id={st.session_state.selected_run_id}"
         if st.session_state.drill_down_model:

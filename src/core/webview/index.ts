@@ -10,6 +10,8 @@ import path from "node:path"
 import { v4 as uuidv4 } from "uuid"
 import { Uri } from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -260,9 +262,14 @@ export abstract class WebviewProvider {
 		try {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
-			)
+			// Only show the error message if not in development mode.
+			if (!process.env.IS_DEV) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message:
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				})
+			}
 
 			return this.getHtmlContent()
 		}

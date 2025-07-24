@@ -1,5 +1,6 @@
 export interface UserInfo {
 	displayName?: string
 	email?: string
-	photoURL?: string
+	photoUrl?: string
+	apiBaseUrl?: string // Base URL for API requests
 }

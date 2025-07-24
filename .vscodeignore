@@ -1,24 +1,40 @@
 # Default
 .vscode/**
 .vscode-test/**
-out/**
-node_modules/**
+out/
+dist-standalone/
+node_modules/
 src/**
+standalone/**
 .gitignore
 .yarnrc
 esbuild.js
 vsc-extension-quickstart.md
-**/tsconfig.json
+tsconfig*.json
 **/.eslintrc.json
 **/*.map
 **/*.ts
 **/.vscode-test.*
+eslint-rules/**
+.github/**
+.husky/**
 
 # Custom
-demo.gif
+**/demo.gif
 .nvmrc
 .gitattributes
 .prettierignore
+.husky/
+.github/
+eslint-rules/
+old_docs/
+evals/
+.changie.yaml
+.codespellrc
+.mocharc.json
+buf.yaml
+.changeset/
+.clinerules/
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**
@@ -32,6 +48,7 @@ webview-ui/node_modules/**
 
 # Ignore docs
 docs/**
+old_docs/**
 
 # Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
 !node_modules/@vscode/codicons/dist/codicon.css
@@ -42,3 +59,8 @@ docs/**
 
 # Include icons
 !assets/icons/**
+
+# Ignore E2E build files
+e2e-build.js
+e2e.vsix
+test-results/

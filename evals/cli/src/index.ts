@@ -87,6 +87,7 @@ program
 	.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
 	.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
+	.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
@@ -102,6 +103,7 @@ program
 			const fullOptions = {
 				...options,
 				validAttemptsPerCase: parseInt(options.validAttemptsPerCase, 10),
+				maxAttemptsPerCase: options.maxAttemptsPerCase ? parseInt(options.maxAttemptsPerCase, 10) : undefined,
 				thinkingBudget: parseInt(options.thinkingBudget, 10),
 				maxCases: options.maxCases ? parseInt(options.maxCases, 10) : undefined,
 			}

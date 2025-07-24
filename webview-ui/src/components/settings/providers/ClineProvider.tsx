@@ -4,27 +4,27 @@ import { useState } from "react"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { DropdownContainer } from "../common/ModelSelector"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the ClineProvider component
  */
 interface ClineProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Cline provider configuration component
  */
-export const ClineProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: ClineProviderProps) => {
-	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange } = useApiConfigurationHandlers()
 
-	// Create a wrapper for handling field changes more directly
-	const handleFieldChange = (field: keyof ApiConfiguration) => (value: any) => {
-		handleInputChange(field)({ target: { value } })
-	}
+	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
 	return (
 		<div>
@@ -43,7 +43,7 @@ export const ClineProvider = ({ apiConfiguration, handleInputChange, showModelOp
 							const isChecked = e.target.checked === true
 							setProviderSortingSelected(isChecked)
 							if (!isChecked) {
-								handleFieldChange("openRouterProviderSorting")("")
+								handleFieldChange("openRouterProviderSorting", "")
 							}
 						}}>
 						Sort underlying provider routing
@@ -56,7 +56,7 @@ export const ClineProvider = ({ apiConfiguration, handleInputChange, showModelOp
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}
 									onChange={(e: any) => {
-										handleFieldChange("openRouterProviderSorting")(e.target.value)
+										handleFieldChange("openRouterProviderSorting", e.target.value)
 									}}>
 									<VSCodeOption value="">Default</VSCodeOption>
 									<VSCodeOption value="price">Price</VSCodeOption>
@@ -78,7 +78,7 @@ export const ClineProvider = ({ apiConfiguration, handleInputChange, showModelOp
 					)}
 
 					{/* OpenRouter Model Picker */}
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>

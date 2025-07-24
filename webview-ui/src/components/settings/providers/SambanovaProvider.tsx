@@ -3,29 +3,34 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the SambanovaProvider component
  */
 interface SambanovaProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The SambaNova provider configuration component
  */
-export const SambanovaProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: SambanovaProviderProps) => {
+export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: SambanovaProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.sambanovaApiKey || ""}
-				onChange={handleInputChange("sambanovaApiKey")}
+				initialValue={apiConfiguration?.sambanovaApiKey || ""}
+				onChange={(value) => handleFieldChange("sambanovaApiKey", value)}
 				providerName="SambaNova"
 				signupUrl="https://docs.sambanova.ai/cloud/docs/get-started/overview"
 			/>
@@ -35,7 +40,13 @@ export const SambanovaProvider = ({ apiConfiguration, handleInputChange, showMod
 					<ModelSelector
 						models={sambanovaModels}
 						selectedModelId={selectedModelId}
-						onChange={handleInputChange("apiModelId")}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

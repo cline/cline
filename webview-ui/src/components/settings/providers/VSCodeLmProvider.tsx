@@ -1,4 +1,3 @@
-import { ApiConfiguration } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/common"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
@@ -6,14 +5,21 @@ import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import * as vscodemodels from "vscode"
 import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 interface VSCodeLmProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
+	currentMode: Mode
 }
 
-export const VSCodeLmProvider = ({ apiConfiguration, handleInputChange }: VSCodeLmProviderProps) => {
+export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { vsCodeLmModelSelector } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Poll VS Code LM models
 	const requestVsCodeLmModels = useCallback(async () => {
@@ -44,8 +50,8 @@ export const VSCodeLmProvider = ({ apiConfiguration, handleInputChange }: VSCode
 					<VSCodeDropdown
 						id="vscode-lm-model"
 						value={
-							apiConfiguration?.vsCodeLmModelSelector
-								? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}`
+							vsCodeLmModelSelector
+								? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}`
 								: ""
 						}
 						onChange={(e) => {
@@ -54,11 +60,12 @@ export const VSCodeLmProvider = ({ apiConfiguration, handleInputChange }: VSCode
 								return
 							}
 							const [vendor, family] = value.split("/")
-							handleInputChange("vsCodeLmModelSelector")({
-								target: {
-									value: { vendor, family },
-								},
-							})
+
+							handleModeFieldChange(
+								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
+								{ vendor, family },
+								currentMode,
+							)
 						}}
 						style={{ width: "100%" }}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>

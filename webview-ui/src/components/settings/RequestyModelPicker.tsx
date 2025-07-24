@@ -5,22 +5,27 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { requestyDefaultModelId, requestyDefaultModelInfo } from "../../../../src/shared/api"
+import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { normalizeApiConfiguration } from "./utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { Mode } from "@shared/ChatSettings"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
+	currentMode: Mode
 }
 
-const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
+const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -29,19 +34,24 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
-			...apiConfiguration,
-			...{
+
+		handleModeFieldsChange(
+			{
+				requestyModelId: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
+				requestyModelInfo: { plan: "planModeRequestyModelInfo", act: "actModeRequestyModelInfo" },
+			},
+			{
 				requestyModelId: newModelId,
 				requestyModelInfo: requestyModels[newModelId],
 			},
-		})
+			currentMode,
+		)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
 		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({}))
@@ -226,9 +236,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-					)}
+					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>
 			) : (
