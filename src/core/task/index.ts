@@ -394,12 +394,11 @@ export class Task {
 			strictPlanModeEnabled,
 			this.say.bind(this),
 			this.ask.bind(this),
-			(isAttemptCompletionMessage?: boolean, completionMessageTs?: number) =>
-				this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve(),
+			this.saveCheckpointCallback.bind(this),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
-			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
+			this.checkLatestTaskCompletionHasNewChanges.bind(this),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			
 		)
@@ -695,6 +694,14 @@ export class Task {
 			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		}
+	}
+
+	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
+		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
+	}
+
+	private async checkLatestTaskCompletionHasNewChanges(): Promise<boolean> {
+		return this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false)
 	}
 
 	// Task lifecycle
