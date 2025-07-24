@@ -5,6 +5,7 @@ import * as yaml from "yaml"
 import type { MarketplaceItem, MarketplaceItemType, InstallMarketplaceItemOptions, McpParameter } from "@roo-code/types"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
+import type { CustomModesManager } from "../../core/config/CustomModesManager"
 
 export interface InstallOptions extends InstallMarketplaceItemOptions {
 	target: "project" | "global"
@@ -12,7 +13,10 @@ export interface InstallOptions extends InstallMarketplaceItemOptions {
 }
 
 export class SimpleInstaller {
-	constructor(private readonly context: vscode.ExtensionContext) {}
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly customModesManager?: CustomModesManager,
+	) {}
 
 	async installItem(item: MarketplaceItem, options: InstallOptions): Promise<{ filePath: string; line?: number }> {
 		const { target } = options
@@ -40,6 +44,48 @@ export class SimpleInstaller {
 			throw new Error("Mode content should not be an array")
 		}
 
+		// If CustomModesManager is available, use importModeWithRules
+		if (this.customModesManager) {
+			// Transform marketplace content to import format (wrap in customModes array)
+			const importData = {
+				customModes: [yaml.parse(item.content)],
+			}
+			const importYaml = yaml.stringify(importData)
+
+			// Call customModesManager.importModeWithRules
+			const result = await this.customModesManager.importModeWithRules(importYaml, target)
+
+			if (!result.success) {
+				throw new Error(result.error || "Failed to import mode")
+			}
+
+			// Return the file path and line number for VS Code to open
+			const filePath = await this.getModeFilePath(target)
+
+			// Try to find the line number where the mode was added
+			let line: number | undefined
+			try {
+				const fileContent = await fs.readFile(filePath, "utf-8")
+				const lines = fileContent.split("\n")
+				const modeData = yaml.parse(item.content)
+
+				// Find the line containing the slug of the added mode
+				if (modeData?.slug) {
+					const slugLineIndex = lines.findIndex(
+						(l) => l.includes(`slug: ${modeData.slug}`) || l.includes(`slug: "${modeData.slug}"`),
+					)
+					if (slugLineIndex >= 0) {
+						line = slugLineIndex + 1 // Convert to 1-based line number
+					}
+				}
+			} catch (error) {
+				// If we can't find the line number, that's okay
+			}
+
+			return { filePath, line }
+		}
+
+		// Fallback to original implementation if CustomModesManager is not available
 		const filePath = await this.getModeFilePath(target)
 		const modeData = yaml.parse(item.content)
 
@@ -248,56 +294,38 @@ export class SimpleInstaller {
 	}
 
 	private async removeMode(item: MarketplaceItem, target: "project" | "global"): Promise<void> {
-		const filePath = await this.getModeFilePath(target)
-
-		try {
-			const existing = await fs.readFile(filePath, "utf-8")
-			let existingData: any
-
-			try {
-				const parsed = yaml.parse(existing)
-				// Ensure we have a valid object
-				existingData = parsed && typeof parsed === "object" ? parsed : {}
-			} catch (parseError) {
-				// If we can't parse the file, we can't safely remove a mode
-				const fileName = target === "project" ? ".roomodes" : "custom-modes.yaml"
-				throw new Error(
-					`Cannot remove mode: The ${fileName} file contains invalid YAML. ` +
-						`Please fix the syntax errors before removing modes.`,
-				)
-			}
-
-			// Ensure customModes array exists
-			if (!existingData.customModes) {
-				existingData.customModes = []
-			}
-
-			// Parse the item content to get the slug
-			let content: string
-			if (Array.isArray(item.content)) {
-				// Array of McpInstallationMethod objects - use first method
-				content = item.content[0].content
-			} else {
-				content = item.content
-			}
-			const modeData = yaml.parse(content || "")
-
-			if (!modeData.slug) {
-				return // Nothing to remove if no slug
-			}
-
-			// Remove mode with matching slug
-			existingData.customModes = existingData.customModes.filter((mode: any) => mode.slug !== modeData.slug)
-
-			// Always write back the file, even if empty
-			await fs.writeFile(filePath, yaml.stringify(existingData, { lineWidth: 0 }), "utf-8")
-		} catch (error: any) {
-			if (error.code === "ENOENT") {
-				// File doesn't exist, nothing to remove
-				return
-			}
-			throw error
+		if (!this.customModesManager) {
+			throw new Error("CustomModesManager is not available")
 		}
+
+		// Parse the item content to get the slug
+		let content: string
+		if (Array.isArray(item.content)) {
+			// Array of McpInstallationMethod objects - use first method
+			content = item.content[0].content
+		} else {
+			content = item.content || ""
+		}
+
+		let modeSlug: string
+		try {
+			const modeData = yaml.parse(content)
+			modeSlug = modeData.slug
+		} catch (error) {
+			throw new Error("Invalid mode content: unable to parse YAML")
+		}
+
+		if (!modeSlug) {
+			throw new Error("Mode missing slug identifier")
+		}
+
+		// Get the current modes to determine the source
+		const modes = await this.customModesManager.getCustomModes()
+		const mode = modes.find((m) => m.slug === modeSlug)
+
+		// Use CustomModesManager to delete the mode configuration
+		// This also handles rules folder deletion
+		await this.customModesManager.deleteCustomMode(modeSlug, true)
 	}
 
 	private async removeMcp(item: MarketplaceItem, target: "project" | "global"): Promise<void> {

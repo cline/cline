@@ -9,14 +9,18 @@ import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ensureSettingsDirectoryExists } from "../../utils/globalContext"
 import { t } from "../../i18n"
 import { TelemetryService } from "@roo-code/telemetry"
+import type { CustomModesManager } from "../../core/config/CustomModesManager"
 
 export class MarketplaceManager {
 	private configLoader: RemoteConfigLoader
 	private installer: SimpleInstaller
 
-	constructor(private readonly context: vscode.ExtensionContext) {
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly customModesManager?: CustomModesManager,
+	) {
 		this.configLoader = new RemoteConfigLoader()
-		this.installer = new SimpleInstaller(context)
+		this.installer = new SimpleInstaller(context, customModesManager)
 	}
 
 	async getMarketplaceItems(): Promise<{ items: MarketplaceItem[]; errors?: string[] }> {

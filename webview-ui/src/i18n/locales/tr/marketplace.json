@@ -71,7 +71,9 @@
 			"removeProjectTooltip": "Mevcut projeden kaldır",
 			"removeGlobalTooltip": "Global yapılandırmadan kaldır",
 			"actionsMenuLabel": "Daha fazla eylem"
-		}
+		},
+		"removeFailed": "Öğe kaldırılamadı: {{error}}",
+		"unknownError": "Bilinmeyen bir hata oluştu"
 	},
 	"install": {
 		"title": "{{name}} Yükle",
@@ -124,6 +126,19 @@
 			"emojiName": "Emoji karakterleri görüntüleme sorunlarına neden olabilir",
 			"maxSources": "Maksimum {{max}} kaynak izin verilir"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Modu Kaldır",
+			"message": "\"{{modeName}}\" modunu kaldırmak istediğinizden emin misiniz?",
+			"rulesWarning": "Bu, bu mod için ilişkili tüm kural dosyalarını da kaldıracaktır."
+		},
+		"mcp": {
+			"title": "MCP Sunucusunu Kaldır",
+			"message": "\"{{mcpName}}\" MCP sunucusunu kaldırmak istediğinizden emin misiniz?"
+		},
+		"cancel": "İptal",
+		"confirm": "Kaldır"
 	},
 	"footer": {
 		"issueText": "Bir marketplace öğesi ile ilgili sorun bulduğun veya yeni öğeler için önerilerin var mı? <0>GitHub'da issue aç</0> ve bize bildir!"

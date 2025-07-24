@@ -147,11 +147,17 @@
 			"deleteFailed": "Fehler beim Löschen des benutzerdefinierten Modus: {{error}}",
 			"resetFailed": "Fehler beim Zurücksetzen der benutzerdefinierten Modi: {{error}}",
 			"modeNotFound": "Schreibfehler: Modus nicht gefunden",
-			"noWorkspaceForProject": "Kein Arbeitsbereich-Ordner für projektspezifischen Modus gefunden"
+			"noWorkspaceForProject": "Kein Arbeitsbereich-Ordner für projektspezifischen Modus gefunden",
+			"rulesCleanupFailed": "Der Modus wurde erfolgreich gelöscht, aber der Regelordner unter {{rulesFolderPath}} konnte nicht gelöscht werden. Möglicherweise musst du ihn manuell löschen."
 		},
 		"scope": {
 			"project": "projekt",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Der Modus wurde erfolgreich entfernt, aber der Regelordner unter {{rulesFolderPath}} konnte nicht gelöscht werden. Möglicherweise musst du ihn manuell löschen."
 		}
 	},
 	"mdm": {

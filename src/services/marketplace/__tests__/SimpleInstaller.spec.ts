@@ -4,10 +4,19 @@ import { SimpleInstaller } from "../SimpleInstaller"
 import * as fs from "fs/promises"
 import * as yaml from "yaml"
 import * as vscode from "vscode"
+import * as os from "os"
 import type { MarketplaceItem } from "@roo-code/types"
+import type { CustomModesManager } from "../../../core/config/CustomModesManager"
 import * as path from "path"
+import { fileExistsAtPath } from "../../../utils/fs"
 
-vi.mock("fs/promises")
+vi.mock("fs/promises", () => ({
+	readFile: vi.fn(),
+	writeFile: vi.fn(),
+	mkdir: vi.fn(),
+	rm: vi.fn(),
+}))
+vi.mock("os")
 vi.mock("vscode", () => ({
 	workspace: {
 		workspaceFolders: [
@@ -20,20 +29,33 @@ vi.mock("vscode", () => ({
 	},
 }))
 vi.mock("../../../utils/globalContext")
+vi.mock("../../../utils/fs")
 
-const mockFs = fs as any
+const mockFs = vi.mocked(fs)
 
 describe("SimpleInstaller", () => {
 	let installer: SimpleInstaller
 	let mockContext: vscode.ExtensionContext
+	let mockCustomModesManager: CustomModesManager
 
 	beforeEach(() => {
 		mockContext = {} as vscode.ExtensionContext
-		installer = new SimpleInstaller(mockContext)
+		mockCustomModesManager = {
+			deleteCustomMode: vi.fn().mockResolvedValue(undefined),
+			importModeWithRules: vi.fn().mockResolvedValue({ success: true }),
+			getCustomModes: vi.fn().mockResolvedValue([]),
+		} as any
+		installer = new SimpleInstaller(mockContext, mockCustomModesManager)
 		vi.clearAllMocks()
 
 		// Mock mkdir to always succeed
 		mockFs.mkdir.mockResolvedValue(undefined as any)
+		// Mock rm to always succeed
+		mockFs.rm.mockResolvedValue(undefined as any)
+		// Mock os.homedir
+		vi.mocked(os.homedir).mockReturnValue("/home/user")
+		// Mock fileExistsAtPath to return false by default
+		vi.mocked(fileExistsAtPath).mockResolvedValue(false)
 	})
 
 	describe("installMode", () => {
@@ -50,128 +72,69 @@ describe("SimpleInstaller", () => {
 			}),
 		}
 
-		it("should install mode when .roomodes file does not exist", async () => {
-			// Mock file not found error
+		it("should install mode using CustomModesManager", async () => {
+			// Mock file not found error for getModeFilePath
+			const notFoundError = new Error("File not found") as any
+			notFoundError.code = "ENOENT"
+			mockFs.readFile.mockRejectedValueOnce(notFoundError)
+
+			const result = await installer.installItem(mockModeItem, { target: "project" })
+
+			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
+			expect(mockCustomModesManager.importModeWithRules).toHaveBeenCalled()
+
+			// Verify the import was called with correct YAML structure
+			const importCall = (mockCustomModesManager.importModeWithRules as any).mock.calls[0]
+			const importedYaml = importCall[0]
+			const importedData = yaml.parse(importedYaml)
+			expect(importedData.customModes).toHaveLength(1)
+			expect(importedData.customModes[0].slug).toBe("test")
+		})
+
+		it("should handle import failure from CustomModesManager", async () => {
+			mockCustomModesManager.importModeWithRules = vi.fn().mockResolvedValue({
+				success: false,
+				error: "Import failed",
+			})
+
+			await expect(installer.installItem(mockModeItem, { target: "project" })).rejects.toThrow("Import failed")
+		})
+
+		it("should throw error for array content in mode", async () => {
+			const arrayContentMode: MarketplaceItem = {
+				...mockModeItem,
+				content: ["content1", "content2"] as any,
+			}
+
+			await expect(installer.installItem(arrayContentMode, { target: "project" })).rejects.toThrow(
+				"Mode content should not be an array",
+			)
+		})
+
+		it("should throw error for missing content", async () => {
+			const noContentMode: MarketplaceItem = {
+				...mockModeItem,
+				content: undefined as any,
+			}
+
+			await expect(installer.installItem(noContentMode, { target: "project" })).rejects.toThrow(
+				"Mode item missing content",
+			)
+		})
+
+		it("should work without CustomModesManager (fallback)", async () => {
+			const installerWithoutManager = new SimpleInstaller(mockContext)
+
+			// Mock file not found
 			const notFoundError = new Error("File not found") as any
 			notFoundError.code = "ENOENT"
 			mockFs.readFile.mockRejectedValueOnce(notFoundError)
 			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
 
-			const result = await installer.installItem(mockModeItem, { target: "project" })
+			const result = await installerWithoutManager.installItem(mockModeItem, { target: "project" })
 
 			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
 			expect(mockFs.writeFile).toHaveBeenCalled()
-
-			// Verify the written content contains the new mode
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toHaveLength(1)
-			expect(writtenData.customModes[0].slug).toBe("test")
-		})
-
-		it("should install mode when .roomodes contains valid YAML", async () => {
-			const existingContent = yaml.stringify({
-				customModes: [{ slug: "existing", name: "Existing Mode", roleDefinition: "Existing", groups: [] }],
-			})
-
-			mockFs.readFile.mockResolvedValueOnce(existingContent)
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			await installer.installItem(mockModeItem, { target: "project" })
-
-			expect(mockFs.writeFile).toHaveBeenCalled()
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-
-			// Should contain both existing and new mode
-			expect(writtenData.customModes).toHaveLength(2)
-			expect(writtenData.customModes.find((m: any) => m.slug === "existing")).toBeDefined()
-			expect(writtenData.customModes.find((m: any) => m.slug === "test")).toBeDefined()
-		})
-
-		it("should handle empty .roomodes file", async () => {
-			// Empty file content
-			mockFs.readFile.mockResolvedValueOnce("")
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			const result = await installer.installItem(mockModeItem, { target: "project" })
-
-			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
-			expect(mockFs.writeFile).toHaveBeenCalled()
-
-			// Verify the written content contains the new mode
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toHaveLength(1)
-			expect(writtenData.customModes[0].slug).toBe("test")
-		})
-
-		it("should handle .roomodes file with null content", async () => {
-			// File exists but yaml.parse returns null
-			mockFs.readFile.mockResolvedValueOnce("---\n")
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			const result = await installer.installItem(mockModeItem, { target: "project" })
-
-			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
-			expect(mockFs.writeFile).toHaveBeenCalled()
-
-			// Verify the written content contains the new mode
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toHaveLength(1)
-			expect(writtenData.customModes[0].slug).toBe("test")
-		})
-
-		it("should handle .roomodes file without customModes property", async () => {
-			// File has valid YAML but no customModes property
-			const contentWithoutCustomModes = yaml.stringify({ someOtherProperty: "value" })
-			mockFs.readFile.mockResolvedValueOnce(contentWithoutCustomModes)
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			const result = await installer.installItem(mockModeItem, { target: "project" })
-
-			expect(result.filePath).toBe(path.join("/test/workspace", ".roomodes"))
-			expect(mockFs.writeFile).toHaveBeenCalled()
-
-			// Verify the written content contains the new mode and preserves other properties
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toHaveLength(1)
-			expect(writtenData.customModes[0].slug).toBe("test")
-			expect(writtenData.someOtherProperty).toBe("value")
-		})
-
-		it("should throw error when .roomodes contains invalid YAML", async () => {
-			const invalidYaml = "invalid: yaml: content: {"
-
-			mockFs.readFile.mockResolvedValueOnce(invalidYaml)
-
-			await expect(installer.installItem(mockModeItem, { target: "project" })).rejects.toThrow(
-				"Cannot install mode: The .roomodes file contains invalid YAML",
-			)
-
-			// Should NOT write to file
-			expect(mockFs.writeFile).not.toHaveBeenCalled()
-		})
-
-		it("should replace existing mode with same slug", async () => {
-			const existingContent = yaml.stringify({
-				customModes: [{ slug: "test", name: "Old Test Mode", roleDefinition: "Old role", groups: [] }],
-			})
-
-			mockFs.readFile.mockResolvedValueOnce(existingContent)
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			await installer.installItem(mockModeItem, { target: "project" })
-
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-
-			// Should contain only one mode with updated content
-			expect(writtenData.customModes).toHaveLength(1)
-			expect(writtenData.customModes[0].slug).toBe("test")
-			expect(writtenData.customModes[0].name).toBe("Test Mode") // New name
 		})
 	})
 
@@ -254,75 +217,133 @@ describe("SimpleInstaller", () => {
 			}),
 		}
 
-		it("should throw error when .roomodes contains invalid YAML during removal", async () => {
-			const invalidYaml = "invalid: yaml: content: {"
+		it("should use CustomModesManager to delete mode and clean up rules folder", async () => {
+			// Mock that the mode exists with project source
+			vi.mocked(mockCustomModesManager.getCustomModes).mockResolvedValueOnce([
+				{ slug: "test", name: "Test Mode", source: "project" } as any,
+			])
 
-			mockFs.readFile.mockResolvedValueOnce(invalidYaml)
+			await installer.removeItem(mockModeItem, { target: "project" })
 
-			await expect(installer.removeItem(mockModeItem, { target: "project" })).rejects.toThrow(
-				"Cannot remove mode: The .roomodes file contains invalid YAML",
+			// Should call deleteCustomMode with fromMarketplace flag set to true
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test", true)
+			// The rules folder deletion is now handled by CustomModesManager, not SimpleInstaller
+			expect(fileExistsAtPath).not.toHaveBeenCalled()
+			expect(mockFs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should handle global mode removal with rules cleanup", async () => {
+			// Mock that the mode exists with global source
+			vi.mocked(mockCustomModesManager.getCustomModes).mockResolvedValueOnce([
+				{ slug: "test", name: "Test Mode", source: "global" } as any,
+			])
+
+			await installer.removeItem(mockModeItem, { target: "global" })
+
+			// Should call deleteCustomMode with fromMarketplace flag set to true
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test", true)
+			// The rules folder deletion is now handled by CustomModesManager, not SimpleInstaller
+			expect(fileExistsAtPath).not.toHaveBeenCalled()
+			expect(mockFs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should handle case when rules folder does not exist", async () => {
+			// Mock that the mode exists
+			vi.mocked(mockCustomModesManager.getCustomModes).mockResolvedValueOnce([
+				{ slug: "test", name: "Test Mode", source: "project" } as any,
+			])
+
+			await installer.removeItem(mockModeItem, { target: "project" })
+
+			// Should call deleteCustomMode with fromMarketplace flag set to true
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test", true)
+			// The rules folder deletion is now handled by CustomModesManager, not SimpleInstaller
+			expect(fileExistsAtPath).not.toHaveBeenCalled()
+			expect(mockFs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should throw error if deleteCustomMode fails", async () => {
+			// Mock that the mode exists
+			vi.mocked(mockCustomModesManager.getCustomModes).mockResolvedValueOnce([
+				{ slug: "test", name: "Test Mode", source: "project" } as any,
+			])
+			// Mock that deleteCustomMode fails
+			mockCustomModesManager.deleteCustomMode = vi.fn().mockRejectedValueOnce(new Error("Permission denied"))
+
+			// Should throw the error from deleteCustomMode
+			await expect(installer.removeItem(mockModeItem, { target: "project" })).rejects.toThrow("Permission denied")
+
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test", true)
+		})
+
+		it("should handle mode not found in custom modes list", async () => {
+			// Mock that the mode doesn't exist in the list
+			vi.mocked(mockCustomModesManager.getCustomModes).mockResolvedValueOnce([])
+
+			await installer.removeItem(mockModeItem, { target: "project" })
+
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test", true)
+			// Should not attempt to delete rules folder
+			expect(fileExistsAtPath).not.toHaveBeenCalled()
+			expect(mockFs.rm).not.toHaveBeenCalled()
+		})
+
+		it("should throw error when mode content is invalid YAML", async () => {
+			const invalidModeItem: MarketplaceItem = {
+				...mockModeItem,
+				content: "invalid: yaml: content: {",
+			}
+
+			await expect(installer.removeItem(invalidModeItem, { target: "project" })).rejects.toThrow(
+				"Invalid mode content: unable to parse YAML",
 			)
 
-			// Should NOT write to file
-			expect(mockFs.writeFile).not.toHaveBeenCalled()
+			expect(mockCustomModesManager.deleteCustomMode).not.toHaveBeenCalled()
 		})
 
-		it("should do nothing when file does not exist", async () => {
-			const notFoundError = new Error("File not found") as any
-			notFoundError.code = "ENOENT"
-			mockFs.readFile.mockRejectedValueOnce(notFoundError)
+		it("should throw error when mode has no slug", async () => {
+			const noSlugModeItem: MarketplaceItem = {
+				...mockModeItem,
+				content: yaml.stringify({
+					name: "Test Mode",
+					roleDefinition: "Test role",
+					groups: ["read"],
+				}),
+			}
 
-			// Should not throw
-			await installer.removeItem(mockModeItem, { target: "project" })
+			await expect(installer.removeItem(noSlugModeItem, { target: "project" })).rejects.toThrow(
+				"Mode missing slug identifier",
+			)
 
-			expect(mockFs.writeFile).not.toHaveBeenCalled()
+			expect(mockCustomModesManager.deleteCustomMode).not.toHaveBeenCalled()
 		})
 
-		it("should handle empty .roomodes file during removal", async () => {
-			// Empty file content
-			mockFs.readFile.mockResolvedValueOnce("")
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+		it("should handle array content format", async () => {
+			const arrayContentItem: MarketplaceItem = {
+				...mockModeItem,
+				content: [
+					{
+						content: yaml.stringify({
+							slug: "test-array",
+							name: "Test Array Mode",
+							roleDefinition: "Test role",
+							groups: ["read"],
+						}),
+					},
+				] as any,
+			}
 
-			// Should not throw
-			await installer.removeItem(mockModeItem, { target: "project" })
+			await installer.removeItem(arrayContentItem, { target: "project" })
 
-			// Should write back a valid structure with empty customModes
-			expect(mockFs.writeFile).toHaveBeenCalled()
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toEqual([])
+			expect(mockCustomModesManager.deleteCustomMode).toHaveBeenCalledWith("test-array", true)
 		})
 
-		it("should handle .roomodes file with null content during removal", async () => {
-			// File exists but yaml.parse returns null
-			mockFs.readFile.mockResolvedValueOnce("---\n")
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
+		it("should throw error when CustomModesManager is not available", async () => {
+			const installerWithoutManager = new SimpleInstaller(mockContext)
 
-			// Should not throw
-			await installer.removeItem(mockModeItem, { target: "project" })
-
-			// Should write back a valid structure with empty customModes
-			expect(mockFs.writeFile).toHaveBeenCalled()
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toEqual([])
-		})
-
-		it("should handle .roomodes file without customModes property during removal", async () => {
-			// File has valid YAML but no customModes property
-			const contentWithoutCustomModes = yaml.stringify({ someOtherProperty: "value" })
-			mockFs.readFile.mockResolvedValueOnce(contentWithoutCustomModes)
-			mockFs.writeFile.mockResolvedValueOnce(undefined as any)
-
-			// Should not throw
-			await installer.removeItem(mockModeItem, { target: "project" })
-
-			// Should write back the file with the same content (no modes to remove)
-			expect(mockFs.writeFile).toHaveBeenCalled()
-			const writtenContent = mockFs.writeFile.mock.calls[0][1] as string
-			const writtenData = yaml.parse(writtenContent)
-			expect(writtenData.customModes).toEqual([])
-			expect(writtenData.someOtherProperty).toBe("value")
+			await expect(installerWithoutManager.removeItem(mockModeItem, { target: "project" })).rejects.toThrow(
+				"CustomModesManager is not available",
+			)
 		})
 	})
 })

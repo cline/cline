@@ -147,11 +147,17 @@
 			"deleteFailed": "Error en eliminar el mode personalitzat: {{error}}",
 			"resetFailed": "Error en restablir els modes personalitzats: {{error}}",
 			"modeNotFound": "Error d'escriptura: Mode no trobat",
-			"noWorkspaceForProject": "No s'ha trobat cap carpeta d'espai de treball per al mode específic del projecte"
+			"noWorkspaceForProject": "No s'ha trobat cap carpeta d'espai de treball per al mode específic del projecte",
+			"rulesCleanupFailed": "El mode s'ha suprimit correctament, però no s'ha pogut suprimir la carpeta de regles a {{rulesFolderPath}}. És possible que l'hagis de suprimir manualment."
 		},
 		"scope": {
 			"project": "projecte",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "El mode s'ha eliminat correctament, però no s'ha pogut eliminar la carpeta de regles a {{rulesFolderPath}}. És possible que l'hagis d'eliminar manualment."
 		}
 	},
 	"mdm": {

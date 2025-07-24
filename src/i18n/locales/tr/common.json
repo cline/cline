@@ -147,11 +147,17 @@
 			"deleteFailed": "Özel mod silme başarısız: {{error}}",
 			"resetFailed": "Özel modları sıfırlama başarısız: {{error}}",
 			"modeNotFound": "Yazma hatası: Mod bulunamadı",
-			"noWorkspaceForProject": "Proje özel modu için çalışma alanı klasörü bulunamadı"
+			"noWorkspaceForProject": "Proje özel modu için çalışma alanı klasörü bulunamadı",
+			"rulesCleanupFailed": "Mod başarıyla silindi, ancak {{rulesFolderPath}} konumundaki kurallar klasörü silinemedi. Manuel olarak silmeniz gerekebilir."
 		},
 		"scope": {
 			"project": "proje",
 			"global": "küresel"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Mod başarıyla kaldırıldı, ancak {{rulesFolderPath}} konumundaki kurallar klasörü silinemedi. Manuel olarak silmeniz gerekebilir."
 		}
 	},
 	"mdm": {

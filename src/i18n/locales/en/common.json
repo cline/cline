@@ -136,11 +136,17 @@
 			"deleteFailed": "Failed to delete custom mode: {{error}}",
 			"resetFailed": "Failed to reset custom modes: {{error}}",
 			"modeNotFound": "Write error: Mode not found",
-			"noWorkspaceForProject": "No workspace folder found for project-specific mode"
+			"noWorkspaceForProject": "No workspace folder found for project-specific mode",
+			"rulesCleanupFailed": "Mode deleted successfully, but failed to delete rules folder at {{rulesFolderPath}}. You may need to delete it manually."
 		},
 		"scope": {
 			"project": "project",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Mode removed successfully, but failed to delete rules folder at {{rulesFolderPath}}. You may need to delete it manually."
 		}
 	},
 	"mdm": {

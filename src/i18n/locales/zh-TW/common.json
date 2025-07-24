@@ -147,11 +147,17 @@
 			"deleteFailed": "刪除自訂模式失敗：{{error}}",
 			"resetFailed": "重設自訂模式失敗：{{error}}",
 			"modeNotFound": "寫入錯誤：未找到模式",
-			"noWorkspaceForProject": "未找到專案特定模式的工作區資料夾"
+			"noWorkspaceForProject": "未找到專案特定模式的工作區資料夾",
+			"rulesCleanupFailed": "模式已成功刪除，但無法刪除位於 {{rulesFolderPath}} 的規則資料夾。您可能需要手動刪除。"
 		},
 		"scope": {
 			"project": "專案",
 			"global": "全域"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "模式已成功移除，但無法刪除位於 {{rulesFolderPath}} 的規則資料夾。您可能需要手動刪除。"
 		}
 	},
 	"mdm": {

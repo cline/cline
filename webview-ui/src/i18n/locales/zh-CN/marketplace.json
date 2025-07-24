@@ -71,7 +71,9 @@
 			"removeProjectTooltip": "从当前项目中移除",
 			"removeGlobalTooltip": "从全局配置中移除",
 			"actionsMenuLabel": "更多操作"
-		}
+		},
+		"removeFailed": "删除失败: {{error}}",
+		"unknownError": "发生未知错误"
 	},
 	"install": {
 		"title": "安装 {{name}}",
@@ -124,6 +126,19 @@
 			"emojiName": "表情符号字符可能导致显示问题",
 			"maxSources": "最多允许 {{max}} 个源"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "删除模式",
+			"message": "您确定要删除\"{{modeName}}\"模式吗？",
+			"rulesWarning": "这也将删除此模式的任何关联规则文件。"
+		},
+		"mcp": {
+			"title": "删除 MCP 服务器",
+			"message": "您确定要删除 MCP 服务器\"{{mcpName}}\"吗？"
+		},
+		"cancel": "取消",
+		"confirm": "删除"
 	},
 	"footer": {
 		"issueText": "发现 marketplace 项目问题或有新项目建议？<0>在 GitHub 开启 issue</0> 告诉我们！"

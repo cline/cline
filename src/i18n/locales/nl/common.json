@@ -147,11 +147,17 @@
 			"deleteFailed": "Aangepaste modus verwijderen mislukt: {{error}}",
 			"resetFailed": "Aangepaste modi resetten mislukt: {{error}}",
 			"modeNotFound": "Schrijffout: Modus niet gevonden",
-			"noWorkspaceForProject": "Geen workspace map gevonden voor projectspecifieke modus"
+			"noWorkspaceForProject": "Geen workspace map gevonden voor projectspecifieke modus",
+			"rulesCleanupFailed": "Modus succesvol verwijderd, maar het verwijderen van de regelsmap op {{rulesFolderPath}} is mislukt. Je moet deze mogelijk handmatig verwijderen."
 		},
 		"scope": {
 			"project": "project",
 			"global": "globaal"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Modus succesvol verwijderd, maar het verwijderen van de regelsmap op {{rulesFolderPath}} is mislukt. Je moet deze mogelijk handmatig verwijderen."
 		}
 	},
 	"mdm": {

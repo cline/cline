@@ -147,11 +147,17 @@
 			"deleteFailed": "Error al eliminar modo personalizado: {{error}}",
 			"resetFailed": "Error al restablecer modos personalizados: {{error}}",
 			"modeNotFound": "Error de escritura: Modo no encontrado",
-			"noWorkspaceForProject": "No se encontró carpeta de espacio de trabajo para modo específico del proyecto"
+			"noWorkspaceForProject": "No se encontró carpeta de espacio de trabajo para modo específico del proyecto",
+			"rulesCleanupFailed": "El modo se eliminó correctamente, pero no se pudo eliminar la carpeta de reglas en {{rulesFolderPath}}. Es posible que debas eliminarla manualmente."
 		},
 		"scope": {
 			"project": "proyecto",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "El modo se eliminó correctamente, pero no se pudo eliminar la carpeta de reglas en {{rulesFolderPath}}. Es posible que debas eliminarla manually."
 		}
 	},
 	"mdm": {

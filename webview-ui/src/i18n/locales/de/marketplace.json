@@ -70,8 +70,12 @@
 			"installed": "Installiert",
 			"removeProjectTooltip": "Aus aktuellem Projekt entfernen",
 			"removeGlobalTooltip": "Aus globaler Konfiguration entfernen",
-			"actionsMenuLabel": "Weitere Aktionen"
-		}
+			"actionsMenuLabel": "Weitere Aktionen",
+			"official": "Offiziell",
+			"verified": "Verifiziert"
+		},
+		"removeFailed": "Element konnte nicht entfernt werden: {{error}}",
+		"unknownError": "Unbekannter Fehler aufgetreten"
 	},
 	"install": {
 		"title": "{{name}} installieren",
@@ -124,6 +128,19 @@
 			"emojiName": "Emoji-Zeichen können Anzeigefehler verursachen",
 			"maxSources": "Maximal {{max}} Quellen erlaubt"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Modus entfernen",
+			"message": "Bist du sicher, dass du den Modus „{{modeName}}“ entfernen möchtest?",
+			"rulesWarning": "Dadurch werden auch alle zugehörigen Regeldateien für diesen Modus entfernt."
+		},
+		"mcp": {
+			"title": "MCP-Server entfernen",
+			"message": "Bist du sicher, dass du den MCP-Server „{{mcpName}}“ entfernen möchtest?"
+		},
+		"cancel": "Abbrechen",
+		"confirm": "Entfernen"
 	},
 	"footer": {
 		"issueText": "Problem mit einem Marketplace-Element gefunden oder Vorschläge für neue? <0>Öffne ein GitHub-Issue</0>, um es uns mitzuteilen!"

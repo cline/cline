@@ -2229,8 +2229,45 @@ export const webviewMessageHandler = async (
 				try {
 					await marketplaceManager.removeInstalledMarketplaceItem(message.mpItem, message.mpInstallOptions)
 					await provider.postStateToWebview()
+
+					// Send success message to webview
+					provider.postMessageToWebview({
+						type: "marketplaceRemoveResult",
+						success: true,
+						slug: message.mpItem.id,
+					})
 				} catch (error) {
 					console.error(`Error removing marketplace item: ${error}`)
+
+					// Show error message to user
+					vscode.window.showErrorMessage(
+						`Failed to remove marketplace item: ${error instanceof Error ? error.message : String(error)}`,
+					)
+
+					// Send error message to webview
+					provider.postMessageToWebview({
+						type: "marketplaceRemoveResult",
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+						slug: message.mpItem.id,
+					})
+				}
+			} else {
+				// MarketplaceManager not available or missing required parameters
+				const errorMessage = !marketplaceManager
+					? "Marketplace manager is not available"
+					: "Missing required parameters for marketplace item removal"
+				console.error(errorMessage)
+
+				vscode.window.showErrorMessage(errorMessage)
+
+				if (message.mpItem?.id) {
+					provider.postMessageToWebview({
+						type: "marketplaceRemoveResult",
+						success: false,
+						error: errorMessage,
+						slug: message.mpItem.id,
+					})
 				}
 			}
 			break

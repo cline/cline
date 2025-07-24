@@ -147,11 +147,17 @@
 			"deleteFailed": "사용자 정의 모드 삭제 실패: {{error}}",
 			"resetFailed": "사용자 정의 모드 재설정 실패: {{error}}",
 			"modeNotFound": "쓰기 오류: 모드를 찾을 수 없습니다",
-			"noWorkspaceForProject": "프로젝트별 모드용 작업 공간 폴더를 찾을 수 없습니다"
+			"noWorkspaceForProject": "프로젝트별 모드용 작업 공간 폴더를 찾을 수 없습니다",
+			"rulesCleanupFailed": "모드가 성공적으로 삭제되었지만 {{rulesFolderPath}}의 규칙 폴더를 삭제하지 못했습니다. 수동으로 삭제해야 할 수도 있습니다."
 		},
 		"scope": {
 			"project": "프로젝트",
 			"global": "글로벌"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "모드가 성공적으로 제거되었지만 {{rulesFolderPath}}의 규칙 폴더를 삭제하지 못했습니다. 수동으로 삭제해야 할 수도 있습니다."
 		}
 	},
 	"mdm": {

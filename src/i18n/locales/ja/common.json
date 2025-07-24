@@ -147,11 +147,17 @@
 			"deleteFailed": "カスタムモードの削除に失敗しました：{{error}}",
 			"resetFailed": "カスタムモードのリセットに失敗しました：{{error}}",
 			"modeNotFound": "書き込みエラー：モードが見つかりません",
-			"noWorkspaceForProject": "プロジェクト固有モード用のワークスペースフォルダーが見つかりません"
+			"noWorkspaceForProject": "プロジェクト固有モード用のワークスペースフォルダーが見つかりません",
+			"rulesCleanupFailed": "モードは正常に削除されましたが、{{rulesFolderPath}} にあるルールフォルダの削除に失敗しました。手動で削除する必要がある場合があります。"
 		},
 		"scope": {
 			"project": "プロジェクト",
 			"global": "グローバル"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "モードは正常に削除されましたが、{{rulesFolderPath}} にあるルールフォルダの削除に失敗しました。手動で削除する必要がある場合があります。"
 		}
 	},
 	"mdm": {

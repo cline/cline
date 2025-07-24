@@ -147,11 +147,17 @@
 			"deleteFailed": "Gagal menghapus mode kustom: {{error}}",
 			"resetFailed": "Gagal mereset mode kustom: {{error}}",
 			"modeNotFound": "Kesalahan tulis: Mode tidak ditemukan",
-			"noWorkspaceForProject": "Tidak ditemukan folder workspace untuk mode khusus proyek"
+			"noWorkspaceForProject": "Tidak ditemukan folder workspace untuk mode khusus proyek",
+			"rulesCleanupFailed": "Mode berhasil dihapus, tetapi gagal menghapus folder aturan di {{rulesFolderPath}}. Kamu mungkin perlu menghapusnya secara manual."
 		},
 		"scope": {
 			"project": "proyek",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Mode berhasil dihapus, tetapi gagal menghapus folder aturan di {{rulesFolderPath}}. Kamu mungkin perlu menghapusnya secara manual."
 		}
 	},
 	"mdm": {

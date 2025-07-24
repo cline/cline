@@ -71,7 +71,9 @@
 			"removeProjectTooltip": "Remove from current project",
 			"removeGlobalTooltip": "Remove from global configuration",
 			"actionsMenuLabel": "More actions"
-		}
+		},
+		"removeFailed": "Failed to remove item: {{error}}",
+		"unknownError": "Unknown error occurred"
 	},
 	"install": {
 		"title": "Install {{name}}",
@@ -124,6 +126,19 @@
 			"emojiName": "Emoji characters may cause display issues",
 			"maxSources": "Maximum of {{max}} sources allowed"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Remove Mode",
+			"message": "Are you sure you want to remove the mode \"{{modeName}}\"?",
+			"rulesWarning": "This will also remove any associated rules files for this mode."
+		},
+		"mcp": {
+			"title": "Remove MCP Server",
+			"message": "Are you sure you want to remove the MCP server \"{{mcpName}}\"?"
+		},
+		"cancel": "Cancel",
+		"confirm": "Remove"
 	},
 	"footer": {
 		"issueText": "Found a problem with a marketplace item or have suggestions for new ones? <0>Open a GitHub issue</0> to let us know!"

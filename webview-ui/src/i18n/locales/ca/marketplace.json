@@ -70,8 +70,12 @@
 			"installed": "Instal·lat",
 			"removeProjectTooltip": "Eliminar del projecte actual",
 			"removeGlobalTooltip": "Eliminar de la configuració global",
-			"actionsMenuLabel": "Més accions"
-		}
+			"actionsMenuLabel": "Més accions",
+			"official": "Oficial",
+			"verified": "Verificat"
+		},
+		"removeFailed": "No s'ha pogut eliminar l'element: {{error}}",
+		"unknownError": "S'ha produït un error desconegut"
 	},
 	"install": {
 		"title": "Instal·lar {{name}}",
@@ -124,6 +128,19 @@
 			"emojiName": "Els caràcters emoji poden causar problemes de visualització",
 			"maxSources": "Màxim de {{max}} fonts permeses"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Eliminar el mode",
+			"message": "Estàs segur que vols eliminar el mode \"{{modeName}}\"?",
+			"rulesWarning": "Això també eliminarà qualsevol fitxer de regles associat per a aquest mode."
+		},
+		"mcp": {
+			"title": "Eliminar el servidor MCP",
+			"message": "Estàs segur que vols eliminar el servidor MCP \"{{mcpName}}\"?"
+		},
+		"cancel": "Cancel·lar",
+		"confirm": "Eliminar"
 	},
 	"footer": {
 		"issueText": "Has trobat un problema amb un element del marketplace o tens suggeriments per a nous elements? <0>Obre una incidència de GitHub</0> per fer-nos-ho saber!"

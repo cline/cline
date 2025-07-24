@@ -147,11 +147,17 @@
 			"deleteFailed": "Échec de la suppression du mode personnalisé : {{error}}",
 			"resetFailed": "Échec de la réinitialisation des modes personnalisés : {{error}}",
 			"modeNotFound": "Erreur d'écriture : Mode non trouvé",
-			"noWorkspaceForProject": "Aucun dossier d'espace de travail trouvé pour le mode spécifique au projet"
+			"noWorkspaceForProject": "Aucun dossier d'espace de travail trouvé pour le mode spécifique au projet",
+			"rulesCleanupFailed": "Le mode a été supprimé avec succès, mais la suppression du dossier de règles à l'adresse {{rulesFolderPath}} a échoué. Vous devrez peut-être le supprimer manuellement."
 		},
 		"scope": {
 			"project": "projet",
 			"global": "global"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Le mode a été supprimé avec succès, mais la suppression du dossier de règles à l'adresse {{rulesFolderPath}} a échoué. Vous devrez peut-être le supprimer manuellement."
 		}
 	},
 	"mdm": {

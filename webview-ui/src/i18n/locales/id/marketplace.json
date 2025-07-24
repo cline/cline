@@ -71,7 +71,9 @@
 			"removeProjectTooltip": "Hapus dari proyek saat ini",
 			"removeGlobalTooltip": "Hapus dari konfigurasi global",
 			"actionsMenuLabel": "Aksi lainnya"
-		}
+		},
+		"removeFailed": "Gagal menghapus item: {{error}}",
+		"unknownError": "Terjadi kesalahan yang tidak diketahui"
 	},
 	"install": {
 		"title": "Instal {{name}}",
@@ -124,6 +126,19 @@
 			"emojiName": "Karakter emoji dapat menyebabkan masalah tampilan",
 			"maxSources": "Maksimal {{max}} sumber diizinkan"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Hapus Mode",
+			"message": "Apakah Anda yakin ingin menghapus mode \"{{modeName}}\"?",
+			"rulesWarning": "Ini juga akan menghapus semua file aturan terkait untuk mode ini."
+		},
+		"mcp": {
+			"title": "Hapus Server MCP",
+			"message": "Apakah Anda yakin ingin menghapus server MCP \"{{mcpName}}\"?"
+		},
+		"cancel": "Batal",
+		"confirm": "Hapus"
 	},
 	"footer": {
 		"issueText": "Menemukan masalah dengan item marketplace atau punya saran untuk yang baru? <0>Buka GitHub issue</0> untuk memberi tahu kami!"

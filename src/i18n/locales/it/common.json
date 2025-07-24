@@ -147,11 +147,17 @@
 			"deleteFailed": "Eliminazione modalità personalizzata fallita: {{error}}",
 			"resetFailed": "Reset modalità personalizzate fallito: {{error}}",
 			"modeNotFound": "Errore di scrittura: Modalità non trovata",
-			"noWorkspaceForProject": "Nessuna cartella workspace trovata per la modalità specifica del progetto"
+			"noWorkspaceForProject": "Nessuna cartella workspace trovata per la modalità specifica del progetto",
+			"rulesCleanupFailed": "La modalità è stata eliminata con successo, ma non è stato possibile eliminare la cartella delle regole in {{rulesFolderPath}}. Potrebbe essere necessario eliminarla manualmente."
 		},
 		"scope": {
 			"project": "progetto",
 			"global": "globale"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "La modalità è stata rimossa con successo, ma non è stato possibile eliminare la cartella delle regole in {{rulesFolderPath}}. Potrebbe essere necessario eliminarla manualmente."
 		}
 	},
 	"mdm": {

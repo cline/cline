@@ -71,7 +71,9 @@
 			"removeProjectTooltip": "現在のプロジェクトから削除",
 			"removeGlobalTooltip": "グローバル設定から削除",
 			"actionsMenuLabel": "その他のアクション"
-		}
+		},
+		"removeFailed": "アイテムの削除に失敗しました: {{error}}",
+		"unknownError": "不明なエラーが発生しました"
 	},
 	"install": {
 		"title": "{{name}}をインストール",
@@ -124,6 +126,19 @@
 			"emojiName": "絵文字文字は表示の問題を引き起こす可能性があります",
 			"maxSources": "最大{{max}}個のソースが許可されています"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "モードを削除",
+			"message": "モード「{{modeName}}」を本当に削除しますか？",
+			"rulesWarning": "これにより、このモードに関連するルールファイルも削除されます。"
+		},
+		"mcp": {
+			"title": "MCPサーバーを削除",
+			"message": "MCPサーバー「{{mcpName}}」を本当に削除しますか？"
+		},
+		"cancel": "キャンセル",
+		"confirm": "削除"
 	},
 	"footer": {
 		"issueText": "Marketplaceアイテムで問題を見つけた、または新しいアイテムの提案がありますか？<0>GitHub issueを開いて</0>お知らせください！"

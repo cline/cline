@@ -147,11 +147,17 @@
 			"deleteFailed": "Xóa chế độ tùy chỉnh thất bại: {{error}}",
 			"resetFailed": "Đặt lại chế độ tùy chỉnh thất bại: {{error}}",
 			"modeNotFound": "Lỗi ghi: Không tìm thấy chế độ",
-			"noWorkspaceForProject": "Không tìm thấy thư mục workspace cho chế độ dành riêng cho dự án"
+			"noWorkspaceForProject": "Không tìm thấy thư mục workspace cho chế độ dành riêng cho dự án",
+			"rulesCleanupFailed": "Đã xóa chế độ thành công, nhưng không thể xóa thư mục quy tắc tại {{rulesFolderPath}}. Bạn có thể cần xóa thủ công."
 		},
 		"scope": {
 			"project": "dự án",
 			"global": "toàn cầu"
+		}
+	},
+	"marketplace": {
+		"mode": {
+			"rulesCleanupFailed": "Đã xóa chế độ thành công, nhưng không thể xóa thư mục quy tắc tại {{rulesFolderPath}}. Bạn có thể cần xóa thủ công."
 		}
 	},
 	"mdm": {

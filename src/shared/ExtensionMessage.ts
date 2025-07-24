@@ -102,6 +102,7 @@ export interface ExtensionMessage {
 		| "indexCleared"
 		| "codebaseIndexConfig"
 		| "marketplaceInstallResult"
+		| "marketplaceRemoveResult"
 		| "marketplaceData"
 		| "shareTaskSuccess"
 		| "codeIndexSettingsSaved"

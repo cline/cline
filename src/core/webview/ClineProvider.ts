@@ -158,7 +158,7 @@ export class ClineProvider
 				this.log(`Failed to initialize MCP Hub: ${error}`)
 			})
 
-		this.marketplaceManager = new MarketplaceManager(this.context)
+		this.marketplaceManager = new MarketplaceManager(this.context, this.customModesManager)
 	}
 
 	// Adds a new Cline instance to clineStack, marking the start of a new task.

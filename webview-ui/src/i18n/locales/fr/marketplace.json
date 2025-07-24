@@ -27,7 +27,7 @@
 		},
 		"tags": {
 			"label": "Filtrer par étiquettes :",
-			"clear": "Effacer les étiquettes",
+			"clear": "Cliquez pour supprimer '{{count}}' des filtres",
 			"placeholder": "Tapez pour rechercher et sélectionner des étiquettes...",
 			"noResults": "Aucune étiquette correspondante trouvée",
 			"selected": "Affichage des éléments avec l'une des étiquettes sélectionnées",
@@ -70,8 +70,12 @@
 			"installed": "Installé",
 			"removeProjectTooltip": "Supprimer du projet actuel",
 			"removeGlobalTooltip": "Supprimer de la configuration globale",
-			"actionsMenuLabel": "Plus d'actions"
-		}
+			"actionsMenuLabel": "Plus d'actions",
+			"official": "Officiel",
+			"verified": "Vérifié"
+		},
+		"removeFailed": "Échec de la suppression de l'élément : {{error}}",
+		"unknownError": "Une erreur inconnue est survenue"
 	},
 	"install": {
 		"title": "Installer {{name}}",
@@ -124,6 +128,19 @@
 			"emojiName": "Les caractères emoji peuvent causer des problèmes d'affichage",
 			"maxSources": "Maximum de {{max}} sources autorisées"
 		}
+	},
+	"removeConfirm": {
+		"mode": {
+			"title": "Supprimer le mode",
+			"message": "Êtes-vous sûr de vouloir supprimer le mode « {{modeName}} » ?",
+			"rulesWarning": "Cela supprimera également tous les fichiers de règles associés à ce mode."
+		},
+		"mcp": {
+			"title": "Supprimer le serveur MCP",
+			"message": "Êtes-vous sûr de vouloir supprimer le serveur MCP « {{mcpName}} » ?"
+		},
+		"cancel": "Annuler",
+		"confirm": "Supprimer"
 	},
 	"footer": {
 		"issueText": "Vous avez trouvé un problème avec un élément du marketplace ou avez des suggestions pour de nouveaux éléments ? <0>Ouvrez une issue GitHub</0> pour nous le faire savoir !"

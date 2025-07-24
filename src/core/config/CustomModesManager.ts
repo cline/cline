@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
+import * as os from "os"
 
 import * as yaml from "yaml"
 import stripBom from "strip-bom"
@@ -501,7 +502,7 @@ export class CustomModesManager {
 		await this.onUpdate()
 	}
 
-	public async deleteCustomMode(slug: string): Promise<void> {
+	public async deleteCustomMode(slug: string, fromMarketplace = false): Promise<void> {
 		try {
 			const settingsPath = await this.getCustomModesFilePath()
 			const roomodesPath = await this.getWorkspaceRoomodes()
@@ -517,6 +518,9 @@ export class CustomModesManager {
 				throw new Error(t("common:customModes.errors.modeNotFound"))
 			}
 
+			// Determine which mode to use for rules folder path calculation
+			const modeToDelete = projectMode || globalMode
+
 			await this.queueWrite(async () => {
 				// Delete from project first if it exists there
 				if (projectMode && roomodesPath) {
@@ -528,6 +532,11 @@ export class CustomModesManager {
 					await this.updateModesInFile(settingsPath, (modes) => modes.filter((m) => m.slug !== slug))
 				}
 
+				// Delete associated rules folder
+				if (modeToDelete) {
+					await this.deleteRulesFolder(slug, modeToDelete, fromMarketplace)
+				}
+
 				// Clear cache when modes are deleted
 				this.clearCache()
 				await this.refreshMergedState()
@@ -535,6 +544,54 @@ export class CustomModesManager {
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			vscode.window.showErrorMessage(t("common:customModes.errors.deleteFailed", { error: errorMessage }))
+		}
+	}
+
+	/**
+	 * Deletes the rules folder for a specific mode
+	 * @param slug - The mode slug
+	 * @param mode - The mode configuration to determine the scope
+	 */
+	private async deleteRulesFolder(slug: string, mode: ModeConfig, fromMarketplace = false): Promise<void> {
+		try {
+			// Determine the scope based on source (project or global)
+			const scope = mode.source || "global"
+
+			// Determine the rules folder path
+			let rulesFolderPath: string
+			if (scope === "project") {
+				const workspacePath = getWorkspacePath()
+				if (workspacePath) {
+					rulesFolderPath = path.join(workspacePath, ".roo", `rules-${slug}`)
+				} else {
+					return // No workspace, can't delete project rules
+				}
+			} else {
+				// Global scope - use OS home directory
+				const homeDir = os.homedir()
+				rulesFolderPath = path.join(homeDir, ".roo", `rules-${slug}`)
+			}
+
+			// Check if the rules folder exists and delete it
+			const rulesFolderExists = await fileExistsAtPath(rulesFolderPath)
+			if (rulesFolderExists) {
+				try {
+					await fs.rm(rulesFolderPath, { recursive: true, force: true })
+					logger.info(`Deleted rules folder for mode ${slug}: ${rulesFolderPath}`)
+				} catch (error) {
+					logger.error(`Failed to delete rules folder for mode ${slug}: ${error}`)
+					// Notify the user about the failure
+					const messageKey = fromMarketplace
+						? "common:marketplace.mode.rulesCleanupFailed"
+						: "common:customModes.errors.rulesCleanupFailed"
+					vscode.window.showWarningMessage(t(messageKey, { rulesFolderPath }))
+					// Continue even if folder deletion fails
+				}
+			}
+		} catch (error) {
+			logger.error(`Error deleting rules folder for mode ${slug}`, {
+				error: error instanceof Error ? error.message : String(error),
+			})
 		}
 	}
 
