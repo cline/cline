@@ -4,8 +4,9 @@ import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
 import { ApiStream } from "@api/transform/stream"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import { TaskCheckpointManager, createTaskCheckpointManager } from "@integrations/checkpoints"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
@@ -350,12 +351,11 @@ export class Task {
 			this.chatSettings,
 			this.say.bind(this),
 			this.ask.bind(this),
-			(isAttemptCompletionMessage?: boolean, completionMessageTs?: number) =>
-				this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve(),
+			this.saveCheckpointCallback.bind(this),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
-			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
+			this.checkLatestTaskCompletionHasNewChanges.bind(this),
 		)
 	}
 
@@ -634,6 +634,14 @@ export class Task {
 			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		}
+	}
+
+	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
+		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
+	}
+
+	private async checkLatestTaskCompletionHasNewChanges(): Promise<boolean> {
+		return this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false)
 	}
 
 	// Task lifecycle
