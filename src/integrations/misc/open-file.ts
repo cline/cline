@@ -54,10 +54,12 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		await HostProvider.window.showTextDocument({
-			path: uri.fsPath,
-			options: { preview: false },
-		})
+		// Let the host bridge decide how to open the file (text editor vs system viewer)
+		await HostProvider.window.openFile(
+			OpenFileRequest.create({
+				filePath: absolutePath,
+			}),
+		)
 	} catch (error) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,

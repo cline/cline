@@ -212,24 +212,27 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			)
 			if (
 				response &&
-				response.values1 &&
-				response.values2 &&
-				(response.values1.length > 0 || response.values2.length > 0)
+				(response.values1 || response.values2) &&
+				((response.values1 && response.values1.length > 0) || (response.values2 && response.values2.length > 0))
 			) {
 				const currentTotal = selectedImages.length + selectedFiles.length
 				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - currentTotal
 
 				if (availableSlots > 0) {
+					// Defensive: ensure arrays exist before using them
+					const images = response.values1 || []
+					const files = response.values2 || []
+
 					// Prioritize images first
-					const imagesToAdd = Math.min(response.values1.length, availableSlots)
+					const imagesToAdd = Math.min(images.length, availableSlots)
 					if (imagesToAdd > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...response.values1.slice(0, imagesToAdd)])
+						setSelectedImages((prevImages) => [...prevImages, ...images.slice(0, imagesToAdd)])
 					}
 
 					// Use remaining slots for files
 					const remainingSlots = availableSlots - imagesToAdd
 					if (remainingSlots > 0) {
-						setSelectedFiles((prevFiles) => [...prevFiles, ...response.values2.slice(0, remainingSlots)])
+						setSelectedFiles((prevFiles) => [...prevFiles, ...files.slice(0, remainingSlots)])
 					}
 				}
 			}

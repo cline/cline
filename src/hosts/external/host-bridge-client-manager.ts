@@ -5,6 +5,7 @@ import {
 	EnvServiceClientImpl,
 	WindowServiceClientImpl,
 	DiffServiceClientImpl,
+	FileServiceClientImpl,
 } from "@generated/hosts/standalone/host-bridge-clients"
 import {
 	WatchServiceClientInterface,
@@ -12,6 +13,7 @@ import {
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
 	DiffServiceClientInterface,
+	FileServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { HOSTBRIDGE_PORT } from "@/standalone/protobus-service"
@@ -26,6 +28,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
 	diffClient: DiffServiceClientInterface
+	fileClient: FileServiceClientInterface
 
 	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
@@ -35,5 +38,6 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 		this.envClient = new EnvServiceClientImpl(address)
 		this.windowClient = new WindowServiceClientImpl(address)
 		this.diffClient = new DiffServiceClientImpl(address)
+		this.fileClient = new FileServiceClientImpl(address)
 	}
 }
