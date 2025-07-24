@@ -36,7 +36,7 @@ export class CerebrasHandler implements ApiHandler {
 	): Array<{ role: "system" | "user" | "assistant"; content: string }> {
 		const model = this.getModel()
 		const maxContextTokens = model.info.contextWindow || 40000
-		// Consider a single message mega if it is more than 97% of the (current available) context window
+		// Consider a single message mega if it is more than 97% of the maximum available context window
 		const megaInputThreshold = Math.floor(maxContextTokens * 0.97)
 
 		return messages.map((msg) => {
