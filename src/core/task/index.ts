@@ -86,7 +86,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -115,7 +115,6 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	private hostBridge: HostBridgeClientProvider
 	private checkpointTracker?: CheckpointTracker
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
@@ -191,7 +190,6 @@ export class Task {
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.hostBridge = HostProvider.get().hostBridge
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -2528,7 +2526,7 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFilePaths = (await this.hostBridge.windowClient.getVisibleTabs({})).paths.map((absolutePath) =>
+		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
 
@@ -2545,7 +2543,7 @@ export class Task {
 		}
 
 		details += "\n\n# VSCode Open Tabs"
-		const openTabPaths = (await this.hostBridge.windowClient.getOpenTabs({})).paths.map((absolutePath) =>
+		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
 
