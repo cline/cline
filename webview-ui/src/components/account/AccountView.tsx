@@ -149,6 +149,16 @@ export const ClineAccountView = () => {
 
 	const getUserOrganizations = useCallback(async () => {
 		try {
+			// Reset state when user is not logged in
+			if (!clineUser?.uid) {
+				setIsLoading(true)
+				setBalance(null)
+				setUserOrganizations([])
+				setActiveOrganization(null)
+				setIsSwitchingProfile(false)
+				return
+			}
+
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
 				setUserOrganizations(response.organizations)
@@ -171,7 +181,7 @@ export const ClineAccountView = () => {
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [userOrganizations, isSwitchingProfile, activeOrganization?.organizationId])
+	}, [userOrganizations, isSwitchingProfile, activeOrganization?.organizationId, clineUser?.uid])
 
 	const fetchCreditBalance = useCallback(async () => {
 		try {
@@ -269,21 +279,12 @@ export const ClineAccountView = () => {
 
 	// Handle organization changes and initial load
 	useEffect(() => {
-		// Reset state when user is not logged in
-		if (!clineUser?.uid) {
-			setIsLoading(true)
-			setBalance(null)
-			setUserOrganizations([])
-			setActiveOrganization(null)
-			setIsSwitchingProfile(false)
-			return
-		}
 		const loadData = async () => {
 			await getUserOrganizations()
 			await fetchCreditBalance()
 		}
 		loadData()
-	}, [activeOrganization?.organizationId, clineUser?.uid])
+	}, [activeOrganization?.organizationId])
 
 	// Periodic refresh
 	useEffect(() => {
