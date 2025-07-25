@@ -1,116 +1,8 @@
 import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { buildApiHandler } from "@/api"
-import { getAllExtensionState } from "@/core/storage/state"
-import { getWorkingState } from "@/utils/git"
+import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
 import { getCwd } from "@/utils/path"
-
-/**
- * Git commit message generator module
- */
-export const GitCommitGenerator = {
-	generate,
-	abort,
-}
-
-let commitGenerationAbortController: AbortController | undefined = undefined
-
-async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
-	const cwd = await getCwd()
-	if (!context || !cwd) {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: "No workspace folder open",
-		})
-		return
-	}
-
-	const gitDiff = await getWorkingState(cwd)
-	if (gitDiff === "No changes in working directory") {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.INFORMATION,
-			message: "No changes in workspace for commit message",
-		})
-		return
-	}
-
-	const inputBox = scm?.inputBox
-	if (!inputBox) {
-		vscode.window.showErrorMessage("Git extension not found or no repositories available")
-		return
-	}
-
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.SourceControl,
-			title: "Generating commit message...",
-			cancellable: true,
-		},
-		() => performCommitGeneration(context, gitDiff, inputBox),
-	)
-}
-
-async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
-	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
-
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
-
-		const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
-${truncatedDiff}
-The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
-Commit message:`
-
-		// Get the current API configuration
-		const { apiConfiguration } = await getAllExtensionState(context)
-		// Set to use Act mode for now by default
-		// TODO: A new mode for commit generation
-		const currentMode = "act"
-
-		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
-
-		// Create a system prompt
-		const systemPrompt =
-			"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
-
-		// Create a message for the API
-		const messages = [{ role: "user" as const, content: prompt }]
-
-		commitGenerationAbortController = new AbortController()
-		const stream = apiHandler.createMessage(systemPrompt, messages)
-
-		let response = ""
-		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
-			if (chunk.type === "text") {
-				response += chunk.text
-				inputBox.value = extractCommitMessage(response)
-			}
-		}
-
-		if (!inputBox.value) {
-			throw new Error("empty API response")
-		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
-	} finally {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
-	}
-}
-
-function abort() {
-	commitGenerationAbortController?.abort()
-	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
-}
-
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
@@ -145,10 +37,44 @@ Commit message:`
  */
 export function extractCommitMessage(str: string): string {
 	// Remove any markdown formatting or extra text
-	return str
-		.trim()
-		.replace(/^```[^\n]*\n?|```$/g, "")
-		.trim()
+	let message = str.trim()
+
+	// Look for code blocks which typically contain the actual commit message
+	const codeBlockRegex = /```(?:git|commit|plaintext|)?\s*([\s\S]*?)```/g
+	const matches = [...message.matchAll(codeBlockRegex)]
+
+	if (matches.length > 0) {
+		// Use the last code block if there are multiple (usually the final one contains the refined message)
+		const lastMatch = matches[matches.length - 1]
+		if (lastMatch && lastMatch[1]) {
+			return lastMatch[1].trim()
+		}
+	}
+
+	// If no code blocks found, try to extract the message after "Commit message:" if present
+	const commitMessagePrefix = "Commit message:"
+	const prefixIndex = message.lastIndexOf(commitMessagePrefix)
+	if (prefixIndex !== -1) {
+		return message.substring(prefixIndex + commitMessagePrefix.length).trim()
+	}
+
+	// If we can't find a specific pattern, just return the first few lines (likely the summary)
+	const lines = message.split("\n")
+	if (lines.length > 0) {
+		// Return just the first paragraph (usually the commit message)
+		const firstParagraph = []
+		for (const line of lines) {
+			if (line.trim() === "") {
+				break
+			}
+			firstParagraph.push(line)
+		}
+		if (firstParagraph.length > 0) {
+			return firstParagraph.join("\n")
+		}
+	}
+
+	return message
 }
 
 /**
@@ -212,8 +138,13 @@ async function applyCommitMessageToGitInput(message: string): Promise<void> {
 	if (gitExtension) {
 		const api = gitExtension.getAPI(1)
 		if (api && api.repositories.length > 0) {
-			const repo = api.repositories[0]
-			repo.inputBox.value = message
+			// Get the current working directory
+			const cwd = await getCwd()
+			// Find the active repository based on the current working directory
+			const activeRepo = cwd
+				? api.repositories.find((repo: any) => repo.rootUri.fsPath === cwd) || api.repositories[0]
+				: api.repositories[0]
+			activeRepo.inputBox.value = message
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Commit message applied to Git input",

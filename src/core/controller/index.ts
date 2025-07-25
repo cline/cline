@@ -4,6 +4,8 @@ import { AuthService } from "@/services/auth/AuthService"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { getWorkingState } from "@/utils/git"
+import { extractCommitMessage } from "@/integrations/git/commit-message-generator"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
@@ -851,7 +853,152 @@ export class Controller {
 	// 	this.context.secrets.delete("apiKey")
 	// }
 
-	// secrets
+	// Git commit message generation
 
-	// dev
+	// Git commit message generation
+
+	async generateGitCommitMessage(sourceControl?: vscode.SourceControl) {
+		try {
+			// Get the Git extension API
+			const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+			if (!gitExtension) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Git extension not found",
+				})
+				return
+			}
+
+			const api = gitExtension.getAPI(1)
+			if (!api || api.repositories.length === 0) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "No Git repositories found",
+				})
+				return
+			}
+
+			// Determine which repository to use
+			let targetRepo: any
+
+			// If sourceControl is provided and it has an inputBox, it's a repository
+			if (sourceControl && sourceControl.inputBox) {
+				targetRepo = sourceControl
+			} else {
+				// Get the current working directory
+				const cwd = await getCwd()
+				if (cwd) {
+					// Find the repository based on the current working directory
+					targetRepo = api.repositories.find((repo: any) => repo.rootUri && repo.rootUri.fsPath === cwd)
+				}
+
+				// If we still don't have a target repository, use the first one
+				if (!targetRepo) {
+					targetRepo = api.repositories[0]
+				}
+			}
+
+			// Get the repository's root path
+			const repoPath = targetRepo.rootUri.fsPath
+
+			// Get the git diff for this specific repository
+			const gitDiff = await getWorkingState(repoPath)
+
+			if (gitDiff === "No changes in working directory") {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No changes in workspace for commit message",
+				})
+				return
+			}
+
+			// Show a progress notification
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Generating commit message...",
+					cancellable: false,
+				},
+				async (progress, token) => {
+					try {
+						// Format the git diff into a prompt
+						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+
+${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
+
+The commit message should:
+1. Start with a short summary (50-72 characters)
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive
+
+Commit message:`
+
+						// Get the current API configuration
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+
+						// Build the API handler
+						const currentMode = await this.getCurrentMode()
+						const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+
+						// Create a system prompt
+						const systemPrompt =
+							"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+						// Create a message for the API
+						const messages = [
+							{
+								role: "user" as const,
+								content: prompt,
+							},
+						]
+
+						// Call the API directly
+						const stream = apiHandler.createMessage(systemPrompt, messages)
+
+						// Collect the response
+						let response = ""
+						for await (const chunk of stream) {
+							if (chunk.type === "text") {
+								response += chunk.text
+							}
+						}
+
+						// Extract the commit message
+						const commitMessage = extractCommitMessage(response)
+
+						// Apply the commit message to the Git input box
+						if (commitMessage) {
+							// Apply the commit message to the target repository
+							targetRepo.inputBox.value = commitMessage
+
+							const message = "Commit message generated and applied"
+							HostProvider.window.showMessage({
+								type: ShowMessageType.INFORMATION,
+								message,
+							})
+						} else {
+							const message = "Failed to generate commit message"
+							HostProvider.window.showMessage({
+								type: ShowMessageType.ERROR,
+								message,
+							})
+						}
+					} catch (innerError) {
+						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: `Failed to generate commit message: ${innerErrorMessage}`,
+						})
+					}
+				},
+			)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to generate commit message: ${errorMessage}`,
+			})
+		}
+	}
 }
