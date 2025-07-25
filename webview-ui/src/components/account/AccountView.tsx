@@ -152,7 +152,7 @@ export const ClineAccountView = () => {
 	// Create a debounced version of fetchCreditBalance
 	const debouncedFetchCreditBalance = useMemo(
 		() => debounce(() => fetchCreditBalance(), 500, { immediate: true }),
-		[fetchCreditBalance]
+		[fetchCreditBalance],
 	)
 
 	const handleManualRefresh = useCallback(() => {
