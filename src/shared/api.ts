@@ -1151,6 +1151,10 @@ export const huggingFaceModels = {
 
 // Qwen
 // https://bailian.console.aliyun.com/
+export enum QwenApiRegions {
+	CHINA = "china",
+	INTERNATIONAL = "international",
+}
 export type MainlandQwenModelId = keyof typeof mainlandQwenModels
 export type InternationalQwenModelId = keyof typeof internationalQwenModels
 export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
