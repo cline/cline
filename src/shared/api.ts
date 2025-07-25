@@ -30,6 +30,7 @@ export type ApiProvider =
 	| "sapaicore"
 	| "groq"
 	| "huggingface"
+	| "oca"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -92,7 +93,13 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	sapAiCoreModelId?: string
+	ocaLiteLlmBaseUrl?: string
+	ocaAccessToken?: string
+	ocaAccessTokenExpiresAt?: number
+	ocaAccessTokenSub?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
@@ -117,8 +124,10 @@ export interface ApiHandlerOptions {
 	planModeGroqModelInfo?: ModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
-	// Act mode configurations
+	planModeOcaLiteLlmModelId?: string
+	planModeOcaLiteLlmModelInfo?: OcaLiteLLMModelInfo
 
+	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
@@ -142,6 +151,8 @@ export interface ApiHandlerOptions {
 	actModeGroqModelInfo?: ModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
+	actModeOcaLiteLlmModelId?: string
+	actModeOcaLiteLlmModelInfo?: OcaLiteLLMModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -187,6 +198,12 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	isR1FormatRequired?: boolean
 }
 
+export interface OcaLiteLLMModelInfo extends OpenAiCompatibleModelInfo {
+	modelName: string
+	bannerContent?: string
+	surveyContent?: string
+	surveyId?: string
+}
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels

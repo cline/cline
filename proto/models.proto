@@ -21,6 +21,8 @@ service ModelsService {
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Oca models
+  rpc refreshOcaModels(StringRequest) returns (OcaModelInfoMap);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
@@ -129,6 +131,7 @@ enum ApiProvider {
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
   HUGGINGFACE = 28;
+  OCA = 29;
 }
 
 // Model info for OpenAI-compatible models
@@ -164,6 +167,28 @@ message LiteLLMModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
+}
+
+message OcaLiteLLMModelInfo {
+  optional int32 max_tokens = 1;
+  optional int32 context_window = 2;
+  optional bool supports_images = 3;
+  bool supports_prompt_cache = 4;
+  optional double input_price = 5;
+  optional double output_price = 6;
+  optional ThinkingConfig thinking_config = 7;
+  optional double cache_writes_price = 9;
+  optional double cache_reads_price = 10;
+  optional string description = 11;
+  optional double temperature = 13;
+  optional string survey_content = 14;
+  optional string survey_id = 15;
+  optional string banner_content = 16;
+  string model_name = 17;
+}
+
+message OcaModelInfoMap {
+  map<string, OcaLiteLLMModelInfo> models = 1;
 }
 
 // Main ApiConfiguration message
@@ -229,6 +254,10 @@ message ModelsApiConfiguration {
   optional string cline_account_id = 58;
   optional string groq_api_key = 59;
   optional string hugging_face_api_key = 60;
+  optional string oca_lite_llm_base_url = 61;
+  optional string oca_access_token = 62;
+  optional int32 oca_access_token_expires_at = 63;
+  optional string oca_access_token_sub = 64;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -255,7 +284,9 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
   optional string plan_mode_hugging_face_model_id = 122;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
-
+  optional string plan_mode_oca_lite_llm_model_id = 124;
+  optional OcaLiteLLMModelInfo plan_mode_oca_lite_llm_model_info = 125;
+  
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
@@ -281,6 +312,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_groq_model_info = 221;
   optional string act_mode_hugging_face_model_id = 222;
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
+  optional string act_mode_oca_lite_llm_model_id = 224;
+  optional OcaLiteLLMModelInfo act_mode_oca_lite_llm_model_info = 225;
 
   repeated string favorited_model_ids = 300;
 }

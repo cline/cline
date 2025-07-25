@@ -13,6 +13,7 @@ import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
+import type { OcaLiteLLMModelInfo } from "@/shared/proto/models"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -190,6 +191,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		ocaLiteLlmBaseUrl,
+		ocaAccessToken,
+		ocaAccessTokenExpiresAt,
+		ocaAccessTokenSub,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,6 +274,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
+		getGlobalState(context, "ocaLiteLlmBaseUrl") as Promise<string | undefined>,
+		getSecret(context, "ocaAccessToken") as Promise<string | undefined>,
+		getGlobalState(context, "ocaAccessTokenExpiresAt") as Promise<number | undefined>,
+		getGlobalState(context, "ocaAccessTokenSub") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -302,6 +311,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeOcaLiteLlmModelId,
+		planModeOcaLiteLlmModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -327,6 +338,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeOcaLiteLlmModelId,
+		actModeOcaLiteLlmModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
@@ -355,6 +368,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeOcaLiteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeOcaLiteLlmModelInfo") as Promise<OcaLiteLLMModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -380,6 +395,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeOcaLiteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeOcaLiteLlmModelInfo") as Promise<OcaLiteLLMModelInfo | undefined>,
 	])
 
 	const processingStart = performance.now()
@@ -480,6 +497,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			huggingFaceApiKey,
+			ocaAccessToken,
+			ocaAccessTokenSub,
+			ocaLiteLlmBaseUrl,
+			ocaAccessTokenExpiresAt,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -505,6 +526,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeOcaLiteLlmModelId,
+			planModeOcaLiteLlmModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -530,6 +553,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeOcaLiteLlmModelId,
+			actModeOcaLiteLlmModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -619,6 +644,10 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		claudeCodePath,
 		huggingFaceApiKey,
+		ocaAccessToken,
+		ocaAccessTokenSub,
+		ocaLiteLlmBaseUrl,
+		ocaAccessTokenExpiresAt,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -644,6 +673,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeOcaLiteLlmModelId,
+		planModeOcaLiteLlmModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -669,6 +700,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeOcaLiteLlmModelId,
+		actModeOcaLiteLlmModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -698,6 +731,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeOcaLiteLlmModelId,
+		planModeOcaLiteLlmModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -724,6 +759,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeOcaLiteLlmModelId,
+		actModeOcaLiteLlmModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
@@ -757,6 +794,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		ocaAccessTokenSub,
+		ocaLiteLlmBaseUrl,
+		ocaAccessTokenExpiresAt,
 	}
 
 	// OPTIMIZED: Batch all secret updates into 1 operation instead of 23
@@ -789,6 +829,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		huggingFaceApiKey,
+		ocaAccessToken,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -833,6 +874,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",
+		"ocaAccessToken",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)

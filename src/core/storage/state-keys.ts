@@ -28,6 +28,7 @@ export type SecretKey =
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
 	| "groqApiKey"
+	| "ocaAccessToken"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -82,6 +83,9 @@ export type GlobalStateKey =
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
+	| "ocaLiteLlmBaseUrl"
+	| "ocaAccessTokenExpiresAt"
+	| "ocaAccessTokenSub"
 	// Settings around plan/act and ephemeral model configuration
 	| "chatSettings"
 	| "mode"
@@ -110,6 +114,8 @@ export type GlobalStateKey =
 	| "planModeGroqModelInfo"
 	| "planModeHuggingFaceModelId"
 	| "planModeHuggingFaceModelInfo"
+	| "planModeOcaLiteLlmModelId"
+	| "planModeOcaLiteLlmModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -135,5 +141,7 @@ export type GlobalStateKey =
 	| "actModeGroqModelInfo"
 	| "actModeHuggingFaceModelId"
 	| "actModeHuggingFaceModelInfo"
+	| "actModeOcaLiteLlmModelId"
+	| "actModeOcaLiteLlmModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
