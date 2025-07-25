@@ -14,6 +14,7 @@ service DiffService {
   rpc getDocumentText(GetDocumentTextRequest) returns (GetDocumentTextResponse);
   // Replace a text selection in the diff.
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
+  rpc scrollDiff(ScrollDiffRequest) returns (ScrollDiffResponse);
   // Truncate the diff document.
   rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
   // Save the diff document.
@@ -54,10 +55,17 @@ message ReplaceTextRequest {
 
 message ReplaceTextResponse {}
 
+message ScrollDiffRequest {
+  optional string diff_id = 1;
+  optional int32 line = 2;
+}
+
+message ScrollDiffResponse {}
+
 message TruncateDocumentRequest {
   optional cline.Metadata metadata = 1;
   optional string diff_id = 2;
-  optional int32 end_line = 5;
+  optional int32 end_line = 3;
 }
 
 message TruncateDocumentResponse {}
