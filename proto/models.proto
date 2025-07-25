@@ -194,6 +194,7 @@ message ModelsApiConfiguration {
   optional string open_ai_base_url = 23;
   optional string open_ai_api_key = 24;
   optional string ollama_base_url = 25;
+  optional string ollama_api_key = 84;
   optional string ollama_api_options_ctx_num = 26;
   optional string lm_studio_base_url = 27;
   optional string gemini_api_key = 28;
