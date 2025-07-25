@@ -20,7 +20,12 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 
 	constructor(options: ApiHandlerOptions) {
 		// Ensure ollamaBaseUrl and ollamaModelId exist on ApiHandlerOptions or add defaults
-		this.baseUrl = options.ollamaBaseUrl || "http://localhost:11434"
+		let baseUrl = options.ollamaBaseUrl || "http://localhost:11434"
+
+		// Normalize the baseUrl by removing all trailing slashes
+		baseUrl = baseUrl.replace(/\/+$/, "")
+
+		this.baseUrl = baseUrl
 		this.defaultModelId = options.ollamaModelId || "nomic-embed-text:latest"
 	}
 
