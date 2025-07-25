@@ -9,7 +9,7 @@ import { nebiusDefaultModelId, nebiusModels, type ModelInfo, type NebiusModelId 
 
 interface NebiusHandlerOptions {
 	nebiusApiKey?: string
-	apiModelId?: string
+	nebiusModelId?: string
 }
 
 export class NebiusHandler implements ApiHandler {
@@ -77,7 +77,7 @@ export class NebiusHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.nebiusModelId
 
 		if (modelId !== undefined && modelId in nebiusModels) {
 			return { id: modelId, info: nebiusModels[modelId as NebiusModelId] }

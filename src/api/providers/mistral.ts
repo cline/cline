@@ -8,7 +8,7 @@ import { ApiStream } from "../transform/stream"
 
 interface MistralHandlerOptions {
 	mistralApiKey?: string
-	apiModelId?: string
+	mistralModelId?: string
 }
 
 export class MistralHandler implements ApiHandler {
@@ -82,7 +82,7 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MistralModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.mistralModelId
 		if (modelId && modelId in mistralModels) {
 			const id = modelId as MistralModelId
 			return { id, info: mistralModels[id] }

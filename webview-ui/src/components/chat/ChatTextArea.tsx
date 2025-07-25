@@ -1158,7 +1158,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
 			// Show error message for unsupported files
-			setShowUnsupportedFileError(true)
 
 			// Clear any existing timer
 			if (unsupportedFileTimerRef.current) {

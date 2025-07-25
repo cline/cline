@@ -9,7 +9,7 @@ import { GeminiHandler } from "./gemini"
 interface VertexHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
-	apiModelId?: string
+	vertexModelId?: string
 	thinkingBudgetTokens?: number
 	geminiApiKey?: string
 	geminiBaseUrl?: string
@@ -264,7 +264,7 @@ export class VertexHandler implements ApiHandler {
 	}
 
 	getModel(): { id: VertexModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.vertexModelId
 		if (modelId && modelId in vertexModels) {
 			const id = modelId as VertexModelId
 			return { id, info: vertexModels[id] }

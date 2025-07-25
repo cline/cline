@@ -94,7 +94,22 @@ export interface ApiHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
-	planModeApiModelId?: string
+	planModeAnthropicModelId?: string
+	planModeClaudeCodeModelId?: string
+	planModeAwsBedrockModelId?: string
+	planModeVertexModelId?: string
+	planModeGeminiModelId?: string
+	planModeOpenAiNativeModelId?: string
+	planModeDeepSeekModelId?: string
+	planModeQwenModelId?: string
+	planModeDoubaoModelId?: string
+	planModeMistralModelId?: string
+	planModeAskSageModelId?: string
+	planModeXaiModelId?: string
+	planModeMoonshotModelId?: string
+	planModeNebiusModelId?: string
+	planModeSambanovaModelId?: string
+	planModeCerebrasModelId?: string
 	planModeThinkingBudgetTokens?: number
 	planModeReasoningEffort?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
@@ -118,8 +133,22 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
 	// Act mode configurations
-
-	actModeApiModelId?: string
+	actModeAnthropicModelId?: string
+	actModeClaudeCodeModelId?: string
+	actModeAwsBedrockModelId?: string
+	actModeVertexModelId?: string
+	actModeGeminiModelId?: string
+	actModeOpenAiNativeModelId?: string
+	actModeDeepSeekModelId?: string
+	actModeQwenModelId?: string
+	actModeDoubaoModelId?: string
+	actModeMistralModelId?: string
+	actModeAskSageModelId?: string
+	actModeXaiModelId?: string
+	actModeMoonshotModelId?: string
+	actModeNebiusModelId?: string
+	actModeSambanovaModelId?: string
+	actModeCerebrasModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector

@@ -8,7 +8,7 @@ import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-
 
 interface ClaudeCodeHandlerOptions {
 	claudeCodePath?: string
-	apiModelId?: string
+	claudeCodeModelId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -143,7 +143,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 	}
 
 	getModel() {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.claudeCodeModelId
 		if (modelId && modelId in claudeCodeModels) {
 			const id = modelId as ClaudeCodeModelId
 			return { id, info: claudeCodeModels[id] }

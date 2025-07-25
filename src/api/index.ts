@@ -52,7 +52,7 @@ function createHandlerForProvider(
 			return new AnthropicHandler({
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				anthropicModelId: mode === "plan" ? options.planModeAnthropicModelId : options.actModeAnthropicModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
@@ -68,7 +68,7 @@ function createHandlerForProvider(
 			})
 		case "bedrock":
 			return new AwsBedrockHandler({
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				awsBedrockModelId: mode === "plan" ? options.planModeAwsBedrockModelId : options.actModeAwsBedrockModelId,
 				awsAccessKey: options.awsAccessKey,
 				awsSecretKey: options.awsSecretKey,
 				awsSessionToken: options.awsSessionToken,
@@ -91,7 +91,7 @@ function createHandlerForProvider(
 			return new VertexHandler({
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				vertexModelId: mode === "plan" ? options.planModeVertexModelId : options.actModeVertexModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,
@@ -128,19 +128,19 @@ function createHandlerForProvider(
 				geminiBaseUrl: options.geminiBaseUrl,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				geminiModelId: mode === "plan" ? options.planModeGeminiModelId : options.actModeGeminiModelId,
 				taskId: options.taskId,
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({
 				openAiNativeApiKey: options.openAiNativeApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				openaiNativeModelId: mode === "plan" ? options.planModeOpenAiNativeModelId : options.actModeOpenAiNativeModelId,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({
 				deepSeekApiKey: options.deepSeekApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				deepSeekModelId: mode === "plan" ? options.planModeDeepSeekModelId : options.actModeDeepSeekModelId,
 			})
 		case "requesty":
 			return new RequestyHandler({
@@ -167,19 +167,19 @@ function createHandlerForProvider(
 			return new QwenHandler({
 				qwenApiKey: options.qwenApiKey,
 				qwenApiLine: options.qwenApiLine,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				qwenModelId: mode === "plan" ? options.planModeQwenModelId : options.actModeQwenModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "doubao":
 			return new DoubaoHandler({
 				doubaoApiKey: options.doubaoApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				doubaoModelId: mode === "plan" ? options.planModeDoubaoModelId : options.actModeDoubaoModelId,
 			})
 		case "mistral":
 			return new MistralHandler({
 				mistralApiKey: options.mistralApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				mistralModelId: mode === "plan" ? options.planModeMistralModelId : options.actModeMistralModelId,
 			})
 		case "vscode-lm":
 			return new VsCodeLmHandler({
@@ -209,10 +209,11 @@ function createHandlerForProvider(
 				taskId: options.taskId,
 			})
 		case "moonshot":
+			console.log("moonshot", mode === "plan" ? options.planModeMoonshotModelId : options.actModeMoonshotModelId)
 			return new MoonshotHandler({
 				moonshotApiKey: options.moonshotApiKey,
 				moonshotApiLine: options.moonshotApiLine,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				moonshotModelId: mode === "plan" ? options.planModeMoonshotModelId : options.actModeMoonshotModelId,
 			})
 		case "huggingface":
 			return new HuggingFaceHandler({
@@ -224,36 +225,35 @@ function createHandlerForProvider(
 		case "nebius":
 			return new NebiusHandler({
 				nebiusApiKey: options.nebiusApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				nebiusModelId: mode === "plan" ? options.planModeNebiusModelId : options.actModeNebiusModelId,
 			})
 		case "asksage":
 			return new AskSageHandler({
 				asksageApiKey: options.asksageApiKey,
 				asksageApiUrl: options.asksageApiUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				asksageModelId: mode === "plan" ? options.planModeAskSageModelId : options.actModeAskSageModelId,
 			})
 		case "xai":
 			return new XAIHandler({
 				xaiApiKey: options.xaiApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				xaiModelId: mode === "plan" ? options.planModeXaiModelId : options.actModeXaiModelId,
 			})
 		case "sambanova":
 			return new SambanovaHandler({
 				sambanovaApiKey: options.sambanovaApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				sambanovaModelId: mode === "plan" ? options.planModeSambanovaModelId : options.actModeSambanovaModelId,
 			})
 		case "cerebras":
 			return new CerebrasHandler({
 				cerebrasApiKey: options.cerebrasApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				cerebrasModelId: mode === "plan" ? options.planModeCerebrasModelId : options.actModeCerebrasModelId,
 			})
 		case "groq":
 			return new GroqHandler({
 				groqApiKey: options.groqApiKey,
 				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
 				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "sapaicore":
 			return new SapAiCoreHandler({
@@ -262,12 +262,12 @@ function createHandlerForProvider(
 				sapAiCoreTokenUrl: options.sapAiCoreTokenUrl,
 				sapAiResourceGroup: options.sapAiResourceGroup,
 				sapAiCoreBaseUrl: options.sapAiCoreBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				sapAiCoreModelId: mode === "plan" ? options.planModeSapAiCoreModelId : options.actModeSapAiCoreModelId,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
 				claudeCodePath: options.claudeCodePath,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				claudeCodeModelId: mode === "plan" ? options.planModeClaudeCodeModelId : options.actModeClaudeCodeModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
@@ -275,7 +275,7 @@ function createHandlerForProvider(
 			return new AnthropicHandler({
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				anthropicModelId: mode === "plan" ? options.planModeAnthropicModelId : options.actModeAnthropicModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})

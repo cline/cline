@@ -216,7 +216,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 								handleModeFieldsChange(
 									{
-										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
+										awsBedrockModelId: { plan: "planModeAwsBedrockModelId", act: "actModeAwsBedrockModelId" },
 										awsBedrockCustomSelected: {
 											plan: "planModeAwsBedrockCustomSelected",
 											act: "actModeAwsBedrockCustomSelected",
@@ -227,7 +227,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										},
 									},
 									{
-										apiModelId: isCustom ? "" : e.target.value,
+										awsBedrockModelId: isCustom ? "" : e.target.value,
 										awsBedrockCustomSelected: isCustom,
 										awsBedrockCustomModelBaseId: bedrockDefaultModelId,
 									},
@@ -265,10 +265,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							</p>
 							<DebouncedTextField
 								id="bedrock-model-input"
-								initialValue={modeFields.apiModelId || ""}
+								initialValue={modeFields.awsBedrockModelId || ""}
 								onChange={(value) =>
 									handleModeFieldChange(
-										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+										{ plan: "planModeAwsBedrockModelId", act: "actModeAwsBedrockModelId" },
 										value,
 										currentMode,
 									)

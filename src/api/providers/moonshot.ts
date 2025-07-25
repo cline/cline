@@ -9,7 +9,7 @@ import { ModelInfo, MoonshotModelId, moonshotModels, moonshotDefaultModelId } fr
 interface MoonshotHandlerOptions {
 	moonshotApiKey?: string
 	moonshotApiLine?: string
-	apiModelId?: string
+	moonshotModelId?: string
 }
 
 export class MoonshotHandler implements ApiHandler {
@@ -79,7 +79,7 @@ export class MoonshotHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MoonshotModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.moonshotModelId
 
 		if (modelId && modelId in moonshotModels) {
 			const id = modelId as MoonshotModelId

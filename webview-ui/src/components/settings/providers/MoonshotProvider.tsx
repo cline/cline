@@ -61,7 +61,7 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeMoonshotModelId", act: "actModeMoonshotModelId" },
 								e.target.value,
 								currentMode,
 							)

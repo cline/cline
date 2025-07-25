@@ -73,7 +73,6 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider,
-		planModeApiModelId: config.planModeApiModelId,
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens
 			? Number(config.planModeThinkingBudgetTokens)
 			: undefined,
@@ -100,10 +99,25 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		planModeTogetherModelId: config.planModeTogetherModelId,
 		planModeFireworksModelId: config.planModeFireworksModelId,
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
+		planModeAnthropicModelId: config.planModeAnthropicModelId,
+		planModeClaudeCodeModelId: config.planModeClaudeCodeModelId,
+		planModeAwsBedrockModelId: config.planModeAwsBedrockModelId,
+		planModeVertexModelId: config.planModeVertexModelId,
+		planModeGeminiModelId: config.planModeGeminiModelId,
+		planModeOpenaiNativeModelId: config.planModeOpenAiNativeModelId,
+		planModeDeepSeekModelId: config.planModeDeepSeekModelId,
+		planModeQwenModelId: config.planModeQwenModelId,
+		planModeDoubaoModelId: config.planModeDoubaoModelId,
+		planModeMistralModelId: config.planModeMistralModelId,
+		planModeAskSageModelId: config.planModeAskSageModelId,
+		planModeXaiModelId: config.planModeXaiModelId,
+		planModeMoonshotModelId: config.planModeMoonshotModelId,
+		planModeNebiusModelId: config.planModeNebiusModelId,
+		planModeSambanovaModelId: config.planModeSambanovaModelId,
+		planModeCerebrasModelId: config.planModeCerebrasModelId,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider,
-		actModeApiModelId: config.actModeApiModelId,
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens ? Number(config.actModeThinkingBudgetTokens) : undefined,
 		actModeReasoningEffort: config.actModeReasoningEffort,
 		actModeVscodeLmModelSelector: config.actModeVsCodeLmModelSelector
@@ -126,6 +140,22 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		actModeTogetherModelId: config.actModeTogetherModelId,
 		actModeFireworksModelId: config.actModeFireworksModelId,
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
+		actModeAnthropicModelId: config.actModeAnthropicModelId,
+		actModeClaudeCodeModelId: config.actModeClaudeCodeModelId,
+		actModeAwsBedrockModelId: config.actModeAwsBedrockModelId,
+		actModeVertexModelId: config.actModeVertexModelId,
+		actModeGeminiModelId: config.actModeGeminiModelId,
+		actModeOpenaiNativeModelId: config.actModeOpenAiNativeModelId,
+		actModeDeepSeekModelId: config.actModeDeepSeekModelId,
+		actModeQwenModelId: config.actModeQwenModelId,
+		actModeDoubaoModelId: config.actModeDoubaoModelId,
+		actModeMistralModelId: config.actModeMistralModelId,
+		actModeAskSageModelId: config.actModeAskSageModelId,
+		actModeXaiModelId: config.actModeXaiModelId,
+		actModeMoonshotModelId: config.actModeMoonshotModelId,
+		actModeNebiusModelId: config.actModeNebiusModelId,
+		actModeSambanovaModelId: config.actModeSambanovaModelId,
+		actModeCerebrasModelId: config.actModeCerebrasModelId,
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -198,7 +228,6 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 
 		// Plan mode configurations
 		planModeApiProvider: protoConfig.planModeApiProvider as ApiProvider,
-		planModeApiModelId: protoConfig.planModeApiModelId,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens
 			? Number(protoConfig.planModeThinkingBudgetTokens)
 			: undefined,
@@ -214,10 +243,25 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		planModeTogetherModelId: protoConfig.planModeTogetherModelId,
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
+		planModeAnthropicModelId: protoConfig.planModeAnthropicModelId,
+		planModeClaudeCodeModelId: protoConfig.planModeClaudeCodeModelId,
+		planModeAwsBedrockModelId: protoConfig.planModeAwsBedrockModelId,
+		planModeVertexModelId: protoConfig.planModeVertexModelId,
+		planModeGeminiModelId: protoConfig.planModeGeminiModelId,
+		planModeOpenAiNativeModelId: protoConfig.planModeOpenaiNativeModelId,
+		planModeDeepSeekModelId: protoConfig.planModeDeepSeekModelId,
+		planModeQwenModelId: protoConfig.planModeQwenModelId,
+		planModeDoubaoModelId: protoConfig.planModeDoubaoModelId,
+		planModeMistralModelId: protoConfig.planModeMistralModelId,
+		planModeAskSageModelId: protoConfig.planModeAskSageModelId,
+		planModeXaiModelId: protoConfig.planModeXaiModelId,
+		planModeMoonshotModelId: protoConfig.planModeMoonshotModelId,
+		planModeNebiusModelId: protoConfig.planModeNebiusModelId,
+		planModeSambanovaModelId: protoConfig.planModeSambanovaModelId,
+		planModeCerebrasModelId: protoConfig.planModeCerebrasModelId,
 
 		// Act mode configurations
 		actModeApiProvider: protoConfig.actModeApiProvider as ApiProvider,
-		actModeApiModelId: protoConfig.actModeApiModelId,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens
 			? Number(protoConfig.actModeThinkingBudgetTokens)
 			: undefined,
@@ -233,6 +277,22 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		actModeTogetherModelId: protoConfig.actModeTogetherModelId,
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
+		actModeAnthropicModelId: protoConfig.actModeAnthropicModelId,
+		actModeClaudeCodeModelId: protoConfig.actModeClaudeCodeModelId,
+		actModeAwsBedrockModelId: protoConfig.actModeAwsBedrockModelId,
+		actModeVertexModelId: protoConfig.actModeVertexModelId,
+		actModeGeminiModelId: protoConfig.actModeGeminiModelId,
+		actModeOpenAiNativeModelId: protoConfig.actModeOpenaiNativeModelId,
+		actModeDeepSeekModelId: protoConfig.actModeDeepSeekModelId,
+		actModeQwenModelId: protoConfig.actModeQwenModelId,
+		actModeDoubaoModelId: protoConfig.actModeDoubaoModelId,
+		actModeMistralModelId: protoConfig.actModeMistralModelId,
+		actModeAskSageModelId: protoConfig.actModeAskSageModelId,
+		actModeXaiModelId: protoConfig.actModeXaiModelId,
+		actModeMoonshotModelId: protoConfig.actModeMoonshotModelId,
+		actModeNebiusModelId: protoConfig.actModeNebiusModelId,
+		actModeSambanovaModelId: protoConfig.actModeSambanovaModelId,
+		actModeCerebrasModelId: protoConfig.actModeCerebrasModelId,
 
 		// Favorited model IDs
 		favoritedModelIds: protoConfig.favoritedModelIds || [],

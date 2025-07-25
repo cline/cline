@@ -19,7 +19,7 @@ interface GeminiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
-	apiModelId?: string
+	geminiModelId?: string
 	taskId?: string
 }
 
@@ -353,7 +353,7 @@ export class GeminiHandler implements ApiHandler {
 	 * Get the model ID and info for the current configuration
 	 */
 	getModel(): { id: GeminiModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.geminiModelId
 		if (modelId && modelId in geminiModels) {
 			const id = modelId as GeminiModelId
 			return { id, info: geminiModels[id] }

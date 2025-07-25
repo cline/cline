@@ -11,13 +11,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 interface XAIHandlerOptions {
 	xaiApiKey?: string
 	reasoningEffort?: string
-	apiModelId?: string
-}
-
-interface XAIHandlerOptions {
-	xaiApiKey?: string
-	reasoningEffort?: string
-	apiModelId?: string
+	xaiModelId?: string
 }
 
 export class XAIHandler implements ApiHandler {
@@ -102,7 +96,7 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	getModel(): { id: XAIModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.xaiModelId
 		if (modelId && modelId in xaiModels) {
 			const id = modelId as XAIModelId
 			return { id, info: xaiModels[id] }

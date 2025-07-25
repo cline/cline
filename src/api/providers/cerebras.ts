@@ -7,7 +7,7 @@ import { ApiStream } from "@api/transform/stream"
 
 interface CerebrasHandlerOptions {
 	cerebrasApiKey?: string
-	apiModelId?: string
+	cerebrasModelId?: string
 }
 
 export class CerebrasHandler implements ApiHandler {
@@ -175,7 +175,7 @@ export class CerebrasHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.cerebrasModelId
 		if (modelId && modelId in cerebrasModels) {
 			const id = modelId as CerebrasModelId
 			return { id, info: cerebrasModels[id] }

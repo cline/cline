@@ -60,7 +60,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeXaiModelId", act: "actModeXaiModelId" },
 								e.target.value,
 								currentMode,
 							)

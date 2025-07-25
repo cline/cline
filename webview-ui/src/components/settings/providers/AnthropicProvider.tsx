@@ -3,7 +3,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -58,7 +58,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						selectedModelId={selectedModelId}
 						onChange={(e) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeAnthropicModelId", act: "actModeAnthropicModelId" },
 								e.target.value,
 								currentMode,
 							)

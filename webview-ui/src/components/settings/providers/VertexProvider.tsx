@@ -102,7 +102,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeVertexModelId", act: "actModeVertexModelId" },
 								e.target.value,
 								currentMode,
 							)

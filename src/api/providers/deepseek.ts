@@ -10,7 +10,7 @@ import { convertToR1Format } from "../transform/r1-format"
 
 interface DeepSeekHandlerOptions {
 	deepSeekApiKey?: string
-	apiModelId?: string
+	deepSeekModelId?: string
 }
 
 export class DeepSeekHandler implements ApiHandler {
@@ -119,7 +119,7 @@ export class DeepSeekHandler implements ApiHandler {
 	}
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.deepSeekModelId
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId
 			return { id, info: deepSeekModels[id] }

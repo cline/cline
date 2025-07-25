@@ -17,7 +17,7 @@ import {
 import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
 interface AwsBedrockHandlerOptions {
-	apiModelId?: string
+	awsBedrockModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -143,7 +143,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.awsBedrockModelId
 		if (modelId && modelId in bedrockModels) {
 			const id = modelId as BedrockModelId
 			return { id, info: bedrockModels[id] }

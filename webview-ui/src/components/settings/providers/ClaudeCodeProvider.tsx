@@ -55,7 +55,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeClaudeCodeModelId", act: "actModeClaudeCodeModelId" },
 								e.target.value,
 								currentMode,
 							)

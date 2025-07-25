@@ -8,7 +8,7 @@ import { ApiStream } from "../transform/stream"
 interface AnthropicHandlerOptions {
 	apiKey?: string
 	anthropicBaseUrl?: string
-	apiModelId?: string
+	anthropicModelId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -237,7 +237,7 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.anthropicModelId
 		if (modelId && modelId in anthropicModels) {
 			const id = modelId as AnthropicModelId
 			return { id, info: anthropicModels[id] }

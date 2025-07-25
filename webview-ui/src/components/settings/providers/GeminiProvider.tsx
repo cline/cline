@@ -54,7 +54,7 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								{ plan: "planModeGeminiModelId", act: "actModeGeminiModelId" },
 								e.target.value,
 								currentMode,
 							)
