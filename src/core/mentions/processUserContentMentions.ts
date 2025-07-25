@@ -15,6 +15,7 @@ export async function processUserContentMentions({
 	showRooIgnoredFiles = true,
 	includeDiagnosticMessages = true,
 	maxDiagnosticMessages = 50,
+	maxReadFileLine,
 }: {
 	userContent: Anthropic.Messages.ContentBlockParam[]
 	cwd: string
@@ -24,6 +25,7 @@ export async function processUserContentMentions({
 	showRooIgnoredFiles?: boolean
 	includeDiagnosticMessages?: boolean
 	maxDiagnosticMessages?: number
+	maxReadFileLine?: number
 }) {
 	// Process userContent array, which contains various block types:
 	// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
@@ -52,6 +54,7 @@ export async function processUserContentMentions({
 							showRooIgnoredFiles,
 							includeDiagnosticMessages,
 							maxDiagnosticMessages,
+							maxReadFileLine,
 						),
 					}
 				}
@@ -71,6 +74,7 @@ export async function processUserContentMentions({
 								showRooIgnoredFiles,
 								includeDiagnosticMessages,
 								maxDiagnosticMessages,
+								maxReadFileLine,
 							),
 						}
 					}
@@ -91,6 +95,7 @@ export async function processUserContentMentions({
 										showRooIgnoredFiles,
 										includeDiagnosticMessages,
 										maxDiagnosticMessages,
+										maxReadFileLine,
 									),
 								}
 							}
