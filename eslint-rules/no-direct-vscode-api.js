@@ -29,20 +29,21 @@ const disallowedApis = {
 	"vscode.workspace.applyEdit": {
 		messageId: "useHostBridge",
 	},
-	// "vscode.env.openExternal": {
-	// 	messageId: "useUtils",
-	// },
+	"vscode.window.onDidChangeActiveTextEditor": {
+		messageId: "useHostBridge",
+	},
+	"vscode.env.openExternal": {
+		messageId: "useUtils",
+	},
 	// "vscode.window.showWarningMessage": {
 	// 	messageId: "useHostBridgeShowMessage",
 	// },
 	"vscode.window.showOpenDialog": {
 		messageId: "useHostBridgeShowMessage",
 	},
-	// There are too many warnings for these calls, uncomment the following
-	// when the migration is finished.
-	// "vscode.window.showErrorMessage": {
-	// 	messageId: "useHostBridgeShowMessage",
-	// },
+	"vscode.window.showErrorMessage": {
+		messageId: "useHostBridgeShowMessage",
+	},
 	// "vscode.window.showInformationMessage": {
 	// 	messageId: "useHostBridgeShowMessage",
 	// },
@@ -184,6 +185,10 @@ module.exports = createRule({
 				return true
 			}
 			if (filename.includes("/standalone/runtime-files/")) {
+				return true
+			}
+			// Skip unit tests
+			if (filename.endsWith(".test.ts")) {
 				return true
 			}
 		}
