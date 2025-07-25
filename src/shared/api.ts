@@ -1151,10 +1151,7 @@ export const huggingFaceModels = {
 
 // Qwen
 // https://bailian.console.aliyun.com/
-export type MainlandQwenModelId = keyof typeof mainlandQwenModels
-export type InternationalQwenModelId = keyof typeof internationalQwenModels
-export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
-export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
+// The first model in the list is used as the default model for each region
 export const internationalQwenModels = {
 	"qwen3-coder-plus": {
 		maxTokens: 65_536,
@@ -1836,6 +1833,17 @@ export const mainlandQwenModels = {
 		cacheReadsPrice: 4.5,
 	},
 } as const satisfies Record<string, ModelInfo>
+export enum QwenApiRegions {
+	CHINA = "china",
+	INTERNATIONAL = "international",
+}
+export type MainlandQwenModelId = keyof typeof mainlandQwenModels
+export type InternationalQwenModelId = keyof typeof internationalQwenModels
+// Set first model in the list as the default model for each region
+export const internationalQwenDefaultModelId: InternationalQwenModelId = Object.keys(
+	internationalQwenModels,
+)[0] as InternationalQwenModelId
+export const mainlandQwenDefaultModelId: MainlandQwenModelId = Object.keys(mainlandQwenModels)[0] as MainlandQwenModelId
 
 // Doubao
 // https://www.volcengine.com/docs/82379/1298459
