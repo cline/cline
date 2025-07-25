@@ -61,7 +61,12 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		}
 	}
 
-	protected override async scrollEditorToLine(_line: number): Promise<void> {}
+	protected override async scrollEditorToLine(line: number): Promise<void> {
+		if (!this.activeDiffEditorId) {
+			return
+		}
+		await HostProvider.diff.scrollDiff({ diffId: this.activeDiffEditorId, line: line })
+	}
 
 	override async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
