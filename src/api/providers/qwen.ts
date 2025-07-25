@@ -9,6 +9,7 @@ import {
 	internationalQwenDefaultModelId,
 	MainlandQwenModelId,
 	InternationalQwenModelId,
+	QwenApiRegions,
 } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -17,7 +18,7 @@ import { withRetry } from "../retry"
 
 interface QwenHandlerOptions {
 	qwenApiKey?: string
-	qwenApiLine?: string
+	qwenApiLine?: QwenApiRegions
 	apiModelId?: string
 	thinkingBudgetTokens?: number
 }
@@ -27,7 +28,15 @@ export class QwenHandler implements ApiHandler {
 	private client: OpenAI | undefined
 
 	constructor(options: QwenHandlerOptions) {
-		this.options = options
+		// Ensure options start with defaults but allow overrides
+		this.options = {
+			qwenApiLine: QwenApiRegions.CHINA,
+			...options,
+		}
+	}
+
+	private useChinaApi(): boolean {
+		return this.options.qwenApiLine === QwenApiRegions.CHINA
 	}
 
 	private ensureClient(): OpenAI {
@@ -37,10 +46,9 @@ export class QwenHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL:
-						this.options.qwenApiLine === "china"
-							? "https://dashscope.aliyuncs.com/compatible-mode/v1"
-							: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+					baseURL: this.useChinaApi()
+						? "https://dashscope.aliyuncs.com/compatible-mode/v1"
+						: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 					apiKey: this.options.qwenApiKey,
 				})
 			} catch (error: any) {
@@ -53,7 +61,7 @@ export class QwenHandler implements ApiHandler {
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		// Branch based on API line to let poor typescript know what to do
-		if (this.options.qwenApiLine === "china") {
+		if (this.useChinaApi()) {
 			return {
 				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
 				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],

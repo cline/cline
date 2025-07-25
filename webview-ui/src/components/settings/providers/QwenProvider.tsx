@@ -1,4 +1,4 @@
-import { ApiConfiguration, internationalQwenModels, mainlandQwenModels } from "@shared/api"
+import { internationalQwenModels, mainlandQwenModels, QwenApiRegions } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
@@ -9,6 +9,7 @@ import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { Mode } from "@shared/ChatSettings"
+import { useMemo } from "react"
 
 const SUPPORTED_THINKING_MODELS = [
 	"qwen3-235b-a22b",
@@ -32,6 +33,9 @@ interface QwenProviderProps {
 	currentMode: Mode
 }
 
+// Turns enum into an array of values for dropdown options
+export const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
+
 /**
  * The Alibaba Qwen provider configuration component
  */
@@ -43,7 +47,10 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on API line selection
-	const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+	const qwenModels = useMemo(
+		() => (apiConfiguration?.qwenApiLine === QwenApiRegions.CHINA ? mainlandQwenModels : internationalQwenModels),
+		[apiConfiguration?.qwenApiLine],
+	)
 
 	return (
 		<div>
@@ -53,14 +60,17 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 				</label>
 				<VSCodeDropdown
 					id="qwen-line-provider"
-					value={apiConfiguration?.qwenApiLine || "china"}
-					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value)}
+					value={apiConfiguration?.qwenApiLine || qwenApiOptions[0]}
+					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value as QwenApiRegions)}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}>
-					<VSCodeOption value="china">China API</VSCodeOption>
-					<VSCodeOption value="international">International API</VSCodeOption>
+					{qwenApiOptions.map((line) => (
+						<VSCodeOption key={line} value={line}>
+							{line.charAt(0).toUpperCase() + line.slice(1)} API
+						</VSCodeOption>
+					))}
 				</VSCodeDropdown>
 			</DropdownContainer>
 			<p
