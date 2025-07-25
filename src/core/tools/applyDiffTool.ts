@@ -193,10 +193,17 @@ export async function applyDiffToolLegacy(
 			// Get the formatted response message
 			const message = await cline.diffViewProvider.pushToolWriteResult(cline, cline.cwd, !fileExists)
 
+			// Check for single SEARCH/REPLACE block warning
+			const searchBlocks = (diffContent.match(/<<<<<<< SEARCH/g) || []).length
+			const singleBlockNotice =
+				searchBlocks === 1
+					? "\n<notice>Making multiple related changes in a single apply_diff is more efficient. If other changes are needed in this file, please include them as additional SEARCH/REPLACE blocks.</notice>"
+					: ""
+
 			if (partFailHint) {
-				pushToolResult(partFailHint + message)
+				pushToolResult(partFailHint + message + singleBlockNotice)
 			} else {
-				pushToolResult(message)
+				pushToolResult(message + singleBlockNotice)
 			}
 
 			await cline.diffViewProvider.reset()
