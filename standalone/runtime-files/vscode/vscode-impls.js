@@ -1,9 +1,6 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const open = require("open").default
-const fs = require("fs")
-const path = require("path")
 const { StandaloneTerminalManager } = require("./enhanced-terminal")
 
 // Import the base vscode object from stubs
