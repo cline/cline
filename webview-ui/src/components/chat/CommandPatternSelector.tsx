@@ -33,11 +33,13 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 
 	// Create a combined list with full command first, then patterns
 	const allPatterns = useMemo(() => {
-		const fullCommandPattern: CommandPattern = { pattern: command }
+		// Trim the command to ensure consistency with extracted patterns
+		const trimmedCommand = command.trim()
+		const fullCommandPattern: CommandPattern = { pattern: trimmedCommand }
 
 		// Create a set to track unique patterns we've already seen
 		const seenPatterns = new Set<string>()
-		seenPatterns.add(command) // Add the full command first
+		seenPatterns.add(trimmedCommand) // Add the trimmed full command first
 
 		// Filter out any patterns that are duplicates or are the same as the full command
 		const uniquePatterns = patterns.filter((p) => {
