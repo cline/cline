@@ -151,6 +151,31 @@ const StyledMarkdown = styled.div`
 		margin-left: 0;
 	}
 
+	ol {
+		list-style-type: decimal;
+	}
+
+	ul {
+		list-style-type: disc;
+	}
+
+	/* Nested list styles */
+	ul ul {
+		list-style-type: circle;
+	}
+
+	ul ul ul {
+		list-style-type: square;
+	}
+
+	ol ol {
+		list-style-type: lower-alpha;
+	}
+
+	ol ol ol {
+		list-style-type: lower-roman;
+	}
+
 	p {
 		white-space: pre-wrap;
 	}
