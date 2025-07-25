@@ -22,6 +22,11 @@ export async function getOrganizationCredits(
 			controller.accountService.fetchOrganizationUsageTransactionsRPC(request.organizationId),
 		])
 
+		// If balance call fails (returns undefined), throw an error
+		if (!balanceData) {
+			throw new Error("Failed to fetch organization credits data")
+		}
+
 		return OrganizationCreditsData.create({
 			balance: balanceData ? { currentBalance: balanceData.balance / 100 } : { currentBalance: 0 },
 			organizationId: balanceData?.organizationId || "",

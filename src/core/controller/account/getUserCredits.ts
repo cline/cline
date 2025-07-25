@@ -21,6 +21,11 @@ export async function getUserCredits(controller: Controller, request: EmptyReque
 			controller.accountService.fetchPaymentTransactionsRPC(),
 		])
 
+		// If either call fails (returns undefined), throw an error
+		if (balance === undefined) {
+			throw new Error("Failed to fetch user credits data")
+		}
+
 		return UserCreditsData.create({
 			balance: balance ? { currentBalance: balance.balance / 100 } : { currentBalance: 0 },
 			usageTransactions: usageTransactions,

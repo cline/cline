@@ -1,9 +1,7 @@
 import { useClineAuth } from "@/context/ClineAuthContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { formatCreditsBalance } from "@/utils/format"
 import { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import { UsageTransaction as ProtoUsageTransaction, UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/account"
 import { EmptyRequest } from "@shared/proto/common"
 import {
 	VSCodeButton,
@@ -13,71 +11,13 @@ import {
 	VSCodeOption,
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { GetOrganizationCreditsRequest } from "@shared/proto/account"
 import debounce from "debounce"
 import deepEqual from "fast-deep-equal"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-
-// Custom hook for animated credit display with styled decimals
-const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
-	const [currentValue, setCurrentValue] = useState(0)
-	const animationRef = useRef<number>()
-	const startTimeRef = useRef<number>()
-
-	useEffect(() => {
-		const animate = (timestamp: number) => {
-			if (!startTimeRef.current) {
-				startTimeRef.current = timestamp
-			}
-
-			const elapsed = timestamp - startTimeRef.current
-			const progress = Math.min(elapsed / duration, 1)
-
-			// Easing function (ease-out)
-			const easedProgress = 1 - (1 - progress) ** 3
-			const newValue = easedProgress * targetValue
-
-			setCurrentValue(newValue)
-
-			if (progress < 1) {
-				animationRef.current = requestAnimationFrame(animate)
-			}
-		}
-
-		// Reset and start animation
-		startTimeRef.current = undefined
-		animationRef.current = requestAnimationFrame(animate)
-
-		return () => {
-			if (animationRef.current) {
-				cancelAnimationFrame(animationRef.current)
-			}
-		}
-	}, [targetValue, duration])
-
-	return currentValue
-}
-
-// Custom component to handle styled credit display
-const StyledCreditDisplay = ({ balance }: { balance: number }) => {
-	const animatedValue = useAnimatedCredits(formatCreditsBalance(balance))
-	const formatted = animatedValue.toFixed(4)
-	const parts = formatted.split(".")
-	const wholePart = parts[0]
-	const decimalPart = parts[1] || "0000"
-	const firstTwoDecimals = decimalPart.slice(0, 2)
-	const lastTwoDecimals = decimalPart.slice(2)
-
-	return (
-		<span className="font-azeret-mono font-light tabular-nums">
-			{wholePart}.{firstTwoDecimals}
-			<span className="text-[var(--vscode-descriptionForeground)]">{lastTwoDecimals}</span>
-		</span>
-	)
-}
+import { StyledCreditDisplay } from "./StyledCreditDisplay"
 
 type VSCodeDropdownChangeEvent = Event & {
 	target: {
@@ -118,15 +58,14 @@ const CLINE_APP_URL = "https://app.cline.bot"
 
 export const ClineAccountView = () => {
 	const { clineUser, handleSignIn, handleSignOut } = useClineAuth()
-	const { userInfo, apiConfiguration } = useExtensionState()
 
-	const user = apiConfiguration?.clineAccountId ? clineUser || userInfo : undefined
+	// Source of truth: Dedicated state for dropdown value that persists through failures
+	// and represents that user's current selection.
+	const [dropdownValue, setDropdownValue] = useState<string>("personal")
+
+	const [isLoading, setIsLoading] = useState(true)
 
 	const [balance, setBalance] = useState<number | null>(null)
-	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
-	const [activeOrganization, setActiveOrganization] = useState<UserOrganization | null>(null)
-	const [isLoading, setIsLoading] = useState(true)
-	const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
 	const [usageData, setUsageData] = useState<ClineAccountUsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 	const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now())
@@ -134,7 +73,7 @@ export const ClineAccountView = () => {
 	const clineUris = useMemo(() => {
 		const base = new URL(clineUser?.appBaseUrl || CLINE_APP_URL)
 		const dashboard = new URL("dashboard", base)
-		const credits = new URL(activeOrganization ? "/organization" : "/account", dashboard)
+		const credits = new URL(dropdownValue === "personal" ? "/account" : "/organization", dashboard)
 		credits.searchParams.set("tab", "credits")
 		credits.searchParams.set("redirect", "true")
 
@@ -142,172 +81,153 @@ export const ClineAccountView = () => {
 			dashboard,
 			credits,
 		}
-	}, [clineUser?.appBaseUrl, activeOrganization])
+	}, [clineUser?.appBaseUrl, dropdownValue])
 
-	// Add a ref to track the intended organization during transitions
-	const pendingOrganizationRef = useRef<string | null>(null)
+	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([])
+	const activeOrganization = useMemo(() => {
+		return userOrganizations.find((org) => org.organizationId === dropdownValue)
+	}, [userOrganizations, dropdownValue])
 
 	const getUserOrganizations = useCallback(async () => {
 		try {
-			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
-			if (response.organizations && !deepEqual(userOrganizations, response.organizations)) {
-				setUserOrganizations(response.organizations)
-
-				// Only update activeOrganization if we're not in the middle of a switch
-				// or if the server response matches our pending change
-				const serverActiveOrg = response.organizations.find((org: UserOrganization) => org.active)
-				const serverActiveOrgId = serverActiveOrg?.organizationId || ""
-
-				if (!isSwitchingProfile || pendingOrganizationRef.current === serverActiveOrgId) {
-					if (serverActiveOrgId !== (activeOrganization?.organizationId || "")) {
-						setActiveOrganization(serverActiveOrg || null)
-					}
-					// Clear pending ref if the server state matches
-					if (pendingOrganizationRef.current === serverActiveOrgId) {
-						pendingOrganizationRef.current = null
-					}
+			if (clineUser?.uid) {
+				const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
+				if (response?.organizations && !deepEqual(userOrganizations, response.organizations)) {
+					setUserOrganizations(response.organizations)
 				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [userOrganizations, isSwitchingProfile, activeOrganization?.organizationId])
+	}, [userOrganizations, clineUser?.uid, dropdownValue])
 
-	const fetchCreditBalance = useCallback(async () => {
-		try {
-			setIsLoading(true)
+	const fetchCreditBalance = useCallback(
+		async (orgId?: string) => {
+			try {
+				setIsLoading(true)
+				const targetOrgId = orgId ?? dropdownValue
+				const isPersonal = targetOrgId === "personal"
 
-			// Use the pending organization if we're switching, otherwise use current active org
-			const targetOrgId =
-				pendingOrganizationRef.current !== null ? pendingOrganizationRef.current : activeOrganization?.organizationId
+				// Use targetOrgId consistently for all requests
+				const response = isPersonal
+					? await AccountServiceClient.getUserCredits(EmptyRequest.create())
+					: await AccountServiceClient.getOrganizationCredits({ organizationId: targetOrgId })
 
-			const response = targetOrgId
-				? await AccountServiceClient.getOrganizationCredits(
-						GetOrganizationCreditsRequest.fromPartial({
-							organizationId: targetOrgId,
-						}),
-					)
-				: await AccountServiceClient.getUserCredits(EmptyRequest.create())
+				// Update balance if changed
+				const newBalance = response.balance?.currentBalance
+				if (newBalance !== undefined && newBalance !== balance) {
+					setBalance(newBalance)
+				}
+				if (response.usageTransactions && !deepEqual(usageData, response.usageTransactions)) {
+					const clineUsage = convertProtoUsageTransactions(response.usageTransactions) || []
+					setUsageData(clineUsage)
+				}
 
-			// Update balance if changed
-			const newBalance = response.balance?.currentBalance
-			if (newBalance !== balance) {
-				setBalance(newBalance ?? null)
-			}
+				// Organizations don't have payment transactions
+				if (targetOrgId !== "personal") {
+					setPaymentsData([])
+					setIsLoading(false)
+					return
+				}
 
-			const clineUsage = convertProtoUsageTransactions(response.usageTransactions)
-			setUsageData(clineUsage || [])
-
-			if (activeOrganization?.organizationId) {
-				setPaymentsData([]) // Organizations don't have payment transactions
-			} else {
 				// Check if response is UserCreditsData type
 				if (typeof response !== "object" || !("paymentTransactions" in response)) {
 					return
 				}
-				const paymentsData = response.paymentTransactions || []
+				const newPaymentsData = response.paymentTransactions
 				// Check if paymentTransactions is part of the response
-				if (response.paymentTransactions?.length !== paymentsData?.length) {
-					setPaymentsData(paymentsData)
+				if (newPaymentsData?.length && !deepEqual(paymentsData, newPaymentsData)) {
+					setPaymentsData(newPaymentsData)
 				}
+			} catch (error) {
+				console.error("Failed to fetch credit balance:", error)
+			} finally {
+				setLastFetchTime(Date.now())
+				setIsLoading(false)
 			}
-		} finally {
-			setLastFetchTime(Date.now())
-			setIsLoading(false)
-		}
-	}, [activeOrganization?.organizationId])
-
-	const handleManualRefresh = useCallback(
-		debounce(() => !isLoading && fetchCreditBalance(), 500, { immediate: true }),
-		[fetchCreditBalance, isLoading],
+		},
+		[dropdownValue, balance],
 	)
+
+	// Create a debounced version of fetchCreditBalance
+	const debouncedFetchCreditBalance = useMemo(
+		() => debounce(() => fetchCreditBalance(), 500, { immediate: true }),
+		[fetchCreditBalance],
+	)
+
+	const handleManualRefresh = useCallback(() => {
+		if (!isLoading) {
+			debouncedFetchCreditBalance()
+		}
+	}, [debouncedFetchCreditBalance, isLoading])
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
-			const newOrgId = (event.target as VSCodeDropdownChangeEvent["target"]).value
-			const currentOrgId = activeOrganization?.organizationId || ""
+			const newValue = (event.target as VSCodeDropdownChangeEvent["target"]).value || "personal"
+			const organizationId = newValue === "personal" ? undefined : newValue
 
-			if (currentOrgId !== newOrgId) {
-				setIsSwitchingProfile(true)
+			if (newValue === dropdownValue) {
+				return // No change, do nothing
+			}
+
+			try {
+				console.info("Changing selection to:", newValue)
+
+				// Send the change to the server
+				AccountServiceClient.setUserOrganization({ organizationId })
+
+				// Update dropdownValue immediately - this persists through failures
+				setDropdownValue(newValue)
+				setIsLoading(true)
 				setBalance(null)
+				setUsageData([])
+				setPaymentsData([])
 
-				// Set the pending organization immediately to prevent race conditions
-				pendingOrganizationRef.current = newOrgId
-
-				try {
-					// Update local state immediately for UI responsiveness
-					if (newOrgId === "") {
-						setActiveOrganization(null)
-					} else {
-						const org = userOrganizations.find((org: UserOrganization) => org.organizationId === newOrgId)
-						if (org) {
-							setActiveOrganization(org)
-						}
-					}
-
-					// Send the change to the server
-					await AccountServiceClient.setUserOrganization(
-						UserOrganizationUpdateRequest.create({ organizationId: newOrgId }),
-					)
-
-					// Fetch fresh data for the new organization
-					await fetchCreditBalance()
-
-					// Refresh organizations to get the updated active state from server
-					await getUserOrganizations()
-				} catch (error) {
-					console.error("Failed to update organization:", error)
-					// Reset pending ref on error
-					pendingOrganizationRef.current = null
-				} finally {
-					setIsSwitchingProfile(false)
-				}
+				await fetchCreditBalance(organizationId)
+			} catch (error) {
+				console.error("Failed to update organization:", error)
+				// Don't reset selectedOrgId on error - keep the user's selection
+				// The next refresh will use the correct selectedOrgId
+			} finally {
+				setIsLoading(false)
 			}
 		},
-		[activeOrganization?.organizationId, fetchCreditBalance, getUserOrganizations, userOrganizations],
+		[fetchCreditBalance, getUserOrganizations, dropdownValue],
 	)
 
-	// Handle organization changes and initial load
+	// Fetching initial data
 	useEffect(() => {
-		// Reset state when user is not logged in
-		if (!clineUser?.uid) {
-			setIsLoading(true)
-			setBalance(null)
-			setUserOrganizations([])
-			setActiveOrganization(null)
-			setIsSwitchingProfile(false)
-			return
-		}
 		const loadData = async () => {
-			await getUserOrganizations()
-			await fetchCreditBalance()
+			if (clineUser?.uid) {
+				// Start with personal account as we do not have the user's organizations yet
+				AccountServiceClient.setUserOrganization({ organizationId: undefined })
+				await getUserOrganizations()
+				await fetchCreditBalance()
+			}
 		}
 		loadData()
-	}, [activeOrganization?.organizationId, clineUser?.uid])
+	}, [clineUser?.uid])
 
 	// Periodic refresh
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
 				if (clineUser?.uid) {
-					await Promise.all([getUserOrganizations(), fetchCreditBalance()])
+					await getUserOrganizations()
+					await fetchCreditBalance()
 				}
 			} catch (error) {
 				console.error("Error during periodic refresh:", error)
 			}
 		}
 
-		const intervalId = setInterval(refreshData, 30000)
+		const intervalId = setInterval(refreshData, 60000)
 		return () => clearInterval(intervalId)
-	}, [clineUser?.uid, getUserOrganizations, fetchCreditBalance])
-
-	// Determine the current dropdown value, considering pending changes
-	const dropdownValue =
-		pendingOrganizationRef.current !== null ? pendingOrganizationRef.current : activeOrganization?.organizationId || ""
+	}, [clineUser?.uid])
 
 	return (
 		<div className="h-full flex flex-col">
-			{user ? (
+			{clineUser ? (
 				<div className="flex flex-col pr-3 h-full">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
@@ -315,37 +235,37 @@ export const ClineAccountView = () => {
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : ( */}
 							<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
-								{user.displayName?.[0] || user.email?.[0] || "?"}
+								{clineUser.displayName?.[0] || clineUser.email?.[0] || "?"}
 							</div>
 							{/* )} */}
 
 							<div className="flex flex-col">
-								{user.displayName && (
+								{clineUser.displayName && (
 									<h2 className="text-[var(--vscode-foreground)] m-0 text-lg font-medium">
-										{user.displayName}
+										{clineUser.displayName}
 									</h2>
 								)}
 
-								{user.email && (
-									<div className="text-sm text-[var(--vscode-descriptionForeground)]">{user.email}</div>
+								{clineUser.email && (
+									<div className="text-sm text-[var(--vscode-descriptionForeground)]">{clineUser.email}</div>
 								)}
 
 								<div className="flex gap-2 items-center mt-1">
-									{userOrganizations && (
-										<VSCodeDropdown
-											currentValue={dropdownValue}
-											onChange={handleOrganizationChange}
-											disabled={isSwitchingProfile}
-											className="w-full">
-											<VSCodeOption value="">Personal</VSCodeOption>
-											{userOrganizations.map((org: UserOrganization) => (
-												<VSCodeOption key={org.organizationId} value={org.organizationId}>
-													{org.name}
-												</VSCodeOption>
-											))}
-										</VSCodeDropdown>
-									)}
-									{activeOrganization?.roles && (
+									<VSCodeDropdown
+										currentValue={dropdownValue}
+										onChange={handleOrganizationChange}
+										disabled={isLoading}
+										className="w-full">
+										<VSCodeOption value="personal" key="personal">
+											Personal
+										</VSCodeOption>
+										{userOrganizations?.map((org: UserOrganization) => (
+											<VSCodeOption key={org.organizationId} value={org.organizationId}>
+												{org.name}
+											</VSCodeOption>
+										))}
+									</VSCodeDropdown>
+									{activeOrganization && (
 										<VSCodeTag className="text-xs p-2" title="Role">
 											{getMainRole(activeOrganization.roles)}
 										</VSCodeTag>
@@ -397,10 +317,10 @@ export const ClineAccountView = () => {
 
 					<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
 						<CreditsHistoryTable
-							isLoading={isSwitchingProfile}
+							isLoading={isLoading}
 							usageData={usageData}
 							paymentsData={paymentsData}
-							showPayments={!activeOrganization?.active}
+							showPayments={dropdownValue === "personal"}
 						/>
 					</div>
 				</div>
