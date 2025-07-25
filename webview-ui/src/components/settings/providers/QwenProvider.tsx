@@ -84,7 +84,6 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 			</p>
 
 			<ApiKeyField
-				key="qwenApiKey"
 				initialValue={apiConfiguration?.qwenApiKey || ""}
 				onChange={(value) => handleFieldChange("qwenApiKey", value)}
 				providerName="Qwen"
@@ -94,7 +93,6 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						key="qwenModelSelector"
 						models={qwenModels}
 						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
