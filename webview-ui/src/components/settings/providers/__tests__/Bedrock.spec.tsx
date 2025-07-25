@@ -61,11 +61,16 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 
 // Mock the UI components
 vi.mock("@src/components/ui", () => ({
-	Select: ({ children }: any) => <div>{children}</div>,
-	SelectContent: ({ children }: any) => <div>{children}</div>,
-	SelectItem: () => <div>Item</div>,
-	SelectTrigger: ({ children }: any) => <div>{children}</div>,
-	SelectValue: () => <div>Value</div>,
+	Select: ({ children, value, onValueChange }: any) => (
+		<select value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
+			{children}
+		</select>
+	),
+	SelectContent: ({ children }: any) => <>{children}</>,
+	SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+	SelectTrigger: ({ children }: any) => <>{children}</>,
+	SelectValue: () => null,
+	StandardTooltip: ({ children }: any) => <div>{children}</div>,
 }))
 
 // Mock the constants
@@ -423,6 +428,127 @@ describe("Bedrock Component", () => {
 			).toBeChecked()
 			expect(screen.getByTestId("vpc-endpoint-input")).toBeInTheDocument()
 			expect(screen.getByTestId("vpc-endpoint-input")).toHaveValue("https://updated-endpoint.aws.com")
+		})
+
+		// Test Scenario 6: Authentication Method Selection Tests
+		describe("Authentication Method Selection", () => {
+			it("should display credentials option as selected when neither awsUseProfile nor awsUseApiKey is true", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: false,
+					awsUseApiKey: false,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				// Find the first select element (authentication method)
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				expect(authSelect).toHaveValue("credentials")
+			})
+
+			it("should display profile option as selected when awsUseProfile is true", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: true,
+					awsUseApiKey: false,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				expect(authSelect).toHaveValue("profile")
+			})
+
+			it("should display apikey option as selected when awsUseApiKey is true", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: false,
+					awsUseApiKey: true,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				expect(authSelect).toHaveValue("apikey")
+			})
+
+			it("should call setApiConfigurationField correctly when switching to profile", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: false,
+					awsUseApiKey: false,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				fireEvent.change(authSelect, { target: { value: "profile" } })
+
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", false)
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", true)
+			})
+
+			it("should call setApiConfigurationField correctly when switching to apikey", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: false,
+					awsUseApiKey: false,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				fireEvent.change(authSelect, { target: { value: "apikey" } })
+
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", true)
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", false)
+			})
+
+			it("should call setApiConfigurationField correctly when switching to credentials", () => {
+				const apiConfiguration: Partial<ProviderSettings> = {
+					awsUseProfile: true,
+					awsUseApiKey: false,
+				}
+
+				render(
+					<Bedrock
+						apiConfiguration={apiConfiguration as ProviderSettings}
+						setApiConfigurationField={mockSetApiConfigurationField}
+					/>,
+				)
+
+				const selectInputs = screen.getAllByRole("combobox")
+				const authSelect = selectInputs[0] as HTMLSelectElement
+				fireEvent.change(authSelect, { target: { value: "credentials" } })
+
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseApiKey", false)
+				expect(mockSetApiConfigurationField).toHaveBeenCalledWith("awsUseProfile", false)
+			})
 		})
 	})
 })

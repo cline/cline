@@ -222,7 +222,11 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				this.options.awsBedrockEndpointEnabled && { endpoint: this.options.awsBedrockEndpoint }),
 		}
 
-		if (this.options.awsUseProfile && this.options.awsProfile) {
+		if (this.options.awsUseApiKey && this.options.awsApiKey) {
+			// Use API key/token-based authentication if enabled and API key is set
+			clientConfig.token = { token: this.options.awsApiKey }
+			clientConfig.authSchemePreference = ["httpBearerAuth"] // Otherwise there's no end of credential problems.
+		} else if (this.options.awsUseProfile && this.options.awsProfile) {
 			// Use profile-based credentials if enabled and profile is set
 			clientConfig.credentials = fromIni({
 				profile: this.options.awsProfile,
@@ -1078,7 +1082,7 @@ Please verify:
 				"throttl",
 				"rate",
 				"limit",
-				"bedrock is unable to process your request", // AWS Bedrock specific throttling message
+				"bedrock is unable to process your request", // Amazon Bedrock specific throttling message
 				"please wait",
 				"quota exceeded",
 				"service unavailable",
@@ -1124,7 +1128,7 @@ Suggestions:
 Please try:
 1. Contact AWS support to request a quota increase
 2. Reduce request frequency temporarily
-3. Check your AWS Bedrock quotas in the AWS console
+3. Check your Amazon Bedrock quotas in the AWS console
 4. Consider using a different model or region with available capacity
 
 `,
@@ -1139,7 +1143,7 @@ Please try:
 
 Please try:
 1. Wait a few minutes and retry
-2. Check the model status in AWS Bedrock console
+2. Check the model status in Amazon Bedrock console
 3. Verify the model is properly provisioned
 
 `,
@@ -1147,7 +1151,7 @@ Please try:
 		},
 		INTERNAL_SERVER_ERROR: {
 			patterns: ["internal server error", "internal error", "server error", "service error"],
-			messageTemplate: `AWS Bedrock internal server error. This is a temporary service issue.
+			messageTemplate: `Amazon Bedrock internal server error. This is a temporary service issue.
 
 Please try:
 1. Retry the request after a brief delay
@@ -1184,7 +1188,7 @@ Please try:
 			],
 			messageTemplate: `Parameter validation error: {errorMessage}
 
-This error indicates that the request parameters don't match AWS Bedrock's expected format.
+This error indicates that the request parameters don't match Amazon Bedrock's expected format.
 
 Common causes:
 1. Extended thinking parameter format is incorrect
@@ -1193,7 +1197,7 @@ Common causes:
 
 Please check:
 - Model supports the requested features (extended thinking, etc.)
-- Parameter format matches AWS Bedrock specification
+- Parameter format matches Amazon Bedrock specification
 - Model ID is correct for the requested features`,
 			logLevel: "error",
 		},
@@ -1218,7 +1222,7 @@ Please check:
 			return "THROTTLING"
 		}
 
-		// Check for AWS Bedrock specific throttling exception names
+		// Check for Amazon Bedrock specific throttling exception names
 		if ((error as any).name === "ThrottlingException" || (error as any).__type === "ThrottlingException") {
 			return "THROTTLING"
 		}

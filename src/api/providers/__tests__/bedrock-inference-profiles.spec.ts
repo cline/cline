@@ -16,7 +16,7 @@ vitest.mock("@aws-sdk/client-bedrock-runtime", () => {
 	}
 })
 
-describe("AWS Bedrock Inference Profiles", () => {
+describe("Amazon Bedrock Inference Profiles", () => {
 	// Helper function to create a handler with specific options
 	const createHandler = (options: Partial<ApiHandlerOptions> = {}) => {
 		const defaultOptions: ApiHandlerOptions = {

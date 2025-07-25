@@ -114,6 +114,8 @@ const bedrockSchema = apiModelIdProviderModelSchema.extend({
 	awsUsePromptCache: z.boolean().optional(),
 	awsProfile: z.string().optional(),
 	awsUseProfile: z.boolean().optional(),
+	awsApiKey: z.string().optional(),
+	awsUseApiKey: z.boolean().optional(),
 	awsCustomArn: z.string().optional(),
 	awsModelContextWindow: z.number().optional(),
 	awsBedrockEndpointEnabled: z.boolean().optional(),

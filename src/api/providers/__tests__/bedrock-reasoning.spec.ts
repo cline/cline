@@ -278,5 +278,51 @@ describe("AwsBedrockHandler - Extended Thinking", () => {
 			expect(reasoningChunks[0].text).toBe("Let me think...")
 			expect(reasoningChunks[1].text).toBe(" about this problem.")
 		})
+
+		it("should support API key authentication", async () => {
+			handler = new AwsBedrockHandler({
+				apiProvider: "bedrock",
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsRegion: "us-east-1",
+				awsUseApiKey: true,
+				awsApiKey: "test-api-key-token",
+			})
+
+			mockSend.mockResolvedValue({
+				stream: (async function* () {
+					yield { messageStart: { role: "assistant" } }
+					yield {
+						contentBlockStart: {
+							start: { text: "Hello from API key auth" },
+							contentBlockIndex: 0,
+						},
+					}
+					yield { metadata: { usage: { inputTokens: 100, outputTokens: 50 } } }
+				})(),
+			})
+
+			const messages = [{ role: "user" as const, content: "Test message" }]
+			const stream = handler.createMessage("System prompt", messages)
+
+			const chunks = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify the client was created with API key token
+			expect(BedrockRuntimeClient).toHaveBeenCalledWith(
+				expect.objectContaining({
+					region: "us-east-1",
+					token: { token: "test-api-key-token" },
+					authSchemePreference: ["httpBearerAuth"],
+				}),
+			)
+
+			// Verify the stream worked correctly
+			expect(mockSend).toHaveBeenCalledTimes(1)
+			const textChunks = chunks.filter((c) => c.type === "text")
+			expect(textChunks).toHaveLength(1)
+			expect(textChunks[0].text).toBe("Hello from API key auth")
+		})
 	})
 })

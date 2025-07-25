@@ -287,6 +287,7 @@
 		"litellmBaseUrl": "URL bazowy LiteLLM",
 		"awsCredentials": "Poświadczenia AWS",
 		"awsProfile": "Profil AWS",
+		"awsApiKey": "Klucz API Amazon Bedrock",
 		"awsProfileName": "Nazwa profilu AWS",
 		"awsAccessKey": "Klucz dostępu AWS",
 		"awsSecretKey": "Klucz tajny AWS",

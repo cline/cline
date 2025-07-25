@@ -29,7 +29,7 @@ import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
 // Get access to the mocked functions
 const mockBedrockRuntimeClient = vi.mocked(BedrockRuntimeClient)
 
-describe("AWS Bedrock VPC Endpoint Functionality", () => {
+describe("Amazon Bedrock VPC Endpoint Functionality", () => {
 	beforeEach(() => {
 		// Clear all mocks before each test
 		vi.clearAllMocks()

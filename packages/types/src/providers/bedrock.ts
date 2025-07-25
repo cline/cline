@@ -360,7 +360,7 @@ export const BEDROCK_MAX_TOKENS = 4096
 
 export const BEDROCK_DEFAULT_CONTEXT = 128_000
 
-// AWS Bedrock Inference Profile mapping based on official documentation
+// Amazon Bedrock Inference Profile mapping based on official documentation
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 // This mapping is pre-ordered by pattern length (descending) to ensure more specific patterns match first
 export const AWS_INFERENCE_PROFILE_MAPPING: Array<[string, string]> = [
@@ -378,7 +378,7 @@ export const AWS_INFERENCE_PROFILE_MAPPING: Array<[string, string]> = [
 	["sa-", "sa."],
 ]
 
-// AWS Bedrock supported regions for the regions dropdown
+// Amazon Bedrock supported regions for the regions dropdown
 // Based on official AWS documentation
 export const BEDROCK_REGIONS = [
 	{ value: "us-east-1", label: "us-east-1" },

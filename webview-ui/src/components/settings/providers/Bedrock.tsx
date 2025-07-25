@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect } from "react"
 import { Checkbox } from "vscrui"
-import { VSCodeTextField, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import { type ProviderSettings, type ModelInfo, BEDROCK_REGIONS } from "@roo-code/types"
 
@@ -37,19 +37,51 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 
 	return (
 		<>
-			<VSCodeRadioGroup
-				value={apiConfiguration?.awsUseProfile ? "profile" : "credentials"}
-				onChange={handleInputChange(
-					"awsUseProfile",
-					(e) => (e.target as HTMLInputElement).value === "profile",
-				)}>
-				<VSCodeRadio value="credentials">{t("settings:providers.awsCredentials")}</VSCodeRadio>
-				<VSCodeRadio value="profile">{t("settings:providers.awsProfile")}</VSCodeRadio>
-			</VSCodeRadioGroup>
+			<div>
+				<label className="block font-medium mb-1">Authentication Method</label>
+				<Select
+					value={
+						apiConfiguration?.awsUseApiKey
+							? "apikey"
+							: apiConfiguration?.awsUseProfile
+								? "profile"
+								: "credentials"
+					}
+					onValueChange={(value) => {
+						if (value === "apikey") {
+							setApiConfigurationField("awsUseApiKey", true)
+							setApiConfigurationField("awsUseProfile", false)
+						} else if (value === "profile") {
+							setApiConfigurationField("awsUseApiKey", false)
+							setApiConfigurationField("awsUseProfile", true)
+						} else {
+							setApiConfigurationField("awsUseApiKey", false)
+							setApiConfigurationField("awsUseProfile", false)
+						}
+					}}>
+					<SelectTrigger className="w-full">
+						<SelectValue placeholder={t("settings:common.select")} />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="credentials">{t("settings:providers.awsCredentials")}</SelectItem>
+						<SelectItem value="profile">{t("settings:providers.awsProfile")}</SelectItem>
+						<SelectItem value="apikey">{t("settings:providers.awsApiKey")}</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
 			<div className="text-sm text-vscode-descriptionForeground -mt-3">
 				{t("settings:providers.apiKeyStorageNotice")}
 			</div>
-			{apiConfiguration?.awsUseProfile ? (
+			{apiConfiguration?.awsUseApiKey ? (
+				<VSCodeTextField
+					value={apiConfiguration?.awsApiKey || ""}
+					type="password"
+					onInput={handleInputChange("awsApiKey")}
+					placeholder={t("settings:placeholders.apiKey")}
+					className="w-full">
+					<label className="block font-medium mb-1">{t("settings:providers.awsApiKey")}</label>
+				</VSCodeTextField>
+			) : apiConfiguration?.awsUseProfile ? (
 				<VSCodeTextField
 					value={apiConfiguration?.awsProfile || ""}
 					onInput={handleInputChange("awsProfile")}

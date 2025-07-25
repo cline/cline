@@ -287,6 +287,7 @@
 		"litellmBaseUrl": "LiteLLM 기본 URL",
 		"awsCredentials": "AWS 자격 증명",
 		"awsProfile": "AWS 프로필",
+		"awsApiKey": "Amazon Bedrock API 키",
 		"awsProfileName": "AWS 프로필 이름",
 		"awsAccessKey": "AWS 액세스 키",
 		"awsSecretKey": "AWS 시크릿 키",
