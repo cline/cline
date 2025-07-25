@@ -214,6 +214,22 @@
 		"resultTooltip": "Skor kemiripan: {{score}} (klik untuk membuka file)"
 	},
 	"commandOutput": "Output Perintah",
+	"commandExecution": {
+		"running": "Menjalankan",
+		"pid": "PID: {{pid}}",
+		"exited": "Keluar ({{exitCode}})",
+		"manageCommands": "Kelola Izin Perintah",
+		"commandManagementDescription": "Kelola izin perintah: Klik ✓ untuk mengizinkan eksekusi otomatis, ✗ untuk menolak eksekusi. Pola dapat diaktifkan/dinonaktifkan atau dihapus dari daftar. <settingsLink>Lihat semua pengaturan</settingsLink>",
+		"addToAllowed": "Tambahkan ke daftar yang diizinkan",
+		"removeFromAllowed": "Hapus dari daftar yang diizinkan",
+		"addToDenied": "Tambahkan ke daftar yang ditolak",
+		"removeFromDenied": "Hapus dari daftar yang ditolak",
+		"abortCommand": "Batalkan eksekusi perintah",
+		"expandOutput": "Perluas output",
+		"collapseOutput": "Ciutkan output",
+		"expandManagement": "Perluas bagian manajemen perintah",
+		"collapseManagement": "Ciutkan bagian manajemen perintah"
+	},
 	"response": "Respons",
 	"arguments": "Argumen",
 	"mcp": {

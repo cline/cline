@@ -211,6 +211,22 @@
 		"resultTooltip": "Similarity score: {{score}} (click to open file)"
 	},
 	"commandOutput": "Command Output",
+	"commandExecution": {
+		"running": "Running",
+		"pid": "PID: {{pid}}",
+		"exited": "Exited ({{exitCode}})",
+		"manageCommands": "Manage Command Permissions",
+		"commandManagementDescription": "Manage command permissions: Click ✓ to allow auto-execution, ✗ to deny execution. Patterns can be toggled on/off or removed from lists. <settingsLink>View all settings</settingsLink>",
+		"addToAllowed": "Add to allowed list",
+		"removeFromAllowed": "Remove from allowed list",
+		"addToDenied": "Add to denied list",
+		"removeFromDenied": "Remove from denied list",
+		"abortCommand": "Abort command execution",
+		"expandOutput": "Expand output",
+		"collapseOutput": "Collapse output",
+		"expandManagement": "Expand command management section",
+		"collapseManagement": "Collapse command management section"
+	},
 	"response": "Response",
 	"arguments": "Arguments",
 	"mcp": {

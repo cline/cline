@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo가 이 디렉토리(워크스페이스 외부)에서 사용된 소스 코드 정의 이름을 보았습니다:"
 	},
 	"commandOutput": "명령 출력",
+	"commandExecution": {
+		"running": "실행 중",
+		"pid": "PID: {{pid}}",
+		"exited": "종료됨 ({{exitCode}})",
+		"manageCommands": "명령 권한 관리",
+		"commandManagementDescription": "명령 권한 관리: 자동 실행을 허용하려면 ✓를 클릭하고 실행을 거부하려면 ✗를 클릭하십시오. 패턴은 켜거나 끄거나 목록에서 제거할 수 있습니다. <settingsLink>모든 설정 보기</settingsLink>",
+		"addToAllowed": "허용 목록에 추가",
+		"removeFromAllowed": "허용 목록에서 제거",
+		"addToDenied": "거부 목록에 추가",
+		"removeFromDenied": "거부 목록에서 제거",
+		"abortCommand": "명령 실행 중단",
+		"expandOutput": "출력 확장",
+		"collapseOutput": "출력 축소",
+		"expandManagement": "명령 관리 섹션 확장",
+		"collapseManagement": "명령 관리 섹션 축소"
+	},
 	"response": "응답",
 	"arguments": "인수",
 	"mcp": {

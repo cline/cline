@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で使用されているソースコード定義名を表示しました:"
 	},
 	"commandOutput": "コマンド出力",
+	"commandExecution": {
+		"running": "実行中",
+		"pid": "PID: {{pid}}",
+		"exited": "終了しました ({{exitCode}})",
+		"manageCommands": "コマンド権限の管理",
+		"commandManagementDescription": "コマンドの権限を管理します：✓ をクリックして自動実行を許可し、✗ をクリックして実行を拒否します。パターンはオン/オフの切り替えやリストからの削除が可能です。<settingsLink>すべての設定を表示</settingsLink>",
+		"addToAllowed": "許可リストに追加",
+		"removeFromAllowed": "許可リストから削除",
+		"addToDenied": "拒否リストに追加",
+		"removeFromDenied": "拒否リストから削除",
+		"abortCommand": "コマンドの実行を中止",
+		"expandOutput": "出力を展開",
+		"collapseOutput": "出力を折りたたむ",
+		"expandManagement": "コマンド管理セクションを展開",
+		"collapseManagement": "コマンド管理セクションを折りたたむ"
+	},
 	"response": "応答",
 	"arguments": "引数",
 	"mcp": {

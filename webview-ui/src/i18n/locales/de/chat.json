@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo hat Quellcode-Definitionsnamen in diesem Verzeichnis (außerhalb des Arbeitsbereichs) angezeigt:"
 	},
 	"commandOutput": "Befehlsausgabe",
+	"commandExecution": {
+		"running": "Wird ausgeführt",
+		"pid": "PID: {{pid}}",
+		"exited": "Beendet ({{exitCode}})",
+		"manageCommands": "Befehlsberechtigungen verwalten",
+		"commandManagementDescription": "Befehlsberechtigungen verwalten: Klicke auf ✓, um die automatische Ausführung zu erlauben, ✗, um die Ausführung zu verweigern. Muster können ein-/ausgeschaltet oder aus Listen entfernt werden. <settingsLink>Alle Einstellungen anzeigen</settingsLink>",
+		"addToAllowed": "Zur Liste der erlaubten Befehle hinzufügen",
+		"removeFromAllowed": "Von der Liste der erlaubten Befehle entfernen",
+		"addToDenied": "Zur Liste der verweigerten Befehle hinzufügen",
+		"removeFromDenied": "Von der Liste der verweigerten Befehle entfernen",
+		"abortCommand": "Befehlsausführung abbrechen",
+		"expandOutput": "Ausgabe erweitern",
+		"collapseOutput": "Ausgabe einklappen",
+		"expandManagement": "Befehlsverwaltungsbereich erweitern",
+		"collapseManagement": "Befehlsverwaltungsbereich einklappen"
+	},
 	"response": "Antwort",
 	"arguments": "Argumente",
 	"mcp": {

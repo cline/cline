@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo ने इस निर्देशिका (कार्यक्षेत्र के बाहर) में उपयोग किए गए सोर्स कोड परिभाषा नामों को देखा:"
 	},
 	"commandOutput": "कमांड आउटपुट",
+	"commandExecution": {
+		"running": "चलाया जा रहा है",
+		"pid": "पीआईडी: {{pid}}",
+		"exited": "बाहर निकल गया ({{exitCode}})",
+		"manageCommands": "कमांड अनुमतियाँ प्रबंधित करें",
+		"commandManagementDescription": "कमांड अनुमतियों का प्रबंधन करें: स्वतः-निष्पादन की अनुमति देने के लिए ✓ पर क्लिक करें, निष्पादन से इनकार करने के लिए ✗ पर क्लिक करें। पैटर्न को चालू/बंद किया जा सकता है या सूचियों से हटाया जा सकता है। <settingsLink>सभी सेटिंग्स देखें</settingsLink>",
+		"addToAllowed": "अनुमत सूची में जोड़ें",
+		"removeFromAllowed": "अनुमत सूची से हटाएं",
+		"addToDenied": "अस्वीकृत सूची में जोड़ें",
+		"removeFromDenied": "अस्वीकृत सूची से हटाएं",
+		"abortCommand": "कमांड निष्पादन रद्द करें",
+		"expandOutput": "आउटपुट का विस्तार करें",
+		"collapseOutput": "आउटपुट संक्षिप्त करें",
+		"expandManagement": "कमांड प्रबंधन अनुभाग का विस्तार करें",
+		"collapseManagement": "कमांड प्रबंधन अनुभाग संक्षिप्त करें"
+	},
 	"response": "प्रतिक्रिया",
 	"arguments": "आर्ग्युमेंट्स",
 	"mcp": {

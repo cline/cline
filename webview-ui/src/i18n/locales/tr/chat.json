@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo bu dizinde (çalışma alanı dışında) kullanılan kaynak kod tanımlama isimlerini görüntüledi:"
 	},
 	"commandOutput": "Komut Çıktısı",
+	"commandExecution": {
+		"running": "Çalışıyor",
+		"pid": "PID: {{pid}}",
+		"exited": "Çıkıldı ({{exitCode}})",
+		"manageCommands": "Komut İzinlerini Yönet",
+		"commandManagementDescription": "Komut izinlerini yönetin: Otomatik yürütmeye izin vermek için ✓'e, yürütmeyi reddetmek için ✗'e tıklayın. Desenler açılıp kapatılabilir veya listelerden kaldırılabilir. <settingsLink>Tüm ayarları görüntüle</settingsLink>",
+		"addToAllowed": "İzin verilenler listesine ekle",
+		"removeFromAllowed": "İzin verilenler listesinden kaldır",
+		"addToDenied": "Reddedilenler listesine ekle",
+		"removeFromDenied": "Reddedilenler listesinden kaldır",
+		"abortCommand": "Komut yürütmeyi iptal et",
+		"expandOutput": "Çıktıyı genişlet",
+		"collapseOutput": "Çıktıyı daralt",
+		"expandManagement": "Komut yönetimi bölümünü genişlet",
+		"collapseManagement": "Komut yönetimi bölümünü daralt"
+	},
 	"response": "Yanıt",
 	"arguments": "Argümanlar",
 	"mcp": {

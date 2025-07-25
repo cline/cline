@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo ha visualizzato i nomi delle definizioni di codice sorgente utilizzate in questa directory (fuori dall'area di lavoro):"
 	},
 	"commandOutput": "Output del comando",
+	"commandExecution": {
+		"running": "In esecuzione",
+		"pid": "PID: {{pid}}",
+		"exited": "Terminato ({{exitCode}})",
+		"manageCommands": "Gestisci autorizzazioni comandi",
+		"commandManagementDescription": "Gestisci le autorizzazioni dei comandi: fai clic su ✓ per consentire l'esecuzione automatica, ✗ per negare l'esecuzione. I pattern possono essere attivati/disattivati o rimossi dagli elenchi. <settingsLink>Visualizza tutte le impostazioni</settingsLink>",
+		"addToAllowed": "Aggiungi all'elenco consentiti",
+		"removeFromAllowed": "Rimuovi dall'elenco consentiti",
+		"addToDenied": "Aggiungi all'elenco negati",
+		"removeFromDenied": "Rimuovi dall'elenco negati",
+		"abortCommand": "Interrompi esecuzione comando",
+		"expandOutput": "Espandi output",
+		"collapseOutput": "Comprimi output",
+		"expandManagement": "Espandi la sezione di gestione dei comandi",
+		"collapseManagement": "Comprimi la sezione di gestione dei comandi"
+	},
 	"response": "Risposta",
 	"arguments": "Argomenti",
 	"mcp": {

@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo đã xem tên định nghĩa mã nguồn được sử dụng trong thư mục này (ngoài không gian làm việc):"
 	},
 	"commandOutput": "Kết quả lệnh",
+	"commandExecution": {
+		"running": "Đang chạy",
+		"pid": "PID: {{pid}}",
+		"exited": "Đã thoát ({{exitCode}})",
+		"manageCommands": "Quản lý quyền lệnh",
+		"commandManagementDescription": "Quản lý quyền lệnh: Nhấp vào ✓ để cho phép tự động thực thi, ✗ để từ chối thực thi. Các mẫu có thể được bật/tắt hoặc xóa khỏi danh sách. <settingsLink>Xem tất cả cài đặt</settingsLink>",
+		"addToAllowed": "Thêm vào danh sách cho phép",
+		"removeFromAllowed": "Xóa khỏi danh sách cho phép",
+		"addToDenied": "Thêm vào danh sách từ chối",
+		"removeFromDenied": "Xóa khỏi danh sách từ chối",
+		"abortCommand": "Hủy bỏ thực thi lệnh",
+		"expandOutput": "Mở rộng kết quả",
+		"collapseOutput": "Thu gọn kết quả",
+		"expandManagement": "Mở rộng phần quản lý lệnh",
+		"collapseManagement": "Thu gọn phần quản lý lệnh"
+	},
 	"response": "Phản hồi",
 	"arguments": "Tham số",
 	"mcp": {

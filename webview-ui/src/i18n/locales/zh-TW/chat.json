@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中使用的原始碼定義名稱："
 	},
 	"commandOutput": "命令輸出",
+	"commandExecution": {
+		"running": "正在執行",
+		"pid": "PID: {{pid}}",
+		"exited": "已退出 ({{exitCode}})",
+		"manageCommands": "管理命令權限",
+		"commandManagementDescription": "管理命令權限：點擊 ✓ 允許自動執行，點擊 ✗ 拒絕執行。可以開啟/關閉模式或從清單中刪除。<settingsLink>檢視所有設定</settingsLink>",
+		"addToAllowed": "新增至允許清單",
+		"removeFromAllowed": "從允許清單中移除",
+		"addToDenied": "新增至拒絕清單",
+		"removeFromDenied": "從拒絕清單中移除",
+		"abortCommand": "中止命令執行",
+		"expandOutput": "展開輸出",
+		"collapseOutput": "折疊輸出",
+		"expandManagement": "展開命令管理部分",
+		"collapseManagement": "折疊命令管理部分"
+	},
 	"response": "回應",
 	"arguments": "參數",
 	"mcp": {

@@ -187,6 +187,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo heeft broncode-definitienamen bekeken die in deze map (buiten werkruimte) worden gebruikt:"
 	},
 	"commandOutput": "Commando-uitvoer",
+	"commandExecution": {
+		"running": "Lopend",
+		"pid": "PID: {{pid}}",
+		"exited": "Afgesloten ({{exitCode}})",
+		"manageCommands": "Beheer Commando Toestemmingen",
+		"commandManagementDescription": "Beheer commando toestemmingen: Klik op ✓ om automatische uitvoering toe te staan, ✗ om uitvoering te weigeren. Patronen kunnen worden in- of uitgeschakeld of uit lijsten worden verwijderd. <settingsLink>Bekijk alle instellingen</settingsLink>",
+		"addToAllowed": "Toevoegen aan toegestane lijst",
+		"removeFromAllowed": "Verwijderen van toegestane lijst",
+		"addToDenied": "Toevoegen aan geweigerde lijst",
+		"removeFromDenied": "Verwijderen van geweigerde lijst",
+		"abortCommand": "Commando-uitvoering afbreken",
+		"expandOutput": "Uitvoer uitvouwen",
+		"collapseOutput": "Uitvoer samenvouwen",
+		"expandManagement": "Beheersectie voor commando's uitvouwen",
+		"collapseManagement": "Beheersectie voor commando's samenvouwen"
+	},
 	"response": "Antwoord",
 	"arguments": "Argumenten",
 	"mcp": {

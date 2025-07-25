@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo vio nombres de definiciones de código fuente utilizados en este directorio (fuera del espacio de trabajo):"
 	},
 	"commandOutput": "Salida del comando",
+	"commandExecution": {
+		"running": "Ejecutando",
+		"pid": "PID: {{pid}}",
+		"exited": "Finalizado ({{exitCode}})",
+		"manageCommands": "Gestionar permisos de comandos",
+		"commandManagementDescription": "Gestionar permisos de comandos: Haz clic en ✓ para permitir la ejecución automática, ✗ para denegar la ejecución. Los patrones se pueden activar/desactivar o eliminar de las listas. <settingsLink>Ver todos los ajustes</settingsLink>",
+		"addToAllowed": "Añadir a la lista de permitidos",
+		"removeFromAllowed": "Eliminar de la lista de permitidos",
+		"addToDenied": "Añadir a la lista de denegados",
+		"removeFromDenied": "Eliminar de la lista de denegados",
+		"abortCommand": "Abortar ejecución del comando",
+		"expandOutput": "Expandir salida",
+		"collapseOutput": "Contraer salida",
+		"expandManagement": "Expandir sección de gestión de comandos",
+		"collapseManagement": "Contraer sección de gestión de comandos"
+	},
 	"response": "Respuesta",
 	"arguments": "Argumentos",
 	"mcp": {

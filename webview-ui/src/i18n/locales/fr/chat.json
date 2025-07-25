@@ -192,6 +192,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo a vu les noms de définitions de code source utilisés dans ce répertoire (hors espace de travail) :"
 	},
 	"commandOutput": "Sortie de commande",
+	"commandExecution": {
+		"running": "En cours d'exécution",
+		"pid": "PID : {{pid}}",
+		"exited": "Terminé ({{exitCode}})",
+		"manageCommands": "Gérer les autorisations de commande",
+		"commandManagementDescription": "Gérer les autorisations de commande : Cliquez sur ✓ pour autoriser l'exécution automatique, ✗ pour refuser l'exécution. Les modèles peuvent être activés/désactivés ou supprimés des listes. <settingsLink>Voir tous les paramètres</settingsLink>",
+		"addToAllowed": "Ajouter à la liste autorisée",
+		"removeFromAllowed": "Retirer de la liste autorisée",
+		"addToDenied": "Ajouter à la liste refusée",
+		"removeFromDenied": "Retirer de la liste refusée",
+		"abortCommand": "Abandonner l'exécution de la commande",
+		"expandOutput": "Développer la sortie",
+		"collapseOutput": "Réduire la sortie",
+		"expandManagement": "Développer la section de gestion des commandes",
+		"collapseManagement": "Réduire la section de gestion des commandes"
+	},
 	"response": "Réponse",
 	"arguments": "Arguments",
 	"mcp": {
