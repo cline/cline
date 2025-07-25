@@ -164,13 +164,18 @@ export const ClineAccountView = () => {
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const newValue = (event.target as VSCodeDropdownChangeEvent["target"]).value || "personal"
-			console.info("Changing selection to:", newValue)
+			const organizationId = newValue === "personal" ? undefined : newValue
 
 			if (newValue === dropdownValue) {
 				return // No change, do nothing
 			}
 
 			try {
+				console.info("Changing selection to:", newValue)
+
+				// Send the change to the server
+				AccountServiceClient.setUserOrganization({ organizationId })
+
 				// Update dropdownValue immediately - this persists through failures
 				setDropdownValue(newValue)
 				setIsLoading(true)
@@ -178,23 +183,12 @@ export const ClineAccountView = () => {
 				setUsageData([])
 				setPaymentsData([])
 
-				if (newValue === "personal") {
-					// For personal, we still need to fetch the balance
-					await fetchCreditBalance(newValue)
-					setIsLoading(false)
-					return
-				}
-
-				// Send the change to the server and wait for it to complete
-				AccountServiceClient.setUserOrganization({ organizationId: newValue })
+				await fetchCreditBalance(organizationId)
 			} catch (error) {
 				console.error("Failed to update organization:", error)
 				// Don't reset selectedOrgId on error - keep the user's selection
 				// The next refresh will use the correct selectedOrgId
 			} finally {
-				if (newValue !== "personal") {
-					await fetchCreditBalance(newValue)
-				}
 				setIsLoading(false)
 			}
 		},
@@ -205,6 +199,8 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		const loadData = async () => {
 			if (clineUser?.uid) {
+				// Start with personal account as we do not have the user's organizations yet
+				AccountServiceClient.setUserOrganization({ organizationId: undefined })
 				await getUserOrganizations()
 				await fetchCreditBalance()
 			}
