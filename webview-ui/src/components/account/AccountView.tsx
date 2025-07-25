@@ -149,9 +149,17 @@ export const ClineAccountView = () => {
 		[dropdownValue, balance],
 	)
 
+	// Create a debounced version of fetchCreditBalance
+	const debouncedFetchCreditBalance = useMemo(
+		() => debounce(() => fetchCreditBalance(), 500, { immediate: true }),
+		[fetchCreditBalance]
+	)
+
 	const handleManualRefresh = useCallback(() => {
-		return !isLoading && debounce(() => fetchCreditBalance(), 500, { immediate: true })
-	}, [fetchCreditBalance, isLoading])
+		if (!isLoading) {
+			debouncedFetchCreditBalance()
+		}
+	}, [debouncedFetchCreditBalance, isLoading])
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
@@ -190,7 +198,7 @@ export const ClineAccountView = () => {
 				setIsLoading(false)
 			}
 		},
-		[fetchCreditBalance, getUserOrganizations, userOrganizations],
+		[fetchCreditBalance, getUserOrganizations, dropdownValue],
 	)
 
 	// Fetching initial data
