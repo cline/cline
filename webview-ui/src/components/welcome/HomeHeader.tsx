@@ -39,9 +39,9 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 				<div className="mt-4">
 					<button
 						onClick={handleTakeATour}
-						className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--vscode-panel-border)] bg-[var(--vscode-sideBar-background)] hover:bg-[var(--vscode-list-hoverBackground)] transition-colors duration-150 ease-in-out text-[var(--vscode-editor-foreground)] text-sm font-medium">
-						<span className="codicon codicon-play text-sm"></span>
+						className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--vscode-panel-border)] bg-white/[0.02] hover:bg-[var(--vscode-list-hoverBackground)] transition-colors duration-150 ease-in-out text-[var(--vscode-editor-foreground)] text-sm font-medium cursor-pointer">
 						Take a Tour
+						<span className="codicon codicon-play scale-90"></span>
 					</button>
 				</div>
 			)}
