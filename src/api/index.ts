@@ -111,6 +111,7 @@ function createHandlerForProvider(
 		case "ollama":
 			return new OllamaHandler({
 				ollamaBaseUrl: options.ollamaBaseUrl,
+				ollamaApiKey: options.ollamaApiKey,
 				ollamaModelId: mode === "plan" ? options.planModeOllamaModelId : options.actModeOllamaModelId,
 				ollamaApiOptionsCtxNum: options.ollamaApiOptionsCtxNum,
 				requestTimeoutMs: options.requestTimeoutMs,
