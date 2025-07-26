@@ -11,7 +11,6 @@ import { rmrf } from "./file-utils.mjs"
 import { main as generateProtosSetup } from "./generate-protobus-setup.mjs"
 import { main as gnerateHostBridgeClient } from "./generate-host-bridge-client.mjs"
 import { loadProtoDescriptorSet } from "./proto-utils.mjs"
-import { FieldDescriptorProto_Type } from "../node_modules/ts-proto/build/protos/google/protobuf/descriptor.js"
 
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
