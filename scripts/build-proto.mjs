@@ -8,7 +8,7 @@ import { createRequire } from "module"
 import os from "os"
 import * as path from "path"
 import { rmrf } from "./file-utils.mjs"
-import { main as generateProtosSetup } from "./generate-protobus-setup.mjs"
+import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 import { main as gnerateHostBridgeClient } from "./generate-host-bridge-client.mjs"
 import { loadProtoDescriptorSet } from "./proto-utils.mjs"
 
@@ -39,7 +39,7 @@ async function main() {
 	await cleanup()
 	await compileProtos()
 	await checkProtos()
-	await generateProtosSetup()
+	await generateProtoBusSetup()
 	await gnerateHostBridgeClient()
 }
 async function compileProtos() {
