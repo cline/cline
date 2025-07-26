@@ -188,20 +188,14 @@ function checkAppleSiliconCompatibility() {
 	}
 }
 
-function log_verbose(s) {
-	if (process.argv.includes("-v") || process.argv.includes("--verbose")) {
-		console.log(s)
-	}
-}
+const int64TypeNames = ["TYPE_INT64", "TYPE_UINT64", "TYPE_SINT64", "TYPE_FIXED64", "TYPE_SFIXED64"]
 
 async function checkProtos() {
 	const proto = await loadProtoDescriptorSet()
 	const int64Fields = []
 
-	// Check all packages
 	for (const [packageName, packageDef] of Object.entries(proto)) {
-		// Check each definition in the package
-		for (const [name, def] of Object.entries(packageDef)) {
+		for (const [messageName, def] of Object.entries(packageDef)) {
 			// Skip service definitions
 			if (def && typeof def === "object" && "service" in def) {
 				continue
@@ -209,14 +203,10 @@ async function checkProtos() {
 			// Check message fields
 			if (def && def.type && def.type.field) {
 				for (const field of def.type.field) {
-					// Define list of 64-bit integer type names
-					const int64TypeNames = ["TYPE_INT64", "TYPE_UINT64", "TYPE_SINT64", "TYPE_FIXED64", "TYPE_SFIXED64"]
-					//console.log(field.type, typeof field.name)
 					if (int64TypeNames.includes(field.type)) {
+						const name = `${packageName}.${messageName}.${field.name}`
 						int64Fields.push({
-							package: packageName,
-							message: name,
-							field: field.name,
+							name: name,
 							type: field.type,
 						})
 					}
@@ -226,7 +216,7 @@ async function checkProtos() {
 	}
 
 	if (int64Fields.length > 0) {
-		console.log(chalk.yellow(`\nFound ${int64Fields.length} fields using 64-bit integer types:`))
+		console.log(chalk.yellow(`\nWarning: Found ${int64Fields.length} fields using 64-bit integer types`))
 		for (const field of int64Fields) {
 			const typeNames = {
 				TYPE_INT64: "int64",
@@ -235,12 +225,17 @@ async function checkProtos() {
 				TYPE_FIXED64: "fixed64",
 				TYPE_SFIXED64: "sfixed64",
 			}
-			const typeName = typeNames[field.type] || `type ${field.type}`
-			console.log(chalk.yellow(`  - ${field.package}.${field.message}.${field.field} (${typeName})`))
+			log_verbose(chalk.yellow(`  - ${field.name} (${typeNames[field.type]})`))
 		}
-		console.log(chalk.yellow("\nWARNING: 64-bit integer fields detected in proto definitions"))
-		console.log(chalk.yellow("JavaScript cannot safely represent integers larger than 2^53-1 (Number.MAX_SAFE_INTEGER)."))
-		console.log(chalk.yellow("Consider using string representation for large numbers or implementing BigInt support.\n"))
+		log_verbose(chalk.yellow("\nWARNING: 64-bit integer fields detected in proto definitions"))
+		log_verbose(chalk.yellow("JavaScript cannot safely represent integers larger than 2^53-1 (Number.MAX_SAFE_INTEGER)."))
+		log_verbose(chalk.yellow("Consider using string representation for large numbers or implementing BigInt support.\n"))
+	}
+}
+
+function log_verbose(s) {
+	if (process.argv.includes("-v") || process.argv.includes("--verbose")) {
+		console.log(s)
 	}
 }
 
