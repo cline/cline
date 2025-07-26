@@ -83,7 +83,8 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	// Settings around plan/act and ephemeral model configuration
-	| "chatSettings"
+	| "preferredLanguage"
+	| "openaiReasoningEffort"
 	| "mode"
 	// Plan mode configurations
 	| "planModeApiProvider"

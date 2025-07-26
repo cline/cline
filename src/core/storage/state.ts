@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { DEFAULT_CHAT_SETTINGS, Mode } from "@shared/ChatSettings"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
@@ -7,7 +7,6 @@ import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@share
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -110,7 +109,6 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
-	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
 		welcomeViewCompleted,
@@ -273,10 +271,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
-	const secondBatchStart = performance.now()
 	const [
-		chatSettings,
-		currentMode,
+		preferredLanguage,
+		openaiReasoningEffort,
+		mode,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -328,7 +326,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
 	] = await Promise.all([
-		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
+		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
@@ -382,7 +381,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
-	const processingStart = performance.now()
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
 		apiProvider = planModeApiProvider
@@ -539,11 +537,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
-		chatSettings: {
-			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
-			mode: currentMode || "act", // Merge mode from global state
-		},
+		preferredLanguage: preferredLanguage || "English",
+		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
+		mode: mode || "act",
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,

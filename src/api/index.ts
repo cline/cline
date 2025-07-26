@@ -29,7 +29,7 @@ import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
-import { Mode } from "../shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { HuggingFaceHandler } from "./providers/huggingface"
 
 export interface ApiHandler {

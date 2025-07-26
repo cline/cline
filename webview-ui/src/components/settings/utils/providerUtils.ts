@@ -49,7 +49,7 @@ import {
 	groqModels,
 	groqDefaultModelId,
 } from "@shared/api"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 /**
  * Interface for normalized API configuration

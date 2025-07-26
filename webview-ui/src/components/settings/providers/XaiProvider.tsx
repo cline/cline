@@ -1,6 +1,6 @@
 import { xaiModels } from "@shared/api"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -8,8 +8,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/provi
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the XaiProvider component
  */

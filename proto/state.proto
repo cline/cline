@@ -13,7 +13,7 @@ service StateService {
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
-  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
+  rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
@@ -43,19 +43,13 @@ message TerminalProfileUpdateResponse {
 
 message TogglePlanActModeRequest {
   Metadata metadata = 1;
-  ChatSettings chat_settings = 2;
+  PlanActMode mode = 2;
   optional ChatContent chat_content = 3;
 }
 
 enum PlanActMode {
   PLAN = 0;
   ACT = 1;
-}
-
-message ChatSettings {
-  PlanActMode mode = 1;
-  optional string preferred_language = 2;
-  optional string open_ai_reasoning_effort = 3;
 }
 
 message ChatContent {
@@ -108,12 +102,14 @@ message UpdateSettingsRequest {
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
-  optional ChatSettings chat_settings = 7;
   optional int64 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional string mcp_display_mode = 11;
   optional int64 terminal_output_line_limit = 12;
+  optional PlanActMode mode = 13;
+  optional string preferred_language = 14;
+  optional string openai_reasoning_effort = 15;
 }
 
 // Complete API Configuration message

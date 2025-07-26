@@ -4,8 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { ApiConfiguration } from "@shared/api"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the FireworksProvider component
  */
