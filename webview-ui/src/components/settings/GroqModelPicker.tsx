@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
@@ -66,6 +66,12 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 				console.error("Failed to refresh Groq models:", err)
 			})
 	})
+
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.groqModelId || groqDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.groqModelId])
 
 	// Debounce search term to reduce re-renders
 	useEffect(() => {

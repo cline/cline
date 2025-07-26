@@ -27,7 +27,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { Int64Request, StringRequest } from "@shared/proto/common"
+import { Int64Request, StringRequest } from "@shared/proto/cline/common"
 
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CheckpointControls } from "../common/CheckpointControls"

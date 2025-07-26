@@ -4,7 +4,7 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
-import "common.proto";
+import "cline/common.proto";
 
 // Provides methods for working with IDE windows and editors.
 service WindowService {
@@ -12,6 +12,11 @@ service WindowService {
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+  rpc showInputBox(ShowInputBoxRequest) returns (ShowInputBoxResponse);
+  rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
+  rpc openFile(OpenFileRequest) returns (OpenFileResponse);
+  rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
+  rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -70,4 +75,58 @@ message ShowMessageRequestOptions {
 
 message SelectedResponse {
   optional string selected_option = 1;
+}
+
+message ShowSaveDialogRequest {
+  cline.Metadata metadata = 1;
+  optional ShowSaveDialogOptions options = 2;
+}
+
+message ShowSaveDialogOptions {
+  optional string default_path = 1;
+  map<string, FileExtensionList> filters = 2;
+}
+
+message FileExtensionList {
+  repeated string extensions = 1;
+}
+
+message ShowSaveDialogResponse {
+  optional string selected_path = 1;
+}
+
+message ShowInputBoxRequest {
+  cline.Metadata metadata = 1;
+  string title = 2;
+  optional string prompt = 3;
+  optional string value = 4;
+}
+
+message ShowInputBoxResponse {
+  optional string response = 1;
+}
+
+message OpenFileRequest {
+  cline.Metadata metadata = 1;
+  string file_path = 2;
+}
+
+message OpenFileResponse {
+  // empty
+}
+
+message GetOpenTabsRequest {
+  // empty
+}
+
+message GetOpenTabsResponse {
+  repeated string paths = 1;
+}
+
+message GetVisibleTabsRequest {
+  // empty
+}
+
+message GetVisibleTabsResponse {
+  repeated string paths = 1;
 }

@@ -4,7 +4,7 @@ import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { BrowserServiceClient } from "../../../services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { updateBrowserSetting } from "../utils/settingsHandlers"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import Section from "../Section"
@@ -143,8 +143,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 		BrowserServiceClient.relaunchChromeDebugMode(EmptyRequest.create({}))
 			.then((result) => {
 				setRelaunchResult({
-					success: result.success,
-					message: result.message,
+					success: true,
+					message: result.value,
 				})
 				setDebugMode(false)
 			})

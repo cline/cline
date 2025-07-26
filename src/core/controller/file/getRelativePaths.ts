@@ -1,9 +1,8 @@
 import { asRelativePath } from "@/utils/path"
-import { RelativePaths, RelativePathsRequest } from "@shared/proto/file"
+import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
 import * as path from "path"
 import { URI } from "vscode-uri"
 import { Controller } from ".."
-import { FileMethodHandler } from "./index"
 import { isDirectory } from "@/utils/fs"
 
 /**
@@ -12,10 +11,7 @@ import { isDirectory } from "@/utils/fs"
  * @param request The request containing URIs to convert
  * @returns Response with resolved relative paths
  */
-export const getRelativePaths: FileMethodHandler = async (
-	_controller: Controller,
-	request: RelativePathsRequest,
-): Promise<RelativePaths> => {
+export async function getRelativePaths(_controller: Controller, request: RelativePathsRequest): Promise<RelativePaths> {
 	const result = []
 	for (const uriString of request.uris) {
 		try {

@@ -1,10 +1,11 @@
 import * as vscode from "vscode"
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { State } from "@shared/proto/cline/state"
 
 // Keep track of active state subscriptions by controller ID
-const activeStateSubscriptions = new Map<string, StreamingResponseHandler>()
+const activeStateSubscriptions = new Map<string, StreamingResponseHandler<State>>()
 
 /**
  * Subscribe to state updates
@@ -15,8 +16,8 @@ const activeStateSubscriptions = new Map<string, StreamingResponseHandler>()
  */
 export async function subscribeToState(
 	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<State>,
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id

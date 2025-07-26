@@ -1,6 +1,6 @@
 import type { Controller } from "../index"
-import { EmptyRequest, Empty, String } from "@shared/proto/common"
-import * as hostProviders from "@hosts/host-providers"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@/shared/webview/types"
 
 /**
@@ -10,7 +10,7 @@ import { WebviewProviderType } from "@/shared/webview/types"
  * @returns Empty response
  */
 export async function getWebviewHtml(_controller: Controller, _: EmptyRequest): Promise<String> {
-	const webviewProvider = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
+	const webviewProvider = HostProvider.get().createWebviewProvider(WebviewProviderType.SIDEBAR)
 
 	return Promise.resolve(String.create({ value: webviewProvider.getHtmlContent() }))
 }

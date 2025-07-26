@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.19.7",
+	"version": "3.20.2",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -187,6 +187,12 @@
 				"icon": "$(robot)"
 			},
 			{
+				"command": "cline.abortGitCommitMessage",
+				"title": "Generate Commit Message with Cline - Stop",
+				"category": "Cline",
+				"icon": "$(debug-stop)"
+			},
+			{
 				"command": "cline.explainCode",
 				"title": "Explain with Cline",
 				"category": "Cline"
@@ -213,7 +219,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"when": "scmProvider == git"
+				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
 				"command": "cline.focusChatInput",
@@ -306,13 +312,22 @@
 				{
 					"command": "cline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"group": "navigation",
+					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			]
 		},
@@ -323,14 +338,14 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.js --standalone",
+		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
+		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.js --watch",
+		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
-		"protos": "node scripts/build-proto.mjs && node scripts/generate-server-setup.mjs && node scripts/generate-host-bridge-client.mjs",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
+		"protos": "node scripts/build-proto.mjs && node scripts/generate-protobus-setup.mjs && node scripts/generate-host-bridge-client.mjs",
 		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
 		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"compile-tests": "node ./scripts/build-tests.js",
@@ -347,6 +362,7 @@
 		"test:coverage": "vscode-test --coverage",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e": "playwright install && vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
+		"test:e2e:optimal": "vsce package --no-dependencies --out dist/e2e.vsix && node src/test/e2e/utils/build.js && playwright test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",

@@ -1,5 +1,5 @@
-import { BrowserConnectionInfo } from "@shared/proto/browser"
-import { EmptyRequest } from "@shared/proto/common"
+import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
 import { getAllExtensionState } from "@core/storage/state"
 

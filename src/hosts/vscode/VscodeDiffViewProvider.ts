@@ -2,8 +2,10 @@ import { arePathsEqual } from "@/utils/path"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+
+export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
@@ -166,13 +168,15 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return problems
 	}
 
-	protected override async saveDocument(): Promise<void> {
+	protected override async saveDocument(): Promise<Boolean> {
 		if (!this.activeDiffEditor) {
-			return
+			return false
 		}
-		if (this.activeDiffEditor.document.isDirty) {
-			await this.activeDiffEditor.document.save()
+		if (!this.activeDiffEditor.document.isDirty) {
+			return false
 		}
+		await this.activeDiffEditor.document.save()
+		return true
 	}
 
 	protected async closeDiffView(): Promise<void> {

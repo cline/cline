@@ -20,8 +20,6 @@
 		"no-throw-literal": "warn",
 		"semi": "off",
 		"react-hooks/exhaustive-deps": "off",
-		"eslint-rules/no-protobuf-object-literals": "error",
-		"eslint-rules/no-grpc-client-object-literals": "error",
 		"eslint-rules/no-direct-vscode-api": "warn",
 		"no-restricted-syntax": [
 			"error",

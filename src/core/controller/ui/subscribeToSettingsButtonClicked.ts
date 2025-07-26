@@ -1,10 +1,10 @@
-import { Empty } from "@shared/proto/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { Empty } from "@shared/proto/cline/common"
+import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import type { Controller } from "../index"
 
 // Track subscriptions with their provider type
-const subscriptions = new Map<StreamingResponseHandler, WebviewProviderType>()
+const subscriptions = new Map<StreamingResponseHandler<Empty>, WebviewProviderType>()
 
 /**
  * Subscribe to settings button clicked events
@@ -14,9 +14,9 @@ const subscriptions = new Map<StreamingResponseHandler, WebviewProviderType>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToSettingsButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	request: WebviewProviderTypeRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	const providerType = request.providerType
