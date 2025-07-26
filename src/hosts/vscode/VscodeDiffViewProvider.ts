@@ -64,7 +64,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				})
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+					vscode.Uri.from({
+						scheme: DIFF_VIEW_URI_SCHEME,
+						path: fileName,
 						query: Buffer.from(this.originalContent ?? "").toString("base64"),
 					}),
 					uri,
