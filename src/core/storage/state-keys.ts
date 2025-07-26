@@ -135,5 +135,6 @@ export type GlobalStateKey =
 	| "actModeGroqModelInfo"
 	| "actModeHuggingFaceModelId"
 	| "actModeHuggingFaceModelInfo"
+	| "currentActiveOrganizationId"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"

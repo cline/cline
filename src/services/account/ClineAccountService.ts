@@ -15,6 +15,9 @@ export class ClineAccountService {
 	private _authService: AuthService
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
+	// Service-level request deduplication tracking
+	private ongoingSwitchRequests = new Map<string, Promise<void>>()
+
 	constructor() {
 		this._authService = AuthService.getInstance()
 	}
@@ -220,24 +223,109 @@ export class ClineAccountService {
 	 * @throws {Error} If the account switch fails, an error will be thrown.
 	 */
 	async switchAccount(organizationId?: string): Promise<void> {
-		// Call API to switch account
-		try {
-			// make XHR request to switch account
-			const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				data: {
-					organizationId: organizationId || null, // Pass organization if provided
-				},
-			})
-		} catch (error) {
-			console.error("Error switching account:", error)
-			throw error
-		} finally {
-			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
-			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+		const requestKey = organizationId || "personal"
+
+		// Check if there's already an ongoing switch request for this organization
+		const existingRequest = this.ongoingSwitchRequests.get(requestKey)
+		if (existingRequest) {
+			return existingRequest
 		}
+
+		// Create the promise for this request
+		const requestPromise = (async (): Promise<void> => {
+			// Token validation before API call
+			let tokenBeforeSwitch: string | null = null
+			let tokenValidBeforeSwitch = false
+
+			try {
+				tokenBeforeSwitch = await this._authService.getAuthToken()
+				tokenValidBeforeSwitch = tokenBeforeSwitch !== null
+
+				if (tokenBeforeSwitch) {
+					// Try to decode token expiry if it's a JWT
+					try {
+						const tokenParts = tokenBeforeSwitch.split(".")
+						if (tokenParts.length === 3) {
+							const payload = JSON.parse(atob(tokenParts[1]))
+						}
+					} catch (e) {
+						console.log(`[TOKEN_REFRESH] Could not decode token expiry (not a JWT or malformed)`)
+					}
+				}
+			} catch (error) {
+				console.log(`[TOKEN_REFRESH] Error checking token before switch:`, error)
+			}
+
+			// Call API to switch account
+			try {
+				const requestStartTime = performance.now()
+
+				// make XHR request to switch account
+				const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					data: {
+						organizationId: organizationId || null, // Pass organization if provided
+					},
+				})
+			} catch (error) {
+				throw error
+			} finally {
+				// Token validation after API call but before refresh
+				let tokenAfterSwitch: string | null = null
+				let tokenValidAfterSwitch = false
+
+				try {
+					const tokenCheckStartTime = performance.now()
+
+					// Get the current token without triggering a refresh
+					const authInfo = (this._authService as any)._clineAuthInfo
+					tokenAfterSwitch = authInfo?.idToken || null
+					tokenValidAfterSwitch = tokenAfterSwitch !== null
+				} catch (error) {
+					console.log(`[TOKEN_REFRESH] Error checking token after API call:`, error)
+				}
+
+				// Determine if refresh is actually needed
+				let needsRefreshByExpiry = false
+				if (tokenAfterSwitch) {
+					try {
+						const tokenParts = tokenAfterSwitch.split(".")
+						if (tokenParts.length === 3) {
+							const payload = JSON.parse(atob(tokenParts[1]))
+							const expiry = payload.exp ? new Date(payload.exp * 1000) : null
+							const now = new Date()
+							const fiveMinutesInMs = 5 * 60 * 1000
+							needsRefreshByExpiry = expiry ? expiry.getTime() < now.getTime() + fiveMinutesInMs : false
+						}
+					} catch (e) {
+						needsRefreshByExpiry = true // If we can't decode, assume refresh needed
+					}
+				}
+
+				const shouldRefresh = !tokenValidAfterSwitch || needsRefreshByExpiry
+				if (shouldRefresh) {
+					// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
+					await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+					// Check token after refresh
+					try {
+						await this._authService.getAuthToken()
+					} catch (error) {
+						console.log(`[TOKEN_REFRESH] Error checking token after refresh:`, error)
+					}
+				}
+
+				// Clean up the ongoing request tracking
+				this.ongoingSwitchRequests.delete(requestKey)
+			}
+		})()
+
+		// Store the promise to prevent duplicate requests
+		this.ongoingSwitchRequests.set(requestKey, requestPromise)
+
+		return requestPromise
 	}
 }

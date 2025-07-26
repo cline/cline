@@ -11,7 +11,7 @@ import {
 	VSCodeOption,
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import debounce from "debounce"
@@ -62,6 +62,7 @@ export const ClineAccountView = () => {
 	// Source of truth: Dedicated state for dropdown value that persists through failures
 	// and represents that user's current selection.
 	const [dropdownValue, setDropdownValue] = useState<string>("personal")
+	const [hasInitializedDropdown, setHasInitializedDropdown] = useState(false)
 
 	const [isLoading, setIsLoading] = useState(true)
 
@@ -88,18 +89,34 @@ export const ClineAccountView = () => {
 		return userOrganizations.find((org) => org.organizationId === dropdownValue)
 	}, [userOrganizations, dropdownValue])
 
+	// Request deduplication tracking
+	const isOrganizationSwitchingRef = useRef<string | null>(null)
+
 	const getUserOrganizations = useCallback(async () => {
 		try {
 			if (clineUser?.uid) {
 				const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 				if (response?.organizations && !deepEqual(userOrganizations, response.organizations)) {
 					setUserOrganizations(response.organizations)
+
+					// Initialize dropdown with the active organization if not already initialized
+					if (!hasInitializedDropdown) {
+						const activeOrg = response.organizations.find((org) => org.active)
+						const newDropdownValue = activeOrg ? activeOrg.organizationId : "personal"
+
+						setDropdownValue(newDropdownValue)
+						setHasInitializedDropdown(true)
+
+						// Return the determined organization ID for use in data fetching
+						return newDropdownValue
+					}
 				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [userOrganizations, clineUser?.uid, dropdownValue])
+		return null
+	}, [userOrganizations, clineUser?.uid, dropdownValue, hasInitializedDropdown])
 
 	const fetchCreditBalance = useCallback(
 		async (orgId?: string) => {
@@ -131,6 +148,7 @@ export const ClineAccountView = () => {
 				}
 
 				// Check if response is UserCreditsData type
+				const paymentStartTime = performance.now()
 				if (typeof response !== "object" || !("paymentTransactions" in response)) {
 					return
 				}
@@ -140,7 +158,7 @@ export const ClineAccountView = () => {
 					setPaymentsData(newPaymentsData)
 				}
 			} catch (error) {
-				console.error("Failed to fetch credit balance:", error)
+				const errorTime = performance.now()
 			} finally {
 				setLastFetchTime(Date.now())
 				setIsLoading(false)
@@ -165,30 +183,38 @@ export const ClineAccountView = () => {
 		async (event: any) => {
 			const newValue = (event.target as VSCodeDropdownChangeEvent["target"]).value || "personal"
 			const organizationId = newValue === "personal" ? undefined : newValue
+			const requestKey = organizationId || "personal"
 
 			if (newValue === dropdownValue) {
 				return // No change, do nothing
 			}
 
+			// Request deduplication check
+			if (isOrganizationSwitchingRef.current === requestKey) {
+				return
+			}
+
+			// Mark this organization switch as in progress
+			isOrganizationSwitchingRef.current = requestKey
+			console.log(`[ORG_SWITCH_DEDUP] Request allowed - setting lock for "${requestKey}"`)
+
 			try {
-				console.info("Changing selection to:", newValue)
+				await AccountServiceClient.setUserOrganization({ organizationId })
 
-				// Send the change to the server
-				AccountServiceClient.setUserOrganization({ organizationId })
-
-				// Update dropdownValue immediately - this persists through failures
 				setDropdownValue(newValue)
 				setIsLoading(true)
 				setBalance(null)
 				setUsageData([])
 				setPaymentsData([])
 
-				await fetchCreditBalance(organizationId)
+				await fetchCreditBalance(newValue)
 			} catch (error) {
-				console.error("Failed to update organization:", error)
 				// Don't reset selectedOrgId on error - keep the user's selection
 				// The next refresh will use the correct selectedOrgId
 			} finally {
+				// Clear the lock
+				isOrganizationSwitchingRef.current = null
+
 				setIsLoading(false)
 			}
 		},
@@ -199,10 +225,19 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		const loadData = async () => {
 			if (clineUser?.uid) {
-				// Start with personal account as we do not have the user's organizations yet
-				AccountServiceClient.setUserOrganization({ organizationId: undefined })
-				await getUserOrganizations()
-				await fetchCreditBalance()
+				// First, get organizations and determine the active one
+				const activeOrgId = await getUserOrganizations()
+
+				if (activeOrgId !== null) {
+					// If we got an active organization ID, set it in the backend and fetch data for it
+					const organizationId = activeOrgId === "personal" ? undefined : activeOrgId
+					await AccountServiceClient.setUserOrganization({ organizationId })
+					await fetchCreditBalance(activeOrgId)
+				} else {
+					// Fallback: start with personal account if no active org determined
+					await AccountServiceClient.setUserOrganization({ organizationId: undefined })
+					await fetchCreditBalance("personal")
+				}
 			}
 		}
 		loadData()
@@ -212,9 +247,11 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
-				if (clineUser?.uid) {
+				if (clineUser?.uid && hasInitializedDropdown) {
+					// Only refresh organizations if already initialized to avoid disrupting the UI
 					await getUserOrganizations()
-					await fetchCreditBalance()
+					// Use current dropdown value for data refresh
+					await fetchCreditBalance(dropdownValue)
 				}
 			} catch (error) {
 				console.error("Error during periodic refresh:", error)
@@ -223,7 +260,7 @@ export const ClineAccountView = () => {
 
 		const intervalId = setInterval(refreshData, 60000)
 		return () => clearInterval(intervalId)
-	}, [clineUser?.uid])
+	}, [clineUser?.uid, hasInitializedDropdown, dropdownValue])
 
 	return (
 		<div className="h-full flex flex-col">

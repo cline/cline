@@ -1,6 +1,7 @@
 import type { Controller } from "../index"
 import type { EmptyRequest } from "@shared/proto/common"
 import { UserOrganization, UserOrganizationsResponse } from "@shared/proto/account"
+import { getGlobalState } from "../../storage/state"
 
 /**
  * Handles fetching all user credits data (balance, usage, payments)
@@ -17,11 +18,14 @@ export async function getUserOrganizations(controller: Controller, request: Empt
 		// Fetch user organizations from the account service
 		const organizations = await controller.accountService.fetchUserOrganizationsRPC()
 
+		// Get the current active organization ID from global state
+		const currentActiveOrganizationId = await getGlobalState(controller.context, "currentActiveOrganizationId")
+
 		return UserOrganizationsResponse.create({
 			organizations:
 				organizations?.map((org) =>
 					UserOrganization.create({
-						active: org.active,
+						active: org.organizationId === currentActiveOrganizationId,
 						memberId: org.memberId,
 						name: org.name,
 						organizationId: org.organizationId,
