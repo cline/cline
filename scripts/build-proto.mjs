@@ -40,7 +40,7 @@ async function main() {
 	await cleanup()
 	await compileProtos()
 	await checkProtos()
-	await gnerateProtosSetup()
+	await generateProtosSetup()
 	await gnerateHostBridgeClient()
 }
 async function compileProtos() {
