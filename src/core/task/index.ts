@@ -1315,19 +1315,23 @@ export class Task {
 
 			// Create a checkpoint commit and update clineMessages with a commitHash
 			if (this.checkpointTracker) {
-				const commitHash = await this.checkpointTracker.commit()
-				if (commitHash) {
-					await this.say("checkpoint_created")
-					const lastCheckpointMessageIndex = findLastIndex(
-						this.messageStateHandler.getClineMessages(),
-						(m) => m.say === "checkpoint_created",
-					)
-					if (lastCheckpointMessageIndex !== -1) {
-						await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-							lastCheckpointHash: commitHash,
-						})
+				// We are letting this run in a non-blocking way so that the UI doesn't freeze when creating checkpoints.
+				// We show that a checkpoint is created in the chatview, then in the background run the git operation (which can take multiple seconds for large shadow git repos), and once that's been completed update the previous checkpoint message with the newly created hash to be associated with.
+				// NOTE: the attempt completion flow is different in that it requires the latest checkpoint hash to be present before determining if it can present the 'see new changes' button. In ToolExecutor, when we call saveCheckpoint(true), we must make sure that the checkpoint hash is present in the last completion_result message before returning, since it is always followed by a addNewChangesFlagToLastCompletionResultMessage(), which calls doesLatestTaskCompletionHaveNewChanges() that uses the latest message hash to determine if there any changes since the last attempt_completion checkpoint.
+				await this.say("checkpoint_created")
+				this.checkpointTracker.commit().then(async (commitHash) => {
+					if (commitHash) {
+						const lastCheckpointMessageIndex = findLastIndex(
+							this.messageStateHandler.getClineMessages(),
+							(m) => m.say === "checkpoint_created",
+						)
+						if (lastCheckpointMessageIndex !== -1) {
+							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+								lastCheckpointHash: commitHash,
+							})
+						}
 					}
-				}
+				})
 			} // silently fails for now
 
 			//
