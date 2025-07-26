@@ -2,12 +2,7 @@
 
 ## 3.21.0
 
-### Minor Changes
-
 -   f6273e0: Update Gemini models: remove deprecated experimental models and add 2.5 Flash-Lite Preview
-
-### Patch Changes
-
 -   dfbac3e: DeepSeek R1 0528 support under Hugging Face
 
 ## [3.20.2]
