@@ -71,7 +71,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Run Standalone Service",
+			"name": "Run cline-core service",
 			"skipFiles": ["<node_internals>/**"],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
@@ -82,11 +82,9 @@
 				// Turns on grpc debug log.
 				//"GRPC_TRACE": "all",
 				//"GRPC_VERBOSITY": "DEBUG",
-				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules",
-
-				"HOST_BRIDGE_ADDRESS": "localhost:50052"
+				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
-			"program": "standalone.js"
+			"program": "cline-core.js"
 		}
 	]
 }
