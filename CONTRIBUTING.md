@@ -14,15 +14,11 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 ## Before Contributing
 
 All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
-
-- **For bug fixes**: 
-    - Search existing [GitHub Issues](https://github.com/cline/cline/issues) to avoid duplicates
-    - If no existing issue found, create a new one using the "Bug Report" template
-- **For features and contributions**:
-    - First check the [Feature Requests discussions board](https://github.com/cline/cline/discussions/categories/feature-requests) for similar ideas
-    - If your idea is new, create a new feature request
-    - Wait for approval from core maintainers before starting implementation
-    - Once approved, feel free to begin working on a PR with the help of our community!
+**For features and contributions**:
+- First check the [Feature Requests discussions board](https://github.com/cline/cline/discussions/categories/feature-requests) for similar ideas
+- If your idea is new, create a new feature request  
+- Wait for approval from core maintainers before starting implementation
+- Once approved, feel free to begin working on a PR with the help of our community!
 
 **PRs without approved issues may be closed.**
 
