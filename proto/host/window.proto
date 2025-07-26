@@ -15,6 +15,8 @@ service WindowService {
   rpc showInputBox(ShowInputBoxRequest) returns (ShowInputBoxResponse);
   rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
   rpc openFile(OpenFileRequest) returns (OpenFileResponse);
+  rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
+  rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -110,4 +112,21 @@ message OpenFileRequest {
 }
 
 message OpenFileResponse {
+  // empty
+}
+
+message GetOpenTabsRequest {
+  // empty
+}
+
+message GetOpenTabsResponse {
+  repeated string paths = 1;
+}
+
+message GetVisibleTabsRequest {
+  // empty
+}
+
+message GetVisibleTabsResponse {
+  repeated string paths = 1;
 }
