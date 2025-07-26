@@ -93,7 +93,9 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
 
-const SwitchOption = styled.div<{ isActive: boolean }>`
+const SwitchOption = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isActive"].includes(prop),
+})<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
 	z-index: 1;
