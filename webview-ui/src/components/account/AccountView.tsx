@@ -109,21 +109,15 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
 			const newBalance = response?.balance?.currentBalance
 			// Always update balance, even if it's 0 or null - don't skip undefined
-			if (newBalance !== balance) {
-				setBalance(newBalance ?? null)
-			}
+			setBalance(newBalance ?? null)
 			const newUsage = convertProtoUsageTransactions(response.usageTransactions)
-			if (newUsage?.length && !deepEqual(newUsage, usageData)) {
-				setUsageData(newUsage)
-			}
+			setUsageData((prev) => (deepEqual(newUsage, prev) ? prev : newUsage))
 			const newPaymentsData = response.paymentTransactions
-			if (newPaymentsData?.length && !deepEqual(newPaymentsData, paymentsData)) {
-				setPaymentsData(newPaymentsData)
-			}
+			setPaymentsData((prev) => (deepEqual(newPaymentsData, prev) ? prev : newPaymentsData))
 		} catch (error) {
 			console.error("Failed to fetch user credit:", error)
 		}
-	}, [balance, usageData, paymentsData])
+	}, [])
 
 	const fetchCreditBalance = useCallback(
 		async (id: string, skipCache = false) => {
@@ -142,14 +136,10 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 					const response = await AccountServiceClient.getOrganizationCredits({ organizationId: id })
 					// Update balance - handle all values including 0 and null
 					const newBalance = response.balance?.currentBalance
-					if (newBalance !== balance) {
-						setBalance(newBalance ?? null)
-					}
+					setBalance(newBalance ?? null)
 
 					const newUsage = convertProtoUsageTransactions(response.usageTransactions)
-					if (newUsage?.length && !deepEqual(newUsage, usageData)) {
-						setUsageData(newUsage)
-					}
+					setUsageData((prev) => (deepEqual(newUsage, prev) ? prev : newUsage))
 				}
 
 				// Cache the updated data
@@ -161,7 +151,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				setIsLoading(false)
 			}
 		},
-		[isLoading, uid, fetchUserCredit, balance, usageData, loadCachedData],
+		[isLoading, uid, fetchUserCredit, loadCachedData],
 	)
 
 	const handleOrganizationChange = useCallback(
