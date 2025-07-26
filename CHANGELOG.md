@@ -1,5 +1,21 @@
 # Roo Code Changelog
 
+## [3.24.0] - 2025-07-25
+
+- Add Hugging Face provider with support for open source models (thanks @TGlide!)
+- Add terminal command permissions UI to chat interface
+- Add support for Agent Rules standard via AGENTS.md (thanks @sgryphon!)
+- Add settings to control diagnostic messages
+- Fix auto-approve checkbox to be toggled at any time (thanks @KJ7LNW!)
+- Add efficiency warning for single SEARCH/REPLACE blocks in apply_diff (thanks @KJ7LNW!)
+- Fix respect maxReadFileLine setting for file mentions to prevent context exhaustion (thanks @sebinseban!)
+- Fix Ollama API URL normalization by removing trailing slashes (thanks @Naam!)
+- Fix restore list styles for markdown lists in chat interface (thanks @village-way!)
+- Add support for bedrock api keys
+- Add confirmation dialog and proper cleanup for marketplace mode removal
+- Fix cancel auto-approve timer when editing follow-up suggestion (thanks @hassoncs!)
+- Fix add error message when no workspace folder is open for code indexing
+
 ## [3.23.19] - 2025-07-23
 
 - Add Roo Code Cloud Waitlist CTAs (thanks @brunobergher!)
