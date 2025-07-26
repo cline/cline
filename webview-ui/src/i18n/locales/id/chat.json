@@ -275,9 +275,9 @@
 		"title": "🎉 Roo Code {{version}} Dirilis",
 		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
 		"whatsNew": "Yang Baru",
-		"feature1": "<bold>Pengindeksan Codebase Lulus dari Eksperimental</bold>: Pengindeksan codebase lengkap kini stabil dan siap untuk penggunaan produksi dengan pencarian yang ditingkatkan dan pemahaman konteks.",
-		"feature2": "<bold>Fitur Daftar Todo Baru</bold>: Jaga tugas Anda tetap pada jalur dengan manajemen todo terintegrasi yang membantu Anda tetap terorganisir dan fokus pada tujuan pengembangan.",
-		"feature3": "<bold>Transisi Arsitektur ke Kode yang Ditingkatkan</bold>: Transfer yang mulus dari perencanaan di mode Arsitektur ke implementasi di mode Kode.",
+		"feature1": "<bold>Penyedia Hugging Face</bold>: Akses banyak model open source yang luar biasa secara langsung melalui penyedia Hugging Face baru dengan integrasi yang mulus dan pemilihan model.",
+		"feature2": "<bold>Kontrol Perintah Inline</bold>: Kontrol persetujuan otomatis dan penolakan baru untuk eksekusi perintah memberi Anda kontrol yang tepat atas operasi terminal dengan izin yang dapat disesuaikan.",
+		"feature3": "<bold>Dukungan Aturan AGENTS.md</bold>: Menambahkan dukungan untuk file AGENTS.md standar komunitas di root proyek.",
 		"hideButton": "Sembunyikan pengumuman",
 		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan bergabung dalam diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
 	},

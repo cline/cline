@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} Llançat",
 		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Indexació de Base de Codi Graduada d'Experimental</bold>: La indexació completa de la base de codi ara és estable i està llesta per a ús en producció amb cerca millorada i comprensió del context.",
-		"feature2": "<bold>Nova Funcionalitat de Llista de Tasques Pendents</bold>: Mantingueu les vostres tasques en el bon camí amb gestió integrada de tasques pendents que us ajuda a mantenir-vos organitzats i centrats en els vostres objectius de desenvolupament.",
-		"feature3": "<bold>Transicions Millorades d'Arquitecte a Codi</bold>: Transferències fluides de la planificació en mode Arquitecte a la implementació en mode Codi.",
+		"feature1": "<bold>Proveïdor de Hugging Face</bold>: Accedeix a molts models de codi obert excel·lents directament a través del nou proveïdor de Hugging Face amb integració perfecta i selecció de models.",
+		"feature2": "<bold>Controls de Comandament en Línia</bold>: Nous controls d'aprovació automàtica i denegació per a l'execució de comandaments et donen control precís sobre les operacions de terminal amb permisos personalitzables.",
+		"feature3": "<bold>Suport per a Regles AGENTS.md</bold>: Afegeix suport per a un fitxer AGENTS.md estàndard de la comunitat a l'arrel del projecte.",
 		"hideButton": "Amaga l'anunci",
 		"detailsDiscussLinks": "Obtén més detalls i uneix-te a les discussions a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

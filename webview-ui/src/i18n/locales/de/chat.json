@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} veröffentlicht",
 		"description": "Roo Code {{version}} bringt mächtige neue Funktionen und bedeutende Verbesserungen, um deinen Entwicklungsworkflow zu verbessern.",
 		"whatsNew": "Was ist neu",
-		"feature1": "<bold>Codebase-Indizierung aus experimentellem Status graduiert</bold>: Die vollständige Codebase-Indizierung ist jetzt stabil und bereit für den Produktionseinsatz mit verbesserter Suche und Kontextverständnis.",
-		"feature2": "<bold>Neue Todo-Listen-Funktion</bold>: Behalte deine Aufgaben im Blick mit integriertem Todo-Management, das dir hilft, organisiert und fokussiert auf deine Entwicklungsziele zu bleiben.",
-		"feature3": "<bold>Verbesserte Architect-zu-Code-Übergänge</bold>: Nahtlose Übergaben von der Planung im Architect-Modus zur Implementierung im Code-Modus.",
+		"feature1": "<bold>Hugging Face Provider</bold>: Greife direkt über den neuen Hugging Face Provider auf viele großartige Open-Source-Modelle zu mit nahtloser Integration und Modellauswahl.",
+		"feature2": "<bold>Inline-Befehlssteuerung</bold>: Neue Auto-Genehmigung und Verweigerungssteuerung für die Befehlsausführung geben dir präzise Kontrolle über Terminal-Operationen mit anpassbaren Berechtigungen.",
+		"feature3": "<bold>AGENTS.md Regeln-Unterstützung</bold>: Fügt Unterstützung für eine Community-Standard AGENTS.md-Datei im Projektstamm hinzu.",
 		"hideButton": "Ankündigung ausblenden",
 		"detailsDiscussLinks": "Erhalte mehr Details und diskutiere auf <discordLink>Discord</discordLink> und <redditLink>Reddit</redditLink> 🚀"
 	},

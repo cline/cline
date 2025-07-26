@@ -49,12 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.23 Released
+## 🎉 Roo Code 3.24 Released
 
-Roo Code 3.23 brings powerful new features and significant improvements to enhance your development workflow!
+Roo Code 3.24 brings powerful new features and significant improvements to enhance your development workflow!
 
-- **Codebase Indexing Graduated from Experimental** - Full codebase indexing is now stable and ready for production use with improved search and context understanding.
-- **New Todo List Feature** - Keep your tasks on track with integrated todo management that helps you stay organized and focused on your development goals.
+- **Hugging Face Provider** - Access tons of great open source models directly through the new Hugging Face provider with seamless integration and model selection.
+- **Inline Command Controls** - New auto-approve and deny controls for command execution give you precise control over terminal operations with customizable permissions.
+- **AGENTS.md Rules Support** - Adds support for a community standard AGENTS.md file in the root of the project.
 
 ---
 

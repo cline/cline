@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} 출시",
 		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>코드베이스 인덱싱이 실험 단계에서 졸업</bold>: 전체 코드베이스 인덱싱이 이제 안정적이며 향상된 검색 및 컨텍스트 이해 기능으로 프로덕션 사용이 준비되었습니다.",
-		"feature2": "<bold>새로운 할 일 목록 기능</bold>: 통합된 할 일 관리로 작업을 궤도에 유지하여 개발 목표에 체계적이고 집중된 상태를 유지하세요.",
-		"feature3": "<bold>개선된 아키텍트에서 코드로의 전환</bold>: 아키텍트 모드에서의 계획부터 코드 모드에서의 구현까지 원활한 인수인계.",
+		"feature1": "<bold>Hugging Face 프로바이더</bold>: 새로운 Hugging Face 프로바이더를 통해 원활한 통합과 모델 선택으로 수많은 훌륭한 오픈 소스 모델에 직접 액세스하세요.",
+		"feature2": "<bold>인라인 명령 제어</bold>: 명령 실행을 위한 새로운 자동 승인 및 거부 제어로 사용자 정의 가능한 권한으로 터미널 작업을 정밀하게 제어할 수 있습니다.",
+		"feature3": "<bold>AGENTS.md 규칙 지원</bold>: 프로젝트 루트에 커뮤니티 표준 AGENTS.md 파일에 대한 지원을 추가합니다.",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 자세한 내용을 확인하고 토론에 참여하세요 🚀"
 	},

@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} Lançado",
 		"description": "Roo Code {{version}} traz novos recursos poderosos e melhorias significativas para aprimorar seu fluxo de trabalho de desenvolvimento.",
 		"whatsNew": "O que há de novo",
-		"feature1": "<bold>Indexação de Base de Código Graduada do Experimental</bold>: A indexação completa da base de código agora é estável e pronta para uso em produção com busca aprimorada e compreensão de contexto.",
-		"feature2": "<bold>Nova Funcionalidade de Lista de Tarefas</bold>: Mantenha suas tarefas no caminho certo com gerenciamento integrado de tarefas que ajuda você a se manter organizado e focado em seus objetivos de desenvolvimento.",
-		"feature3": "<bold>Transições Aprimoradas de Arquiteto para Código</bold>: Transferências suaves do planejamento no modo Arquiteto para implementação no modo Código.",
+		"feature1": "<bold>Provedor Hugging Face</bold>: Acesse toneladas de excelentes modelos de código aberto diretamente através do novo provedor Hugging Face com integração perfeita e seleção de modelos.",
+		"feature2": "<bold>Controles de Comando Inline</bold>: Novos controles de aprovação automática e negação para execução de comandos oferecem controle preciso sobre operações de terminal com permissões personalizáveis.",
+		"feature3": "<bold>Suporte a Regras AGENTS.md</bold>: Adiciona suporte para um arquivo AGENTS.md padrão da comunidade na raiz do projeto.",
 		"hideButton": "Ocultar anúncio",
 		"detailsDiscussLinks": "Obtenha mais detalhes e participe da discussão no <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

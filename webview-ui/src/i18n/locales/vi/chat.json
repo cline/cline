@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} Đã phát hành",
 		"description": "Roo Code {{version}} mang đến các tính năng mạnh mẽ mới và cải tiến đáng kể để nâng cao quy trình phát triển của bạn.",
 		"whatsNew": "Có gì mới",
-		"feature1": "<bold>Lập chỉ mục Codebase Tốt nghiệp từ Thử nghiệm</bold>: Lập chỉ mục codebase đầy đủ hiện đã ổn định và sẵn sàng cho sử dụng sản xuất với tìm kiếm cải tiến và hiểu biết ngữ cảnh.",
-		"feature2": "<bold>Tính năng Danh sách Todo Mới</bold>: Giữ nhiệm vụ của bạn đúng hướng với quản lý todo tích hợp giúp bạn duy trì tổ chức và tập trung vào mục tiêu phát triển.",
-		"feature3": "<bold>Cải thiện Chuyển đổi từ Architect sang Code</bold>: Chuyển đổi mượt mà từ lập kế hoạch trong chế độ Architect sang triển khai trong chế độ Code.",
+		"feature1": "<bold>Nhà cung cấp Hugging Face</bold>: Truy cập hàng tấn mô hình mã nguồn mở tuyệt vời trực tiếp thông qua nhà cung cấp Hugging Face mới với tích hợp liền mạch và lựa chọn mô hình.",
+		"feature2": "<bold>Điều khiển Lệnh Inline</bold>: Các điều khiển tự động phê duyệt và từ chối mới cho việc thực thi lệnh cung cấp cho bạn quyền kiểm soát chính xác các hoạt động terminal với quyền có thể tùy chỉnh.",
+		"feature3": "<bold>Hỗ trợ Quy tắc AGENTS.md</bold>: Thêm hỗ trợ cho tệp AGENTS.md tiêu chuẩn cộng đồng trong thư mục gốc của dự án.",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},

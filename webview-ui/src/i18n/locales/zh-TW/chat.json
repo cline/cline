@@ -263,9 +263,9 @@
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來強大的新功能和重大改進，提升您的開發工作流程。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>程式碼庫索引從實驗階段正式發布</bold>：完整的程式碼庫索引現已穩定，可用於正式環境，具備改進的搜尋和內容理解功能。",
-		"feature2": "<bold>新增待辦事項清單功能</bold>：透過整合的待辦事項管理保持工作進度，幫助您保持條理並專注於開發目標。",
-		"feature3": "<bold>改進的 Architect 到 Code 轉換</bold>：從 Architect 模式的規劃到 Code 模式的實作，轉換更加順暢。",
+		"feature1": "<bold>Hugging Face 提供者</bold>：透過新的 Hugging Face 提供者直接存取大量優秀的開源模型，具備無縫整合和模型選擇功能。",
+		"feature2": "<bold>內嵌命令控制</bold>：新的自動核准和拒絕命令執行控制，為您提供對終端機操作的精確控制和可自訂權限。",
+		"feature3": "<bold>AGENTS.md 規則支援</bold>：新增對專案根目錄中社群標準 AGENTS.md 檔案的支援。",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},

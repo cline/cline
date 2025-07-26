@@ -272,8 +272,9 @@
 		"title": "🎉 Roo Code {{version}} Released",
 		"description": "Roo Code {{version}} brings powerful new features and significant improvements to enhance your development workflow.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Codebase Indexing Graduated from Experimental</bold>: Full codebase indexing is now stable and ready for production use with improved search and context understanding.",
-		"feature2": "<bold>New Todo List Feature</bold>: Keep your tasks on track with integrated todo management that helps you stay organized and focused on your development goals.",
+		"feature1": "<bold>Hugging Face Provider</bold>: Access tons of great open source models directly through the new Hugging Face provider with seamless integration and model selection.",
+		"feature2": "<bold>Inline Command Controls</bold>: New auto-approve and deny controls for command execution give you precise control over terminal operations with customizable permissions.",
+		"feature3": "<bold>AGENTS.md Rules Support</bold>: Adds support for a community standard AGENTS.md file in the root of the project.",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},
