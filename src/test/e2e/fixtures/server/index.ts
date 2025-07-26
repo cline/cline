@@ -1,7 +1,7 @@
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http"
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
+import type { Socket } from "node:net"
 import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
-import type { Socket } from "node:net"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
 import { ClineApiMock } from "./api"
 
@@ -16,7 +16,7 @@ export class ClineApiServerMock {
 	private userBalance = 100.5 // Default sufficient balance
 	private orgBalance = 500.0
 	private userHasOrganization = false
-	private generationCounter = 0
+	public generationCounter = 0
 
 	constructor(public readonly server: Server) {}
 
@@ -57,13 +57,15 @@ export class ClineApiServerMock {
 			const readBody = (): Promise<string> => {
 				return new Promise((resolve) => {
 					let body = ""
-					req.on("data", (chunk) => (body += chunk.toString()))
+					req.on("data", (chunk) => {
+						body += chunk.toString()
+					})
 					req.on("end", () => resolve(body))
 				})
 			}
 
 			// Helper to send JSON response
-			const sendJson = (data: any, status = 200) => {
+			const sendJson = (data: unknown, status = 200) => {
 				res.writeHead(status, { "Content-Type": "application/json" })
 				res.end(JSON.stringify(data))
 			}
@@ -105,7 +107,10 @@ export class ClineApiServerMock {
 			const handleRequest = async () => {
 				// Health check
 				if (path === "/health" && method === "GET") {
-					return sendJson({ status: "ok", timestamp: new Date().toISOString() })
+					return sendJson({
+						status: "ok",
+						timestamp: new Date().toISOString(),
+					})
 				}
 
 				// User endpoints
@@ -131,7 +136,9 @@ export class ClineApiServerMock {
 					if (!currentUser) {
 						return sendApiError("Unauthorized", 401)
 					}
-					return sendApiResponse({ items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id) })
+					return sendApiResponse({
+						items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id),
+					})
 				}
 
 				if (path.match(/^\/api\/v1\/users\/(.+)\/payments$/) && method === "GET") {
@@ -139,7 +146,9 @@ export class ClineApiServerMock {
 					if (!currentUser) {
 						return sendApiError("Unauthorized", 401)
 					}
-					return sendApiResponse({ paymentTransactions: CLINE_USER_MOCK.getMockPaymentTransactions(currentUser.id) })
+					return sendApiResponse({
+						paymentTransactions: CLINE_USER_MOCK.getMockPaymentTransactions(currentUser.id),
+					})
 				}
 
 				// Organization endpoints
@@ -159,7 +168,9 @@ export class ClineApiServerMock {
 					}
 					const body = await readBody()
 					const { organizationId } = JSON.parse(body)
-					return sendApiResponse({ items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id, organizationId) })
+					return sendApiResponse({
+						items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id, organizationId),
+					})
 				}
 
 				if (path === "/api/v1/users/active-account" && method === "PUT") {
@@ -189,7 +200,7 @@ export class ClineApiServerMock {
 
 					const body = await readBody()
 					const parsed = JSON.parse(body)
-					const { messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
+					const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
 
 					const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 

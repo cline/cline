@@ -1,9 +1,9 @@
-import { type ElectronApplication, type Frame, type Page, test, expect } from "@playwright/test"
-import { type PathLike, type RmOptions, mkdtempSync, rmSync } from "node:fs"
-import { _electron } from "playwright"
-import { SilentReporter, downloadAndUnzipVSCode } from "@vscode/test-electron"
+import { mkdtempSync, type PathLike, type RmOptions, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
+import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
+import { _electron } from "playwright"
 import { ClineApiServerMock } from "../fixtures/server"
 
 interface E2ETestDirectories {
@@ -100,13 +100,17 @@ export class E2ETestHelper {
 	}
 
 	public static async signin(webview: Frame): Promise<void> {
-		const byokButton = webview.getByRole("button", { name: "Use your own API key" })
+		const byokButton = webview.getByRole("button", {
+			name: "Use your own API key",
+		})
 		await expect(byokButton).toBeVisible()
 
 		await byokButton.click()
 
 		// Complete setup with OpenRouter
-		const apiKeyInput = webview.getByRole("textbox", { name: "OpenRouter API Key" })
+		const apiKeyInput = webview.getByRole("textbox", {
+			name: "OpenRouter API Key",
+		})
 		await apiKeyInput.fill("test-api-key")
 		await webview.getByRole("button", { name: "Let's go!" }).click()
 
@@ -121,7 +125,9 @@ export class E2ETestHelper {
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
 		await page.locator("li").filter({ hasText: "[Extension Development Host]" }).first().click()
-		const editorSearchBar = page.getByRole("textbox", { name: "Search files by name (append" })
+		const editorSearchBar = page.getByRole("textbox", {
+			name: "Search files by name (append",
+		})
 		await expect(editorSearchBar).toBeVisible()
 		await editorSearchBar.click()
 		await editorSearchBar.fill(`>${command}`)
@@ -134,24 +140,69 @@ export class E2ETestHelper {
 	}
 }
 
-// Test configuration
+/**
+ * NOTE: Use the `e2e` test fixture for all E2E tests to test the Cline extension.
+ *
+ * Extended Playwright test configuration for Cline E2E testing.
+ *
+ * This test configuration provides a comprehensive setup for end-to-end testing of the Cline VS Code extension,
+ * including server mocking, temporary directories, VS Code instance management, and helper utilities.
+ *
+ * @extends test - Base Playwright test with multiple fixture extensions
+ *
+ * Fixtures provided:
+ * - `server`: ClineApiServerMock instance for API mocking
+ * - `workspaceDir`: Path to the test workspace directory
+ * - `userDataDir`: Temporary directory for VS Code user data
+ * - `extensionsDir`: Temporary directory for VS Code extensions
+ * - `openVSCode`: Function that returns a Promise resolving to an ElectronApplication instance
+ * - `app`: ElectronApplication instance with automatic cleanup
+ * - `helper`: E2ETestHelper instance for test utilities
+ * - `page`: Playwright Page object representing the main VS Code window with Cline sidebar opened
+ * - `sidebar`: Playwright Frame object representing the Cline extension's sidebar iframe
+ *
+ * @returns Extended test object with all fixtures available for E2E test scenarios:
+ * - **server**: Automatically starts and manages a ClineApiServerMock instance
+ * - **workspaceDir**: Sets up a test workspace directory from fixtures
+ * - **userDataDir**: Creates a temporary directory for VS Code user data
+ * - **extensionsDir**: Creates a temporary directory for VS Code extensions
+ * - **openVSCode**: Factory function that launches VS Code with proper configuration for testing
+ * - **app**: Manages the VS Code ElectronApplication lifecycle with automatic cleanup
+ * - **helper**: Provides E2ETestHelper utilities for test operations
+ * - **page**: Configures the main VS Code window with notifications disabled and Cline sidebar open
+ * - **sidebar**: Provides access to the Cline extension's sidebar frame
+ *
+ * @example
+ * ```typescript
+ * e2e('should perform basic operations', async ({ sidebar, helper }) => {
+ *   // Test implementation using the configured sidebar and helper
+ * });
+ * ```
+ *
+ * @remarks
+ * - Automatically handles VS Code download and setup
+ * - Installs the Cline extension in development mode
+ * - Records test videos for debugging
+ * - Performs cleanup of temporary directories after each test
+ * - Configures VS Code with disabled updates, workspace trust, and welcome screens
+ */
 export const e2e = test
 	.extend<{ server: ClineApiServerMock }>({
 		server: [
-			async ({}, use) => {
+			async (_, use) => {
 				ClineApiServerMock.run(async (server) => await use(server))
 			},
 			{ auto: true },
 		],
 	})
 	.extend<E2ETestDirectories>({
-		workspaceDir: async ({}, use) => {
+		workspaceDir: async (_, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
-		userDataDir: async ({}, use) => {
+		userDataDir: async (_, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
-		extensionsDir: async ({}, use) => {
+		extensionsDir: async (_, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
@@ -170,7 +221,9 @@ export const e2e = test
 						CLINE_ENVIRONMENT: "local",
 						DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},
-					recordVideo: { dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings") },
+					recordVideo: {
+						dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings"),
+					},
 					args: [
 						"--no-sandbox",
 						"--disable-updates",
@@ -206,7 +259,7 @@ export const e2e = test
 		},
 	})
 	.extend<{ helper: E2ETestHelper }>({
-		helper: async ({}, use) => {
+		helper: async (_, use) => {
 			const helper = new E2ETestHelper()
 			await use(helper)
 		},

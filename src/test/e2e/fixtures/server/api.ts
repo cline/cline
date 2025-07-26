@@ -71,14 +71,6 @@ export class ClineApiMock {
 
 	private _currentUser: UserResponse | null = null
 
-	public getUserByToken(token?: string): UserResponse {
-		// Use default personal token if none provided
-		const actualToken = token || ClineApiMock.getDefaultToken("personal") || "test-personal-token"
-		const currentUser = this._getUserByToken(actualToken)
-		this.setCurrentUser(currentUser)
-		return currentUser
-	}
-
 	public getCurrentUser(): UserResponse | null {
 		return this._currentUser
 	}
@@ -95,13 +87,6 @@ export class ClineApiMock {
 		}
 		return this.getUserByToken(token)
 	}
-
-	// Helper method to get user data by name (useful for tests)
-	public getUserByName(name: string): UserResponse | null {
-		const userData = ClineApiMock.getUserByName(name)
-		return userData ? this._createUserResponse(userData) : null
-	}
-
 	// Helper to create UserResponse from USERS array data
 	private _createUserResponse(userData: (typeof ClineApiMock.USERS)[0]): UserResponse {
 		const isEnterprise = !!userData.orgId
@@ -126,8 +111,16 @@ export class ClineApiMock {
 		}
 	}
 
+	public getUserByToken(token?: string): UserResponse {
+		// Use default personal token if none provided
+		const actualToken = token || ClineApiMock.getDefaultToken("personal") || "test-personal-token"
+		const currentUser = this._getUserByToken(actualToken)
+		this.setCurrentUser(currentUser)
+		return currentUser
+	}
+
 	// Helper function to get user data based on auth token
-	public _getUserByToken(token: string): UserResponse {
+	private _getUserByToken(token: string): UserResponse {
 		const match = ClineApiMock.getUserByToken(token)
 
 		if (!match) {
