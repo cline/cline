@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.20.2
+
+### Patch Changes
+
+- 3abdc9a: Fixed issue with sap ai core client credentials storage
+- 5da75af: Fix Qwen Api option inconsistency between UI and API layer
+- 214e157: Fix credit balance out of sync issue on account switching
+- af7e3a4: Fix Claude Code CLAUDE_CODE_MAX_OUTPUT_TOKENS
+- 1a466c0: Fix cursor state after restoring files to be disabled after checked out
+- c667d34: Fix issue where checkpointing blocked UI
+
 ## [3.20.1]
 
 - Fix for files being deleted when switching modes or closing tasks
