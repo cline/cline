@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Não foi possível determinar a dimensão do vetor para o modelo '{{modelId}}' com o provedor '{{provider}}'. Verifique os perfis do modelo ou a configuração.",
 		"qdrantUrlMissing": "URL do Qdrant ausente para criação do armazenamento de vetores",
 		"codeIndexingNotConfigured": "Não é possível criar serviços: A indexação de código não está configurada corretamente"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indexação falhou: Nenhum bloco de código foi indexado com sucesso. Isso geralmente indica um problema de configuração do embedder.",
+		"indexingFailedCritical": "Indexação falhou: Nenhum bloco de código foi indexado com sucesso apesar de encontrar arquivos para processar. Isso indica uma falha crítica do embedder.",
+		"fileWatcherStarted": "Monitor de arquivos iniciado.",
+		"fileWatcherStopped": "Monitor de arquivos parado.",
+		"failedDuringInitialScan": "Falhou durante a varredura inicial: {{errorMessage}}",
+		"unknownError": "Erro desconhecido",
+		"indexingRequiresWorkspace": "A indexação requer uma pasta de workspace aberta"
 	}
 }

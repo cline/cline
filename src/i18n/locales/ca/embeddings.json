@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "No s'ha pogut determinar la dimensió del vector per al model '{{modelId}}' amb el proveïdor '{{provider}}'. Comprova els perfils del model o la configuració.",
 		"qdrantUrlMissing": "Falta l'URL de Qdrant per crear l'emmagatzematge de vectors",
 		"codeIndexingNotConfigured": "No es poden crear serveis: La indexació de codi no està configurada correctament"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indexació fallida: No s'ha indexat cap bloc de codi amb èxit. Això normalment indica un problema de configuració de l'embedder.",
+		"indexingFailedCritical": "Indexació fallida: No s'ha indexat cap bloc de codi amb èxit malgrat trobar fitxers per processar. Això indica una fallida crítica de l'embedder.",
+		"fileWatcherStarted": "Monitor de fitxers iniciat.",
+		"fileWatcherStopped": "Monitor de fitxers aturat.",
+		"failedDuringInitialScan": "Ha fallat durant l'escaneig inicial: {{errorMessage}}",
+		"unknownError": "Error desconegut",
+		"indexingRequiresWorkspace": "Indexació requereix una carpeta de workspace oberta"
 	}
 }

@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Nie można określić wymiaru wektora dla modelu '{{modelId}}' z dostawcą '{{provider}}'. Sprawdź profile modelu lub konfigurację.",
 		"qdrantUrlMissing": "Brak adresu URL Qdrant do utworzenia magazynu wektorów",
 		"codeIndexingNotConfigured": "Nie można utworzyć usług: Indeksowanie kodu nie jest poprawnie skonfigurowane"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indeksowanie nie powiodło się: Żadne bloki kodu nie zostały pomyślnie zaindeksowane. To zwykle wskazuje na problem z konfiguracją embeddera.",
+		"indexingFailedCritical": "Indeksowanie nie powiodło się: Żadne bloki kodu nie zostały pomyślnie zaindeksowane pomimo znalezienia plików do przetworzenia. To wskazuje na krytyczny błąd embeddera.",
+		"fileWatcherStarted": "Monitor plików uruchomiony.",
+		"fileWatcherStopped": "Monitor plików zatrzymany.",
+		"failedDuringInitialScan": "Niepowodzenie podczas początkowego skanowania: {{errorMessage}}",
+		"unknownError": "Nieznany błąd",
+		"indexingRequiresWorkspace": "Indeksowanie wymaga otwartego folderu workspace"
 	}
 }

@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "無法確定提供商 '{{provider}}' 的模型 '{{modelId}}' 的向量維度。請檢查模型設定檔或設定。",
 		"qdrantUrlMissing": "建立向量儲存缺少 Qdrant URL",
 		"codeIndexingNotConfigured": "無法建立服務：程式碼索引未正確設定"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "索引失敗：沒有程式碼區塊被成功索引。這通常表示 Embedder 設定問題。",
+		"indexingFailedCritical": "索引失敗：儘管找到了要處理的檔案，但沒有程式碼區塊被成功索引。這表示 Embedder 出現嚴重故障。",
+		"fileWatcherStarted": "檔案監控已啟動。",
+		"fileWatcherStopped": "檔案監控已停止。",
+		"failedDuringInitialScan": "初始掃描失敗：{{errorMessage}}",
+		"unknownError": "未知錯誤",
+		"indexingRequiresWorkspace": "索引需要開啟的工作區資料夾"
 	}
 }

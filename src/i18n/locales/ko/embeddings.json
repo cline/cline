@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "프로바이더 '{{provider}}'의 모델 '{{modelId}}'에 대한 벡터 차원을 결정할 수 없습니다. 모델 프로필 또는 구성을 확인하세요.",
 		"qdrantUrlMissing": "벡터 저장소 생성을 위한 Qdrant URL이 누락되었습니다",
 		"codeIndexingNotConfigured": "서비스를 생성할 수 없습니다: 코드 인덱싱이 올바르게 구성되지 않았습니다"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "인덱싱 실패: 코드 블록이 성공적으로 인덱싱되지 않았습니다. 이는 일반적으로 임베더 구성 문제를 나타냅니다.",
+		"indexingFailedCritical": "인덱싱 실패: 처리할 파일을 찾았음에도 불구하고 코드 블록이 성공적으로 인덱싱되지 않았습니다. 이는 중요한 임베더 오류를 나타냅니다.",
+		"fileWatcherStarted": "파일 감시자가 시작되었습니다.",
+		"fileWatcherStopped": "파일 감시자가 중지되었습니다.",
+		"failedDuringInitialScan": "초기 스캔 중 실패: {{errorMessage}}",
+		"unknownError": "알 수 없는 오류",
+		"indexingRequiresWorkspace": "인덱싱에는 열린 워크스페이스 폴더가 필요합니다"
 	}
 }

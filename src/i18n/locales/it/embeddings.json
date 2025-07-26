@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Impossibile determinare la dimensione del vettore per il modello '{{modelId}}' con il provider '{{provider}}'. Controlla i profili del modello o la configurazione.",
 		"qdrantUrlMissing": "URL Qdrant mancante per la creazione dello storage vettoriale",
 		"codeIndexingNotConfigured": "Impossibile creare i servizi: L'indicizzazione del codice non è configurata correttamente"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indicizzazione fallita: Nessun blocco di codice è stato indicizzato con successo. Questo di solito indica un problema di configurazione dell'embedder.",
+		"indexingFailedCritical": "Indicizzazione fallita: Nessun blocco di codice è stato indicizzato con successo nonostante siano stati trovati file da elaborare. Questo indica un errore critico dell'embedder.",
+		"fileWatcherStarted": "Monitoraggio file avviato.",
+		"fileWatcherStopped": "Monitoraggio file fermato.",
+		"failedDuringInitialScan": "Fallito durante la scansione iniziale: {{errorMessage}}",
+		"unknownError": "Errore sconosciuto",
+		"indexingRequiresWorkspace": "L'indicizzazione richiede una cartella di workspace aperta"
 	}
 }

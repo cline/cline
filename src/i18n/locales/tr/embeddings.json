@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "'{{provider}}' sağlayıcısı ile '{{modelId}}' modeli için vektör boyutu belirlenemedi. Model profillerini veya yapılandırmayı kontrol et.",
 		"qdrantUrlMissing": "Vektör deposu oluşturmak için Qdrant URL'si eksik",
 		"codeIndexingNotConfigured": "Hizmetler oluşturulamıyor: Kod indeksleme düzgün yapılandırılmamış"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "İndeksleme başarısız: Hiçbir kod bloğu başarıyla indekslenemedi. Bu genellikle bir embedder yapılandırma sorunu olduğunu gösterir.",
+		"indexingFailedCritical": "İndeksleme başarısız: İşlenecek dosyalar bulunmasına rağmen hiçbir kod bloğu başarıyla indekslenemedi. Bu kritik bir embedder hatası olduğunu gösterir.",
+		"fileWatcherStarted": "Dosya izleyici başlatıldı.",
+		"fileWatcherStopped": "Dosya izleyici durduruldu.",
+		"failedDuringInitialScan": "İlk tarama sırasında başarısız: {{errorMessage}}",
+		"unknownError": "Bilinmeyen hata",
+		"indexingRequiresWorkspace": "İndeksleme açık bir workspace klasörü gerektirir"
 	}
 }

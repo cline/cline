@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "プロバイダー '{{provider}}' のモデル '{{modelId}}' の埋め込み次元を決定できませんでした。モデルプロファイルまたは設定を確認してください。",
 		"qdrantUrlMissing": "ベクターストア作成のためのQdrant URLがありません",
 		"codeIndexingNotConfigured": "サービスを作成できません: コードインデックスが正しく設定されていません"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "インデックス作成に失敗しました：コードブロックが正常にインデックス化されませんでした。これは通常、エンベッダーの設定問題を示しています。",
+		"indexingFailedCritical": "インデックス作成に失敗しました：処理するファイルが見つかったにもかかわらず、コードブロックが正常にインデックス化されませんでした。これは重大なエンベッダーの障害を示しています。",
+		"fileWatcherStarted": "ファイルウォッチャーが開始されました。",
+		"fileWatcherStopped": "ファイルウォッチャーが停止されました。",
+		"failedDuringInitialScan": "初期スキャン中に失敗しました：{{errorMessage}}",
+		"unknownError": "不明なエラー",
+		"indexingRequiresWorkspace": "インデックス作成には、開かれたワークスペースフォルダーが必要です"
 	}
 }
