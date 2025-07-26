@@ -1138,6 +1138,15 @@ export const huggingFaceModels = {
 		outputPrice: 0,
 		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
 	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 64_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model's latest version with step-by-step thinking capabilities",
+	},
 	"meta-llama/Llama-3.1-8B-Instruct": {
 		maxTokens: 8192,
 		contextWindow: 128_000,
