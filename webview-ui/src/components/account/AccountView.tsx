@@ -62,6 +62,7 @@ export const ClineAccountView = () => {
 	// Source of truth: Dedicated state for dropdown value that persists through failures
 	// and represents that user's current selection.
 	const [dropdownValue, setDropdownValue] = useState<string>("personal")
+	const [hasInitializedDropdown, setHasInitializedDropdown] = useState(false)
 
 	const [isLoading, setIsLoading] = useState(true)
 
@@ -97,12 +98,26 @@ export const ClineAccountView = () => {
 				const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 				if (response?.organizations && !deepEqual(userOrganizations, response.organizations)) {
 					setUserOrganizations(response.organizations)
+
+					// Initialize dropdown with the active organization if not already initialized
+					if (!hasInitializedDropdown) {
+						const activeOrg = response.organizations.find((org) => org.active)
+						const newDropdownValue = activeOrg ? activeOrg.organizationId : "personal"
+
+						console.log(`[ORG_INIT] Setting dropdown to active organization: ${newDropdownValue}`)
+						setDropdownValue(newDropdownValue)
+						setHasInitializedDropdown(true)
+
+						// Return the determined organization ID for use in data fetching
+						return newDropdownValue
+					}
 				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
 		}
-	}, [userOrganizations, clineUser?.uid, dropdownValue])
+		return null
+	}, [userOrganizations, clineUser?.uid, dropdownValue, hasInitializedDropdown])
 
 	const fetchCreditBalance = useCallback(
 		async (orgId?: string) => {
@@ -277,10 +292,24 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		const loadData = async () => {
 			if (clineUser?.uid) {
-				// Start with personal account as we do not have the user's organizations yet
-				AccountServiceClient.setUserOrganization({ organizationId: undefined })
-				await getUserOrganizations()
-				await fetchCreditBalance()
+				console.log(`[ORG_INIT] Starting initial data load...`)
+
+				// First, get organizations and determine the active one
+				const activeOrgId = await getUserOrganizations()
+
+				if (activeOrgId !== null) {
+					// If we got an active organization ID, set it in the backend and fetch data for it
+					const organizationId = activeOrgId === "personal" ? undefined : activeOrgId
+					console.log(`[ORG_INIT] Setting backend organization to: ${organizationId || "personal"}`)
+
+					await AccountServiceClient.setUserOrganization({ organizationId })
+					await fetchCreditBalance(activeOrgId)
+				} else {
+					// Fallback: start with personal account if no active org determined
+					console.log(`[ORG_INIT] No active organization determined, defaulting to personal`)
+					await AccountServiceClient.setUserOrganization({ organizationId: undefined })
+					await fetchCreditBalance("personal")
+				}
 			}
 		}
 		loadData()
@@ -290,9 +319,11 @@ export const ClineAccountView = () => {
 	useEffect(() => {
 		const refreshData = async () => {
 			try {
-				if (clineUser?.uid) {
+				if (clineUser?.uid && hasInitializedDropdown) {
+					// Only refresh organizations if already initialized to avoid disrupting the UI
 					await getUserOrganizations()
-					await fetchCreditBalance()
+					// Use current dropdown value for data refresh
+					await fetchCreditBalance(dropdownValue)
 				}
 			} catch (error) {
 				console.error("Error during periodic refresh:", error)
@@ -301,7 +332,7 @@ export const ClineAccountView = () => {
 
 		const intervalId = setInterval(refreshData, 60000)
 		return () => clearInterval(intervalId)
-	}, [clineUser?.uid])
+	}, [clineUser?.uid, hasInitializedDropdown, dropdownValue])
 
 	return (
 		<div className="h-full flex flex-col">

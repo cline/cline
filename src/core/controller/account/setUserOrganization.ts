@@ -1,6 +1,7 @@
 import type { Controller } from "../index"
 import { Empty } from "@shared/proto/common"
 import { UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { updateGlobalState } from "../../storage/state"
 
 // Backend request deduplication tracking
 const ongoingOrganizationSwitches = new Map<string, Promise<Empty>>()
@@ -50,6 +51,10 @@ export async function setUserOrganization(controller: Controller, request: UserO
 			console.log(
 				`[ORG_SWITCH] controller.accountService.switchAccount completed in ${(switchEndTime - switchStartTime).toFixed(2)}ms`,
 			)
+
+			// Store the current active organization ID in global state
+			await updateGlobalState(controller.context, "currentActiveOrganizationId", request.organizationId)
+			console.log(`[ORG_SWITCH] Stored currentActiveOrganizationId: ${request.organizationId || "undefined"}`)
 
 			const endTime = performance.now()
 			console.log(`[ORG_SWITCH] setUserOrganization completed successfully in ${(endTime - startTime).toFixed(2)}ms`)
