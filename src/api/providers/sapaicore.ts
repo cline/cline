@@ -5,6 +5,8 @@ import { ApiHandler } from "../"
 import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+// Import proper AWS SDK types
+import type { Message } from "@aws-sdk/client-bedrock-runtime"
 
 interface SapAiCoreHandlerOptions {
 	sapAiCoreClientId?: string
@@ -27,6 +29,14 @@ interface Token {
 	token_type: string
 	expires_at: number
 }
+
+// Define cache point type for AWS Bedrock
+interface CachePointContentBlock {
+	cachePoint: {
+		type: "default"
+	}
+}
+
 export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
@@ -157,13 +167,33 @@ export class SapAiCoreHandler implements ApiHandler {
 				model.id === "anthropic--claude-3.7-sonnet"
 			) {
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
+
+				// messages formatted for Bedrock converse-stream API
+				const formattedMessages = this.formatAnthropicMessages(messages)
+
+				// currently there is no cache enable check toggle.
+				// Because cache saves cost for most of the time, so we just enable it
+				const userMsgIndices = messages.reduce(
+					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+					[] as number[],
+				)
+				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+				// Apply caching controls to non system messages
+				const messagesWithCache = this.applyCacheControlToMessages(
+					formattedMessages,
+					lastUserMsgIndex,
+					secondLastMsgUserIndex,
+				)
+
 				payload = {
 					inferenceConfig: {
 						maxTokens: model.info.maxTokens,
 						temperature: 0.0,
 					},
-					system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-					messages: this.formatAnthropicMessages(messages),
+					system: systemPrompt ? [{ text: systemPrompt }, { cachePoint: { type: "default" } }] : undefined,
+					messages: messagesWithCache,
 				}
 			} else {
 				payload = {
@@ -361,11 +391,15 @@ export class SapAiCoreHandler implements ApiHandler {
 							if (data.metadata?.usage) {
 								const inputTokens = data.metadata.usage.inputTokens || 0
 								const outputTokens = data.metadata.usage.outputTokens || 0
+								const cacheReadInputTokens = data.metadata.usage.cacheReadInputTokens || 0
+								const cacheWriteInputTokens = data.metadata.usage.cacheWriteInputTokens || 0
 
 								yield {
 									type: "usage",
 									inputTokens,
 									outputTokens,
+									cacheReadTokens: cacheReadInputTokens,
+									cacheWriteTokens: cacheWriteInputTokens,
 								}
 							}
 
@@ -686,6 +720,41 @@ export class SapAiCoreHandler implements ApiHandler {
 				role: m.role,
 				content: contentBlocks,
 			}
+		})
+	}
+
+	/**
+	 * refer to {@link AwsBedrockHandler#applyCacheControlToMessages}
+	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
+	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
+	 */
+	private applyCacheControlToMessages(
+		messages: Message[],
+		lastUserMsgIndex: number,
+		secondLastMsgUserIndex: number,
+	): Message[] {
+		return messages.map((message, index) => {
+			// Add cachePoint to the last user message and second-to-last user message
+			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+				// Clone the message to avoid modifying the original
+				const messageWithCache = { ...message }
+
+				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
+					// Add cachePoint to the end of the content array
+					messageWithCache.content = [
+						...messageWithCache.content,
+						{
+							cachePoint: {
+								type: "default",
+							},
+						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
+					]
+				}
+
+				return messageWithCache
+			}
+
+			return message
 		})
 	}
 }
