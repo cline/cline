@@ -40,8 +40,5 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	console.log("Opening browser:", url)
-	// Use simple-open-url module for cross-platform URL opening
-	// @ts-ignore - simple-open-url doesn't have type definitions
-	const { openUrl } = await import("simple-open-url")
-	openUrl(url)
+	open(url)
 }
