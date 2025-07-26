@@ -1,8 +1,8 @@
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { flip, offset, shift, useFloating } from "@floating-ui/react"
-import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
-import { Int64Request } from "@shared/proto/common"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Int64Request } from "@shared/proto/cline/common"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -219,7 +219,11 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 										onClick={handleRestoreWorkspace}
 										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
 										style={{
-											cursor: restoreWorkspaceDisabled || isCheckpointCheckedOut ? "wait" : "pointer",
+											cursor: isCheckpointCheckedOut
+												? "not-allowed"
+												: restoreWorkspaceDisabled
+													? "wait"
+													: "pointer",
 											width: "100%",
 											marginBottom: "10px",
 										}}>

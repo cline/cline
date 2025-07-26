@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.20.2]
+
+- Fixed issue with sap ai core client credentials storage
+- Fix Qwen Api option inconsistency between UI and API layer
+- Fix credit balance out of sync issue on account switching
+- Fix Claude Code CLAUDE_CODE_MAX_OUTPUT_TOKENS
+- Fix cursor state after restoring files to be disabled after checked out
+- Fix issue where checkpointing blocked UI
+
+## [3.20.1]
+
+- Fix for files being deleted when switching modes or closing tasks
+
+## [3.20.0]
+
+- Add account balance display for all organization members, allowing non-admin users to view their organization's credit balance and add credits
+
 ## [3.19.8]
 
 - Add Claude Code support on Windows with improved system prompt handling to fix E2BIG errors (Thanks @BarreiroT!)

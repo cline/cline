@@ -7,6 +7,7 @@ const SHELL_PATHS = {
 	POWERSHELL_LEGACY: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 	CMD: "C:\\Windows\\System32\\cmd.exe",
 	WSL_BASH: "/bin/bash",
+	GIT_BASH: "C:\\Program Files\\Git\\bin\\bash.exe",
 	// Unix paths
 	MAC_DEFAULT: "/bin/zsh",
 	LINUX_DEFAULT: "/bin/bash",
@@ -182,7 +183,7 @@ function getShellFromEnv(): string | null {
 // 4) Terminal Profile Interface and Utilities
 // -----------------------------------------------------
 
-import { TerminalProfile } from "../shared/proto/state"
+import { TerminalProfile } from "@shared/proto/cline/state"
 
 /** Gets available terminal profiles for the current platform */
 export function getAvailableTerminalProfiles(): TerminalProfile[] {
@@ -220,6 +221,12 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 				name: "WSL Bash",
 				path: SHELL_PATHS.WSL_BASH,
 				description: "Windows Subsystem for Linux Bash",
+			},
+			{
+				id: "git-bash",
+				name: "Git Bash",
+				path: SHELL_PATHS.GIT_BASH,
+				description: "Git Bash (bash.exe from Git for Windows)",
 			},
 		)
 	} else if (process.platform === "darwin") {

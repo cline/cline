@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/common"
-import { RefreshedRules } from "@shared/proto/file"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { RefreshedRules } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"

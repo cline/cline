@@ -1,5 +1,5 @@
 import { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
+import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active subscriptions

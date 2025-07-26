@@ -1,7 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
 import { Controller } from ".."
-import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
+import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
