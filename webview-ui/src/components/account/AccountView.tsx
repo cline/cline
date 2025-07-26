@@ -11,7 +11,7 @@ import {
 	VSCodeOption,
 	VSCodeTag,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import debounce from "debounce"
@@ -88,6 +88,9 @@ export const ClineAccountView = () => {
 		return userOrganizations.find((org) => org.organizationId === dropdownValue)
 	}, [userOrganizations, dropdownValue])
 
+	// Request deduplication tracking
+	const isOrganizationSwitchingRef = useRef<string | null>(null)
+
 	const getUserOrganizations = useCallback(async () => {
 		try {
 			if (clineUser?.uid) {
@@ -103,47 +106,73 @@ export const ClineAccountView = () => {
 
 	const fetchCreditBalance = useCallback(
 		async (orgId?: string) => {
+			const startTime = performance.now()
+			console.log(`[ORG_SWITCH] fetchCreditBalance started at ${new Date().toISOString()}`)
+
 			try {
 				setIsLoading(true)
 				const targetOrgId = orgId ?? dropdownValue
 				const isPersonal = targetOrgId === "personal"
 
+				console.log(`[ORG_SWITCH] Fetching credits for targetOrgId: ${targetOrgId} (isPersonal: ${isPersonal})`)
+
 				// Use targetOrgId consistently for all requests
+				const apiStartTime = performance.now()
 				const response = isPersonal
 					? await AccountServiceClient.getUserCredits(EmptyRequest.create())
 					: await AccountServiceClient.getOrganizationCredits({ organizationId: targetOrgId })
 
+				const apiEndTime = performance.now()
+				console.log(`[ORG_SWITCH] API call for credits completed in ${(apiEndTime - apiStartTime).toFixed(2)}ms`)
+
 				// Update balance if changed
+				const balanceUpdateStartTime = performance.now()
 				const newBalance = response.balance?.currentBalance
 				if (newBalance !== undefined && newBalance !== balance) {
+					console.log(`[ORG_SWITCH] Updating balance from ${balance} to ${newBalance}`)
 					setBalance(newBalance)
 				}
 				if (response.usageTransactions && !deepEqual(usageData, response.usageTransactions)) {
 					const clineUsage = convertProtoUsageTransactions(response.usageTransactions) || []
+					console.log(`[ORG_SWITCH] Updating usage data with ${clineUsage.length} transactions`)
 					setUsageData(clineUsage)
 				}
 
+				const balanceUpdateEndTime = performance.now()
+				console.log(
+					`[ORG_SWITCH] Balance and usage data update took ${(balanceUpdateEndTime - balanceUpdateStartTime).toFixed(2)}ms`,
+				)
+
 				// Organizations don't have payment transactions
 				if (targetOrgId !== "personal") {
+					console.log(`[ORG_SWITCH] Organization account - clearing payment data`)
 					setPaymentsData([])
 					setIsLoading(false)
 					return
 				}
 
 				// Check if response is UserCreditsData type
+				const paymentStartTime = performance.now()
 				if (typeof response !== "object" || !("paymentTransactions" in response)) {
+					console.log(`[ORG_SWITCH] No payment transactions in response`)
 					return
 				}
 				const newPaymentsData = response.paymentTransactions
 				// Check if paymentTransactions is part of the response
 				if (newPaymentsData?.length && !deepEqual(paymentsData, newPaymentsData)) {
+					console.log(`[ORG_SWITCH] Updating payment data with ${newPaymentsData.length} transactions`)
 					setPaymentsData(newPaymentsData)
 				}
+				const paymentEndTime = performance.now()
+				console.log(`[ORG_SWITCH] Payment data processing took ${(paymentEndTime - paymentStartTime).toFixed(2)}ms`)
 			} catch (error) {
-				console.error("Failed to fetch credit balance:", error)
+				const errorTime = performance.now()
+				console.error(`[ORG_SWITCH] Failed to fetch credit balance after ${(errorTime - startTime).toFixed(2)}ms:`, error)
 			} finally {
 				setLastFetchTime(Date.now())
 				setIsLoading(false)
+				const endTime = performance.now()
+				console.log(`[ORG_SWITCH] fetchCreditBalance completed in ${(endTime - startTime).toFixed(2)}ms`)
 			}
 		},
 		[dropdownValue, balance],
@@ -163,33 +192,82 @@ export const ClineAccountView = () => {
 
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
+			const startTime = performance.now()
+			console.log(`[ORG_SWITCH] handleOrganizationChange started at ${new Date().toISOString()}`)
+
 			const newValue = (event.target as VSCodeDropdownChangeEvent["target"]).value || "personal"
 			const organizationId = newValue === "personal" ? undefined : newValue
+			const requestKey = organizationId || "personal"
+
+			console.log(
+				`[ORG_SWITCH] Attempting to switch from "${dropdownValue}" to "${newValue}" (orgId: ${organizationId || "null"})`,
+			)
 
 			if (newValue === dropdownValue) {
+				console.log(`[ORG_SWITCH] No change detected, returning early`)
 				return // No change, do nothing
 			}
 
+			// Request deduplication check
+			if (isOrganizationSwitchingRef.current === requestKey) {
+				console.log(`[ORG_SWITCH_DEDUP] Request blocked - already switching to "${requestKey}"`)
+				console.log(`[ORG_SWITCH_DEDUP] Duplicate request prevented in ${(performance.now() - startTime).toFixed(2)}ms`)
+				return
+			}
+
+			// Mark this organization switch as in progress
+			isOrganizationSwitchingRef.current = requestKey
+			console.log(`[ORG_SWITCH_DEDUP] Request allowed - setting lock for "${requestKey}"`)
+
 			try {
-				console.info("Changing selection to:", newValue)
+				console.log(`[ORG_SWITCH] Starting organization change process...`)
+				const preApiTime = performance.now()
+				console.log(`[ORG_SWITCH] Pre-API setup took ${(preApiTime - startTime).toFixed(2)}ms`)
 
 				// Send the change to the server
-				AccountServiceClient.setUserOrganization({ organizationId })
+				console.log(
+					`[ORG_SWITCH] Calling AccountServiceClient.setUserOrganization with organizationId: ${organizationId || "undefined"}`,
+				)
+				const apiStartTime = performance.now()
+
+				await AccountServiceClient.setUserOrganization({ organizationId })
+
+				const apiEndTime = performance.now()
+				console.log(
+					`[ORG_SWITCH] AccountServiceClient.setUserOrganization completed in ${(apiEndTime - apiStartTime).toFixed(2)}ms`,
+				)
 
 				// Update dropdownValue immediately - this persists through failures
+				console.log(`[ORG_SWITCH] Updating UI state - setting dropdownValue to "${newValue}"`)
 				setDropdownValue(newValue)
 				setIsLoading(true)
 				setBalance(null)
 				setUsageData([])
 				setPaymentsData([])
 
+				const uiUpdateTime = performance.now()
+				console.log(`[ORG_SWITCH] UI state update took ${(uiUpdateTime - apiEndTime).toFixed(2)}ms`)
+
+				console.log(`[ORG_SWITCH] Fetching credit balance for organizationId: ${organizationId || "personal"}`)
+				const fetchStartTime = performance.now()
+
 				await fetchCreditBalance(organizationId)
+
+				const fetchEndTime = performance.now()
+				console.log(`[ORG_SWITCH] fetchCreditBalance completed in ${(fetchEndTime - fetchStartTime).toFixed(2)}ms`)
 			} catch (error) {
-				console.error("Failed to update organization:", error)
+				const errorTime = performance.now()
+				console.error(`[ORG_SWITCH] Failed to update organization after ${(errorTime - startTime).toFixed(2)}ms:`, error)
 				// Don't reset selectedOrgId on error - keep the user's selection
 				// The next refresh will use the correct selectedOrgId
 			} finally {
+				// Clear the lock
+				isOrganizationSwitchingRef.current = null
+				console.log(`[ORG_SWITCH_DEDUP] Request lock cleared for "${requestKey}"`)
+
 				setIsLoading(false)
+				const endTime = performance.now()
+				console.log(`[ORG_SWITCH] handleOrganizationChange completed in ${(endTime - startTime).toFixed(2)}ms`)
 			}
 		},
 		[fetchCreditBalance, getUserOrganizations, dropdownValue],

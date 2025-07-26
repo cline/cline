@@ -15,6 +15,9 @@ export class ClineAccountService {
 	private _authService: AuthService
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
+	// Service-level request deduplication tracking
+	private ongoingSwitchRequests = new Map<string, Promise<void>>()
+
 	constructor() {
 		this._authService = AuthService.getInstance()
 	}
@@ -220,24 +223,72 @@ export class ClineAccountService {
 	 * @throws {Error} If the account switch fails, an error will be thrown.
 	 */
 	async switchAccount(organizationId?: string): Promise<void> {
-		// Call API to switch account
-		try {
-			// make XHR request to switch account
-			const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				data: {
-					organizationId: organizationId || null, // Pass organization if provided
-				},
-			})
-		} catch (error) {
-			console.error("Error switching account:", error)
-			throw error
-		} finally {
-			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
-			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+		const startTime = performance.now()
+		console.log(`[ORG_SWITCH] switchAccount started at ${new Date().toISOString()}`)
+		console.log(`[ORG_SWITCH] Target organizationId: ${organizationId || "null (personal account)"}`)
+
+		const requestKey = organizationId || "personal"
+
+		// Check if there's already an ongoing switch request for this organization
+		const existingRequest = this.ongoingSwitchRequests.get(requestKey)
+		if (existingRequest) {
+			console.log(`[ORG_SWITCH_DEDUP] Service request blocked - already switching to "${requestKey}"`)
+			console.log(`[ORG_SWITCH_DEDUP] Returning existing promise for duplicate service request`)
+			return existingRequest
 		}
+
+		// Create the promise for this request
+		const requestPromise = (async (): Promise<void> => {
+			// Call API to switch account
+			try {
+				console.log(`[ORG_SWITCH] Preparing API request to /api/v1/users/active-account`)
+				const requestStartTime = performance.now()
+
+				// make XHR request to switch account
+				const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					data: {
+						organizationId: organizationId || null, // Pass organization if provided
+					},
+				})
+
+				const requestEndTime = performance.now()
+				console.log(
+					`[ORG_SWITCH] API request to /api/v1/users/active-account completed in ${(requestEndTime - requestStartTime).toFixed(2)}ms`,
+				)
+				console.log(`[ORG_SWITCH] API response received:`, response)
+			} catch (error) {
+				const errorTime = performance.now()
+				console.error(`[ORG_SWITCH] Error switching account after ${(errorTime - startTime).toFixed(2)}ms:`, error)
+				throw error
+			} finally {
+				console.log(`[ORG_SWITCH] Starting token refresh process...`)
+				const tokenRefreshStartTime = performance.now()
+
+				// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
+				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+				const tokenRefreshEndTime = performance.now()
+				console.log(
+					`[ORG_SWITCH] Token refresh completed in ${(tokenRefreshEndTime - tokenRefreshStartTime).toFixed(2)}ms`,
+				)
+
+				const totalTime = performance.now()
+				console.log(`[ORG_SWITCH] switchAccount completed in ${(totalTime - startTime).toFixed(2)}ms`)
+
+				// Clean up the ongoing request tracking
+				this.ongoingSwitchRequests.delete(requestKey)
+				console.log(`[ORG_SWITCH_DEDUP] Service request lock cleared for "${requestKey}"`)
+			}
+		})()
+
+		// Store the promise to prevent duplicate requests
+		this.ongoingSwitchRequests.set(requestKey, requestPromise)
+		console.log(`[ORG_SWITCH_DEDUP] Service request allowed - setting lock for "${requestKey}"`)
+
+		return requestPromise
 	}
 }
