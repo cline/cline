@@ -20,5 +20,6 @@ export const DIRS_TO_IGNORE = [
 	"deps",
 	"pkg",
 	"Pods",
+	".git",
 	".*",
 ]
