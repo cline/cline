@@ -223,17 +223,11 @@ export class ClineAccountService {
 	 * @throws {Error} If the account switch fails, an error will be thrown.
 	 */
 	async switchAccount(organizationId?: string): Promise<void> {
-		const startTime = performance.now()
-		console.log(`[ORG_SWITCH] switchAccount started at ${new Date().toISOString()}`)
-		console.log(`[ORG_SWITCH] Target organizationId: ${organizationId || "null (personal account)"}`)
-
 		const requestKey = organizationId || "personal"
 
 		// Check if there's already an ongoing switch request for this organization
 		const existingRequest = this.ongoingSwitchRequests.get(requestKey)
 		if (existingRequest) {
-			console.log(`[ORG_SWITCH_DEDUP] Service request blocked - already switching to "${requestKey}"`)
-			console.log(`[ORG_SWITCH_DEDUP] Returning existing promise for duplicate service request`)
 			return existingRequest
 		}
 
@@ -244,16 +238,8 @@ export class ClineAccountService {
 			let tokenValidBeforeSwitch = false
 
 			try {
-				console.log(`[TOKEN_REFRESH] Checking token status before organization switch...`)
-				const tokenCheckStartTime = performance.now()
-
 				tokenBeforeSwitch = await this._authService.getAuthToken()
 				tokenValidBeforeSwitch = tokenBeforeSwitch !== null
-
-				const tokenCheckEndTime = performance.now()
-				console.log(`[TOKEN_REFRESH] Token check completed in ${(tokenCheckEndTime - tokenCheckStartTime).toFixed(2)}ms`)
-				console.log(`[TOKEN_REFRESH] Token valid before switch: ${tokenValidBeforeSwitch}`)
-				console.log(`[TOKEN_REFRESH] Token length before switch: ${tokenBeforeSwitch?.length || 0} characters`)
 
 				if (tokenBeforeSwitch) {
 					// Try to decode token expiry if it's a JWT
@@ -261,11 +247,6 @@ export class ClineAccountService {
 						const tokenParts = tokenBeforeSwitch.split(".")
 						if (tokenParts.length === 3) {
 							const payload = JSON.parse(atob(tokenParts[1]))
-							const expiry = payload.exp ? new Date(payload.exp * 1000) : null
-							const now = new Date()
-							console.log(`[TOKEN_REFRESH] Token expires at: ${expiry?.toISOString() || "unknown"}`)
-							console.log(`[TOKEN_REFRESH] Current time: ${now.toISOString()}`)
-							console.log(`[TOKEN_REFRESH] Token expired: ${expiry ? expiry < now : "unknown"}`)
 						}
 					} catch (e) {
 						console.log(`[TOKEN_REFRESH] Could not decode token expiry (not a JWT or malformed)`)
@@ -277,7 +258,6 @@ export class ClineAccountService {
 
 			// Call API to switch account
 			try {
-				console.log(`[ORG_SWITCH] Preparing API request to /api/v1/users/active-account`)
 				const requestStartTime = performance.now()
 
 				// make XHR request to switch account
@@ -290,15 +270,7 @@ export class ClineAccountService {
 						organizationId: organizationId || null, // Pass organization if provided
 					},
 				})
-
-				const requestEndTime = performance.now()
-				console.log(
-					`[ORG_SWITCH] API request to /api/v1/users/active-account completed in ${(requestEndTime - requestStartTime).toFixed(2)}ms`,
-				)
-				console.log(`[ORG_SWITCH] API response received:`, response)
 			} catch (error) {
-				const errorTime = performance.now()
-				console.error(`[ORG_SWITCH] Error switching account after ${(errorTime - startTime).toFixed(2)}ms:`, error)
 				throw error
 			} finally {
 				// Token validation after API call but before refresh
@@ -306,41 +278,12 @@ export class ClineAccountService {
 				let tokenValidAfterSwitch = false
 
 				try {
-					console.log(`[TOKEN_REFRESH] Checking token status after API call, before refresh...`)
 					const tokenCheckStartTime = performance.now()
 
 					// Get the current token without triggering a refresh
 					const authInfo = (this._authService as any)._clineAuthInfo
 					tokenAfterSwitch = authInfo?.idToken || null
 					tokenValidAfterSwitch = tokenAfterSwitch !== null
-
-					const tokenCheckEndTime = performance.now()
-					console.log(
-						`[TOKEN_REFRESH] Post-API token check completed in ${(tokenCheckEndTime - tokenCheckStartTime).toFixed(2)}ms`,
-					)
-					console.log(`[TOKEN_REFRESH] Token valid after API call: ${tokenValidAfterSwitch}`)
-					console.log(`[TOKEN_REFRESH] Token length after API call: ${tokenAfterSwitch?.length || 0} characters`)
-					console.log(`[TOKEN_REFRESH] Token changed during API call: ${tokenBeforeSwitch !== tokenAfterSwitch}`)
-
-					if (tokenAfterSwitch) {
-						// Try to decode token expiry if it's a JWT
-						try {
-							const tokenParts = tokenAfterSwitch.split(".")
-							if (tokenParts.length === 3) {
-								const payload = JSON.parse(atob(tokenParts[1]))
-								const expiry = payload.exp ? new Date(payload.exp * 1000) : null
-								const now = new Date()
-								console.log(`[TOKEN_REFRESH] Token expires at (after API): ${expiry?.toISOString() || "unknown"}`)
-								console.log(`[TOKEN_REFRESH] Token expired (after API): ${expiry ? expiry < now : "unknown"}`)
-
-								// Check if token needs refresh based on expiry
-								const needsRefreshByExpiry = expiry ? expiry < now : false
-								console.log(`[TOKEN_REFRESH] Token needs refresh by expiry: ${needsRefreshByExpiry}`)
-							}
-						} catch (e) {
-							console.log(`[TOKEN_REFRESH] Could not decode token expiry after API call`)
-						}
-					}
 				} catch (error) {
 					console.log(`[TOKEN_REFRESH] Error checking token after API call:`, error)
 				}
@@ -363,56 +306,25 @@ export class ClineAccountService {
 				}
 
 				const shouldRefresh = !tokenValidAfterSwitch || needsRefreshByExpiry
-				console.log(`[TOKEN_REFRESH] Should refresh token: ${shouldRefresh}`)
-				console.log(
-					`[TOKEN_REFRESH] Refresh reason: ${!tokenValidAfterSwitch ? "token invalid" : needsRefreshByExpiry ? "token expires soon" : "not needed"}`,
-				)
-
 				if (shouldRefresh) {
-					console.log(`[ORG_SWITCH] Starting token refresh process...`)
-					const tokenRefreshStartTime = performance.now()
-
 					// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
 					await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
-					const tokenRefreshEndTime = performance.now()
-					console.log(
-						`[ORG_SWITCH] Token refresh completed in ${(tokenRefreshEndTime - tokenRefreshStartTime).toFixed(2)}ms`,
-					)
-
 					// Check token after refresh
 					try {
-						const tokenAfterRefresh = await this._authService.getAuthToken()
-						console.log(`[TOKEN_REFRESH] Token valid after refresh: ${tokenAfterRefresh !== null}`)
-						console.log(`[TOKEN_REFRESH] Token length after refresh: ${tokenAfterRefresh?.length || 0} characters`)
-						console.log(`[TOKEN_REFRESH] Token changed during refresh: ${tokenAfterSwitch !== tokenAfterRefresh}`)
-
-						if (tokenAfterRefresh && tokenAfterSwitch) {
-							console.log(
-								`[TOKEN_REFRESH] Refresh was ${tokenAfterSwitch === tokenAfterRefresh ? "unnecessary" : "necessary"} - token ${tokenAfterSwitch === tokenAfterRefresh ? "unchanged" : "updated"}`,
-							)
-						}
+						await this._authService.getAuthToken()
 					} catch (error) {
 						console.log(`[TOKEN_REFRESH] Error checking token after refresh:`, error)
 					}
-				} else {
-					console.log(`[TOKEN_REFRESH] Skipping token refresh - token is still valid`)
-					const estimatedTimeSaved = 300 // Average refresh time
-					console.log(`[TOKEN_REFRESH] Estimated time saved: ${estimatedTimeSaved}ms`)
 				}
-
-				const totalTime = performance.now()
-				console.log(`[ORG_SWITCH] switchAccount completed in ${(totalTime - startTime).toFixed(2)}ms`)
 
 				// Clean up the ongoing request tracking
 				this.ongoingSwitchRequests.delete(requestKey)
-				console.log(`[ORG_SWITCH_DEDUP] Service request lock cleared for "${requestKey}"`)
 			}
 		})()
 
 		// Store the promise to prevent duplicate requests
 		this.ongoingSwitchRequests.set(requestKey, requestPromise)
-		console.log(`[ORG_SWITCH_DEDUP] Service request allowed - setting lock for "${requestKey}"`)
 
 		return requestPromise
 	}
