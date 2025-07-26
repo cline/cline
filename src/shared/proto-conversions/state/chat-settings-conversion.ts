@@ -1,6 +1,6 @@
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, PlanActMode } from "../../../shared/proto/state"
+import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, PlanActMode } from "@shared/proto/cline/state"
 
 /**
  * Converts domain ChatSettings objects to proto ChatSettings objects

@@ -1,5 +1,5 @@
-import type { EmptyRequest } from "../../../shared/proto/common"
-import { Boolean } from "../../../shared/proto/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import { Boolean } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
 import { updateGlobalState } from "../../storage/state"
 

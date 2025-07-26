@@ -13,7 +13,7 @@ import {
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
 	ThinkingConfig,
-} from "../../proto/models"
+} from "@shared/proto/cline/models"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
