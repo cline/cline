@@ -676,8 +676,8 @@ export const webviewMessageHandler = async (
 			break
 		case "requestHuggingFaceModels":
 			try {
-				const { getHuggingFaceModels } = await import("../../api/huggingface-models")
-				const huggingFaceModelsResponse = await getHuggingFaceModels()
+				const { getHuggingFaceModelsWithMetadata } = await import("../../api/providers/fetchers/huggingface")
+				const huggingFaceModelsResponse = await getHuggingFaceModelsWithMetadata()
 				provider.postMessageToWebview({
 					type: "huggingFaceModels",
 					huggingFaceModels: huggingFaceModelsResponse.models,
