@@ -1,17 +1,17 @@
-import { ClineUser, handleSignOut } from "@/context/ClineAuthContext"
-import { AccountServiceClient } from "@/services/grpc-client"
-import { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import { UserOrganization } from "@shared/proto/account"
+import type { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import type { UserOrganization } from "@shared/proto/account"
 import { EmptyRequest } from "@shared/proto/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
+import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
-import CreditsHistoryTable from "./CreditsHistoryTable"
+import { useInterval } from "react-use"
+import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
+import { AccountServiceClient } from "@/services/grpc-client"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { AccountWelcomeView } from "./AccountWelcomeView"
 import { CreditBalance } from "./CreditBalance"
-import { useInterval } from "react-use"
-import deepEqual from "fast-deep-equal"
-import { getClineUris, getMainRole, convertProtoUsageTransactions } from "./helpers"
+import CreditsHistoryTable from "./CreditsHistoryTable"
+import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
 
 type AccountViewProps = {
 	clineUser: ClineUser | null
@@ -119,6 +119,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		}
 	}, [])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	const fetchCreditBalance = useCallback(
 		async (id: string, skipCache = false) => {
 			try {
@@ -133,7 +134,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				if (id === uid) {
 					await fetchUserCredit()
 				} else {
-					const response = await AccountServiceClient.getOrganizationCredits({ organizationId: id })
+					const response = await AccountServiceClient.getOrganizationCredits({
+						organizationId: id,
+					})
 					// Update balance - handle all values including 0 and null
 					const newBalance = response.balance?.currentBalance
 					setBalance(newBalance ?? null)
@@ -154,6 +157,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		[isLoading, uid, fetchUserCredit, loadCachedData],
 	)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const target = event.target as HTMLSelectElement
@@ -191,6 +195,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	const clineUrl = appBaseUrl || "https://app.cline.bot"
 
 	// Fetch balance on mount
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <Only run once on mount>
 	useEffect(() => {
 		async function initialFetch() {
 			await fetchCreditBalance(dropdownValue)
@@ -198,8 +203,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		initialFetch()
 	}, [])
 
-	// Handle organization changes with 500ms debounce
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	useEffect(() => {
+		// Handle organization changes with 500ms debounce
 		const currentActiveOrgId = activeOrganization?.organizationId
 		const hasDropdownChanged = dropdownValue !== (currentActiveOrgId || uid)
 		const hasActiveOrgChanged = currentActiveOrgId !== lastActiveOrgId
