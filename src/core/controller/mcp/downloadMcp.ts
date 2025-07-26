@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { StringRequest } from "../../../shared/proto/common"
-import { McpDownloadResponse } from "../../../shared/proto/mcp"
+import { StringRequest } from "@shared/proto/cline/common"
+import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import { McpServer } from "@shared/mcp"
 import axios from "axios"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"

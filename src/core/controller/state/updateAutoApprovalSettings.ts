@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { AutoApprovalSettingsRequest } from "../../../shared/proto/state"
-import { Empty } from "../../../shared/proto/common"
+import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { updateGlobalState } from "../../../core/storage/state"
 

@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { Empty, StringRequest } from "@shared/proto/common"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
 
 /**
  * Exports a task with the given ID to markdown

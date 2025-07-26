@@ -1,6 +1,6 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { McpMarketplaceCatalog } from "@shared/proto/mcp"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active subscriptions

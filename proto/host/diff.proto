@@ -4,7 +4,7 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
-import "common.proto";
+import "cline/common.proto";
 
 // Provides methods for diff views.
 service DiffService {

@@ -1,4 +1,4 @@
-import { StringRequest, Empty } from "@shared/proto/common"
+import { StringRequest, Empty } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import type { Controller } from "../index"
 

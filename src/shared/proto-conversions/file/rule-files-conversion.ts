@@ -1,4 +1,4 @@
-import { RuleFileRequest } from "../../proto/file"
+import { RuleFileRequest } from "@shared/proto/cline/file"
 
 // Helper for creating delete requests
 export const DeleteRuleFileRequest = {

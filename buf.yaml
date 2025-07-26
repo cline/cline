@@ -9,7 +9,6 @@ lint:
 
     except: # Add exceptions for current patterns that contradict STANDARD settings
         - RPC_PASCAL_CASE # rpcs are camel case (start with lowercase)
-        - PACKAGE_DIRECTORY_MATCH # the protos in the cline package are not in a dir named cline.
         - RPC_REQUEST_RESPONSE_UNIQUE # request messages are not unique.
         - RPC_REQUEST_STANDARD_NAME # request messages dont all end with Request
         - RPC_RESPONSE_STANDARD_NAME # response messages dont all end with Response

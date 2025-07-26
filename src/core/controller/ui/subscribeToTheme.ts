@@ -1,5 +1,5 @@
 import { Controller } from "../index"
-import { EmptyRequest, String } from "@shared/proto/common"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import { getTheme } from "@integrations/theme/getTheme"
 

@@ -1,5 +1,5 @@
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
-import { RuleFile, RuleFileRequest } from "@shared/proto/file"
+import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
 import * as path from "path"
 import { Controller } from ".."
 import { HostProvider } from "@/hosts/host-provider"

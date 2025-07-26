@@ -1,5 +1,5 @@
 import type { Controller } from "../index"
-import { EmptyRequest, String } from "@shared/proto/common"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@/shared/webview/types"
 

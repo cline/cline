@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { GetTaskHistoryRequest, TaskHistoryArray } from "../../../shared/proto/task"
+import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import { getGlobalState } from "../../storage/state"
 import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 

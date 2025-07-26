@@ -3,7 +3,7 @@ import { memo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
+import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/cline/state"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);

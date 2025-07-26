@@ -1,5 +1,5 @@
 import { TaskServiceClient } from "@/services/grpc-client"
-import { NewTaskRequest } from "@shared/proto/task"
+import { NewTaskRequest } from "@shared/proto/cline/task"
 import React from "react"
 import QuickWinCard from "./QuickWinCard"
 import { QuickWinTask, quickWinTasks } from "./quickWinTasks"

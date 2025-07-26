@@ -1,11 +1,11 @@
 import type { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
+import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 
 import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { OpenRouterCompatibleModelInfo } from "@/shared/proto/models"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"

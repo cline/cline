@@ -1,5 +1,5 @@
 import { WebServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/cline/common"
 
 // Represents a URL found in the text with its position and metadata
 export interface UrlMatch {

@@ -3,7 +3,7 @@ import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
 import { StateServiceClient } from "../../../services/grpc-client"
-import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
+import { Int64, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
 

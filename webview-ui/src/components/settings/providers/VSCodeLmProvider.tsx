@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"

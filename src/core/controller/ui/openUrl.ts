@@ -1,6 +1,6 @@
 import type { Controller } from "../index"
-import type { StringRequest } from "../../../shared/proto/common"
-import { Empty } from "../../../shared/proto/common"
+import type { StringRequest } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/cline/common"
 import { openUrlInBrowser } from "../../../utils/github-url-utils"
 
 /**

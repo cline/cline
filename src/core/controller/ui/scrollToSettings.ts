@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { StringRequest, KeyValuePair } from "../../../shared/proto/common"
+import { StringRequest, KeyValuePair } from "@shared/proto/cline/common"
 
 /**
  * Executes a scroll to settings action

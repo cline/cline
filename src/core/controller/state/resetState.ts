@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { ResetStateRequest } from "../../../shared/proto/state"
+import { Empty } from "@shared/proto/cline/common"
+import { ResetStateRequest } from "@shared/proto/cline/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"

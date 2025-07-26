@@ -1,8 +1,8 @@
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/account"
-import { EmptyRequest } from "@shared/proto/common"
+import { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/cline/account"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	VSCodeButton,
 	VSCodeDivider,

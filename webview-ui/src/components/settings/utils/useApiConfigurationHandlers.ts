@@ -3,7 +3,7 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
 import { Mode } from "@shared/ChatSettings"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { useCallback } from "react"
 
 export const useApiConfigurationHandlers = () => {

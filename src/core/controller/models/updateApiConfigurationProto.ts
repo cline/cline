@@ -1,6 +1,6 @@
 import type { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { Empty } from "@shared/proto/cline/common"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "@api/index"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"

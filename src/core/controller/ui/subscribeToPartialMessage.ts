@@ -1,6 +1,6 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { ClineMessage } from "@shared/proto/ui"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { ClineMessage } from "@shared/proto/cline/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active partial message subscriptions

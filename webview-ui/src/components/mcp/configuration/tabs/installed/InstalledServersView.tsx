@@ -3,7 +3,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import { McpServiceClient, UiServiceClient } from "@/services/grpc-client"
 
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
 	const { mcpServers: servers, navigateToSettings } = useExtensionState()

@@ -1,4 +1,4 @@
-import { GitCommit as ProtoGitCommit } from "@shared/proto/file"
+import { GitCommit as ProtoGitCommit } from "@shared/proto/cline/file"
 import { GitCommit } from "@utils/git"
 
 /**
