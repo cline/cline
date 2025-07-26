@@ -17,7 +17,7 @@ import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { v4 as uuidv4 } from "uuid"
-import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
 import { WebviewProviderType } from "./shared/webview/types"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -102,16 +102,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	try {
 		if (!previousVersion || currentVersion !== previousVersion) {
 			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
-			const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
 
-			if (currentVersion !== lastShownPopupNotificationVersion && previousVersion) {
-				// Show VS Code popup notification as this version hasn't been notified yet without doing it for fresh installs
-				const message = `Cline has been updated to v${currentVersion}`
+			// Use the same condition as announcements: focus when there's a new announcement to show
+			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
+			const latestAnnouncementId = context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+
+			if (lastShownAnnouncementId !== latestAnnouncementId) {
+				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
+				const message = previousVersion
+					? `Cline has been updated to v${currentVersion}`
+					: `Welcome to Cline v${currentVersion}`
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200))
 				HostProvider.window.showMessage({ type: ShowMessageType.INFORMATION, message })
-				// Record that we've shown the popup for this version.
-				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 			}
 			// Always update the main version tracker for the next launch.
 			await context.globalState.update("clineVersion", currentVersion)

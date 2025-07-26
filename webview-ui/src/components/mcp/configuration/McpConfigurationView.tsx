@@ -2,7 +2,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
 import { McpViewTab } from "@shared/mcp"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
@@ -10,7 +10,7 @@ import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
 import InstalledServersView from "./tabs/installed/InstalledServersView"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { McpServers } from "@shared/proto/mcp"
+import { McpServers } from "@shared/proto/cline/mcp"
 
 type McpViewProps = {
 	onDone: () => void

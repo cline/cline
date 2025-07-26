@@ -18,7 +18,7 @@ import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
-import { AskResponseRequest } from "@/shared/proto/task"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
 
 /**

@@ -215,11 +215,11 @@ export const e2e = test
 					executablePath,
 					env: {
 						...process.env,
-						// IS_DEV: "true",
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
-						DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
+						// IS_DEV: "true",
+						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},
 					recordVideo: {
 						dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings"),

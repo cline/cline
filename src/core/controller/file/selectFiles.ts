@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { BooleanRequest, StringArrays } from "@shared/proto/common"
+import { BooleanRequest, StringArrays } from "@shared/proto/cline/common"
 import { selectFiles as selectFilesIntegration } from "@integrations/misc/process-files"
 
 /**
