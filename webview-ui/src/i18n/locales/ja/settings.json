@@ -756,5 +756,8 @@
 		"useCustomArn": "カスタム ARN を使用..."
 	},
 	"includeMaxOutputTokens": "最大出力トークンを含める",
-	"includeMaxOutputTokensDescription": "APIリクエストで最大出力トークンパラメータを送信します。一部のプロバイダーはこれをサポートしていない場合があります。"
+	"includeMaxOutputTokensDescription": "APIリクエストで最大出力トークンパラメータを送信します。一部のプロバイダーはこれをサポートしていない場合があります。",
+	"limitMaxTokensDescription": "レスポンスの最大トークン数を制限する",
+	"maxOutputTokensLabel": "最大出力トークン",
+	"maxTokensGenerateDescription": "レスポンスで生成する最大トークン数"
 }

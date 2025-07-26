@@ -755,5 +755,8 @@
 		"useCustomArn": "Benutzerdefinierte ARN verwenden..."
 	},
 	"includeMaxOutputTokens": "Maximale Ausgabe-Tokens einbeziehen",
-	"includeMaxOutputTokensDescription": "Senden Sie den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht."
+	"includeMaxOutputTokensDescription": "Senden Sie den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht.",
+	"limitMaxTokensDescription": "Begrenze die maximale Anzahl von Tokens in der Antwort",
+	"maxOutputTokensLabel": "Maximale Ausgabe-Tokens",
+	"maxTokensGenerateDescription": "Maximale Tokens, die in der Antwort generiert werden"
 }

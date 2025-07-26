@@ -756,5 +756,8 @@
 		"useCustomArn": "Sử dụng ARN tùy chỉnh..."
 	},
 	"includeMaxOutputTokens": "Bao gồm token đầu ra tối đa",
-	"includeMaxOutputTokensDescription": "Gửi tham số token đầu ra tối đa trong các yêu cầu API. Một số nhà cung cấp có thể không hỗ trợ điều này."
+	"includeMaxOutputTokensDescription": "Gửi tham số token đầu ra tối đa trong các yêu cầu API. Một số nhà cung cấp có thể không hỗ trợ điều này.",
+	"limitMaxTokensDescription": "Giới hạn số lượng token tối đa trong phản hồi",
+	"maxOutputTokensLabel": "Token đầu ra tối đa",
+	"maxTokensGenerateDescription": "Token tối đa để tạo trong phản hồi"
 }

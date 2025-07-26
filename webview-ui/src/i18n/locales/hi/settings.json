@@ -756,5 +756,8 @@
 		"useCustomArn": "कस्टम ARN का उपयोग करें..."
 	},
 	"includeMaxOutputTokens": "अधिकतम आउटपुट टोकन शामिल करें",
-	"includeMaxOutputTokensDescription": "API अनुरोधों में अधिकतम आउटपुट टोकन पैरामीटर भेजें। कुछ प्रदाता इसका समर्थन नहीं कर सकते हैं।"
+	"includeMaxOutputTokensDescription": "API अनुरोधों में अधिकतम आउटपुट टोकन पैरामीटर भेजें। कुछ प्रदाता इसका समर्थन नहीं कर सकते हैं।",
+	"limitMaxTokensDescription": "प्रतिक्रिया में टोकन की अधिकतम संख्या सीमित करें",
+	"maxOutputTokensLabel": "अधिकतम आउटपुट टोकन",
+	"maxTokensGenerateDescription": "प्रतिक्रिया में उत्पन्न करने के लिए अधिकतम टोकन"
 }

@@ -138,26 +138,21 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	huggingFaceModels?: Array<{
-		_id: string
 		id: string
-		inferenceProviderMapping: Array<{
+		object: string
+		created: number
+		owned_by: string
+		providers: Array<{
 			provider: string
-			providerId: string
 			status: "live" | "staging" | "error"
-			task: "conversational"
-		}>
-		trendingScore: number
-		config: {
-			architectures: string[]
-			model_type: string
-			tokenizer_config?: {
-				chat_template?: string | Array<{ name: string; template: string }>
-				model_max_length?: number
+			supports_tools?: boolean
+			supports_structured_output?: boolean
+			context_length?: number
+			pricing?: {
+				input: number
+				output: number
 			}
-		}
-		tags: string[]
-		pipeline_tag: "text-generation" | "image-text-to-text"
-		library_name?: string
+		}>
 	}>
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]

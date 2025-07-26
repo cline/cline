@@ -1,38 +1,43 @@
 import { useCallback, useState, useEffect, useMemo } from "react"
 import { useEvent } from "react-use"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import type { ProviderSettings } from "@roo-code/types"
+import {
+	HUGGINGFACE_DEFAULT_MAX_TOKENS,
+	HUGGINGFACE_MAX_TOKENS_FALLBACK,
+	HUGGINGFACE_SLIDER_STEP,
+	HUGGINGFACE_SLIDER_MIN,
+	HUGGINGFACE_TEMPERATURE_MAX_VALUE,
+} from "@roo-code/types"
 
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
-import { SearchableSelect, type SearchableSelectOption } from "@src/components/ui"
+import { SearchableSelect, type SearchableSelectOption, Slider } from "@src/components/ui"
+import { TemperatureControl } from "../TemperatureControl"
+import { cn } from "@src/lib/utils"
+import { formatPrice } from "@/utils/formatPrice"
 
 import { inputEventTransform } from "../transforms"
 
 type HuggingFaceModel = {
-	_id: string
 	id: string
-	inferenceProviderMapping: Array<{
+	object: string
+	created: number
+	owned_by: string
+	providers: Array<{
 		provider: string
-		providerId: string
 		status: "live" | "staging" | "error"
-		task: "conversational"
-	}>
-	trendingScore: number
-	config: {
-		architectures: string[]
-		model_type: string
-		tokenizer_config?: {
-			chat_template?: string | Array<{ name: string; template: string }>
-			model_max_length?: number
+		supports_tools?: boolean
+		supports_structured_output?: boolean
+		context_length?: number
+		pricing?: {
+			input: number
+			output: number
 		}
-	}
-	tags: string[]
-	pipeline_tag: "text-generation" | "image-text-to-text"
-	library_name?: string
+	}>
 }
 
 type HuggingFaceProps = {
@@ -81,10 +86,7 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 
 	// Get current model and its providers
 	const currentModel = models.find((m) => m.id === apiConfiguration?.huggingFaceModelId)
-	const availableProviders = useMemo(
-		() => currentModel?.inferenceProviderMapping || [],
-		[currentModel?.inferenceProviderMapping],
-	)
+	const availableProviders = useMemo(() => currentModel?.providers || [], [currentModel?.providers])
 
 	// Set default provider when model changes
 	useEffect(() => {
@@ -139,6 +141,32 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 		}
 		return nameMap[provider] || provider.charAt(0).toUpperCase() + provider.slice(1)
 	}
+
+	// Get current provider
+	const currentProvider = useMemo(() => {
+		if (!currentModel || !selectedProvider || selectedProvider === "auto") return null
+		return currentModel.providers.find((p) => p.provider === selectedProvider)
+	}, [currentModel, selectedProvider])
+
+	// Get model capabilities based on current provider
+	const modelCapabilities = useMemo(() => {
+		if (!currentModel) return null
+
+		// For now, assume text-only models since we don't have pipeline_tag in new API
+		// This could be enhanced by checking model name patterns or adding vision support detection
+		const supportsImages = false
+
+		// Use provider-specific capabilities if a specific provider is selected
+		const maxTokens =
+			currentProvider?.context_length || currentModel.providers.find((p) => p.context_length)?.context_length
+		const supportsTools = currentProvider?.supports_tools || currentModel.providers.some((p) => p.supports_tools)
+
+		return {
+			supportsImages,
+			maxTokens,
+			supportsTools,
+		}
+	}, [currentModel, currentProvider])
 
 	return (
 		<>
@@ -201,6 +229,90 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 					/>
 				</div>
 			)}
+
+			{/* Model capabilities */}
+			{currentModel && modelCapabilities && (
+				<div className="text-sm text-vscode-descriptionForeground">
+					<div
+						className={cn(
+							"flex items-center gap-1 font-medium",
+							modelCapabilities.supportsImages
+								? "text-vscode-charts-green"
+								: "text-vscode-errorForeground",
+						)}>
+						<span
+							className={cn("codicon", modelCapabilities.supportsImages ? "codicon-check" : "codicon-x")}
+						/>
+						{modelCapabilities.supportsImages
+							? t("settings:modelInfo.supportsImages")
+							: t("settings:modelInfo.noImages")}
+					</div>
+					{modelCapabilities.maxTokens && (
+						<div>
+							<span className="font-medium">{t("settings:modelInfo.maxOutput")}:</span>{" "}
+							{modelCapabilities.maxTokens.toLocaleString()} tokens
+						</div>
+					)}
+					{currentProvider?.pricing && (
+						<>
+							<div>
+								<span className="font-medium">{t("settings:modelInfo.inputPrice")}:</span>{" "}
+								{formatPrice(currentProvider.pricing.input)} / 1M tokens
+							</div>
+							<div>
+								<span className="font-medium">{t("settings:modelInfo.outputPrice")}:</span>{" "}
+								{formatPrice(currentProvider.pricing.output)} / 1M tokens
+							</div>
+						</>
+					)}
+				</div>
+			)}
+
+			{/* Temperature control */}
+			<TemperatureControl
+				value={apiConfiguration?.modelTemperature}
+				onChange={(value) => setApiConfigurationField("modelTemperature", value)}
+				maxValue={HUGGINGFACE_TEMPERATURE_MAX_VALUE}
+			/>
+
+			{/* Max tokens control */}
+			<div className="flex flex-col gap-3">
+				<VSCodeCheckbox
+					checked={apiConfiguration?.includeMaxTokens ?? false}
+					onChange={(e) =>
+						setApiConfigurationField("includeMaxTokens", (e.target as HTMLInputElement).checked)
+					}>
+					<label className="block font-medium mb-1">{t("settings:includeMaxOutputTokens")}</label>
+				</VSCodeCheckbox>
+				<div className="text-sm text-vscode-descriptionForeground -mt-2">
+					{t("settings:limitMaxTokensDescription")}
+				</div>
+
+				{apiConfiguration?.includeMaxTokens && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-2 text-sm">
+								{t("settings:maxOutputTokensLabel")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={HUGGINGFACE_SLIDER_MIN}
+									max={modelCapabilities?.maxTokens || HUGGINGFACE_MAX_TOKENS_FALLBACK}
+									step={HUGGINGFACE_SLIDER_STEP}
+									value={[apiConfiguration?.modelMaxTokens || HUGGINGFACE_DEFAULT_MAX_TOKENS]}
+									onValueChange={([value]) => setApiConfigurationField("modelMaxTokens", value)}
+								/>
+								<span className="w-16 text-sm">
+									{apiConfiguration?.modelMaxTokens || HUGGINGFACE_DEFAULT_MAX_TOKENS}
+								</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:maxTokensGenerateDescription")}
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
 
 			<div className="text-sm text-vscode-descriptionForeground -mt-2">
 				{t("settings:providers.apiKeyStorageNotice")}

@@ -756,5 +756,8 @@
 		"useCustomArn": "Özel ARN kullan..."
 	},
 	"includeMaxOutputTokens": "Maksimum çıktı tokenlerini dahil et",
-	"includeMaxOutputTokensDescription": "API isteklerinde maksimum çıktı token parametresini gönder. Bazı sağlayıcılar bunu desteklemeyebilir."
+	"includeMaxOutputTokensDescription": "API isteklerinde maksimum çıktı token parametresini gönder. Bazı sağlayıcılar bunu desteklemeyebilir.",
+	"limitMaxTokensDescription": "Yanıttaki maksimum token sayısını sınırla",
+	"maxOutputTokensLabel": "Maksimum çıktı tokenları",
+	"maxTokensGenerateDescription": "Yanıtta oluşturulacak maksimum token sayısı"
 }
