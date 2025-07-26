@@ -8,7 +8,7 @@ import { useExtensionState } from "./context/ExtensionStateContext"
 import { UiServiceClient } from "./services/grpc-client"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
-import { Boolean, EmptyRequest } from "@shared/proto/common"
+import { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 
 const AppContent = () => {
 	const {

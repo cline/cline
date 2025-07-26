@@ -1,11 +1,11 @@
 import path from "path"
 import fs from "fs/promises"
 import { Controller } from ".."
-import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
+import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -23,7 +23,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
-			await getHostBridgeProvider().windowClient.showMessage(
+			await HostProvider.window.showMessage(
 				ShowMessageRequest.create({
 					type: ShowMessageType.WARNING,
 					message: "What would you like to delete?",
@@ -67,7 +67,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			} else {
 				// No favorited tasks found - show warning and ask user what to do
 				const answer = (
-					await getHostBridgeProvider().windowClient.showMessage({
+					await HostProvider.window.showMessage({
 						type: ShowMessageType.WARNING,
 						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
 						options: {
@@ -103,7 +103,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage({
+			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
 			})

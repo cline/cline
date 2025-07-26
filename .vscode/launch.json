@@ -6,7 +6,7 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run Extension",
+			"name": "Run Extension (production)",
 			"type": "extensionHost",
 			"request": "launch",
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
@@ -16,6 +16,32 @@
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
 				"CLINE_ENVIRONMENT": "production"
+			}
+		},
+		{
+			"name": "Run Extension (staging)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "staging"
+			}
+		},
+		{
+			"name": "Run Extension (local)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "local"
 			}
 		},
 		{
@@ -45,7 +71,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Run Standalone Service",
+			"name": "Run cline-core service",
 			"skipFiles": ["<node_internals>/**"],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
@@ -56,11 +82,9 @@
 				// Turns on grpc debug log.
 				//"GRPC_TRACE": "all",
 				//"GRPC_VERBOSITY": "DEBUG",
-				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules",
-
-				"HOST_BRIDGE_ADDRESS": "localhost:50052"
+				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
-			"program": "standalone.js"
+			"program": "cline-core.js"
 		}
 	]
 }

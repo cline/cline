@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { EmptyRequest } from "../../../shared/proto/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "../../../shared/proto/models"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import path from "path"
 import fs from "fs/promises"
@@ -46,6 +46,7 @@ export async function refreshHuggingFaceModels(
 
 			// Transform HF models to OpenRouter-compatible format
 			for (const rawModel of rawModels) {
+				const providersList = rawModel.providers?.map((provider: { provider: string }) => provider.provider)?.join(", ")
 				const modelInfo = OpenRouterModelInfo.create({
 					maxTokens: 8192, // HF doesn't provide max_tokens, use default
 					contextWindow: 128_000, // FIXME: HF doesn't provide context window, use default
@@ -55,7 +56,7 @@ export async function refreshHuggingFaceModels(
 					outputPrice: 0, // Will be set based on providers
 					cacheWritesPrice: 0,
 					cacheReadsPrice: 0,
-					description: `Available on providers: ${rawModel.providers?.join(", ") || "unknown"}`,
+					description: `Available on providers: ${providersList || "unknown"}`,
 				})
 
 				// Add model-specific configurations if we have them in our static models

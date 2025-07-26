@@ -67,7 +67,6 @@ export default defineConfig({
 			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
 			IS_DEV: JSON.stringify(process.env.IS_DEV),
 			IS_TEST: JSON.stringify(process.env.IS_TEST),
-			CLINE_ENVIRONMENT: JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
 		},
 	},
 	resolve: {

@@ -17,7 +17,7 @@ export type GrpcStreamingResponseHandler<TRequest, TResponse> = (
 	req: TRequest,
 	streamResponseHandler: StreamingResponseWriter<TResponse>,
 	requestId?: string,
-) => Promise<TResponse>
+) => Promise<void>
 
 /**
  * Type definition for the wrapper function that converts a Promise-based handler

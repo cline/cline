@@ -1,5 +1,5 @@
 import { AccountServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 
 // Define User type (you may need to adjust this based on your actual User type)
@@ -8,6 +8,7 @@ export interface ClineUser {
 	email?: string
 	displayName?: string
 	photoUrl?: string
+	appBaseUrl?: string
 }
 
 export interface ClineAuthContextType {

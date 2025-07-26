@@ -1,8 +1,8 @@
 import { useCallback } from "react"
 import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
 import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { MessageHandlers, ChatState } from "../types/chatTypes"
 
 /**

@@ -1,11 +1,11 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { McpServers } from "@shared/proto/mcp"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { McpServers } from "@shared/proto/cline/mcp"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 
 // Keep track of active subscriptions
-const activeMcpServersSubscriptions = new Set<StreamingResponseHandler>()
+const activeMcpServersSubscriptions = new Set<StreamingResponseHandler<McpServers>>()
 
 /**
  * Subscribe to MCP servers events
@@ -16,8 +16,8 @@ const activeMcpServersSubscriptions = new Set<StreamingResponseHandler>()
  */
 export async function subscribeToMcpServers(
 	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<McpServers>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions

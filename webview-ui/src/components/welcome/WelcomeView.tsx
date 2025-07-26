@@ -5,7 +5,7 @@ import { validateApiConfiguration } from "@/utils/validate"
 import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { EmptyRequest, BooleanRequest } from "@shared/proto/common"
+import { EmptyRequest, BooleanRequest } from "@shared/proto/cline/common"
 
 const WelcomeView = memo(() => {
 	const { apiConfiguration, chatSettings } = useExtensionState()

@@ -1,5 +1,5 @@
-import { UpdateBrowserSettingsRequest } from "../../../shared/proto/browser"
-import { Boolean } from "../../../shared/proto/common"
+import { UpdateBrowserSettingsRequest } from "@shared/proto/cline/browser"
+import { Boolean } from "@shared/proto/cline/common"
 import { Controller } from "../index"
 import { updateGlobalState, getGlobalState } from "../../storage/state"
 import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"

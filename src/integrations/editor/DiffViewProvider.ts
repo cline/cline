@@ -1,4 +1,3 @@
-import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
@@ -7,7 +6,7 @@ import { formatResponse } from "@core/prompts/responses"
 import * as diff from "diff"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -31,12 +30,9 @@ export abstract class DiffViewProvider {
 
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, this.absolutePath),
-			)
-			if (existingDocument && existingDocument.isDirty) {
-				await existingDocument.save()
-			}
+			await HostProvider.workspace.saveOpenDocumentIfDirty({
+				filePath: this.absolutePath!,
+			})
 
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
@@ -250,7 +246,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await getHostBridgeProvider().windowClient.showTextDocument({
+		await HostProvider.window.showTextDocument({
 			path: this.absolutePath,
 			options: {
 				preview: false,
@@ -299,7 +295,7 @@ export abstract class DiffViewProvider {
 	}
 
 	async revertChanges(): Promise<void> {
-		if (!this.absolutePath) {
+		if (!this.absolutePath || !this.isEditing) {
 			return
 		}
 		const fileExists = this.editType === "modify"
@@ -327,7 +323,7 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
-				await getHostBridgeProvider().windowClient.showTextDocument({
+				await HostProvider.window.showTextDocument({
 					path: this.absolutePath,
 					options: {
 						preview: false,

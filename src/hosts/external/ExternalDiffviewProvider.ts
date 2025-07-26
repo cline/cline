@@ -1,4 +1,4 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { status } from "@grpc/grpc-js"
 
@@ -9,7 +9,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.absolutePath) {
 			return
 		}
-		const response = await getHostBridgeProvider().diffClient.openDiff({
+		const response = await HostProvider.diff.openDiff({
 			path: this.absolutePath,
 			content: this.originalContent ?? "",
 		})
@@ -24,7 +24,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return
 		}
-		await getHostBridgeProvider().diffClient.replaceText({
+		await HostProvider.diff.replaceText({
 			diffId: this.activeDiffEditorId,
 			content: content,
 			startLine: rangeToReplace.startLine,
@@ -36,7 +36,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return
 		}
-		await getHostBridgeProvider().diffClient.truncateDocument({
+		await HostProvider.diff.truncateDocument({
 			diffId: this.activeDiffEditorId,
 			endLine: lineNumber,
 		})
@@ -47,7 +47,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 			return false
 		}
 		try {
-			await getHostBridgeProvider().diffClient.saveDocument({ diffId: this.activeDiffEditorId })
+			await HostProvider.diff.saveDocument({ diffId: this.activeDiffEditorId })
 			return true
 		} catch (err: any) {
 			if (err.code === status.NOT_FOUND) {
@@ -61,7 +61,12 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		}
 	}
 
-	protected override async scrollEditorToLine(_line: number): Promise<void> {}
+	protected override async scrollEditorToLine(line: number): Promise<void> {
+		if (!this.activeDiffEditorId) {
+			return
+		}
+		await HostProvider.diff.scrollDiff({ diffId: this.activeDiffEditorId, line: line })
+	}
 
 	override async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
@@ -69,7 +74,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return undefined
 		}
-		return (await getHostBridgeProvider().diffClient.getDocumentText({ diffId: this.activeDiffEditorId })).content
+		return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
 	}
 
 	protected override async getNewDiagnosticProblems(): Promise<string> {
@@ -81,7 +86,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return
 		}
-		await getHostBridgeProvider().diffClient.closeDiff({ diffId: this.activeDiffEditorId })
+		await HostProvider.diff.closeDiff({ diffId: this.activeDiffEditorId })
 		this.activeDiffEditorId = undefined
 	}
 

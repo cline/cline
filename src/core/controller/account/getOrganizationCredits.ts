@@ -1,5 +1,5 @@
 import type { Controller } from "../index"
-import { GetOrganizationCreditsRequest, OrganizationCreditsData, OrganizationUsageTransaction } from "@shared/proto/account"
+import { GetOrganizationCreditsRequest, OrganizationCreditsData, OrganizationUsageTransaction } from "@shared/proto/cline/account"
 
 /**
  * Handles fetching all organization credits data (balance, usage, payments)
@@ -21,6 +21,11 @@ export async function getOrganizationCredits(
 			controller.accountService.fetchOrganizationCreditsRPC(request.organizationId),
 			controller.accountService.fetchOrganizationUsageTransactionsRPC(request.organizationId),
 		])
+
+		// If balance call fails (returns undefined), throw an error
+		if (!balanceData) {
+			throw new Error("Failed to fetch organization credits data")
+		}
 
 		return OrganizationCreditsData.create({
 			balance: balanceData ? { currentBalance: balanceData.balance / 100 } : { currentBalance: 0 },

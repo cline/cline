@@ -3,7 +3,7 @@ import { Controller } from "@core/controller"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
-import * as hostProviders from "@hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
@@ -16,7 +16,7 @@ async function main() {
 	// Set up global error handlers to prevent process crashes
 	setupGlobalErrorHandlers()
 
-	hostProviders.initializeHostProviders(createWebview, createDiffView, new ExternalHostBridgeClientManager())
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	startProtobusService(controller)

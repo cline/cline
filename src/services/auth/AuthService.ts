@@ -1,11 +1,11 @@
 import vscode from "vscode"
-import { EmptyRequest, String } from "../../shared/proto/common"
-import { AuthState, UserInfo } from "../../shared/proto/account"
-import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { Controller } from "@/core/controller"
-import { storeSecret } from "@/core/storage/state"
 import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { storeSecret } from "@/core/storage/state"
+import { AuthState, UserInfo } from "@shared/proto/cline/account"
+import { type EmptyRequest, String } from "@shared/proto/cline/common"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
@@ -32,6 +32,10 @@ export interface ClineAccountUserInfo {
 	email: string
 	id: string
 	organizations: ClineAccountOrganization[]
+	/**
+	 * Cline app base URL, used for webview UI and other client-side operations
+	 */
+	appBaseUrl?: string
 }
 
 export interface ClineAccountOrganization {
@@ -50,7 +54,7 @@ export class AuthService {
 	private _authenticated: boolean = false
 	private _clineAuthInfo: ClineAuthInfo | null = null
 	private _provider: { provider: FirebaseAuthProvider } | null = null
-	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
+	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
 	private _context: vscode.ExtensionContext
 
 	/**
@@ -156,17 +160,20 @@ export class AuthService {
 		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
+			this._clineAuthInfo.userInfo.appBaseUrl = clineEnvConfig?.appBaseUrl
+
 			user = UserInfo.create({
 				// TODO: create proto for new user info type
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
+				appBaseUrl: userInfo?.appBaseUrl,
 			})
 		}
 
 		return AuthState.create({
-			user: user,
+			user,
 		})
 	}
 
@@ -268,8 +275,8 @@ export class AuthService {
 	 */
 	async subscribeToAuthStatusUpdate(
 		controller: Controller,
-		request: EmptyRequest,
-		responseStream: StreamingResponseHandler,
+		_request: EmptyRequest,
+		responseStream: StreamingResponseHandler<AuthState>,
 		requestId?: string,
 	): Promise<void> {
 		console.log("Subscribing to authStatusUpdate")
