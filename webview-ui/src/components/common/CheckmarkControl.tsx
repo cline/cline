@@ -219,7 +219,11 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 										onClick={handleRestoreWorkspace}
 										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
 										style={{
-											cursor: restoreWorkspaceDisabled || isCheckpointCheckedOut ? "wait" : "pointer",
+											cursor: isCheckpointCheckedOut
+												? "not-allowed"
+												: restoreWorkspaceDisabled
+													? "wait"
+													: "pointer",
 											width: "100%",
 											marginBottom: "10px",
 										}}>
