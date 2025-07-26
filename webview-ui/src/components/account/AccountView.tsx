@@ -193,10 +193,10 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		[uid, dropdownValue, loadCachedData],
 	)
 
-	// Fetch balance every 60 minutes (3600000ms)
+	// Fetch balance every 60 seconds
 	useInterval(() => {
 		fetchCreditBalance(dropdownValue)
-	}, 3600000)
+	}, 60000)
 
 	const clineUrl = appBaseUrl || "https://app.cline.bot"
 
