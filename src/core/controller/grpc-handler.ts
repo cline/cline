@@ -53,6 +53,7 @@ export class GrpcHandler {
 				request_id: requestId,
 			}
 		} catch (error) {
+			console.log("Protobus error:", error)
 			return {
 				error: error instanceof Error ? error.message : String(error),
 				request_id: requestId,

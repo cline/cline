@@ -133,7 +133,7 @@ export const e2e = test
 			await use(async () => {
 				const app = await _electron.launch({
 					executablePath,
-					env: { ...process.env, IS_DEV: "true", TEMP_PROFILE: "true", E2E_TEST: "true" },
+					env: { ...process.env, TEMP_PROFILE: "true", E2E_TEST: "true" },
 					recordVideo: { dir: getResultsDir(testInfo.title, "recordings") },
 					args: [
 						"--no-sandbox",
