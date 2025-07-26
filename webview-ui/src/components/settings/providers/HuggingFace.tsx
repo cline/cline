@@ -1,22 +1,14 @@
 import { useCallback, useState, useEffect, useMemo } from "react"
 import { useEvent } from "react-use"
-import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import type { ProviderSettings } from "@roo-code/types"
-import {
-	HUGGINGFACE_DEFAULT_MAX_TOKENS,
-	HUGGINGFACE_MAX_TOKENS_FALLBACK,
-	HUGGINGFACE_SLIDER_STEP,
-	HUGGINGFACE_SLIDER_MIN,
-	HUGGINGFACE_TEMPERATURE_MAX_VALUE,
-} from "@roo-code/types"
 
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
-import { SearchableSelect, type SearchableSelectOption, Slider } from "@src/components/ui"
-import { TemperatureControl } from "../TemperatureControl"
+import { SearchableSelect, type SearchableSelectOption } from "@src/components/ui"
 import { cn } from "@src/lib/utils"
 import { formatPrice } from "@/utils/formatPrice"
 
@@ -179,6 +171,16 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 				<label className="block font-medium mb-1">{t("settings:providers.huggingFaceApiKey")}</label>
 			</VSCodeTextField>
 
+			<div className="text-sm text-vscode-descriptionForeground -mt-2">
+				{t("settings:providers.apiKeyStorageNotice")}
+			</div>
+
+			{!apiConfiguration?.huggingFaceApiKey && (
+				<VSCodeButtonLink href="https://huggingface.co/settings/tokens" appearance="secondary">
+					{t("settings:providers.getHuggingFaceApiKey")}
+				</VSCodeButtonLink>
+			)}
+
 			<div className="flex flex-col gap-2">
 				<label className="block font-medium text-sm">
 					{t("settings:providers.huggingFaceModelId")}
@@ -266,62 +268,6 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 						</>
 					)}
 				</div>
-			)}
-
-			{/* Temperature control */}
-			<TemperatureControl
-				value={apiConfiguration?.modelTemperature}
-				onChange={(value) => setApiConfigurationField("modelTemperature", value)}
-				maxValue={HUGGINGFACE_TEMPERATURE_MAX_VALUE}
-			/>
-
-			{/* Max tokens control */}
-			<div className="flex flex-col gap-3">
-				<VSCodeCheckbox
-					checked={apiConfiguration?.includeMaxTokens ?? false}
-					onChange={(e) =>
-						setApiConfigurationField("includeMaxTokens", (e.target as HTMLInputElement).checked)
-					}>
-					<label className="block font-medium mb-1">{t("settings:includeMaxOutputTokens")}</label>
-				</VSCodeCheckbox>
-				<div className="text-sm text-vscode-descriptionForeground -mt-2">
-					{t("settings:limitMaxTokensDescription")}
-				</div>
-
-				{apiConfiguration?.includeMaxTokens && (
-					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
-						<div>
-							<label className="block font-medium mb-2 text-sm">
-								{t("settings:maxOutputTokensLabel")}
-							</label>
-							<div className="flex items-center gap-2">
-								<Slider
-									min={HUGGINGFACE_SLIDER_MIN}
-									max={modelCapabilities?.maxTokens || HUGGINGFACE_MAX_TOKENS_FALLBACK}
-									step={HUGGINGFACE_SLIDER_STEP}
-									value={[apiConfiguration?.modelMaxTokens || HUGGINGFACE_DEFAULT_MAX_TOKENS]}
-									onValueChange={([value]) => setApiConfigurationField("modelMaxTokens", value)}
-								/>
-								<span className="w-16 text-sm">
-									{apiConfiguration?.modelMaxTokens || HUGGINGFACE_DEFAULT_MAX_TOKENS}
-								</span>
-							</div>
-							<div className="text-vscode-descriptionForeground text-sm mt-1">
-								{t("settings:maxTokensGenerateDescription")}
-							</div>
-						</div>
-					</div>
-				)}
-			</div>
-
-			<div className="text-sm text-vscode-descriptionForeground -mt-2">
-				{t("settings:providers.apiKeyStorageNotice")}
-			</div>
-
-			{!apiConfiguration?.huggingFaceApiKey && (
-				<VSCodeButtonLink href="https://huggingface.co/settings/tokens" appearance="secondary">
-					{t("settings:providers.getHuggingFaceApiKey")}
-				</VSCodeButtonLink>
 			)}
 		</>
 	)
