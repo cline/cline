@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { Empty } from "@shared/proto/cline/common"
+import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import type { Controller } from "../index"
 
