@@ -1,5 +1,5 @@
-import * as esbuild from "esbuild"
 import fs from "node:fs"
+import * as esbuild from "esbuild"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -131,10 +131,8 @@ const baseConfig = {
 	sourcemap: !production,
 	logLevel: "silent",
 	define: production
-		? {
-				"process.env.IS_DEV": JSON.stringify(!production),
-			}
-		: undefined,
+		? { "import.meta.url": "_importMetaUrl", "process.env.IS_DEV": JSON.stringify(!production) }
+		: { "import.meta.url": "_importMetaUrl" },
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,
@@ -145,6 +143,10 @@ const baseConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
+	define: { "import.meta.url": "_importMetaUrl" },
+	banner: {
+		js: "const _importMetaUrl=require('url').pathToFileURL(__filename)",
+	},
 }
 
 // Extension-specific configuration
