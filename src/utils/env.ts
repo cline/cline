@@ -40,5 +40,5 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	console.log("Opening browser:", url)
-	open(url)
+	await open(url)
 }
