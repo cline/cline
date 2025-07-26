@@ -2,17 +2,17 @@ import fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { fileExistsAtPath } from "@utils/fs"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Cleans up legacy checkpoints from task folders.
  * This is a one-time operation that runs when the extension is updated to use the new checkpoint system.
  *
  * @param globalStoragePath - Path to the extension's global storage
- * @param outputChannel - VSCode output channel for logging
  */
-export async function cleanupLegacyCheckpoints(globalStoragePath: string, outputChannel: vscode.OutputChannel): Promise<void> {
+export async function cleanupLegacyCheckpoints(globalStoragePath: string): Promise<void> {
 	try {
-		outputChannel.appendLine("Checking for legacy checkpoints...")
+		HostProvider.get().logToChannel("Checking for legacy checkpoints...")
 
 		const tasksDir = path.join(globalStoragePath, "tasks")
 
@@ -45,27 +45,29 @@ export async function cleanupLegacyCheckpoints(globalStoragePath: string, output
 			const checkpointsDir = path.join(mostRecentFolder.path, "checkpoints")
 
 			if (await fileExistsAtPath(checkpointsDir)) {
-				outputChannel.appendLine("Found legacy checkpoints directory, cleaning up...")
+				HostProvider.get().logToChannel("Found legacy checkpoints directory, cleaning up...")
 
 				// Legacy checkpoints found, delete checkpoints directories in all task folders
 				for (const folder of folderStats) {
 					const folderCheckpointsDir = path.join(folder.path, "checkpoints")
 					if (await fileExistsAtPath(folderCheckpointsDir)) {
-						outputChannel.appendLine(`Deleting legacy checkpoints in ${folder.folder}`)
+						HostProvider.get().logToChannel(`Deleting legacy checkpoints in ${folder.folder}`)
 						try {
 							await fs.rm(folderCheckpointsDir, { recursive: true, force: true })
 						} catch (error) {
 							// Ignore error if directory removal fails
-							outputChannel.appendLine(`Warning: Failed to delete checkpoints in ${folder.folder}, continuing...`)
+							HostProvider.get().logToChannel(
+								`Warning: Failed to delete checkpoints in ${folder.folder}, continuing...`,
+							)
 						}
 					}
 				}
 
-				outputChannel.appendLine("Legacy checkpoints cleanup completed")
+				HostProvider.get().logToChannel("Legacy checkpoints cleanup completed")
 			}
 		}
 	} catch (error) {
-		outputChannel.appendLine(`Error cleaning up legacy checkpoints: ${error}`)
+		HostProvider.get().logToChannel(`Error cleaning up legacy checkpoints: ${error}`)
 		console.error("Error cleaning up legacy checkpoints:", error)
 	}
 }

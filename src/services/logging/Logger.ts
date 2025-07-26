@@ -1,18 +1,10 @@
-import type { OutputChannel } from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "../error/ErrorService"
 
 /**
  * Simple logging utility for the extension's backend code.
- * Uses VS Code's OutputChannel which must be initialized from extension.ts
- * to ensure proper registration with the extension context.
  */
 export class Logger {
-	private static outputChannel: OutputChannel
-
-	static initialize(outputChannel: OutputChannel) {
-		Logger.outputChannel = outputChannel
-	}
-
 	static error(message: string, error?: Error) {
 		Logger.#output("ERROR", message, error)
 		ErrorService.logMessage(message, "error")
@@ -50,7 +42,7 @@ export class Logger {
 		if (error?.message) {
 			fullMessage += ` ${error.message}`
 		}
-		Logger.outputChannel.appendLine(`${level} ${fullMessage}`)
+		HostProvider.get().logToChannel(`${level} ${fullMessage}`)
 		console.log(`[${Logger.#timestamp()}] ${level} ${fullMessage}`)
 		if (error?.stack) {
 			console.log(`Stack trace:\n${error.stack}`)
