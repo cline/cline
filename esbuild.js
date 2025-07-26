@@ -1,6 +1,10 @@
 const esbuild = require("esbuild")
-const fs = require("fs")
-const path = require("path")
+const fs = require("node:fs")
+const path = require("node:path")
+import { fileURLToPath } from "node:url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
