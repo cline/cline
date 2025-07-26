@@ -7,6 +7,7 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import os from "os"
 import { execa } from "@packages/execa"
+import { StoredChatSettings } from "@/shared/ChatSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -23,7 +24,19 @@ export const GlobalFileNames = {
 	taskMetadata: "task_metadata.json",
 }
 
-export async function getDocumentsPath(): Promise<string> {
+export async function getDocumentsPath(context?: vscode.ExtensionContext): Promise<string> {
+	// Check if user has configured a custom documents path
+	if (context) {
+		const chatSettings = context.workspaceState.get<StoredChatSettings>("chatSettings")
+		if (chatSettings?.userDocumentsPath) {
+			let customPath = chatSettings.userDocumentsPath
+			// Handle ~ expansion
+			if (customPath.startsWith("~/")) {
+				customPath = path.join(os.homedir(), customPath.slice(2))
+			}
+			return customPath
+		}
+	}
 	if (process.platform === "win32") {
 		try {
 			const { stdout: docsPath } = await execa("powershell", [
@@ -66,8 +79,8 @@ export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext
 	return taskDir
 }
 
-export async function ensureRulesDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
+export async function ensureRulesDirectoryExists(context?: vscode.ExtensionContext): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath(context)
 	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
 	try {
 		await fs.mkdir(clineRulesDir, { recursive: true })
@@ -77,8 +90,8 @@ export async function ensureRulesDirectoryExists(): Promise<string> {
 	return clineRulesDir
 }
 
-export async function ensureWorkflowsDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
+export async function ensureWorkflowsDirectoryExists(context?: vscode.ExtensionContext): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath(context)
 	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
 	try {
 		await fs.mkdir(clineWorkflowsDir, { recursive: true })
@@ -88,8 +101,8 @@ export async function ensureWorkflowsDirectoryExists(): Promise<string> {
 	return clineWorkflowsDir
 }
 
-export async function ensureMcpServersDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
+export async function ensureMcpServersDirectoryExists(context?: vscode.ExtensionContext): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath(context)
 	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
 	try {
 		await fs.mkdir(mcpServersDir, { recursive: true })

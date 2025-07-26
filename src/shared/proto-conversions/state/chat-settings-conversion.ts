@@ -10,6 +10,7 @@ export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSetting
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 		preferredLanguage: chatSettings.preferredLanguage,
 		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+		userDocumentsPath: chatSettings.userDocumentsPath,
 	})
 }
 
@@ -21,6 +22,7 @@ export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoC
 		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
 		preferredLanguage: protoChatSettings.preferredLanguage,
 		openAIReasoningEffort: protoChatSettings.openAiReasoningEffort as "low" | "medium" | "high" | undefined,
+		userDocumentsPath: protoChatSettings.userDocumentsPath,
 	}
 }
 
