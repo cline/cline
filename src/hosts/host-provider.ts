@@ -23,26 +23,37 @@ export class HostProvider {
 	createDiffViewProvider: DiffViewProviderCreator
 	hostBridge: HostBridgeClientProvider
 
+	// Logs to a user-visible output channel.
+	logToChannel: LogToChannel
+
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
+		logToChannel: LogToChannel,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
+		this.logToChannel = logToChannel
 	}
 
 	public static initialize(
 		webviewProviderCreator: WebviewProviderCreator,
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
+		logToChannel: LogToChannel,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host providers have already been initialized.")
 		}
-		HostProvider.instance = new HostProvider(webviewProviderCreator, diffViewProviderCreator, hostBridgeProvider)
+		HostProvider.instance = new HostProvider(
+			webviewProviderCreator,
+			diffViewProviderCreator,
+			hostBridgeProvider,
+			logToChannel,
+		)
 		return HostProvider.instance
 	}
 
@@ -99,3 +110,5 @@ export type WebviewProviderCreator = (providerType: WebviewProviderType) => Webv
  * A function that creates DiffViewProvider instances
  */
 export type DiffViewProviderCreator = () => DiffViewProvider
+
+export type LogToChannel = (message: string) => void

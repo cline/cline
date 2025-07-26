@@ -40,14 +40,6 @@ vscode.window = {
 		console.log("Stubbed showTextDocument:", ...args)
 		return {}
 	},
-	createOutputChannel: (name) => {
-		console.log("Stubbed createOutputChannel:", name)
-		return {
-			appendLine: console.log,
-			show: () => {},
-			dispose: () => {},
-		}
-	},
 	createTerminal: (...args) => {
 		console.log("Enhanced createTerminal:", ...args)
 

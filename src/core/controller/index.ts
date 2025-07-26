@@ -59,12 +59,12 @@ export class Controller {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
 	) {
 		this.id = id
-		this.outputChannel.appendLine("ClineProvider instantiated")
+
+		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.postMessage = postMessage
 
 		this.workspaceTracker = new WorkspaceTracker()
@@ -79,7 +79,7 @@ export class Controller {
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
+		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
 	}

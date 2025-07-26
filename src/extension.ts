@@ -49,19 +49,13 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 
 */
 
-let outputChannel: vscode.OutputChannel
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Cline")
-	context.subscriptions.push(outputChannel)
+	maybeSetupHostProviders(context)
 
 	ErrorService.initialize()
-	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
-
-	maybeSetupHostProviders(context)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -690,19 +684,23 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	return createClineAPI(outputChannel, sidebarWebview.controller)
+	return createClineAPI(sidebarWebview.controller)
 }
 
 function maybeSetupHostProviders(context: ExtensionContext) {
 	if (!HostProvider.isInitialized()) {
 		console.log("Setting up vscode host providers...")
+
 		const createWebview = function (type: WebviewProviderType) {
-			return new VscodeWebviewProvider(context, outputChannel, type)
+			return new VscodeWebviewProvider(context, type)
 		}
 		const createDiffView = function () {
 			return new VscodeDiffViewProvider()
 		}
-		HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient)
+		const outputChannel = vscode.window.createOutputChannel("Cline")
+		context.subscriptions.push(outputChannel)
+
+		HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient, outputChannel.appendLine)
 	}
 }
 
