@@ -586,17 +586,6 @@ export const vertexModels = {
 		inputPrice: 0.25,
 		outputPrice: 0.7,
 	},
-	"gemini-2.0-flash-001": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 0.15,
-		outputPrice: 0.6,
-		cacheWritesPrice: 1.0,
-		cacheReadsPrice: 0.025,
-	},
 	"gemini-2.0-flash-lite-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -658,34 +647,6 @@ export const vertexModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
-	},
-	"gemini-2.5-flash": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 0.3,
-		outputPrice: 2.5,
-		thinkingConfig: {
-			maxBudget: 24576,
-			outputPrice: 3.5,
-		},
-	},
-
-	"gemini-2.5-flash-lite-preview-06-17": {
-		maxTokens: 64000,
-		contextWindow: 1_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 0.1,
-		outputPrice: 0.4,
-		cacheReadsPrice: 0.025,
-		description: "Preview version - may not be available in all regions",
-		thinkingConfig: {
-			maxBudget: 24576,
-		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
