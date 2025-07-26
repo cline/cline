@@ -31,6 +31,10 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [editingStates, setEditingStates] = useState<Record<string, { isEditing: boolean; value: string }>>({})
 
+	const handleOpenSettings = () => {
+		window.postMessage({ type: "action", action: "settingsButtonClicked", values: { section: "autoApprove" } })
+	}
+
 	// Create a combined list with full command first, then patterns
 	const allPatterns = useMemo(() => {
 		// Trim the command to ensure consistency with extracted patterns
@@ -90,7 +94,11 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 									components={{
 										settingsLink: (
 											<VSCodeLink
-												href="command:workbench.action.openSettings?%5B%22roo-code%22%5D"
+												href="#"
+												onClick={(e) => {
+													e.preventDefault()
+													handleOpenSettings()
+												}}
 												className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground"
 											/>
 										),
