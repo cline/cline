@@ -298,7 +298,7 @@
 			"editor/context": [
 				{
 					"command": "cline.addToChat",
-					"group": "navigation",
+					"group": "navigation@99",
 					"when": "editorHasSelection"
 				}
 			],
