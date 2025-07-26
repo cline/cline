@@ -9,6 +9,7 @@ import { UiServiceClient } from "./services/grpc-client"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
 import { Boolean, EmptyRequest } from "@shared/proto/common"
+import { useClineAuth } from "./context/ClineAuthContext"
 
 const AppContent = () => {
 	const {
@@ -31,6 +32,8 @@ const AppContent = () => {
 		hideAnnouncement,
 	} = useExtensionState()
 
+	const { clineUser, organizations, activeOrganization } = useClineAuth()
+
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
@@ -50,25 +53,30 @@ const AppContent = () => {
 		return null
 	}
 
+	if (showWelcome) {
+		return <WelcomeView />
+	}
+
 	return (
 		<>
-			{showWelcome ? (
-				<WelcomeView />
-			) : (
-				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
-					{showHistory && <HistoryView onDone={hideHistory} />}
-					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-					{showAccount && <AccountView onDone={hideAccount} />}
-					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView
-						showHistoryView={navigateToHistory}
-						isHidden={showSettings || showHistory || showMcp || showAccount}
-						showAnnouncement={showAnnouncement}
-						hideAnnouncement={hideAnnouncement}
-					/>
-				</>
+			{showSettings && <SettingsView onDone={hideSettings} />}
+			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showAccount && (
+				<AccountView
+					onDone={hideAccount}
+					clineUser={clineUser}
+					organizations={organizations}
+					activeOrganization={activeOrganization}
+				/>
 			)}
+			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+			<ChatView
+				showHistoryView={navigateToHistory}
+				isHidden={showSettings || showHistory || showMcp || showAccount}
+				showAnnouncement={showAnnouncement}
+				hideAnnouncement={hideAnnouncement}
+			/>
 		</>
 	)
 }
