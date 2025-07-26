@@ -141,9 +141,9 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 									) : (
 										<div
 											onClick={() => setEditState(item.pattern, true)}
-											className="font-mono text-xs text-vscode-foreground cursor-pointer hover:bg-vscode-list-hoverBackground px-2 py-1.5 rounded transition-colors border border-transparent"
+											className="font-mono text-xs text-vscode-foreground cursor-pointer hover:bg-vscode-list-hoverBackground px-2 py-1.5 rounded transition-colors border border-transparent break-all"
 											title="Click to edit pattern">
-											<span>{editState.value}</span>
+											<span className="break-all">{editState.value}</span>
 											{item.description && (
 												<span className="text-vscode-descriptionForeground ml-2">
 													- {item.description}
