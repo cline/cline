@@ -110,5 +110,4 @@ message OpenFileRequest {
 }
 
 message OpenFileResponse {
-  bool success = 1;
 }
