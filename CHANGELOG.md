@@ -2,8 +2,6 @@
 
 ## 3.20.2
 
-### Patch Changes
-
 - 3abdc9a: Fixed issue with sap ai core client credentials storage
 - 5da75af: Fix Qwen Api option inconsistency between UI and API layer
 - 214e157: Fix credit balance out of sync issue on account switching
