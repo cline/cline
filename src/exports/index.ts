@@ -1,50 +1,48 @@
-import * as vscode from "vscode"
 import { Controller } from "@core/controller"
 import { ClineAPI } from "./cline"
-import { getGlobalState } from "@core/storage/state"
 import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
-import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
+import { HostProvider } from "@/hosts/host-provider"
 
-export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
+export function createClineAPI(sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
 		startNewTask: async (task?: string, images?: string[]) => {
-			outputChannel.appendLine("Starting new task")
+			HostProvider.get().logToChannel("Starting new task")
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()
 
 			await sendChatButtonClickedEvent(sidebarController.id)
 			await sidebarController.initTask(task, images)
-			outputChannel.appendLine(
+			HostProvider.get().logToChannel(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
 			)
 		},
 
 		sendMessage: async (message?: string, images?: string[]) => {
-			outputChannel.appendLine(
+			HostProvider.get().logToChannel(
 				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("messageResponse", message || "", images || [])
 			} else {
-				outputChannel.appendLine("No active task to send message to")
+				HostProvider.get().logToChannel("No active task to send message to")
 			}
 		},
 
 		pressPrimaryButton: async () => {
-			outputChannel.appendLine("Pressing primary button")
+			HostProvider.get().logToChannel("Pressing primary button")
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("yesButtonClicked", "", [])
 			} else {
-				outputChannel.appendLine("No active task to press button for")
+				HostProvider.get().logToChannel("No active task to press button for")
 			}
 		},
 
 		pressSecondaryButton: async () => {
-			outputChannel.appendLine("Pressing secondary button")
+			HostProvider.get().logToChannel("Pressing secondary button")
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("noButtonClicked", "", [])
 			} else {
-				outputChannel.appendLine("No active task to press button for")
+				HostProvider.get().logToChannel("No active task to press button for")
 			}
 		},
 	}

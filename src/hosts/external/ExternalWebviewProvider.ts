@@ -8,8 +8,8 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	// This hostname cannot be changed without updating the external webview handler.
 	private RESOURCE_HOSTNAME: string = "internal.resources"
 
-	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
-		super(context, outputChannel, providerType)
+	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
+		super(context, providerType)
 	}
 
 	override getWebviewUri(uri: URI) {
