@@ -4,7 +4,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { isBinaryFile } from "isbinaryfile"
 
-import { mentionRegexGlobal, unescapeSpaces } from "../../shared/context-mentions"
+import { mentionRegexGlobal, commandRegexGlobal, unescapeSpaces } from "../../shared/context-mentions"
 
 import { getCommitInfo, getWorkingState } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
@@ -18,6 +18,7 @@ import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
 
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
+import { getCommand } from "../../services/command/commands"
 
 import { t } from "../../i18n"
 
@@ -85,7 +86,16 @@ export async function parseMentions(
 	maxReadFileLine?: number,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
-	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
+	const commandMentions: Set<string> = new Set()
+
+	// First pass: extract command mentions (starting with /)
+	let parsedText = text.replace(commandRegexGlobal, (match, commandName) => {
+		commandMentions.add(commandName)
+		return `Command '${commandName}' (see below for command content)`
+	})
+
+	// Second pass: handle regular mentions
+	parsedText = parsedText.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
@@ -200,6 +210,20 @@ export async function parseMentions(
 			} catch (error) {
 				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
 			}
+		}
+	}
+
+	// Process command mentions
+	for (const commandName of commandMentions) {
+		try {
+			const command = await getCommand(cwd, commandName)
+			if (command) {
+				parsedText += `\n\n<command name="${commandName}">\n${command.content}\n</command>`
+			} else {
+				parsedText += `\n\n<command name="${commandName}">\nCommand '${commandName}' not found. Available commands can be found in .roo/commands/ or ~/.roo/commands/\n</command>`
+			}
+		} catch (error) {
+			parsedText += `\n\n<command name="${commandName}">\nError loading command '${commandName}': ${error.message}\n</command>`
 		}
 	}
 

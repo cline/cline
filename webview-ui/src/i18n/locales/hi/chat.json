@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "अपना संदेश संपादित करें..."
+	},
+	"command": {
+		"triggerDescription": "{{name}} कमांड को ट्रिगर करें"
 	}
 }

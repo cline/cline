@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Edytuj swoją wiadomość..."
+	},
+	"command": {
+		"triggerDescription": "Uruchom polecenie {{name}}"
 	}
 }

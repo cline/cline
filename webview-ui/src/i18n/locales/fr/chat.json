@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Modifiez votre message..."
+	},
+	"command": {
+		"triggerDescription": "Déclencher la commande {{name}}"
 	}
 }

@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Mesajını düzenle..."
+	},
+	"command": {
+		"triggerDescription": "{{name}} komutunu tetikle"
 	}
 }

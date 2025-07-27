@@ -1,6 +1,7 @@
 import { Fzf } from "fzf"
 
 import type { ModeConfig } from "@roo-code/types"
+import type { Command } from "@roo/ExtensionMessage"
 
 import { mentionRegex } from "@roo/context-mentions"
 
@@ -105,6 +106,7 @@ export enum ContextMenuOptionType {
 	Git = "git",
 	NoResults = "noResults",
 	Mode = "mode", // Add mode type
+	Command = "command", // Add command type
 }
 
 export interface ContextMenuQueryItem {
@@ -118,43 +120,83 @@ export interface ContextMenuQueryItem {
 export function getContextMenuOptions(
 	query: string,
 	inputValue: string,
+	t: (key: string, options?: { name?: string }) => string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 	dynamicSearchResults: SearchResult[] = [],
 	modes?: ModeConfig[],
+	commands?: Command[],
 ): ContextMenuQueryItem[] {
-	// Handle slash commands for modes
+	// Handle slash commands for modes and commands
 	if (query.startsWith("/") && inputValue.startsWith("/")) {
-		const modeQuery = query.slice(1)
-		if (!modes?.length) return [{ type: ContextMenuOptionType.NoResults }]
+		const slashQuery = query.slice(1)
+		const results: ContextMenuQueryItem[] = []
 
-		// Create searchable strings array for fzf
-		const searchableItems = modes.map((mode) => ({
-			original: mode,
-			searchStr: mode.name,
-		}))
+		// Add mode suggestions
+		if (modes?.length) {
+			// Create searchable strings array for fzf
+			const searchableItems = modes.map((mode) => ({
+				original: mode,
+				searchStr: mode.name,
+			}))
 
-		// Initialize fzf instance for fuzzy search
-		const fzf = new Fzf(searchableItems, {
-			selector: (item) => item.searchStr,
-		})
+			// Initialize fzf instance for fuzzy search
+			const fzf = new Fzf(searchableItems, {
+				selector: (item) => item.searchStr,
+			})
 
-		// Get fuzzy matching items
-		const matchingModes = modeQuery
-			? fzf.find(modeQuery).map((result) => ({
-					type: ContextMenuOptionType.Mode,
-					value: result.item.original.slug,
-					label: result.item.original.name,
-					description: getModeDescription(result.item.original),
-				}))
-			: modes.map((mode) => ({
-					type: ContextMenuOptionType.Mode,
-					value: mode.slug,
-					label: mode.name,
-					description: getModeDescription(mode),
-				}))
+			// Get fuzzy matching items
+			const matchingModes = slashQuery
+				? fzf.find(slashQuery).map((result) => ({
+						type: ContextMenuOptionType.Mode,
+						value: result.item.original.slug,
+						label: result.item.original.name,
+						description: getModeDescription(result.item.original),
+					}))
+				: modes.map((mode) => ({
+						type: ContextMenuOptionType.Mode,
+						value: mode.slug,
+						label: mode.name,
+						description: getModeDescription(mode),
+					}))
 
-		return matchingModes.length > 0 ? matchingModes : [{ type: ContextMenuOptionType.NoResults }]
+			results.push(...matchingModes)
+		}
+
+		// Add command suggestions
+		if (commands?.length) {
+			// Create searchable strings array for fzf
+			const searchableCommands = commands.map((command) => ({
+				original: command,
+				searchStr: command.name,
+			}))
+
+			// Initialize fzf instance for fuzzy search
+			const fzf = new Fzf(searchableCommands, {
+				selector: (item) => item.searchStr,
+			})
+
+			// Get fuzzy matching commands
+			const matchingCommands = slashQuery
+				? fzf.find(slashQuery).map((result) => ({
+						type: ContextMenuOptionType.Command,
+						value: result.item.original.name,
+						label: result.item.original.name,
+						description: t("chat:command.triggerDescription", { name: result.item.original.name }),
+						icon: "$(play)",
+					}))
+				: commands.map((command) => ({
+						type: ContextMenuOptionType.Command,
+						value: command.name,
+						label: command.name,
+						description: t("chat:command.triggerDescription", { name: command.name }),
+						icon: "$(play)",
+					}))
+
+			results.push(...matchingCommands)
+		}
+
+		return results.length > 0 ? results : [{ type: ContextMenuOptionType.NoResults }]
 	}
 
 	const workingChanges: ContextMenuQueryItem = {

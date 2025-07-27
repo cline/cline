@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Bewerk je bericht..."
+	},
+	"command": {
+		"triggerDescription": "Activeer de {{name}} opdracht"
 	}
 }

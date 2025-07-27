@@ -352,5 +352,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Edit pesan Anda..."
+	},
+	"command": {
+		"triggerDescription": "Jalankan perintah {{name}}"
 	}
 }

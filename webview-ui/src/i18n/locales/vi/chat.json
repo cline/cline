@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Chỉnh sửa tin nhắn của bạn..."
+	},
+	"command": {
+		"triggerDescription": "Kích hoạt lệnh {{name}}"
 	}
 }

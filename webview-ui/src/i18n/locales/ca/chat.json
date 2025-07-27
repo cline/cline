@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "Edita el teu missatge..."
+	},
+	"command": {
+		"triggerDescription": "Activa la comanda {{name}}"
 	}
 }

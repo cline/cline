@@ -346,5 +346,8 @@
 	},
 	"editMessage": {
 		"placeholder": "編輯訊息..."
+	},
+	"command": {
+		"triggerDescription": "觸發 {{name}} 命令"
 	}
 }

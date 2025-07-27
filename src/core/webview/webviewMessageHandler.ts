@@ -2356,5 +2356,30 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
+		case "requestCommands": {
+			try {
+				const { getCommands } = await import("../../services/command/commands")
+				const commands = await getCommands(provider.cwd || "")
+
+				// Convert to the format expected by the frontend
+				const commandList = commands.map((command) => ({
+					name: command.name,
+					source: command.source,
+				}))
+
+				await provider.postMessageToWebview({
+					type: "commands",
+					commands: commandList,
+				})
+			} catch (error) {
+				provider.log(`Error fetching commands: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+				// Send empty array on error
+				await provider.postMessageToWebview({
+					type: "commands",
+					commands: [],
+				})
+			}
+			break
+		}
 	}
 }

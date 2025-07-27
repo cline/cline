@@ -344,6 +344,9 @@
 		"description": "在云端运行远程代理，随时随地访问任务，与他人协作等更多功能。",
 		"joinWaitlist": "加入等待列表获取早期访问权限。"
 	},
+	"command": {
+		"triggerDescription": "触发 {{name}} 命令"
+	},
 	"editMessage": {
 		"placeholder": "编辑消息..."
 	}
