@@ -51,6 +51,7 @@ function createHandlerForProvider(
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
+				...options,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
@@ -59,6 +60,7 @@ function createHandlerForProvider(
 			})
 		case "openrouter":
 			return new OpenRouterHandler({
+				...options,
 				openRouterApiKey: options.openRouterApiKey,
 				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
 				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
@@ -69,6 +71,7 @@ function createHandlerForProvider(
 			})
 		case "bedrock":
 			return new AwsBedrockHandler({
+				...options,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				awsAccessKey: options.awsAccessKey,
 				awsSecretKey: options.awsSecretKey,
@@ -90,6 +93,7 @@ function createHandlerForProvider(
 			})
 		case "vertex":
 			return new VertexHandler({
+				...options,
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
@@ -101,6 +105,7 @@ function createHandlerForProvider(
 			})
 		case "openai":
 			return new OpenAiHandler({
+				...options,
 				openAiApiKey: options.openAiApiKey,
 				openAiBaseUrl: options.openAiBaseUrl,
 				azureApiVersion: options.azureApiVersion,
@@ -111,6 +116,7 @@ function createHandlerForProvider(
 			})
 		case "ollama":
 			return new OllamaHandler({
+				...options,
 				ollamaBaseUrl: options.ollamaBaseUrl,
 				ollamaModelId: mode === "plan" ? options.planModeOllamaModelId : options.actModeOllamaModelId,
 				ollamaApiOptionsCtxNum: options.ollamaApiOptionsCtxNum,
@@ -118,11 +124,13 @@ function createHandlerForProvider(
 			})
 		case "lmstudio":
 			return new LmStudioHandler({
+				...options,
 				lmStudioBaseUrl: options.lmStudioBaseUrl,
 				lmStudioModelId: mode === "plan" ? options.planModeLmStudioModelId : options.actModeLmStudioModelId,
 			})
 		case "gemini":
 			return new GeminiHandler({
+				...options,
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
 				geminiApiKey: options.geminiApiKey,
@@ -134,17 +142,20 @@ function createHandlerForProvider(
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({
+				...options,
 				openAiNativeApiKey: options.openAiNativeApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({
+				...options,
 				deepSeekApiKey: options.deepSeekApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "requesty":
 			return new RequestyHandler({
+				...options,
 				requestyApiKey: options.requestyApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
@@ -154,6 +165,7 @@ function createHandlerForProvider(
 			})
 		case "fireworks":
 			return new FireworksHandler({
+				...options,
 				fireworksApiKey: options.fireworksApiKey,
 				fireworksModelId: mode === "plan" ? options.planModeFireworksModelId : options.actModeFireworksModelId,
 				fireworksModelMaxCompletionTokens: options.fireworksModelMaxCompletionTokens,
@@ -161,11 +173,13 @@ function createHandlerForProvider(
 			})
 		case "together":
 			return new TogetherHandler({
+				...options,
 				togetherApiKey: options.togetherApiKey,
 				togetherModelId: mode === "plan" ? options.planModeTogetherModelId : options.actModeTogetherModelId,
 			})
 		case "qwen":
 			return new QwenHandler({
+				...options,
 				qwenApiKey: options.qwenApiKey,
 				qwenApiLine:
 					options.qwenApiLine === QwenApiRegions.INTERNATIONAL ? QwenApiRegions.INTERNATIONAL : QwenApiRegions.CHINA,
@@ -175,21 +189,25 @@ function createHandlerForProvider(
 			})
 		case "doubao":
 			return new DoubaoHandler({
+				...options,
 				doubaoApiKey: options.doubaoApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "mistral":
 			return new MistralHandler({
+				...options,
 				mistralApiKey: options.mistralApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "vscode-lm":
 			return new VsCodeLmHandler({
+				...options,
 				vsCodeLmModelSelector:
 					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
 			})
 		case "cline":
 			return new ClineHandler({
+				...options,
 				clineAccountId: options.clineAccountId,
 				taskId: options.taskId,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
@@ -201,6 +219,7 @@ function createHandlerForProvider(
 			})
 		case "litellm":
 			return new LiteLlmHandler({
+				...options,
 				liteLlmApiKey: options.liteLlmApiKey,
 				liteLlmBaseUrl: options.liteLlmBaseUrl,
 				liteLlmModelId: mode === "plan" ? options.planModeLiteLlmModelId : options.actModeLiteLlmModelId,
@@ -212,12 +231,14 @@ function createHandlerForProvider(
 			})
 		case "moonshot":
 			return new MoonshotHandler({
+				...options,
 				moonshotApiKey: options.moonshotApiKey,
 				moonshotApiLine: options.moonshotApiLine,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "huggingface":
 			return new HuggingFaceHandler({
+				...options,
 				huggingFaceApiKey: options.huggingFaceApiKey,
 				huggingFaceModelId: mode === "plan" ? options.planModeHuggingFaceModelId : options.actModeHuggingFaceModelId,
 				huggingFaceModelInfo:
@@ -225,33 +246,39 @@ function createHandlerForProvider(
 			})
 		case "nebius":
 			return new NebiusHandler({
+				...options,
 				nebiusApiKey: options.nebiusApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "asksage":
 			return new AskSageHandler({
+				...options,
 				asksageApiKey: options.asksageApiKey,
 				asksageApiUrl: options.asksageApiUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "xai":
 			return new XAIHandler({
+				...options,
 				xaiApiKey: options.xaiApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "sambanova":
 			return new SambanovaHandler({
+				...options,
 				sambanovaApiKey: options.sambanovaApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "cerebras":
 			return new CerebrasHandler({
+				...options,
 				cerebrasApiKey: options.cerebrasApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "groq":
 			return new GroqHandler({
+				...options,
 				groqApiKey: options.groqApiKey,
 				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
 				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
@@ -259,6 +286,7 @@ function createHandlerForProvider(
 			})
 		case "sapaicore":
 			return new SapAiCoreHandler({
+				...options,
 				sapAiCoreClientId: options.sapAiCoreClientId,
 				sapAiCoreClientSecret: options.sapAiCoreClientSecret,
 				sapAiCoreTokenUrl: options.sapAiCoreTokenUrl,
@@ -268,6 +296,7 @@ function createHandlerForProvider(
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
+				...options,
 				claudeCodePath: options.claudeCodePath,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
@@ -283,6 +312,7 @@ function createHandlerForProvider(
 			})
 		default:
 			return new AnthropicHandler({
+				...options,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
