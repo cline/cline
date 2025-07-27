@@ -116,7 +116,9 @@
 		"title": "모드",
 		"marketplace": "모드 마켓플레이스",
 		"settings": "모드 설정",
-		"description": "Roo의 행동을 맞춤화하는 전문화된 페르소나."
+		"description": "Roo의 행동을 맞춤화하는 전문화된 페르소나.",
+		"searchPlaceholder": "모드 검색...",
+		"noResults": "결과를 찾을 수 없습니다"
 	},
 	"errorReadingFile": "파일 읽기 오류:",
 	"noValidImages": "처리된 유효한 이미지가 없습니다",

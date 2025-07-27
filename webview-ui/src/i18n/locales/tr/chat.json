@@ -116,7 +116,9 @@
 		"title": "Modlar",
 		"marketplace": "Mod Pazaryeri",
 		"settings": "Mod Ayarları",
-		"description": "Roo'nun davranışını özelleştiren uzmanlaşmış kişilikler."
+		"description": "Roo'nun davranışını özelleştiren uzmanlaşmış kişilikler.",
+		"searchPlaceholder": "Modları ara...",
+		"noResults": "Sonuç bulunamadı"
 	},
 	"errorReadingFile": "Dosya okuma hatası:",
 	"noValidImages": "Hiçbir geçerli resim işlenmedi",

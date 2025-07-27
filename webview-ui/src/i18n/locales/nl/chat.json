@@ -108,7 +108,9 @@
 		"title": "Modi",
 		"marketplace": "Modus Marktplaats",
 		"settings": "Modus Instellingen",
-		"description": "Gespecialiseerde persona's die het gedrag van Roo aanpassen."
+		"description": "Gespecialiseerde persona's die het gedrag van Roo aanpassen.",
+		"searchPlaceholder": "Zoek modi...",
+		"noResults": "Geen resultaten gevonden"
 	},
 	"addImages": "Afbeeldingen toevoegen aan bericht",
 	"sendMessage": "Bericht verzenden",

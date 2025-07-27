@@ -116,7 +116,9 @@
 		"title": "Chế độ",
 		"marketplace": "Chợ Chế độ",
 		"settings": "Cài đặt Chế độ",
-		"description": "Các nhân cách chuyên biệt điều chỉnh hành vi của Roo."
+		"description": "Các nhân cách chuyên biệt điều chỉnh hành vi của Roo.",
+		"searchPlaceholder": "Tìm kiếm chế độ...",
+		"noResults": "Không tìm thấy kết quả nào"
 	},
 	"errorReadingFile": "Lỗi khi đọc tệp:",
 	"noValidImages": "Không có hình ảnh hợp lệ nào được xử lý",

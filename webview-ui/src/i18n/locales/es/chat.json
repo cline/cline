@@ -116,7 +116,9 @@
 		"title": "Modos",
 		"marketplace": "Marketplace de Modos",
 		"settings": "Configuración de Modos",
-		"description": "Personalidades especializadas que adaptan el comportamiento de Roo."
+		"description": "Personalidades especializadas que adaptan el comportamiento de Roo.",
+		"searchPlaceholder": "Buscar modos...",
+		"noResults": "No se encontraron resultados"
 	},
 	"errorReadingFile": "Error al leer el archivo:",
 	"noValidImages": "No se procesaron imágenes válidas",

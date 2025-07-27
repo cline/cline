@@ -116,7 +116,9 @@
 		"title": "模式",
 		"marketplace": "模式市场",
 		"settings": "模式设置",
-		"description": "专门定制Roo行为的角色。"
+		"description": "专门定制Roo行为的角色。",
+		"searchPlaceholder": "搜索模式...",
+		"noResults": "未找到结果"
 	},
 	"errorReadingFile": "读取文件时出错:",
 	"noValidImages": "没有处理有效图片",
