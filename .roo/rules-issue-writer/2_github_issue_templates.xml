@@ -1,219 +1,190 @@
 <github_issue_templates>
-  <bug_report_template>
-    <name>Bug Report</name>
-    <description>Clearly report a bug with detailed repro steps</description>
-    <labels>["bug"]</labels>
-    <fields>
-      <field name="version" type="input" required="true">
-        <label>App Version</label>
-        <description>What version of Roo Code are you using? (e.g., v3.3.1)</description>
-      </field>
-      <field name="provider" type="dropdown" required="true">
-        <label>API Provider</label>
-        <options>
-          - Anthropic
-          - AWS Bedrock
-          - Chutes AI
-          - DeepSeek
-          - Glama
-          - Google Gemini
-          - Google Vertex AI
-          - Groq
-          - Human Relay Provider
-          - LiteLLM
-          - LM Studio
-          - Mistral AI
-          - Ollama
-          - OpenAI
-          - OpenAI Compatible
-          - OpenRouter
-          - Requesty
-          - Unbound
-          - VS Code Language Model API
-          - xAI (Grok)
-          - Not Applicable / Other
-        </options>
-      </field>
-      <field name="model" type="input" required="true">
-        <label>Model Used</label>
-        <description>Exact model name (e.g., Claude 3.7 Sonnet). Use N/A if irrelevant.</description>
-      </field>
-      <field name="steps" type="textarea" required="true">
-        <label>🔁 Steps to Reproduce</label>
-        <description>
-          Help us see what you saw. Give clear, numbered steps:
-          
-          1. Setup (OS, extension version, settings)
-          2. Exact actions (clicks, input, files, commands)
-          3. What happened after each step
-          
-          Think like you're writing a recipe. Without this, we can't reproduce the issue.
-        </description>
-      </field>
-      <field name="what-happened" type="textarea" required="true">
-        <label>💥 Outcome Summary</label>
-        <description>
-          Recap what went wrong in one or two lines.
-          
-          Example: "Expected code to run, but got an empty response and no error."
-        </description>
-        <placeholder>Expected ___, but got ___.</placeholder>
-      </field>
-      <field name="logs" type="textarea" required="false">
-        <label>📄 Relevant Logs or Errors (Optional)</label>
-        <description>Paste API logs, terminal output, or errors here. Use triple backticks (```) for code formatting.</description>
-        <render>shell</render>
-      </field>
-    </fields>
-  </bug_report_template>
-  
-  <feature_request_template>
-    <name>Detailed Feature Proposal</name>
-    <description>Report a specific problem that needs solving in Roo Code</description>
-    <labels>["proposal", "enhancement"]</labels>
-    <required_fields>
-      <field name="problem-description" type="textarea" required="true">
-        <label>What specific problem does this solve?</label>
-        <description>
-          **Be concrete and detailed.** Explain the problem from a user's perspective.
-          
-          ✅ **Good examples (specific, clear impact):**
-          - "When running large tasks, users wait 5+ minutes because tasks execute sequentially instead of in parallel, blocking productivity"
-          - "AI can only read one file per request, forcing users to make multiple requests for multi-file projects, increasing wait time from 30s to 5+ minutes"
-          - "Dark theme users can't see the submit button because it uses white text on light grey background"
-          
-          ❌ **Poor examples (vague, unclear impact):**
-          - "The UI looks weird" -> What specifically looks weird? On which screen? What's the impact?
-          - "System prompt is not good" -> What's wrong with it? What behaviour does it cause? What should it do instead?
-          - "Performance could be better" -> Where? How slow is it currently? What's the user impact?
-          
-          **Your problem description should answer:**
-          - Who is affected? (all users, specific user types, etc.)
-          - When does this happen? (specific scenarios/steps)
-          - What's the current behaviour vs expected behaviour?
-          - What's the impact? (time wasted, errors caused, etc.)
-        </description>
-        <placeholder>Be specific about the problem, who it affects, and the impact. Avoid generic statements like "it's slow" or "it's confusing."</placeholder>
-      </field>
-      <field name="additional-context" type="textarea" required="false">
-        <label>Additional context (optional)</label>
-        <description>Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.</description>
-      </field>
-    </required_fields>
+  <overview>
+    This mode prioritizes using repository-specific issue templates over hardcoded ones.
+    If no templates exist in the repository, simple generic templates are created on the fly.
+  </overview>
+
+  <template_detection>
+    <locations>
+      <location priority="1">.github/ISSUE_TEMPLATE/*.yml</location>
+      <location priority="2">.github/ISSUE_TEMPLATE/*.yaml</location>
+      <location priority="3">.github/ISSUE_TEMPLATE/*.md</location>
+      <location priority="4">.github/issue_template.md</location>
+      <location priority="5">.github/ISSUE_TEMPLATE.md</location>
+    </locations>
     
-    <contributor_fields>
-      <field name="willingness-to-contribute" type="checkbox">
-        <label>Interested in implementing this?</label>
-        <description>
-          **Important:** If you check "Yes" below, the technical sections become REQUIRED.
-          We need detailed technical analysis from contributors to ensure quality implementation.
-        </description>
-        <option>Yes, I'd like to help implement this feature</option>
-      </field>
-      <field name="implementation-approval" type="checkbox">
-        <label>Implementation requirements</label>
-        <option>I understand this needs approval before implementation begins</option>
-      </field>
-      <field name="proposed-solution" type="textarea" required_if_contributing="true">
-        <label>How should this be solved? (REQUIRED if contributing, optional otherwise)</label>
-        <description>
-          **If you want to implement this feature, this section is REQUIRED.**
-          
-          **Describe your solution in detail.** Explain not just what to build, but how it should work.
-          
-          ✅ **Good examples:**
-          - "Add parallel task execution: Allow up to 3 tasks to run simultaneously with a queue system for additional tasks. Show progress for each active task in the UI."
-          - "Enable multi-file AI processing: Modify the request handler to accept multiple files in a single request and process them together, reducing round trips."
-          - "Fix button contrast: Change submit button to use primary colour on dark theme (white text on blue background) instead of current grey."
-          
-          ❌ **Poor examples:**
-          - "Make it faster" -> How? What specific changes?
-          - "Improve the UI" -> Which part? What specific improvements?
-          - "Fix the prompt" -> What should the new prompt do differently?
-          
-          **Your solution should explain:**
-          - What exactly will change?
-          - How will users interact with it?
-          - What will the new behaviour look like?
-        </description>
-        <placeholder>Describe the specific changes and how they will work. Include user interaction details if relevant.</placeholder>
-      </field>
-      <field name="acceptance-criteria" type="textarea" required_if_contributing="true">
-        <label>How will we know it works? (Acceptance Criteria - REQUIRED if contributing, optional otherwise)</label>
-        <description>
-          **If you want to implement this feature, this section is REQUIRED.**
-          
-          **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
-          
-          **Format suggestion:**
-          ```
-          Given [context/situation]
-          When [user action]
-          Then [expected result]
-          And [additional expectations]
-          But [what should NOT happen]
-          ```
-          
-          **Example:**
-          ```
-          Given I have 5 large tasks to run
-          When I start all of them
-          Then they execute in parallel (max 3 at once, can be configured)
-          And I see progress for each active task
-          And queued tasks show "waiting" status
-          But the UI doesn't freeze or become unresponsive
-          ```
-        </description>
-        <placeholder>
-          Define specific, testable criteria. What should users be able to do? What should happen? What should NOT happen?
-          Use the Given/When/Then format above or your own clear structure.
-        </placeholder>
-      </field>
-      <field name="technical-considerations" type="textarea" required_if_contributing="true">
-        <label>Technical considerations (REQUIRED if contributing, optional otherwise)</label>
-        <description>
-          **If you want to implement this feature, this section is REQUIRED.**
-          
-          Share technical insights that could help planning:
-          - Implementation approach or architecture changes
-          - Performance implications
-          - Compatibility concerns
-          - Systems that might be affected
-          - Potential blockers you can foresee
-        </description>
-        <placeholder>e.g., "Will need to refactor task manager", "Could impact memory usage on large files", "Requires a large portion of code to be rewritten"</placeholder>
-      </field>
-      <field name="trade-offs-and-risks" type="textarea" required_if_contributing="true">
-        <label>Trade-offs and risks (REQUIRED if contributing, optional otherwise)</label>
-        <description>
-          **If you want to implement this feature, this section is REQUIRED.**
-          
-          What could go wrong or what alternatives did you consider?
-          - Alternative approaches and why you chose this one
-          - Potential negative impacts (performance, UX, etc.)
-          - Breaking changes or migration concerns
-          - Edge cases that need careful handling
-        </description>
-        <placeholder>e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"</placeholder>
-      </field>
-    </contributor_fields>
-  </feature_request_template>
-  
-  <template_changes_summary>
-    <change type="focus_shift">
-      Template now focuses on problem reporting first, with solution contribution as optional
-    </change>
-    <change type="required_fields">
-      Only problem description and context are required for basic submission
-    </change>
-    <change type="contributor_section">
-      Technical fields (solution, acceptance criteria, etc.) are only required if user wants to contribute
-    </change>
-    <change type="clear_exit_point">
-      Users can submit after describing the problem without technical details
-    </change>
-    <change type="guidance_separation">
-      Implementation guidance moved to contributor section only
-    </change>
-  </template_changes_summary>
+    <yaml_template_structure>
+      <field name="name">Display name of the template</field>
+      <field name="description">Brief description of when to use this template</field>
+      <field name="title">Default issue title (optional)</field>
+      <field name="labels">Array of labels to apply</field>
+      <field name="assignees">Array of default assignees</field>
+      <field name="body">Array of form elements or markdown content</field>
+    </yaml_template_structure>
+    
+    <yaml_form_elements>
+      <element type="markdown">
+        <description>Static markdown content</description>
+        <attributes>
+          <attr name="value">The markdown content to display</attr>
+        </attributes>
+      </element>
+      
+      <element type="input">
+        <description>Single-line text input</description>
+        <attributes>
+          <attr name="id">Unique identifier</attr>
+          <attr name="label">Display label</attr>
+          <attr name="description">Help text</attr>
+          <attr name="placeholder">Placeholder text</attr>
+          <attr name="value">Default value</attr>
+          <attr name="required">Boolean</attr>
+        </attributes>
+      </element>
+      
+      <element type="textarea">
+        <description>Multi-line text input</description>
+        <attributes>
+          <attr name="id">Unique identifier</attr>
+          <attr name="label">Display label</attr>
+          <attr name="description">Help text</attr>
+          <attr name="placeholder">Placeholder text</attr>
+          <attr name="value">Default value</attr>
+          <attr name="required">Boolean</attr>
+          <attr name="render">Language for syntax highlighting</attr>
+        </attributes>
+      </element>
+      
+      <element type="dropdown">
+        <description>Dropdown selection</description>
+        <attributes>
+          <attr name="id">Unique identifier</attr>
+          <attr name="label">Display label</attr>
+          <attr name="description">Help text</attr>
+          <attr name="options">Array of options</attr>
+          <attr name="required">Boolean</attr>
+        </attributes>
+      </element>
+      
+      <element type="checkboxes">
+        <description>Multiple checkbox options</description>
+        <attributes>
+          <attr name="id">Unique identifier</attr>
+          <attr name="label">Display label</attr>
+          <attr name="description">Help text</attr>
+          <attr name="options">Array of checkbox items</attr>
+        </attributes>
+      </element>
+    </yaml_form_elements>
+    
+    <markdown_template_structure>
+      <front_matter>
+        Optional YAML front matter with:
+        - name: Template name
+        - about: Template description
+        - title: Default title
+        - labels: Comma-separated or array
+        - assignees: Comma-separated or array
+      </front_matter>
+      <body>
+        Markdown content with sections and placeholders
+        Common patterns:
+        - Headers with ##
+        - Placeholder text in brackets or as comments
+        - Checklists with - [ ]
+        - Code blocks with ```
+      </body>
+    </markdown_template_structure>
+  </template_detection>
+
+  <generic_templates>
+    <description>
+      When no repository templates exist, create simple templates based on issue type.
+      These should be minimal and focused on gathering essential information.
+    </description>
+    
+    <bug_template>
+      <structure>
+        - Description: Clear explanation of the bug
+        - Steps to Reproduce: Numbered list
+        - Expected Behavior: What should happen
+        - Actual Behavior: What actually happens
+        - Additional Context: Version, environment, logs
+        - Code Investigation: Findings from exploration (if any)
+      </structure>
+      <labels>["bug"]</labels>
+    </bug_template>
+    
+    <feature_template>
+      <structure>
+        - Problem Description: What problem this solves
+        - Current Behavior: How it works now
+        - Proposed Solution: What should change
+        - Impact: Who benefits and how
+        - Technical Context: Code findings (if any)
+      </structure>
+      <labels>["enhancement", "proposal"]</labels>
+    </feature_template>
+  </generic_templates>
+
+  <template_parsing_guidelines>
+    <guideline>
+      When parsing YAML templates:
+      1. Use a YAML parser to extract the structure
+      2. Convert form elements to markdown sections
+      3. Preserve required field indicators
+      4. Include descriptions as help text
+      5. Maintain the intended flow of the template
+    </guideline>
+    
+    <guideline>
+      When parsing Markdown templates:
+      1. Extract front matter if present
+      2. Identify section headers
+      3. Look for placeholder patterns
+      4. Preserve formatting and structure
+      5. Replace generic placeholders with user's information
+    </guideline>
+    
+    <guideline>
+      For template selection:
+      1. If only one template exists, use it automatically
+      2. If multiple exist, let user choose based on name/description
+      3. Match template to issue type when possible (bug vs feature)
+      4. Respect template metadata (labels, assignees, etc.)
+    </guideline>
+  </template_parsing_guidelines>
+
+  <filling_templates>
+    <principle>
+      Fill templates intelligently using gathered information:
+      - Map user's description to appropriate sections
+      - Include code investigation findings where relevant
+      - Preserve template structure and formatting
+      - Don't leave placeholder text unfilled
+      - Add contributor scoping if user is contributing
+    </principle>
+    
+    <mapping_examples>
+      <example from="Steps to Reproduce" to="User's reproduction steps + code paths"/>
+      <example from="Expected behavior" to="What user expects + code logic verification"/>
+      <example from="System information" to="Detected versions + environment"/>
+      <example from="Additional context" to="Code findings + architecture insights"/>
+    </mapping_examples>
+  </filling_templates>
+
+  <no_template_behavior>
+    <description>
+      When no templates exist, create appropriate generic templates on the fly.
+      Keep them simple and focused on essential information.
+    </description>
+    
+    <guidelines>
+      - Don't overwhelm with too many fields
+      - Focus on problem description first
+      - Include technical details only if user is contributing
+      - Use clear, simple section headers
+      - Adapt based on issue type (bug vs feature)
+    </guidelines>
+  </no_template_behavior>
 </github_issue_templates>

@@ -3,14 +3,24 @@
     <step number="1">
       <name>Initialize Issue Creation Process</name>
       <instructions>
-        When the user requests to create an issue, immediately set up a todo list to track the workflow.
+        IMPORTANT: This mode assumes the first user message is already a request to create an issue.
+        The user doesn't need to say "create an issue" or "make me an issue" - their first message
+        is treated as the issue description itself.
+        
+        When the session starts, immediately:
+        1. Treat the user's first message as the issue description
+        2. Initialize the workflow by using the update_todo_list tool
+        3. Begin the issue creation process without asking what they want to do
         
         <update_todo_list>
         <todos>
+        [ ] Detect current repository information
+        [ ] Determine monorepo context
+        [ ] Perform initial codebase discovery
         [ ] Analyze user request to determine issue type
-        [ ] Gather initial information for the issue
+        [ ] Gather and verify additional information
         [ ] Determine if user wants to contribute
-        [ ] Perform technical analysis (if contributing)
+        [ ] Perform issue scoping (if contributing)
         [ ] Draft issue content
         [ ] Review and confirm with user
         [ ] Create GitHub issue
@@ -21,49 +31,47 @@
   </initialization>
 
   <step number="1">
-    <name>Determine Issue Type</name>
+    <name>Detect current repository information</name>
     <instructions>
-      Analyze the user's initial request to automatically assess whether they're reporting a bug or proposing a feature.
-      Look for keywords and context clues:
+      CRITICAL FIRST STEP: Verify we're in a git repository and get repository information.
       
-      Bug indicators:
-      - Words like "error", "broken", "not working", "fails", "crash", "bug"
-      - Descriptions of unexpected behavior
-      - Error messages or stack traces
-      - References to something that used to work
+      1. Check if we're in a git repository:
+      <execute_command>
+      <command>git rev-parse --is-inside-work-tree 2>/dev/null || echo "not-git-repo"</command>
+      </execute_command>
       
-      Feature indicators:
-      - Words like "feature", "enhancement", "add", "implement", "would be nice"
-      - Descriptions of new functionality
-      - Suggestions for improvements
-      - "It would be great if..."
+      If the output is "not-git-repo", immediately stop and inform the user:
       
-      Based on your analysis, order the options with the most likely choice first:
+      <attempt_completion>
+      <result>
+      This mode must be run from within a GitHub repository. Please navigate to a git repository and try again.
+      </result>
+      </attempt_completion>
       
-      <ask_followup_question>
-      <question>Based on your request, what type of issue would you like to create?</question>
-      <follow_up>
-      [If bug indicators found:]
-      <suggest>Bug Report - Report a problem with existing functionality</suggest>
-      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
+      2. If in a git repository, get the repository information:
+      <execute_command>
+      <command>git remote get-url origin 2>/dev/null | sed -E 's/.*[:/]([^/]+)\/([^/]+)(\.git)?$/\1\/\2/' | sed 's/\.git$//'</command>
+      </execute_command>
       
-      [If feature indicators found:]
-      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
-      <suggest>Bug Report - Report a problem with existing functionality</suggest>
+      Store this as REPO_FULL_NAME for use throughout the workflow.
       
-      [If unclear:]
-      <suggest>Bug Report - Report a problem with existing functionality</suggest>
-      <suggest>Detailed Feature Proposal - Propose a new feature or enhancement</suggest>
-      </follow_up>
-      </ask_followup_question>
+      If no origin remote exists, stop with:
+      <attempt_completion>
+      <result>
+      No GitHub remote found. This mode requires a GitHub repository with an 'origin' remote configured.
+      </result>
+      </attempt_completion>
       
-      After determining the type, update the todo list:
+      Update todo after detecting repository:
       <update_todo_list>
       <todos>
-      [x] Analyze user request to determine issue type
-      [-] Gather initial information for the issue
+      [x] Detect current repository information
+      [-] Determine monorepo context
+      [ ] Perform initial codebase discovery
+      [ ] Analyze user request to determine issue type
+      [ ] Gather and verify additional information
       [ ] Determine if user wants to contribute
-      [ ] Perform technical analysis (if contributing)
+      [ ] Perform issue scoping (if contributing)
       [ ] Draft issue content
       [ ] Review and confirm with user
       [ ] Create GitHub issue
@@ -73,37 +81,48 @@
   </step>
 
   <step number="2">
-    <name>Gather Initial Information</name>
+    <name>Determine Monorepo Context</name>
     <instructions>
-      Based on the user's initial prompt or request, extract key information.
-      If the user hasn't provided enough detail, use ask_followup_question to gather
-      the required fields from the appropriate template.
+      CRITICAL FIRST STEP: Since this is a monorepo, we must establish which specific repository/package 
+      within the monorepo the user is referring to before any codebase exploration.
       
-      For Bug Reports, ensure you have:
-      - App version (ask user to check in VSCode extension panel if unknown)
-      - API provider being used
-      - Model being used
-      - Clear steps to reproduce
-      - What happened vs what was expected
-      - Any error messages or logs
+      First, explore the monorepo structure:
+      <list_files>
+      <path>.</path>
+      <recursive>false</recursive>
+      </list_files>
       
-      For Feature Requests, ensure you have:
-      - Specific problem description with impact (who is affected, when it happens, current vs expected behavior, impact)
-      - Additional context if available (mockups, screenshots, links)
+      Common monorepo packages to look for:
+      - apps/ (application packages)
+      - packages/ (shared packages)
+      - src/ (main source if not using workspaces)
       
-      IMPORTANT: Do NOT ask for solution design, acceptance criteria, or technical details 
-      unless the user explicitly states they want to contribute the implementation.
+      Based on the user's description, try to identify which package they're referring to.
+      If unclear, ask for clarification:
       
-      Use multiple ask_followup_question calls if needed to gather all information.
-      Be specific in your questions based on what's missing.
+      <ask_followup_question>
+      <question>I see this is a monorepo with multiple packages. Which specific package or application is your issue related to?</question>
+      <follow_up>
+      <suggest>apps/vscode - The main VSCode extension</suggest>
+      <suggest>apps/web-roo-code - The web application</suggest>
+      <suggest>packages/cloud - Cloud functionality</suggest>
+      <suggest>packages/types - Type definitions</suggest>
+      <suggest>Let me describe which package: [specify]</suggest>
+      </follow_up>
+      </ask_followup_question>
       
-      After gathering information, update the todo:
+      Store the monorepo context for all future codebase searches and explorations.
+      
+      Update todo after determining context:
       <update_todo_list>
       <todos>
-      [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
-      [-] Determine if user wants to contribute
-      [ ] Perform technical analysis (if contributing)
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [-] Perform initial codebase discovery
+      [ ] Analyze user request to determine issue type
+      [ ] Gather and verify additional information
+      [ ] Determine if user wants to contribute
+      [ ] Perform issue scoping (if contributing)
       [ ] Draft issue content
       [ ] Review and confirm with user
       [ ] Create GitHub issue
@@ -113,33 +132,50 @@
   </step>
 
   <step number="3">
-    <name>Determine if User Wants to Contribute</name>
+    <name>Perform Initial Codebase Discovery</name>
     <instructions>
-      Before exploring the codebase, determine if the user wants to contribute the implementation:
+      Now that we know the monorepo context, immediately search the codebase to understand
+      what the user is talking about before determining the issue type.
       
-      <ask_followup_question>
-      <question>Are you interested in implementing this yourself, or are you just reporting the problem for the Roo team to solve?</question>
-      <follow_up>
-      <suggest>Just reporting the problem - the Roo team can design the solution</suggest>
-      <suggest>I want to contribute and implement this myself</suggest>
-      <suggest>I'm not sure yet, but I'd like to provide technical analysis</suggest>
-      </follow_up>
-      </ask_followup_question>
+      DISCOVERY ACTIVITIES:
       
-      Based on their response:
-      - If just reporting: Skip to step 5 (Draft Issue - Problem Only)
-      - If contributing: Continue to step 4 (Technical Analysis)
-      - If providing analysis: Continue to step 4 but make technical sections optional
+      1. Extract keywords and concepts from the user's INITIAL MESSAGE (their issue description)
+      2. Search the codebase to verify these concepts exist
+      3. Build understanding of the actual implementation
+      4. Identify relevant files, components, and code patterns
       
-      Update the todo based on the decision:
+      <codebase_search>
+      <query>[Keywords from user's initial message/description]</query>
+      <path>[Monorepo package path from step 1]</path>
+      </codebase_search>
+      
+      Additional searches based on initial findings:
+      - If error mentioned: search for exact error strings
+      - If feature mentioned: search for related functionality
+      - If component mentioned: search for implementation details
+      
+      <search_files>
+      <path>[monorepo package path]</path>
+      <regex>[specific patterns found in initial search]</regex>
+      </search_files>
+      
+      Document findings:
+      - Components/features found that match user's description
+      - Actual implementation details discovered
+      - Related code sections identified
+      - Any discrepancies between user description and code reality
+      
+      Update todos:
       <update_todo_list>
       <todos>
-      [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
-      [x] Determine if user wants to contribute
-      [If contributing: [ ] Perform technical analysis (if contributing)]
-      [If not contributing: [-] Perform technical analysis (skipped - not contributing)]
-      [-] Draft issue content
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [-] Analyze user request to determine issue type
+      [ ] Gather and verify additional information
+      [ ] Determine if user wants to contribute
+      [ ] Perform issue scoping (if contributing)
+      [ ] Draft issue content
       [ ] Review and confirm with user
       [ ] Create GitHub issue
       </todos>
@@ -148,37 +184,54 @@
   </step>
 
   <step number="4">
-    <name>Technical Analysis for Contributors</name>
+    <name>Analyze Request to Determine Issue Type</name>
     <instructions>
-      ONLY perform this step if the user wants to contribute or provide technical analysis.
+      Using the codebase discoveries from step 2, analyze the user's request to determine
+      the appropriate issue type with informed context.
       
-      This step uses the comprehensive technical analysis sub-workflow defined in
-      6_technical_analysis_workflow.xml. The sub-workflow will:
+      CRITICAL GUIDANCE FOR ISSUE TYPE SELECTION:
+      For issues that affect user workflows or require behavior changes:
+      - PREFER the feature proposal template over bug report
+      - Focus on explaining WHO is affected and WHEN this happens
+      - Describe the user impact before diving into technical details
       
-      1. Create its own detailed investigation todo list
-      2. Perform exhaustive codebase searches using iterative refinement
-      3. Analyze all relevant files and dependencies
-      4. Form and validate hypotheses about the implementation
-      5. Create a comprehensive technical solution
-      6. Define detailed acceptance criteria
+      Based on your findings, classify the issue:
       
-      To execute the technical analysis sub-workflow:
-      - Follow all phases defined in 6_technical_analysis_workflow.xml
-      - Use the aggressive investigation approach from issue-investigator mode
-      - Document all findings in extreme detail
-      - Ensure the analysis is thorough enough for automated implementation
+      Bug indicators (verified against code):
+      - Error messages that match actual error handling in code
+      - Broken functionality in existing features found in codebase
+      - Regression from previous behavior documented in code/tests
+      - Code paths that don't work as documented
       
-      The sub-workflow will manage its own todo list for the investigation process
-      and will produce a comprehensive technical analysis section for the issue.
+      Feature indicators (verified against code):
+      - New functionality not found in current codebase
+      - Enhancement to existing features found in code
+      - Missing capabilities compared to similar features
+      - Integration points that could be extended
+      - WORKFLOW IMPROVEMENTS: When existing behavior works but doesn't meet user needs
       
-      After completing the technical analysis:
+      IMPORTANT: Use your codebase findings to inform the question:
+      
+      <ask_followup_question>
+      <question>Based on your request about [specific feature/component found in code], what type of issue would you like to create?</question>
+      <follow_up>
+      [Order based on codebase findings and user description]
+      <suggest>Bug Report - [Specific component] is not working as expected</suggest>
+      <suggest>Feature Proposal - Add [specific capability] to [existing component]</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      Update todos:
       <update_todo_list>
       <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
-      [x] Determine if user wants to contribute
-      [x] Perform technical analysis (if contributing)
-      [-] Draft issue content
+      [-] Gather and verify additional information
+      [ ] Determine if user wants to contribute
+      [ ] Perform issue scoping (if contributing)
+      [ ] Draft issue content
       [ ] Review and confirm with user
       [ ] Create GitHub issue
       </todos>
@@ -187,113 +240,709 @@
   </step>
 
   <step number="5">
-    <name>Draft Issue Content</name>
+    <name>Gather and Verify Additional Information</name>
     <instructions>
-      Create the issue body based on whether the user is just reporting or contributing.
+      Based on the issue type and initial codebase discovery, gather information while
+      continuously verifying against the actual code implementation.
       
-      For Bug Reports, format is the same regardless of contribution intent:
-      ```
-      ## App Version
-      [version from user]
+      CRITICAL FOR FEATURE REQUESTS: Be fact-driven and challenge assumptions!
+      When users describe current behavior as problematic for a feature request, you MUST verify
+      their claims against the actual code. If their description doesn't match reality, this
+      might actually be a bug report, not a feature request.
       
-      ## API Provider
-      [provider from dropdown list]
+      For Bug Reports:
+      1. When user describes steps to reproduce:
+         - Search for the UI components/commands mentioned
+         - Verify the code paths that would be executed
+         - Check for existing error handling or known issues
+         
+      2. When user provides error messages:
+         - Search for exact error strings in codebase
+         - Find where errors are thrown
+         - Understand the conditions that trigger them
+         
+      3. For version information:
+         - Check package.json for actual version
+         - Look for version-specific code or migrations
       
-      ## Model Used
-      [exact model name]
+      Example verification searches:
+      <search_files>
+      <path>[monorepo package path]</path>
+      <regex>[exact error message from user]</regex>
+      </search_files>
       
-      ## 🔁 Steps to Reproduce
+      <codebase_search>
+      <query>[feature or component name] implementation</query>
+      <path>[monorepo package path]</path>
+      </codebase_search>
       
-      1. [First step with specific details]
-      2. [Second step with exact actions]
-      3. [Continue numbering all steps]
+      For Feature Requests - AGGRESSIVE VERIFICATION WITH CONCRETE EXAMPLES:
+      1. When user claims current behavior is X:
+         - ALWAYS search for the actual implementation
+         - Read the relevant code to verify their claim
+         - Check CSS/styling files if UI-related
+         - Look at configuration files
+         - Examine test files to understand expected behavior
+         - TRACE THE DATA FLOW: Follow values from where they're calculated to where they're used
+         
+      2. CRITICAL: Look for existing variables/code that could be reused:
+         - Search for variables that are calculated but not used where expected
+         - Identify existing patterns that could be extended
+         - Find similar features that work correctly for comparison
+         
+      3. If discrepancy found between claim and code:
+         - Do NOT proceed without clarification
+         - Present CONCRETE before/after examples with actual values
+         - Show exactly what happens vs what should happen
+         - Ask if this might be a bug instead
+         
+      Example verification approach:
+      User says: "Feature X doesn't work properly"
       
-      Include:
-      - Exact button clicks or menu selections
-      - Specific input text or prompts used
-      - File names and paths involved
-      - Any settings or configuration
+      Your investigation should follow this pattern:
+      a) What is calculated: Search for where X is computed/defined
+      b) Where it's stored: Find variables/state holding the value
+      c) Where it's used: Trace all usages of that value
+      d) What's missing: Identify gaps in the flow
       
-      ## 💥 Outcome Summary
+      Present findings with concrete examples:
       
-      Expected: [what should have happened]
-      Actual: [what actually happened]
+      <ask_followup_question>
+      <question>I investigated the implementation and found something interesting:
       
-      ## 📄 Relevant Logs or Errors
+      Current behavior:
+      - The value is calculated at [file:line]: `value = computeX()`
+      - It's stored in variable `calculatedValue` at [file:line]
+      - BUT it's only used for [purpose A] at [file:line]
+      - It's NOT used for [purpose B] where you expected it
       
-      ```[language]
-      [paste any error messages or logs]
-      ```
+      Concrete example:
+      - When you do [action], the system calculates [value]
+      - This value goes to [location A]
+      - But [location B] still uses [old/different value]
       
-      [If user is contributing, add the comprehensive technical analysis section from step 4]
-      ```
+      Is this the issue you're experiencing? This seems like the calculated value isn't being used where it should be.</question>
+      <follow_up>
+      <suggest>Yes, exactly! The value is calculated but not used in the right place</suggest>
+      <suggest>No, the issue is that the calculation itself is wrong</suggest>
+      <suggest>Actually, I see now that [location B] should use a different value</suggest>
+      </follow_up>
+      </ask_followup_question>
       
-      For Feature Requests - PROBLEM REPORTERS (not contributing):
-      ```
-      ## What specific problem does this solve?
+      4. Continue verification until facts are established:
+         - If user confirms it's a bug, switch to bug report workflow
+         - If user provides more specific context, search again
+         - Do not accept vague claims without code verification
+         
+      5. For genuine feature requests after verification:
+         - Document what the code currently does (with evidence and line numbers)
+         - Show the exact data flow: input → processing → output
+         - Confirm what the user wants changed with concrete examples
+         - Ensure the request is based on accurate understanding
       
-      [Detailed problem description following the template guidelines]
+      CRITICAL: For feature requests, if user's description doesn't match codebase reality:
+      - Challenge the assumption with code evidence AND concrete examples
+      - Show actual vs expected behavior with specific values
+      - Suggest it might be a bug if code shows different intent
+      - Ask for clarification repeatedly if needed
+      - Do NOT proceed until facts are established
       
-      **Who is affected:** [user groups]
-      **When this happens:** [specific scenarios]
-      **Current behavior:** [what happens now]
-      **Expected behavior:** [what should happen]
-      **Impact:** [time wasted, errors, productivity loss]
+      Only proceed when you have:
+      - Verified current behavior in code with line-by-line analysis
+      - Confirmed user's understanding matches reality
+      - Determined if it's truly a feature request or actually a bug
+      - Identified any existing code that could be reused for the fix
       
-      ## Additional context
-      
-      [Any mockups, screenshots, links, or other supporting information]
-      ```
-      
-      For Feature Requests - CONTRIBUTORS (implementing the feature):
-      ```
-      ## What specific problem does this solve?
-      
-      [Detailed problem description following the template guidelines]
-      
-      **Who is affected:** [user groups]
-      **When this happens:** [specific scenarios]
-      **Current behavior:** [what happens now]
-      **Expected behavior:** [what should happen]
-      **Impact:** [time wasted, errors, productivity loss]
-      
-      ## Additional context
-      
-      [Any mockups, screenshots, links, or other supporting information]
-      
-      ---
-      
-      ## 🛠️ Contributing & Technical Analysis
-      
-      ✅ **I'm interested in implementing this feature**
-      ✅ **I understand this needs approval before implementation begins**
-      
-      [Insert the comprehensive technical analysis section from step 4, including:]
-      - Root cause / Implementation target
-      - Affected components with file paths and line numbers
-      - Current implementation analysis
-      - Detailed proposed implementation steps
-      - Code architecture considerations
-      - Testing requirements
-      - Performance impact
-      - Security considerations
-      - Migration strategy
-      - Rollback plan
-      - Dependencies and breaking changes
-      - Implementation complexity assessment
-      
-      ## Acceptance Criteria
-      
-      [Insert the detailed acceptance criteria from the technical analysis]
-      ```
-      
-      After drafting:
+      Update todos after verification:
       <update_todo_list>
       <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
+      [x] Gather and verify additional information
+      [-] Determine if user wants to contribute
+      [ ] Perform issue scoping (if contributing)
+      [ ] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="6">
+    <name>Determine Contribution Intent with Context</name>
+    <instructions>
+      Before asking about contribution, perform a quick technical assessment to provide context:
+      
+      1. Search for complexity indicators:
+         - Number of files that would need changes
+         - Existing tests that would need updates
+         - Dependencies and integration points
+         
+      2. Look for contribution helpers:
+         - CONTRIBUTING.md guidelines
+         - Existing similar implementations
+         - Test patterns to follow
+      
+      <codebase_search>
+      <query>CONTRIBUTING guide setup development</query>
+      </codebase_search>
+      
+      Based on findings, provide informed context in the question:
+      
+      <ask_followup_question>
+      <question>Based on my analysis, this [issue type] involves [brief complexity assessment from code exploration]. Are you interested in implementing this yourself, or are you reporting it for the Roo team to handle?</question>
+      <follow_up>
+      <suggest>Just reporting the problem - the Roo team can design the solution</suggest>
+      <suggest>I want to contribute and implement this myself</suggest>
+      <suggest>I'd like to provide issue scoping to help whoever implements it</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      Update todos based on response:
+      <update_todo_list>
+      <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [x] Analyze user request to determine issue type
+      [x] Gather and verify additional information
       [x] Determine if user wants to contribute
-      [x] Perform technical analysis (if contributing)
+      [If contributing: [-] Perform issue scoping (if contributing)]
+      [If not contributing: [-] Perform issue scoping (skipped - not contributing)]
+      [-] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="7">
+    <name>Issue Scoping for Contributors</name>
+    <instructions>
+      ONLY perform this step if the user wants to contribute or provide issue scoping.
+      
+      This step performs a comprehensive, aggressive investigation to create detailed technical
+      scoping that can guide implementation. The process involves multiple sub-phases:
+      
+      <sub_workflow name="comprehensive_issue_scoping">
+        <overview>
+          Perform an exhaustive investigation to produce a comprehensive technical solution
+          with extreme detail, suitable for automated fix workflows.
+        </overview>
+        
+        <phase number="1" name="Initialize Investigation">
+          <description>Expand the todo list to include detailed investigation steps</description>
+          <actions>
+            When starting the issue scoping phase, update the main todo list to include
+            the detailed investigation steps:
+            
+            <update_todo_list>
+            <todos>
+            [x] Detect current repository information
+            [x] Determine monorepo context
+            [x] Perform initial codebase discovery
+            [x] Analyze user request to determine issue type
+            [x] Gather and verify additional information
+            [x] Determine if user wants to contribute
+            [-] Perform issue scoping (if contributing)
+                [ ] Extract keywords from the issue description
+                [ ] Perform initial broad codebase search
+                [ ] Analyze search results and identify key components
+                [ ] Deep dive into relevant files and implementations
+                [ ] Form initial hypothesis about the issue/feature
+                [ ] Attempt to disprove hypothesis through further investigation
+                [ ] Identify all affected files and dependencies
+                [ ] Map out the complete implementation approach
+                [ ] Document technical risks and edge cases
+                [ ] Formulate comprehensive technical solution
+                [ ] Create detailed acceptance criteria
+                [ ] Prepare issue scoping summary
+            [ ] Draft issue content
+            [ ] Review and confirm with user
+            [ ] Create GitHub issue
+            </todos>
+            </update_todo_list>
+          </actions>
+        </phase>
+        
+        <phase number="2" name="Keyword Extraction">
+          <description>Extract all relevant keywords, concepts, and technical terms</description>
+          <actions>
+            - Identify primary technical concepts from user's description
+            - Extract error messages or specific symptoms
+            - Note any mentioned file paths or components
+            - List related features or functionality
+            - Include synonyms and related terms
+          </actions>
+          <update_progress>
+            Update the main todo list to mark "Extract keywords" as complete and move to next phase
+          </update_progress>
+        </phase>
+        
+        <phase number="3" name="Iterative Search">
+          <description>Perform multiple rounds of increasingly focused searches</description>
+          
+          <iteration name="Initial Broad Search">
+            Use codebase_search with all extracted keywords to get an overview of relevant code.
+            <codebase_search>
+            <query>[Combined keywords from extraction phase]</query>
+            <path>[Monorepo package path]</path>
+            </codebase_search>
+          </iteration>
+          
+          <iteration name="Component Discovery">
+            Based on initial results, identify key components and search for:
+            - Related class/function definitions
+            - Import statements and dependencies
+            - Configuration files
+            - Test files that might reveal expected behavior
+          </iteration>
+          
+          <iteration name="Deep Implementation Search">
+            Search for specific implementation details:
+            - Error handling patterns
+            - State management
+            - API endpoints or routes
+            - Database queries or models
+            - UI components and their interactions
+          </iteration>
+          
+          <iteration name="Edge Case and Integration Search">
+            Look for:
+            - Edge cases in the code
+            - Integration points with other systems
+            - Configuration options that affect behavior
+            - Feature flags or conditional logic
+          </iteration>
+          
+          <update_progress>
+            After completing all search iterations, update the todo list to show progress
+          </update_progress>
+        </phase>
+        
+        <phase number="4" name="File Analysis">
+          <description>Thoroughly analyze all relevant files discovered</description>
+          <actions>
+            - Use list_code_definition_names to understand file structure
+            - Read complete files to understand full context
+            - Trace execution paths through the code
+            - Identify all dependencies and imports
+            - Map relationships between components
+          </actions>
+          <documentation>
+            Document findings including:
+            - File paths and their purposes
+            - Key functions and their responsibilities
+            - Data flow through the system
+            - External dependencies
+            - Potential impact areas
+          </documentation>
+        </phase>
+        
+        <phase number="5" name="Hypothesis Formation">
+          <description>Form a comprehensive hypothesis about the issue or feature</description>
+          <for_bugs>
+            - Identify the most likely root cause
+            - Trace the bug through the execution path
+            - Determine why the current implementation fails
+            - Consider environmental factors
+          </for_bugs>
+          <for_features>
+            - Identify the optimal integration points
+            - Determine required architectural changes
+            - Plan the implementation approach
+            - Consider scalability and maintainability
+          </for_features>
+        </phase>
+        
+        <phase number="6" name="Hypothesis Validation">
+          <description>Aggressively attempt to disprove the hypothesis</description>
+          <validation_steps>
+            <step name="Search for Alternative Implementations">
+              - Look for similar features implemented differently
+              - Check for deprecated code that might interfere
+            </step>
+            <step name="Configuration and Environment Check">
+              - Search for configuration that could change behavior
+              - Look for environment-specific code paths
+            </step>
+            <step name="Test Case Analysis">
+              - Find existing tests that might contradict hypothesis
+              - Look for test cases that reveal edge cases
+            </step>
+            <step name="Historical Context">
+              - Search for comments explaining design decisions
+              - Look for TODO or FIXME comments related to the area
+            </step>
+          </validation_steps>
+          <outcome>
+            If hypothesis is disproven, return to search phase with new insights.
+            If hypothesis stands, proceed to solution formulation.
+          </outcome>
+        </phase>
+        
+        <phase number="7" name="Solution Formulation">
+          <description>Create a comprehensive technical solution - PRIORITIZE SIMPLICITY</description>
+          <simplicity_principle>
+            CRITICAL: Before proposing any solution, ask yourself:
+            1. What existing variables/functions can I reuse?
+            2. What's the minimal change that fixes the issue?
+            3. Can I leverage existing patterns in the codebase?
+            4. Is there a simpler approach I'm overlooking?
+            
+            The best solution often reuses existing code rather than creating new complexity.
+          </simplicity_principle>
+          
+          <backwards_compatibility_principle>
+            ALWAYS consider backwards compatibility:
+            1. Will existing data/configurations still work with the new code?
+            2. Can we detect and handle legacy formats automatically?
+            3. What migration paths are needed for existing users?
+            4. Are there ways to make changes additive rather than breaking?
+            5. Document any compatibility considerations clearly
+          </backwards_compatibility_principle>
+          <components>
+            <component name="existing_code_analysis">
+              FIRST, identify what can be reused:
+              - Variables that are already calculated but not used where needed
+              - Functions that already do what we need
+              - Patterns in similar features we can follow
+              - Configuration that already exists but isn't applied
+              
+              Example finding:
+              "The variable `calculatedValue` already contains what we need at line X,
+              we just need to use it at line Y instead of recalculating"
+            </component>
+            
+            <component name="implementation_plan">
+              - Start with the SIMPLEST possible fix
+              - Exact files to modify with line numbers
+              - Prefer changing variable usage over creating new logic
+              - Specific code changes required (minimal diff)
+              - Order of implementation steps
+              - Migration strategy if needed
+            </component>
+            
+            <component name="dependency_analysis">
+              - All files that import affected code
+              - API contracts that must be maintained
+              - Existing tests that validate current behavior
+              - Configuration changes required (prefer reusing existing)
+              - Documentation updates needed
+            </component>
+            
+            <component name="test_strategy">
+              - Unit tests to add or modify
+              - Integration tests required
+              - Edge cases to test
+              - Performance testing needs
+              - Manual testing scenarios
+            </component>
+            
+            <component name="risk_assessment">
+              - Breaking changes identified
+              - Performance implications
+              - Security considerations
+              - Backward compatibility issues
+              - Rollback strategy
+            </component>
+          </components>
+        </phase>
+        
+        <phase number="8" name="Acceptance Criteria">
+          <description>Create extremely detailed acceptance criteria</description>
+          <format>
+            Given [detailed context including system state]
+            When [specific user or system action]
+            Then [exact expected outcome]
+            And [additional verifiable outcomes]
+            But [what should NOT happen]
+            
+            Include:
+            - Specific UI changes with exact text/behavior
+            - API response formats
+            - Database state changes
+            - Performance requirements
+            - Error handling scenarios
+          </format>
+          <guidelines>
+            - Each criterion must be independently testable
+            - Include both positive and negative test cases
+            - Specify exact error messages and codes
+            - Define performance thresholds where applicable
+          </guidelines>
+        </phase>
+        
+        <phase number="9" name="Issue Scoping Output">
+          <description>Format the comprehensive issue scoping section</description>
+          <output_template><![CDATA[
+## 🔍 Comprehensive Issue Scoping
+
+### Root Cause / Implementation Target
+[Detailed explanation of the core issue or feature target, focusing on the practical problem first]
+
+### Affected Components
+- **Primary Files:**
+  - `path/to/file1.ts` (lines X-Y): [Purpose and changes needed]
+  - `path/to/file2.ts` (lines A-B): [Purpose and changes needed]
+
+- **Secondary Impact:**
+  - Files that import affected components
+  - Related test files
+  - Documentation files
+
+### Current Implementation Analysis
+[Detailed explanation of how the current code works, with specific examples showing the data flow]
+Example: "The function at line X calculates [value] by [method], which results in [actual behavior]"
+
+### Proposed Implementation
+
+#### Step 1: [First implementation step]
+- File: `path/to/file.ts`
+- Changes: [Specific code changes]
+- Rationale: [Why this change is needed]
+
+#### Step 2: [Second implementation step]
+[Continue for all steps...]
+
+### Code Architecture Considerations
+- Design patterns to follow
+- Existing patterns in codebase to match
+- Architectural constraints
+
+### Testing Requirements
+- Unit Tests:
+  - [ ] Test case 1: [Description]
+  - [ ] Test case 2: [Description]
+- Integration Tests:
+  - [ ] Test scenario 1: [Description]
+- Edge Cases:
+  - [ ] Edge case 1: [Description]
+
+### Performance Impact
+- Expected performance change: [Increase/Decrease/Neutral]
+- Benchmarking needed: [Yes/No, specifics]
+- Optimization opportunities: [List any]
+
+### Security Considerations
+- Input validation requirements
+- Authentication/Authorization changes
+- Data exposure risks
+
+### Migration Strategy
+[If applicable, how to migrate existing data/functionality]
+
+### Rollback Plan
+[How to safely rollback if issues arise]
+
+### Dependencies and Breaking Changes
+- External dependencies affected: [List]
+- API contract changes: [List]
+- Breaking changes for users: [List with mitigation]
+          ]]></output_template>
+        </phase>
+      </sub_workflow>
+      
+      Additional monorepo considerations:
+      - Scope all searches to the identified monorepo package
+      - Check for cross-package dependencies
+      - Verify against package-specific conventions
+      - Look for package-specific configuration
+      - Check if changes affect multiple packages
+      - Identify shared dependencies that might be impacted
+      - Look for workspace-specific scripts or tooling
+      - Consider package versioning implications
+      
+      After completing the comprehensive issue scoping, update the main todo list to show
+      all investigation steps are complete:
+      <update_todo_list>
+      <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [x] Analyze user request to determine issue type
+      [x] Gather and verify additional information
+      [x] Determine if user wants to contribute
+      [x] Perform issue scoping (if contributing)
+          [x] Extract keywords from the issue description
+          [x] Perform initial broad codebase search
+          [x] Analyze search results and identify key components
+          [x] Deep dive into relevant files and implementations
+          [x] Form initial hypothesis about the issue/feature
+          [x] Attempt to disprove hypothesis through further investigation
+          [x] Identify all affected files and dependencies
+          [x] Map out the complete implementation approach
+          [x] Document technical risks and edge cases
+          [x] Formulate comprehensive technical solution
+          [x] Create detailed acceptance criteria
+          [x] Prepare issue scoping summary
+      [-] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="8">
+    <name>Check for Repository Issue Templates</name>
+    <instructions>
+      Check if the repository has custom issue templates and use them. If not, create a simple generic template.
+      
+      1. Check for issue templates in standard locations:
+      <list_files>
+      <path>.github/ISSUE_TEMPLATE</path>
+      <recursive>true</recursive>
+      </list_files>
+      
+      2. Also check for single template file:
+      <list_files>
+      <path>.github</path>
+      <recursive>false</recursive>
+      </list_files>
+      
+      Look for files like:
+      - .github/ISSUE_TEMPLATE/*.md
+      - .github/ISSUE_TEMPLATE/*.yml
+      - .github/ISSUE_TEMPLATE/*.yaml
+      - .github/issue_template.md
+      - .github/ISSUE_TEMPLATE.md
+      
+      3. If templates are found:
+         a. Parse the template files to extract:
+            - Template name and description
+            - Required fields
+            - Template body structure
+            - Labels to apply
+         
+         b. For YAML templates, look for:
+            - name: Template display name
+            - description: Template description
+            - labels: Default labels
+            - body: Form fields or markdown template
+         
+         c. For Markdown templates, look for:
+            - Front matter with metadata
+            - Template structure with placeholders
+      
+      4. If multiple templates exist, ask user to choose:
+      <ask_followup_question>
+      <question>I found the following issue templates in this repository. Which one would you like to use?</question>
+      <follow_up>
+      <suggest>[Template 1 name]: [Template 1 description]</suggest>
+      <suggest>[Template 2 name]: [Template 2 description]</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      5. If no templates are found:
+         - Create a simple generic template based on issue type
+         - For bugs: Basic structure with description, steps to reproduce, expected vs actual
+         - For features: Problem description, proposed solution, impact
+      
+      6. Store the selected/created template information:
+         - Template content/structure
+         - Required fields
+         - Default labels
+         - Any special formatting requirements
+      
+      Update todos:
+      <update_todo_list>
+      <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [x] Analyze user request to determine issue type
+      [x] Gather and verify additional information
+      [x] Determine if user wants to contribute
+      [x] Perform issue scoping (if contributing)
+      [x] Check for repository issue templates
+      [-] Draft issue content
+      [ ] Review and confirm with user
+      [ ] Create GitHub issue
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="9">
+    <name>Draft Issue Content</name>
+    <instructions>
+      Create the issue body using the template from step 8 and all verified information from codebase exploration.
+      
+      If using a repository template:
+      - Fill in the template fields with gathered information
+      - Include code references and findings where appropriate
+      - Respect the template's structure and formatting
+      
+      If using a generated template (no repo templates found):
+      
+      For Bug Reports:
+      ```
+      ## Description
+      [Clear description of the bug with code context]
+      
+      ## Steps to Reproduce
+      1. [Step with relevant code paths]
+      2. [Step with component references]
+      3. [Continue with specific details]
+      
+      ## Expected Behavior
+      [What should happen based on code logic]
+      
+      ## Actual Behavior
+      [What actually happens]
+      
+      ## Additional Context
+      - Version: [from package.json if found]
+      - Environment: [any relevant details]
+      - Error logs: [if any]
+      
+      ## Code Investigation
+      [Include findings from codebase exploration]
+      - Relevant files: [list with line numbers]
+      - Possible cause: [hypothesis from code review]
+      
+      [If user is contributing, add the comprehensive issue scoping section from step 7]
+      ```
+      
+      For Feature Requests:
+      ```
+      ## Problem Description
+      [What problem does this solve, who is affected, when it happens]
+      
+      ## Current Behavior
+      [How it works now with specific examples]
+      
+      ## Proposed Solution
+      [What should change]
+      
+      ## Impact
+      [Who benefits and how]
+      
+      ## Technical Context
+      [Findings from codebase exploration]
+      - Similar features: [code references]
+      - Integration points: [from exploration]
+      - Architecture considerations: [if any]
+      
+      [If contributing, add the comprehensive issue scoping section from step 7]
+      ```
+      
+      Update todos:
+      <update_todo_list>
+      <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [x] Analyze user request to determine issue type
+      [x] Gather and verify additional information
+      [x] Determine if user wants to contribute
+      [x] Perform issue scoping (if contributing)
+      [x] Check for repository issue templates
       [x] Draft issue content
       [-] Review and confirm with user
       [ ] Create GitHub issue
@@ -302,19 +951,26 @@
     </instructions>
   </step>
 
-  <step number="6">
+  <step number="10">
     <name>Review and Confirm with User</name>
     <instructions>
-      Present the complete drafted issue to the user for review:
+      Present the complete drafted issue to the user for review, highlighting the
+      code-verified information:
       
       <ask_followup_question>
-      <question>I've prepared the following GitHub issue. Please review it carefully:
+      <question>I've prepared the following GitHub issue based on my analysis of the codebase and your description. I've verified the technical details against the actual implementation. Please review:
 
       [Show the complete formatted issue content]
 
+      Key verifications made:
+      - ✓ Component locations confirmed in code
+      - ✓ Error messages matched to source
+      - ✓ Architecture compatibility checked
+      [List other relevant verifications]
+
       Would you like me to create this issue, or would you like to make any changes?</question>
       <follow_up>
-      <suggest>Yes, create this issue in RooCodeInc/Roo-Code</suggest>
+      <suggest>Yes, create this issue in the detected repository</suggest>
       <suggest>Modify the problem description</suggest>
       <suggest>Add more technical details</suggest>
       <suggest>Change the title to: [let me specify]</suggest>
@@ -326,57 +982,161 @@
       After confirmation:
       <update_todo_list>
       <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
+      [x] Gather and verify additional information
       [x] Determine if user wants to contribute
-      [x] Perform technical analysis (if contributing)
+      [x] Perform issue scoping (if contributing)
       [x] Draft issue content
       [x] Review and confirm with user
-      [-] Create GitHub issue
+      [-] Prepare issue for submission
+      [ ] Handle submission choice
       </todos>
       </update_todo_list>
     </instructions>
   </step>
 
-  <step number="7">
-    <name>Create GitHub Issue</name>
+  <step number="11">
+    <name>Prepare Issue for Submission</name>
     <instructions>
-      Once user confirms, create the issue using the GitHub CLI:
+      Once user confirms the issue content, prepare it for submission:
       
-      First, save the issue body to a temporary file:
+      First, perform final duplicate check with refined search based on our findings:
       <execute_command>
-      <command>cat > /tmp/issue_body.md << 'EOF'
-[The complete formatted issue body from step 5]
-EOF</command>
+      <command>gh issue list --repo $REPO_FULL_NAME --search "[key terms from verified analysis]" --state all --limit 10</command>
       </execute_command>
       
-      Then create the issue:
-      <execute_command>
-      <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Create a descriptive title based on the issue content]" --body-file /tmp/issue_body.md --label "bug"</command>
-      </execute_command>
+      If no exact duplicates are found, save the issue content to a temporary file within the project:
       
-      For feature requests, use labels "proposal,enhancement":
-      <execute_command>
-      <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Create a descriptive title based on the issue content]" --body-file /tmp/issue_body.md --label "proposal" --label "enhancement"</command>
-      </execute_command>
+      <write_to_file>
+      <path>github_issue_draft.md</path>
+      <content>[The complete formatted issue body from step 7]</content>
+      <line_count>[calculated line count]</line_count>
+      </write_to_file>
       
-      The command will return the issue URL. Inform the user of the created issue number and URL.
+      After saving the issue draft, ask the user how they would like to proceed:
       
-      Clean up the temporary file:
-      <execute_command>
-      <command>rm /tmp/issue_body.md</command>
-      </execute_command>
+      <ask_followup_question>
+      <question>I've saved the issue draft to github_issue_draft.md. The issue is ready for submission with the following details:
+
+      Title: "[Descriptive title with component name]"
+      Labels: [appropriate labels based on issue type]
+      Repository: $REPO_FULL_NAME
+
+      How would you like to proceed?</question>
+      <follow_up>
+      <suggest>Submit the issue now to the repository</suggest>
+      <suggest>Let me make some edits to the issue first</suggest>
+      <suggest>I'll submit it manually later</suggest>
+      </follow_up>
+      </ask_followup_question>
       
-      Complete the workflow:
+      Based on the user's response:
+      
+      If "Submit the issue now":
+        - Use gh issue create with the saved file
+        - Provide the created issue URL and number
+        - Clean up the temporary file
+        - Complete the workflow
+      
+      If "Let me make some edits":
+        - Ask what changes they'd like to make
+        - Update the draft file with their changes
+        - Return to the submission question
+      
+      If "I'll submit it manually":
+        - Inform them the draft is saved at .tmp/github_issue_draft.md
+        - Provide the gh command they can use later
+        - Complete the workflow without submission
+      
+      Update todos based on the outcome:
       <update_todo_list>
       <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
-      [x] Gather initial information for the issue
+      [x] Gather and verify additional information
       [x] Determine if user wants to contribute
-      [x] Perform technical analysis (if contributing)
+      [x] Perform issue scoping (if contributing)
       [x] Draft issue content
       [x] Review and confirm with user
-      [x] Create GitHub issue
+      [x] Prepare issue for submission
+      [-] Handle submission choice
+      </todos>
+      </update_todo_list>
+    </instructions>
+  </step>
+
+  <step number="12">
+    <name>Handle Submission Choice</name>
+    <instructions>
+      This step handles the user's choice from step 9.
+      
+      OPTION 1: Submit the issue now
+      If the user chooses to submit immediately:
+      
+      <execute_command>
+      <command>gh issue create --repo $REPO_FULL_NAME --title "[Descriptive title]" --body-file github_issue_draft.md --label "[appropriate labels]"</command>
+      </execute_command>
+      
+      Label selection based on findings:
+      - Bug: "bug", potentially "regression" if code shows it worked before
+      - Feature: "proposal", "enhancement", potentially package-specific labels
+      - Add "monorepo" label if affects multiple packages
+      
+      After successful creation:
+      - Capture and display the issue URL
+      - Clean up the temporary file:
+        <execute_command>
+        <command>rm github_issue_draft.md</command>
+        </execute_command>
+      - Provide a summary of key findings included
+      
+      OPTION 2: Make edits
+      If the user wants to edit:
+      
+      <ask_followup_question>
+      <question>What changes would you like to make to the issue?</question>
+      <follow_up>
+      <suggest>Update the title</suggest>
+      <suggest>Modify the problem description</suggest>
+      <suggest>Add or remove technical details</suggest>
+      <suggest>Change the labels or other metadata</suggest>
+      </follow_up>
+      </ask_followup_question>
+      
+      - Apply the requested changes to the draft
+      - Update the file with write_to_file
+      - Return to step 9 to ask about submission again
+      
+      OPTION 3: Manual submission
+      If the user will submit manually:
+      
+      Provide clear instructions:
+      "The issue draft has been saved to github_issue_draft.md
+      
+      To submit it later, you can use:
+      gh issue create --repo $REPO_FULL_NAME --title "[Your title]" --body-file github_issue_draft.md --label "[labels]"
+      
+      Or you can copy the content and create the issue through the GitHub web interface."
+      
+      Final todo update:
+      <update_todo_list>
+      <todos>
+      [x] Detect current repository information
+      [x] Determine monorepo context
+      [x] Perform initial codebase discovery
+      [x] Analyze user request to determine issue type
+      [x] Gather and verify additional information
+      [x] Determine if user wants to contribute
+      [x] Perform issue scoping (if contributing)
+      [x] Draft issue content
+      [x] Review and confirm with user
+      [x] Prepare issue for submission
+      [x] Handle submission choice
       </todos>
       </update_todo_list>
     </instructions>

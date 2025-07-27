@@ -1,4 +1,13 @@
 <common_mistakes_to_avoid>
+  <mode_initialization_mistakes>
+    - CRITICAL: Asking "What would you like to do?" when mode starts
+    - Waiting for user to say "create an issue" or "make me an issue"
+    - Not treating the first user message as the issue description
+    - Delaying the workflow start with unnecessary questions
+    - Asking if they want to create an issue when they've already chosen this mode
+    - Not immediately beginning repository detection and codebase discovery
+  </mode_initialization_mistakes>
+  
   <problem_reporting_mistakes>
     - Vague descriptions like "doesn't work" or "broken"
     - Missing reproduction steps for bugs
@@ -12,19 +21,106 @@
   
   <workflow_mistakes>
     - Asking for technical details from non-contributing users
-    - Exploring codebase before confirming user wants to contribute
+    - Performing issue scoping before confirming user wants to contribute
     - Requiring acceptance criteria from problem reporters
     - Making the process too complex for simple problem reports
     - Not clearly indicating the "submit now" option
     - Overwhelming users with contributor requirements upfront
+    - Using hardcoded templates instead of repository templates
+    - Not checking for issue templates before creating content
+    - Ignoring template metadata like labels and assignees
   </workflow_mistakes>
   
   <contributor_mistakes>
     - Starting implementation before approval
-    - Not providing detailed technical analysis when contributing
+    - Not providing detailed issue scoping when contributing
     - Missing acceptance criteria for contributed features
     - Forgetting to include technical context from code exploration
     - Not considering trade-offs and alternatives
     - Proposing solutions without understanding current architecture
   </contributor_mistakes>
+  
+  <technical_analysis_mistakes>
+    <mistake>Not tracing data flow completely through the system</mistake>
+    <impact>Missing that data already exists leads to proposing unnecessary new code</impact>
+    <correct_approach>
+      - Use codebase_search extensively to find ALL related code
+      - Trace variables from creation to consumption
+      - Check if needed data is already calculated but not used
+      - Look for similar working features as patterns
+    </correct_approach>
+    <example>
+      Bad: "Add mode tracking to import function"
+      Good: "The export already includes mode info at line 234, just use it in import at line 567"
+    </example>
+  </technical_analysis_mistakes>
+  
+  <solution_design_mistakes>
+    <mistake>Proposing complex new systems when simple fixes exist</mistake>
+    <impact>Creates unnecessary complexity, maintenance burden, and potential bugs</impact>
+    <correct_approach>
+      - ALWAYS check if functionality already exists first
+      - Look for minimal changes that solve the problem
+      - Prefer using existing variables/functions differently
+      - Aim for the smallest possible diff
+    </correct_approach>
+    <example>
+      Bad: "Create new state management system for mode tracking"
+      Good: "Pass existing modeInfo variable from line 45 to the function at line 78"
+    </example>
+  </solution_design_mistakes>
+  
+  <code_verification_mistakes>
+    <mistake>Not reading actual code before proposing solutions</mistake>
+    <impact>Solutions don't match the actual codebase structure</impact>
+    <correct_approach>
+      - Always read the relevant files first
+      - Verify exact line numbers and content
+      - Check imports/exports to understand data availability
+      - Look at similar features that work correctly
+    </correct_approach>
+  </code_verification_mistakes>
+  
+  <pattern_recognition_mistakes>
+    <mistake>Creating new patterns instead of following existing ones</mistake>
+    <impact>Inconsistent codebase, harder to maintain</impact>
+    <correct_approach>
+      - Find similar features that work correctly
+      - Follow the same patterns and structures
+      - Reuse existing utilities and helpers
+      - Maintain consistency with the codebase style
+    </correct_approach>
+  </pattern_recognition_mistakes>
+  
+  <template_usage_mistakes>
+    <mistake>Using hardcoded templates when repository templates exist</mistake>
+    <impact>Issues don't follow repository conventions, may be rejected or need reformatting</impact>
+    <correct_approach>
+      - Always check .github/ISSUE_TEMPLATE/ directory first
+      - Parse and use repository templates when available
+      - Only create generic templates when none exist
+    </correct_approach>
+  </template_usage_mistakes>
+  
+  <template_parsing_mistakes>
+    <mistake>Not properly parsing YAML template structure</mistake>
+    <impact>Missing required fields, incorrect formatting, lost metadata</impact>
+    <correct_approach>
+      - Parse YAML templates to extract all form elements
+      - Convert form elements to appropriate markdown sections
+      - Preserve field requirements and descriptions
+      - Maintain dropdown options and checkbox lists
+    </correct_approach>
+  </template_parsing_mistakes>
+  
+  <template_filling_mistakes>
+    <mistake>Leaving placeholder text in final issue</mistake>
+    <impact>Unprofessional appearance, confusion about what information is needed</impact>
+    <correct_approach>
+      - Replace all placeholders with actual information
+      - Remove instruction text meant for template users
+      - Fill every section with relevant content
+      - Add "N/A" for truly inapplicable sections
+    </correct_approach>
+  </template_filling_mistakes>
 </common_mistakes_to_avoid>
