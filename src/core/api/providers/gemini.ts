@@ -431,12 +431,20 @@ export class GeminiHandler implements ApiHandler {
 		return Math.ceil(totalChars / 4)
 	}
 
-	private parseRetryDelay(retryAfter: string): number {
+	private parseRetryDelay(retryAfter?: string): number {
+		if (!retryAfter) {
+			return 0
+		}
+
 		const unit = retryAfter.at(-1)
 		const value = parseInt(retryAfter, 10)
 
+		if (Number.isNaN(value)) {
+			return 0
+		}
+
 		if (unit === "s") {
-			return value // Return seconds
+			return value
 		} else if (unit === "m") {
 			return value * 60 // Convert minutes to seconds
 		} else if (unit === "h") {
