@@ -245,6 +245,8 @@ export class GeminiHandler implements ApiHandler {
 							throw detailedError
 						}
 					}
+
+					throw new RetriableError(apiError, undefined, { cause: error })
 				}
 			} else {
 				apiError = String(error)
