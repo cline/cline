@@ -209,6 +209,7 @@ function createHandlerForProvider(
 			})
 		case "qwen-code":
 			return new QwenCodeHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				qwenCodeOauthPath: options.qwenCodeOauthPath,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
@@ -311,6 +312,7 @@ function createHandlerForProvider(
 			})
 		case "baseten":
 			return new BasetenHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				basetenApiKey: options.basetenApiKey,
 				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
 				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
@@ -339,6 +341,7 @@ function createHandlerForProvider(
 			})
 		case "huawei-cloud-maas":
 			return new HuaweiCloudMaaSHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				huaweiCloudMaasApiKey: options.huaweiCloudMaasApiKey,
 				huaweiCloudMaasModelId:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
@@ -347,6 +350,7 @@ function createHandlerForProvider(
 			})
 		case "vercel-ai-gateway":
 			return new VercelAIGatewayHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
 				vercelAiGatewayModelId:
 					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
@@ -355,6 +359,7 @@ function createHandlerForProvider(
 			})
 		case "zai":
 			return new ZAiHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,

@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface HuaweiCloudMaaSHandlerOptions {
+interface HuaweiCloudMaaSHandlerOptions extends CommonApiHandlerOptions {
 	huaweiCloudMaasApiKey?: string
 	huaweiCloudMaasModelId?: string
 	huaweiCloudMaasModelInfo?: ModelInfo
