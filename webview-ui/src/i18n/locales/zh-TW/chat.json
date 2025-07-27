@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "觸發 {{name}} 命令"
+	},
+	"queuedMessages": {
+		"title": "佇列訊息:",
+		"clickToEdit": "點擊編輯訊息"
 	}
 }

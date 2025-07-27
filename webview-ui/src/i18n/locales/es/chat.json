@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "Activar el comando {{name}}"
+	},
+	"queuedMessages": {
+		"title": "Mensajes en cola:",
+		"clickToEdit": "Haz clic para editar el mensaje"
 	}
 }

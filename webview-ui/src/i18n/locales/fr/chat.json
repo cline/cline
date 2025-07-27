@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "Déclencher la commande {{name}}"
+	},
+	"queuedMessages": {
+		"title": "Messages en file d'attente :",
+		"clickToEdit": "Cliquez pour modifier le message"
 	}
 }

@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "{{name}} komutunu tetikle"
+	},
+	"queuedMessages": {
+		"title": "Sıradaki Mesajlar:",
+		"clickToEdit": "Mesajı düzenlemek için tıkla"
 	}
 }

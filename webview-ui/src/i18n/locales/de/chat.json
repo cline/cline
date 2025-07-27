@@ -351,5 +351,9 @@
 	},
 	"editMessage": {
 		"placeholder": "Bearbeite deine Nachricht..."
+	},
+	"queuedMessages": {
+		"title": "Warteschlange Nachrichten:",
+		"clickToEdit": "Klicken zum Bearbeiten der Nachricht"
 	}
 }

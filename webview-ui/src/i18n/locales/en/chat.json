@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "Trigger the {{name}} command"
+	},
+	"queuedMessages": {
+		"title": "Queued Messages:",
+		"clickToEdit": "Click to edit message"
 	}
 }

@@ -77,7 +77,7 @@ describe("ChatTextArea", () => {
 	})
 
 	describe("enhance prompt button", () => {
-		it("should be disabled when sendingDisabled is true", () => {
+		it("should be enabled even when sendingDisabled is true (for message queueing)", () => {
 			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
 				filePaths: [],
 				openedTabs: [],
@@ -86,7 +86,7 @@ describe("ChatTextArea", () => {
 			})
 			render(<ChatTextArea {...defaultProps} sendingDisabled={true} />)
 			const enhanceButton = getEnhancePromptButton()
-			expect(enhanceButton).toHaveClass("cursor-not-allowed")
+			expect(enhanceButton).toHaveClass("cursor-pointer")
 		})
 	})
 

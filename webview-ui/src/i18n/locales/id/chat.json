@@ -357,5 +357,9 @@
 	},
 	"command": {
 		"triggerDescription": "Jalankan perintah {{name}}"
+	},
+	"queuedMessages": {
+		"title": "Pesan Antrian:",
+		"clickToEdit": "Klik untuk mengedit pesan"
 	}
 }

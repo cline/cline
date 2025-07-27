@@ -351,5 +351,9 @@
 	},
 	"command": {
 		"triggerDescription": "{{name}} 명령 트리거"
+	},
+	"queuedMessages": {
+		"title": "대기열 메시지:",
+		"clickToEdit": "클릭하여 메시지 편집"
 	}
 }

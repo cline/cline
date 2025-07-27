@@ -351,5 +351,9 @@
 	},
 	"editMessage": {
 		"placeholder": "编辑消息..."
+	},
+	"queuedMessages": {
+		"title": "队列消息:",
+		"clickToEdit": "点击编辑消息"
 	}
 }
