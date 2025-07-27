@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "搜索..."
+		"search_placeholder": "搜索...",
+		"no_results": "未找到结果"
 	},
 	"mermaid": {
 		"loading": "生成 Mermaid 图表中...",

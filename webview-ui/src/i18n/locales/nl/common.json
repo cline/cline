@@ -20,7 +20,8 @@
 		"billion_suffix": "mrd"
 	},
 	"ui": {
-		"search_placeholder": "Zoeken..."
+		"search_placeholder": "Zoeken...",
+		"no_results": "Geen resultaten gevonden"
 	},
 	"mermaid": {
 		"loading": "Mermaid-diagram genereren...",

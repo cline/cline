@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "検索..."
+		"search_placeholder": "検索...",
+		"no_results": "結果が見つかりません"
 	},
 	"mermaid": {
 		"loading": "Mermaidダイアグラムを生成中...",

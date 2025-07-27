@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "Ara..."
+		"search_placeholder": "Ara...",
+		"no_results": "Sonuç bulunamadı"
 	},
 	"mermaid": {
 		"loading": "Mermaid diyagramı oluşturuluyor...",

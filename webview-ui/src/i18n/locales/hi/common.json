@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "खोजें..."
+		"search_placeholder": "खोजें...",
+		"no_results": "कोई परिणाम नहीं मिला"
 	},
 	"mermaid": {
 		"loading": "मरमेड डायग्राम जनरेट हो रहा है...",
