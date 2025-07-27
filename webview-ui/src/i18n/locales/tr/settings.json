@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Not: Önbellek kullanımını görmüyorsanız, farklı bir model seçip ardından istediğiniz modeli tekrar seçmeyi deneyin.",
 		"vscodeLmModel": "Dil Modeli",
 		"vscodeLmWarning": "Not: Bu çok deneysel bir entegrasyondur ve sağlayıcı desteği değişebilir. Bir modelin desteklenmediğine dair bir hata alırsanız, bu sağlayıcı tarafındaki bir sorundur.",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "URL bağlamını etkinleştir",
+				"description": "Yanıtlar oluşturulurken ek bağlam için Gemini'nin URL'lere erişmesine ve işlemesine izin verir. Web içeriği analizi gerektiren görevler için faydalıdır."
+			},
+			"groundingSearch": {
+				"title": "Google Aramasıyla Grounding Etkinleştir",
+				"description": "Gemini'nin güncel bilgileri almak için Google'da arama yapmasına ve yanıtları gerçek zamanlı verilere dayandırmasına izin verir. Güncel bilgi gerektiren sorgular için kullanışlıdır."
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AI'yi kullanmak için şunları yapmanız gerekir:",
 			"step1": "1. Google Cloud hesabı oluşturun, Vertex AI API'sini etkinleştirin ve istediğiniz Claude modellerini etkinleştirin.",

@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Hinweis: Wenn Sie keine Cache-Nutzung sehen, versuchen Sie ein anderes Modell auszuwählen und dann Ihr gewünschtes Modell erneut auszuwählen.",
 		"vscodeLmModel": "Sprachmodell",
 		"vscodeLmWarning": "Hinweis: Dies ist eine sehr experimentelle Integration und die Anbieterunterstützung variiert. Wenn Sie einen Fehler über ein nicht unterstütztes Modell erhalten, liegt das Problem auf Anbieterseite.",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "URL-Kontext aktivieren",
+				"description": "Ermöglicht Gemini, verlinkte Seiten zu lesen, um deren Inhalt zu extrahieren, zu vergleichen und in fundierte Antworten zu synthetisieren."
+			},
+			"groundingSearch": {
+				"title": "Grounding mit Google Suche aktivieren",
+				"description": "Verbindet Gemini mit Echtzeit-Webdaten für genaue, aktuelle Antworten mit überprüfbaren Zitaten."
+			}
+		},
 		"googleCloudSetup": {
 			"title": "Um Google Cloud Vertex AI zu verwenden, müssen Sie:",
 			"step1": "1. Ein Google Cloud-Konto erstellen, die Vertex AI API aktivieren & die gewünschten Claude-Modelle aktivieren.",

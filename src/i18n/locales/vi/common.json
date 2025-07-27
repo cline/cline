@@ -77,6 +77,11 @@
 			"processExitedWithError": "Tiến trình Claude Code thoát với mã {{exitCode}}. Đầu ra lỗi: {{output}}",
 			"stoppedWithReason": "Claude Code dừng lại vì lý do: {{reason}}",
 			"apiKeyModelPlanMismatch": "Khóa API và gói đăng ký cho phép các mô hình khác nhau. Đảm bảo rằng mô hình đã chọn được bao gồm trong gói của bạn."
+		},
+		"gemini": {
+			"generate_stream": "Lỗi luồng ngữ cảnh tạo Gemini: {{error}}",
+			"generate_complete_prompt": "Lỗi hoàn thành Gemini: {{error}}",
+			"sources": "Nguồn:"
 		}
 	},
 	"warnings": {

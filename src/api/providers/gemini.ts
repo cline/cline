@@ -4,6 +4,7 @@ import {
 	type GenerateContentResponseUsageMetadata,
 	type GenerateContentParameters,
 	type GenerateContentConfig,
+	type GroundingMetadata,
 } from "@google/genai"
 import type { JWTInput } from "google-auth-library"
 
@@ -13,6 +14,7 @@ import type { ApiHandlerOptions } from "../../shared/api"
 import { safeJsonParse } from "../../shared/safeJsonParse"
 
 import { convertAnthropicContentToGemini, convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { t } from "i18next"
 import type { ApiStream } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
@@ -67,72 +69,103 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
+		const tools: GenerateContentConfig["tools"] = []
+		if (this.options.enableUrlContext) {
+			tools.push({ urlContext: {} })
+		}
+
+		if (this.options.enableGrounding) {
+			tools.push({ googleSearch: {} })
+		}
+
 		const config: GenerateContentConfig = {
 			systemInstruction,
 			httpOptions: this.options.googleGeminiBaseUrl ? { baseUrl: this.options.googleGeminiBaseUrl } : undefined,
 			thinkingConfig,
 			maxOutputTokens: this.options.modelMaxTokens ?? maxTokens ?? undefined,
 			temperature: this.options.modelTemperature ?? 0,
+			...(tools.length > 0 ? { tools } : {}),
 		}
 
 		const params: GenerateContentParameters = { model, contents, config }
 
-		const result = await this.client.models.generateContentStream(params)
+		try {
+			const result = await this.client.models.generateContentStream(params)
 
-		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
+			let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
+			let pendingGroundingMetadata: GroundingMetadata | undefined
 
-		for await (const chunk of result) {
-			// Process candidates and their parts to separate thoughts from content
-			if (chunk.candidates && chunk.candidates.length > 0) {
-				const candidate = chunk.candidates[0]
-				if (candidate.content && candidate.content.parts) {
-					for (const part of candidate.content.parts) {
-						if (part.thought) {
-							// This is a thinking/reasoning part
-							if (part.text) {
-								yield { type: "reasoning", text: part.text }
-							}
-						} else {
-							// This is regular content
-							if (part.text) {
-								yield { type: "text", text: part.text }
+			for await (const chunk of result) {
+				// Process candidates and their parts to separate thoughts from content
+				if (chunk.candidates && chunk.candidates.length > 0) {
+					const candidate = chunk.candidates[0]
+
+					if (candidate.groundingMetadata) {
+						pendingGroundingMetadata = candidate.groundingMetadata
+					}
+
+					if (candidate.content && candidate.content.parts) {
+						for (const part of candidate.content.parts) {
+							if (part.thought) {
+								// This is a thinking/reasoning part
+								if (part.text) {
+									yield { type: "reasoning", text: part.text }
+								}
+							} else {
+								// This is regular content
+								if (part.text) {
+									yield { type: "text", text: part.text }
+								}
 							}
 						}
 					}
 				}
+
+				// Fallback to the original text property if no candidates structure
+				else if (chunk.text) {
+					yield { type: "text", text: chunk.text }
+				}
+
+				if (chunk.usageMetadata) {
+					lastUsageMetadata = chunk.usageMetadata
+				}
 			}
 
-			// Fallback to the original text property if no candidates structure
-			else if (chunk.text) {
-				yield { type: "text", text: chunk.text }
+			if (pendingGroundingMetadata) {
+				const citations = this.extractCitationsOnly(pendingGroundingMetadata)
+				if (citations) {
+					yield { type: "text", text: `\n\n${t("common:errors.gemini.sources")} ${citations}` }
+				}
 			}
 
-			if (chunk.usageMetadata) {
-				lastUsageMetadata = chunk.usageMetadata
-			}
-		}
+			if (lastUsageMetadata) {
+				const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
+				const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
+				const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
+				const reasoningTokens = lastUsageMetadata.thoughtsTokenCount
 
-		if (lastUsageMetadata) {
-			const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
-			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
-			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
-			const reasoningTokens = lastUsageMetadata.thoughtsTokenCount
-
-			yield {
-				type: "usage",
-				inputTokens,
-				outputTokens,
-				cacheReadTokens,
-				reasoningTokens,
-				totalCost: this.calculateCost({ info, inputTokens, outputTokens, cacheReadTokens }),
+				yield {
+					type: "usage",
+					inputTokens,
+					outputTokens,
+					cacheReadTokens,
+					reasoningTokens,
+					totalCost: this.calculateCost({ info, inputTokens, outputTokens, cacheReadTokens }),
+				}
 			}
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(t("common:errors.gemini.generate_stream", { error: error.message }))
+			}
+
+			throw error
 		}
 	}
 
 	override getModel() {
 		const modelId = this.options.apiModelId
 		let id = modelId && modelId in geminiModels ? (modelId as GeminiModelId) : geminiDefaultModelId
-		const info: ModelInfo = geminiModels[id]
+		let info: ModelInfo = geminiModels[id]
 		const params = getModelParams({ format: "gemini", modelId: id, model: info, settings: this.options })
 
 		// The `:thinking` suffix indicates that the model is a "Hybrid"
@@ -142,25 +175,69 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		return { id: id.endsWith(":thinking") ? id.replace(":thinking", "") : id, info, ...params }
 	}
 
+	private extractCitationsOnly(groundingMetadata?: GroundingMetadata): string | null {
+		const chunks = groundingMetadata?.groundingChunks
+
+		if (!chunks) {
+			return null
+		}
+
+		const citationLinks = chunks
+			.map((chunk, i) => {
+				const uri = chunk.web?.uri
+				if (uri) {
+					return `[${i + 1}](${uri})`
+				}
+				return null
+			})
+			.filter((link): link is string => link !== null)
+
+		if (citationLinks.length > 0) {
+			return citationLinks.join(", ")
+		}
+
+		return null
+	}
+
 	async completePrompt(prompt: string): Promise<string> {
 		try {
 			const { id: model } = this.getModel()
 
+			const tools: GenerateContentConfig["tools"] = []
+			if (this.options.enableUrlContext) {
+				tools.push({ urlContext: {} })
+			}
+			if (this.options.enableGrounding) {
+				tools.push({ googleSearch: {} })
+			}
+			const promptConfig: GenerateContentConfig = {
+				httpOptions: this.options.googleGeminiBaseUrl
+					? { baseUrl: this.options.googleGeminiBaseUrl }
+					: undefined,
+				temperature: this.options.modelTemperature ?? 0,
+				...(tools.length > 0 ? { tools } : {}),
+			}
+
 			const result = await this.client.models.generateContent({
 				model,
 				contents: [{ role: "user", parts: [{ text: prompt }] }],
-				config: {
-					httpOptions: this.options.googleGeminiBaseUrl
-						? { baseUrl: this.options.googleGeminiBaseUrl }
-						: undefined,
-					temperature: this.options.modelTemperature ?? 0,
-				},
+				config: promptConfig,
 			})
 
-			return result.text ?? ""
+			let text = result.text ?? ""
+
+			const candidate = result.candidates?.[0]
+			if (candidate?.groundingMetadata) {
+				const citations = this.extractCitationsOnly(candidate.groundingMetadata)
+				if (citations) {
+					text += `\n\n${t("common:errors.gemini.sources")} ${citations}`
+				}
+			}
+
+			return text
 		} catch (error) {
 			if (error instanceof Error) {
-				throw new Error(`Gemini completion error: ${error.message}`)
+				throw new Error(t("common:errors.gemini.generate_complete_prompt", { error: error.message }))
 			}
 
 			throw error

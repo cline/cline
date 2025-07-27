@@ -304,6 +304,17 @@
 		"cacheUsageNote": "注意：如果您沒有看到快取使用情況，請嘗試選擇其他模型，然後重新選擇您想要的模型。",
 		"vscodeLmModel": "語言模型",
 		"vscodeLmWarning": "注意：此整合功能仍處於實驗階段，各供應商的支援程度可能不同。如果出現模型不支援的錯誤，通常是供應商方面的問題。",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "啟用 URL 上下文",
+				"description": "讓 Gemini 讀取連結的頁面以提取、比較和綜合其內容，從而提供明智的答覆。"
+			},
+			"groundingSearch": {
+				"title": "啟用 Google 搜尋基礎",
+				"description": "將 Gemini 連接到即時網路數據，以獲得包含可驗證引用的準確、最新的答案。"
+			}
+		},
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
 			"step1": "1. 建立 Google Cloud 帳戶，啟用 Vertex AI API 並啟用所需的 Claude 模型。",

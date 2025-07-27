@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Nota: Si no veieu l'ús de la caché, proveu de seleccionar un model diferent i després tornar a seleccionar el model desitjat.",
 		"vscodeLmModel": "Model de llenguatge",
 		"vscodeLmWarning": "Nota: Aquesta és una integració molt experimental i el suport del proveïdor variarà. Si rebeu un error sobre un model no compatible, és un problema del proveïdor.",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Activa el context d'URL",
+				"description": "Permet a Gemini llegir pàgines enllaçades per extreure, comparar i sintetitzar el seu contingut en respostes informades."
+			},
+			"groundingSearch": {
+				"title": "Activa la Fonamentació amb la Cerca de Google",
+				"description": "Connecta Gemini a dades web en temps real per a respostes precises i actualitzades amb citacions verificables."
+			}
+		},
 		"googleCloudSetup": {
 			"title": "Per utilitzar Google Cloud Vertex AI, necessiteu:",
 			"step1": "1. Crear un compte de Google Cloud, habilitar l'API de Vertex AI i habilitar els models Claude necessaris.",

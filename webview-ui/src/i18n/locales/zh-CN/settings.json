@@ -304,6 +304,17 @@
 		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "启用 URL 上下文",
+				"description": "让 Gemini 读取链接的页面以提取、比较和综合其内容，从而提供明智的答复。"
+			},
+			"groundingSearch": {
+				"title": "启用 Google 搜索基础",
+				"description": "将 Gemini 连接到实时网络数据，以获得包含可验证引用的准确、最新的答案。"
+			}
+		},
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
 			"step1": "1. 注册Google Cloud账号并启用Vertex AI API",

@@ -81,6 +81,11 @@
 			"stoppedWithReason": "Claude Code s'ha aturat per la raó: {{reason}}",
 			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla."
 		},
+		"gemini": {
+			"generate_stream": "Error del flux de context de generació de Gemini: {{error}}",
+			"generate_complete_prompt": "Error de finalització de Gemini: {{error}}",
+			"sources": "Fonts:"
+		},
 		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},
 	"warnings": {

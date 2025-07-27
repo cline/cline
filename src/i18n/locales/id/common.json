@@ -77,6 +77,11 @@
 			"processExitedWithError": "Proses Claude Code keluar dengan kode {{exitCode}}. Output error: {{output}}",
 			"stoppedWithReason": "Claude Code berhenti karena alasan: {{reason}}",
 			"apiKeyModelPlanMismatch": "Kunci API dan paket berlangganan memungkinkan model yang berbeda. Pastikan model yang dipilih termasuk dalam paket Anda."
+		},
+		"gemini": {
+			"generate_stream": "Kesalahan aliran konteks pembuatan Gemini: {{error}}",
+			"generate_complete_prompt": "Kesalahan penyelesaian Gemini: {{error}}",
+			"sources": "Sumber:"
 		}
 	},
 	"warnings": {

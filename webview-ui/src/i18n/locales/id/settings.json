@@ -308,6 +308,17 @@
 		"cacheUsageNote": "Catatan: Jika kamu tidak melihat penggunaan cache, coba pilih model yang berbeda lalu pilih model yang kamu inginkan lagi.",
 		"vscodeLmModel": "Model Bahasa",
 		"vscodeLmWarning": "Catatan: Ini adalah integrasi yang sangat eksperimental dan dukungan provider akan bervariasi. Jika kamu mendapat error tentang model yang tidak didukung, itu adalah masalah di sisi provider.",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Aktifkan konteks URL",
+				"description": "Memungkinkan Gemini mengakses dan memproses URL untuk konteks tambahan saat menghasilkan respons. Berguna untuk tugas yang memerlukan analisis konten web."
+			},
+			"groundingSearch": {
+				"title": "Aktifkan Grounding dengan Pencarian Google",
+				"description": "Memungkinkan Gemini mencari informasi terkini di Google dan mendasarkan respons pada data waktu nyata. Berguna untuk kueri yang memerlukan informasi terkini."
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Untuk menggunakan Google Cloud Vertex AI, kamu perlu:",
 			"step1": "1. Buat akun Google Cloud, aktifkan Vertex AI API & aktifkan model Claude yang diinginkan.",

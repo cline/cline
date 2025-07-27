@@ -77,6 +77,11 @@
 			"processExitedWithError": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई। त्रुटि आउटपुट: {{output}}",
 			"stoppedWithReason": "Claude Code इस कारण से रुका: {{reason}}",
 			"apiKeyModelPlanMismatch": "API कुंजी और सब्सक्रिप्शन प्लान अलग-अलग मॉडल की अनुमति देते हैं। सुनिश्चित करें कि चयनित मॉडल आपकी योजना में शामिल है।"
+		},
+		"gemini": {
+			"generate_stream": "जेमिनी जनरेट कॉन्टेक्स्ट स्ट्रीम त्रुटि: {{error}}",
+			"generate_complete_prompt": "जेमिनी समापन त्रुटि: {{error}}",
+			"sources": "स्रोत:"
 		}
 	},
 	"warnings": {

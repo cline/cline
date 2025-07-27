@@ -304,6 +304,17 @@
 		"cacheUsageNote": "注意：キャッシュの使用が表示されない場合は、別のモデルを選択してから希望のモデルを再度選択してみてください。",
 		"vscodeLmModel": "言語モデル",
 		"vscodeLmWarning": "注意：これは非常に実験的な統合であり、プロバイダーのサポートは異なります。モデルがサポートされていないというエラーが表示された場合、それはプロバイダー側の問題です。",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "URLコンテキストを有効にする",
+				"description": "応答を生成する際に、追加のコンテキストとしてGeminiがURLにアクセスして処理できるようにします。Webコンテンツの分析を必要とするタスクに役立ちます。"
+			},
+			"groundingSearch": {
+				"title": "Google検索でのグラウンディングを有効にする",
+				"description": "GeminiがGoogleを検索して最新情報を取得し、リアルタイムデータに基づいて応答をグラウンディングできるようにします。最新情報が必要なクエリに便利です。"
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AIを使用するには：",
 			"step1": "1. Google Cloudアカウントを作成し、Vertex AI APIを有効にして、希望するClaudeモデルを有効にします。",

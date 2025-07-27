@@ -77,6 +77,11 @@
 			"processExitedWithError": "Процесс Claude Code завершился с кодом {{exitCode}}. Вывод ошибки: {{output}}",
 			"stoppedWithReason": "Claude Code остановился по причине: {{reason}}",
 			"apiKeyModelPlanMismatch": "API-ключи и планы подписки позволяют использовать разные модели. Убедитесь, что выбранная модель включена в ваш план."
+		},
+		"gemini": {
+			"generate_stream": "Ошибка потока контекста генерации Gemini: {{error}}",
+			"generate_complete_prompt": "Ошибка завершения Gemini: {{error}}",
+			"sources": "Источники:"
 		}
 	},
 	"warnings": {

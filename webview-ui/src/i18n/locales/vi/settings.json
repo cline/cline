@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Lưu ý: Nếu bạn không thấy việc sử dụng bộ nhớ đệm, hãy thử chọn một mô hình khác và sau đó chọn lại mô hình mong muốn của bạn.",
 		"vscodeLmModel": "Mô hình ngôn ngữ",
 		"vscodeLmWarning": "Lưu ý: Đây là tích hợp thử nghiệm và hỗ trợ nhà cung cấp có thể khác nhau. Nếu bạn nhận được lỗi về mô hình không được hỗ trợ, đó là vấn đề từ phía nhà cung cấp.",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Bật ngữ cảnh URL",
+				"description": "Cho phép Gemini truy cập và xử lý URL để có thêm ngữ cảnh khi tạo phản hồi. Hữu ích cho các tác vụ yêu cầu phân tích nội dung web."
+			},
+			"groundingSearch": {
+				"title": "Bật grounding với tìm kiếm Google",
+				"description": "Cho phép Gemini tìm kiếm trên Google để lấy thông tin mới nhất và căn cứ phản hồi dựa trên dữ liệu thời gian thực. Hữu ích cho các truy vấn yêu cầu thông tin cập nhật."
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Để sử dụng Google Cloud Vertex AI, bạn cần:",
 			"step1": "1. Tạo tài khoản Google Cloud, kích hoạt Vertex AI API và kích hoạt các mô hình Claude mong muốn.",

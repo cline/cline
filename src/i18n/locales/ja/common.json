@@ -77,6 +77,11 @@
 			"processExitedWithError": "Claude Code プロセスがコード {{exitCode}} で終了しました。エラー出力：{{output}}",
 			"stoppedWithReason": "Claude Code が理由により停止しました：{{reason}}",
 			"apiKeyModelPlanMismatch": "API キーとサブスクリプションプランでは異なるモデルが利用可能です。選択したモデルがプランに含まれていることを確認してください。"
+		},
+		"gemini": {
+			"generate_stream": "Gemini 生成コンテキスト ストリーム エラー: {{error}}",
+			"generate_complete_prompt": "Gemini 完了エラー: {{error}}",
+			"sources": "ソース:"
 		}
 	},
 	"warnings": {

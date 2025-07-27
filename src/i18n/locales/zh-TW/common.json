@@ -77,6 +77,11 @@
 			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
 			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。"
 		},
+		"gemini": {
+			"generate_stream": "Gemini 產生內容串流錯誤：{{error}}",
+			"generate_complete_prompt": "Gemini 完成錯誤：{{error}}",
+			"sources": "來源："
+		},
 		"mode_import_failed": "匯入模式失敗：{{error}}"
 	},
 	"warnings": {
