@@ -786,7 +786,9 @@ export class CustomModesManager {
 								const relativePath = isGlobalMode
 									? path.relative(baseDir, filePath)
 									: path.relative(path.join(baseDir, ".roo"), filePath)
-								rulesFiles.push({ relativePath, content: content.trim() })
+								// Normalize path to use forward slashes for cross-platform compatibility
+								const normalizedRelativePath = relativePath.toPosix()
+								rulesFiles.push({ relativePath: normalizedRelativePath, content: content.trim() })
 							}
 						}
 					}
