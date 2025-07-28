@@ -310,8 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				console.log("Auth callback received:", { provider })
 
 				if (token) {
-					await visibleWebview?.controller.handleAuthCallback(token, provider)
-					// await authService.handleAuthCallback(token)
+					await visibleWebview?.controller?.callbackHandler(uri.toString())
 				}
 				break
 			}

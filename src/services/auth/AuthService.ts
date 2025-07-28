@@ -1,12 +1,12 @@
-import vscode from "vscode"
-import { clineEnvConfig } from "@/config"
-import { Controller } from "@/core/controller"
-import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { storeSecret } from "@/core/storage/state"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
+import vscode from "vscode"
+import { clineEnvConfig } from "@/config"
+import type { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { storeSecret } from "@/core/storage/state"
+import { getAuthHandler } from "./AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { openExternal } from "@/utils/env"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -112,7 +112,7 @@ export class AuthService {
 			}
 			AuthService.instance = new AuthService(context, config || {}, authProvider)
 		}
-		if (context !== undefined) {
+		if (context !== undefined && context !== AuthService.instance.context) {
 			AuthService.instance.context = context
 		}
 		return AuthService.instance
@@ -195,7 +195,8 @@ export class AuthService {
 
 		const authUrlString = authUrl.toString()
 
-		await openExternal(authUrlString)
+		await getAuthHandler(authUrlString)
+
 		return String.create({ value: authUrlString })
 	}
 

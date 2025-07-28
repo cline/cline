@@ -35,6 +35,7 @@ import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { AuthHandler } from "@/services/auth/AuthHandler"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -82,6 +83,8 @@ export class Controller {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+
+		AuthHandler.callbackHandler = this.callbackHandler.bind(this)
 	}
 
 	async getCurrentMode(): Promise<Mode> {
@@ -319,7 +322,29 @@ export class Controller {
 		}
 	}
 
-	async handleAuthCallback(customToken: string, provider: string | null = null) {
+	public callbackHandler = async (uri: string) => {
+		try {
+			if (!uri) {
+				console.error("AuthTokenHandler.authUrlHandler: URI is undefined")
+				return
+			}
+			const url = new URL(uri.toString())
+			const query = new URLSearchParams(url.search)
+			const token = query.get("idToken")
+			const provider = query.get("provider") || null
+
+			if (!token) {
+				throw new Error("No idToken found in the callback URL")
+			}
+
+			// Notify the webview about the successful authentication
+			await this.handleAuthCallback(token, provider)
+		} catch (error) {
+			console.error("AuthTokenHandler.authTokenHandler error:", error)
+		}
+	}
+
+	private async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
