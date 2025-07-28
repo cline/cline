@@ -2,6 +2,7 @@ import path from "path"
 import { isBinaryFile } from "isbinaryfile"
 
 import { Task } from "../task/Task"
+import { validateFileSizeForContext } from "./contextValidator"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
@@ -435,6 +436,21 @@ export async function readFileTool(
 			try {
 				const [totalLines, isBinary] = await Promise.all([countFileLines(fullPath), isBinaryFile(fullPath)])
 
+				// Preemptive file size validation to prevent context overflow
+				const validation = await validateFileSizeForContext(fullPath, totalLines, maxReadFileLine, cline)
+				let effectiveMaxReadFileLine = maxReadFileLine
+				let validationNotice = ""
+
+				if (validation.shouldLimit && maxReadFileLine === -1) {
+					// Only apply limitation if maxReadFileLine is -1 (unlimited)
+					// If user has already set a limit, respect their choice
+					effectiveMaxReadFileLine = validation.safeMaxLines
+					validationNotice = validation.reason || ""
+					console.log(
+						`[read_file] Applied preemptive size limit to ${relPath}: ${validation.safeMaxLines} lines`,
+					)
+				}
+
 				// Handle binary files (but allow specific file types that extractTextFromFile can handle)
 				if (isBinary) {
 					const fileExtension = path.extname(relPath).toLowerCase()
@@ -468,11 +484,11 @@ export async function readFileTool(
 				}
 
 				// Handle definitions-only mode
-				if (maxReadFileLine === 0) {
+				if (effectiveMaxReadFileLine === 0) {
 					try {
 						const defResult = await parseSourceCodeDefinitionsForFile(fullPath, cline.rooIgnoreController)
 						if (defResult) {
-							let xmlInfo = `<notice>Showing only ${maxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
+							let xmlInfo = `<notice>Showing only ${effectiveMaxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
 							updateFileResult(relPath, {
 								xmlContent: `<file><path>${relPath}</path>\n<list_code_definition_names>${defResult}</list_code_definition_names>\n${xmlInfo}</file>`,
 							})
@@ -489,10 +505,10 @@ export async function readFileTool(
 					continue
 				}
 
-				// Handle files exceeding line threshold
-				if (maxReadFileLine > 0 && totalLines > maxReadFileLine) {
-					const content = addLineNumbers(await readLines(fullPath, maxReadFileLine - 1, 0))
-					const lineRangeAttr = ` lines="1-${maxReadFileLine}"`
+				// Handle files exceeding line threshold (including preemptive limits)
+				if (effectiveMaxReadFileLine > 0 && totalLines > effectiveMaxReadFileLine) {
+					const content = addLineNumbers(await readLines(fullPath, effectiveMaxReadFileLine - 1, 0))
+					const lineRangeAttr = ` lines="1-${effectiveMaxReadFileLine}"`
 					let xmlInfo = `<content${lineRangeAttr}>\n${content}</content>\n`
 
 					try {
@@ -500,7 +516,15 @@ export async function readFileTool(
 						if (defResult) {
 							xmlInfo += `<list_code_definition_names>${defResult}</list_code_definition_names>\n`
 						}
-						xmlInfo += `<notice>Showing only ${maxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
+
+						// Add appropriate notice based on whether this was a preemptive limit or user setting
+						if (validationNotice) {
+							// When shouldLimit is true, always provide inline instructions
+							xmlInfo += `<notice>${validationNotice}\n\nTo read specific sections of this file, use the following format:\n<read_file>\n<args>\n  <file>\n    <path>${relPath}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nFor example, to read lines 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>${relPath}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file></notice>\n`
+						} else {
+							xmlInfo += `<notice>Showing only ${effectiveMaxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
+						}
+
 						updateFileResult(relPath, {
 							xmlContent: `<file><path>${relPath}</path>\n${xmlInfo}</file>`,
 						})

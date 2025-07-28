@@ -4,12 +4,13 @@ import * as path from "path"
 
 import { countFileLines } from "../../../integrations/misc/line-counter"
 import { readLines } from "../../../integrations/misc/read-lines"
-import { extractTextFromFile } from "../../../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers } from "../../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
 import { ReadFileToolUse, ToolParamName, ToolResponse } from "../../../shared/tools"
 import { readFileTool } from "../readFileTool"
 import { formatResponse } from "../../prompts/responses"
+import * as contextValidatorModule from "../contextValidator"
 
 vi.mock("path", async () => {
 	const originalPath = await vi.importActual("path")
@@ -30,6 +31,7 @@ vi.mock("isbinaryfile")
 
 vi.mock("../../../integrations/misc/line-counter")
 vi.mock("../../../integrations/misc/read-lines")
+vi.mock("../contextValidator")
 
 // Mock input content for tests
 let mockInputContent = ""
@@ -89,6 +91,12 @@ describe("read_file tool with maxReadFileLine setting", () => {
 
 		mockedPathResolve.mockReturnValue(absoluteFilePath)
 		mockedIsBinaryFile.mockResolvedValue(false)
+
+		// Default mock for validateFileSizeForContext - no limit
+		vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+			shouldLimit: false,
+			safeMaxLines: -1,
+		})
 
 		mockInputContent = fileContent
 
@@ -517,6 +525,69 @@ describe("read_file tool XML output structure", () => {
 			expect(result).toBe(
 				`<files>\n<file><path>${testFilePath}</path><error>Access to ${testFilePath} is blocked by the .rooignore file settings. You must try to continue in the task without using this file, or ask the user to update the .rooignore file.</error></file>\n</files>`,
 			)
+		})
+	})
+
+	describe("line range instructions", () => {
+		beforeEach(() => {
+			// Reset mocks
+			vi.clearAllMocks()
+
+			// Mock file system functions
+			vi.mocked(isBinaryFile).mockResolvedValue(false)
+			vi.mocked(countFileLines).mockResolvedValue(10000) // Large file
+			vi.mocked(readLines).mockResolvedValue("line content")
+			vi.mocked(extractTextFromFile).mockResolvedValue("file content")
+
+			// Mock addLineNumbers
+			vi.mocked(addLineNumbers).mockImplementation((content, start) => `${start || 1} | ${content}`)
+		})
+
+		it("should always include inline line_range instructions when shouldLimit is true", async () => {
+			// Mock a large file
+			vi.mocked(countFileLines).mockResolvedValue(10000)
+
+			// Mock contextValidator to return shouldLimit true
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: true,
+				safeMaxLines: 2000,
+				reason: "File exceeds available context space",
+			})
+
+			// Mock readLines to return truncated content
+			vi.mocked(readLines).mockResolvedValue("Line 1\nLine 2\n...truncated...")
+
+			const result = await executeReadFileTool(
+				{ args: `<file><path>large-file.ts</path></file>` },
+				{ totalLines: 10000, maxReadFileLine: -1 },
+			)
+
+			// Verify the result contains the inline instructions
+			expect(result).toContain("<notice>")
+			expect(result).toContain("File exceeds available context space")
+			expect(result).toContain("To read specific sections of this file, use the following format:")
+			expect(result).toContain("<line_range>start-end</line_range>")
+			expect(result).toContain("For example, to read lines 2001-3000:")
+			expect(result).toContain("<line_range>2001-3000</line_range>")
+			expect(result).toContain("large-file.ts")
+		})
+
+		it("should not show any special notice when file fits in context", async () => {
+			// Mock small file that fits in context
+			vi.mocked(countFileLines).mockResolvedValue(100)
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: false,
+				safeMaxLines: -1,
+			})
+
+			const result = await executeReadFileTool({ args: `<file><path>small-file.ts</path></file>` })
+
+			// Should have file content but no notice about limits
+			expect(result).toContain("<file>")
+			expect(result).toContain("<path>small-file.ts</path>")
+			expect(result).toContain("<content")
+			expect(result).not.toContain("Use line_range")
+			expect(result).not.toContain("File exceeds available context space")
 		})
 	})
 })
