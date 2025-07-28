@@ -32,8 +32,8 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
-	const logToChannel = console.log
-	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), logToChannel)
+
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log)
 }
 
 /**

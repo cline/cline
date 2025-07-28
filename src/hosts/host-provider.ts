@@ -62,7 +62,7 @@ export class HostProvider {
 	 */
 	public static get(): HostProvider {
 		if (!HostProvider.instance) {
-			throw new Error("HostProvider not initialized. Call HostProvider.initialize() first.")
+			throw new Error("HostProvider not setup. Call HostProvider.initialize() first.")
 		}
 		return HostProvider.instance
 	}

@@ -26,24 +26,12 @@ export class Logger {
 	static trace(message: string) {
 		Logger.#output("TRACE", message)
 	}
-	static #timestamp() {
-		const now = new Date()
-		const year = now.getFullYear()
-		const month = String(now.getMonth() + 1).padStart(2, "0")
-		const day = String(now.getDate()).padStart(2, "0")
-		const hour = String(now.getHours()).padStart(2, "0")
-		const minute = String(now.getMinutes()).padStart(2, "0")
-		const second = String(now.getSeconds()).padStart(2, "0")
-		const timestamp = `${year}-${month}-${day}T${hour}:${minute}:${second}`
-		return timestamp
-	}
 	static #output(level: string, message: string, error?: Error) {
 		let fullMessage = message
 		if (error?.message) {
 			fullMessage += ` ${error.message}`
 		}
 		HostProvider.get().logToChannel(`${level} ${fullMessage}`)
-		console.log(`[${Logger.#timestamp()}] ${level} ${fullMessage}`)
 		if (error?.stack) {
 			console.log(`Stack trace:\n${error.stack}`)
 		}
