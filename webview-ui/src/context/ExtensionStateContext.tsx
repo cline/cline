@@ -7,10 +7,10 @@ import {
 	FileServiceClient,
 	McpServiceClient,
 } from "../services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { UpdateSettingsRequest } from "@shared/proto/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
-import { TerminalProfile } from "@shared/proto/state"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
+import { TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -31,8 +31,8 @@ import {
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
-import { UserInfo } from "@shared/proto/account"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { UserInfo } from "@shared/proto/cline/account"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 
 interface ExtensionStateContextType extends ExtensionState {

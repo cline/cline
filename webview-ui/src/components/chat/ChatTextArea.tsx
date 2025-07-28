@@ -1,23 +1,34 @@
-import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
-
-const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
+import type { ChatSettings } from "@shared/ChatSettings"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import type React from "react"
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { useClickAway, useWindowSize } from "react-use"
+import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
+import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions from "@/components/settings/ApiOptions"
-import { normalizeApiConfiguration, getModeSpecificFields } from "@/components/settings/utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
-	getContextMenuOptions,
 	getContextMenuOptionIndex,
+	getContextMenuOptions,
 	insertMention,
 	insertMentionDirectly,
 	removeMention,
-	SearchResult,
+	type SearchResult,
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
@@ -25,26 +36,16 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
+	type SlashCommand,
 	shouldShowSlashCommandsMenu,
-	SlashCommand,
 	slashCommandDeleteRegex,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
-import { ChatSettings } from "@shared/ChatSettings"
-import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { FileInfo, FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useEvent, useWindowSize } from "react-use"
-import styled from "styled-components"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
+
+const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -93,7 +94,9 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
 
-const SwitchOption = styled.div<{ isActive: boolean }>`
+const SwitchOption = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isActive"].includes(prop),
+})<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
 	z-index: 1;
@@ -122,7 +125,9 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	user-select: none; // Prevent text selection
 `
 
-const Slider = styled.div<{ isAct: boolean; isPlan?: boolean }>`
+const Slider = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
+})<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;

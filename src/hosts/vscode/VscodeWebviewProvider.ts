@@ -1,11 +1,11 @@
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { WebviewProviderType } from "@/shared/webview/types"
-import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
-import { getTheme } from "@integrations/theme/getTheme"
-import * as vscode from "vscode"
-import { Uri } from "vscode"
-import { WebviewProvider } from "@core/webview"
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
+import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
+import { WebviewProvider } from "@core/webview"
+import { getTheme } from "@integrations/theme/getTheme"
+import type { Uri } from "vscode"
+import * as vscode from "vscode"
+import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -68,8 +68,9 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
 			// panel
 			webviewView.onDidChangeViewState(
-				async () => {
-					if (this.webview?.visible) {
+				async (e) => {
+					if (e?.webviewPanel?.visible && e.webviewPanel?.active) {
+						//  Only send the event if the webview is active (focused)
 						await sendDidBecomeVisibleEvent(this.controller.id)
 					}
 				},
@@ -99,35 +100,31 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.disposables,
 		)
 
-		// // if the extension is starting a new session, clear previous task state
-		// this.clearTask()
-		{
-			// Listen for configuration changes
-			vscode.workspace.onDidChangeConfiguration(
-				async (e) => {
-					if (e && e.affectsConfiguration("workbench.colorTheme")) {
-						// Send theme update via gRPC subscription
-						const theme = await getTheme()
-						if (theme) {
-							await sendThemeEvent(JSON.stringify(theme))
-						}
+		// Listen for configuration changes
+		vscode.workspace.onDidChangeConfiguration(
+			async (e) => {
+				if (e && e.affectsConfiguration("workbench.colorTheme")) {
+					// Send theme update via gRPC subscription
+					const theme = await getTheme()
+					if (theme) {
+						await sendThemeEvent(JSON.stringify(theme))
 					}
-					if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
-						// Update state when marketplace tab setting changes
-						await this.controller.postStateToWebview()
-					}
-				},
-				null,
-				this.disposables,
-			)
+				}
+				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
+					// Update state when marketplace tab setting changes
+					await this.controller.postStateToWebview()
+				}
+			},
+			null,
+			this.disposables,
+		)
 
-			// if the extension is starting a new session, clear previous task state
-			this.controller.clearTask()
+		// if the extension is starting a new session, clear previous task state
+		this.controller.clearTask()
 
-			this.outputChannel.appendLine("Webview view resolved")
+		this.outputChannel.appendLine("Webview view resolved")
 
-			// Title setting logic removed to allow VSCode to use the container title primarily.
-		}
+		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}
 
 	/**

@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { StringRequest } from "../../../shared/proto/common"
-import { TaskResponse } from "../../../shared/proto/task"
+import { StringRequest } from "@shared/proto/cline/common"
+import { TaskResponse } from "@shared/proto/cline/task"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**

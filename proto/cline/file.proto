@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package cline;
-import "common.proto";
+import "cline/common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 

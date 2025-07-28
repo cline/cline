@@ -1,6 +1,6 @@
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { AskResponseRequest } from "@shared/proto/task"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 

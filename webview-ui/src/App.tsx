@@ -1,15 +1,15 @@
+import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
+import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
+import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
-import AccountView from "./components/account/AccountView"
-import { useExtensionState } from "./context/ExtensionStateContext"
-import { UiServiceClient } from "./services/grpc-client"
-import McpView from "./components/mcp/configuration/McpConfigurationView"
-import { Providers } from "./Providers"
-import { Boolean, EmptyRequest } from "@shared/proto/common"
 import { useClineAuth } from "./context/ClineAuthContext"
+import { useExtensionState } from "./context/ExtensionStateContext"
+import { Providers } from "./Providers"
+import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
 	const {
@@ -47,7 +47,7 @@ const AppContent = () => {
 					console.error("Failed to acknowledge announcement:", error)
 				})
 		}
-	}, [shouldShowAnnouncement])
+	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
 
 	if (!didHydrateState) {
 		return null

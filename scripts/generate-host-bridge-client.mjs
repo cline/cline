@@ -15,7 +15,7 @@ const VSCODE_CLIENT_FILE = path.resolve("src/generated/hosts/vscode/hostbridge-g
 /**
  * Main function to generate the host bridge client
  */
-async function main() {
+export async function main() {
 	const { hostServices } = await loadServicesFromProtoDescriptor()
 
 	await generateTypesFile(hostServices)
@@ -234,8 +234,10 @@ const ${name}ServiceRegistry = createServiceRegistry("${name}")
 ${methods}`
 }
 
-// Run the main function
-main().catch((error) => {
-	console.error(chalk.red("Error:"), error)
-	process.exit(1)
-})
+// Only run main if this script is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main().catch((error) => {
+		console.error(chalk.red("Error:"), error)
+		process.exit(1)
+	})
+}

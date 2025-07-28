@@ -1,6 +1,6 @@
 import type { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import type { UserOrganization } from "@shared/proto/account"
-import { EmptyRequest } from "@shared/proto/common"
+import type { UserOrganization } from "@shared/proto/cline/account"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
