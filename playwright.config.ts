@@ -1,14 +1,17 @@
 import { defineConfig } from "@playwright/test"
 
-const isGitHubAction = !!process.env.CI
+const isGitHubAction = !!process?.env?.CI
+const isWindow = process?.platform?.startsWith("win")
+
+const DEFAULT_TIMEOUT = isWindow ? 40000 : 20000
 
 export default defineConfig({
 	workers: 1,
 	retries: 1,
 	testDir: "src/test/e2e",
-	timeout: 20000,
+	timeout: DEFAULT_TIMEOUT,
 	expect: {
-		timeout: 20000,
+		timeout: DEFAULT_TIMEOUT,
 	},
 	fullyParallel: true,
 	reporter: isGitHubAction ? [["github"], ["list"]] : [["list"]],
