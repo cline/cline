@@ -1,52 +1,17 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, buildApiHandler } from "@api/index"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ApiHandler, buildApiHandler } from "@api/index"
 import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
-import { ApiStream } from "@api/transform/stream"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
-import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { listFiles } from "@services/glob/list-files"
-import { Logger } from "@services/logging/Logger"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
-import { ApiConfiguration } from "@shared/api"
-import { findLast, findLastIndex } from "@shared/array"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { ChatSettings } from "@shared/ChatSettings"
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
-import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
-import { arePathsEqual, getDesktopDir } from "@utils/path"
-import cloneDeep from "clone-deep"
-import { execa } from "execa"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import pTimeout from "p-timeout"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-
-import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
-import { ErrorService } from "@/services/error/ErrorService"
-import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
+import type { ApiStream } from "@api/transform/stream"
+import { parseAssistantMessageV2, parseAssistantMessageV3, type ToolUseName } from "@core/assistant-message"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
-import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -69,16 +34,51 @@ import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
+	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
-	GlobalFileNames,
 } from "@core/storage/disk"
 import { getGlobalState } from "@core/storage/state"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
-import { McpHub } from "@services/mcp/McpHub"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import type WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
+import type { McpHub } from "@services/mcp/McpHub"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex } from "@shared/array"
+import type { BrowserSettings } from "@shared/BrowserSettings"
+import type { ChatSettings } from "@shared/ChatSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import type { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import type { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import type { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { getGitRemoteUrls } from "@utils/git"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { arePathsEqual, getDesktopDir } from "@utils/path"
+import cloneDeep from "clone-deep"
+import { execa } from "execa"
+import pTimeout from "p-timeout"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ClineErrorType } from "@/services/error/ClineError"
+import { ErrorService } from "@/services/error/ErrorService"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -86,7 +86,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { ShowMessageType } from "@/shared/proto/index.host"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -230,7 +229,7 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Prepare effective API configuration
-		let effectiveApiConfiguration: ApiConfiguration = {
+		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
@@ -451,7 +450,7 @@ export class Task {
 		if (!didWorkspaceRestoreFail) {
 			switch (restoreType) {
 				case "task":
-				case "taskAndWorkspace":
+				case "taskAndWorkspace": {
 					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -494,6 +493,7 @@ export class Task {
 						} satisfies ClineApiReqInfo),
 					)
 					break
+				}
 				case "workspace":
 					break
 			}
@@ -1020,9 +1020,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
-		let userContent: UserContent = [
+		const userContent: UserContent = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1149,7 +1149,7 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		let newUserContent: UserContent = [...modifiedOldUserContent]
+		const newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1605,7 +1605,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		let result = this.terminalManager.processOutput(outputLines)
+		const result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1664,7 +1664,10 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
+	private async getCurrentProviderInfo(): Promise<{
+		modelId: string
+		providerId: string
+	}> {
 		const modelId = this.api.getModel()?.id
 		const providerId =
 			this.chatSettings.mode === "plan"
@@ -1675,7 +1678,9 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
+			timeout: 10_000,
+		}).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
@@ -1752,7 +1757,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1860,6 +1865,20 @@ export class Task {
 				// Do not retry automatically again if currently unauthenticated
 				if (clineError.isErrorType(ClineErrorType.Auth)) {
 					return
+				}
+
+				// Clear streamingFailedMessage when user manually retries
+				const manualRetryApiReqIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "api_req_started",
+				)
+				if (manualRetryApiReqIndex !== -1) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[manualRetryApiReqIndex].text || "{}")
+					delete currentApiReqInfo.streamingFailedMessage
+					await this.messageStateHandler.updateClineMessage(manualRetryApiReqIndex, {
+						text: JSON.stringify(currentApiReqInfo),
+					})
 				}
 
 				await this.say("api_req_retried")
@@ -2321,7 +2340,7 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
-						case "text":
+						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
@@ -2342,6 +2361,7 @@ export class Task {
 							// present content to user
 							this.presentAssistantMessage()
 							break
+						}
 					}
 
 					if (this.taskState.abort) {
