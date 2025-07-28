@@ -43,7 +43,8 @@ e2e("Authed as Cline user", async ({ page, sidebar }) => {
 	await sidebar.getByTestId("chat-input").fill("edit_request")
 	await sidebar.getByTestId("send-button").click({ delay: 100 })
 
-	await sidebar.getByText("Cline wants to edit this file:").click()
+	// Wait for the sidebar to load the file edit request
+	await sidebar.waitForSelector('span:has-text("Cline wants to edit this file:")')
 
 	// Cline should respond with a file edit request
 	await expect(sidebar.getByText("Cline wants to edit this file:")).toBeVisible()
