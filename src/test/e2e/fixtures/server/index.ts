@@ -4,13 +4,11 @@ import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
 import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
-import { ClineApiMock } from "./ClineApiMock"
+import { ClineDataMock } from "./data"
 
 const E2E_API_SERVER_PORT = 7777
 
 export const MOCK_CLINE_API_SERVER_URL = `http://localhost:${E2E_API_SERVER_PORT}`
-
-const CLINE_USER_MOCK = new ClineApiMock("personal")
 
 export class ClineApiServerMock {
 	private currentUser: UserResponse | null = null
@@ -18,6 +16,8 @@ export class ClineApiServerMock {
 	private orgBalance = 500.0
 	private userHasOrganization = false
 	public generationCounter = 0
+
+	public readonly API_USER = new ClineDataMock("personal")
 
 	constructor(public readonly server: Server) {}
 
@@ -41,8 +41,8 @@ export class ClineApiServerMock {
 	}
 
 	public setCurrentUser(user: UserResponse | null) {
+		this.API_USER.setCurrentUser(user)
 		this.currentUser = user
-		CLINE_USER_MOCK.setCurrentUser(user)
 	}
 
 	// Helper to match routes against registered endpoints and extract parameters
@@ -151,7 +151,7 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				console.log(`Authenticating token: ${authToken}`)
-				const user = CLINE_USER_MOCK.getUserByToken(authToken)
+				const user = controller.API_USER.getUserByToken(authToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
@@ -207,7 +207,7 @@ export class ClineApiServerMock {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse({
-							items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id),
+							items: controller.API_USER.getMockUsageTransactions(currentUser.id),
 						})
 					}
 
@@ -217,7 +217,7 @@ export class ClineApiServerMock {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse({
-							paymentTransactions: CLINE_USER_MOCK.getMockPaymentTransactions(currentUser.id),
+							paymentTransactions: controller.API_USER.getMockPaymentTransactions(currentUser.id),
 						})
 					}
 
@@ -239,7 +239,7 @@ export class ClineApiServerMock {
 						const body = await readBody()
 						const { organizationId } = JSON.parse(body)
 						return sendApiResponse({
-							items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id, organizationId),
+							items: controller.API_USER.getMockUsageTransactions(currentUser.id, organizationId),
 						})
 					}
 
@@ -247,7 +247,7 @@ export class ClineApiServerMock {
 						const body = await readBody()
 						const { organizationId } = JSON.parse(body)
 						controller.userHasOrganization = !!organizationId
-						const currentUser = CLINE_USER_MOCK.getCurrentUser()
+						const currentUser = controller.API_USER.getCurrentUser()
 						if (!currentUser) {
 							return sendApiError("No current user found", 400)
 						}
@@ -373,7 +373,7 @@ export class ClineApiServerMock {
 					// Generation details endpoint
 					if (endpoint === "/generation" && method === "GET") {
 						const generationId = query.id as string
-						const generation = CLINE_USER_MOCK.getGeneration(generationId)
+						const generation = controller.API_USER.getGeneration(generationId)
 
 						if (!generation) {
 							return sendJson({ error: "Generation not found" }, 404)
@@ -386,7 +386,7 @@ export class ClineApiServerMock {
 				// Test helper endpoints
 				if (baseRoute === "/.test") {
 					if (endpoint === "/auth" && method === "POST") {
-						const user = CLINE_USER_MOCK.getUserByToken()
+						const user = controller.API_USER.getUserByToken()
 						if (!user) {
 							return sendApiError("Invalid token", 401)
 						}

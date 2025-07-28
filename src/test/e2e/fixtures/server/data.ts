@@ -7,7 +7,7 @@ import type {
 	UserResponse,
 } from "../../../../shared/ClineAccount"
 
-export class ClineApiMock {
+export class ClineDataMock {
 	public static readonly USERS = [
 		{
 			name: "test-personal-user",
@@ -31,31 +31,31 @@ export class ClineApiMock {
 
 	// Helper method to get user by name from USERS array
 	public static getUserByName(name: string) {
-		return ClineApiMock.USERS.find((u) => u.name === name)
+		return ClineDataMock.USERS.find((u) => u.name === name)
 	}
 
 	// Helper method to get user by token from USERS array
 	public static findUserByToken(token: string) {
-		return ClineApiMock.USERS.find((u) => u.token === token)
+		return ClineDataMock.USERS.find((u) => u.token === token)
 	}
 
 	// Helper method to get all available tokens for testing
 	public static getAllTokens() {
-		return ClineApiMock.USERS.map((u) => ({ name: u.name, token: u.token }))
+		return ClineDataMock.USERS.map((u) => ({ name: u.name, token: u.token }))
 	}
 
 	// Helper method to get default tokens by type
 	public static getDefaultToken(type: "personal" | "enterprise") {
-		const user = ClineApiMock.USERS.find((u) => (type === "personal" ? !u.orgId : !!u.orgId))
+		const user = ClineDataMock.USERS.find((u) => (type === "personal" ? !u.orgId : !!u.orgId))
 		return user?.token
 	}
 
 	constructor(userType?: "personal" | "enterprise") {
 		if (userType === "personal") {
-			const userData = ClineApiMock.findUserByToken("test-personal-token")
+			const userData = ClineDataMock.findUserByToken("test-personal-token")
 			this._currentUser = userData ? this._createUserResponse(userData) : null
 		} else if (userType === "enterprise") {
-			const userData = ClineApiMock.findUserByToken("test-enterprise-token")
+			const userData = ClineDataMock.findUserByToken("test-enterprise-token")
 			this._currentUser = userData ? this._createUserResponse(userData) : null
 		} else {
 			this._currentUser = null // Default to no user
@@ -81,14 +81,14 @@ export class ClineApiMock {
 
 	// Helper method to switch to a specific user type for testing
 	public switchToUserType(type: "personal" | "enterprise"): UserResponse {
-		const token = ClineApiMock.getDefaultToken(type)
+		const token = ClineDataMock.getDefaultToken(type)
 		if (!token) {
 			throw new Error(`No ${type} user found in USERS array`)
 		}
 		return this.getUserByToken(token)
 	}
 	// Helper to create UserResponse from USERS array data
-	private _createUserResponse(userData: (typeof ClineApiMock.USERS)[0]): UserResponse {
+	private _createUserResponse(userData: (typeof ClineDataMock.USERS)[0]): UserResponse {
 		const isEnterprise = !!userData.orgId
 		const currentTime = new Date().toISOString()
 
@@ -113,7 +113,7 @@ export class ClineApiMock {
 
 	public getUserByToken(token?: string): UserResponse {
 		// Use default personal token if none provided
-		const actualToken = token || ClineApiMock.getDefaultToken("personal") || "test-personal-token"
+		const actualToken = token || ClineDataMock.getDefaultToken("personal") || "test-personal-token"
 		const currentUser = this._getUserByToken(actualToken)
 		this.setCurrentUser(currentUser)
 		return currentUser
@@ -121,7 +121,7 @@ export class ClineApiMock {
 
 	// Helper function to get user data based on auth token
 	private _getUserByToken(token: string): UserResponse {
-		const match = ClineApiMock.findUserByToken(token)
+		const match = ClineDataMock.findUserByToken(token)
 
 		if (!match) {
 			// Default fallback user for backward compatibility
