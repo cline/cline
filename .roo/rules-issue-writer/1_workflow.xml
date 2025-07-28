@@ -15,7 +15,7 @@
         <update_todo_list>
         <todos>
         [ ] Detect current repository information
-        [ ] Determine monorepo context
+        [ ] Determine repository structure (monorepo/standard)
         [ ] Perform initial codebase discovery
         [ ] Analyze user request to determine issue type
         [ ] Gather and verify additional information
@@ -66,7 +66,7 @@
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [-] Determine monorepo context
+      [-] Determine repository structure (monorepo/standard)
       [ ] Perform initial codebase discovery
       [ ] Analyze user request to determine issue type
       [ ] Gather and verify additional information
@@ -81,21 +81,34 @@
   </step>
 
   <step number="2">
-    <name>Determine Monorepo Context</name>
+    <name>Determine Repository Structure</name>
     <instructions>
-      CRITICAL FIRST STEP: Since this is a monorepo, we must establish which specific repository/package 
-      within the monorepo the user is referring to before any codebase exploration.
+      Check if this is a monorepo or standard repository by looking for common patterns.
       
-      First, explore the monorepo structure:
+      First, check for monorepo indicators:
+      1. Look for workspace configuration:
+         - package.json with "workspaces" field
+         - lerna.json
+         - pnpm-workspace.yaml
+         - rush.json
+      
+      2. Check for common monorepo directory patterns:
       <list_files>
       <path>.</path>
       <recursive>false</recursive>
       </list_files>
       
-      Common monorepo packages to look for:
+      Look for directories like:
       - apps/ (application packages)
       - packages/ (shared packages)
+      - services/ (service packages)
+      - libs/ (library packages)
+      - modules/ (module packages)
       - src/ (main source if not using workspaces)
+      
+      If monorepo detected:
+        - Dynamically discover packages by looking for package.json files in detected directories
+        - Build a list of available packages with their paths
       
       Based on the user's description, try to identify which package they're referring to.
       If unclear, ask for clarification:
@@ -103,21 +116,22 @@
       <ask_followup_question>
       <question>I see this is a monorepo with multiple packages. Which specific package or application is your issue related to?</question>
       <follow_up>
-      <suggest>apps/vscode - The main VSCode extension</suggest>
-      <suggest>apps/web-roo-code - The web application</suggest>
-      <suggest>packages/cloud - Cloud functionality</suggest>
-      <suggest>packages/types - Type definitions</suggest>
+      [Dynamically generated list of discovered packages]
       <suggest>Let me describe which package: [specify]</suggest>
       </follow_up>
       </ask_followup_question>
       
-      Store the monorepo context for all future codebase searches and explorations.
+      If standard repository:
+        - Skip package selection
+        - Use repository root for all searches
+      
+      Store the repository context for all future codebase searches and explorations.
       
       Update todo after determining context:
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [-] Perform initial codebase discovery
       [ ] Analyze user request to determine issue type
       [ ] Gather and verify additional information
@@ -134,7 +148,7 @@
   <step number="3">
     <name>Perform Initial Codebase Discovery</name>
     <instructions>
-      Now that we know the monorepo context, immediately search the codebase to understand
+      Now that we know the repository structure, immediately search the codebase to understand
       what the user is talking about before determining the issue type.
       
       DISCOVERY ACTIVITIES:
@@ -146,7 +160,7 @@
       
       <codebase_search>
       <query>[Keywords from user's initial message/description]</query>
-      <path>[Monorepo package path from step 1]</path>
+      <path>[Repository or package path from step 2]</path>
       </codebase_search>
       
       Additional searches based on initial findings:
@@ -155,7 +169,7 @@
       - If component mentioned: search for implementation details
       
       <search_files>
-      <path>[monorepo package path]</path>
+      <path>[repository or package path]</path>
       <regex>[specific patterns found in initial search]</regex>
       </search_files>
       
@@ -169,7 +183,7 @@
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [-] Analyze user request to determine issue type
       [ ] Gather and verify additional information
@@ -225,7 +239,7 @@
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [-] Gather and verify additional information
@@ -267,13 +281,13 @@
       
       Example verification searches:
       <search_files>
-      <path>[monorepo package path]</path>
+      <path>[repository or package path]</path>
       <regex>[exact error message from user]</regex>
       </search_files>
       
       <codebase_search>
       <query>[feature or component name] implementation</query>
-      <path>[monorepo package path]</path>
+      <path>[repository or package path]</path>
       </codebase_search>
       
       For Feature Requests - AGGRESSIVE VERIFICATION WITH CONCRETE EXAMPLES:
@@ -357,7 +371,7 @@
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
@@ -393,9 +407,9 @@
       Based on findings, provide informed context in the question:
       
       <ask_followup_question>
-      <question>Based on my analysis, this [issue type] involves [brief complexity assessment from code exploration]. Are you interested in implementing this yourself, or are you reporting it for the Roo team to handle?</question>
+      <question>Based on my analysis, this [issue type] involves [brief complexity assessment from code exploration]. Are you interested in implementing this yourself, or are you reporting it for the project team to handle?</question>
       <follow_up>
-      <suggest>Just reporting the problem - the Roo team can design the solution</suggest>
+      <suggest>Just reporting the problem - the project team can design the solution</suggest>
       <suggest>I want to contribute and implement this myself</suggest>
       <suggest>I'd like to provide issue scoping to help whoever implements it</suggest>
       </follow_up>
@@ -405,7 +419,7 @@
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
@@ -443,7 +457,7 @@
             <update_todo_list>
             <todos>
             [x] Detect current repository information
-            [x] Determine monorepo context
+            [x] Determine repository structure (monorepo/standard)
             [x] Perform initial codebase discovery
             [x] Analyze user request to determine issue type
             [x] Gather and verify additional information
@@ -490,7 +504,7 @@
             Use codebase_search with all extracted keywords to get an overview of relevant code.
             <codebase_search>
             <query>[Combined keywords from extraction phase]</query>
-            <path>[Monorepo package path]</path>
+            <path>[Repository or package path]</path>
             </codebase_search>
           </iteration>
           
@@ -747,8 +761,8 @@ Example: "The function at line X calculates [value] by [method], which results i
         </phase>
       </sub_workflow>
       
-      Additional monorepo considerations:
-      - Scope all searches to the identified monorepo package
+      Additional considerations for monorepo repositories:
+      - Scope all searches to the identified package (if monorepo)
       - Check for cross-package dependencies
       - Verify against package-specific conventions
       - Look for package-specific configuration
@@ -762,7 +776,7 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
@@ -853,7 +867,7 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
@@ -936,7 +950,7 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
@@ -983,12 +997,13 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
       [x] Determine if user wants to contribute
       [x] Perform issue scoping (if contributing)
+      [x] Check for repository issue templates
       [x] Draft issue content
       [x] Review and confirm with user
       [-] Prepare issue for submission
@@ -1011,15 +1026,15 @@ Example: "The function at line X calculates [value] by [method], which results i
       If no exact duplicates are found, save the issue content to a temporary file within the project:
       
       <write_to_file>
-      <path>github_issue_draft.md</path>
-      <content>[The complete formatted issue body from step 7]</content>
+      <path>./github_issue_draft.md</path>
+      <content>[The complete formatted issue body from step 8]</content>
       <line_count>[calculated line count]</line_count>
       </write_to_file>
       
       After saving the issue draft, ask the user how they would like to proceed:
       
       <ask_followup_question>
-      <question>I've saved the issue draft to github_issue_draft.md. The issue is ready for submission with the following details:
+      <question>I've saved the issue draft to ./github_issue_draft.md. The issue is ready for submission with the following details:
 
       Title: "[Descriptive title with component name]"
       Labels: [appropriate labels based on issue type]
@@ -1047,7 +1062,7 @@ Example: "The function at line X calculates [value] by [method], which results i
         - Return to the submission question
       
       If "I'll submit it manually":
-        - Inform them the draft is saved at .tmp/github_issue_draft.md
+        - Inform them the draft is saved at the configured location
         - Provide the gh command they can use later
         - Complete the workflow without submission
       
@@ -1055,12 +1070,13 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
       [x] Determine if user wants to contribute
       [x] Perform issue scoping (if contributing)
+      [x] Check for repository issue templates
       [x] Draft issue content
       [x] Review and confirm with user
       [x] Prepare issue for submission
@@ -1079,19 +1095,19 @@ Example: "The function at line X calculates [value] by [method], which results i
       If the user chooses to submit immediately:
       
       <execute_command>
-      <command>gh issue create --repo $REPO_FULL_NAME --title "[Descriptive title]" --body-file github_issue_draft.md --label "[appropriate labels]"</command>
+      <command>gh issue create --repo $REPO_FULL_NAME --title "[Descriptive title]" --body-file ./github_issue_draft.md --label "[appropriate labels]"</command>
       </execute_command>
       
       Label selection based on findings:
-      - Bug: "bug", potentially "regression" if code shows it worked before
-      - Feature: "proposal", "enhancement", potentially package-specific labels
-      - Add "monorepo" label if affects multiple packages
+      - Bug: Use "bug" label
+      - Feature: Use "enhancement" label
+      - If affects multiple packages in monorepo: add "affects-multiple" label
       
       After successful creation:
       - Capture and display the issue URL
       - Clean up the temporary file:
         <execute_command>
-        <command>rm github_issue_draft.md</command>
+        <command>rm ./github_issue_draft.md</command>
         </execute_command>
       - Provide a summary of key findings included
       
@@ -1116,10 +1132,10 @@ Example: "The function at line X calculates [value] by [method], which results i
       If the user will submit manually:
       
       Provide clear instructions:
-      "The issue draft has been saved to github_issue_draft.md
-      
+      "The issue draft has been saved to ./github_issue_draft.md
+
       To submit it later, you can use:
-      gh issue create --repo $REPO_FULL_NAME --title "[Your title]" --body-file github_issue_draft.md --label "[labels]"
+      gh issue create --repo $REPO_FULL_NAME --title "[Your title]" --body-file ./github_issue_draft.md --label "[labels]"
       
       Or you can copy the content and create the issue through the GitHub web interface."
       
@@ -1127,12 +1143,13 @@ Example: "The function at line X calculates [value] by [method], which results i
       <update_todo_list>
       <todos>
       [x] Detect current repository information
-      [x] Determine monorepo context
+      [x] Determine repository structure (monorepo/standard)
       [x] Perform initial codebase discovery
       [x] Analyze user request to determine issue type
       [x] Gather and verify additional information
       [x] Determine if user wants to contribute
       [x] Perform issue scoping (if contributing)
+      [x] Check for repository issue templates
       [x] Draft issue content
       [x] Review and confirm with user
       [x] Prepare issue for submission
