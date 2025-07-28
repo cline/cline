@@ -28,6 +28,7 @@ import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import { VolumeX, Image, WandSparkles, SendHorizontal } from "lucide-react"
 import { IndexingStatusBadge } from "./IndexingStatusBadge"
+import { SlashCommandsPopover } from "./SlashCommandsPopover"
 import { cn } from "@/lib/utils"
 import { usePromptHistory } from "./hooks/usePromptHistory"
 import { EditModeControls } from "./EditModeControls"
@@ -145,6 +146,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 
 					setIsEnhancingPrompt(false)
+				} else if (message.type === "insertTextIntoTextarea") {
+					if (message.text && textAreaRef.current) {
+						// Insert the command text at the current cursor position
+						const textarea = textAreaRef.current
+						const currentValue = inputValue
+						const cursorPos = textarea.selectionStart || 0
+
+						// Check if we need to add a space before the command
+						const textBefore = currentValue.slice(0, cursorPos)
+						const needsSpaceBefore = textBefore.length > 0 && !textBefore.endsWith(" ")
+						const prefix = needsSpaceBefore ? " " : ""
+
+						// Insert the text at cursor position
+						const newValue =
+							currentValue.slice(0, cursorPos) +
+							prefix +
+							message.text +
+							" " +
+							currentValue.slice(cursorPos)
+						setInputValue(newValue)
+
+						// Set cursor position after the inserted text
+						const newCursorPos = cursorPos + prefix.length + message.text.length + 1
+						setTimeout(() => {
+							if (textAreaRef.current) {
+								textAreaRef.current.focus()
+								textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+							}
+						}, 0)
+					}
 				} else if (message.type === "commitSearchResults") {
 					const commits = message.commits.map((commit: any) => ({
 						type: ContextMenuOptionType.Git,
@@ -165,7 +196,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			window.addEventListener("message", messageHandler)
 			return () => window.removeEventListener("message", messageHandler)
-		}, [setInputValue, searchRequestId])
+		}, [setInputValue, searchRequestId, inputValue])
 
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -365,7 +396,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const options = getContextMenuOptions(
 								searchQuery,
 								inputValue,
-								t,
 								selectedType,
 								queryItems,
 								fileSearchResults,
@@ -404,7 +434,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						const selectedOption = getContextMenuOptions(
 							searchQuery,
 							inputValue,
-							t,
 							selectedType,
 							queryItems,
 							fileSearchResults,
@@ -498,7 +527,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				handleHistoryNavigation,
 				resetHistoryNavigation,
 				commands,
-				t,
 			],
 		)
 
@@ -897,6 +925,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</button>
 						</StandardTooltip>
 					)}
+					<SlashCommandsPopover />
 					<IndexingStatusBadge />
 					<StandardTooltip content={t("chat:addImages")}>
 						<button

@@ -23,6 +23,7 @@ import type { MarketplaceItem } from "@roo-code/types"
 export interface Command {
 	name: string
 	source: "global" | "project"
+	filePath?: string
 }
 
 // Type for marketplace installed metadata
@@ -116,6 +117,7 @@ export interface ExtensionMessage {
 		| "showDeleteMessageDialog"
 		| "showEditMessageDialog"
 		| "commands"
+		| "insertTextIntoTextarea"
 	text?: string
 	payload?: any // Add a generic payload for now, can refine later
 	action?:

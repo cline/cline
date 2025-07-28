@@ -108,7 +108,7 @@
 	"stopTts": "停止文本转语音",
 	"typeMessage": "输入消息...",
 	"typeTask": "在此处输入您的任务...",
-	"addContext": "@添加上下文，/切换模式",
+	"addContext": "@添加上下文，/输入命令",
 	"dragFiles": "Shift+拖拽文件",
 	"dragFilesImages": "Shift+拖拽文件/图片",
 	"enhancePromptDescription": "'增强提示'按钮通过提供额外上下文、澄清或重新表述来帮助改进您的请求。尝试在此处输入请求，然后再次点击按钮查看其工作原理。",
@@ -351,6 +351,24 @@
 	},
 	"editMessage": {
 		"placeholder": "编辑消息..."
+	},
+	"slashCommands": {
+		"tooltip": "管理斜杠命令",
+		"title": "斜杠命令",
+		"description": "创建自定义斜杠命令，快速访问常用提示词和工作流程。",
+		"globalCommands": "全局命令",
+		"workspaceCommands": "工作区命令",
+		"globalCommand": "全局命令",
+		"editCommand": "编辑命令",
+		"deleteCommand": "删除命令",
+		"newGlobalCommandPlaceholder": "新建全局命令...",
+		"newWorkspaceCommandPlaceholder": "新建工作区命令...",
+		"deleteDialog": {
+			"title": "删除命令",
+			"description": "确定要删除命令 \"{{name}}\" 吗？此操作无法撤销。",
+			"cancel": "取消",
+			"confirm": "删除"
+		}
 	},
 	"queuedMessages": {
 		"title": "队列消息:",

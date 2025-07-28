@@ -2365,6 +2365,7 @@ export const webviewMessageHandler = async (
 				const commandList = commands.map((command) => ({
 					name: command.name,
 					source: command.source,
+					filePath: command.filePath,
 				}))
 
 				await provider.postMessageToWebview({
@@ -2377,6 +2378,171 @@ export const webviewMessageHandler = async (
 				await provider.postMessageToWebview({
 					type: "commands",
 					commands: [],
+				})
+			}
+			break
+		}
+		case "openCommandFile": {
+			try {
+				if (message.text) {
+					const { getCommand } = await import("../../services/command/commands")
+					const command = await getCommand(provider.cwd || "", message.text)
+
+					if (command && command.filePath) {
+						openFile(command.filePath)
+					} else {
+						vscode.window.showErrorMessage(t("common:errors.command_not_found", { name: message.text }))
+					}
+				}
+			} catch (error) {
+				provider.log(
+					`Error opening command file: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+				)
+				vscode.window.showErrorMessage(t("common:errors.open_command_file"))
+			}
+			break
+		}
+		case "deleteCommand": {
+			try {
+				if (message.text && message.values?.source) {
+					const { getCommand } = await import("../../services/command/commands")
+					const command = await getCommand(provider.cwd || "", message.text)
+
+					if (command && command.filePath) {
+						// Delete the command file
+						await fs.unlink(command.filePath)
+						provider.log(`Deleted command file: ${command.filePath}`)
+					} else {
+						vscode.window.showErrorMessage(t("common:errors.command_not_found", { name: message.text }))
+					}
+				}
+			} catch (error) {
+				provider.log(`Error deleting command: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+				vscode.window.showErrorMessage(t("common:errors.delete_command"))
+			}
+			break
+		}
+		case "createCommand": {
+			try {
+				const source = message.values?.source as "global" | "project"
+				const fileName = message.text // Custom filename from user input
+
+				if (!source) {
+					provider.log("Missing source for createCommand")
+					break
+				}
+
+				// Determine the commands directory based on source
+				let commandsDir: string
+				if (source === "global") {
+					const globalConfigDir = path.join(os.homedir(), ".roo")
+					commandsDir = path.join(globalConfigDir, "commands")
+				} else {
+					// Project commands
+					const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+					if (!workspaceRoot) {
+						vscode.window.showErrorMessage(t("common:errors.no_workspace_for_project_command"))
+						break
+					}
+					commandsDir = path.join(workspaceRoot, ".roo", "commands")
+				}
+
+				// Ensure the commands directory exists
+				await fs.mkdir(commandsDir, { recursive: true })
+
+				// Use provided filename or generate a unique one
+				let commandName: string
+				if (fileName && fileName.trim()) {
+					let cleanFileName = fileName.trim()
+
+					// Strip leading slash if present
+					if (cleanFileName.startsWith("/")) {
+						cleanFileName = cleanFileName.substring(1)
+					}
+
+					// Remove .md extension if present BEFORE slugification
+					if (cleanFileName.toLowerCase().endsWith(".md")) {
+						cleanFileName = cleanFileName.slice(0, -3)
+					}
+
+					// Slugify the command name: lowercase, replace spaces with dashes, remove special characters
+					commandName = cleanFileName
+						.toLowerCase()
+						.replace(/\s+/g, "-") // Replace spaces with dashes
+						.replace(/[^a-z0-9-]/g, "") // Remove special characters except dashes
+						.replace(/-+/g, "-") // Replace multiple dashes with single dash
+						.replace(/^-|-$/g, "") // Remove leading/trailing dashes
+
+					// Ensure we have a valid command name
+					if (!commandName || commandName.length === 0) {
+						commandName = "new-command"
+					}
+				} else {
+					// Generate a unique command name
+					commandName = "new-command"
+					let counter = 1
+					let filePath = path.join(commandsDir, `${commandName}.md`)
+
+					while (
+						await fs
+							.access(filePath)
+							.then(() => true)
+							.catch(() => false)
+					) {
+						commandName = `new-command-${counter}`
+						filePath = path.join(commandsDir, `${commandName}.md`)
+						counter++
+					}
+				}
+
+				const filePath = path.join(commandsDir, `${commandName}.md`)
+
+				// Check if file already exists
+				if (
+					await fs
+						.access(filePath)
+						.then(() => true)
+						.catch(() => false)
+				) {
+					vscode.window.showErrorMessage(t("common:errors.command_already_exists", { commandName }))
+					break
+				}
+
+				// Create the command file with template content
+				const templateContent = t("common:errors.command_template_content")
+
+				await fs.writeFile(filePath, templateContent, "utf8")
+				provider.log(`Created new command file: ${filePath}`)
+
+				// Open the new file in the editor
+				openFile(filePath)
+
+				// Refresh commands list
+				const { getCommands } = await import("../../services/command/commands")
+				const commands = await getCommands(provider.cwd || "")
+				const commandList = commands.map((command) => ({
+					name: command.name,
+					source: command.source,
+					filePath: command.filePath,
+				}))
+				await provider.postMessageToWebview({
+					type: "commands",
+					commands: commandList,
+				})
+			} catch (error) {
+				provider.log(`Error creating command: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+				vscode.window.showErrorMessage(t("common:errors.create_command_failed"))
+			}
+			break
+		}
+
+		case "insertTextIntoTextarea": {
+			const text = message.text
+			if (text) {
+				// Send message to insert text into the chat textarea
+				await provider.postMessageToWebview({
+					type: "insertTextIntoTextarea",
+					text: text,
 				})
 			}
 			break

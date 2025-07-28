@@ -75,6 +75,13 @@
 		"share_task_not_found": "Tarefa não encontrada ou acesso negado.",
 		"mode_import_failed": "Falha ao importar o modo: {{error}}",
 		"delete_rules_folder_failed": "Falha ao excluir pasta de regras: {{rulesFolderPath}}. Erro: {{error}}",
+		"command_not_found": "Comando '{{name}}' não encontrado",
+		"open_command_file": "Falha ao abrir arquivo de comando",
+		"delete_command": "Falha ao excluir comando",
+		"no_workspace_for_project_command": "Nenhuma pasta de workspace encontrada para comando de projeto",
+		"command_already_exists": "Comando \"{{commandName}}\" já existe",
+		"create_command_failed": "Falha ao criar comando",
+		"command_template_content": "Este é um novo comando slash. Edite este arquivo para personalizar o comportamento do comando.",
 		"claudeCode": {
 			"processExited": "O processo Claude Code saiu com código {{exitCode}}.",
 			"errorOutput": "Saída de erro: {{output}}",

@@ -108,7 +108,7 @@
 	"stopTts": "Zatrzymaj syntezę mowy",
 	"typeMessage": "Wpisz wiadomość...",
 	"typeTask": "Wpisz swoje zadanie tutaj...",
-	"addContext": "@ aby dodać kontekst, / aby zmienić tryb",
+	"addContext": "@ aby dodać kontekst, / dla poleceń",
 	"dragFiles": "przytrzymaj shift, aby przeciągnąć pliki",
 	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy",
 	"enhancePromptDescription": "Przycisk 'Ulepsz podpowiedź' pomaga ulepszyć Twoją prośbę, dostarczając dodatkowy kontekst, wyjaśnienia lub przeformułowania. Spróbuj wpisać prośbę tutaj i kliknij przycisk ponownie, aby zobaczyć, jak to działa.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Uruchom polecenie {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Zarządzaj poleceniami slash",
+		"title": "Polecenia Slash",
+		"description": "Twórz niestandardowe polecenia slash dla szybkiego dostępu do często używanych promptów i przepływów pracy.",
+		"globalCommands": "Polecenia Globalne",
+		"workspaceCommands": "Polecenia Obszaru Roboczego",
+		"globalCommand": "Polecenie globalne",
+		"editCommand": "Edytuj polecenie",
+		"deleteCommand": "Usuń polecenie",
+		"newGlobalCommandPlaceholder": "Nowe polecenie globalne...",
+		"newWorkspaceCommandPlaceholder": "Nowe polecenie obszaru roboczego...",
+		"deleteDialog": {
+			"title": "Usuń Polecenie",
+			"description": "Czy na pewno chcesz usunąć polecenie \"{{name}}\"? Tej akcji nie można cofnąć.",
+			"cancel": "Anuluj",
+			"confirm": "Usuń"
+		}
 	},
 	"queuedMessages": {
 		"title": "Wiadomości w kolejce:",

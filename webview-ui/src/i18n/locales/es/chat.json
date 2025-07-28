@@ -108,7 +108,7 @@
 	"stopTts": "Detener texto a voz",
 	"typeMessage": "Escribe un mensaje...",
 	"typeTask": "Escribe tu tarea aquí...",
-	"addContext": "@ para agregar contexto, / para cambiar modos",
+	"addContext": "@ para agregar contexto, / para comandos",
 	"dragFiles": "mantén shift para arrastrar archivos",
 	"dragFilesImages": "mantén shift para arrastrar archivos/imágenes",
 	"enhancePromptDescription": "El botón 'Mejorar el mensaje' ayuda a mejorar tu petición proporcionando contexto adicional, aclaraciones o reformulaciones. Intenta escribir una petición aquí y haz clic en el botón nuevamente para ver cómo funciona.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Activar el comando {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gestionar comandos de barra",
+		"title": "Comandos de Barra",
+		"description": "Crea comandos de barra personalizados para acceder rápidamente a prompts y flujos de trabajo utilizados con frecuencia.",
+		"globalCommands": "Comandos Globales",
+		"workspaceCommands": "Comandos del Espacio de Trabajo",
+		"globalCommand": "Comando global",
+		"editCommand": "Editar comando",
+		"deleteCommand": "Eliminar comando",
+		"newGlobalCommandPlaceholder": "Nuevo comando global...",
+		"newWorkspaceCommandPlaceholder": "Nuevo comando del espacio de trabajo...",
+		"deleteDialog": {
+			"title": "Eliminar Comando",
+			"description": "¿Estás seguro de que quieres eliminar el comando \"{{name}}\"? Esta acción no se puede deshacer.",
+			"cancel": "Cancelar",
+			"confirm": "Eliminar"
+		}
 	},
 	"queuedMessages": {
 		"title": "Mensajes en cola:",

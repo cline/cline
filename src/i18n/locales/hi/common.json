@@ -71,6 +71,13 @@
 		"share_task_not_found": "कार्य नहीं मिला या पहुंच अस्वीकृत।",
 		"mode_import_failed": "मोड आयात करने में विफल: {{error}}",
 		"delete_rules_folder_failed": "नियम फ़ोल्डर हटाने में विफल: {{rulesFolderPath}}। त्रुटि: {{error}}",
+		"command_not_found": "कमांड '{{name}}' नहीं मिला",
+		"open_command_file": "कमांड फ़ाइल खोलने में विफल",
+		"delete_command": "कमांड हटाने में विफल",
+		"no_workspace_for_project_command": "प्रोजेक्ट कमांड के लिए वर्कस्पेस फ़ोल्डर नहीं मिला",
+		"command_already_exists": "कमांड \"{{commandName}}\" पहले से मौजूद है",
+		"create_command_failed": "कमांड बनाने में विफल",
+		"command_template_content": "यह एक नया स्लैश कमांड है। कमांड व्यवहार को कस्टमाइज़ करने के लिए इस फ़ाइल को संपादित करें।",
 		"claudeCode": {
 			"processExited": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई।",
 			"errorOutput": "त्रुटि आउटपुट: {{output}}",

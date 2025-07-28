@@ -71,6 +71,13 @@
 		"share_task_not_found": "Attività non trovata o accesso negato.",
 		"mode_import_failed": "Importazione della modalità non riuscita: {{error}}",
 		"delete_rules_folder_failed": "Impossibile eliminare la cartella delle regole: {{rulesFolderPath}}. Errore: {{error}}",
+		"command_not_found": "Comando '{{name}}' non trovato",
+		"open_command_file": "Impossibile aprire il file di comando",
+		"delete_command": "Impossibile eliminare il comando",
+		"no_workspace_for_project_command": "Nessuna cartella workspace trovata per il comando di progetto",
+		"command_already_exists": "Il comando \"{{commandName}}\" esiste già",
+		"create_command_failed": "Errore nella creazione del comando",
+		"command_template_content": "Questo è un nuovo comando slash. Modifica questo file per personalizzare il comportamento del comando.",
 		"claudeCode": {
 			"processExited": "Il processo Claude Code è terminato con codice {{exitCode}}.",
 			"errorOutput": "Output di errore: {{output}}",

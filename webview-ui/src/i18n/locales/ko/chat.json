@@ -108,7 +108,7 @@
 	"stopTts": "텍스트 음성 변환 중지",
 	"typeMessage": "메시지 입력...",
 	"typeTask": "여기에 작업 입력...",
-	"addContext": "컨텍스트 추가는 @, 모드 전환은 /",
+	"addContext": "컨텍스트 추가는 @, 명령어는 /",
 	"dragFiles": "파일을 드래그하려면 shift 키 누르기",
 	"dragFilesImages": "파일/이미지를 드래그하려면 shift 키 누르기",
 	"enhancePromptDescription": "'프롬프트 향상' 버튼은 추가 컨텍스트, 명확화 또는 재구성을 제공하여 요청을 개선합니다. 여기에 요청을 입력한 다음 버튼을 다시 클릭하여 작동 방식을 확인해보세요.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "{{name}} 명령 트리거"
+	},
+	"slashCommands": {
+		"tooltip": "슬래시 명령 관리",
+		"title": "슬래시 명령",
+		"description": "자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 사용자 정의 슬래시 명령을 만듭니다.",
+		"globalCommands": "전역 명령",
+		"workspaceCommands": "작업 공간 명령",
+		"globalCommand": "전역 명령",
+		"editCommand": "명령 편집",
+		"deleteCommand": "명령 삭제",
+		"newGlobalCommandPlaceholder": "새 전역 명령...",
+		"newWorkspaceCommandPlaceholder": "새 작업 공간 명령...",
+		"deleteDialog": {
+			"title": "명령 삭제",
+			"description": "\"{{name}}\" 명령을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+			"cancel": "취소",
+			"confirm": "삭제"
+		}
 	},
 	"queuedMessages": {
 		"title": "대기열 메시지:",

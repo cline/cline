@@ -108,7 +108,7 @@
 	"stopTts": "Atura la síntesi de veu",
 	"typeMessage": "Escriu un missatge...",
 	"typeTask": "Escriu la teva tasca aquí...",
-	"addContext": "@ per afegir context, / per canviar de mode",
+	"addContext": "@ per afegir context, / per a comandes",
 	"dragFiles": "manté premut shift per arrossegar fitxers",
 	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges",
 	"enhancePromptDescription": "El botó 'Millora la sol·licitud' ajuda a millorar la teva sol·licitud proporcionant context addicional, aclariments o reformulacions. Prova d'escriure una sol·licitud aquí i fes clic al botó de nou per veure com funciona.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Activa la comanda {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gestionar ordres de barra",
+		"title": "Ordres de Barra",
+		"description": "Crea ordres de barra personalitzades per accedir ràpidament a indicacions i fluxos de treball utilitzats amb freqüència.",
+		"globalCommands": "Ordres Globals",
+		"workspaceCommands": "Ordres de l'Espai de Treball",
+		"globalCommand": "Ordre global",
+		"editCommand": "Editar ordre",
+		"deleteCommand": "Eliminar ordre",
+		"newGlobalCommandPlaceholder": "Nova ordre global...",
+		"newWorkspaceCommandPlaceholder": "Nova ordre de l'espai de treball...",
+		"deleteDialog": {
+			"title": "Eliminar Ordre",
+			"description": "Estàs segur que vols eliminar l'ordre \"{{name}}\"? Aquesta acció no es pot desfer.",
+			"cancel": "Cancel·lar",
+			"confirm": "Eliminar"
+		}
 	},
 	"queuedMessages": {
 		"title": "Missatges en cua:",

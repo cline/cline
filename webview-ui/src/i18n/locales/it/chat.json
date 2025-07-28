@@ -108,7 +108,7 @@
 	"stopTts": "Interrompi sintesi vocale",
 	"typeMessage": "Scrivi un messaggio...",
 	"typeTask": "Scrivi la tua attività qui...",
-	"addContext": "@ per aggiungere contesto, / per cambiare modalità",
+	"addContext": "@ per aggiungere contesto, / per i comandi",
 	"dragFiles": "tieni premuto shift per trascinare file",
 	"dragFilesImages": "tieni premuto shift per trascinare file/immagini",
 	"enhancePromptDescription": "Il pulsante 'Migliora prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e fai di nuovo clic sul pulsante per vedere come funziona.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Attiva il comando {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gestisci comandi slash",
+		"title": "Comandi Slash",
+		"description": "Crea comandi slash personalizzati per accedere rapidamente a prompt e flussi di lavoro utilizzati frequentemente.",
+		"globalCommands": "Comandi Globali",
+		"workspaceCommands": "Comandi dello Spazio di Lavoro",
+		"globalCommand": "Comando globale",
+		"editCommand": "Modifica comando",
+		"deleteCommand": "Elimina comando",
+		"newGlobalCommandPlaceholder": "Nuovo comando globale...",
+		"newWorkspaceCommandPlaceholder": "Nuovo comando dello spazio di lavoro...",
+		"deleteDialog": {
+			"title": "Elimina Comando",
+			"description": "Sei sicuro di voler eliminare il comando \"{{name}}\"? Questa azione non può essere annullata.",
+			"cancel": "Annulla",
+			"confirm": "Elimina"
+		}
 	},
 	"queuedMessages": {
 		"title": "Messaggi in coda:",

@@ -108,7 +108,7 @@
 	"stopTts": "Parar conversão de texto em fala",
 	"typeMessage": "Digite uma mensagem...",
 	"typeTask": "Digite sua tarefa aqui...",
-	"addContext": "@ para adicionar contexto, / para alternar modos",
+	"addContext": "@ para adicionar contexto, / para comandos",
 	"dragFiles": "segure shift para arrastar arquivos",
 	"dragFilesImages": "segure shift para arrastar arquivos/imagens",
 	"enhancePromptDescription": "O botão 'Aprimorar prompt' ajuda a melhorar seu pedido fornecendo contexto adicional, esclarecimentos ou reformulações. Tente digitar um pedido aqui e clique no botão novamente para ver como funciona.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Acionar o comando {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gerenciar comandos de barra",
+		"title": "Comandos de Barra",
+		"description": "Crie comandos de barra personalizados para acesso rápido a prompts e fluxos de trabalho usados com frequência.",
+		"globalCommands": "Comandos Globais",
+		"workspaceCommands": "Comandos do Espaço de Trabalho",
+		"globalCommand": "Comando global",
+		"editCommand": "Editar comando",
+		"deleteCommand": "Excluir comando",
+		"newGlobalCommandPlaceholder": "Novo comando global...",
+		"newWorkspaceCommandPlaceholder": "Novo comando do espaço de trabalho...",
+		"deleteDialog": {
+			"title": "Excluir Comando",
+			"description": "Tem certeza de que deseja excluir o comando \"{{name}}\"? Esta ação não pode ser desfeita.",
+			"cancel": "Cancelar",
+			"confirm": "Excluir"
+		}
 	},
 	"queuedMessages": {
 		"title": "Mensagens na fila:",

@@ -71,6 +71,13 @@
 		"share_task_not_found": "Zadanie nie znalezione lub dostęp odmówiony.",
 		"mode_import_failed": "Import trybu nie powiódł się: {{error}}",
 		"delete_rules_folder_failed": "Nie udało się usunąć folderu reguł: {{rulesFolderPath}}. Błąd: {{error}}",
+		"command_not_found": "Polecenie '{{name}}' nie zostało znalezione",
+		"open_command_file": "Nie udało się otworzyć pliku polecenia",
+		"delete_command": "Nie udało się usunąć polecenia",
+		"no_workspace_for_project_command": "Nie znaleziono folderu obszaru roboczego dla polecenia projektu",
+		"command_already_exists": "Polecenie \"{{commandName}}\" już istnieje",
+		"create_command_failed": "Nie udało się utworzyć polecenia",
+		"command_template_content": "To jest nowe polecenie slash. Edytuj ten plik, aby dostosować zachowanie polecenia.",
 		"claudeCode": {
 			"processExited": "Proces Claude Code zakończył się kodem {{exitCode}}.",
 			"errorOutput": "Wyjście błędu: {{output}}",

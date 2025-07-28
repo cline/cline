@@ -71,6 +71,13 @@
 		"share_task_not_found": "タスクが見つからないか、アクセスが拒否されました。",
 		"mode_import_failed": "モードのインポートに失敗しました：{{error}}",
 		"delete_rules_folder_failed": "ルールフォルダの削除に失敗しました：{{rulesFolderPath}}。エラー：{{error}}",
+		"command_not_found": "コマンド '{{name}}' が見つかりません",
+		"open_command_file": "コマンドファイルを開けませんでした",
+		"delete_command": "コマンドの削除に失敗しました",
+		"no_workspace_for_project_command": "プロジェクトコマンド用のワークスペースフォルダが見つかりません",
+		"command_already_exists": "コマンド \"{{commandName}}\" は既に存在します",
+		"create_command_failed": "コマンドの作成に失敗しました",
+		"command_template_content": "これは新しいスラッシュコマンドです。このファイルを編集してコマンドの動作をカスタマイズしてください。",
 		"claudeCode": {
 			"processExited": "Claude Code プロセスがコード {{exitCode}} で終了しました。",
 			"errorOutput": "エラー出力：{{output}}",

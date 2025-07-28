@@ -108,7 +108,7 @@
 	"stopTts": "Arrêter la synthèse vocale",
 	"typeMessage": "Écrivez un message...",
 	"typeTask": "Écrivez votre tâche ici...",
-	"addContext": "@ pour ajouter du contexte, / pour changer de mode",
+	"addContext": "@ pour ajouter du contexte, / pour les commandes",
 	"dragFiles": "maintenir Maj pour glisser des fichiers",
 	"dragFilesImages": "maintenir Maj pour glisser des fichiers/images",
 	"enhancePromptDescription": "Le bouton 'Améliorer la requête' aide à améliorer votre demande en fournissant un contexte supplémentaire, des clarifications ou des reformulations. Essayez de taper une demande ici et cliquez à nouveau sur le bouton pour voir comment cela fonctionne.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Déclencher la commande {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gérer les commandes slash",
+		"title": "Commandes Slash",
+		"description": "Créez des commandes slash personnalisées pour accéder rapidement aux prompts et flux de travail fréquemment utilisés.",
+		"globalCommands": "Commandes Globales",
+		"workspaceCommands": "Commandes de l'Espace de Travail",
+		"globalCommand": "Commande globale",
+		"editCommand": "Modifier la commande",
+		"deleteCommand": "Supprimer la commande",
+		"newGlobalCommandPlaceholder": "Nouvelle commande globale...",
+		"newWorkspaceCommandPlaceholder": "Nouvelle commande de l'espace de travail...",
+		"deleteDialog": {
+			"title": "Supprimer la commande",
+			"description": "Êtes-vous sûr de vouloir supprimer la commande \"{{name}}\" ? Cette action ne peut pas être annulée.",
+			"cancel": "Annuler",
+			"confirm": "Supprimer"
+		}
 	},
 	"queuedMessages": {
 		"title": "Messages en file d'attente :",

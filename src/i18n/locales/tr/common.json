@@ -71,6 +71,13 @@
 		"share_task_not_found": "Görev bulunamadı veya erişim reddedildi.",
 		"mode_import_failed": "Mod içe aktarılamadı: {{error}}",
 		"delete_rules_folder_failed": "Kurallar klasörü silinemedi: {{rulesFolderPath}}. Hata: {{error}}",
+		"command_not_found": "'{{name}}' komutu bulunamadı",
+		"open_command_file": "Komut dosyası açılamadı",
+		"delete_command": "Komut silinemedi",
+		"no_workspace_for_project_command": "Proje komutu için çalışma alanı klasörü bulunamadı",
+		"command_already_exists": "\"{{commandName}}\" komutu zaten mevcut",
+		"create_command_failed": "Komut oluşturulamadı",
+		"command_template_content": "Bu yeni bir slash komutudur. Komut davranışını özelleştirmek için bu dosyayı düzenleyin.",
 		"claudeCode": {
 			"processExited": "Claude Code işlemi {{exitCode}} koduyla çıktı.",
 			"errorOutput": "Hata çıktısı: {{output}}",

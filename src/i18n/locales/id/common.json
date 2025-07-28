@@ -71,6 +71,13 @@
 		"share_task_not_found": "Tugas tidak ditemukan atau akses ditolak.",
 		"mode_import_failed": "Gagal mengimpor mode: {{error}}",
 		"delete_rules_folder_failed": "Gagal menghapus folder aturan: {{rulesFolderPath}}. Error: {{error}}",
+		"command_not_found": "Perintah '{{name}}' tidak ditemukan",
+		"open_command_file": "Gagal membuka file perintah",
+		"delete_command": "Gagal menghapus perintah",
+		"no_workspace_for_project_command": "Tidak ditemukan folder workspace untuk perintah proyek",
+		"command_already_exists": "Perintah \"{{commandName}}\" sudah ada",
+		"create_command_failed": "Gagal membuat perintah",
+		"command_template_content": "Ini adalah perintah slash baru. Edit file ini untuk menyesuaikan perilaku perintah.",
 		"claudeCode": {
 			"processExited": "Proses Claude Code keluar dengan kode {{exitCode}}.",
 			"errorOutput": "Output error: {{output}}",

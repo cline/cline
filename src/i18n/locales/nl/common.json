@@ -71,6 +71,13 @@
 		"share_task_not_found": "Taak niet gevonden of toegang geweigerd.",
 		"mode_import_failed": "Importeren van modus mislukt: {{error}}",
 		"delete_rules_folder_failed": "Kan regelmap niet verwijderen: {{rulesFolderPath}}. Fout: {{error}}",
+		"command_not_found": "Opdracht '{{name}}' niet gevonden",
+		"open_command_file": "Kan opdrachtbestand niet openen",
+		"delete_command": "Kan opdracht niet verwijderen",
+		"no_workspace_for_project_command": "Geen werkruimtemap gevonden voor projectopdracht",
+		"command_already_exists": "Opdracht \"{{commandName}}\" bestaat al",
+		"create_command_failed": "Kan opdracht niet aanmaken",
+		"command_template_content": "Dit is een nieuwe slash-opdracht. Bewerk dit bestand om het opdrachtgedrag aan te passen.",
 		"claudeCode": {
 			"processExited": "Claude Code proces beëindigd met code {{exitCode}}.",
 			"errorOutput": "Foutuitvoer: {{output}}",

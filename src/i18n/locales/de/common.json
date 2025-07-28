@@ -71,6 +71,13 @@
 		"share_task_not_found": "Aufgabe nicht gefunden oder Zugriff verweigert.",
 		"mode_import_failed": "Fehler beim Importieren des Modus: {{error}}",
 		"delete_rules_folder_failed": "Fehler beim Löschen des Regelordners: {{rulesFolderPath}}. Fehler: {{error}}",
+		"command_not_found": "Befehl '{{name}}' nicht gefunden",
+		"open_command_file": "Fehler beim Öffnen der Befehlsdatei",
+		"delete_command": "Fehler beim Löschen des Befehls",
+		"no_workspace_for_project_command": "Kein Arbeitsbereich-Ordner für Projektbefehl gefunden",
+		"command_already_exists": "Befehl \"{{commandName}}\" existiert bereits",
+		"create_command_failed": "Fehler beim Erstellen des Befehls",
+		"command_template_content": "Dies ist ein neuer Slash-Befehl. Bearbeite diese Datei, um das Befehlsverhalten anzupassen.",
 		"claudeCode": {
 			"processExited": "Claude Code Prozess wurde mit Code {{exitCode}} beendet.",
 			"errorOutput": "Fehlerausgabe: {{output}}",

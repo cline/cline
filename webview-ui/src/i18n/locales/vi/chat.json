@@ -108,7 +108,7 @@
 	"stopTts": "Dừng chuyển văn bản thành giọng nói",
 	"typeMessage": "Nhập tin nhắn...",
 	"typeTask": "Nhập nhiệm vụ của bạn tại đây...",
-	"addContext": "@ để thêm ngữ cảnh, / để chuyển chế độ",
+	"addContext": "@ để thêm ngữ cảnh, / cho lệnh",
 	"dragFiles": "giữ shift để kéo tệp",
 	"dragFilesImages": "giữ shift để kéo tệp/hình ảnh",
 	"enhancePromptDescription": "Nút 'Nâng cao yêu cầu' giúp cải thiện yêu cầu của bạn bằng cách cung cấp ngữ cảnh bổ sung, làm rõ hoặc diễn đạt lại. Hãy thử nhập yêu cầu tại đây và nhấp vào nút một lần nữa để xem cách thức hoạt động.",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Kích hoạt lệnh {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Quản lý lệnh gạch chéo",
+		"title": "Lệnh Gạch Chéo",
+		"description": "Tạo lệnh gạch chéo tùy chỉnh để truy cập nhanh vào các lời nhắc và quy trình làm việc thường dùng.",
+		"globalCommands": "Lệnh Toàn Cục",
+		"workspaceCommands": "Lệnh Không Gian Làm Việc",
+		"globalCommand": "Lệnh toàn cục",
+		"editCommand": "Chỉnh sửa lệnh",
+		"deleteCommand": "Xóa lệnh",
+		"newGlobalCommandPlaceholder": "Lệnh toàn cục mới...",
+		"newWorkspaceCommandPlaceholder": "Lệnh không gian làm việc mới...",
+		"deleteDialog": {
+			"title": "Xóa Lệnh",
+			"description": "Bạn có chắc chắn muốn xóa lệnh \"{{name}}\" không? Hành động này không thể hoàn tác.",
+			"cancel": "Hủy",
+			"confirm": "Xóa"
+		}
 	},
 	"queuedMessages": {
 		"title": "Tin nhắn trong hàng đợi:",

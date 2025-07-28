@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { getIconForFilePath, getIconUrlByName, getIconForDirectoryPath } from "vscode-material-icons"
-import { useTranslation } from "react-i18next"
 
 import type { ModeConfig } from "@roo-code/types"
 import type { Command } from "@roo/ExtensionMessage"
@@ -43,20 +42,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 }) => {
 	const [materialIconsBaseUri, setMaterialIconsBaseUri] = useState("")
 	const menuRef = useRef<HTMLDivElement>(null)
-	const { t } = useTranslation()
 
 	const filteredOptions = useMemo(() => {
 		return getContextMenuOptions(
 			searchQuery,
 			inputValue,
-			t,
 			selectedType,
 			queryItems,
 			dynamicSearchResults,
 			modes,
 			commands,
 		)
-	}, [searchQuery, inputValue, t, selectedType, queryItems, dynamicSearchResults, modes, commands])
+	}, [searchQuery, inputValue, selectedType, queryItems, dynamicSearchResults, modes, commands])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -82,10 +79,25 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
 		switch (option.type) {
+			case ContextMenuOptionType.SectionHeader:
+				return (
+					<span
+						style={{
+							fontWeight: "bold",
+							fontSize: "0.85em",
+							opacity: 0.8,
+							textTransform: "uppercase",
+							letterSpacing: "0.5px",
+						}}>
+						{option.label}
+					</span>
+				)
 			case ContextMenuOptionType.Mode:
 				return (
 					<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-						<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+						<div style={{ lineHeight: "1.2" }}>
+							<span>{option.slashCommand}</span>
+						</div>
 						{option.description && (
 							<span
 								style={{
@@ -104,7 +116,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Command:
 				return (
 					<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-						<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+						<div style={{ lineHeight: "1.2" }}>
+							<span>{option.slashCommand}</span>
+						</div>
 						{option.description && (
 							<span
 								style={{
@@ -229,7 +243,11 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}
 
 	const isOptionSelectable = (option: ContextMenuQueryItem): boolean => {
-		return option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL
+		return (
+			option.type !== ContextMenuOptionType.NoResults &&
+			option.type !== ContextMenuOptionType.URL &&
+			option.type !== ContextMenuOptionType.SectionHeader
+		)
 	}
 
 	return (
@@ -252,8 +270,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					zIndex: 1000,
 					display: "flex",
 					flexDirection: "column",
-					maxHeight: "200px",
+					maxHeight: "300px",
 					overflowY: "auto",
+					overflowX: "hidden",
 				}}>
 				{filteredOptions && filteredOptions.length > 0 ? (
 					filteredOptions.map((option, index) => (
@@ -261,12 +280,20 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							key={`${option.type}-${option.value || index}`}
 							onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
 							style={{
-								padding: "4px 6px",
+								padding:
+									option.type === ContextMenuOptionType.SectionHeader ? "8px 6px 4px 6px" : "4px 6px",
 								cursor: isOptionSelectable(option) ? "pointer" : "default",
 								color: "var(--vscode-dropdown-foreground)",
 								display: "flex",
 								alignItems: "center",
 								justifyContent: "space-between",
+								position: "relative",
+								...(option.type === ContextMenuOptionType.SectionHeader
+									? {
+											borderBottom: "1px solid var(--vscode-editorGroup-border)",
+											marginBottom: "2px",
+										}
+									: {}),
 								...(index === selectedIndex && isOptionSelectable(option)
 									? {
 											backgroundColor: "var(--vscode-list-activeSelectionBackground)",
@@ -283,6 +310,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									minWidth: 0,
 									overflow: "hidden",
 									paddingTop: 0,
+									position: "relative",
 								}}>
 								{(option.type === ContextMenuOptionType.File ||
 									option.type === ContextMenuOptionType.Folder ||
@@ -299,9 +327,11 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									/>
 								)}
 								{option.type !== ContextMenuOptionType.Mode &&
+									option.type !== ContextMenuOptionType.Command &&
 									option.type !== ContextMenuOptionType.File &&
 									option.type !== ContextMenuOptionType.Folder &&
 									option.type !== ContextMenuOptionType.OpenedFile &&
+									option.type !== ContextMenuOptionType.SectionHeader &&
 									getIconForOption(option) && (
 										<i
 											className={`codicon codicon-${getIconForOption(option)}`}

@@ -71,6 +71,13 @@
 		"share_task_not_found": "Задача не найдена или доступ запрещен.",
 		"mode_import_failed": "Не удалось импортировать режим: {{error}}",
 		"delete_rules_folder_failed": "Не удалось удалить папку правил: {{rulesFolderPath}}. Ошибка: {{error}}",
+		"command_not_found": "Команда '{{name}}' не найдена",
+		"open_command_file": "Не удалось открыть файл команды",
+		"delete_command": "Не удалось удалить команду",
+		"no_workspace_for_project_command": "Не найдена папка рабочего пространства для команды проекта",
+		"command_already_exists": "Команда \"{{commandName}}\" уже существует",
+		"create_command_failed": "Не удалось создать команду",
+		"command_template_content": "Это новая slash-команда. Отредактируйте этот файл, чтобы настроить поведение команды.",
 		"claudeCode": {
 			"processExited": "Процесс Claude Code завершился с кодом {{exitCode}}.",
 			"errorOutput": "Вывод ошибки: {{output}}",

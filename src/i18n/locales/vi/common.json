@@ -71,6 +71,13 @@
 		"share_task_not_found": "Không tìm thấy nhiệm vụ hoặc truy cập bị từ chối.",
 		"mode_import_failed": "Nhập chế độ thất bại: {{error}}",
 		"delete_rules_folder_failed": "Không thể xóa thư mục quy tắc: {{rulesFolderPath}}. Lỗi: {{error}}",
+		"command_not_found": "Không tìm thấy lệnh '{{name}}'",
+		"open_command_file": "Không thể mở tệp lệnh",
+		"delete_command": "Không thể xóa lệnh",
+		"no_workspace_for_project_command": "Không tìm thấy thư mục workspace cho lệnh dự án",
+		"command_already_exists": "Lệnh \"{{commandName}}\" đã tồn tại",
+		"create_command_failed": "Không thể tạo lệnh",
+		"command_template_content": "Đây là một lệnh slash mới. Chỉnh sửa tệp này để tùy chỉnh hành vi của lệnh.",
 		"claudeCode": {
 			"processExited": "Tiến trình Claude Code thoát với mã {{exitCode}}.",
 			"errorOutput": "Đầu ra lỗi: {{output}}",

@@ -108,7 +108,7 @@
 	"stopTts": "テキスト読み上げを停止",
 	"typeMessage": "メッセージを入力...",
 	"typeTask": "ここにタスクを入力...",
-	"addContext": "コンテキスト追加は@、モード切替は/",
+	"addContext": "コンテキスト追加は@、コマンドは/",
 	"dragFiles": "ファイルをドラッグするにはShiftキーを押したまま",
 	"dragFilesImages": "ファイル/画像をドラッグするにはShiftキーを押したまま",
 	"enhancePromptDescription": "「プロンプトを強化」ボタンは、追加コンテキスト、説明、または言い換えを提供することで、リクエストを改善します。ここにリクエストを入力し、ボタンを再度クリックして動作を確認してください。",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "{{name}}コマンドをトリガー"
+	},
+	"slashCommands": {
+		"tooltip": "スラッシュコマンドを管理",
+		"title": "スラッシュコマンド",
+		"description": "よく使用するプロンプトやワークフローに素早くアクセスするためのカスタムスラッシュコマンドを作成します。",
+		"globalCommands": "グローバルコマンド",
+		"workspaceCommands": "ワークスペースコマンド",
+		"globalCommand": "グローバルコマンド",
+		"editCommand": "コマンドを編集",
+		"deleteCommand": "コマンドを削除",
+		"newGlobalCommandPlaceholder": "新しいグローバルコマンド...",
+		"newWorkspaceCommandPlaceholder": "新しいワークスペースコマンド...",
+		"deleteDialog": {
+			"title": "コマンドを削除",
+			"description": "\"{{name}}\" コマンドを削除してもよろしいですか？この操作は元に戻せません。",
+			"cancel": "キャンセル",
+			"confirm": "削除"
+		}
 	},
 	"queuedMessages": {
 		"title": "キューメッセージ:",

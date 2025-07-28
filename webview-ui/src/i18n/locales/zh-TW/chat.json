@@ -108,7 +108,7 @@
 	"stopTts": "停止文字轉語音",
 	"typeMessage": "輸入訊息...",
 	"typeTask": "在此處輸入您的工作...",
-	"addContext": "輸入 @ 新增內容，輸入 / 切換模式",
+	"addContext": "輸入 @ 新增內容，輸入 / 執行指令",
 	"dragFiles": "按住 Shift 鍵拖曳檔案",
 	"dragFilesImages": "按住 Shift 鍵拖曳檔案/圖片",
 	"enhancePromptDescription": "「增強提示」按鈕透過提供額外內容、說明或重新表述來幫助改進您的請求。嘗試在此處輸入請求，然後再次點選按鈕以了解其運作方式。",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "觸發 {{name}} 命令"
+	},
+	"slashCommands": {
+		"tooltip": "管理斜線指令",
+		"title": "斜線指令",
+		"description": "建立自訂斜線指令，快速存取常用提示詞和工作流程。",
+		"globalCommands": "全域指令",
+		"workspaceCommands": "工作區指令",
+		"globalCommand": "全域指令",
+		"editCommand": "編輯指令",
+		"deleteCommand": "刪除指令",
+		"newGlobalCommandPlaceholder": "新增全域指令...",
+		"newWorkspaceCommandPlaceholder": "新增工作區指令...",
+		"deleteDialog": {
+			"title": "刪除指令",
+			"description": "確定要刪除指令 \"{{name}}\" 嗎？此動作無法復原。",
+			"cancel": "取消",
+			"confirm": "刪除"
+		}
 	},
 	"queuedMessages": {
 		"title": "佇列訊息:",

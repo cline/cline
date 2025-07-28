@@ -117,7 +117,7 @@
 	"stopTts": "Stop tekst-naar-spraak",
 	"typeMessage": "Typ een bericht...",
 	"typeTask": "Typ hier je taak...",
-	"addContext": "@ om context toe te voegen, / om van modus te wisselen",
+	"addContext": "@ om context toe te voegen, / voor commando's",
 	"dragFiles": "houd shift ingedrukt om bestanden te slepen",
 	"dragFilesImages": "houd shift ingedrukt om bestanden/afbeeldingen te slepen",
 	"errorReadingFile": "Fout bij het lezen van bestand:",
@@ -351,6 +351,24 @@
 	},
 	"command": {
 		"triggerDescription": "Activeer de {{name}} opdracht"
+	},
+	"slashCommands": {
+		"tooltip": "Slash-opdrachten beheren",
+		"title": "Slash-opdrachten",
+		"description": "Maak aangepaste slash-opdrachten voor snelle toegang tot veelgebruikte prompts en workflows.",
+		"globalCommands": "Globale Opdrachten",
+		"workspaceCommands": "Werkruimte Opdrachten",
+		"globalCommand": "Globale opdracht",
+		"editCommand": "Opdracht bewerken",
+		"deleteCommand": "Opdracht verwijderen",
+		"newGlobalCommandPlaceholder": "Nieuwe globale opdracht...",
+		"newWorkspaceCommandPlaceholder": "Nieuwe werkruimte opdracht...",
+		"deleteDialog": {
+			"title": "Opdracht Verwijderen",
+			"description": "Weet je zeker dat je de opdracht \"{{name}}\" wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.",
+			"cancel": "Annuleren",
+			"confirm": "Verwijderen"
+		}
 	},
 	"queuedMessages": {
 		"title": "Berichten in wachtrij:",

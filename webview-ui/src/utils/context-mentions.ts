@@ -107,6 +107,7 @@ export enum ContextMenuOptionType {
 	NoResults = "noResults",
 	Mode = "mode", // Add mode type
 	Command = "command", // Add command type
+	SectionHeader = "sectionHeader", // Add section header type
 }
 
 export interface ContextMenuQueryItem {
@@ -115,12 +116,13 @@ export interface ContextMenuQueryItem {
 	label?: string
 	description?: string
 	icon?: string
+	slashCommand?: string
+	secondaryText?: string
 }
 
 export function getContextMenuOptions(
 	query: string,
 	inputValue: string,
-	t: (key: string, options?: { name?: string }) => string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 	dynamicSearchResults: SearchResult[] = [],
@@ -132,38 +134,7 @@ export function getContextMenuOptions(
 		const slashQuery = query.slice(1)
 		const results: ContextMenuQueryItem[] = []
 
-		// Add mode suggestions
-		if (modes?.length) {
-			// Create searchable strings array for fzf
-			const searchableItems = modes.map((mode) => ({
-				original: mode,
-				searchStr: mode.name,
-			}))
-
-			// Initialize fzf instance for fuzzy search
-			const fzf = new Fzf(searchableItems, {
-				selector: (item) => item.searchStr,
-			})
-
-			// Get fuzzy matching items
-			const matchingModes = slashQuery
-				? fzf.find(slashQuery).map((result) => ({
-						type: ContextMenuOptionType.Mode,
-						value: result.item.original.slug,
-						label: result.item.original.name,
-						description: getModeDescription(result.item.original),
-					}))
-				: modes.map((mode) => ({
-						type: ContextMenuOptionType.Mode,
-						value: mode.slug,
-						label: mode.name,
-						description: getModeDescription(mode),
-					}))
-
-			results.push(...matchingModes)
-		}
-
-		// Add command suggestions
+		// Add command suggestions first (prioritize commands at the top)
 		if (commands?.length) {
 			// Create searchable strings array for fzf
 			const searchableCommands = commands.map((command) => ({
@@ -181,19 +152,58 @@ export function getContextMenuOptions(
 				? fzf.find(slashQuery).map((result) => ({
 						type: ContextMenuOptionType.Command,
 						value: result.item.original.name,
-						label: result.item.original.name,
-						description: t("chat:command.triggerDescription", { name: result.item.original.name }),
-						icon: "$(play)",
+						slashCommand: `/${result.item.original.name}`,
 					}))
 				: commands.map((command) => ({
 						type: ContextMenuOptionType.Command,
 						value: command.name,
-						label: command.name,
-						description: t("chat:command.triggerDescription", { name: command.name }),
-						icon: "$(play)",
+						slashCommand: `/${command.name}`,
 					}))
 
-			results.push(...matchingCommands)
+			if (matchingCommands.length > 0) {
+				results.push({
+					type: ContextMenuOptionType.SectionHeader,
+					label: "Custom Commands",
+				})
+				results.push(...matchingCommands)
+			}
+		}
+
+		// Add mode suggestions second
+		if (modes?.length) {
+			// Create searchable strings array for fzf
+			const searchableItems = modes.map((mode) => ({
+				original: mode,
+				searchStr: mode.name,
+			}))
+
+			// Initialize fzf instance for fuzzy search
+			const fzf = new Fzf(searchableItems, {
+				selector: (item) => item.searchStr,
+			})
+
+			// Get fuzzy matching items
+			const matchingModes = slashQuery
+				? fzf.find(slashQuery).map((result) => ({
+						type: ContextMenuOptionType.Mode,
+						value: result.item.original.slug,
+						slashCommand: `/${result.item.original.slug}`,
+						description: getModeDescription(result.item.original),
+					}))
+				: modes.map((mode) => ({
+						type: ContextMenuOptionType.Mode,
+						value: mode.slug,
+						slashCommand: `/${mode.slug}`,
+						description: getModeDescription(mode),
+					}))
+
+			if (matchingModes.length > 0) {
+				results.push({
+					type: ContextMenuOptionType.SectionHeader,
+					label: "Modes",
+				})
+				results.push(...matchingModes)
+			}
 		}
 
 		return results.length > 0 ? results : [{ type: ContextMenuOptionType.NoResults }]

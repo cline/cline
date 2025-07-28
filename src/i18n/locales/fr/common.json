@@ -71,6 +71,13 @@
 		"share_task_not_found": "Tâche non trouvée ou accès refusé.",
 		"mode_import_failed": "Échec de l'importation du mode : {{error}}",
 		"delete_rules_folder_failed": "Échec de la suppression du dossier de règles : {{rulesFolderPath}}. Erreur : {{error}}",
+		"command_not_found": "Commande '{{name}}' introuvable",
+		"open_command_file": "Échec de l'ouverture du fichier de commande",
+		"delete_command": "Échec de la suppression de la commande",
+		"no_workspace_for_project_command": "Aucun dossier d'espace de travail trouvé pour la commande de projet",
+		"command_already_exists": "La commande \"{{commandName}}\" existe déjà",
+		"create_command_failed": "Échec de la création de la commande",
+		"command_template_content": "Ceci est une nouvelle commande slash. Modifie ce fichier pour personnaliser le comportement de la commande.",
 		"claudeCode": {
 			"processExited": "Le processus Claude Code s'est terminé avec le code {{exitCode}}.",
 			"errorOutput": "Sortie d'erreur : {{output}}",
