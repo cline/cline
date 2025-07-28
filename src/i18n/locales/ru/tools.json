@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (строки {{start}}-{{end}})",
 		"definitionsOnly": " (только определения)",
-		"maxLines": " (макс. {{max}} строк)"
+		"maxLines": " (макс. {{max}} строк)",
+		"showingOnlyLines": "Показано только {{shown}} из {{total}} общих строк. Используй line_range если нужно прочитать больше строк",
+		"contextLimitInstructions": "Чтобы прочитать определенные разделы этого файла, используй следующий формат:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>начало-конец</line_range>\n  </file>\n</args>\n</read_file>\n\nНапример, чтобы прочитать строки 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Похоже, что Roo застрял в цикле, многократно пытаясь выполнить одно и то же действие ({{toolName}}). Это может указывать на проблему с его текущей стратегией. Попробуйте переформулировать задачу, предоставить более конкретные инструкции или направить его к другому подходу.",
 	"codebaseSearch": {

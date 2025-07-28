@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (satır {{start}}-{{end}})",
 		"definitionsOnly": " (sadece tanımlar)",
-		"maxLines": " (maks. {{max}} satır)"
+		"maxLines": " (maks. {{max}} satır)",
+		"showingOnlyLines": "Toplam {{total}} satırdan sadece {{shown}} tanesi gösteriliyor. Daha fazla satır okumak için line_range kullan",
+		"contextLimitInstructions": "Bu dosyanın belirli bölümlerini okumak için aşağıdaki formatı kullan:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>başlangıç-bitiş</line_range>\n  </file>\n</args>\n</read_file>\n\nÖrneğin, 2001-3000 satırlarını okumak için:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo bir döngüye takılmış gibi görünüyor, aynı eylemi ({{toolName}}) tekrar tekrar deniyor. Bu, mevcut stratejisinde bir sorun olduğunu gösterebilir. Görevi yeniden ifade etmeyi, daha spesifik talimatlar vermeyi veya onu farklı bir yaklaşıma yönlendirmeyi düşünün.",
 	"codebaseSearch": {

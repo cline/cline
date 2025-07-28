@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (dòng {{start}}-{{end}})",
 		"definitionsOnly": " (chỉ định nghĩa)",
-		"maxLines": " (tối đa {{max}} dòng)"
+		"maxLines": " (tối đa {{max}} dòng)",
+		"showingOnlyLines": "Chỉ hiển thị {{shown}} trong tổng số {{total}} dòng. Sử dụng line_range nếu bạn cần đọc thêm dòng",
+		"contextLimitInstructions": "Để đọc các phần cụ thể của tệp này, hãy sử dụng định dạng sau:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>bắt đầu-kết thúc</line_range>\n  </file>\n</args>\n</read_file>\n\nVí dụ, để đọc dòng 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo dường như đang bị mắc kẹt trong một vòng lặp, liên tục cố gắng thực hiện cùng một hành động ({{toolName}}). Điều này có thể cho thấy vấn đề với chiến lược hiện tại. Hãy cân nhắc việc diễn đạt lại nhiệm vụ, cung cấp hướng dẫn cụ thể hơn, hoặc hướng Roo theo một cách tiếp cận khác.",
 	"codebaseSearch": {

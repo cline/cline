@@ -488,7 +488,7 @@ export async function readFileTool(
 					try {
 						const defResult = await parseSourceCodeDefinitionsForFile(fullPath, cline.rooIgnoreController)
 						if (defResult) {
-							let xmlInfo = `<notice>Showing only ${effectiveMaxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
+							let xmlInfo = `<notice>${t("tools.readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
 							updateFileResult(relPath, {
 								xmlContent: `<file><path>${relPath}</path>\n<list_code_definition_names>${defResult}</list_code_definition_names>\n${xmlInfo}</file>`,
 							})
@@ -520,9 +520,10 @@ export async function readFileTool(
 						// Add appropriate notice based on whether this was a preemptive limit or user setting
 						if (validationNotice) {
 							// When shouldLimit is true, always provide inline instructions
-							xmlInfo += `<notice>${validationNotice}\n\nTo read specific sections of this file, use the following format:\n<read_file>\n<args>\n  <file>\n    <path>${relPath}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nFor example, to read lines 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>${relPath}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file></notice>\n`
+							const instructions = t("tools.readFile.contextLimitInstructions", { path: relPath })
+							xmlInfo += `<notice>${validationNotice}\n\n${instructions}</notice>\n`
 						} else {
-							xmlInfo += `<notice>Showing only ${effectiveMaxReadFileLine} of ${totalLines} total lines. Use line_range if you need to read more lines</notice>\n`
+							xmlInfo += `<notice>${t("tools.readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
 						}
 
 						updateFileResult(relPath, {

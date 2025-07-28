@@ -1,4 +1,3 @@
-import { promises as fs } from "fs"
 import { Task } from "../task/Task"
 import { readLines } from "../../integrations/misc/read-lines"
 import { getModelMaxOutputTokens } from "../../shared/api"

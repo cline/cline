@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (líneas {{start}}-{{end}})",
 		"definitionsOnly": " (solo definiciones)",
-		"maxLines": " (máximo {{max}} líneas)"
+		"maxLines": " (máximo {{max}} líneas)",
+		"showingOnlyLines": "Mostrando solo {{shown}} de {{total}} líneas totales. Usa line_range si necesitas leer más líneas",
+		"contextLimitInstructions": "Para leer secciones específicas de este archivo, usa el siguiente formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>inicio-fin</line_range>\n  </file>\n</args>\n</read_file>\n\nPor ejemplo, para leer las líneas 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo parece estar atrapado en un bucle, intentando la misma acción ({{toolName}}) repetidamente. Esto podría indicar un problema con su estrategia actual. Considera reformular la tarea, proporcionar instrucciones más específicas o guiarlo hacia un enfoque diferente.",
 	"codebaseSearch": {

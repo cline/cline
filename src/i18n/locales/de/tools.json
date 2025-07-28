@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (Zeilen {{start}}-{{end}})",
 		"definitionsOnly": " (nur Definitionen)",
-		"maxLines": " (maximal {{max}} Zeilen)"
+		"maxLines": " (maximal {{max}} Zeilen)",
+		"showingOnlyLines": "Zeige nur {{shown}} von {{total}} Zeilen insgesamt. Verwende line_range, wenn du mehr Zeilen lesen musst",
+		"contextLimitInstructions": "Um bestimmte Abschnitte dieser Datei zu lesen, verwende das folgende Format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-ende</line_range>\n  </file>\n</args>\n</read_file>\n\nZum Beispiel, um die Zeilen 2001-3000 zu lesen:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo scheint in einer Schleife festzustecken und versucht wiederholt dieselbe Aktion ({{toolName}}). Dies könnte auf ein Problem mit der aktuellen Strategie hindeuten. Überlege dir, die Aufgabe umzuformulieren, genauere Anweisungen zu geben oder Roo zu einem anderen Ansatz zu führen.",
 	"codebaseSearch": {
