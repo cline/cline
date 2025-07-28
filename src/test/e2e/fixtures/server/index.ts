@@ -3,7 +3,8 @@ import type { Socket } from "node:net"
 import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
-import { ClineApiMock } from "./api"
+import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
+import { ClineApiMock } from "./ClineApiMock"
 
 const E2E_API_SERVER_PORT = 7777
 
@@ -44,6 +45,62 @@ export class ClineApiServerMock {
 		CLINE_USER_MOCK.setCurrentUser(user)
 	}
 
+	// Helper to match routes against registered endpoints and extract parameters
+	private static matchRoute(
+		path: string,
+		method: string,
+	): {
+		matched: boolean
+		baseRoute?: string
+		endpoint?: string
+		params?: Record<string, string>
+	} {
+		for (const [baseRoute, methods] of Object.entries(E2E_REGISTERED_MOCK_ENDPOINTS)) {
+			const methodEndpoints = methods[method as keyof typeof methods]
+			if (!methodEndpoints) {
+				continue
+			}
+
+			for (const endpoint of methodEndpoints) {
+				const fullPattern = `${baseRoute}${endpoint}`
+				const params: Record<string, string> = {}
+
+				// Convert pattern like "/users/{userId}/balance" to a regex
+				const regexPattern = fullPattern.replace(/\{([^}]+)\}/g, () => {
+					return "([^/]+)"
+				})
+
+				const regex = new RegExp(`^${regexPattern}$`)
+				const match = path.match(regex)
+
+				if (match) {
+					// Extract parameter names from the pattern
+					const paramNames: string[] = []
+					const paramRegex = /\{([^}]+)\}/g
+					let paramMatch: RegExpExecArray | null = paramRegex.exec(fullPattern)
+					while (paramMatch !== null) {
+						paramNames.push(paramMatch[1])
+						paramMatch = paramRegex.exec(fullPattern)
+					}
+
+					// Map captured groups to parameter names
+					for (let i = 0; i < paramNames.length; i++) {
+						params[paramNames[i]] = match[i + 1]
+					}
+
+					return {
+						matched: true,
+						baseRoute,
+						endpoint,
+						params,
+					}
+				}
+			}
+		}
+
+		return { matched: false }
+	}
+
 	// Runs a mock Cline API server for testing
 	public static async run<T>(around: (server: ClineApiServerMock) => Promise<T>): Promise<T> {
 		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -71,13 +128,13 @@ export class ClineApiServerMock {
 			}
 
 			// Helper to send API response
-			const sendApiResponse = (data: any, status = 200) => {
+			const sendApiResponse = (data: unknown, status = 200) => {
 				console.log(`API Response: ${JSON.stringify(data)}`)
 				sendJson({ success: true, data }, status)
 			}
 
 			const sendApiError = (error: string, status = 400) => {
-				console.error(`API Error: ${error}`, status)
+				console.error("API Error: %s", error, status)
 				sendJson({ success: false, error }, status)
 			}
 
@@ -101,258 +158,272 @@ export class ClineApiServerMock {
 				controller.setCurrentUser(user)
 			}
 
-			console.log(`Received ${method} request for ${path} with query`, query)
+			console.log("Received %s request for %s with query", method, path, query)
 
 			// Route handling
 			const handleRequest = async () => {
-				// Health check
-				if (path === "/health" && method === "GET") {
-					return sendJson({
-						status: "ok",
-						timestamp: new Date().toISOString(),
-					})
+				// Try to match the route using registered endpoints
+				const routeMatch = ClineApiServerMock.matchRoute(path, method)
+
+				if (!routeMatch.matched) {
+					return sendJson({ error: "Not found" }, 404)
 				}
 
-				// User endpoints
-				if (path === "/api/v1/users/me" && method === "GET") {
-					const currentUser = controller.currentUser
-					if (!currentUser) {
-						return sendApiError("Unauthorized", 401)
-					}
-					return sendApiResponse(currentUser)
-				}
+				const { baseRoute, endpoint, params = {} } = routeMatch
 
-				if (path.match(/^\/api\/v1\/users\/(.+)\/balance$/) && method === "GET") {
-					const userId = path.split("/")[4]
-					const balance: BalanceResponse = {
-						balance: controller.userBalance,
-						userId,
-					}
-					return sendApiResponse(balance)
-				}
-
-				if (path.match(/^\/api\/v1\/users\/(.+)\/usages$/) && method === "GET") {
-					const currentUser = controller.currentUser
-					if (!currentUser) {
-						return sendApiError("Unauthorized", 401)
-					}
-					return sendApiResponse({
-						items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id),
-					})
-				}
-
-				if (path.match(/^\/api\/v1\/users\/(.+)\/payments$/) && method === "GET") {
-					const currentUser = controller.currentUser
-					if (!currentUser) {
-						return sendApiError("Unauthorized", 401)
-					}
-					return sendApiResponse({
-						paymentTransactions: CLINE_USER_MOCK.getMockPaymentTransactions(currentUser.id),
-					})
-				}
-
-				// Organization endpoints
-				if (path.match(/^\/api\/v1\/organizations\/(.+)\/balance$/) && method === "GET") {
-					const orgId = path.split("/")[4]
-					const balance: OrganizationBalanceResponse = {
-						balance: controller.orgBalance,
-						organizationId: orgId,
-					}
-					return sendApiResponse(balance)
-				}
-
-				if (path.match(/^\/api\/v1\/organizations\/(.+)\/members\/(.+)\/usages$/) && method === "GET") {
-					const currentUser = controller.currentUser
-					if (!currentUser) {
-						return sendApiError("Unauthorized", 401)
-					}
-					const body = await readBody()
-					const { organizationId } = JSON.parse(body)
-					return sendApiResponse({
-						items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id, organizationId),
-					})
-				}
-
-				if (path === "/api/v1/users/active-account" && method === "PUT") {
-					const body = await readBody()
-					const { organizationId } = JSON.parse(body)
-					controller.userHasOrganization = !!organizationId
-					const currentUser = CLINE_USER_MOCK.getCurrentUser()
-					if (!currentUser) {
-						return sendApiError("No current user found", 400)
-					}
-					currentUser.organizations[0].active = controller.userHasOrganization
-					return sendApiResponse("Account switched successfully")
-				}
-
-				// Chat completions endpoint
-				if (path === "/api/v1/chat/completions" && method === "POST") {
-					if (!controller.userHasOrganization && controller.userBalance <= 0) {
-						return sendApiError(
-							JSON.stringify({
-								code: "insufficient_credits",
-								current_balance: controller.userBalance,
-								message: "Not enough credits available",
-							}),
-							402,
-						)
-					}
-
-					const body = await readBody()
-					const parsed = JSON.parse(body)
-					const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
-
-					const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
-
-					if (stream) {
-						res.writeHead(200, {
-							"Content-Type": "text/plain",
-							"Cache-Control": "no-cache",
-							Connection: "keep-alive",
+				// Health check endpoints
+				if (baseRoute === "/health") {
+					if (endpoint === "/" && method === "GET") {
+						return sendJson({
+							status: "ok",
+							timestamp: new Date().toISOString(),
 						})
+					}
+				}
 
-						const randomUUID = uuidv4()
-						let responseText = "Hello! I'm a mock Cline API response."
+				// API v1 endpoints
+				if (baseRoute === "/api/v1") {
+					// User endpoints
+					if (endpoint === "/users/me" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse(currentUser)
+					}
+
+					if (endpoint === "/users/{userId}/balance" && method === "GET") {
+						const { userId } = params
+						const balance: BalanceResponse = {
+							balance: controller.userBalance,
+							userId,
+						}
+						return sendApiResponse(balance)
+					}
+
+					if (endpoint === "/users/{userId}/usages" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse({
+							items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id),
+						})
+					}
+
+					if (endpoint === "/users/{userId}/payments" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse({
+							paymentTransactions: CLINE_USER_MOCK.getMockPaymentTransactions(currentUser.id),
+						})
+					}
+
+					// Organization endpoints
+					if (endpoint === "/organizations/{orgId}/balance" && method === "GET") {
+						const { orgId } = params
+						const balance: OrganizationBalanceResponse = {
+							balance: controller.orgBalance,
+							organizationId: orgId,
+						}
+						return sendApiResponse(balance)
+					}
+
+					if (endpoint === "/organizations/{orgId}/members/{memberId}/usages" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						const body = await readBody()
+						const { organizationId } = JSON.parse(body)
+						return sendApiResponse({
+							items: CLINE_USER_MOCK.getMockUsageTransactions(currentUser.id, organizationId),
+						})
+					}
+
+					if (endpoint === "/users/active-account" && method === "PUT") {
+						const body = await readBody()
+						const { organizationId } = JSON.parse(body)
+						controller.userHasOrganization = !!organizationId
+						const currentUser = CLINE_USER_MOCK.getCurrentUser()
+						if (!currentUser) {
+							return sendApiError("No current user found", 400)
+						}
+						currentUser.organizations[0].active = controller.userHasOrganization
+						return sendApiResponse("Account switched successfully")
+					}
+
+					// Chat completions endpoint
+					if (endpoint === "/chat/completions" && method === "POST") {
+						if (!controller.userHasOrganization && controller.userBalance <= 0) {
+							return sendApiError(
+								JSON.stringify({
+									code: "insufficient_credits",
+									current_balance: controller.userBalance,
+									message: "Not enough credits available",
+								}),
+								402,
+							)
+						}
+
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
+						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
 						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {
-							responseText =
-								'I successfully replaced "john" with "cline" in the test.ts file. The change has been completed and the file now contains:\n\n```typescript\nexport const name = "cline"\n```\n\nThe TypeScript errors shown in the output are unrelated to this change - they appear to be existing issues in the broader codebase related to missing type definitions and dependencies. The specific task of updating the name in test.ts has been completed successfully.\n\n<attempt_completion>\n<result>\nI have successfully replaced the name "john" with "cline" in the test.ts file. The file now exports:\n\n```typescript\nexport const name = "cline"\n```\n\nThe change has been applied and saved to the file.\n</result>\n</attempt_completion>'
+							responseText = E2E_MOCK_API_RESPONSES.REPLACE_REQUEST
 						}
 						if (body.includes("edit_request")) {
-							responseText =
-								'<thinking>\nThe user wants me to replace the name "john" with "cline" in the test.ts file. I can see the file content provided:\n\n```typescript\nexport const name = "john"\n```\n\nI need to change "john" to "cline". This is a simple targeted edit, so I should use the replace_in_file tool rather than write_to_file since I\'m only changing one small part of the file.\n\nI need to:\n1. Use replace_in_file to change "john" to "cline" in the test.ts file\n2. The SEARCH block should match the exact content: `export const name = "john"`\n3. The REPLACE block should be: `export const name = "cline"`\n</thinking>\n\nI\'ll replace "john" with "cline" in the test.ts file.\n\n<replace_in_file>\n<path>test.ts</path>\n<diff>\n------- SEARCH\nexport const name = "john"\n=======\nexport const name = "cline"\n+++++++ REPLACE\n</diff>\n</replace_in_file>'
+							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
 						}
 
-						responseText += `\n\nGenerated UUID: ${randomUUID}`
+						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 
-						const chunks = responseText.split(" ")
-						let chunkIndex = 0
+						if (stream) {
+							res.writeHead(200, {
+								"Content-Type": "text/plain",
+								"Cache-Control": "no-cache",
+								Connection: "keep-alive",
+							})
 
-						const sendChunk = () => {
-							if (chunkIndex < chunks.length) {
-								const chunk = {
-									id: generationId,
-									object: "chat.completion.chunk",
-									created: Math.floor(Date.now() / 1000),
-									model,
-									choices: [
-										{
-											index: 0,
-											delta: {
-												content: chunks[chunkIndex] + (chunkIndex < chunks.length - 1 ? " " : ""),
+							const randomUUID = uuidv4()
+
+							responseText += `\n\nGenerated UUID: ${randomUUID}`
+
+							const chunks = responseText.split(" ")
+							let chunkIndex = 0
+
+							const sendChunk = () => {
+								if (chunkIndex < chunks.length) {
+									const chunk = {
+										id: generationId,
+										object: "chat.completion.chunk",
+										created: Math.floor(Date.now() / 1000),
+										model,
+										choices: [
+											{
+												index: 0,
+												delta: {
+													content: chunks[chunkIndex] + (chunkIndex < chunks.length - 1 ? " " : ""),
+												},
+												finish_reason: null,
 											},
-											finish_reason: null,
+										],
+									}
+									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+									chunkIndex++
+									setTimeout(sendChunk, 50)
+								} else {
+									const finalChunk = {
+										id: generationId,
+										object: "chat.completion.chunk",
+										created: Math.floor(Date.now() / 1000),
+										model,
+										choices: [
+											{
+												index: 0,
+												delta: {},
+												finish_reason: "stop",
+											},
+										],
+										usage: {
+											prompt_tokens: 140,
+											completion_tokens: responseText.length,
+											total_tokens: 140 + responseText.length,
+											cost: (140 + responseText.length) * 0.00015,
 										},
-									],
+									}
+									res.write(`data: ${JSON.stringify(finalChunk)}\n\n`)
+									res.write("data: [DONE]\n\n")
+									res.end()
 								}
-								res.write(`data: ${JSON.stringify(chunk)}\n\n`)
-								chunkIndex++
-								setTimeout(sendChunk, 50)
-							} else {
-								const finalChunk = {
-									id: generationId,
-									object: "chat.completion.chunk",
-									created: Math.floor(Date.now() / 1000),
-									model,
-									choices: [
-										{
-											index: 0,
-											delta: {},
-											finish_reason: "stop",
-										},
-									],
-									usage: {
-										prompt_tokens: 150,
-										completion_tokens: 75,
-										total_tokens: 225,
-										cost: 0.025,
-									},
-								}
-								res.write(`data: ${JSON.stringify(finalChunk)}\n\n`)
-								res.write("data: [DONE]\n\n")
-								res.end()
 							}
-						}
 
-						sendChunk()
-						return
-					} else {
-						const response = {
-							id: generationId,
-							object: "chat.completion",
-							created: Math.floor(Date.now() / 1000),
-							model,
-							choices: [
-								{
-									index: 0,
-									message: {
-										role: "assistant",
-										content: "Hello! I'm a mock Cline API response.",
+							sendChunk()
+							return
+						} else {
+							const response = {
+								id: generationId,
+								object: "chat.completion",
+								created: Math.floor(Date.now() / 1000),
+								model,
+								choices: [
+									{
+										index: 0,
+										message: {
+											role: "assistant",
+											content: "Hello! I'm a mock Cline API response.",
+										},
+										finish_reason: "stop",
 									},
-									finish_reason: "stop",
+								],
+								usage: {
+									prompt_tokens: 140,
+									completion_tokens: responseText.length,
+									total_tokens: 140 + responseText.length,
+									cost: (140 + responseText.length) * 0.00015,
 								},
-							],
-							usage: {
-								prompt_tokens: 150,
-								completion_tokens: 75,
-								total_tokens: 225,
-								cost: 0.025,
-							},
+							}
+							return sendJson(response)
 						}
-						return sendJson(response)
-					}
-				}
-
-				// Generation details endpoint
-				if (path === "/generation" && method === "GET") {
-					const generationId = query.id as string
-					const generation = CLINE_USER_MOCK.getGeneration(generationId)
-
-					if (!generation) {
-						return sendJson({ error: "Generation not found" }, 404)
 					}
 
-					return sendJson(generation)
+					// Generation details endpoint
+					if (endpoint === "/generation" && method === "GET") {
+						const generationId = query.id as string
+						const generation = CLINE_USER_MOCK.getGeneration(generationId)
+
+						if (!generation) {
+							return sendJson({ error: "Generation not found" }, 404)
+						}
+
+						return sendJson(generation)
+					}
 				}
 
 				// Test helper endpoints
-				if (path === "/.test/auth" && method === "POST") {
-					const user = CLINE_USER_MOCK.getUserByToken()
-					if (!user) {
-						return sendApiError("Invalid token", 401)
+				if (baseRoute === "/.test") {
+					if (endpoint === "/auth" && method === "POST") {
+						const user = CLINE_USER_MOCK.getUserByToken()
+						if (!user) {
+							return sendApiError("Invalid token", 401)
+						}
+						controller.setCurrentUser(user)
+						return
 					}
-					controller.setCurrentUser(user)
-					return
+
+					if (endpoint === "/setUserBalance" && method === "POST") {
+						const body = await readBody()
+						const { balance } = JSON.parse(body)
+						controller.setUserBalance(balance)
+						res.writeHead(200)
+						res.end()
+						return
+					}
+
+					if (endpoint === "/setUserHasOrganization" && method === "POST") {
+						const body = await readBody()
+						const { hasOrg } = JSON.parse(body)
+						controller.setUserHasOrganization(hasOrg)
+						res.writeHead(200)
+						res.end()
+						return
+					}
+
+					if (endpoint === "/setOrgBalance" && method === "POST") {
+						const body = await readBody()
+						const { balance } = JSON.parse(body)
+						controller.setOrgBalance(balance)
+						res.writeHead(200)
+						res.end()
+						return
+					}
 				}
 
-				if (path === "/.test/setUserBalance" && method === "POST") {
-					const body = await readBody()
-					const { balance } = JSON.parse(body)
-					controller.setUserBalance(balance)
-					res.writeHead(200)
-					res.end()
-					return
-				}
-
-				if (path === "/.test/setUserHasOrganization" && method === "POST") {
-					const body = await readBody()
-					const { hasOrg } = JSON.parse(body)
-					controller.setUserHasOrganization(hasOrg)
-					res.writeHead(200)
-					res.end()
-					return
-				}
-
-				if (path === "/.test/setOrgBalance" && method === "POST") {
-					const body = await readBody()
-					const { balance } = JSON.parse(body)
-					controller.setOrgBalance(balance)
-					res.writeHead(200)
-					res.end()
-					return
-				}
-
-				// 404 for unmatched routes
-				sendJson({ error: "Not found" }, 404)
+				// If we get here, the route was matched but not handled
+				return sendJson({ error: "Endpoint not implemented" }, 500)
 			}
 
 			handleRequest().catch((err) => {
@@ -361,6 +432,7 @@ export class ClineApiServerMock {
 			})
 		})
 
+		// Initialize the controller after the server is created
 		const controller = new ClineApiServerMock(server)
 
 		server.listen(E2E_API_SERVER_PORT)
@@ -373,9 +445,7 @@ export class ClineApiServerMock {
 
 		// Clean shutdown
 		const serverClosed = new Promise((resolve) => server.close(resolve))
-		for (const socket of sockets) {
-			socket.destroy()
-		}
+		sockets.forEach((socket) => socket.destroy())
 		await serverClosed
 
 		return result

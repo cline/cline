@@ -189,20 +189,20 @@ export class E2ETestHelper {
 export const e2e = test
 	.extend<{ server: ClineApiServerMock }>({
 		server: [
-			async (_, use) => {
+			async ({}, use) => {
 				ClineApiServerMock.run(async (server) => await use(server))
 			},
 			{ auto: true },
 		],
 	})
 	.extend<E2ETestDirectories>({
-		workspaceDir: async (_, use) => {
+		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
-		userDataDir: async (_, use) => {
+		userDataDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
-		extensionsDir: async (_, use) => {
+		extensionsDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
@@ -259,7 +259,7 @@ export const e2e = test
 		},
 	})
 	.extend<{ helper: E2ETestHelper }>({
-		helper: async (_, use) => {
+		helper: async ({}, use) => {
 			const helper = new E2ETestHelper()
 			await use(helper)
 		},

@@ -1,221 +1,79 @@
-import type {
-	BalanceResponse,
-	OrganizationBalanceResponse,
-	OrganizationUsageTransaction,
-	PaymentTransaction,
-	UsageTransaction,
-	UserResponse,
-} from "../../../../shared/ClineAccount"
+export const E2E_REGISTERED_MOCK_ENDPOINTS = {
+	"/api/v1": {
+		GET: [
+			"/generation",
+			"/organizations/{orgId}/balance",
+			"/organizations/{orgId}/members/{memberId}/usages",
+			"/users/me",
+			"/users/{userId}/balance",
+			"/users/{userId}/usages",
+			"/users/{userId}/payments",
+		],
+		POST: ["/chat/completions"],
+		PUT: ["/users/active-account"],
+	},
+	"/.test": {
+		GET: [],
+		POST: ["/auth", "/setUserBalance", "/setUserHasOrganization", "/setOrgBalance"],
+		PUT: [],
+	},
+	"/health": {
+		POST: [],
+		GET: ["/", "/ping"],
+		PUT: [],
+	},
+}
 
-export class ClineApiMock {
-	public static readonly USERS = [
-		{
-			name: "test-personal-user",
-			orgId: undefined,
-			uid: "test-member-789",
-			token: "test-personal-token",
-			email: "personal@example.com",
-			displayName: "Personal User",
-			photoUrl: "https://example.com/personal-photo.jpg",
-		},
-		{
-			name: "test-enterprise-user",
-			orgId: "test-org-789",
-			uid: "test-member-012",
-			token: "test-enterprise-token",
-			email: "test@example.com",
-			displayName: "Enterprise User",
-			photoUrl: "https://example.com/photo.jpg",
-		},
-	]
+const replace_in_file = `I successfully replaced "john" with "cline" in the test.ts file. The change has been completed and the file now contains:
 
-	// Helper method to get user by name from USERS array
-	public static getUserByName(name: string) {
-		return ClineApiMock.USERS.find((u) => u.name === name)
-	}
+\`\`\`typescript
+export const name = "cline"
+\`\`\`
 
-	// Helper method to get user by token from USERS array
-	public static getUserByToken(token: string) {
-		return ClineApiMock.USERS.find((u) => u.token === token)
-	}
+The TypeScript errors shown in the output are unrelated to this change - they appear to be existing issues in the broader codebase related to missing type definitions and dependencies. The specific task of updating the name in test.ts has been completed successfully.
 
-	// Helper method to get all available tokens for testing
-	public static getAllTokens() {
-		return ClineApiMock.USERS.map((u) => ({ name: u.name, token: u.token }))
-	}
+<attempt_completion>
+<result>
+I have successfully replaced the name "john" with "cline" in the test.ts file. The file now exports:
 
-	// Helper method to get default tokens by type
-	public static getDefaultToken(type: "personal" | "enterprise") {
-		const user = ClineApiMock.USERS.find((u) => (type === "personal" ? !u.orgId : !!u.orgId))
-		return user?.token
-	}
+\`\`\`typescript
+export const name = "cline"
+\`\`\`
 
-	constructor(userType?: "personal" | "enterprise") {
-		if (userType === "personal") {
-			const userData = ClineApiMock.getUserByToken("test-personal-token")
-			this._currentUser = userData ? this._createUserResponse(userData) : null
-		} else if (userType === "enterprise") {
-			const userData = ClineApiMock.getUserByToken("test-enterprise-token")
-			this._currentUser = userData ? this._createUserResponse(userData) : null
-		} else {
-			this._currentUser = null // Default to no user
-		}
-	}
+The change has been applied and saved to the file.
+</result>
+</attempt_completion>`
 
-	// Mock generation data for usage tracking
-	private readonly mockGenerations = new Map<string, any>()
+const edit_request = `<thinking>
+The user wants me to replace the name "john" with "cline" in the test.ts file. I can see the file content provided:
 
-	public getGeneration(generationId: string): any {
-		return this.mockGenerations.get(generationId)
-	}
+\`\`\`typescript
+export const name = "john"
+\`\`\`
 
-	private _currentUser: UserResponse | null = null
+I need to change "john" to "cline". This is a simple targeted edit, so I should use the replace_in_file tool rather than write_to_file since I\'m only changing one small part of the file.
 
-	public getCurrentUser(): UserResponse | null {
-		return this._currentUser
-	}
+I need to:
+1. Use replace_in_file to change "john" to "cline" in the test.ts file
+2. The SEARCH block should match the exact content: \`export const name = "john"\`
+3. The REPLACE block should be: \`export const name = "cline"\`
+</thinking>
 
-	public setCurrentUser(user: UserResponse | null) {
-		this._currentUser = user
-	}
+I\'ll replace "john" with "cline" in the test.ts file.
 
-	// Helper method to switch to a specific user type for testing
-	public switchToUserType(type: "personal" | "enterprise"): UserResponse {
-		const token = ClineApiMock.getDefaultToken(type)
-		if (!token) {
-			throw new Error(`No ${type} user found in USERS array`)
-		}
-		return this.getUserByToken(token)
-	}
-	// Helper to create UserResponse from USERS array data
-	private _createUserResponse(userData: (typeof ClineApiMock.USERS)[0]): UserResponse {
-		const isEnterprise = !!userData.orgId
-		const currentTime = new Date().toISOString()
+<replace_in_file>
+<path>test.ts</path>
+<diff>
+------- SEARCH
+export const name = "john"
+=======
+export const name = "cline"
++++++++ REPLACE
+</diff>
+</replace_in_file>`
 
-		return {
-			id: userData.uid,
-			email: userData.email,
-			displayName: userData.displayName,
-			photoUrl: userData.photoUrl,
-			createdAt: currentTime,
-			updatedAt: currentTime,
-			organizations: [
-				{
-					organizationId: userData.orgId || "",
-					memberId: userData.uid,
-					name: isEnterprise ? "Active Test Organization" : "Inactive Test Organization",
-					roles: [isEnterprise ? "member" : "member"],
-					active: isEnterprise,
-				},
-			],
-		}
-	}
-
-	public getUserByToken(token?: string): UserResponse {
-		// Use default personal token if none provided
-		const actualToken = token || ClineApiMock.getDefaultToken("personal") || "test-personal-token"
-		const currentUser = this._getUserByToken(actualToken)
-		this.setCurrentUser(currentUser)
-		return currentUser
-	}
-
-	// Helper function to get user data based on auth token
-	private _getUserByToken(token: string): UserResponse {
-		const match = ClineApiMock.getUserByToken(token)
-
-		if (!match) {
-			// Default fallback user for backward compatibility
-			return {
-				id: "random-user-id",
-				email: "test@example.com",
-				displayName: "Test User",
-				photoUrl: "https://example.com/photo.jpg",
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-				organizations: [
-					{
-						organizationId: "random-org-id",
-						memberId: "random-member-id",
-						name: "Test Organization",
-						roles: ["owner"],
-						active: false,
-					},
-				],
-			}
-		}
-
-		return this._createUserResponse(match)
-	}
-
-	public getMockBalance(userId: string): BalanceResponse {
-		return {
-			balance: 100.5, // Sufficient credits for testing
-			userId,
-		}
-	}
-
-	public getMockOrgBalance(organizationId: string): OrganizationBalanceResponse {
-		return {
-			balance: 500.0,
-			organizationId,
-		}
-	}
-
-	public getMockUsageTransactions(
-		userId: string,
-		orgId?: string,
-		max = 5,
-	): UsageTransaction[] | OrganizationUsageTransaction[] {
-		const usages: (OrganizationUsageTransaction | UsageTransaction)[] = []
-		const currentTime = new Date().toISOString()
-		const memberDisplayName = this._currentUser?.displayName || "Test User"
-		const memberEmail = this._currentUser?.email || "test@example.com"
-
-		for (let i = 0; i < max; i++) {
-			const completionTokens = Math.floor(Math.random() * 100) + 50 // 50-150 tokens
-			const randomCost = Math.random() * 0.1 + 0.01 // $0.01-$0.11
-
-			usages.push({
-				id: `usage-${i + 1}`,
-				aiInferenceProviderName: "anthropic",
-				aiModelName: "claude-3-5-sonnet-20241022",
-				aiModelTypeName: "chat",
-				completionTokens,
-				costUsd: Number(randomCost.toFixed(2)),
-				createdAt: currentTime,
-				creditsUsed: Number(randomCost.toFixed(2)),
-				generationId: `gen-${i + 1}`,
-				memberDisplayName,
-				memberEmail,
-				organizationId: orgId || "",
-				promptTokens: 100,
-				totalTokens: 150,
-				userId,
-				metadata: {
-					additionalProp1: "mock-data",
-					additionalProp2: "e2e-test",
-					additionalProp3: "mock-api",
-				},
-			})
-		}
-		return usages
-	}
-
-	public getMockPaymentTransactions(creatorId: string, max = 5): PaymentTransaction[] {
-		const transactions: PaymentTransaction[] = []
-		const currentTime = new Date().toISOString()
-
-		for (let i = 0; i < max; i++) {
-			const amountCents = Math.floor(Math.random() * 10000) + 1000 // $10.00-$110.00
-			const credits = Math.random() * 100 + 10 // 10-110 credits
-
-			transactions.push({
-				paidAt: currentTime,
-				creatorId,
-				amountCents,
-				credits,
-			})
-		}
-		return transactions
-	}
+export const E2E_MOCK_API_RESPONSES = {
+	DEFAULT: "Hello! I'm a mock Cline API response.",
+	REPLACE_REQUEST: replace_in_file,
+	EDIT_REQUEST: edit_request,
 }
