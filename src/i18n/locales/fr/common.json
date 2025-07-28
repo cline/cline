@@ -77,7 +77,7 @@
 		"no_workspace_for_project_command": "Aucun dossier d'espace de travail trouvé pour la commande de projet",
 		"command_already_exists": "La commande \"{{commandName}}\" existe déjà",
 		"create_command_failed": "Échec de la création de la commande",
-		"command_template_content": "Ceci est une nouvelle commande slash. Modifie ce fichier pour personnaliser le comportement de la commande.",
+		"command_template_content": "---\ndescription: \"Brève description de ce que fait cette commande\"\n---\n\nCeci est une nouvelle commande slash. Modifie ce fichier pour personnaliser le comportement de la commande.",
 		"claudeCode": {
 			"processExited": "Le processus Claude Code s'est terminé avec le code {{exitCode}}.",
 			"errorOutput": "Sortie d'erreur : {{output}}",

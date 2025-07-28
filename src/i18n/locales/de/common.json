@@ -77,7 +77,7 @@
 		"no_workspace_for_project_command": "Kein Arbeitsbereich-Ordner für Projektbefehl gefunden",
 		"command_already_exists": "Befehl \"{{commandName}}\" existiert bereits",
 		"create_command_failed": "Fehler beim Erstellen des Befehls",
-		"command_template_content": "Dies ist ein neuer Slash-Befehl. Bearbeite diese Datei, um das Befehlsverhalten anzupassen.",
+		"command_template_content": "---\ndescription: \"Kurze Beschreibung dessen, was dieser Befehl macht\"\n---\n\nDies ist ein neuer Slash-Befehl. Bearbeite diese Datei, um das Befehlsverhalten anzupassen.",
 		"claudeCode": {
 			"processExited": "Claude Code Prozess wurde mit Code {{exitCode}} beendet.",
 			"errorOutput": "Fehlerausgabe: {{output}}",

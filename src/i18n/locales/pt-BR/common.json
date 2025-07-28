@@ -81,7 +81,7 @@
 		"no_workspace_for_project_command": "Nenhuma pasta de workspace encontrada para comando de projeto",
 		"command_already_exists": "Comando \"{{commandName}}\" já existe",
 		"create_command_failed": "Falha ao criar comando",
-		"command_template_content": "Este é um novo comando slash. Edite este arquivo para personalizar o comportamento do comando.",
+		"command_template_content": "---\ndescription: \"Breve descrição do que este comando faz\"\n---\n\nEste é um novo comando slash. Edite este arquivo para personalizar o comportamento do comando.",
 		"claudeCode": {
 			"processExited": "O processo Claude Code saiu com código {{exitCode}}.",
 			"errorOutput": "Saída de erro: {{output}}",

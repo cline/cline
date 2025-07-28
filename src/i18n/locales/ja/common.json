@@ -77,7 +77,7 @@
 		"no_workspace_for_project_command": "プロジェクトコマンド用のワークスペースフォルダが見つかりません",
 		"command_already_exists": "コマンド \"{{commandName}}\" は既に存在します",
 		"create_command_failed": "コマンドの作成に失敗しました",
-		"command_template_content": "これは新しいスラッシュコマンドです。このファイルを編集してコマンドの動作をカスタマイズしてください。",
+		"command_template_content": "---\ndescription: \"このコマンドが何をするかの簡潔な説明\"\n---\n\nこれは新しいスラッシュコマンドです。このファイルを編集してコマンドの動作をカスタマイズしてください。",
 		"claudeCode": {
 			"processExited": "Claude Code プロセスがコード {{exitCode}} で終了しました。",
 			"errorOutput": "エラー出力：{{output}}",

@@ -77,7 +77,7 @@
 		"no_workspace_for_project_command": "Không tìm thấy thư mục workspace cho lệnh dự án",
 		"command_already_exists": "Lệnh \"{{commandName}}\" đã tồn tại",
 		"create_command_failed": "Không thể tạo lệnh",
-		"command_template_content": "Đây là một lệnh slash mới. Chỉnh sửa tệp này để tùy chỉnh hành vi của lệnh.",
+		"command_template_content": "---\ndescription: \"Mô tả ngắn gọn về chức năng của lệnh này\"\n---\n\nĐây là một lệnh slash mới. Chỉnh sửa tệp này để tùy chỉnh hành vi của lệnh.",
 		"claudeCode": {
 			"processExited": "Tiến trình Claude Code thoát với mã {{exitCode}}.",
 			"errorOutput": "Đầu ra lỗi: {{output}}",

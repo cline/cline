@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
+import matter from "gray-matter"
 import { getGlobalRooDirectory, getProjectRooDirectoryForCwd } from "../roo-config"
 
 export interface Command {
@@ -7,6 +8,7 @@ export interface Command {
 	content: string
 	source: "global" | "project"
 	filePath: string
+	description?: string
 }
 
 /**
@@ -65,11 +67,31 @@ async function tryLoadCommand(
 
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
+
+			let parsed
+			let description: string | undefined
+			let commandContent: string
+
+			try {
+				// Try to parse frontmatter with gray-matter
+				parsed = matter(content)
+				description =
+					typeof parsed.data.description === "string" && parsed.data.description.trim()
+						? parsed.data.description.trim()
+						: undefined
+				commandContent = parsed.content.trim()
+			} catch (frontmatterError) {
+				// If frontmatter parsing fails, treat the entire content as command content
+				description = undefined
+				commandContent = content.trim()
+			}
+
 			return {
 				name,
-				content: content.trim(),
+				content: commandContent,
 				source,
 				filePath,
+				description,
 			}
 		} catch (error) {
 			// File doesn't exist or can't be read
@@ -113,13 +135,32 @@ async function scanCommandDirectory(
 				try {
 					const content = await fs.readFile(filePath, "utf-8")
 
+					let parsed
+					let description: string | undefined
+					let commandContent: string
+
+					try {
+						// Try to parse frontmatter with gray-matter
+						parsed = matter(content)
+						description =
+							typeof parsed.data.description === "string" && parsed.data.description.trim()
+								? parsed.data.description.trim()
+								: undefined
+						commandContent = parsed.content.trim()
+					} catch (frontmatterError) {
+						// If frontmatter parsing fails, treat the entire content as command content
+						description = undefined
+						commandContent = content.trim()
+					}
+
 					// Project commands override global ones
 					if (source === "project" || !commands.has(commandName)) {
 						commands.set(commandName, {
 							name: commandName,
-							content: content.trim(),
+							content: commandContent,
 							source,
 							filePath,
+							description,
 						})
 					}
 				} catch (error) {

@@ -153,11 +153,13 @@ export function getContextMenuOptions(
 						type: ContextMenuOptionType.Command,
 						value: result.item.original.name,
 						slashCommand: `/${result.item.original.name}`,
+						description: result.item.original.description,
 					}))
 				: commands.map((command) => ({
 						type: ContextMenuOptionType.Command,
 						value: command.name,
 						slashCommand: `/${command.name}`,
+						description: command.description,
 					}))
 
 			if (matchingCommands.length > 0) {

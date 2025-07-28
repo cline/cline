@@ -218,7 +218,12 @@ export async function parseMentions(
 		try {
 			const command = await getCommand(cwd, commandName)
 			if (command) {
-				parsedText += `\n\n<command name="${commandName}">\n${command.content}\n</command>`
+				let commandOutput = ""
+				if (command.description) {
+					commandOutput += `Description: ${command.description}\n\n`
+				}
+				commandOutput += command.content
+				parsedText += `\n\n<command name="${commandName}">\n${commandOutput}\n</command>`
 			} else {
 				parsedText += `\n\n<command name="${commandName}">\nCommand '${commandName}' not found. Available commands can be found in .roo/commands/ or ~/.roo/commands/\n</command>`
 			}

@@ -77,7 +77,7 @@
 		"no_workspace_for_project_command": "प्रोजेक्ट कमांड के लिए वर्कस्पेस फ़ोल्डर नहीं मिला",
 		"command_already_exists": "कमांड \"{{commandName}}\" पहले से मौजूद है",
 		"create_command_failed": "कमांड बनाने में विफल",
-		"command_template_content": "यह एक नया स्लैश कमांड है। कमांड व्यवहार को कस्टमाइज़ करने के लिए इस फ़ाइल को संपादित करें।",
+		"command_template_content": "---\ndescription: \"इस कमांड के कार्य का संक्षिप्त विवरण\"\n---\n\nयह एक नया स्लैश कमांड है। कमांड व्यवहार को कस्टमाइज़ करने के लिए इस फ़ाइल को संपादित करें।",
 		"claudeCode": {
 			"processExited": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई।",
 			"errorOutput": "त्रुटि आउटपुट: {{output}}",
