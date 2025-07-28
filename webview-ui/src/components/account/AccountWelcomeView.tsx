@@ -1,5 +1,5 @@
-import { handleSignIn } from "@/context/ClineAuthContext"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { handleSignIn } from "@/context/ClineAuthContext"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 
 export const AccountWelcomeView = () => (
