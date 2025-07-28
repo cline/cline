@@ -68,10 +68,6 @@ function createHandlerForProvider(
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
 ): ApiHandler {
-	const commonOptions: Partial<typeof options> = {
-		onRetryAttempt: options.onRetryAttempt,
-	}
-
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
