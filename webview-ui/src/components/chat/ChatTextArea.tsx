@@ -410,7 +410,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const selectableOptions = options.filter(
 								(option) =>
 									option.type !== ContextMenuOptionType.URL &&
-									option.type !== ContextMenuOptionType.NoResults,
+									option.type !== ContextMenuOptionType.NoResults &&
+									option.type !== ContextMenuOptionType.SectionHeader,
 							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
@@ -443,7 +444,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
-							selectedOption.type !== ContextMenuOptionType.NoResults
+							selectedOption.type !== ContextMenuOptionType.NoResults &&
+							selectedOption.type !== ContextMenuOptionType.SectionHeader
 						) {
 							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
@@ -559,7 +561,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						// Handle slash command - request fresh commands
 						const query = newValue
 						setSearchQuery(query)
-						setSelectedMenuIndex(0)
+						// Set to first selectable item (skip section headers)
+						setSelectedMenuIndex(1) // Section header is at 0, first command is at 1
 						// Request commands fresh each time slash menu is shown
 						vscode.postMessage({ type: "requestCommands" })
 					} else {
