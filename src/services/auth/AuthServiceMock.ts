@@ -1,5 +1,5 @@
 import vscode from "vscode"
-import { String } from "../../shared/proto/common"
+import { String } from "@shared/proto/cline/common"
 import { AuthService, ServiceConfig } from "./AuthService"
 import { clineEnvConfig } from "@/config"
 import { UserResponse } from "@/shared/ClineAccount"
